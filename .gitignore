@@ -1,0 +1,17 @@
+lib/libsponsdn/libsponsdn/
+lib/libsponsdn/x86_64-native-linuxapp-gcc/
+test/sponsdn/sponsdn/
+test/sponsdn/x86_64-native-linuxapp-gcc/
+cp/build/
+dp/build/
+dp/cdr
+*.o
+*.o.cmd
+*.o.d
+.agree
+.download
+dpdk*
+hyperscan*
+services.cfg
+v4.1.*
+linux-sgx

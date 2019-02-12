@@ -1,0 +1,58 @@
+--- i40e_rxtx_orig.c	2018-12-03 01:07:15.352350218 -0800
++++ i40e_rxtx.c	2018-12-03 01:06:31.928350145 -0800
+@@ -2817,9 +2817,16 @@
+ 			 * plaforms, not all those that could theoretically
+ 			 * run it.
+ 			 */
++			/**
++			 * When compiling DPDK-18.02, gcc may generate Intel AVX instructions,
++			 * even when the processor does not support Intel AVX.
++			 * Fix for above "i40e" driver issue is a part of upcoming dpdk-18.05 release.
++			 * Reference Link: https://doc.dpdk.org/guides-18.05/rel_notes/release_18_05.html
++			 * Search KeyWord: net/i40e: fix rearm check in AVX2 Rx
++			 */
+ 			if (rte_cpu_get_flag_enabled(RTE_CPUFLAG_AVX512F))
+-				dev->rx_pkt_burst =
+-					i40e_recv_scattered_pkts_vec_avx2;
++				dev->rx_pkt_burst = i40e_recv_scattered_pkts_vec;
++				/* dev->rx_pkt_burst = i40e_recv_scattered_pkts_vec_avx2;*/
+ #endif
+ 		} else {
+ 			PMD_INIT_LOG(DEBUG, "Using a Scattered with bulk "
+@@ -2847,8 +2854,17 @@
+ 		 * plaforms, not all those that could theoretically
+ 		 * run it.
+ 		 */
++
++		/**
++		 * When compiling DPDK-18.02, gcc may generate Intel AVX instructions,
++		 * even when the processor does not support Intel AVX.
++		 * Fix for above "i40e" driver issue is a part of upcoming dpdk-18.05 release.
++		 * Reference Link: https://doc.dpdk.org/guides-18.05/rel_notes/release_18_05.html
++		 * Search KeyWord: net/i40e: fix rearm check in AVX2 Rx
++		 */
+ 		if (rte_cpu_get_flag_enabled(RTE_CPUFLAG_AVX512F))
+-			dev->rx_pkt_burst = i40e_recv_pkts_vec_avx2;
++			dev->rx_pkt_burst = i40e_recv_pkts_vec;
++			/* dev->rx_pkt_burst = i40e_recv_pkts_vec_avx2;*/
+ #endif
+ 	} else if (ad->rx_bulk_alloc_allowed) {
+ 		PMD_INIT_LOG(DEBUG, "Rx Burst Bulk Alloc Preconditions are "
+@@ -2936,8 +2952,16 @@
+ 			 * plaforms, not all those that could theoretically
+ 			 * run it.
+ 			 */
++			/**
++			 * When compiling DPDK-18.02, gcc may generate Intel AVX instructions,
++			 * even when the processor does not support Intel AVX.
++			 * Fix for above "i40e" driver issue is a part of upcoming dpdk-18.05 release.
++			 * Reference Link: https://doc.dpdk.org/guides-18.05/rel_notes/release_18_05.html
++			 * Search KeyWord: net/i40e: fix rearm check in AVX2 Rx
++			 */
+ 			if (rte_cpu_get_flag_enabled(RTE_CPUFLAG_AVX512F))
+-				dev->tx_pkt_burst = i40e_xmit_pkts_vec_avx2;
++				dev->tx_pkt_burst = i40e_xmit_pkts_vec;
++				/* dev->tx_pkt_burst = i40e_xmit_pkts_vec_avx2;*/
+ #endif
+ 		} else {
+ 			PMD_INIT_LOG(DEBUG, "Simple tx finally be used.");

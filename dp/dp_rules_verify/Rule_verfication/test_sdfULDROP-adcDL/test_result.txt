@@ -1,0 +1,25 @@
+NG4T TEST RESULT :
+
+Signaling Table
+AttUE     ActCTXT   BrReq     BrAct     RelRq     RelAc     ActS1
+ran9_1 0         0         25        25        0         0         80
+
+User Plane Downlink Table
+AS_PktTx      AS_EthTx      S1uEthRx      S1uPktRx
+ran9_1 10            10            10            10
+
+User Plane Uplink Table
+S1uPktTx      S1uEthTx      AS_EthRx      AS_PktRx
+ran9_1 13,085        13,272        0             0
+
+Watchtime: 75 Timeout: 1800
+All Tests are finished
+Verdict(tc_userplane_load) = VERDICT_PASS
+**** Packet Loss ****
+DL Loss= AS_PktTx-S1uPktRx=     0(pkts); 0.00(%)
+UL Loss= S1uPktTx-AS_PktRx=     13085(pkts); 100.00(%)
+Wait for RAN shutdown
+done
+Testlist verdict = VERDICT_PASS
+lte1@ran9:~/nfv-ran-ng40/test$
+
