@@ -10,7 +10,7 @@ dp/cdr
 *.o.d
 .agree
 .download
-dpdk*
+dpdk/*
 hyperscan*
 services.cfg
 v4.1.*

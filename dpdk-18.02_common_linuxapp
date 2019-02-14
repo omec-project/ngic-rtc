@@ -1,0 +1,41 @@
+# Copyright (c) 2017 Intel Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+#include "common_base"
+
+CONFIG_RTE_EXEC_ENV="linuxapp"
+CONFIG_RTE_EXEC_ENV_LINUXAPP=y
+
+CONFIG_RTE_EAL_IGB_UIO=y
+CONFIG_RTE_EAL_VFIO=y
+CONFIG_RTE_KNI_KMOD=y
+CONFIG_RTE_LIBRTE_KNI=y
+CONFIG_RTE_LIBRTE_VHOST=y
+CONFIG_RTE_LIBRTE_PMD_VHOST=y
+CONFIG_RTE_LIBRTE_PMD_AF_PACKET=y
+CONFIG_RTE_LIBRTE_POWER=y
+
+# all changes from the original are below...
+CONFIG_RTE_KNI_KMOD=y
+CONFIG_RTE_LIBRTE_KNI=y
+CONFIG_RTE_LIBRTE_MLX4_PMD=n
+CONFIG_RTE_LIBRTE_MLX5_PMD=n
+CONFIG_RTE_LIBRTE_BNX2X_PMD=n
+
+CONFIG_RTE_LIBRTE_PIPELINE=y
+CONFIG_RTE_PIPELINE_STATS_COLLECT=y
+CONFIG_RTE_LIBRTE_TABLE=y
+CONFIG_RTE_TABLE_STATS_COLLECT=y
+CONFIG_RTE_LIBRTE_PORT=y
+CONFIG_RTE_PORT_STATS_COLLECT=y
