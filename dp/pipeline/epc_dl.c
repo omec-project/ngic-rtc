@@ -224,12 +224,12 @@ void epc_dl_init(struct epc_dl_params *param, int core, uint8_t in_port_id, uint
     case PGWU:
         if (in_port_id != app.sgi_port && in_port_id != app.s5s8_pgwu_port)
             rte_exit(EXIT_FAILURE, "Wrong MAC configured for S5S8_PGWU/SGI interface\n");
-		break;
+	break;
 
     case SPGWU:
         if (in_port_id != app.sgi_port && in_port_id != app.s1u_port)
             rte_exit(EXIT_FAILURE, "Wrong MAC configured for S1U/SGI interface\n");
-	    break;
+	break;
 
     default:
         rte_exit(EXIT_FAILURE, "Invalid DP type(SPGW_CFG).\n");
