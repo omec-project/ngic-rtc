@@ -1142,6 +1142,7 @@ control_plane(void)
 				return;
 			case GTP_DOWNLINK_DATA_NOTIFICATION_ACK:
 				cp_stats.ddn_ack++;
+				return;
 			case GTP_ECHO_REQ:
 				cp_stats.echo++;
 				break;

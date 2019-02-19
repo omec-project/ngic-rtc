@@ -74,7 +74,11 @@ CFLAGS += -I$(SRCDIR)/../test/simu_cp/nsb
 CFLAGS += -I$(SRCDIR)/pipeline
 CFLAGS += -I$(SRCDIR)/../cp
 CFLAGS += -I$(SRCDIR)/../lib/libsponsdn
-CFLAGS += -I$(SRCDIR)/../dpdk/lib/librte_acl/
+# TODO: This is a hack
+# We should not be looking into private structures
+# Handle this in a patch to DPDK if necessary
+# Check release notes
+CFLAGS += -I$(RTE_SDK)/lib/librte_acl/
 
 # Mandatory CFLAGS, LDFLAGS- DO NOT MODIFY
 # #############################################################

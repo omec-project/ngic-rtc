@@ -293,23 +293,6 @@ struct arp_icmp_route_table_entry {
 	uint32_t nh;
 };
 
-struct ether_addr broadcast_ether_addr = {
-	.addr_bytes[0] = 0xFF,
-	.addr_bytes[1] = 0xFF,
-	.addr_bytes[2] = 0xFF,
-	.addr_bytes[3] = 0xFF,
-	.addr_bytes[4] = 0xFF,
-	.addr_bytes[5] = 0xFF,
-};
-static const struct ether_addr null_ether_addr = {
-	.addr_bytes[0] = 0x00,
-	.addr_bytes[1] = 0x00,
-	.addr_bytes[2] = 0x00,
-	.addr_bytes[3] = 0x00,
-	.addr_bytes[4] = 0x00,
-	.addr_bytes[5] = 0x00,
-};
-
 static void print_ip(int ip)
 {
 	unsigned char bytes[4];
@@ -1622,7 +1605,7 @@ static void
 					(rtp->rtm_table != RT_TABLE_MAIN))
 		        continue;
 
-			i++;
+		    i++;
 		    /* Get attributes of rtp */
 		    rtap = (struct rtattr *) RTM_RTA(rtp);
 
