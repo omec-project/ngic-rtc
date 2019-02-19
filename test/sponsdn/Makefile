@@ -20,9 +20,7 @@ CFLAGS += -O3 $(WERROR_FLAGS) -I$(RTE_SRCDIR)/../../lib/libsponsdn/
 
 LDFLAGS += -L$(RTE_SRCDIR)/../../lib/libsponsdn/x86_64-native-linuxapp-gcc/ -lsponsdn
 
-LDFLAGS += -L$(HYPERSCANDIR)/build/lib
-
-LDFLAGS += -lexpressionutil -lhs -lhs_runtime -lstdc++ -lm -lpcap
+LDFLAGS += -lhs -lhs_runtime -lstdc++ -lm -lpcap
 
 
 DEPDIRS-y += ../lib
