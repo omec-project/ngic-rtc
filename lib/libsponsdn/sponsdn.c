@@ -11,7 +11,7 @@
 #include <arpa/inet.h>
 #include <rte_common.h>
 #include <rte_malloc.h>
-#include <hs.h>
+#include <hs/hs.h>
 
 #include <rte_common.h>
 #include <rte_byteorder.h>

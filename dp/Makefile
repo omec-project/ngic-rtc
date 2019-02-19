@@ -98,9 +98,7 @@ endif
 #dpdk-18.02 change build directory structure
 LDFLAGS += -L$(RTE_SRCDIR)/../lib/libsponsdn/x86_64-native-linuxapp-gcc/ -lsponsdn
 
-LDFLAGS += -L$(HYPERSCANDIR)/build/lib
-
-LDFLAGS += -lexpressionutil -lhs -lhs_runtime -lstdc++ -lm -lcrypto
+LDFLAGS += -lhs -lhs_runtime -lstdc++ -lm -lcrypto
 
 LDFLAGS += -lrte_pmd_af_packet
 

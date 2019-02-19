@@ -5,17 +5,13 @@ ifeq ($(RTE_SDK),)
 $(error "Please define RTE_SDK environment variable")
 endif
 
-ifeq ($(HYPERSCANDIR),)
-$(error "Please define HYPERSCANDIR environment variable")
-endif
-
 include $(RTE_SDK)/mk/rte.vars.mk
 
 # library name
 LIB = libsponsdn.a
 
 CFLAGS += -O3
-CFLAGS += $(WERROR_FLAGS) -I$(SRCDIR) -I$(HYPERSCANDIR)/src
+CFLAGS += $(WERROR_FLAGS) -I$(SRCDIR)
 
 
 # all source are stored in SRCS-y
