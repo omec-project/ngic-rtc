@@ -13,6 +13,8 @@
 #include <rte_mbuf.h>
 #include <rte_ether.h>
 
+#include "main.h"
+
 #define ETH_TYPE_IPv4 0x0800
 
 /**
