@@ -22,6 +22,7 @@
  * This file contains macros, data structure definitions and function
  * prototypes to describe CP DP APIs.
  */
+#include <stdint.h>
 #include <time.h>
 /**
  * IPv6 address length
