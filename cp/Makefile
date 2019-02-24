@@ -72,7 +72,7 @@ ifeq ($(CONFIG_RTE_TOOLCHAIN_GCC),y)
 CFLAGS_controlplane.o += -Wno-return-type
 endif
 
-LDLIBS += -L$(LIBGTPV2C_ROOT)/lib -lgtpv2c
+LDLIBS += -L$(LIBGTPV2C_ROOT)/build -lgtpv2c
 
 LDLIBS += -lpcap
 
