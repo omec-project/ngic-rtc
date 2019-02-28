@@ -40,16 +40,16 @@ SRCS-y := main.c\
 	timer_stats.c\
 	kni_pkt_handler.c\
 	gtpu_echo.c\
-	pipeline/epc_packet_framework.o\
-	pipeline/epc_arp.o\
-	pipeline/epc_spns_dns.o\
-	$(SRCDIR)/../interface/interface.o\
-	$(SRCDIR)/../cp_dp_api/vepc_cp_dp_api.o\
-	$(SRCDIR)/../test/simu_cp/nsb/nsb_test_util.o\
-	$(SRCDIR)/../test/simu_cp/simu_cp.o\
-	$(SRCDIR)/../test/simu_cp/pkt_filtrs.o\
-	$(SRCDIR)/../interface/ipc/dp_ipc_api.o\
-	$(SRCDIR)/../interface/udp/vepc_udp.o\
+	pipeline/epc_packet_framework.c\
+	pipeline/epc_arp.c\
+	pipeline/epc_spns_dns.c\
+	../interface/interface.c\
+	../cp_dp_api/vepc_cp_dp_api.c\
+	../test/simu_cp/nsb/nsb_test_util.c\
+	../test/simu_cp/simu_cp.c\
+	../test/simu_cp/pkt_filtrs.c\
+	../interface/ipc/dp_ipc_api.c\
+	../interface/udp/vepc_udp.c\
 
 CFLAGS += -I$(SRCDIR)/
 CFLAGS += -I$(SRCDIR)/../interface
@@ -107,13 +107,13 @@ LDFLAGS += -lpcap
 # ASR- Shrink pipeline COREs for Run to Completion (rtc) model
 ifneq (,$(findstring NGCORE_SHRINK, $(CFLAGS)))
         SRCS-y += ddn.c
-        SRCS-y += pipeline/epc_ul.o
-        SRCS-y += pipeline/epc_dl.o
+        SRCS-y += pipeline/epc_ul.c
+        SRCS-y += pipeline/epc_dl.c
 else
-		SRCS-y += pipeline/epc_rx.o\
-		pipeline/epc_tx.o\
-		pipeline/epc_load_balance.o\
-		pipeline/epc_worker.o\
+		SRCS-y += pipeline/epc_rx.c\
+		pipeline/epc_tx.c\
+		pipeline/epc_load_balance.c\
+		pipeline/epc_worker.c\
 		ddn_utils.c
 endif
 
@@ -125,8 +125,8 @@ endif
 endif
 
 ifneq (,$(findstring SDN_ODL_BUILD, $(CFLAGS)))
-	SRCS-y += $(SRCDIR)/../interface/zmq/zmqsub.o
-	SRCS-y += $(SRCDIR)/../interface/zmq/zmqpub.o
+	SRCS-y += ../interface/zmq/zmqsub.c
+	SRCS-y += ../interface/zmq/zmqpub.c
 	LDFLAGS += -L/usr/local/lib -lzmq
 endif
 
@@ -138,7 +138,7 @@ ifeq ($(SGX_BUILD), 1)
 endif
 
 ifneq (,$(findstring ZMQ_COMM, $(CFLAGS)))
-	SRCS-y += $(SRCDIR)/../interface/zmq/zmq_push_pull.o
+	SRCS-y += ../interface/zmq/zmq_push_pull.c
 	LDFLAGS += -L/usr/local/lib -lzmq
 endif
 
@@ -163,7 +163,7 @@ CFLAGS += -DPERF_TEST
 
 # VS- Used CP counters for maintain simulator stats.
 ifneq (,$(findstring SIMU_CP, $(CFLAGS)))
-        SRCS-y += $(SRCDIR)/../cp/cp_stats.o
+        SRCS-y += ../cp/cp_stats.c
 endif
 
 # Enable STATIC ARP for testing with il_nperf

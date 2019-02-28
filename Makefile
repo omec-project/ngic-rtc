@@ -1,18 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright(c) 2017 Intel Corporation
 
-DIRS-y =  lib cp dp test
+RECURSIVETARGETS := all clean
+CPDEPS := libgtpv2c
+DPDEPS := lib
+DIRS := cp dp test
+# Use 'make WHAT=cp' to compile cp only
+WHAT ?= $(DIRS)
 
-#define targets
-CLEANDIRS-y = $(DIRS-y:%=clean-%)
-BUILDIRS-y = $(DIRS-y:%=build-%)
+$(RECURSIVETARGETS): $(WHAT)
+$(CPDEPS) $(DPDEPS):
+	$(MAKE) -C $@ $(MAKECMDGOALS)
+cp: $(CPDEPS)
+	$(MAKE) -C $@ $(MAKECMDGOALS)
+dp: $(DPDEPS)
+	$(MAKE) -C $@ $(MAKECMDGOALS)
+test: $(CPDEPS) $(DPDEPS)
+	$(MAKE) -C $@ $(MAKECMDGOALS)
 
-all: $(BUILDIRS-y)
-
-$(BUILDIRS-y):
-	$(MAKE) -C $(@:build-%=%)
-
-clean: $(CLEANDIRS-y)
-
-$(CLEANDIRS-y):
-	$(MAKE) -C $(@:clean-%=%) clean
+.PHONY: $(RECURSIVETARGETS) $(WHAT) $(CPDEPS) $(DPDEPS)
