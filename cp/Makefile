@@ -28,24 +28,24 @@ SRCS-y += ue.c
 SRCS-y += cp_stats.c
 SRCS-y += packet_filters.c
 
-SRCS-y += gtpv2c_messages/bearer_resource_cmd.o
-SRCS-y += gtpv2c_messages/create_bearer.o
-SRCS-y += gtpv2c_messages/create_session.o
-SRCS-y += gtpv2c_messages/create_s5s8_session.o
-SRCS-y += gtpv2c_messages/delete_bearer.o
-SRCS-y += gtpv2c_messages/delete_session.o
-SRCS-y += gtpv2c_messages/delete_s5s8_session.o
-SRCS-y += gtpv2c_messages/gtpv2c_echo.o
-SRCS-y += gtpv2c_messages/modify_bearer.o
-SRCS-y += gtpv2c_messages/downlink_data_notification.o
-SRCS-y += gtpv2c_messages/release_access_bearer.o
+SRCS-y += gtpv2c_messages/bearer_resource_cmd.c
+SRCS-y += gtpv2c_messages/create_bearer.c
+SRCS-y += gtpv2c_messages/create_session.c
+SRCS-y += gtpv2c_messages/create_s5s8_session.c
+SRCS-y += gtpv2c_messages/delete_bearer.c
+SRCS-y += gtpv2c_messages/delete_session.c
+SRCS-y += gtpv2c_messages/delete_s5s8_session.c
+SRCS-y += gtpv2c_messages/gtpv2c_echo.c
+SRCS-y += gtpv2c_messages/modify_bearer.c
+SRCS-y += gtpv2c_messages/downlink_data_notification.c
+SRCS-y += gtpv2c_messages/release_access_bearer.c
 
-SRCS-y += $(SRCDIR)/../test/simu_cp/simu_cp.o
-SRCS-y += $(SRCDIR)/../interface/ipc/dp_ipc_api.o
-SRCS-y += $(SRCDIR)/../interface/interface.o
-SRCS-y += $(SRCDIR)/../interface/udp/vepc_udp.o
+SRCS-y += ../test/simu_cp/simu_cp.c
+SRCS-y += ../interface/ipc/dp_ipc_api.c
+SRCS-y += ../interface/interface.c
+SRCS-y += ../interface/udp/vepc_udp.c
 
-SRCS-y += $(SRCDIR)/../cp_dp_api/vepc_cp_dp_api.o
+SRCS-y += ../cp_dp_api/vepc_cp_dp_api.c
 
 
 CFLAGS += -Wno-psabi # suppress "The ABI for passing parameters with 64-byte alignment has changed in GCC 4.6"
@@ -94,7 +94,7 @@ endif
 
 ifneq (,$(findstring ZMQ_COMM, $(CFLAGS)))
 	SRCS-y += cp_sync.c
-	SRCS-y += $(SRCDIR)/../interface/zmq/zmq_push_pull.o
+	SRCS-y += ../interface/zmq/zmq_push_pull.c
 	LDFLAGS += -L/usr/local/lib -lzmq
 endif
 
