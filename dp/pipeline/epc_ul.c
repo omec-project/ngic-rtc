@@ -184,8 +184,12 @@ static int epc_ul_port_in_ah(struct rte_pipeline *p,
 
 	if (ul_nkni_pkts) {
 		RTE_LOG(DEBUG, DP, "KNI: UL send pkts to kni\n");
+#ifdef USE_AF_PACKET
+		kern_packet_ingress(S1U_PORT_ID, kni_pkts_burst, ul_nkni_pkts);
+#else
 		kni_ingress(kni_port_params_array[S1U_PORT_ID],
 				kni_pkts_burst, ul_nkni_pkts);
+#endif
 	}
 
 #ifdef STATS
@@ -417,7 +421,11 @@ void epc_ul(void *args)
 	 *  Then analyzes it and calls the specific actions for the specific requests.
 	 *  Finally constructs the response mbuf and puts it back to the resp_q.
 	 */
+#ifdef USE_AF_PACKET
+	kern_packet_egress(SGI_PORT_ID);
+#else /* KNI mode */
 	rte_kni_handle_request(kni_port_params_array[S1U_PORT_ID]->kni[0]);
+#endif
 
 	uint32_t queued_cnt = rte_ring_count(shared_ring[SGI_PORT_ID]);
 	if (queued_cnt) {

@@ -43,6 +43,30 @@ static int kni_change_mtu(uint16_t port_id, unsigned int new_mtu);
 static int kni_config_network_interface(uint16_t port_id, uint8_t if_up);
 static int kni_config_mac_address(uint16_t port_id, uint8_t mac_addr[]);
 
+#ifdef USE_AF_PACKET
+static const char *port_str[] = {
+	"S1U_PORT_ID", "SGI_PORT_ID",
+	"S1U_PORT_VETH_ID", "SGI_PORT_VETH_ID"
+};
+/**
+ * Sibling function of kni_config_network_interface() that initializes
+ * a socket that DP uses for ARP resolution at run time (works only for
+ * sockets bound to veth ifaces). This is its *more "cleaned-up" version.
+ */
+void
+af_config_network_monitor_interface(uint16_t port_id)
+{
+	/* Create udp socket */
+	int client_fd = socket(AF_INET, SOCK_DGRAM, 0);
+
+	if (client_fd < 0) {
+		fprintf(stderr, "cannot create socket\n");
+		exit(EXIT_FAILURE);
+	}
+
+	fd_array[port_id - NUM_SPGW_PORTS] = client_fd;
+}
+#endif
 void
 kni_burst_free_mbufs(struct rte_mbuf **pkts, unsigned num)
 {
@@ -506,3 +530,60 @@ free_kni_ports(void) {
 		}
 	}
 }
+
+#ifdef USE_AF_PACKET
+#define VETH_TX_RETRIES_LIMIT		5
+
+inline void
+kern_packet_ingress(int portid,
+		   struct rte_mbuf *pkts_burst[PKT_BURST_SZ],
+		   unsigned nb_rx)
+{
+	/* Send e.g. ARP packets to the kernel */
+	uint32_t pkt_indx = 0, retries = 0, i;
+	while (nb_rx && retries < VETH_TX_RETRIES_LIMIT) {
+
+		uint16_t tx_cnt = rte_eth_tx_burst(portid + NUM_SPGW_PORTS,
+						   0, &pkts_burst[pkt_indx], nb_rx);
+		nb_rx -= tx_cnt;
+		pkt_indx += tx_cnt;
+		retries++;
+	}
+
+	/* free those mbufs that failed to get transmitted */
+	for (i = 0; i < nb_rx; i++, pkt_indx++) {
+		RTE_LOG_DP(ERR, DP, "Failed to transmit pkt from %s --> %s\n",
+			   port_str[portid], port_str[portid + NUM_SPGW_PORTS]);
+		rte_pktmbuf_free(pkts_burst[pkt_indx]);
+	}
+}
+
+inline void
+kern_packet_egress(int portid)
+{
+	uint32_t rx_cnt, pkt_indx, retries, i;
+	struct rte_mbuf *pkts_burst[PKT_BURST_SZ];
+
+	pkt_indx = retries = 0;
+
+	/* Fetch packets from kernel */
+	rx_cnt = rte_eth_rx_burst(portid + NUM_SPGW_PORTS, 0,
+				  pkts_burst, PKT_BURST_SZ);
+
+	/* Send the packets out of the physical port */
+	while (rx_cnt && retries < VETH_TX_RETRIES_LIMIT) {
+		uint16_t tx_cnt = rte_eth_tx_burst(portid,
+						   0, &pkts_burst[pkt_indx], rx_cnt);
+		rx_cnt -= tx_cnt;
+		pkt_indx += tx_cnt;
+		retries++;
+	}
+
+	/* free those mbufs that failed to get transmitted */
+	for (i = 0; i < rx_cnt; i++, pkt_indx++) {
+		RTE_LOG_DP(ERR, DP, "Failed to transmit pkt from %s --> %s\n",
+			   port_str[portid], port_str[portid + NUM_SPGW_PORTS]);
+		rte_pktmbuf_free(pkts_burst[pkt_indx]);
+	}
+}
+#endif /* !USE_AF_PACKET */
