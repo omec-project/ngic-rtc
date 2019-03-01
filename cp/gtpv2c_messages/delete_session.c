@@ -119,7 +119,8 @@ delete_context(delete_session_request_t *ds_req,
 			si.ue_addr.u.ipv4_addr =
 				htonl(pdn->ipv4.s_addr);
 			si.ul_s1_info.sgw_teid =
-				htonl(bearer->s1u_sgw_gtpu_teid);
+				bearer->s1u_sgw_gtpu_teid;
+				//htonl(bearer->s1u_sgw_gtpu_teid);
 			si.sess_id = SESS_ID(
 					context->s11_sgw_gtpc_teid,
 					si.bearer_id);
@@ -170,7 +171,9 @@ process_delete_session_request(gtpv2c_header *gtpv2c_rx,
 		pdn = context->pdns[del_ebi_index];
 		/* s11_sgw_gtpc_teid = s5s8_pgw_gtpc_base_teid =
 		 * key->ue_context_by_fteid_hash */
-		s5s8_pgw_gtpc_del_teid = pdn->s5s8_pgw_gtpc_teid;
+		s5s8_pgw_gtpc_del_teid = ntohl(pdn->s5s8_pgw_gtpc_teid);
+		//s5s8_pgw_gtpc_del_teid = pdn->s5s8_pgw_gtpc_teid;
+
 		ret =
 			gen_sgwc_s5s8_delete_session_request(gtpv2c_rx,
 				gtpv2c_s5s8_tx, s5s8_pgw_gtpc_del_teid,

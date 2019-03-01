@@ -302,7 +302,7 @@ void epc_ul_init(struct epc_ul_params *param, int core, uint8_t in_port_id, uint
 		.arg_create = (void *)&port_ethdev_params,
 		.burst_size = epc_app.burst_size_rx_read,
 	};
-	if (in_port_id == app.s1u_port)	{
+	if (in_port_id == S1U_PORT_ID)	{
 		in_port_params.f_action = epc_ul_port_in_ah;
 		in_port_params.arg_ah = NULL;
 	}

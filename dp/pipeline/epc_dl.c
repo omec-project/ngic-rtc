@@ -228,23 +228,23 @@ void epc_dl_init(struct epc_dl_params *param, int core, uint8_t in_port_id, uint
 	dl_pkts_nbrst_prv = 0;
 
 	switch (app.spgw_cfg) {
-    case SGWU:
-        if (in_port_id != app.s5s8_sgwu_port && in_port_id != app.s1u_port)
-            rte_exit(EXIT_FAILURE, "Wrong MAC configured for S1U/S5S8_SGWU interface\n");
-        break;
+        case SGWU:
+            if (in_port_id != app.s5s8_sgwu_port && in_port_id != app.s1u_port)
+                rte_exit(EXIT_FAILURE, "Wrong MAC configured for S1U/S5S8_SGWU interface\n");
+            break;
 
-    case PGWU:
-        if (in_port_id != app.sgi_port && in_port_id != app.s5s8_pgwu_port)
-            rte_exit(EXIT_FAILURE, "Wrong MAC configured for S5S8_PGWU/SGI interface\n");
-		break;
+        case PGWU:
+            if (in_port_id != app.sgi_port && in_port_id != app.s5s8_pgwu_port)
+                rte_exit(EXIT_FAILURE, "Wrong MAC configured for S5S8_PGWU/SGI interface\n");
+            break;
 
-    case SPGWU:
-        if (in_port_id != app.sgi_port && in_port_id != app.s1u_port)
-            rte_exit(EXIT_FAILURE, "Wrong MAC configured for S1U/SGI interface\n");
-	    break;
+        case SPGWU:
+            if (in_port_id != app.sgi_port && in_port_id != app.s1u_port)
+                rte_exit(EXIT_FAILURE, "Wrong MAC configured for S1U/SGI interface\n");
+            break;
 
-    default:
-        rte_exit(EXIT_FAILURE, "Invalid DP type(SPGW_CFG).\n");
+        default:
+            rte_exit(EXIT_FAILURE, "Invalid DP type(SPGW_CFG).\n");
 
     }
 
@@ -279,7 +279,8 @@ void epc_dl_init(struct epc_dl_params *param, int core, uint8_t in_port_id, uint
 		.arg_create = (void *)&port_ethdev_params,
 		.burst_size = epc_app.burst_size_rx_read,
 	};
-	if (in_port_id == app.sgi_port)	{
+
+	if (in_port_id == SGI_PORT_ID)	{
 		in_port_params.f_action = epc_dl_port_in_ah;
 		in_port_params.arg_ah = NULL;
 	}

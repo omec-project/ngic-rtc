@@ -608,18 +608,21 @@ process_sgwc_s5s8_create_session_response(gtpv2c_header *gtpv2c_s5s8_rx,
 		pdn->apn_restriction = *IE_TYPE_PTR_FROM_GTPV2C_IE(uint8_t,
 		    create_s5s8_session_response.apn_restriction_ie);
 
-		pdn->ipv4 = get_ipv4_paa_ipv4(
+		struct in_addr ip;
+		ip = get_ipv4_paa_ipv4(
 					create_s5s8_session_response.pdn_addr_alloc_ie);
 
-		pdn->s5s8_pgw_gtpc_ipv4 =
-				create_s5s8_session_response.
-				pgw_s5s8_gtpc_fteid->ip_u.ipv4;
+		pdn->ipv4.s_addr = htonl(ip.s_addr);
+
+		pdn->s5s8_pgw_gtpc_ipv4.s_addr =
+				htonl(create_s5s8_session_response.
+				pgw_s5s8_gtpc_fteid->ip_u.ipv4.s_addr);
 		/* Note: s5s8_pgw_gtpc_teid updated by
 		 * create_s5s8_session_response.pgw_s5s8_gtpc_fteid...
 		 */
 		pdn->s5s8_pgw_gtpc_teid =
-				create_s5s8_session_response.
-				pgw_s5s8_gtpc_fteid->fteid_ie_hdr.teid_or_gre;
+				htonl(create_s5s8_session_response.
+				pgw_s5s8_gtpc_fteid->fteid_ie_hdr.teid_or_gre);
 	}
 	bearer = context->eps_bearers[ebi_index];
 	{
@@ -632,10 +635,10 @@ process_sgwc_s5s8_create_session_response(gtpv2c_header *gtpv2c_s5s8_rx,
 			bearer->qos = *IE_TYPE_PTR_FROM_GTPV2C_IE(bearer_qos_ie,
 				create_s5s8_session_response.bearer_qos_ie);
 		}
-		bearer->s5s8_pgw_gtpu_ipv4 =
-				IE_TYPE_PTR_FROM_GTPV2C_IE(fteid_ie,
+		bearer->s5s8_pgw_gtpu_ipv4.s_addr =
+				htonl(IE_TYPE_PTR_FROM_GTPV2C_IE(fteid_ie,
 						create_s5s8_session_response.s5s8_pgw_gtpu_fteid)->
-							ip_u.ipv4;
+							ip_u.ipv4.s_addr);
 		bearer->s5s8_pgw_gtpu_teid =
 				IE_TYPE_PTR_FROM_GTPV2C_IE(fteid_ie,
 						create_s5s8_session_response.s5s8_pgw_gtpu_fteid)->
@@ -688,7 +691,7 @@ process_sgwc_s5s8_create_session_response(gtpv2c_header *gtpv2c_s5s8_rx,
 	memset(&session, 0, sizeof(session));
 
 	session.ue_addr.iptype = IPTYPE_IPV4;
-	session.ue_addr.u.ipv4_addr = htonl(pdn->ipv4.s_addr);
+	session.ue_addr.u.ipv4_addr = pdn->ipv4.s_addr;
 	session.ul_s1_info.sgw_teid = htonl(bearer->s1u_sgw_gtpu_teid);
 	session.ul_s1_info.sgw_addr.iptype = IPTYPE_IPV4;
 	session.ul_s1_info.sgw_addr.u.ipv4_addr =
@@ -718,8 +721,7 @@ process_sgwc_s5s8_create_session_response(gtpv2c_header *gtpv2c_s5s8_rx,
 	/* Pass PGWU IP addr to SGWU */
 	session.ul_s1_info.s5s8_pgwu_addr.iptype = IPTYPE_IPV4;
 	session.ul_s1_info.s5s8_pgwu_addr.u.ipv4_addr =
-			htonl(bearer->s5s8_pgw_gtpu_ipv4.s_addr);
-
+            bearer->s5s8_pgw_gtpu_ipv4.s_addr;
 	session.dl_s1_info.sgw_addr.iptype = IPTYPE_IPV4;
 	session.dl_s1_info.sgw_addr.u.ipv4_addr =
 			htonl(bearer->s1u_sgw_gtpu_ipv4.s_addr);

@@ -36,8 +36,6 @@ if [ "${SPGW_CFG}" == "01" ]; then
 				--s1u_mac $S1U_MAC	\
 				--s5s8_sgwu_ip $S5S8_SGWU_IP	\
 				--s5s8_sgwu_mac $S5S8_SGWU_MAC	\
-				--sgw_s5s8gw_ip $SGW_S5S8GW_IP	\
-				--sgw_s5s8gw_mask $SGW_S5S8GW_MASK	\
 				--num_workers $NUM_WORKER 	\
 				--log $LOG_LEVEL	\
 				--numa $NUMA	\
@@ -45,7 +43,7 @@ if [ "${SPGW_CFG}" == "01" ]; then
 				--gtpu_seqnb_out $GTPU_SEQNB_OUT \
 				--spgw_cfg $SPGW_CFG	\
 				--ul_iface $UL_IFACE	\
-				--dl_iface $DL_IFACE	\
+				--dl_iface $S5S8_IFACE	\
 				--kni_portmask $KNI_PORTMASK"
 elif [ "${SPGW_CFG}" == "02" ]; then
 	ARGS="-l $CORELIST -n 4 --socket-mem $NUMA0_MEMORY,$NUMA1_MEMORY 	\
@@ -61,7 +59,7 @@ elif [ "${SPGW_CFG}" == "02" ]; then
 				--gtpu_seqnb_in $GTPU_SEQNB_IN	\
 				--gtpu_seqnb_out $GTPU_SEQNB_OUT \
 				--spgw_cfg $SPGW_CFG	\
-				--ul_iface $UL_IFACE	\
+				--ul_iface $S5S8_IFACE	\
 				--dl_iface $DL_IFACE	\
 				--kni_portmask $KNI_PORTMASK"
 elif [ "${SPGW_CFG}" == "03" ]; then

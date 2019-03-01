@@ -166,8 +166,10 @@ delete_pgwc_context(gtpv2c_header *gtpv2c_rx, ue_context **_context,
 			si.bearer_id = ebi;
 			si.ue_addr.u.ipv4_addr =
 				htonl(pdn->ipv4.s_addr);
-			si.ul_s1_info.sgw_teid =
-				htonl(bearer->s1u_sgw_gtpu_teid);
+			si.ul_s1_info.sgw_teid = 
+                bearer->s1u_sgw_gtpu_teid;
+			//si.ul_s1_info.sgw_teid =
+			//	htonl(bearer->s1u_sgw_gtpu_teid);
 			si.sess_id = SESS_ID(
 					context->s11_sgw_gtpc_teid,
 					si.bearer_id);
@@ -286,8 +288,10 @@ delete_sgwc_context(gtpv2c_header *gtpv2c_rx, ue_context **_context)
 			si.bearer_id = i + 5;
 			si.ue_addr.u.ipv4_addr =
 				htonl(pdn_ctxt->ipv4.s_addr);
-			si.ul_s1_info.sgw_teid =
-				htonl(bearer->s1u_sgw_gtpu_teid);
+			si.ul_s1_info.sgw_teid = 
+                bearer->s1u_sgw_gtpu_teid;
+			//si.ul_s1_info.sgw_teid =
+			//	htonl(bearer->s1u_sgw_gtpu_teid);
 			si.sess_id = SESS_ID(
 					context->s11_sgw_gtpc_teid,
 					si.bearer_id);
@@ -347,7 +351,7 @@ process_sgwc_s5s8_delete_session_response(gtpv2c_header *gtpv2c_rx,
 		return ret;
 
 	set_gtpv2c_teid_header(gtpv2c_tx, GTP_DELETE_SESSION_RSP,
-	    context->s11_mme_gtpc_teid, gtpv2c_rx->teid_u.has_teid.seq);
+	    htonl(context->s11_mme_gtpc_teid), gtpv2c_rx->teid_u.has_teid.seq);
 	set_cause_accepted_ie(gtpv2c_tx, IE_INSTANCE_ZERO);
 
 	return 0;

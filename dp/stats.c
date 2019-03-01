@@ -257,12 +257,35 @@ nic_in_stats(void)
 	struct rte_eth_stats stats1;
 	int ret;
 
-	ret = rte_eth_stats_get(app.s1u_port, &stats0);
-	if (ret != 0)
-		fprintf(stderr, "Packets are not read from s1u port\n");
-	ret = rte_eth_stats_get(app.sgi_port, &stats1);
-	if (ret != 0)
-		fprintf(stderr, "Packets are not read from sgi port\n");
+	switch (app.spgw_cfg) {
+	case SGWU:
+		ret = rte_eth_stats_get(app.s1u_port, &stats0);
+		if (ret != 0)
+			fprintf(stderr, "Packets are not read from s1u port\n");
+		ret = rte_eth_stats_get(app.s5s8_sgwu_port, &stats1);
+		if (ret != 0)
+			fprintf(stderr, "Packets are not read from S5S8 port\n");
+		break;
+	case PGWU:
+		ret = rte_eth_stats_get(app.s5s8_pgwu_port, &stats0);
+		if (ret != 0)
+			fprintf(stderr, "Packets are not read from S5S8 port\n");
+		ret = rte_eth_stats_get(app.sgi_port, &stats1);
+		if (ret != 0)
+			fprintf(stderr, "Packets are not read from sgi port\n");
+		break;
+	case SPGWU:
+		ret = rte_eth_stats_get(app.s1u_port, &stats0);
+		if (ret != 0)
+			fprintf(stderr, "Packets are not read from s1u port\n");
+		ret = rte_eth_stats_get(app.sgi_port, &stats1);
+		if (ret != 0)
+			fprintf(stderr, "Packets are not read from sgi port\n");
+		break;
+	default:
+			rte_exit(EXIT_FAILURE, "Invalid DP type(SPGW_CFG).\n");
+	}
+
 	{
 		ul_param.IfPKTS = stats0.ipackets;
 		ul_param.IfMisPKTS = stats0.imissed;
