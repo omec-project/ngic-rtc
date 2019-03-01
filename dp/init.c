@@ -14,6 +14,10 @@
 #include <rte_mempool.h>
 #include <rte_mbuf.h>
 #include <unistd.h>
+#ifdef USE_AF_PACKET
+/* if_nametoindex() */
+#include <net/if.h>
+#endif
 #include "main.h"
 
 /**
@@ -45,6 +49,10 @@
 /* Macro to specify size of  shared_ring */
 #define SHARED_RING_SIZE 8192
 
+#ifdef USE_AF_PACKET
+struct rte_mempool *afs1u_mempool;
+struct rte_mempool *afsgi_mempool;
+#endif
 struct rte_mempool *s1u_mempool;
 struct rte_mempool *sgi_mempool;
 struct rte_mempool *kni_mpool;
@@ -183,14 +191,107 @@ static inline int port_init(uint8_t port, struct rte_mempool *mbuf_pool)
 	return 0;
 }
 
+#ifdef USE_AF_PACKET
+void
+af_config_network_monitor_interface(uint16_t port_id);
+
+void
+init_af_socks()
+{
+	uint16_t port;
+	struct rte_eth_conf port_conf = port_conf_default;
+	const uint16_t rx_rings = 1, tx_rings = 1;
+	int retval;
+	uint16_t q;
+	char dev_name[LINE_MAX];
+
+	for (port = S1U_PORT_VETH_ID; port < S1U_PORT_VETH_ID + NUM_SPGW_PORTS; port++) {
+
+		int ifidx;
+		char peer_ifname[IF_NAMESIZE];
+
+		switch (port) {
+		case S1U_PORT_VETH_ID:
+			ifidx = if_nametoindex(app.ul_iface_name);
+			break;
+		case SGI_PORT_VETH_ID:
+			ifidx = if_nametoindex(app.dl_iface_name);
+			break;
+		default:
+			rte_panic("Unknown port_id: %hu\n", port);
+		}
+
+		if (ifidx == 0)
+			rte_panic("Failed to retrieve ifidx for port: %hu\n", port);
+		/* create full string for net_af_packet */
+		if (if_indextoname(ifidx - 1, peer_ifname) == NULL)
+			rte_panic("Failed to retrieve interface name of peer veth\n");
+		sprintf(dev_name, "net_af_packet%d,iface=%s", port, peer_ifname);
+
+		retval = rte_eth_dev_attach(dev_name, &port);
+
+		if (retval < 0 || port < NUM_SPGW_PORTS)
+			rte_panic("S1U --> dev_str: %s, retval=%d, port_id=%d",
+				  dev_name, retval, port);
+
+		/* Configure the Ethernet device. */
+		retval = rte_eth_dev_configure(port, rx_rings, tx_rings, &port_conf);
+		if (retval != 0)
+			rte_panic("Failed to configure port %d\n", port);
+
+		/* Allocate and set up RX queue per Ethernet port. */
+		for (q = 0; q < rx_rings; q++) {
+			retval = rte_eth_rx_queue_setup(port, q, RX_NUM_DESC,
+							rte_eth_dev_socket_id(port),
+							NULL, (port == S1U_PORT_VETH_ID) ?
+							afs1u_mempool :
+							afsgi_mempool);
+			if (retval < 0)
+				rte_panic("Failed to set up rx queues for port %d\n", port);
+		}
+
+		/* Allocate and set up TX queue per Ethernet port. */
+		for (q = 0; q < tx_rings; q++) {
+			retval = rte_eth_tx_queue_setup(port, q, TX_NUM_DESC,
+							rte_eth_dev_socket_id(port),
+							NULL);
+			if (retval < 0)
+				rte_panic("Failed to set up tx queues for port %d\n", port);
+		}
+
+		/* Start the Ethernet port. */
+		retval = rte_eth_dev_start(port);
+		if (retval < 0)
+			rte_panic("Failed to start port %d\n", port);
+
+		/* Display the port MAC address. */
+		rte_eth_macaddr_get(port, &ports_eth_addr[port]);
+		printf("Port %u MAC: %02" PRIx8 " %02" PRIx8 " %02" PRIx8
+		       " %02" PRIx8 " %02" PRIx8 " %02" PRIx8 "\n",
+		       (unsigned)port,
+		       ports_eth_addr[port].addr_bytes[0],
+		       ports_eth_addr[port].addr_bytes[1],
+		       ports_eth_addr[port].addr_bytes[2],
+		       ports_eth_addr[port].addr_bytes[3],
+		       ports_eth_addr[port].addr_bytes[4],
+		       ports_eth_addr[port].addr_bytes[5]);
+
+		af_config_network_monitor_interface(port);
+		app.ports_mask |= (1 << port);
+	}
+}
+#endif /* !USE_AF_PACKET */
+
 void dp_port_init(void)
 {
+#ifndef USE_AF_PACKET
 	uint8_t port_id;
+	int i = 0, j; //GCC_Security flag
+#endif
 	enum {
 		S1U_PORT = 0,
 		SGI_PORT = 1
 	};
-	int i = 0, j; //GCC_Security flag
 
 	nb_ports = rte_eth_dev_count();
 	printf ("nb_ports cnt is %u\n", nb_ports);
@@ -204,7 +305,20 @@ void dp_port_init(void)
 			rte_socket_id());
 	if (s1u_mempool == NULL)
 		rte_exit(EXIT_FAILURE, "Cannot create s1u_mempool !!!\n");
+#ifdef USE_AF_PACKET
+	afs1u_mempool = rte_pktmbuf_pool_create("AFS1U_MPOOL", NUM_MBUFS,
+						MBUF_CACHE_SIZE, 0,
+						RTE_MBUF_DEFAULT_BUF_SIZE,
+						rte_socket_id());
+	afsgi_mempool = rte_pktmbuf_pool_create("AFSGI_MPOOL", NUM_MBUFS,
+						MBUF_CACHE_SIZE, 0,
+						RTE_MBUF_DEFAULT_BUF_SIZE,
+						rte_socket_id());
 
+	if (afs1u_mempool == NULL || afsgi_mempool == NULL)
+		rte_exit(EXIT_FAILURE,
+			 "Failed to create pool(s) for afs1u_mempool and/or afsgi_mempool !!! \n");
+#else
 	/* Create kni mempool to hold the kni pkts mbufs. */
 	kni_mpool = rte_pktmbuf_pool_create("KNI_MPOOL", NUM_MBUFS,
 			MBUF_CACHE_SIZE, 0,
@@ -212,7 +326,7 @@ void dp_port_init(void)
 			rte_socket_id());
 	if (kni_mpool == NULL)
 		rte_exit(EXIT_FAILURE, "Cannot create kni_mpool !!!\n");
-
+#endif
 	/* Create SGi mempool to hold the mbufs. */
 	sgi_mempool = rte_pktmbuf_pool_create("SGI_MPOOL", NUM_MBUFS,
 			MBUF_CACHE_SIZE, 0,
@@ -220,7 +334,7 @@ void dp_port_init(void)
 			rte_socket_id());
 	if (sgi_mempool == NULL)
 		rte_exit(EXIT_FAILURE, "Cannot create sgi_mempool !!!\n");
-
+#ifndef USE_AF_PACKET
 	/* Initialize KNI interface on s1u and sgi port */
 	/* Check if the configured port ID is valid */
 	for (port_id = 0; port_id < nb_ports; port_id++) {
@@ -263,18 +377,21 @@ void dp_port_init(void)
 
 	/* Initialize KNI subsystem */
 	init_kni();
-
+#endif
 	/* Initialize S1U & SGi ports. */
 	if (port_init(S1U_PORT, s1u_mempool) != 0)
 		rte_exit(EXIT_FAILURE, "Cannot init s1u port %" PRIu8 "\n",
 				S1U_PORT);
+#ifndef USE_AF_PACKET
 	/* Alloc kni on interface. */
 	kni_alloc(S1U_PORT);
+#endif
 	if (port_init(SGI_PORT, sgi_mempool) != 0)
 		rte_exit(EXIT_FAILURE, "Cannot init s1u port %" PRIu8 "\n",
 				SGI_PORT);
+#ifndef USE_AF_PACKET
 	kni_alloc(SGI_PORT);
-
+#endif
 	/* Routing Discovery : Create route hash for s1u and sgi port */
 	route_hash_params.socket_id = rte_socket_id();
 	route_hash_handle = rte_hash_create(&route_hash_params);
@@ -283,7 +400,13 @@ void dp_port_init(void)
 				route_hash_params.name, rte_strerror(rte_errno),
 				rte_errno);
 
+#ifdef USE_AF_PACKET
+	init_af_socks();
+	/* adding veth ports as well */
+	check_all_ports_link_status(nb_ports + NUM_SPGW_PORTS, app.ports_mask);
+#else
 	check_all_ports_link_status(nb_ports, app.ports_mask);
+#endif
 	printf("KNI: DP Port Mask:%u\n", app.ports_mask);
 	printf("DP Port initialization completed.\n");
 }

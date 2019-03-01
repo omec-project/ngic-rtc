@@ -150,6 +150,9 @@ endif
 CFLAGS += -O3
 #CFLAGS += -g -O0
 
+# Un-comment to enable USE_AF_PACKET
+#CFLAGS += -DUSE_AF_PACKET
+
 #un-comment below line to remove all log level for preformance testing.
 CFLAGS += -DPERF_TEST
 

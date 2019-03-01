@@ -289,6 +289,20 @@ extern uint32_t nb_ports;
 
 extern struct kni_port_params *kni_port_params_array[RTE_MAX_ETHPORTS];
 
+#ifdef USE_AF_PACKET
+/**
+ * Interface to burst rx and enqueue in to kernel
+ */
+void
+kern_packet_ingress(int portid, struct rte_mbuf *pkts_burst[PKT_BURST_SZ], unsigned nb_rx);
+
+/**
+ * Interface to relay tx traffic out of the kernel and into the outgoing NIC
+ */
+void
+kern_packet_egress(int portid);
+#endif
+
 /**
  * Interface to burst rx and enqueue mbufs into rx_q
  */

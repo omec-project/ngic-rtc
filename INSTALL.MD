@@ -599,6 +599,33 @@ cd  dev_scripts
 ```
 
 f. Then start the traffic generator and MME if applicable.
+
+You can now run ngic without kni support using the following guidelines:
+
+a. Repeat step (a) from previous subsection to setup dpdk driver.
+
+b. Enable `-DUSE_AF_PACKET` macro in [`dp/Makefile`](dp/Makefile). Then add the mac addresses of
+port0 and port1 in [`config/dp_config.cfg`](config/dp_config.cfg) to run `ngic_dataplane`.
+
+```shell
+cd dp
+Edit run.sh to add coremask
+```
+
+c. Run following to create veth pairs of S1U/SGI interfaces.
+
+```shell
+sudo ./setup_af_ifaces.sh
+```
+
+d. Run dp.
+
+```shell
+cd dp
+./run.sh
+```
+
+e. Update cp_config.cfg with required parameters.
 #### 3.5 Standalone Virtualization:
 Dataplane has been tested with SRIOV and OVS with SIMU_CP configuration:
 

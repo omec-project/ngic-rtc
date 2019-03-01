@@ -1952,6 +1952,7 @@ epc_arp_init(void)
 #endif	/* STATIC_ARP */
 }
 
+#ifndef USE_AF_PACKET
 /* Burst rx from kni interface and enqueue rx pkts in ring */
 static void *handle_kni_process(__rte_unused void *arg)
 {
@@ -1960,6 +1961,7 @@ static void *handle_kni_process(__rte_unused void *arg)
 	}
 	return NULL; //GCC_Security flag
 }
+#endif
 
 void epc_arp(__rte_unused void *arg)
 {
@@ -1969,7 +1971,9 @@ void epc_arp(__rte_unused void *arg)
 			rte_pipeline_flush(myP);
 			param->flush_count = 0;
 		}
+#ifndef USE_AF_PACKET
 		handle_kni_process(NULL);
+#endif
 #ifdef NGCORE_SHRINK
 #ifdef STATS
 	epc_stats_core();
