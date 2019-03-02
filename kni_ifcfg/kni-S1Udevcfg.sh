@@ -1,4 +1,8 @@
 #! /bin/bash
+
+# Move to script directory
+cd $(dirname ${BASH_SOURCE[0]})
+
 source ../config/dp_config.cfg
 
 dp_static_arp_flag="CFLAGS += -DSTATIC_ARP"
