@@ -12,9 +12,15 @@
 
 ## Introduction
 
-Evolved Packet Core (EPC) is the main component of System Architecture Evolution (SAE),
-which provides the data services to the end users. NGIC implements the Serving Gateway
-(SGW) and Packet Data Network Gateway (PGW) sub components of the EPC
+NGIC-RTC is a Control User Plane Separated (CUPS) architecture 3GPP `TS23501`
+based implementation of Evolved Packet Core (EPC) Service and Packet Gateway
+functions (SGW, PGW) in a run to complete design to maximize packet processing
+performance per compute core. NGIC-RTC allows runtime configurable
+SGWC-SGWU <S5/S8>, PGWC-PGWU or SPGWC-SPGWU options.
+
+Interface between Control and User/Data plane i.e. S-PGWC and S-PGWU is ZMQ
+push-pull mechanism over TCP transport. Options for UDP transport or SDN
+integration are available too.
 
 ```text
                                        EPC Core
