@@ -201,7 +201,7 @@ download_dpdk_zip()
 
 	echo ""
 	echo "Applying AVX not supported patch for resolved dpdk-18.02 i40e driver issue.."
-	patch $DPDK_DIR/drivers/net/i40e/i40e_rxtx.c $NGIC_DIR/patches/avx_not_suported.patch
+	patch -d $DPDK_DIR -p1 < $NGIC_DIR/patches/v2-net-i40e-fix-avx2-driver-check-for-rx-rearm.diff
 
 	if [ $? -ne 0 ] ; then
 		echo "Failed to apply AVX patch, please check the errors."

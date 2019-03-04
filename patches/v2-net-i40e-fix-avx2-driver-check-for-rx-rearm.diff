@@ -1,0 +1,13 @@
+diff --git a/drivers/net/i40e/i40e_rxtx_vec_avx2.c b/drivers/net/i40e/i40e_rxtx_vec_avx2.c
+index dbcb61f..23179b3 100644
+--- a/drivers/net/i40e/i40e_rxtx_vec_avx2.c
++++ b/drivers/net/i40e/i40e_rxtx_vec_avx2.c
+@@ -188,7 +188,7 @@ _recv_raw_pkts_vec_avx2(struct i40e_rx_queue *rxq, struct rte_mbuf **rx_pkts,
+ 	/* See if we need to rearm the RX queue - gives the prefetch a bit
+ 	 * of time to act
+ 	 */
+-	while (rxq->rxrearm_nb > RTE_I40E_RXQ_REARM_THRESH)
++	if (rxq->rxrearm_nb > RTE_I40E_RXQ_REARM_THRESH)
+ 		i40e_rxq_rearm(rxq);
+ 
+ 	/* Before we start moving massive data around, check to see if
