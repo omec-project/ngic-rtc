@@ -448,7 +448,8 @@ init_cp(void)
 
 	if (signal(SIGINT, sig_handler) == SIG_ERR)
 		rte_exit(EXIT_FAILURE, "Error:can't catch SIGINT\n");
-
+	if (signal(SIGSEGV, sig_handler) == SIG_ERR)
+		rte_exit(EXIT_FAILURE, "Error:can't catch SIGSEGV\n");
 
 #ifndef SDN_ODL_BUILD
 #ifdef CP_DP_TABLE_CONFIG
