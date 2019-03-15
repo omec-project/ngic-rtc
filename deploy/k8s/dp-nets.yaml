@@ -1,0 +1,38 @@
+---
+apiVersion: "k8s.cni.cncf.io/v1"
+kind: NetworkAttachmentDefinition
+metadata:
+  name: s1u-net
+  annotations:
+    k8s.v1.cni.cncf.io/resourceName: intel.com/sriov_vfio
+spec:
+  config: '{
+    "type": "vfioveth",
+    "name": "s1u-net",
+    "ipam": {
+        "type": "host-local",
+        "subnet": "11.1.1.0/24",
+        "rangeStart": "11.1.1.2",
+        "rangeEnd": "11.1.1.63",
+        "gateway": "11.1.1.1"
+    }
+}'
+---
+apiVersion: "k8s.cni.cncf.io/v1"
+kind: NetworkAttachmentDefinition
+metadata:
+  name: sgi-net
+  annotations:
+    k8s.v1.cni.cncf.io/resourceName: intel.com/sriov_vfio
+spec:
+  config: '{
+    "type": "vfioveth",
+    "name": "sgi-net",
+    "ipam": {
+        "type": "host-local",
+        "subnet":"13.1.1.0/24",
+        "rangeStart": "13.1.1.2",
+        "rangeEnd": "13.1.1.63",
+        "gateway": "13.1.1.10"
+    }
+}'
