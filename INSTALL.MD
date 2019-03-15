@@ -609,7 +609,7 @@ e. Update cp_config.cfg with required parameters.Then start cp in the following 
 cd cp
 ./run.sh
 ```
-Note: In case ZMQ_COMM CFLAGS enabled, make sure you run follwing command after
+Note: In case ZMQ_COMM CFLAGS enabled, make sure you run following command after
 cp and dp is stopped. This command will stop ZMQ streamer.
 
 ```shell
