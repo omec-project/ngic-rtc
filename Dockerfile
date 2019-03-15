@@ -15,7 +15,10 @@ COPY install_builddeps.sh .
 RUN ./install_builddeps.sh
 
 COPY . ./
-RUN bash -c "source ./install_builddeps.sh && make -j $CPUS clean && make -j $CPUS"
+### USE_AF_PACKET for deploying in k8s
+### ggdb must be made standard to help debugging
+### O2 because O3 causes DP crash https://github.com/omec-project/ngic-rtc/issues/55
+RUN bash -c "source ./install_builddeps.sh && make -j $CPUS clean && make -j $CPUS EXTRA_CFLAGS='-DUSE_AF_PACKET -ggdb -O2'"
 
 ## Stage runtime: no utils
 FROM $BASE_OS as runtime
