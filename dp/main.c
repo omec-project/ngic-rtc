@@ -33,6 +33,8 @@ int main(int argc, char **argv)
 
 	if (signal(SIGINT, sig_handler) == SIG_ERR)
 		rte_exit(EXIT_FAILURE, "Error:can't catch SIGINT\n");
+	if (signal(SIGSEGV, sig_handler) == SIG_ERR)
+		rte_exit(EXIT_FAILURE, "Error:can't catch SIGSEGV\n");
 	argc -= ret;
 	argv += ret;
 
