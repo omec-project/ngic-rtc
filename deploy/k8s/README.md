@@ -21,6 +21,11 @@ to populate SR-IOV VFs as k8s resources to be consumed in a k8s native way. In
 our case `intel.com/sriov_vfio: '2'` conveys we need 2 VFs. This identifier also
 appears in the network definition linking the resource pool and the network.
 
+We also use
+[vfioveth](https://github.com/clearlinux/cloud-native-setup/blob/master/clr-k8s-examples/9-multi-network/cni/vfioveth)
+CNI to create veth pair to mirror VF's MAC address and apply the IP allocated
+by the IPAM plugin of choice. This is equivalent to `setup_af_ifaces.sh`
+
 `launch.sh` substitutes `CP_ADDR` and `DP_ADDR` in `interface.cfg` file, sources
 `dp_config.cfg` and runs the binary.
 
