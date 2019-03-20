@@ -15,6 +15,11 @@
 #include <rte_mempool.h>
 #include <rte_mbuf.h>
 #include <rte_arp.h>
+#ifdef USE_AF_PACKET
+#include <fcntl.h>
+#include <libmnl/libmnl.h>
+#include <linux/rtnetlink.h>
+#endif
 
 /* KNI specific headers */
 #include <rte_kni.h>
@@ -34,20 +39,28 @@ unsigned int fd_array[2];
 extern struct kni_port_params *kni_port_params_array[RTE_MAX_ETHPORTS];
 
 extern struct rte_mempool *kni_mpool;
+extern struct rte_mempool *s1u_mempool;
+extern struct rte_mempool *sgi_mempool;
 
 #define NB_RXD                  1024
 
 extern struct rte_eth_conf port_conf_default;
 
+#ifndef USE_AF_PACKET
 static int kni_change_mtu(uint16_t port_id, unsigned int new_mtu);
 static int kni_config_network_interface(uint16_t port_id, uint8_t if_up);
 static int kni_config_mac_address(uint16_t port_id, uint8_t mac_addr[]);
+#else
+int kni_change_mtu(uint16_t port_id, unsigned int new_mtu);
+int kni_config_mac_address(uint16_t port_id, uint8_t mac_addr[]);
 
-#ifdef USE_AF_PACKET
 static const char *port_str[] = {
 	"S1U_PORT_ID", "SGI_PORT_ID",
 	"S1U_PORT_VETH_ID", "SGI_PORT_VETH_ID"
 };
+
+/* for mnl communication */
+struct mnl_socket *mnl_sock = 0;
 /**
  * Sibling function of kni_config_network_interface() that initializes
  * a socket that DP uses for ARP resolution at run time (works only for
@@ -116,6 +129,32 @@ validate_parameters(uint32_t portmask)
 	return 0;
 }
 
+#ifdef USE_AF_PACKET
+void
+init_mnl()
+{
+	int fd;
+	mnl_sock = mnl_socket_open(NETLINK_ROUTE);
+	if (mnl_sock == NULL) {
+		perror("mnl_socket_open");
+		rte_exit(EXIT_FAILURE, "Failed to open mnl socket!\n");
+	}
+
+	/* get socket descriptor */
+	fd = mnl_socket_get_fd(mnl_sock);
+
+	/* convert it to non-blocking */
+	if (fcntl(fd, F_SETFL, O_NONBLOCK) == -1) {
+		perror("fcntl");
+		rte_exit(EXIT_FAILURE, "fcntl() non-blocking request failed!\n");
+	}
+
+	if (mnl_socket_bind(mnl_sock, RTMGRP_LINK, MNL_SOCKET_AUTOPID) < 0) {
+		perror("mnl_socket_bind");
+		rte_exit(EXIT_FAILURE, "Failed to bind mnl socket!\n");
+	}
+}
+#else
 /**
  * Burst rx from dpdk interface and transmit burst to kni interface.
  * Pkts transmitted to KNI interface, onwards linux will handle whatever pkts rx
@@ -205,6 +244,7 @@ void init_kni(void) {
 	/* Invoke rte KNI init to preallocate the ports */
 	rte_kni_init(num_of_kni_ports);
 }
+#endif
 
 /* Check the link status of all ports in up to 9s, and print them finally */
 void check_all_ports_link_status(uint16_t port_num, uint32_t port_mask) {
@@ -226,11 +266,18 @@ void check_all_ports_link_status(uint16_t port_num, uint32_t port_mask) {
 			/* print link status if flag set */
 			if (print_flag == 1) {
 				if (link.link_status)
+#ifdef USE_AF_PACKET
+				{
+					dp_ports[portid].ifup_state = 1;
+#endif
 					printf(
 					"Port%d Link Up - speed %uMbps - %s\n",
 						portid, link.link_speed,
 				(link.link_duplex == ETH_LINK_FULL_DUPLEX) ?
 					("full-duplex") : ("half-duplex\n"));
+#ifdef USE_AF_PACKET
+				}
+#endif
 				else
 					printf("Port %d Link Down\n", portid);
 				continue;
@@ -259,8 +306,11 @@ void check_all_ports_link_status(uint16_t port_num, uint32_t port_mask) {
 	}
 }
 
+#ifndef USE_AF_PACKET
 /* Callback for request of changing MTU */
-static int
+static
+#endif
+int
 kni_change_mtu(uint16_t port_id, unsigned int new_mtu)
 {
 	int ret;
@@ -304,7 +354,7 @@ kni_change_mtu(uint16_t port_id, unsigned int new_mtu)
 	rte_eth_dev_info_get(port_id, &dev_info);
 	rxq_conf = dev_info.default_rxconf;
 	rxq_conf.offloads = conf.rxmode.offloads;
-	struct rte_mempool *mbuf_pool = kni_mpool;
+	struct rte_mempool *mbuf_pool = (port_id == S1U_PORT_ID) ? s1u_mempool : sgi_mempool;
 
 	ret = rte_eth_rx_queue_setup(port_id, 0, nb_rxd,
 		rte_eth_dev_socket_id(port_id), &rxq_conf, mbuf_pool);
@@ -411,7 +461,10 @@ print_ethaddr(const char *name, struct ether_addr *mac_addr)
 }
 
 /* Callback for request of configuring mac address */
-static int
+#ifndef USE_AF_PACKET
+static
+#endif
+int
 kni_config_mac_address(uint16_t port_id, uint8_t mac_addr[])
 {
 	int ret = 0;

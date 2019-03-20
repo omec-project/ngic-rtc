@@ -187,7 +187,12 @@ static inline int port_init(uint8_t port, struct rte_mempool *mbuf_pool)
 	/* Enable RX in promiscuous mode for the Ethernet device. */
 	/* rte_eth_promiscuous_enable(port); */
 	rte_eth_promiscuous_disable(port);
-
+#ifdef USE_AF_PACKET
+	/* fetch mtu size per port, promisc mode is set to 0 by default */
+	rte_eth_dev_get_mtu(port, &dp_ports[port].mtu_size);
+	/* set port MAC address */
+	dp_ports[port].eth_addr = &ports_eth_addr[port];
+#endif
 	return 0;
 }
 
@@ -318,6 +323,9 @@ void dp_port_init(void)
 	if (afs1u_mempool == NULL || afsgi_mempool == NULL)
 		rte_exit(EXIT_FAILURE,
 			 "Failed to create pool(s) for afs1u_mempool and/or afsgi_mempool !!! \n");
+
+	/* initialize dp_port_info array (0 everything by default) */
+	memset(dp_ports, 0, sizeof(struct dp_port_info) * RTE_MAX_ETHPORTS);
 #else
 	/* Create kni mempool to hold the kni pkts mbufs. */
 	kni_mpool = rte_pktmbuf_pool_create("KNI_MPOOL", NUM_MBUFS,
@@ -401,6 +409,7 @@ void dp_port_init(void)
 				rte_errno);
 
 #ifdef USE_AF_PACKET
+	init_mnl();
 	init_af_socks();
 	/* adding veth ports as well */
 	check_all_ports_link_status(nb_ports + NUM_SPGW_PORTS, app.ports_mask);

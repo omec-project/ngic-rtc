@@ -152,6 +152,10 @@ CFLAGS += -O3
 
 # Un-comment to enable USE_AF_PACKET
 #CFLAGS += -DUSE_AF_PACKET
+ifneq (,$(findstring USE_AF_PACKET, $(CFLAGS), $(EXTRA_CFLAGS)))
+	CFLAGS += -I/usr/include/libnl3
+	LDFLAGS += -lmnl
+endif
 
 #un-comment below line to remove all log level for preformance testing.
 CFLAGS += -DPERF_TEST

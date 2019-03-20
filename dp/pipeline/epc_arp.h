@@ -168,4 +168,10 @@ int arp_qunresolved_ulpkt(struct arp_entry_data *arp_data,
 int arp_qunresolved_dlpkt(struct arp_entry_data *arp_data,
 				struct rte_mbuf *m, uint8_t portid);
 
+#ifdef USE_AF_PACKET
+int
+kni_change_mtu(uint16_t port_id, unsigned int new_mtu);
+
+int kni_config_mac_address(uint16_t port_id, uint8_t mac_addr[]);
+#endif
 #endif /*__EPC_ARP_ICMP_H__ */
