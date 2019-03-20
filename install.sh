@@ -133,7 +133,8 @@ get_agreement_download()
 	echo "8.  hyperscan"
 	echo "9.  curl"
 	echo "10. openssl-dev"
-	echo "11. and other library dependencies"
+	echo "11. libmnl-dev"
+	echo "12. and other library dependencies"
 	while true; do
 		read -p "We need download above mentioned package. Press (y/n) to continue? " yn
 		case $yn in
@@ -162,7 +163,8 @@ install_libs()
 	sudo apt-get update
 	sudo apt-get -y install curl build-essential linux-headers-$(uname -r) \
 		git unzip libpcap0.8-dev gcc libjson0-dev make libc6 libc6-dev \
-		g++-multilib libzmq3-dev libcurl4-openssl-dev libssl-dev python-pip
+		g++-multilib libzmq3-dev libcurl4-openssl-dev libssl-dev python-pip \
+		libmnl-dev
 
 	pip install zmq
 

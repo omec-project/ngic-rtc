@@ -291,6 +291,12 @@ extern struct kni_port_params *kni_port_params_array[RTE_MAX_ETHPORTS];
 
 #ifdef USE_AF_PACKET
 /**
+ * Initialize libmnl netlink subsystem
+ */
+void
+init_mnl();
+
+/**
  * Interface to burst rx and enqueue in to kernel
  */
 void
@@ -428,6 +434,18 @@ extern struct app_params app;
 
 /** ethernet addresses of ports */
 struct ether_addr ports_eth_addr[RTE_MAX_ETHPORTS];
+
+#ifdef USE_AF_PACKET
+typedef struct dp_port_info {
+	struct ether_addr *eth_addr;
+	uint8_t ifup_state;
+	uint16_t mtu_size;
+	uint8_t promisc_state;
+} dp_port_info;
+
+struct dp_port_info dp_ports[RTE_MAX_ETHPORTS];
+extern struct mnl_socket *mnl_sock;
+#endif
 
 /** ethernet addresses of ports */
 extern struct ether_addr ports_eth_addr[];
