@@ -129,9 +129,9 @@ spec:
         #  mountPath: /dev/hugepages
         resources:
           limits:
-            #hugepages-2Mi: 8Gi
+            #hugepages-2Mi: 4Gi
             cpu: 4
-            memory: 8Gi #200Mi
+            memory: 5Gi #200Mi
             intel.com/sriov_vfio: '2'
         securityContext:
           capabilities:
