@@ -496,9 +496,9 @@ spec:
         #  mountPath: /dev/hugepages
         resources:
           limits:
-            #hugepages-2Mi: 4Gi
+            #hugepages-2Mi: 2Gi
             cpu: 3
-            memory: 5Gi #200Mi
+            memory: 3Gi #200Mi
       volumes:
       - name: cp-script
         configMap:
