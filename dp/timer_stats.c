@@ -12,7 +12,8 @@
 #include <stdbool.h>
 #include "cdr.h"
 #include "util.h"
-#define STATS_PATH "./logs/"
+#include "main.h"
+#define STATS_PATH LOGS_DIR
 
 #ifdef TIMER_STATS
 FILE *ul_timer_stats_file;
