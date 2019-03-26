@@ -79,20 +79,20 @@ LDLIBS += -lpcap
 # ngic-cp application options CFLAGS
 # #############################################################
 #validate both SDN_ODL_BUILD and ZMQ_COMM flag are not defined
-ifneq (,$(findstring SDN_ODL_BUILD, $(CFLAGS)))
-ifneq (,$(findstring ZMQ_COMM, $(CFLAGS)))
+ifneq (,$(findstring SDN_ODL_BUILD, $(CFLAGS), $(EXTRA_CFLAGS)))
+ifneq (,$(findstring ZMQ_COMM, $(CFLAGS), $(EXTRA_CFLAGS)))
 $(error "Both "SDN_ODL_BUILD" and "ZMQ_COMM" flags are defined. Exiting..")
 endif
 endif
 
 #For SDN NB interface enable SDN_ODL_BUILD OR SDN_ONOS_BUILD not both
-ifneq (,$(findstring SDN_ODL_BUILD, $(CFLAGS)))
+ifneq (,$(findstring SDN_ODL_BUILD, $(CFLAGS), $(EXTRA_CFLAGS)))
 	SRCS-y += nb.c
 	LDLIBS += -ljson-c
 	LDLIBS += -lcurl
 endif
 
-ifneq (,$(findstring ZMQ_COMM, $(CFLAGS)))
+ifneq (,$(findstring ZMQ_COMM, $(CFLAGS), $(EXTRA_CFLAGS)))
 	SRCS-y += cp_sync.c
 	SRCS-y += ../interface/zmq/zmq_push_pull.c
 	LDFLAGS += -L/usr/local/lib -lzmq
@@ -118,7 +118,7 @@ CFLAGS_config.o := -D_GNU_SOURCE
 #Note: Req and Resp timer stats is not supported for CP <--> DP direct comm over UDP.
 #CFLAGS += -DSYNC_STATS
 
-ifneq (,$(findstring SYNC_STATS, $(CFLAGS)))
+ifneq (,$(findstring SYNC_STATS, $(CFLAGS), $(EXTRA_CFLAGS)))
 	SRCS-y += stats_sync.c
 endif
 

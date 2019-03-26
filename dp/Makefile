@@ -105,7 +105,7 @@ LDFLAGS += -lpcap
 # ngic-dp application options CFLAGS
 # #############################################################
 # ASR- Shrink pipeline COREs for Run to Completion (rtc) model
-ifneq (,$(findstring NGCORE_SHRINK, $(CFLAGS)))
+ifneq (,$(findstring NGCORE_SHRINK, $(CFLAGS), $(EXTRA_CFLAGS)))
         SRCS-y += ddn.c
         SRCS-y += pipeline/epc_ul.c
         SRCS-y += pipeline/epc_dl.c
@@ -118,13 +118,13 @@ else
 endif
 
 #validate both SDN_ODL_BUILD and ZMQ_COMM flag are not defined
-ifneq (,$(findstring SDN_ODL_BUILD, $(CFLAGS)))
-ifneq (,$(findstring ZMQ_COMM, $(CFLAGS)))
+ifneq (,$(findstring SDN_ODL_BUILD, $(CFLAGS), $(EXTRA_CFLAGS)))
+ifneq (,$(findstring ZMQ_COMM, $(CFLAGS), $(EXTRA_CFLAGS)))
 $(error "Both "SDN_ODL_BUILD" and "ZMQ_COMM" flags are defined. Exiting..")
 endif
 endif
 
-ifneq (,$(findstring SDN_ODL_BUILD, $(CFLAGS)))
+ifneq (,$(findstring SDN_ODL_BUILD, $(CFLAGS), $(EXTRA_CFLAGS)))
 	SRCS-y += ../interface/zmq/zmqsub.c
 	SRCS-y += ../interface/zmq/zmqpub.c
 	LDFLAGS += -L/usr/local/lib -lzmq
@@ -137,7 +137,7 @@ ifeq ($(SGX_BUILD), 1)
 	LDFLAGS += -lssl
 endif
 
-ifneq (,$(findstring ZMQ_COMM, $(CFLAGS)))
+ifneq (,$(findstring ZMQ_COMM, $(CFLAGS), $(EXTRA_CFLAGS)))
 	SRCS-y += ../interface/zmq/zmq_push_pull.c
 	LDFLAGS += -L/usr/local/lib -lzmq
 endif
@@ -162,7 +162,7 @@ CFLAGS += -DPERF_TEST
 #CFLAGS += -DDEL_SESS_REQ
 
 # VS- Used CP counters for maintain simulator stats.
-ifneq (,$(findstring SIMU_CP, $(CFLAGS)))
+ifneq (,$(findstring SIMU_CP, $(CFLAGS), $(EXTRA_CFLAGS)))
         SRCS-y += ../cp/cp_stats.c
 endif
 
