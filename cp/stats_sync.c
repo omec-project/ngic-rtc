@@ -114,6 +114,11 @@ stats_init(void)
 	time_t t = time(NULL);
 	struct tm *tmp = localtime(&t);
 
+	int ret = mkdir(DEFAULT_STATS_PATH, S_IRWXU);
+	if (ret && errno != EEXIST)
+		rte_exit(EXIT_FAILURE, "Failed to create directory %s: %s\n",
+		DEFAULT_STATS_PATH, strerror(errno));
+
 	strftime(timestamp, NAME_MAX, "%Y_%m_%d_%H_%M_%S", tmp);
 	snprintf(filename, PATH_MAX, "%sCP_Sync_Stats_%s"
 			CSV_EXTENSION, DEFAULT_STATS_PATH, timestamp);

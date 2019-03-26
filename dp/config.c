@@ -6,6 +6,9 @@
 #include <stdlib.h>
 #include <getopt.h>
 #include <arpa/inet.h>
+#include <sys/stat.h>
+#include <errno.h>
+#include <string.h>
 
 #include <rte_ethdev.h>
 #include <rte_kni.h>
@@ -702,4 +705,10 @@ void dp_init(int argc, char **argv)
 			break;
 		}
 	}
+
+	/* TODO: Make logs directory configurable */
+	int ret = mkdir(LOGS_DIR, S_IRWXU);
+	if (ret && errno != EEXIST)
+		rte_exit(EXIT_FAILURE, "Failed to create directory %s: %s\n", LOGS_DIR,
+				strerror(errno));
 }

@@ -189,6 +189,7 @@
 #define METER_PROFILE_SDF_TABLE_SIZE (2048)
 #define DPN_ID                       (12345)
 
+#define LOGS_DIR "logs/"
 #ifdef PCAP_GEN
 /**
  * pcap filename length.
@@ -198,14 +199,14 @@
 /**
  * pcap filenames.
  */
-#define SPGW_S1U_PCAP_FILE "logs/uplink.pcap"
-#define SPGW_SGI_PCAP_FILE "logs/downlink.pcap"
+#define SPGW_S1U_PCAP_FILE LOGS_DIR "uplink.pcap"
+#define SPGW_SGI_PCAP_FILE LOGS_DIR "downlink.pcap"
 
-#define SGW_S1U_PCAP_FILE "logs/sgw_s1u.pcap"
-#define SGW_S5S8_PCAP_FILE "logs/sgw_s5s8.pcap"
+#define SGW_S1U_PCAP_FILE LOGS_DIR "sgw_s1u.pcap"
+#define SGW_S5S8_PCAP_FILE LOGS_DIR "sgw_s5s8.pcap"
 
-#define PGW_S5S8_PCAP_FILE "logs/pgw_s5s8.pcap"
-#define PGW_SGI_PCAP_FILE "logs/pgw_sgi.pcap"
+#define PGW_S5S8_PCAP_FILE LOGS_DIR "pgw_s5s8.pcap"
+#define PGW_SGI_PCAP_FILE LOGS_DIR "pgw_sgi.pcap"
 
 #endif /* PCAP_GEN */
 
