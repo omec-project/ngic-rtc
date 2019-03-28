@@ -212,11 +212,9 @@ direction of messages. Listed below the diagram is the descriptions of
 [Components](./INSTALL.MD#2-4-1-components) and
 [Interfaces](./INSTALL.MD#2-4-2-interfaces).
 
-To disable CP to DP direct communication over ZMQ, disable ZMQ_COMM CFLAG in
-`ng-core_cfg.mk`. In this case ZMQ push/pull model is used.
-
-ZMQ_COMM flag (ZMQ Push Pull) is enabled by default in config/ng-core_cfg.mk
-Thus, ZMQ(tcp) is the default mode of communication between CP & DP in NGIC.
+To enable CP to DP direct communication over ZMQ, define ZMQ_COMM CFLAG in
+[`custom-cp.mk`](cp/custom-cp.mk) and [`custom-dp.mk`](dp/custom-dp.mk). In this
+case ZMQ push/pull model is used.
 
 ```text
 +-------------------------------------------------------------------------------+
@@ -253,8 +251,7 @@ Thus, ZMQ(tcp) is the default mode of communication between CP & DP in NGIC.
 ##### 2.4.1 Components
 
 - FPC - SDN Controller: Interfaces contained within this component are used
-    only when NGIC is built with the `DSDN_ODL_BUILD` CFLAG set in
-    `ng-core_cfg.mk`.
+    only when NGIC is built with the `DSDN_ODL_BUILD` CFLAG set.
 
 - ZMQ FORWARDER: the instance of the forwarder_device.py script. ***This
     component should be co-located with the FPC Karaf component.***
@@ -568,10 +565,10 @@ a. Setup 10G ports for VNF to run:
 
 b. If ZMQ_COMM flag is enabled, start ZMQ Streamer before running DP and CP
 
-  If ZMQ_COMM flag is enabled in the config file ng-core_cfg.mk, then we need to start the
-  ZMQ streamer before running DP & CP. This can be done via the following script run.
-  NOTE: The script needs to be started either on CP or DP or any other systems and update
-        interface.cfg accordingly. No need to start on both CP and DP.
+  If ZMQ_COMM flag is enabled, then we need to start the ZMQ streamer before
+  running DP & CP. This can be done via the following script run. NOTE: The
+  script needs to be started either on CP or DP or any other systems and update
+  interface.cfg accordingly. No need to start on both CP and DP.
 
 ```shell
 cd dev_scripts
