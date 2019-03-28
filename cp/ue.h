@@ -151,7 +151,6 @@ extern apn apn_list[MAX_NB_DPN];
 void
 set_s1u_sgw_gtpu_teid(eps_bearer *bearer, ue_context *context);
 
-
 /**
  * sets the s5s8_sgw gtpu teid given the bearer
  * @param bearer
@@ -161,7 +160,6 @@ set_s1u_sgw_gtpu_teid(eps_bearer *bearer, ue_context *context);
  */
 void
 set_s5s8_sgw_gtpu_teid(eps_bearer *bearer, ue_context *context);
-
 
 /**
  * sets the s5s8_pgw gtpc teid given the pdn_connection
@@ -176,7 +174,6 @@ set_s5s8_pgw_gtpc_teid(pdn_connection *pdn);
  */
 void
 create_ue_hash(void);
-
 
 /** creates an UE Context (if needed), and pdn connection with a default bearer
  * given the UE IMSI, and EBI
@@ -198,7 +195,6 @@ int
 create_ue_context(uint8_t *imsi_val, uint16_t imsi_len,
 		uint8_t ebi, ue_context **context);
 
-
 /**
  * assigns the ip pool variable from parsed c-string
  * @param ip_str
@@ -206,7 +202,6 @@ create_ue_context(uint8_t *imsi_val, uint16_t imsi_len,
  */
 void
 set_ip_pool_ip(const char *ip_str);
-
 
 /**
  * assigns the ip pool mask variable from parsed c-string
@@ -216,7 +211,6 @@ set_ip_pool_ip(const char *ip_str);
  */
 void
 set_ip_pool_mask(const char *ip_str);
-
 
 /**
  * This function takes the c-string argstr describing a apn by url, for example
@@ -230,7 +224,6 @@ set_ip_pool_mask(const char *ip_str);
 void
 set_apn_name(apn *an_apn, char *argstr);
 
-
 /**
  * returns the apn strucutre of the apn referenced by create session message
  * @param apn_label
@@ -242,7 +235,6 @@ set_apn_name(apn *an_apn, char *argstr);
  */
 apn *
 get_apn(char *apn_label, uint16_t apn_length);
-
 
 /**
  * Simple ip-pool

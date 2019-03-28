@@ -84,7 +84,6 @@ int s11_pcap_fd = -1;
 int s5s8_sgwc_fd = -1;
 int s5s8_pgwc_fd = -1;
 
-
 pcap_dumper_t *pcap_dumper;
 pcap_t *pcap_reader;
 
@@ -1409,4 +1408,3 @@ main(int argc, char **argv)
 
 	return 0;
 }
-

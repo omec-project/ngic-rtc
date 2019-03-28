@@ -10,7 +10,6 @@
 #include "util.h"
 #include "gtpv2c_messages.h"
 
-
 #define IE_HEADER_SIZE sizeof(ie_header_t)
 #define MBR_SIZE 5
 
@@ -29,7 +28,6 @@ decode_uint16_t(uint8_t *buf, uint16_t *val)
 	*val = ntohs(*val);
 	return sizeof(uint16_t);
 }
-
 
 static int
 decode_uint32_t(uint8_t *buf, uint32_t *val)

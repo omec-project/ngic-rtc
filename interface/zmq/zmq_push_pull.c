@@ -79,7 +79,6 @@ zmq_push_create(void)
 	                zmq_push_ifconnect, ZMQ_DEV_ID);
 #endif  /* CP_BUILD */
 
-
 	return rc;
 }
 
@@ -103,4 +102,3 @@ zmq_mbuf_pull(void *buf, uint32_t zmqbufsz)
 {
 	return zmq_recv(zmqpull_sockcet, buf, zmqbufsz, 0);
 }
-

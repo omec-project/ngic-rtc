@@ -22,7 +22,6 @@
 #define RECORD_TIME_LENGTH 16 /* buffer size for RECORD_TIME_FORMAT-ed string */
 #define BUFFER_SIZE 4096
 
-
 /* cdr field type callbacks
  * all callbacks must have the same parameters
  */
@@ -96,7 +95,6 @@ set_cdr_path(const char *path);
 const char *
 iptoa(struct ip_addr addr);
 
-
 /**
  * Export PCC record to file
  * @param pcc_rule
@@ -166,7 +164,6 @@ export_cdr_record(struct dp_session_info *session, char *name,
  */
 void export_mtr(struct dp_session_info *session, char *name,
 		uint32_t id, uint64_t drops);
-
 
 /**
  * @file

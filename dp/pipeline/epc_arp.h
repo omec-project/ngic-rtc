@@ -66,13 +66,11 @@ struct pipeline_arp_icmp_in_port_h_arg {
 (eth_addr).addr_bytes[4],  \
 (eth_addr).addr_bytes[5]
 
-
 /** IPv4 key for ARP table. */
 struct arp_ipv4_key {
 	/** ipv4 address */
 	uint32_t ip;
 };
-
 
 /** ARP table entry. */
 

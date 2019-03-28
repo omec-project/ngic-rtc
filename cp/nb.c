@@ -18,7 +18,6 @@
 #include <linux/tcp.h>
 #include <fcntl.h>
 
-
 #include <rte_common.h>
 #include <rte_debug.h>
 #include <rte_mbuf.h>
@@ -39,10 +38,8 @@
 #include "packet_filters.h"
 #include "cp_stats.h"
 
-
 #define MESSAGE_BUFFER_SIZE (1 << 13)
 #define OP_ID_HASH_SIZE     (1 << 15)
-
 
 #define DO_CHECK_CURL_EASY_SETOPT(one, two, three) \
 	do {\
@@ -84,7 +81,6 @@ struct sse_handle_message_event_map {
 	void (*sse_handle_message_func)(json_object *d);
 };
 
-
 /**
  * @brief Sets the DPN for use on incoming session creation and management
  * messages
@@ -110,7 +106,6 @@ set_dpn_id(const char *dpn_id_from_json)
 	printf("Configured to use %s\n", dpn_id);
 	return 0;
 }
-
 
 /**
  * @brief Processes response from a get topology request made over HTTP with
@@ -270,7 +265,6 @@ init_curl(CURL **curl, struct curl_slist **list, const char *request,
 	DO_CHECK_CURL_EASY_SETOPT(*curl, CURLOPT_URL, uri);
 }
 
-
 /**
  * @brief Function to request toplology from the FPC ODL plugin
  */
@@ -325,7 +319,6 @@ get_topology(void) {
 	}
 }
 
-
 /**
  * @brief Initializes the hash table used to account for NB messages by op_id
  */
@@ -372,7 +365,6 @@ add_nb_op_id_hash(void)
 	++op_id;
 }
 
-
 /* Curretly we are simply accounting the config-result-notifications for
  * each message passed to the SDN Controller. In future, we will be
  * using this for retransmit original messages that the SDN Controller
@@ -406,7 +398,6 @@ del_nb_op_id(uint64_t nb_op_id)
 	}
 }
 
-
 /**
  * @brief verifies that an op_id received within a response message on the NB
  * was in fact used in the original request message on the NB interface
@@ -434,7 +425,6 @@ check_nb_op_id(uint64_t nb_op_id)
 	}
 }
 
-
 /**
  * @brief creates a json_object for use in the notification stream request
  * message
@@ -458,7 +448,6 @@ notification_stream_req_json(void)
 	json_object_object_add(jobj, "client-id", jstring);
 	return jobj;
 }
-
 
 /**
  * @brief creates a json_object for use in the response stream response
@@ -515,7 +504,6 @@ request_stream(int fd, const char *path, json_object *jobj)
 
 	json_str = json_object_to_json_string(jobj);
 
-
 	ret = snprintf(message_buffer, MESSAGE_BUFFER_SIZE,
 			HTTP_METHOD_POST" %s "HTTP_V_1_1 CRLF
 			"Host: %s:%"PRIu16 CRLF
@@ -532,7 +520,6 @@ request_stream(int fd, const char *path, json_object *jobj)
 	if (ret < 0)
 		rte_panic("%d\tStream request string allocation failed\n", fd);
 
-
 	buffer_len = strlen(message_buffer);
 
 	tx_bytes = send(fd, message_buffer, buffer_len, 0);
@@ -541,12 +528,10 @@ request_stream(int fd, const char *path, json_object *jobj)
 		fprintf(stderr, "%d\tSending stream request failed: %s\n", fd,
 				strerror(errno));
 
-
 	if ((size_t)tx_bytes < buffer_len)
 		fprintf(stderr, "%d\tSending stream request error - "
 				"sent less than expected: %s\n", fd,
 				strerror(errno));
-
 
 	DEBUG_PRINTF("\n\n%d\tSent stream request\n%s\n", fd, message_buffer);
 }
@@ -625,7 +610,6 @@ connect_stream(int *fd)
 
 	ret = connect(*fd, (struct sockaddr *)&host, sizeof(host));
 
-
 	if (ret < 0)
 		rte_panic("%d\tConnect stream failed to %s:%"PRIu16" - %s\n",
 				*fd, inet_ntoa(fpc_ip), fpc_port,
@@ -633,10 +617,8 @@ connect_stream(int *fd)
 
 	setsockopt(*fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
 
-
 	FD_SET(*fd, &fd_set_active);
 }
-
 
 /**
  * @brief creates the HTTP chunk containing an event_data pair message to be
@@ -675,7 +657,6 @@ set_message_sse(const char *event, const char *data)
 	return message_buffer;
 }
 
-
 /**
  * @brief sends a zero-sized HTTP chunk message to indicate the closing of a
  * SSE connection
@@ -711,7 +692,6 @@ close_sse(int fd)
 
 }
 
-
 /**
  * @brief wrapper to conduct error handling on sent SSE messages
  * @param fd
@@ -736,7 +716,6 @@ send_sse(int fd, const char *event, const char *data, const char *calling_func)
 	if (buffer == NULL)
 		return EXIT_FAILURE;
 
-
 	len = strlen(buffer);
 	tx_bytes = send(fd, buffer, len, 0);
 
@@ -758,7 +737,6 @@ send_sse(int fd, const char *event, const char *data, const char *calling_func)
 
 	return EXIT_SUCCESS;
 }
-
 
 /**
  * @brief sends bind client as an SSE message
@@ -972,7 +950,6 @@ sse_handle_message_configure(json_object *jobj)
 		return;
 	}
 
-
 	ret = json_object_object_get_ex(output_jobj, "op-id",
 			&op_id_jobj);
 	if (ret == FALSE || op_id_jobj == NULL) {
@@ -991,7 +968,6 @@ sse_handle_message_configure(json_object *jobj)
 
 	check_nb_op_id(json_object_get_int64(op_id_jobj));
 }
-
 
 /**
  * @brief handler function to process  messages that are received on
@@ -1140,12 +1116,10 @@ sse_handle_message_notification(json_object *jobj)
 		return;
 	}
 
-
 	fprintf(stderr, "Received unhandled JSON object "
 			"(Unknown message):\n%s\n",
 			json_object_get_string(jobj));
 }
-
 
 /**
  * @brief message hanlder for the sse messages received on the
@@ -1163,7 +1137,6 @@ sse_handle_message(const char *msg,
 	const char *ptr = msg;
 	enum json_tokener_error error;
 	json_object *jobj;
-
 
 	/* We could do something more elegant, but we are only
 	 * checking for a couple of message types at the moment
@@ -1219,11 +1192,9 @@ check_header(const int fd, const char *rx_buffer)
 	if (ret != 1)
 		return 0;
 
-
 	if (http_status != HTTP_OK)
 		rte_panic("%d\tStream request HTTP Error %d:\n%s\n",
 				fd, http_status, rx_buffer);
-
 
 	ptr = strstr(rx_buffer, CRLF CRLF);
 
@@ -1268,7 +1239,6 @@ check_chunk(const int fd, const char *rx_buffer,
 		return ptr - rx_buffer + strlen(CRLF CRLF);
 	}
 
-
 	ptr = strstr(&rx_buffer[n], CRLF);
 	if (ptr == NULL)
 		return 0;
@@ -1281,7 +1251,6 @@ check_chunk(const int fd, const char *rx_buffer,
 
 	return ptr - rx_buffer;
 }
-
 
 /**
  * @brief receives messages (and bufferes if partial message is received).
@@ -1347,7 +1316,6 @@ rec_stream(int fd, char **active, char **inactive, size_t *buf_size,
 		*inactive = swap;
 	}
 
-
 	return rx_bytes;
 }
 
@@ -1396,7 +1364,6 @@ rec_notification_stream(void)
 	static char *inactive = rx_buffer[1];
 	static size_t buf_pos;
 	size_t rx_bytes;
-
 
 	static const struct sse_handle_message_event_map notification_map[] = {
 		{SSE_EVENT SSE_NOTIFICATION_EVENT LF,
@@ -1544,7 +1511,6 @@ server(void)
 	puts("Exiting server");
 }
 
-
 /**
  * server intialiation function
  */
@@ -1618,7 +1584,6 @@ init_nb(void)
 	return EXIT_SUCCESS;
 }
 
-
 int
 send_nb_create_modify(const char *op_type, const char *instruction,
 		uint64_t sess_id, uint32_t assigned_ip,
@@ -1645,7 +1610,6 @@ send_nb_create_modify(const char *op_type, const char *instruction,
 		fprintf(stderr, "NO DPN INSTALLED!!!!\n");
 		return EXIT_FAILURE;
 	}
-
 
 	snprintf(json_buf, MESSAGE_BUFFER_SIZE,
 			CREATE_MODIFY_JSON_FORMAT_STR,
@@ -1688,7 +1652,6 @@ send_nb_create_modify(const char *op_type, const char *instruction,
 
 	return send_sse(request_fd, SSE_CONFIGURE_EVENT, json_buf, __func__);
 }
-
 
 int
 send_nb_delete(uint64_t sess_id)
@@ -1775,4 +1738,3 @@ close_nb(void)
 	}
 	return EXIT_SUCCESS;
 }
-

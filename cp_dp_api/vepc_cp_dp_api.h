@@ -29,7 +29,6 @@
  */
 #define MAX_ADC_RULES 16
 
-
 /**
  * Maximum number of SDF indices that can be referred in PCC rule.
  * Max length of the sdf rules string that will be recieved as part of add
@@ -235,7 +234,6 @@ struct adc_rules {
 	uint32_t rule_id;				/* Rule ID*/
 } __attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
 
-
 /**
  *  Metering Methods.
  */
@@ -372,7 +370,6 @@ struct ipcan_dp_bearer_cdr {
 	uint32_t charging_rule_id;			/* Charging Rule ID*/
 } __attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
 
-
 /**
  * Bearer Session information structure
  */
@@ -410,7 +407,6 @@ struct session_info {
 	uint32_t ul_apn_mtr_idx;		/* UL APN meter profile index*/
 	uint32_t dl_apn_mtr_idx;		/* DL APN meter profile index*/
 } __attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
-
 
 /**
  * DataPlane identifier information structure.

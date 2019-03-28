@@ -72,7 +72,6 @@ openconnection(const char *hostname, int port)
 	return sd;
 }
 
-
 /**
  * Initialize ssl context
  *
@@ -95,7 +94,6 @@ InitCTX(void)
 
 	return ctx;
 }
-
 
 /**
  * Find the value of oid from certificate extension
@@ -353,7 +351,6 @@ verify_sgx_crt_info(X509 *crt, const char *mrenclave,
 	return 0;
 }
 
-
 /**
  * Verify SGX's parameter from certificate
  * @param ssl
@@ -402,7 +399,6 @@ verify_cert(SSL *ssl, const char *mrenclave,
 
 	return 0;
 }
-
 
 /**
  * Free ssl context and close the connection
@@ -488,4 +484,3 @@ sgx_cdr_channel_init(const char *hostname, const char *portnum,
 
 	return sslhandle;
 }
-

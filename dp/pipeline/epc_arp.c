@@ -36,7 +36,6 @@
 #include <rte_cfgfile.h>
 #endif	/* STATIC_ARP */
 
-
 /* VS: Routing Discovery */
 #include <fcntl.h>
 #include "linux/netlink.h"
@@ -45,7 +44,6 @@
 #include "net/if_arp.h"
 #include "sys/ioctl.h"
 #include "net/route.h"
-
 
 #include "epc_arp.h"
 #include "epc_packet_framework.h"
@@ -131,7 +129,6 @@ struct kni_port_params *kni_port_params_array[RTE_MAX_ETHPORTS];
 #define TABLE_SIZE (8192 * 4)
 #define ERR_RET(x) do { perror(x); return EXIT_FAILURE; } while (0);
 
-
 /**
  * VS: Get Local arp table entry
  */
@@ -145,7 +142,6 @@ char gwAddr[128];
 char netMask[128];
 int route_sock = -1;
 int gatway_flag = 0;
-
 
 /* Structure for sending the request */
 typedef struct
@@ -168,7 +164,6 @@ struct RouteInfo
 	/** mac address */
 	struct ether_addr gateWay_Mac;
 };
-
 
 /**
  * print arp table
@@ -500,7 +495,6 @@ print_ipv4_h(struct ipv4_hdr *ip_h)
 	}
 }
 
-
 static void
 print_arp_packet(struct arp_hdr *arp_h)
 {
@@ -630,7 +624,6 @@ retrieve_arp_entry(struct arp_ipv4_key arp_key,
 
 		ret = rte_hash_lookup_data(route_hash_handle,
 						&key.dstAddr, (void **)&route_entry);
-
 
 		if (ret == 0) {
 			if ((route_entry->gateWay != 0) && (route_entry->gateWay_Mac.addr_bytes != 0)) {
@@ -1325,7 +1318,6 @@ del_route_entry(
 					inet_ntoa(*(struct in_addr *)&info->dstAddr),
 					rte_strerror(abs(ret)));
 
-
 			return -1;
 		}
 
@@ -1427,7 +1419,6 @@ get_iface_name(int iface_index, char *iface_Name)
 {
 	int fd;
 	struct ifreq ifr;
-
 
 	fd = socket(AF_INET, SOCK_DGRAM, 0);
 	if(fd == -1)
@@ -1555,7 +1546,6 @@ get_gateWay_mac(uint32_t IP_gateWay, char *iface_Mac)
 	close(Fd);
 	return 0;
 }
-
 
 /**
  * Create pthread to read or receive data/events from netlink socket.
@@ -1700,7 +1690,6 @@ static void
 	}
 	return NULL; //GCC_Security flag
 }
-
 
 static int
 init_netlink_socket(void)

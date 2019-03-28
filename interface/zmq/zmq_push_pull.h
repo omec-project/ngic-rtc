@@ -66,7 +66,6 @@ int zmq_pull_create(void);
  */
 void zmq_push_pull_destroy(void);
 
-
 /**
  * @brief
  * callback to send zmq message buffer
@@ -92,4 +91,3 @@ int zmq_mbuf_push(void *mbuf, uint32_t zmqbufsz);
 int zmq_mbuf_pull(void *mbuf, uint32_t zmqbufsz);
 
 #endif
-

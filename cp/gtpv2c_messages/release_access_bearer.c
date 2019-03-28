@@ -61,7 +61,6 @@ set_release_access_bearer_response(gtpv2c_header *gtpv2c_tx,
 
 }
 
-
 int
 process_release_access_bearer_request(gtpv2c_header *gtpv2c_rx,
 		gtpv2c_header *gtpv2c_tx)

@@ -390,7 +390,6 @@ s1u_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
 	dump_pcap(pkts, n, pcap_dumper_west);
 #endif /* PCAP_GEN */
 
-
 	/* Intimate the packets to be dropped*/
 	rte_pipeline_ah_packet_drop(p, ~pkts_mask);
 #ifdef TIMER_STATS

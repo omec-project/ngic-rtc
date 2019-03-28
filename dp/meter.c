@@ -431,7 +431,6 @@ dp_meter_profile_entry_delete(struct dp_id dp_id, struct mtr_entry *entry)
 	return 0;
 }
 
-
 /******************** Call back functions **********************/
 /**
  *  Call back to parse msg to create meter rules table
@@ -507,4 +506,3 @@ void app_mtr_tbl_init(void)
 	iface_ipc_register_msg_cb(MSG_MTR_ADD, cb_meter_profile_entry_add);
 	iface_ipc_register_msg_cb(MSG_MTR_DEL, cb_meter_profile_entry_delete);
 }
-

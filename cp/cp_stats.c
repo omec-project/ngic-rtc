@@ -121,7 +121,6 @@ struct stat_entry_t stat_entries[] = {
 #endif
 };
 
-
 /**
  * @brief prints out statistics entries
  */
@@ -147,7 +146,6 @@ print_stat_entries(void) {
 	}
 	puts("");
 }
-
 
 int
 do_stats(__rte_unused void *ptr)

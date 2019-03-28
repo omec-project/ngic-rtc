@@ -221,7 +221,6 @@ void print_zmqbuf(struct zmqbuf *buf)
 }
 #endif
 
-
 uint8_t get_network_node_var_length(uint8_t *node_id_len_ptr)
 {
 	uint8_t *network_id_len_ptr = node_id_len_ptr +
@@ -355,7 +354,6 @@ static void zmq_status_hello(void)
 			},
 	};
 
-
 	zmq_set_network_node_id(hello.msg_union.
 			status_indication.node_network_id_buffer);
 
@@ -375,7 +373,6 @@ void zmq_status_goodbye(void)
 					.source = source,
 			},
 	};
-
 
 	zmq_set_network_node_id(&bye.msg_union.
 			status_indication.node_network_id_buffer[0]);

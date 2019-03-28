@@ -156,7 +156,6 @@ typedef struct gtpv2c_header {
 	} teid_u;
 } gtpv2c_header;
 
-
 #pragma pack()
 
 /* These IE functions/macros are 'safe' in that the ie's returned, if any, fall
@@ -629,7 +628,6 @@ int
 process_modify_bearer_request(gtpv2c_header *gtpv2c_rx,
 		gtpv2c_header *gtpv2c_tx);
 
-
 /**
  * Handles the processing of release access bearer request messages received by
  * the control plane.
@@ -647,7 +645,6 @@ process_modify_bearer_request(gtpv2c_header *gtpv2c_rx,
 int
 process_release_access_bearer_request(gtpv2c_header *gtpv2c_rx,
 		gtpv2c_header *gtpv2c_tx);
-
 
 /**
  * Processes a Downlink Data Notification Acknowledgement message

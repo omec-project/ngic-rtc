@@ -140,7 +140,6 @@ encode_gtpv2c_header_t(gtpv2c_header_t *val, gtpv2c_buffer_t *buf)
 	gtpv2c_buf_memcpy(buf, &val->gtpc, sizeof(val->gtpc));
 	val->gtpc.message_len = ntohs(val->gtpc.message_len);
 
-
 	if (val->gtpc.teid_flag) {
 		encode_uint32_t(val->teid.has_teid.teid, buf);
 		encode_uint32_t_seq_no(val->teid.has_teid.seq, buf);

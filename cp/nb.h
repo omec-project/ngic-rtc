@@ -51,7 +51,6 @@
 	"\"urn:ietf:params:xml:ns:yang:fpcagent:fpc-agent-assignments\","\
 	"\"urn:ietf:params:xml:ns:yang:fpcagent:instruction-bitset\"]}}"
 
-
 #define HTTP "HTTP"
 #define HTTP_METHOD_GET  "GET"
 #define HTTP_METHOD_POST "POST"
@@ -66,7 +65,6 @@
 #define HTTP_429    HTTP_V_1_1" 429 Too Many Requests"
 #define HTTP_505    HTTP_V_1_1" 505 HTTP Version Not Supported"
 
-
 #define HTTP_HEADER_JSON    "Content-Type: "SSE_APPLICATION_JSON
 #define HTTP_HEADER_SSE     "Content-Type: text/event-stream"
 #define HTTP_HEADER_CHUNKED "Transfer-Encoding: chunked"
@@ -80,8 +78,6 @@
 #define HTTP_EXPECTED_REQUEST_STREAM(http_method) \
 		http_method " " REQUEST_PATH_STR " " HTTP_V_1_1 CRLF
 
-
-
 #define JSON_OBJ_INSTR_3GPP_MOB_KEY    "instr-3gpp-mob"
 #define JSON_OBJ_INSTR_3GPP_MOB_CREATE "session uplink"
 #define JSON_OBJ_INSTR_3GPP_MOB_MODIFY "downlink"
@@ -94,7 +90,6 @@
 #define JSON_OBJ_OP_TYPE_UPDATE "update"
 #define JSON_OBJ_OP_TYPE_DELETE "delete"
 #define JSON_OBJ_OP_TYPE_DDN_ACK "Downlink-Data-Notification-Ack"
-
 
 #define PRI_OP_ID_FORMAT PRIu64
 #define PRI_ODL_INSTRUCTION "s"
@@ -169,7 +164,6 @@
 	"\"op-ref-scope\": \"none\"" \
 	"}" \
 "}"
-
 
 #define DELETE_TARGET_PREFIX \
 	"/ietf-dmm-fpcagent:tenants/tenant/default/fpc-mobility/contexts/"
@@ -330,4 +324,3 @@ void
 server(void);
 
 #endif /* __NB_SSE_CLIENT_H__ */
-

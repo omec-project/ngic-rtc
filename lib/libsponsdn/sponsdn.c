@@ -180,7 +180,6 @@ int epc_sponsdn_dn_add_single(char *dn, const unsigned int rule)
 	return free_idx ? compile_tbl() : 0;
 }
 
-
 /*
  * TODO: handle frees, RCU etc.
  */
@@ -280,7 +279,6 @@ int epc_sponsdn_scan(const char *resp, unsigned len, char *hname,
 	num_ans = rte_be_to_cpu_16(header->ans);
 	if (!num_ans)
 		return -1;
-
 
 	ctx.matching_id = (unsigned)~0;
 	if (hs_scan(database, resp, len, 0, scratch, event_handler,

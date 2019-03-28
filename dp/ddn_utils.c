@@ -111,4 +111,3 @@ enqueue_dl_pkts(struct dp_sdf_per_bearer_info **sess_info,
 	}
 }
 #endif	/* NGCORE_SHRINK */
-

@@ -443,7 +443,6 @@ print_ipv4_h(struct ipv4_hdr *ip_h)
 	}
 }
 
-
 static void
 print_arp_packet(struct arp_hdr *arp_h)
 {
@@ -1394,7 +1393,6 @@ epc_arp_init(void)
 void epc_arp(__rte_unused void *arg)
 {
 	struct epc_arp_params *param = &arp_params;
-
 
 	rte_pipeline_run(myP);
 	if (++param->flush_count >= param->flush_max) {

@@ -115,7 +115,6 @@ int construct_ether_hdr(struct rte_mbuf *m, uint8_t portid,
 		return -1;
 	}
 
-
 	if (ret_arp_data->status == INCOMPLETE)	{
 
 #ifndef STATIC_ARP

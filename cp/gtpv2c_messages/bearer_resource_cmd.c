@@ -340,7 +340,6 @@ install_packet_filters(eps_bearer *ded_bearer,
 	return 0;
 }
 
-
 /**
  * from parameters, populates gtpv2c message 'create bearer request' and
  * populates required information elements as defined by
@@ -423,7 +422,6 @@ create_dedicated_bearer(gtpv2c_header *gtpv2c_rx,
 	if (brc->context->ded_bearer != NULL)
 		return -EPERM;
 
-
 	if (brc->flow_quality_of_service == NULL) {
 		fprintf(stderr, "Received Bearer Resource Command without Flow "
 				"QoS IE\n");
@@ -470,7 +468,6 @@ create_dedicated_bearer(gtpv2c_header *gtpv2c_rx,
 
 	return 0;
 }
-
 
 /**
  * When a bearer resource command is received for some UE Context/PDN connection
@@ -532,7 +529,6 @@ delete_packet_filter(gtpv2c_header *gtpv2c_rx,
 
 	return 0;
 }
-
 
 int
 process_bearer_resource_command(gtpv2c_header *gtpv2c_rx,

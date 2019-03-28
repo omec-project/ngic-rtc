@@ -70,8 +70,6 @@
 #define	IPV6_ADDR_U16	(IPV6_ADDR_LEN / sizeof(uint16_t))
 #define	IPV6_ADDR_U32	(IPV6_ADDR_LEN / sizeof(uint32_t))
 
-
-
 enum {
 	PROTO_FIELD_IPV4,
 	SRC_FIELD_IPV4,
@@ -692,7 +690,6 @@ prepare_acl_parameter(struct rte_mbuf **pkts_in, struct acl_search *acl,
 	for (i = 0; i < PREFETCH_OFFSET && i < nb_rx; i++)
 		rte_prefetch0(rte_pktmbuf_mtod(pkts_in[i], void *));
 
-
 	for (i = 0; i < (nb_rx - PREFETCH_OFFSET); i++) {
 		rte_prefetch0(rte_pktmbuf_mtod
 				(pkts_in[i + PREFETCH_OFFSET], void *));
@@ -986,7 +983,6 @@ add_rules(const char *rule_path,
 
 	while ((fgets(buff, LINE_MAX, fh) != NULL))
 		acl_num++;
-
 
 	fseek(fh, 0, SEEK_SET);
 

@@ -81,7 +81,7 @@ Add 'isolcpus=0-9,20-29' in kernel commandline parameter to isolate all socket 0
 5. Sometimes timer interrupts are received on core 0, even if it is added in isolcpus.
 Observe this in 'top -H' for the %CPU. Normally, the ngic application will completely (100%) use the core
 on which it is running. But due to some kernel glitches, sometimes, it can be observed that core 0's
-usage by ngic app may go to a little lower value like 97%. 
+usage by ngic app may go to a little lower value like 97%.
 So, in such case, it is always better to avoid this core for application purpose.
 This can be done by not enabling this core (in this example core 0) in the coremask.
 If such glitch is observed, avoid enabling that in coremask for the application usage.

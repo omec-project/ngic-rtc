@@ -24,7 +24,6 @@
 #include <unistd.h>
 #include <string.h>
 
-
 #define __FILENAME__ \
 	(strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define ZMQSUB_DEBUG (0)
@@ -32,8 +31,6 @@
 #define MAX_NODE_ID_SIZE     (UINT8_MAX)
 #define MAX_NETWORK_ID_SIZE  (UINT8_MAX)
 #define MAX_LEN 128
-
-
 
 /* s11 interface message type */
 enum s11_msgtype {
@@ -196,7 +193,6 @@ extern char node_id[MAX_NODE_ID_SIZE];
 int
 do_zmq_mbuf_send(struct zmqbuf *mbuf);
 
-
 /**
  * @brief
  * creates zmq socket used for subscriber
@@ -314,4 +310,3 @@ hex_dump(FILE *fileptr, void *base, void *data, size_t length, int indent);
 #define PRINT_ZMQBUF_MESSAGE(buf, len, message) do {} while (0)
 #endif
 #endif
-

@@ -34,7 +34,6 @@ Deployment-1 as SPGW(Service GW and PDN GW combined):
 +------------+    | +-------------------------+ |    +------------+
                   +-----------------------------+
 
-
 Deployment-2 as SGW(Service GW) and PGW(PDN GW):
                                             +----------+
                                             | MME-     |
@@ -72,7 +71,6 @@ control plane communicate over S5S8 protocol, and same way SGW and PGW in datapl
 * System5 hosts the MME. Currently NGIC VNF has been tested with ng4t MME.
 * MME sends commands to ControlPlane over 1G interface. This can be higher
 speed interface also.
-
 
 2. Configuration
 -----------------
@@ -165,7 +163,6 @@ For example, to enable 1 worker core and 5 fixed cores on socket 0, set corelist
 DP application parameters to be supplied in dp_config.cfg:
 
 Dataplane supported command line arguments are:
-
 
 | ARGUMENT          | PRESENCE    | DESCRIPTION                                |
 |:------------------|:------------|:-------------------------------------------|
@@ -301,7 +298,6 @@ the ZMQ FORWARDER device.
 Additional information on the northbound interfaces and their uses can be found
 in the [CP_README.MD](docs/CP_README.MD)
 
-
 ##### 2.4.3 Co-located Configuration
 For a co-located NGIC deployment along with the FPC Controller, each IP address
 parameter in the `config/interface.cfg` file may be set to the loopback
@@ -314,11 +310,9 @@ configuration ofthe FPC components. These parameters and values include
 `zmq_sub_port=5560`, `zmq_pub_port=5559` and `fpc_port=8181`. More information
 can be found at the [FPC GitHub page](https://github.com/opendaylight/fpc).
 
-
 ##### 2.4.6 NGIC Port Parameters
 The `dp_comm_port`, `cp_comm_port`, and `cp_nb_server_port` parameters may
 utilize any available ports on the respective systems.
-
 
 #### 2.5 Simulated CP config (Optional):
 This option can be used to test Dataplane with a simulated ControlPlane
@@ -554,7 +548,6 @@ a. Setup 10G ports for VNF to run:
   For more details refer
   http://dpdk.org/doc/guides-16.11/linux_gsg/build_dpdk.html#binding-and-unbinding-network-ports-to-from-the-kernel-modules
 
-
   [FOR DPDK 18.02]
   1. cd dpdk
   2. ./usertools/dpdk_nic_bind.py --status <--- List the network device
@@ -629,7 +622,6 @@ Dataplane has been tested with SRIOV and OVS with SIMU_CP configuration:
 
     -   Open `/etc/default/grub` configuration file.
     -   Append `iommu=pt intel_iommu=on` to the `GRUB_CMDLINE_LINUX` entry.
-
 
 4. Generating API documentation
 -------------------------------

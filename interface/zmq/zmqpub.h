@@ -43,7 +43,6 @@ int zmq_pubsocket_create(void);
  */
 void zmq_pubsocket_destroy(void);
 
-
 /**
  * @brief
  * callback to send zmq message buffer
@@ -57,4 +56,3 @@ void zmq_pubsocket_destroy(void);
 int zmq_mbuf_send(struct zmqbuf *mbuf, uint32_t zmqbufsz);
 
 #endif
-

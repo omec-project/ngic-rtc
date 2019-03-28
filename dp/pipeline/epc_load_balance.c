@@ -26,7 +26,6 @@
 #define RTE_LOGTYPE_DP RTE_LOGTYPE_USER1
 #define OFFSET_PORT_ID	0
 
-
 static inline void epc_lb_set_port_id(struct rte_mbuf *m, uint32_t port_id)
 {
 	struct epc_meta_data *meta_data =

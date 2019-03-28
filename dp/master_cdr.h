@@ -11,7 +11,6 @@
 
 #include "cdr.h"
 
-
 /**
  * sets the master cdr file
  * @param master_cdr_file

@@ -223,7 +223,6 @@ typedef struct uli_ie_t {
 	/*lai_t lai; */
 } uli_ie_t;
 
-
 typedef struct serving_network_ie_t {
 	ie_header_t header;
 	mcc_mnc_t mcc_mnc;
@@ -244,7 +243,6 @@ typedef struct rat_type_ie_t {
 	ie_header_t header;
 	uint8_t rat_type;
 } rat_type_ie_t;
-
 
 typedef struct indication_t {
 	uint8_t sgwci :1;
@@ -461,7 +459,6 @@ typedef struct bearer_context_marked_for_removal_ie_t {
 	eps_bearer_id_ie_t ebi;
 	cause_ie_t cause;
 } bearer_context_marked_for_removal_ie_t;
-
 
 /**
  * Bearer Context within Modify Bearer Request

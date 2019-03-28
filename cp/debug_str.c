@@ -5,7 +5,6 @@
 #include "debug_str.h"
 #include "gtpv2c.h"
 
-
 const char *
 cause_str(enum cause_value cause)
 {
@@ -51,7 +50,6 @@ cause_str(enum cause_value cause)
 		return "Unknown... Look at 29.274 Table 8.4.1";
 	}
 }
-
 
 const char *
 gtp_type_str(uint8_t type)
