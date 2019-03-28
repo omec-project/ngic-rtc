@@ -38,4 +38,3 @@ int zmq_mbuf_send(struct zmqbuf *mbuf, uint32_t zmqbufsz)
 
 	return rc;
 }
-

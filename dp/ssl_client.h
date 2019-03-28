@@ -45,4 +45,3 @@ void
 sgx_cdr_channel_close(SSL *ssl);
 
 #endif /* _SSL_CLIENT_H_ */
-

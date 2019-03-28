@@ -91,8 +91,6 @@ if check_ul_dl_flag:
   print('CDR total pkt count check: %s'%(verdict))
   sys.exit(result)
 
-
-
 if checktotalflag:
   if expected_total == dl_totalcount:
     verdict = 'pass'
@@ -102,5 +100,3 @@ if checktotalflag:
     result = 1
   print('CDR total pkt count check: %s'%(verdict))
   sys.exit(result)
-
-

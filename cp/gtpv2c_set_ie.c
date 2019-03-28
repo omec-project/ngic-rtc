@@ -200,7 +200,6 @@ set_cause_accepted_ie(gtpv2c_header *header,
 	return get_ie_return(ie);
 }
 
-
 uint16_t
 set_ar_priority_ie(gtpv2c_header *header, enum ie_instance instance,
 		eps_bearer *bearer)
@@ -221,7 +220,6 @@ set_ar_priority_ie(gtpv2c_header *header, enum ie_instance instance,
 
 	return get_ie_return(ie);
 }
-
 
 void
 set_ipv4_fteid(fteid_ie_t *fteid,
@@ -286,7 +284,6 @@ set_ipv4_paa_ie(gtpv2c_header *header, enum ie_instance instance,
 	return get_ie_return(ie);
 }
 
-
 struct in_addr
 get_ipv4_paa_ipv4(gtpv2c_ie *ie)
 {
@@ -334,13 +331,11 @@ set_ebi_ie(gtpv2c_header *header, enum ie_instance instance, uint8_t ebi)
 	return set_uint8_ie(header, IE_EBI, instance, ebi);
 }
 
-
 uint16_t
 set_pti_ie(gtpv2c_header *header, enum ie_instance instance, uint8_t pti)
 {
 	return set_uint8_ie(header, IE_PROCEDURE_TRANSACTION_ID, instance, pti);
 }
-
 
 uint16_t
 set_bearer_qos_ie(gtpv2c_header *header, enum ie_instance instance,
@@ -362,7 +357,6 @@ set_bearer_qos_ie(gtpv2c_header *header, enum ie_instance instance,
 
 	return get_ie_return(ie);
 }
-
 
 uint16_t
 set_bearer_tft_ie(gtpv2c_header *header, enum ie_instance instance,
@@ -490,7 +484,6 @@ set_bearer_tft_ie(gtpv2c_header *header, enum ie_instance instance,
 	return get_ie_return(ie);
 }
 
-
 uint16_t
 set_recovery_ie(gtpv2c_header *header, enum ie_instance instance)
 {
@@ -503,13 +496,11 @@ set_recovery_ie(gtpv2c_header *header, enum ie_instance instance)
 	return set_uint8_ie(header, IE_RECOVERY, instance, 0);
 }
 
-
 void
 add_grouped_ie_length(gtpv2c_ie *group_ie, uint16_t grouped_ie_length)
 {
 	group_ie->length = htons(ntohs(group_ie->length) + grouped_ie_length);
 }
-
 
 gtpv2c_ie *
 create_bearer_context_ie(gtpv2c_header *header,
@@ -517,5 +508,3 @@ create_bearer_context_ie(gtpv2c_header *header,
 {
 	return set_next_ie(header, IE_BEARER_CONTEXT, instance, 0);
 }
-
-

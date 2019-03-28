@@ -1,9 +1,6 @@
-
 /* SPDX-License-Identifier: Apache-2.0
  * Copyright(c) 2017 Intel Corporation
  */
-
-
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -240,5 +237,3 @@ del_resp_op_id(uint64_t resp_op_id)
 		rte_free(tmp);
 	}
 }
-
-

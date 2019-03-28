@@ -52,7 +52,6 @@ struct simu_params {
 	uint32_t max_enb_ran;
 #endif
 
-
 } __attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
 
 /* Show Total statistics of Control-plane */
@@ -268,7 +267,6 @@ process_cs_mb_req(struct simu_params *param)
 				sess.ipcan_dp_bearer_cdr.charging_id = 10;
 				sess.ipcan_dp_bearer_cdr.pdn_conn_charging_id = 10;
 
-
 				sess.ul_s1_info.enb_addr.iptype = IPTYPE_IPV4;
 				sess.ul_s1_info.enb_addr.u.ipv4_addr = param->enb_ip + enb_ip_idx;
 				sess.num_ul_pcc_rules = 1;
@@ -322,7 +320,6 @@ parse_agrs(struct simu_params *cfg)
 	if (file == NULL)
 		rte_exit(EXIT_FAILURE, "Cannot load configuration profile %s\n",
 				SIMU_CP_FILE);
-
 
 	file_entry = rte_cfgfile_get_entry(file, "0", "S1U_SGW_IP");
 	if (file_entry) {
@@ -445,9 +442,6 @@ int simu_cp(void)
 		print_del_stats(&cfg);
 #endif /* DEL_SESS_REQ */
 
-
 		return 0;
 }
 #endif /* SIMU_CP */
-
-

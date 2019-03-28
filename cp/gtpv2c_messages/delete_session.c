@@ -40,7 +40,6 @@ delete_context(delete_session_request_t *ds_req,
 	if (ret < 0 || !context)
 		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 
-
 	if (!ds_req->linked_ebi.header.len) {
 		/* TODO: should be responding with response indicating error
 		 * in request */
@@ -81,7 +80,6 @@ delete_context(delete_session_request_t *ds_req,
 				"default EBI\n");
 		return GTPV2C_CAUSE_MANDATORY_IE_INCORRECT;
 	}
-
 
 #ifdef ZMQ_COMM
 	/*set the delete session response */

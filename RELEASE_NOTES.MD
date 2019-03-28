@@ -32,7 +32,6 @@ This release supports following features as part of NGIC:
 -	Ipv4 support
 -	Sponsored Domain Name support
 
-
 4. OS and kernel version
 ------------------------
 This is supported on Ubuntu 14.04 and Ubuntu 16.04 and kernel version less than 4.5

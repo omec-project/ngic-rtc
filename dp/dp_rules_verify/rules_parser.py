@@ -6,7 +6,6 @@ import ipaddress
 import pprint
 from ConfigParser import SafeConfigParser
 
-
 class Utility(object):
     """
      Helping library methods
@@ -38,7 +37,6 @@ class Utility(object):
             print "Something weired exception: %s" % (str(err))
         return False
 
-
 class ParserManager(object):
     """ parser manager
     """
@@ -52,10 +50,10 @@ class ParserManager(object):
         self.debugging_flag = False
 
     def parse_adc(self):
-        """ 
+        """
         Description : Function to parse adc configuration file
         Agruments : None
-        Return : Adc parse rules dictionary        
+        Return : Adc parse rules dictionary
         """
         if not self.config.get('ADC_FILE_PATH'):
             print "Input error"
@@ -65,7 +63,7 @@ class ParserManager(object):
         self.parser.read(self.config.get('ADC_FILE_PATH'))
         for each_section in self.parser.sections():
             # parse only rules ignore rest
-            if "ADC_RULE" in each_section:  
+            if "ADC_RULE" in each_section:
                 res = {}
                 adc_type = 0
                 ue_ip = "0.0.0.0"
@@ -96,10 +94,10 @@ class ParserManager(object):
         return adc_rules
 
     def parse_sdf(self):
-        """ 
+        """
         Description : Function to parse sdf configuration file
         Agruments : None
-        Return : Sdf parse rules dictionary   
+        Return : Sdf parse rules dictionary
         """
         self.parser = SafeConfigParser()
         self.parser.read(self.config.get('SDF_FILE_PATH'))
@@ -204,7 +202,7 @@ class ParserManager(object):
         """
         Description : Function to parse pcc configuration file
         Agruments : None
-        Return : Pcc parse rules dictionary   
+        Return : Pcc parse rules dictionary
         """
         self.parser = SafeConfigParser()
         self.parser.read(self.config.get('PCC_FILE_PATH'))
@@ -359,12 +357,12 @@ class ParserManager(object):
 
     def search_filter(self, direction, ue_ip, app_ip=None):
         """
-        Description : Function to calculate actual matched rule with the basis 
-                      of adc and sdc rule precedence 
+        Description : Function to calculate actual matched rule with the basis
+                      of adc and sdc rule precedence
         Arguments : direction - packet direction (uplink or downlink)
                     ue_ip - user equipment ip
                     app_ip - application ip
-        Result : Matched rule        
+        Result : Matched rule
         """
         adc_filter = None
         sdf_filter = None

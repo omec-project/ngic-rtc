@@ -54,7 +54,6 @@ get_first_ie(gtpv2c_header *gtpv2c_h)
 	return NULL;
 }
 
-
 gtpv2c_ie *
 get_next_ie(gtpv2c_ie *gtpv2c_ie_ptr, gtpv2c_ie *limit)
 {
@@ -88,7 +87,6 @@ set_gtpv2c_header(gtpv2c_header *gtpv2c_tx,
 			htons(sizeof(gtpv2c_tx->teid_u.no_teid));
 }
 
-
 void
 set_gtpv2c_teid_header(gtpv2c_header *gtpv2c_tx, uint8_t type,
 	uint32_t teid, uint32_t seq)
@@ -96,7 +94,6 @@ set_gtpv2c_teid_header(gtpv2c_header *gtpv2c_tx, uint8_t type,
 	/* Default set teidFlg = 1 */
 	set_gtpv2c_header(gtpv2c_tx, 1, type, teid, seq);
 }
-
 
 void
 set_gtpv2c_echo(gtpv2c_header *gtpv2c_tx,
@@ -106,4 +103,3 @@ set_gtpv2c_echo(gtpv2c_header *gtpv2c_tx,
 	set_gtpv2c_header(gtpv2c_tx, teidFlg, type, teid, seq);
 	set_recovery_ie(gtpv2c_tx, IE_INSTANCE_ZERO);
 }
-

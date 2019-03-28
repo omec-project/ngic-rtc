@@ -731,4 +731,3 @@ process_sgwc_s5s8_create_session_response(gtpv2c_header *gtpv2c_s5s8_rx,
 		rte_exit(EXIT_FAILURE,"Bearer Session create fail !!!");
 	return 0;
 }
-

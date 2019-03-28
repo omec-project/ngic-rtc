@@ -266,4 +266,3 @@ int
 dp_adc_filter_default_entry_add(struct dp_id dp_id);
 
 #endif /* _ACL_H_ */
-

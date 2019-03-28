@@ -20,7 +20,6 @@
 #include "udp/vepc_udp.h"
 #include "dp_ipc_api.h"
 
-
 void iface_ipc_register_msg_cb(int msg_id,
 				int (*msg_cb)(struct msgbuf *msg_payload))
 {
@@ -46,7 +45,6 @@ void iface_init_ipc_node(void)
  */
 int iface_remove_que(enum cp_dp_comm id)
 {
-
 
 #ifdef CP_BUILD
 #ifdef ZMQ_COMM
@@ -111,7 +109,6 @@ int iface_remove_que(enum cp_dp_comm id)
 	return 0;
 }
 
-
 /**
  * @brief Function to Poll message que.
  *
@@ -155,4 +152,3 @@ int iface_process_ipc_msgs(void)
 	}
 	return ret;
 }
-

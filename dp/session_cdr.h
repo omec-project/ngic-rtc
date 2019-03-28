@@ -11,7 +11,6 @@
  */
 #include "main.h"
 
-
 /**
  * Open Session Charging data record file.
  */

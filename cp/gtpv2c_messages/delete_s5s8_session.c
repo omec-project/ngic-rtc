@@ -340,4 +340,3 @@ process_sgwc_s5s8_delete_session_response(gtpv2c_header *gtpv2c_rx,
 
 	return 0;
 }
-

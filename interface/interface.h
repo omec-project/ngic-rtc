@@ -21,7 +21,6 @@
 #include "vepc_cp_dp_api.h"
 #include "vepc_udp.h"
 
-
 uint8_t zmq_comm_switch;
 
 #ifdef SDN_ODL_BUILD
@@ -65,7 +64,6 @@ struct comm_node {
 };
 struct comm_node comm_node[COMM_END];
 struct comm_node *active_comm_msg;
-
 
 /**
  * Registor CP DP Communication message type.

@@ -65,7 +65,6 @@ extended_cdr_init(void)
 				__FILE__, __LINE__, strerror(errno), errno);
 }
 
-
 void
 export_extended_cdr(char *ue_ip,
 			char *app_ip, uint8_t pkt_mask, struct pcc_rules *pcc_info,
@@ -95,4 +94,3 @@ export_extended_cdr(char *ue_ip,
 
 	++extcdr_count;
 }
-

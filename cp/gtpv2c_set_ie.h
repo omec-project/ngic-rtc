@@ -46,7 +46,6 @@ struct response_info {
 uint16_t
 set_ie_copy(gtpv2c_header *header, gtpv2c_ie *src_ie);
 
-
 void
 set_ie_header(ie_header_t *header, uint8_t type,
 		enum ie_instance instance, uint16_t length);
@@ -312,7 +311,6 @@ set_bearer_tft_ie(gtpv2c_header *header, enum ie_instance instance,
  */
 uint16_t
 set_recovery_ie(gtpv2c_header *header, enum ie_instance instance);
-
 
 /* Group Information Element Setter & Builder Functions */
 

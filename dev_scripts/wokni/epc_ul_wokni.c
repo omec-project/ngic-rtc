@@ -346,4 +346,3 @@ void register_ul_worker(epc_ul_handler f, int port)
 {
 	epc_ul_worker_func[port] = f;
 }
-

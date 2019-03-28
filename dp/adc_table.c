@@ -74,7 +74,6 @@ __rte_unused static void dump_table(struct table *t)
 	twalk(t->root, t->print_entry);
 }
 
-
 /**
  * Create ADC filter table.
  * @param dp_id

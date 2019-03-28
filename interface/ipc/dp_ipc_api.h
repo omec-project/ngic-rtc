@@ -134,7 +134,6 @@ void
 iface_ipc_register_msg_cb(int msg_id,
 		int (*msg_cb)(struct msgbuf *msg_payload));
 
-
 /**
  * @brief Functino to Process IPC msgs.
  *
@@ -158,4 +157,3 @@ int iface_remove_que(enum cp_dp_comm id);
 	int simu_cp(void);
 #endif /* CP_BUILD */
 #endif /* _DP_IPC_API_H_ */
-

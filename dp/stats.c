@@ -300,7 +300,6 @@ static void timer_cb(__attribute__ ((unused))
 }
 #endif
 
-
 #define TIMER_RESOLUTION_CYCLES 20000000ULL	/* around 10ms at 2 Ghz */
 #define TIMER_INTERVAL 10 /* sec */
 

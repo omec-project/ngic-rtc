@@ -55,7 +55,6 @@ int __send_udp_packet(udp_sock_t *__sock, void *data, int size)
 	       sizeof(__sock->other_addr));
 }
 
-
 int __create_udp_listen_socket(const char *ip, uint16_t port)
 {
 	int sockfd;

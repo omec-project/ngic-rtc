@@ -73,7 +73,6 @@ static void md5_cb(FILE *file, struct master_file_entry_t *entry)
 		fprintf(file, "%02x", entry->md5_digest[i]);
 }
 
-
 struct master_field_t master_fields[] = {
 		{"filename", filename_master_cb},
 		{"start_time", start_time_cb},
@@ -141,7 +140,6 @@ parse_records(FILE *file,
 		fprintf(stderr, "Unable to read header - ");
 		return EXIT_FAILURE;
 	}
-
 
 	for (i = 0; i < NUM_CDR_FIELDS; ++i) {
 		entry_values[i] = strtok_r(
@@ -234,8 +232,6 @@ create_master_entry(FILE *master_file,
 		return;
 	}
 
-
-
 	ret = rename(old_filename, new_filename);
 	if (ret)
 		fprintf(stderr, "Failed to rename %s (%s:%d)\n",
@@ -322,7 +318,6 @@ finalize_cur_cdrs(const char *cdr_path)
 	closedir(dir);
 	fclose(master_file);
 }
-
 
 void
 set_master_cdr_file(const char *filename)

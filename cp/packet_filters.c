@@ -462,7 +462,6 @@ init_sdf_rules(void)
 		if (entry)
 			pf.local_port_low = htons((uint16_t) atoi(entry));
 
-
 		entry = rte_cfgfile_get_entry(file, sectionname,
 				"LOCAL_HIGH_LIMIT_PORT");
 		if (entry)
@@ -764,7 +763,6 @@ parse_adc_rules(void)
 						tmp_adc.sel_type);
 		}
 
-
 		/* Add Default rule */
 		adc_rule_id[rule_id - 1] = rule_id;
 		tmp_adc.rule_id = rule_id++;
@@ -776,4 +774,3 @@ parse_adc_rules(void)
 	num_adc_rules = rule_id - 1;
 
 }
-

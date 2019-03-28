@@ -2,7 +2,6 @@
  * Copyright(c) 2017 Intel Corporation
  */
 
-
 /**
  * @file
  * The PCC and ADC charge record structure allows for the definition of CDR
@@ -39,7 +38,6 @@
 #define PANIC_ON_UNDEFINED_RULE() \
 	rte_panic("Error in %s: CDR must indicate either PCC or ADC rule\n",\
 			__FILE__)
-
 
 char *cdr_path = DEFAULT_CDR_PATH;
 FILE *cdr_file;
@@ -93,7 +91,6 @@ iptoa_prefix(struct ip_addr addr, uint16_t prefix)
 	}
 	return buffer;
 }
-
 
 /* begin static cdr callback fucntions */
 
@@ -394,7 +391,6 @@ write_to_cdr(void)
 	rewind(cdr_file_stream);
 }
 
-
 /**
  * Writes the CDR field headers to file
  */
@@ -614,7 +610,6 @@ void mtr_init(void)
 			mkdir("./cdr", S_IRWXU);
 		}
 
-
 		printf("Logging MTR Records to %s\n", filename);
 
 		mtr_file = fopen(filename, "w");
@@ -699,7 +694,6 @@ export_session_adc_record(struct adc_rules *adc_rule,
 {
 	export_record(session, &charge_record->data_vol, NULL, adc_rule);
 }
-
 
 void export_mtr(struct dp_session_info *session,
 		char *name, uint32_t id, uint64_t drops)

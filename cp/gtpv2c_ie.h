@@ -128,7 +128,6 @@ typedef struct eps_bearer_id_ie {
 	uint8_t spare :4;
 } eps_bearer_id_ie;
 
-
 /**
  * IE specific data for PDN Address Allocation (PAA) as defined by
  * 3GPP TS 29.274, clause 8.14 for the IE type value 79.
@@ -340,7 +339,6 @@ static const uint8_t PACKET_FILTER_COMPONENT_SIZE[REMOTE_PORT_RANGE + 1] = {
  */
 typedef struct bearer_tft_ie_t traffic_aggregation_description;
 
-
 /**
  * IE specific data for Fully qualified Tunnel Endpoint ID (F-TEID) as defined
  * by 3GPP TS 29.274, clause 8.22 for the IE type value 87.
@@ -402,7 +400,6 @@ typedef struct charging_characteristics_ie_t {
 	uint8_t b15 :1;
 } charging_characteristics_ie;
 
-
 /**
  * IE specific data for Packet Data Network (PDN) Type as defined by
  * 3GPP TS 29.274, clause 8.34 for the IE type value 99.
@@ -428,4 +425,3 @@ typedef struct pdn_type_ie {
 		IE_TYPE_PTR_FROM_GTPV2C_IE(char, gtpv2c_ie_ptr)
 
 #endif /* IE_H */
-

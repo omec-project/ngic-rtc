@@ -17,4 +17,3 @@ gtpv2c_buf_memcpy(gtpv2c_buffer_t *buf, void *src, uint16_t src_len)
 
 	return 0;
 }
-

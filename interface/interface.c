@@ -1089,7 +1089,6 @@ static void read_interface_config(void)
 #endif /* SGX_CDR */
 }
 
-
 /**
  * @brief Initialize iface message passing
  *
@@ -1213,4 +1212,3 @@ void sig_handler(int signo)
 	else if (signo == SIGSEGV)
 		rte_panic("received SIGSEGV\n");
 }
-

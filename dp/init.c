@@ -118,7 +118,6 @@ static inline int port_init(uint8_t port, struct rte_mempool *mbuf_pool)
 	int retval;
 	uint16_t q;
 
-
 	if (port >= rte_eth_dev_count())
 		return -1;
 	/* TODO: use q 1 for arp */
@@ -136,7 +135,6 @@ static inline int port_init(uint8_t port, struct rte_mempool *mbuf_pool)
 		if (retval < 0)
 			return retval;
 	}
-
 
 	/* Allocate and set up TX queue per Ethernet port. */
 	for (q = 0; q < tx_rings; q++) {
@@ -322,7 +320,6 @@ dp_ddn_init(void)
 
 	if (notify_msg_pool == NULL)
 		rte_exit(EXIT_FAILURE, "Cannot create notify_msg_pool !!!\n");
-
 
 }
 #endif /* DP_DDN */

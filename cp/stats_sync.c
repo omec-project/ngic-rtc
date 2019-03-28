@@ -185,7 +185,6 @@ add_stats_entry(struct sync_stats *stats)
 	int ret;
 	_timer_t _init_time = 0;
 
-
 	struct sync_stats *tmp = rte_zmalloc("test",
 			sizeof(struct sync_stats),
 			RTE_CACHE_LINE_SIZE);
@@ -234,4 +233,3 @@ update_stats_entry(uint64_t key, uint8_t type)
 		stats->resp_recv_time = _init_time;
 	}
 }
-

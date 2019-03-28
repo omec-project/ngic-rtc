@@ -157,7 +157,6 @@ class Parser(ParserManager):
             print "Total Packets : {:>17}".format(self.total_packets)
             print "*" * 30
 
-
 if __name__ == "__main__":
     arguments = sys.argv[1:]
     if len(arguments) == 2:

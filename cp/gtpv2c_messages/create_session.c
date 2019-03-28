@@ -13,7 +13,6 @@
 
 #define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
 
-
 extern uint32_t num_adc_rules;
 extern uint32_t adc_rule_id[];
 struct response_info resp_t;
@@ -49,7 +48,6 @@ set_create_session_response(gtpv2c_header *gtpv2c_tx,
 
 		set_ie_header(&cs_resp.bearer_context.header, IE_BEARER_CONTEXT,
 				IE_INSTANCE_ZERO, 0);
-
 
 		set_ebi(&cs_resp.bearer_context.ebi, IE_INSTANCE_ZERO,
 				bearer->eps_bearer_id);
@@ -152,7 +150,6 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 			fprintf(stderr, "IPv6 Not Yet Implemented - Dropping packet\n");
 			return GTPV2C_CAUSE_PREFERRED_PDN_TYPE_UNSUPPORTED;
 	}
-
 
 	apn *apn_requested = get_apn((char *)csr.apn.apn, csr.apn.header.len);
 

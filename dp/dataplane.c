@@ -399,7 +399,6 @@ dl_sess_info_get(struct rte_mbuf **pkts, uint32_t n,
 				break;
 		}
 
-
 		key[j].ue_ipv4 = dst_addr;
 		struct epc_meta_data *meta_data =
 		(struct epc_meta_data *)RTE_MBUF_METADATA_UINT8_PTR(pkts[j],
@@ -1082,7 +1081,6 @@ void dp_table_init(void)
 #endif /* PCAP_GEN */
 
 }
-
 
 #ifdef PCAP_GEN
 

@@ -108,7 +108,6 @@ parse_create_bearer_rsp(gtpv2c_header *gtpv2c_rx,
 	return 0;
 }
 
-
 int
 process_create_bearer_response(gtpv2c_header *gtpv2c_rx)
 {

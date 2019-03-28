@@ -252,7 +252,6 @@ struct ul_timer_stats {
 
 #endif /* TIMER_STATS */
 
-
 /* TODO: KNI releted parameters and struct define here */
 
 /* Max size of a single packet */
@@ -885,7 +884,6 @@ void
 dl_sess_info_get(struct rte_mbuf **pkts, uint32_t n,
 		uint64_t *pkts_mask, struct dp_sdf_per_bearer_info **sess_info,
 		struct dp_session_info **si);
-
 
 /**
  * Gate the incoming pkts based on PCC entry info.
@@ -1537,7 +1535,6 @@ int
 hash_create(const char *name, struct rte_hash **rte_hash,
 		uint32_t entries, uint32_t key_len);
 
-
 /**
  * @brief initalizes data plane hash tables
  */
@@ -1633,7 +1630,6 @@ dp_ue_cdr_flush(struct dp_id dp_id,	struct msg_ue_cdr *ue_cdr);
 
 struct dp_session_info *
 get_session_data(uint64_t sess_id, uint32_t is_mod);
-
 
 /***********************ddn_utils.c functions start**********************/
 #ifdef NGCORE_SHRINK
@@ -1879,4 +1875,3 @@ void print_perf_statistics(void);
 
 /***********************ddn_utils.c functions end**********************/
 #endif /* _MAIN_H_ */
-

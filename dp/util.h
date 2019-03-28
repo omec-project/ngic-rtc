@@ -105,5 +105,4 @@ void
 construct_udp_hdr(struct rte_mbuf *m, uint16_t len,
 		  uint16_t sport, uint16_t dport);
 
-
 #endif /*_UTIL_H_ */

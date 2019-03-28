@@ -4,7 +4,6 @@
 
 #include "gtpv2c.h"
 
-
 int
 process_echo_request(gtpv2c_header *gtpv2c_rx, gtpv2c_header *gtpv2c_tx)
 {

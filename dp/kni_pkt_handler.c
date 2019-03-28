@@ -182,7 +182,6 @@ void init_kni(void) {
 	rte_kni_init(num_of_kni_ports);
 }
 
-
 /* Check the link status of all ports in up to 9s, and print them finally */
 void check_all_ports_link_status(uint16_t port_num, uint32_t port_mask) {
 #define CHECK_INTERVAL 10 /* 100ms */
@@ -363,8 +362,6 @@ kni_config_network_interface(uint16_t port_id, uint8_t if_up)
 	//else
 	//	rte_exit(EXIT_FAILURE, "Error: port %u is not configured.\n", port_id);
 
-
-
 	//if ( bind(fd_array[port_id], (const struct sockaddr *)&servaddr,
 	//			sizeof(servaddr)) < 0 )
 	//{
@@ -490,7 +487,6 @@ kni_alloc(uint16_t port_id)
 
 	return 0;
 }
-
 
 void
 free_kni_ports(void) {
