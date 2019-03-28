@@ -497,24 +497,21 @@ build_ngic()
 {
 	pushd $NGIC_DIR
 	source setenv.sh
-	if [ $SERVICE == 2 ] || [ $SERVICE == 3 ] ; then
-		make clean
-		echo "Building Libs..."
-		make build-lib || { echo -e "\nNG-CORE: Make lib failed\n"; }
-		echo "Building DP..."
-		make build-dp || { echo -e "\nDP: Make failed\n"; }
-	fi
-	if [ $SERVICE == 1 ] || [ $SERVICE == 3 ] ; then
-		echo "Building libgtpv2c..."
-		pushd $NGIC_DIR/libgtpv2c
-			make clean
-			make || { echo -e "\nlibgtpv2c: Make failed\n"; }
-		popd
-
-		echo "Building CP..."
-		make clean-cp
-		make build-cp || { echo -e "\nCP: Make failed\n"; }
-	fi
+	make -j$(nproc) clean
+	case "$SERVICE" in
+		1)
+			make -j$(nproc) WHAT="cp" || { echo -e "\nCP: Make failed\n"; }
+			;;
+		2)
+			make -j$(nproc) WHAT="dp" || { echo -e "\nDP: Make failed\n"; }
+			;;
+		3)
+			make -j$(nproc) WHAT="cp dp" || { echo -e "\nCP/DP: Make failed\n"; }
+			;;
+		*)
+			echo "Unknown service choice $SERVICE"
+			;;
+		esac
 	popd
 }
 
