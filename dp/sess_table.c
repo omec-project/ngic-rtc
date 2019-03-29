@@ -47,7 +47,7 @@ extern struct rte_hash *rte_downlink_hash;
 extern struct rte_hash *rte_adc_hash;
 extern struct rte_hash *rte_adc_ue_hash;
 
-#define DEBUG_SESS_TABLE 1
+#define DEBUG_SESS_TABLE 0
 
 #if DEBUG_SESS_TABLE
 #define WIDTH 40
