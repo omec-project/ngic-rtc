@@ -4,6 +4,7 @@
 # Copyright(c) 2017 Intel Corporation
 
 cd $(dirname ${BASH_SOURCE[0]})
+CPUS=${CPUS:-$(nproc)}
 SERVICE=3
 SGX_SERVICE=0
 SERVICE_NAME="Collocated CP and DP"
@@ -208,7 +209,7 @@ install_dpdk()
 	cp -f dpdk-18.02_common_linuxapp "$DPDK_DIR"/config/common_linuxapp
 
 	pushd "$DPDK_DIR"
-	make -j 20 install T="$RTE_TARGET"
+	make -j $CPUS install T="$RTE_TARGET"
 	if [ $? -ne 0 ] ; then
 		echo "Failed to build dpdk, please check the errors."
 		return
@@ -461,12 +462,8 @@ download_hyperscan()
 	pushd hyperscan-4.1.0
 	mkdir build; pushd build
 	cmake -DCMAKE_CXX_COMPILER=c++ ..
-	cmake --build .
-	export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PWD/lib
-	popd
-	export HYPERSCANDIR=$PWD
-	echo "export HYPERSCANDIR=$PWD" >> ../setenv.sh
-	popd
+	make -j $CPUS install
+	popd; popd;
 }
 
 
@@ -497,16 +494,16 @@ build_ngic()
 {
 	pushd $NGIC_DIR
 	source setenv.sh
-	make -j$(nproc) clean
+	make -j $CPUS clean
 	case "$SERVICE" in
 		1)
-			make -j$(nproc) WHAT="cp" || { echo -e "\nCP: Make failed\n"; }
+			make -j $CPUS WHAT="cp" || { echo -e "\nCP: Make failed\n"; }
 			;;
 		2)
-			make -j$(nproc) WHAT="dp" || { echo -e "\nDP: Make failed\n"; }
+			make -j $CPUS WHAT="dp" || { echo -e "\nDP: Make failed\n"; }
 			;;
 		3)
-			make -j$(nproc) WHAT="cp dp" || { echo -e "\nCP/DP: Make failed\n"; }
+			make -j $CPUS WHAT="cp dp" || { echo -e "\nCP/DP: Make failed\n"; }
 			;;
 		*)
 			echo "Unknown service choice $SERVICE"
