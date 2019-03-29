@@ -21,6 +21,8 @@
 #include "vepc_cp_dp_api.h"
 #include "vepc_udp.h"
 
+extern void parse_arg_host(const char *optarg, struct in_addr *addr);
+
 uint8_t zmq_comm_switch;
 
 #ifdef SDN_ODL_BUILD

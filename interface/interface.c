@@ -975,27 +975,36 @@ zmq_destroy(void)
 #endif /* !CP_BUILD*/
 
 #define IFACE_FILE "../config/interface.cfg"
+
+static void set_config_ip(struct in_addr *ip, const char *key,
+                 struct rte_cfgfile *file, const char *section, const char *entry)
+{
+		entry = rte_cfgfile_get_entry(file, section, key);
+		if (entry == NULL)
+			rte_panic("%s not found in %s", key, IFACE_FILE);
+		parse_arg_host(entry, ip);
+}
+
 #define SET_CONFIG_IP(ip, file, section, entry) \
-	do {\
-		entry = rte_cfgfile_get_entry(file, section, #ip);\
-		if (entry == NULL)\
-			rte_panic("%s not found in %s", #ip, IFACE_FILE);\
-		if (inet_aton(entry, &ip) == 0)\
-			rte_panic("Invalid %s in %s", #ip, IFACE_FILE);\
-	} while (0)
+	set_config_ip(&ip, #ip, file, section, entry)
+
+static void set_config_port(uint16_t *port, const char *key,
+                 struct rte_cfgfile *file, const char *section, const char *entry)
+{
+		entry = rte_cfgfile_get_entry(file, section, key);
+		if (entry == NULL)
+			rte_panic("%s not found in %s", key, IFACE_FILE);
+		if (sscanf(entry, "%"SCNu16, port) != 1)
+			rte_panic("Invalid %"PRIu16" in %s", *port, IFACE_FILE);
+}
+
 #define SET_CONFIG_PORT(port, file, section, entry) \
-	do {\
-		entry = rte_cfgfile_get_entry(file, section, #port);\
-		if (entry == NULL)\
-			rte_panic("%s not found in %s", #port, IFACE_FILE);\
-		if (sscanf(entry, "%"SCNu16, &port) != 1)\
-			rte_panic("Invalid %s in %s", #port, IFACE_FILE);\
-	} while (0)
+	set_config_port(&port, #port, file, section, entry)
 
 static void read_interface_config(void)
 {
 	struct rte_cfgfile *file = rte_cfgfile_load(IFACE_FILE, 0);
-	const char *file_entry;
+	char *file_entry = NULL;
 
 	if (file == NULL)
 		rte_exit(EXIT_FAILURE, "Cannot load configuration profile %s\n",
