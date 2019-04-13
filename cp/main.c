@@ -1947,7 +1947,6 @@ main(int argc, char **argv)
 	pfcp_init_cp();
 	create_heartbeat_hash_table();
 	create_associated_upf_hash();
-	add_ip_to_heartbeat_hash();
 
 #ifdef SYNC_STATS
 	stats_init();
@@ -1991,7 +1990,7 @@ main(int argc, char **argv)
 			RTE_LOG_DP(ERR, DP, "Failed to add connection entry for MME");
 		}
 
-	//	/* VS: Added default entry for SGWU/SAEGWU */
+		/* VS: Added default entry for SGWU/SAEGWU */
 	//	if ((add_node_conn_entry((uint32_t)pfcp_config.sgwu_pfcp_ip[0].s_addr, SX_PORT_ID)) != 0) {
 	//		RTE_LOG_DP(ERR, DP, "Failed to add connection entry for SGWU/SAEGWU");
 	//	}

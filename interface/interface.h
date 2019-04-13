@@ -33,6 +33,8 @@
 #include "vepc_cp_dp_api.h"
 #include "vepc_udp.h"
 
+//#define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
+
 extern int num_dp;
 
 uint8_t zmq_comm_switch;

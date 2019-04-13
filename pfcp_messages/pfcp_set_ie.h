@@ -108,7 +108,7 @@ int
 process_pfcp_association_request(void);
 
 int
-process_pfcp_heartbeat_req(void);
+process_pfcp_heartbeat_req(struct sockaddr_in *peer_addr);
 
 
 #if defined(PFCP_COMM)  && defined(CP_BUILD)
@@ -328,6 +328,7 @@ cause_check_delete_session(pfcp_session_deletion_request_t *pfcp_session_delete_
                 uint8_t *cause_id, int *offend_id);
 
 
+
 uint8_t
 add_node_id_hash(uint32_t *nodeid, uint64_t *data);
 
@@ -338,8 +339,10 @@ void
 create_heartbeat_hash_table(void);
 
 void
-add_ip_to_heartbeat_hash(void);
+add_ip_to_heartbeat_hash(struct sockaddr_in *peer_addr);
 
+void
+delete_entry_heartbeat_hash(struct sockaddr_in *peer_addr);
 int
 add_data_to_heartbeat_hash_table(uint32_t *ip, uint32_t *recov_time);
 

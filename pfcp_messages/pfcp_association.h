@@ -19,6 +19,10 @@
 
 #include "pfcp_messages.h"
 
+#ifdef CP_BUILD
+#define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
+#endif
+
 void
 fill_pfcp_association_update_resp(pfcp_association_update_response_t *pfcp_asso_update_resp);
 void
@@ -40,7 +44,7 @@ fill_pfcp_heartbeat_resp(pfcp_heartbeat_response_t *pfcp_heartbeat_resp);
 void
 fill_pfcp_heartbeat_req(pfcp_heartbeat_request_t *pfcp_heartbeat_req);
 int
-process_pfcp_heartbeat_req(void);
-void
-send_heartbeat(void);
+process_pfcp_heartbeat_req(struct sockaddr_in *peer_addr);
+
+
 #endif /* PFCP_ASSOC_H */

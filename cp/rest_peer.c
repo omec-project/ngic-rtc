@@ -33,6 +33,7 @@
 #include "gtpv2c.h"
 #include "cp.h"
 #include "pfcp_association.h"
+#include "pfcp_messages/pfcp_set_ie.h"
 
 #include "../restoration/gstimer.h"
 
@@ -115,6 +116,7 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 		//printf("port %u iteration loop exit for IP: %s  ...!!!!\n",
 		//	md->portId, inet_ntoa(*(struct in_addr *)&tmp_key));
 		/*VS: TODO Flush sessions */
+		delete_entry_heartbeat_hash(&dest_addr);	
 		return;
 	}
 
@@ -156,7 +158,9 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 	} else if (md->portId == SX_PORT_ID) {
 		/* VS:TODO: Defined this part after merging sx heartbeat*/
 		//process_pfcp_heartbeat_req(md->dst_ip, up_time); /* TODO: Future Enhancement */
-		process_pfcp_heartbeat_req();
+		//dest_addr.sin_port = htons(pfcp_config.sgwu_pfcp_port[0]);
+		dest_addr.sin_port = htons(8805);
+		process_pfcp_heartbeat_req(&dest_addr);
 		if (ti == &md->tt)
 			(md->itr_cnt)++;
 

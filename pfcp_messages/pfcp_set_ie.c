@@ -1170,30 +1170,20 @@ add_data_to_heartbeat_hash_table(uint32_t *ip,uint32_t *recov_time)
 	return 0;
 }
 
-void
-add_ip_to_heartbeat_hash(void)
+void add_ip_to_heartbeat_hash(struct sockaddr_in *peer_addr)
 {
-	int num_dp = 0, ret = 0;
-	uint32_t default_recov_time = 1000;
-	if(pfcp_config.cp_type == SGWC) {
-		num_dp = pfcp_config.num_sgwu;
-		for(int i =0; i< num_dp; i++) {
-			ret = add_data_to_heartbeat_hash_table(&(pfcp_config.sgwu_pfcp_ip[i].s_addr),&default_recov_time);
-			if(ret !=0){
-				printf("Error in SGWU add ip to hash\n\n");
-			}
-		}
+	uint32_t *default_recov_time = NULL;
+	default_recov_time = rte_zmalloc_socket(NULL, sizeof(uint32_t),
+                                                RTE_CACHE_LINE_SIZE, rte_socket_id());
+	
+	*default_recov_time = 1000;
+	int ret = add_data_to_heartbeat_hash_table( &peer_addr->sin_addr.s_addr ,default_recov_time);
+                      
+    if(ret !=0){
 
-	} else if(pfcp_config.cp_type == PGWC) {
-
-		num_dp = pfcp_config.num_pgwu;
-
-		for(int i =0; i< num_dp; i++) {
-			add_data_to_heartbeat_hash_table(&(pfcp_config.pgwu_pfcp_ip[i].s_addr),&default_recov_time);
-			if(ret !=0)
-				printf("Error in PGWC IP ADD!!!!!!!!!!!\n\n");
-		}
-	}
+        fprintf(stderr,"%s - Error on rte_hash_add_key_data add in heartbeat\n",
+		strerror(ret));
+    }
 }
 
 
@@ -1218,8 +1208,17 @@ create_heartbeat_hash_table(void)
 
 }
 
-void
-clear_heartbeat_hash_table(void)
+void delete_entry_heartbeat_hash(struct sockaddr_in *peer_addr)
+{
+ 	int ret = rte_hash_del_key(heartbeat_recovery_hash,
+                    (const void *)&(peer_addr->sin_addr.s_addr));
+	if (ret == -EINVAL || ret == -ENOENT) {
+		  fprintf(stderr,"%s - Error on rte_delete_enrty_key_data add in heartbeat\n",
+		strerror(ret));
+	}
+}
+
+void clear_heartbeat_hash_table(void)
 {
 	rte_hash_free(heartbeat_recovery_hash);
 }

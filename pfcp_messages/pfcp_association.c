@@ -24,6 +24,11 @@
 #include "pfcp_util.h"
 #include "pfcp_association.h"
 
+#ifdef DP_BUILD
+#define RTE_LOGTYPE_DP RTE_LOGTYPE_USER4
+#endif
+
+
 pfcp_config_t pfcp_config;
 extern pfcp_context_t pfcp_ctxt;
 extern struct rte_hash *heartbeat_recovery_hash;
@@ -312,110 +317,31 @@ fill_pfcp_heartbeat_resp(pfcp_heartbeat_response_t *pfcp_heartbeat_resp)
 	set_recovery_time_stamp(&(pfcp_heartbeat_resp->recovery_time_stamp));
 }
 
-
-int process_pfcp_heartbeat_req(void)
+int process_pfcp_heartbeat_req(struct sockaddr_in *peer_addr)
 {
-
+	uint8_t pfcp_msg[250]={0};
+	int encoded = 0;
 	pfcp_heartbeat_request_t pfcp_heartbeat_req  = {0};
 	pfcp_heartbeat_response_t *pfcp_hearbeat_resp = malloc(sizeof(pfcp_heartbeat_response_t));
 	memset(pfcp_hearbeat_resp,0,sizeof(pfcp_heartbeat_response_t));
-
 	fill_pfcp_heartbeat_req(&pfcp_heartbeat_req);
-
-	uint8_t pfcp_msg[250]={0};
-	int encoded = encode_pfcp_heartbeat_request(&pfcp_heartbeat_req, pfcp_msg);
-	//printf("Encoded HeartBeat is  [%d]\n",encoded);
+	encoded = encode_pfcp_heartbeat_request(&pfcp_heartbeat_req, pfcp_msg);
 	pfcp_header_t *header = (pfcp_header_t *) pfcp_msg;
 	header->message_len = htons(encoded - 4);
 
-	if(pfcp_ctxt.flag_ava_ip == true)
-	{
-		for(uint32_t i=0;i < pfcp_config.num_sgwu; i++ ){
-
-			if(pfcp_config.cp_type == SGWC ) {
-				//pfcp_sgwu_sockaddr_arr[i].sin_addr = pfcp_ctxt.ava_ip;
-
-				//sending
-				if ( pfcp_send(pfcp_sgwc_fd_arr[i],pfcp_msg,encoded,&pfcp_sgwu_sockaddr_arr[i]) < 0 )
-					printf("Error sending: %i\n",errno);
-			}
-			//receiving
-			uint8_t pfcp_rx[512] = {0};
-			struct sockaddr_in peer_addr;
-			//if(pfcp_recv(pfcp_sgwc_fd_arr[0],pfcp_rx,512, &peer_addr) < 0)
-			if(pfcp_recv(pfcp_rx,512, &peer_addr) < 0)
-			{
-				perror("msgrecv");
-			}
-			int decoded = decode_pfcp_heartbeat_response(pfcp_rx,pfcp_hearbeat_resp);
-			RTE_SET_USED(decoded);
-
-			int ret ;
-			uint32_t *recov_time = malloc(sizeof(uint32_t));
-
-			ret = rte_hash_lookup_data(heartbeat_recovery_hash, &peer_addr.sin_addr.s_addr,
-					(void **) &(recov_time));
-			if (ret == -ENOENT) {
-				printf("No entry found for the heartbeat\n ");
-			}
-
-			uint32_t update_recov_time = 0;
-			update_recov_time =  (pfcp_hearbeat_resp->recovery_time_stamp.recovery_time_stamp_value);
-
-			if(update_recov_time > *recov_time) {
-
-				ret = rte_hash_add_key_data (heartbeat_recovery_hash, &peer_addr.sin_addr.s_addr,
-						&update_recov_time);
-
-				ret = rte_hash_lookup_data(heartbeat_recovery_hash , &peer_addr.sin_addr.s_addr,
-						(void **) &(recov_time));
-
-			}	
-
-		}
+#ifdef CP_BUILD
+	if ( pfcp_send(pfcp_sgwc_fd_arr[0], pfcp_msg, encoded, peer_addr) < 0 ) {
+				RTE_LOG_DP(DEBUG, CP, "Error sending: %i\n", errno);
 	}
+#endif
+
+#ifdef DP_BUILD
+ if ( pfcp_send(my_sock.sock_fd, pfcp_msg, encoded, peer_addr) < 0 ) {
+					RTE_LOG_DP(DEBUG, DP, "Error sending: %i\n",errno);
+	}
+	
+#endif
+
 	return 0;
 
-}
-
-
-void send_heartbeat(void)
-{
-
-	struct sockaddr_in cp_peer;
-
-	cp_peer.sin_family = AF_INET;
-	cp_peer.sin_addr = cp_comm_ip;
-	cp_peer.sin_port = htons(cp_comm_port);
-
-	uint8_t pfcp_msg[250] = {0};
-	pfcp_heartbeat_request_t pfcp_heartbeat_req  = {0};
-	pfcp_heartbeat_response_t *pfcp_hearbeat_resp = malloc(sizeof(pfcp_heartbeat_response_t));
-	memset(pfcp_hearbeat_resp,0,sizeof(pfcp_heartbeat_response_t));
-
-	fill_pfcp_heartbeat_req(&pfcp_heartbeat_req);
-
-	int encoded = encode_pfcp_heartbeat_request(&pfcp_heartbeat_req, pfcp_msg);
-	pfcp_header_t *header = (pfcp_header_t *) pfcp_msg;
-	header->message_len = htons(encoded - 4);
-
-	if ( pfcp_send(my_sock.sock_fd,pfcp_msg,encoded,&cp_peer) < 0 ) {
-
-		printf("Error sending: %i\n",errno);
-	}
-
-	uint8_t pfcp_rx[512] = {0};
-
-	if(pfcp_recv(pfcp_rx,512, &cp_peer) < 0) {
-		perror("msgrecv");
-		/*char peer_ip[INET_ADDRSTRLEN];
-			printf("VG: received from %s \n",
-					inet_ntop(AF_INET,
-							&peer_addr.sin_addr, peer_ip, INET_ADDRSTRLEN));
-		 */
-		exit(-1);
-	}
-
-	decode_pfcp_heartbeat_response(pfcp_rx,pfcp_hearbeat_resp);
-	free(pfcp_hearbeat_resp);
 }

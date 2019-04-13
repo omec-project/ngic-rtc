@@ -42,7 +42,7 @@ extern pcap_dumper_t *pcap_dumper_east;
 #endif /* PCAP_GEN */
 
 extern unsigned int fd_array[2];
-
+extern uint16_t cp_comm_port;
 //#ifndef STATIC_ARP
 static struct sockaddr_in dest_addr[2];
 //#endif /* STATIC_ARP */
@@ -118,6 +118,11 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 	peerData *md = (peerData*)data_t;
 	uint32_t tmp_key = htonl(md->dstIP);
 	struct rte_mbuf *pkt = rte_pktmbuf_alloc(echo_mpool);
+	struct sockaddr_in dest_addr;
+	
+	dest_addr.sin_family = AF_INET;
+	dest_addr.sin_addr.s_addr = md->dstIP;
+	dest_addr.sin_port = htons(cp_comm_port);
 	
 	RTE_LOG_DP(DEBUG, DP, "%s - %s:%s.%s (%dms) has expired\n", getPrintableTime(),
 	      md->name, inet_ntoa(*(struct in_addr *)&tmp_key),
@@ -132,7 +137,7 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 		stopTimer( &data[inx].tt );
 		/* Stop Timer periodic timer for specific MME */
 		stopTimer( &data[inx].pt );
-		RTE_LOG_DP(ERR, DP, "Stopped Periodic/transmit timer, peer node not reachable\n");
+		RTE_LOG_DP(ERR, DP, "Stopped Periodic/transmit timer, peer node is not reachable\n");
 		flush_eNB_session(md, inx);
 		return;
 	}
@@ -150,7 +155,7 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 		//printf(" Send PFCP HEARTBEAT REQ\n");
 		/* VS:TODO: Defined this part after merging sx heartbeat*/
 		//process_pfcp_heartbeat_req(md->dst_ip, up_time); /* TODO: Future Enhancement */
-		process_pfcp_heartbeat_req();
+		process_pfcp_heartbeat_req(&dest_addr);
 
 		if (ti == &md->tt)
 			(md->itr_cnt)++;

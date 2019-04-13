@@ -56,6 +56,7 @@ _timer_t _init_time = 0;
 extern struct kni_port_params *kni_port_params_array[RTE_MAX_ETHPORTS];
 /* Generate new pcap for sgi port. */
 #ifdef PCAP_GEN
+extern pcap_dumper_t *pcap_dumper_west;
 extern pcap_dumper_t *pcap_dumper_east;
 #endif /* PCAP_GEN */
 uint32_t dl_nkni_pkts = 0;

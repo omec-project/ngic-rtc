@@ -332,6 +332,7 @@ extern struct in_addr s1u_sgw_ip;
 extern struct in_addr s5s8_sgwu_ip;
 extern struct in_addr s5s8_pgwu_ip;
 
+#ifdef CP_BUILD
 /**
  * @brief
  * Writes packet at @tx_buf of length @payload_length to pcap file specified
@@ -339,6 +340,7 @@ extern struct in_addr s5s8_pgwu_ip;
  */
 void
 dump_pcap(uint16_t payload_length, uint8_t *tx_buf);
+#endif /* CP_BUILD */
 
 /**
  * Helper function to set the gtp header for a gtpv2c message.

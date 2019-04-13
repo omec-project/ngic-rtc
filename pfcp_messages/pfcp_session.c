@@ -124,7 +124,7 @@ fill_pfcp_sess_mod_req( pfcp_session_modification_request_t *pfcp_sess_mod_req)
 {
 	uint32_t seq = 1;
 #if defined(PFCP_COMM) && defined(CP_BUILD)
-	RTE_LOG(DEBUG, CP, "TEID[%d]\n",mbr->s11_mme_fteid.teid_gre);
+	RTE_LOG_DP(DEBUG, CP, "TEID[%d]\n",mbr->s11_mme_fteid.teid_gre);
 #endif
 	memset(pfcp_sess_mod_req,0,sizeof(pfcp_session_modification_request_t));
 
