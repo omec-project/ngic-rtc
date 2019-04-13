@@ -33,6 +33,7 @@
 #include "vepc_cp_dp_api.h"
 #include "vepc_udp.h"
 
+extern int num_dp;
 
 uint8_t zmq_comm_switch;
 
@@ -45,6 +46,7 @@ extern uint16_t fpc_port;
 extern uint16_t fpc_topology_port;
 extern struct in_addr cp_nb_ip;
 extern uint16_t cp_nb_port;
+
 #endif
 
 #ifdef ZMQ_COMM
@@ -131,6 +133,20 @@ int unset_comm_type(enum cp_dp_comm id);
  *	-1 - fail
  */
 int process_comm_msg(void *buf);
+
+
+/**
+ * Process PFCP message.
+ * @param buf_rx
+ *	buf - message buffer.
+ * @param bytes_rx
+ *  received message buffer size
+ * @return
+ *	0 - success
+ *	-1 - fail
+ */
+int process_pfcp_msg(uint8_t *buf_rx, int bytes_rx,
+		struct sockaddr_in *peer_addr);
 
 /**
  * Process DP CP Response

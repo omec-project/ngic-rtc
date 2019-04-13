@@ -32,11 +32,16 @@
 #include <rte_jhash.h>
 #include <rte_cfgfile.h>
 
+
+//#include "../dp/meter.h"
+#include "meter.h"
+#include "acl_dp.h"
 #include "interface.h"
 #include "util.h"
 #include "meter.h"
 #include "dp_ipc_api.h"
 #include "gtpv2c_ie.h"
+#include "gtpv2c.h"
 #ifdef SDN_ODL_BUILD
 #include "zmqsub.h"
 #include "zmqpub.h"
@@ -52,10 +57,21 @@
 #include "cp.h"
 #endif
 
+#include "../pfcp_messages/pfcp_set_ie.h"
+#include "pfcp_messages_encoder.h"
+#include "pfcp_messages_decoder.h"
 #include "main.h"
 
 #include "../dp/perf_timer.h"
+#include "../cp/pfcp.h"
+#include "pfcp_messages.h"
+#include "pfcp_association.h"
+#include "pfcp_session.h"
 
+
+#if 0
+extern struct rte_hash *teid_fseid_hash;
+#endif
 #ifdef SGX_CDR
 	#define DEALERIN_IP "dealer_in_ip"
 	#define DEALERIN_PORT "dealer_in_port"
@@ -66,6 +82,7 @@
 	#define DP_PKEY_PATH "dp_pkey_path"
 #endif /* SGX_CDR */
 
+
 /*
  * UDP Setup
  */
@@ -73,6 +90,7 @@ udp_sock_t my_sock;
 
 /* VS: ROUTE DISCOVERY */
 extern int route_sock;
+
 
 struct in_addr dp_comm_ip;
 struct in_addr cp_comm_ip;
@@ -101,6 +119,64 @@ extern void print_perf_statistics(void);
 #endif /* TIMER_STATS */
 
 extern struct ipc_node *basenode;
+
+struct rte_hash *node_id_hash;
+extern struct rte_hash *associated_upf_hash;
+int s11_sgwc_fd_arr[MAX_NUM_SGWC]  =  {-1} ;
+int s5s8_sgwc_fd_arr[MAX_NUM_SGWC] = {-1};
+int s5s8_pgwc_fd_arr[MAX_NUM_PGWC] = {-1};
+int pfcp_sgwc_fd_arr[MAX_NUM_SGWC] = {-1};
+int pfcp_pgwc_fd_arr[MAX_NUM_PGWC] = {-1};
+
+/* Count of current connected data-plane */
+extern int num_dp;
+extern pfcp_config_t pfcp_config;
+extern socklen_t s11_mme_sockaddr_len;
+extern pfcp_context_t pfcp_ctxt;
+extern association_context_t assoc_ctxt[100] ;
+
+uint8_t tx_buf[MAX_GTPV2C_UDP_LEN];
+
+#define htonll(x) ((1==htonl(1)) ? (x) : ((uint64_t)htonl((x) & 0xFFFFFFFF) << 32) | htonl((x) >> 32))
+#define ntohll(x) ((1==ntohl(1)) ? (x) : ((uint64_t)ntohl((x) & 0xFFFFFFFF) << 32) | ntohl((x) >> 32))
+//MME
+struct in_addr s11_mme_ip_arr[MAX_NUM_MME];
+struct sockaddr_in s11_mme_sockaddr_arr[MAX_NUM_MME];
+
+//SGWC S11
+in_port_t s11_sgwc_port_arr[MAX_NUM_SGWC];
+struct sockaddr_in s11_sgwc_sockaddr_arr[MAX_NUM_SGWC];
+
+//SGWC S5S8
+struct in_addr s5s8_sgwc_ip_arr[MAX_NUM_SGWC];
+in_port_t s5s8_sgwc_port_arr[MAX_NUM_SGWC];
+struct sockaddr_in s5s8_sgwc_sockaddr_arr[MAX_NUM_SGWC];
+
+//SGWC PFCP
+in_port_t pfcp_sgwc_port_arr[MAX_NUM_SGWC];
+struct sockaddr_in pfcp_sgwc_sockaddr_arr[MAX_NUM_SGWC];
+
+//PGWC S5S8
+struct in_addr s5s8_pgwc_ip_arr[MAX_NUM_PGWC];
+in_port_t s5s8_pgwc_port_arr[MAX_NUM_PGWC];
+struct sockaddr_in s5s8_pgwc_sockaddr_arr[MAX_NUM_PGWC];
+
+//PGWC PFCP
+struct in_addr pfcp_pgwc_ip_arr[MAX_NUM_PGWC];
+in_port_t pfcp_pgwc_port_arr[MAX_NUM_PGWC];
+struct sockaddr_in pfcp_pgwc_sockaddr_arr[MAX_NUM_PGWC];
+
+//SGWU PFCP
+in_port_t pfcp_sgwu_port_arr[MAX_NUM_SGWU];
+struct sockaddr_in pfcp_sgwu_sockaddr_arr[MAX_NUM_SGWU];
+
+//PGWU PFCP
+in_port_t pfcp_pgwu_port_arr[MAX_NUM_PGWU];
+struct sockaddr_in pfcp_pgwu_sockaddr_arr[MAX_NUM_PGWU];
+
+//SPGWU PFCP
+in_port_t pfcp_spgwu_port_arr[MAX_NUM_SPGWU];
+struct sockaddr_in pfcp_spgwu_sockaddr_arr[MAX_NUM_SPGWU];
 
 void register_comm_msg_cb(enum cp_dp_comm id,
 			int (*init)(void),
@@ -195,6 +271,375 @@ int process_comm_msg(void *buf)
 
 }
 
+
+
+#if defined(CP_BUILD) || defined(DP_BUILD)
+int
+process_pfcp_msg(uint8_t *buf_rx, int bytes_rx,
+		struct sockaddr_in *peer_addr)
+{
+	pfcp_header_t *pfcp_header = (pfcp_header_t *) buf_rx;
+	
+#ifdef DP_BUILD
+	struct msgbuf *rule_msg = NULL;
+	int encoded = 0 ;
+	uint8_t pfcp_msg[1024]= {0};
+#else
+	uint16_t payload_length;
+	bzero(&tx_buf, sizeof(tx_buf));
+	gtpv2c_header *gtpv2c_s11_tx = (gtpv2c_header *) tx_buf;
+
+#endif
+	//int decoded = 0 ;
+	
+	RTE_LOG_DP(DEBUG, DP, "Bytes received is %d\n", bytes_rx);
+	RTE_LOG_DP(DEBUG, DP, "IPADDR [%u]\n",peer_addr->sin_addr.s_addr);
+
+	switch (pfcp_header->message_type)
+	{
+#ifdef DP_BUILD
+	case PFCP_ASSOCIATION_SETUP_REQUEST:
+		{
+			memset(pfcp_msg, 0, 1024);
+			pfcp_association_setup_request_t *pfcp_ass_setup_req = malloc(sizeof(pfcp_association_setup_request_t));
+			pfcp_association_setup_response_t pfcp_ass_setup_resp = {0} ;
+
+			int decoded = decode_pfcp_association_setup_request(buf_rx,pfcp_ass_setup_req);
+			RTE_LOG_DP(DEBUG, DP, "[DP] Decoded bytes [%d]\n",decoded);
+			RTE_LOG_DP(DEBUG, DP, "recover_time[%d],cpf[%d] from CP \n",(pfcp_ass_setup_req->recovery_time_stamp.recovery_time_stamp_value),
+					(pfcp_ass_setup_req->cp_function_features.supported_features));
+
+			uint8_t cause_id = 0;
+			int offend_id = 0;
+			cause_check_association(pfcp_ass_setup_req, &cause_id, &offend_id);
+			// TODO: /handle hash error handling 
+			//fill_pfcp_association_setup_resp(&pfcp_ass_setup_resp);
+			if (cause_id == CAUSE_VALUES_REQUESTACCEPTEDSUCCESS)
+			{
+				//Adding NODE ID into nodeid hash in DP
+				int ret ;
+				uint32_t value;
+				//uint64_t temp = 12;	
+				uint64_t *data = rte_zmalloc_socket(NULL, sizeof(uint8_t),
+						RTE_CACHE_LINE_SIZE, rte_socket_id());
+				if (data == NULL)
+					rte_panic("Failure to allocate node id hash: "
+							"%s (%s:%d)\n",
+							rte_strerror(rte_errno),
+							__FILE__,
+							__LINE__);
+				*data = NODE_ID_TYPE_IPV4ADDRESS;	
+				memcpy(&value,pfcp_ass_setup_req->node_id.node_id_value,IPV4_SIZE);
+				uint32_t nodeid =(ntohl(value));
+				RTE_LOG_DP(DEBUG, DP, "NODEID in INTERRFACE [%u]\n",nodeid);
+				RTE_LOG_DP(DEBUG, DP, "DATA[%lu]\n",*data);
+
+				ret = rte_hash_lookup_data(node_id_hash,(const void*) &(nodeid),
+						(void **) &(data));
+				if (ret == -ENOENT) {
+					ret = add_node_id_hash(&nodeid, data);
+				}
+
+			}	
+			fill_pfcp_association_setup_resp(&pfcp_ass_setup_resp, cause_id);
+			pfcp_ass_setup_resp.up_ip_resource_info.ipv4_address = (app.s1u_ip);
+			pfcp_ass_setup_resp.header.seid_seqno.no_seid.seq_no =
+				 pfcp_ass_setup_req->header.seid_seqno.no_seid.seq_no;
+			memcpy(&(pfcp_ass_setup_resp.node_id.node_id_value),&(dp_comm_ip.s_addr),pfcp_ass_setup_resp.node_id.node_id_value_len);
+
+			encoded =  encode_pfcp_association_setup_response(&pfcp_ass_setup_resp, pfcp_msg);
+			RTE_SET_USED(encoded);
+
+			pfcp_header_t *pfcp_hdr = (pfcp_header_t *) pfcp_msg;
+			pfcp_hdr->message_len = htons(encoded - 4);
+			RTE_LOG_DP(DEBUG, DP, "sending response of sess [%d] from dp\n",pfcp_hdr->message_type);
+			RTE_LOG_DP(DEBUG, DP, "length[%d]\n",htons(pfcp_hdr->message_len));
+			free(pfcp_ass_setup_req);
+			break;
+		}
+	case PFCP_SESSION_ESTABLISHMENT_REQUEST:
+		{
+			memset(pfcp_msg, 0, 1024);
+			pfcp_session_establishment_request_t *pfcp_session_request = malloc(sizeof(pfcp_session_establishment_request_t));
+			pfcp_session_establishment_response_t pfcp_session_response = {0};
+			struct session_info sess_info = {0};//malloc(sizeof( struct session_info));
+			struct dp_id dp = {0};
+			//Adding dummy data to avoid compilation error in dp_session_create function.
+			dp.id = 1234;
+			strncpy(dp.name,"Dummy",5);
+			int decoded = decode_pfcp_session_establishment_request(buf_rx, pfcp_session_request);
+			RTE_LOG_DP(DEBUG, DP, "DECOED bytes in sesson is %d\n", decoded);
+			
+			uint8_t cause_id = 0;
+			int offend_id = 0 ;
+			cause_check_sess_estab(pfcp_session_request, &cause_id, &offend_id);
+
+			//sess_info filling for create session
+			sess_info.ul_s1_info.sgw_teid = pfcp_session_request->create_pdr.pdi.local_fteid.teid;
+            		sess_info.ul_s1_info.sgw_addr.u.ipv4_addr = pfcp_session_request->create_pdr.pdi.local_fteid.ipv4_address;
+			
+			//sess_info->sess_id = 5; // pfcp_session_request->cp_fseid.seid;
+			sess_info.sess_id = pfcp_session_request->cp_fseid.seid;
+			sess_info.num_ul_pcc_rules = 1;
+			sess_info.num_dl_pcc_rules = 1;
+			sess_info.ul_pcc_rule_id[0] = 1;
+			sess_info.dl_pcc_rule_id[0] = 1;
+            		sess_info.ue_addr.u.ipv4_addr = pfcp_session_request->create_pdr.pdi.ue_ip_address.ipv4_address ;
+			RTE_LOG_DP(DEBUG, DP, "SESS ID in DP %lu\n", sess_info.sess_id);
+			dp_session_create(dp,&sess_info);
+			fill_pfcp_session_est_resp(&pfcp_session_response, cause_id, offend_id);
+
+			pfcp_session_response.up_fseid.seid =
+				 pfcp_session_request->header.seid_seqno.has_seid.seid;
+			pfcp_session_response.header.seid_seqno.has_seid.seq_no =
+				 pfcp_session_request->header.seid_seqno.has_seid.seq_no;
+			pfcp_session_response.created_pdr.local_fteid.teid =
+				 (pfcp_session_request->create_pdr.pdi.local_fteid.teid);
+			pfcp_session_response.created_pdr.local_fteid.ipv4_address =
+				 ntohl(pfcp_session_request->create_pdr.pdi.local_fteid.ipv4_address);
+			memcpy(&(pfcp_session_response.node_id.node_id_value),&(dp_comm_ip.s_addr),pfcp_session_response.node_id.node_id_value_len);
+
+			memcpy(&(pfcp_session_response.up_fseid.ipv4_address),&(dp_comm_ip.s_addr),IPV4_SIZE);
+			memcpy(&(pfcp_session_response.sgwu_fqcsid.node_address.ipv4_address),&(dp_comm_ip.s_addr),IPV4_SIZE);
+
+			encoded = encode_pfcp_session_establishment_response(&pfcp_session_response,  pfcp_msg);
+
+			pfcp_header_t *pfcp_hdr = (pfcp_header_t *) pfcp_msg;
+			pfcp_hdr->message_len = htons(encoded - 4);
+			pfcp_hdr->seid_seqno.has_seid.seid = htonll(pfcp_session_request->header.seid_seqno.has_seid.seid);
+
+			free(pfcp_session_request);
+			break;
+		}
+	case PFCP_SESSION_MODIFICATION_REQUEST:
+		{
+			
+			memset(pfcp_msg, 0, 1024);
+			RTE_LOG_DP(DEBUG, DP, "IN the Session Modifiation Request\n");
+			pfcp_session_modification_request_t *pfcp_session_mod_req = malloc(sizeof(pfcp_session_modification_request_t));
+			pfcp_session_modification_response_t  pfcp_sess_mod_res = {0};
+			struct session_info sess_info = {0};
+			struct dp_id dp = {0};
+
+			//Adding dummy data to avoid compilation error in dp_session_create function.
+			dp.id = 1234;
+			strncpy(dp.name,"Dummy",5);
+			int decoded = decode_pfcp_session_modification_request(buf_rx, pfcp_session_mod_req);
+			RTE_LOG_DP(DEBUG, DP, "DECOED bytes in sesson modification  is %d\n", decoded);
+
+    			sess_info.ul_s1_info.enb_addr.iptype = IPTYPE_IPV4;
+    			sess_info.dl_s1_info.enb_addr.iptype = IPTYPE_IPV4;
+			sess_info.dl_s1_info.enb_teid = pfcp_session_mod_req->create_pdr.pdi.local_fteid.teid;
+			sess_info.dl_s1_info.enb_addr.u.ipv4_addr = pfcp_session_mod_req->create_pdr.pdi.local_fteid.ipv4_address;
+			sess_info.sess_id = pfcp_session_mod_req->cp_fseid.seid;
+            		sess_info.ue_addr.u.ipv4_addr = pfcp_session_mod_req->create_pdr.pdi.ue_ip_address.ipv4_address ;
+            		RTE_LOG_DP(DEBUG, DP, "In MODIFY ENB TEID[%u] ENDIP[%u]\n",
+					sess_info.dl_s1_info.enb_teid,sess_info.dl_s1_info.enb_addr.u.ipv4_addr);
+			dp_session_modify(dp, &sess_info);
+			uint8_t cause_id = 0;
+            		int offend_id = 0;
+            		cause_check_sess_modification(pfcp_session_mod_req, &cause_id, &offend_id);
+
+			fill_pfcp_session_modify_resp(&pfcp_sess_mod_res, cause_id, offend_id);
+
+			pfcp_sess_mod_res.created_pdr.local_fteid.teid =( sess_info.ul_s1_info.sgw_teid);
+			pfcp_sess_mod_res.created_pdr.local_fteid.ipv4_address = htonl(sess_info.ul_s1_info.sgw_addr.u.ipv4_addr);
+            		RTE_LOG_DP(DEBUG, DP, "In MODIFY S1U TEID[%u]\n",pfcp_sess_mod_res.created_pdr.local_fteid.teid);
+			
+			pfcp_sess_mod_res.header.seid_seqno.has_seid.seid = pfcp_session_mod_req->header.seid_seqno.has_seid.seid;
+			pfcp_sess_mod_res.header.seid_seqno.has_seid.seq_no = pfcp_session_mod_req->header.seid_seqno.has_seid.seq_no;
+
+			encoded = encode_pfcp_session_modification_response(&pfcp_sess_mod_res,  pfcp_msg);
+			
+			pfcp_header_t *pfcp_hdr = (pfcp_header_t *) pfcp_msg;
+			pfcp_hdr->message_len = htons(encoded - 4);
+			RTE_LOG_DP(DEBUG, DP, "sending response of sess [%d] from dp\n",pfcp_hdr->message_type);
+			RTE_LOG_DP(DEBUG, DP, "length[%d]\n",htons(pfcp_hdr->message_len));
+
+			free(pfcp_session_mod_req);
+			break;	
+		}
+	case PFCP_SESSION_DELETION_REQUEST:
+		{
+
+			memset(pfcp_msg, 0, 1024);
+			pfcp_session_deletion_request_t *pfcp_session_del_req = malloc(sizeof(pfcp_session_deletion_request_t));
+			pfcp_session_deletion_response_t  pfcp_sess_del_res = {0};
+			int decoded = decode_pfcp_session_deletion_request(buf_rx, pfcp_session_del_req);
+			RTE_LOG_DP(DEBUG, DP, "DECOED bytes in sesson deletion  is %d\n", decoded);
+			
+			struct session_info sess_info = {0};
+                        struct dp_id dp = {0};
+
+                        //Adding dummy data to avoid compilation error in dp_session_create function.
+                        dp.id = 1234;
+                        strncpy(dp.name,"Dummy",5);
+			sess_info.sess_id = pfcp_session_del_req->header.seid_seqno.has_seid.seid;
+			dp_session_delete(dp,&sess_info);
+			uint8_t cause_id = 0;
+			int offend_id = 0;
+			cause_check_delete_session(pfcp_session_del_req, &cause_id, &offend_id);
+
+			fill_pfcp_sess_del_resp(&pfcp_sess_del_res, cause_id, offend_id);
+			pfcp_sess_del_res.header.seid_seqno.has_seid.seid = 
+				pfcp_session_del_req->header.seid_seqno.has_seid.seid;
+			pfcp_sess_del_res.header.seid_seqno.has_seid.seq_no =
+				pfcp_session_del_req->header.seid_seqno.has_seid.seq_no;
+			encoded = encode_pfcp_session_deletion_response(&pfcp_sess_del_res,  pfcp_msg);
+
+
+			pfcp_header_t *pfcp_hdr = (pfcp_header_t *) pfcp_msg;
+			pfcp_hdr->message_len = htons(encoded - 4);
+			RTE_LOG_DP(DEBUG, DP, "sending response of sess [%d] from dp\n",pfcp_hdr->message_type);
+
+			free(pfcp_session_del_req);
+			break;	
+		}
+	case PFCP_HEARTBEAT_REQUEST:
+		{
+			memset(pfcp_msg, 0, 1024);
+			pfcp_heartbeat_request_t *pfcp_heartbeat_req = malloc(sizeof(pfcp_heartbeat_request_t));
+			pfcp_heartbeat_response_t  pfcp_heartbeat_resp = {0};
+			int decoded = decode_pfcp_heartbeat_request(buf_rx, pfcp_heartbeat_req);
+			RTE_SET_USED(decoded);
+			fill_pfcp_heartbeat_resp(&pfcp_heartbeat_resp);
+			encoded = encode_pfcp_heartbeat_response(&pfcp_heartbeat_resp,  pfcp_msg);
+
+
+			pfcp_header_t *pfcp_hdr = (pfcp_header_t *) pfcp_msg;
+			pfcp_hdr->message_len = htons(encoded - 4);
+
+			free(pfcp_heartbeat_req);
+
+			break;
+		}
+ 
+#else
+
+	case PFCP_ASSOCIATION_SETUP_RESPONSE:
+                        {
+                                pfcp_association_setup_response_t pfcp_ass_setup_resp = {0};
+                                int decoded = decode_pfcp_association_setup_response(buf_rx, &pfcp_ass_setup_resp);
+				RTE_LOG_DP(DEBUG, DP, "DECODED byte in Association response is %d\n",decoded);
+                                RTE_LOG_DP(DEBUG, DP, "\nVG :recover_time[%d],cause[%d] upf[%d]\n",
+                                              (pfcp_ass_setup_resp.recovery_time_stamp.recovery_time_stamp_value),
+                                              (pfcp_ass_setup_resp.cause.cause_value),
+                                              (pfcp_ass_setup_resp.up_function_features.supported_features));
+                                if(pfcp_ass_setup_resp.cause.cause_value !=
+                                                                CAUSE_VALUES_REQUESTACCEPTEDSUCCESS){
+                                        //rte_exit( EXIT_FAILURE,"cause received[%d]\n",pfcp_ass_setup_resp->cause.cause_value);
+                                        rte_panic("cause received[%d]\n", pfcp_ass_setup_resp.cause.cause_value);
+                                }
+
+				int ret =0;
+				uint8_t temp = 0;	
+				uint8_t *data = &temp;
+				uint32_t node_ip,upf_ip ;
+				memcpy(&node_ip,&pfcp_ass_setup_resp.node_id.node_id_value,IPV4_SIZE);
+				upf_ip = ntohl(node_ip);
+				ret = rte_hash_lookup_data(associated_upf_hash,(const void*) &(upf_ip),
+						(void **) &(data));
+				if (ret == -ENOENT) {
+					RTE_LOG_DP(DEBUG, DP, "NO ENTRY FOUND IN UPF HASH [%u]\n", upf_ip);
+				} else {
+					RTE_LOG_DP(DEBUG, DP, "ENTRY FOUND IN UPF HASH [%u]\n", upf_ip);
+					*data = 2;	
+				}
+                                pfcp_ctxt.up_supported_features = pfcp_ass_setup_resp.up_function_features.supported_features;
+                                pfcp_ctxt.s1u_ip[0] = pfcp_ass_setup_resp.up_ip_resource_info.ipv4_address;
+				//for(uint8_t dp_itr = 0; dp_itr <= 0 ;dp_itr++){
+					for(uint8_t csr_itr = 0; csr_itr < assoc_ctxt[0].csr_cnt; csr_itr++){
+					//for(uint8_t csr_itr = 0; csr_itr <= 0; csr_itr++){
+						ret = process_pfcp_sess_est_request(
+								(gtpv2c_header* )assoc_ctxt[0].s11_rx_buf[csr_itr], gtpv2c_s11_tx);
+						payload_length = ntohs(gtpv2c_s11_tx->gtpc.length)
+							+ sizeof(gtpv2c_s11_tx->gtpc);
+						pfcp_gtpv2c_send(payload_length, tx_buf,
+							(gtpv2c_header* )assoc_ctxt[0].s11_rx_buf[csr_itr]);
+
+						bzero(assoc_ctxt[0].s11_rx_buf[csr_itr], 1000);
+
+					}
+				//}
+
+
+                                break;
+                        }
+
+	case PFCP_SESSION_ESTABLISHMENT_RESPONSE:
+                        {
+                                pfcp_session_establishment_response_t pfcp_sess_est_resp = {0};
+                                int decoded = decode_pfcp_session_establishment_response(buf_rx,&pfcp_sess_est_resp);
+				RTE_LOG_DP(DEBUG, DP, "DEOCED bytes in Sess Estab Resp is %d\n", decoded );
+                                if(pfcp_sess_est_resp.cause.cause_value !=
+                                                        CAUSE_VALUES_REQUESTACCEPTEDSUCCESS){
+                                        //rte_exit( EXIT_FAILURE,"cause received[%d]\n",pfcp_ass_setup_resp->cause.cause_value);
+                                        rte_panic("cause received[%d] \n", pfcp_sess_est_resp.cause.cause_value);
+                                }
+
+                                break;
+                        }
+	case PFCP_SESSION_MODIFICATION_RESPONSE:
+                        {
+                                pfcp_session_modification_response_t  pfcp_sess_mod_resp = {0};
+                                int decoded = decode_pfcp_session_modification_response(buf_rx,
+                                                                        &pfcp_sess_mod_resp);
+				RTE_LOG_DP(DEBUG, DP, "DEOCED bytes in Sess Modif Resp is %d\n", decoded );
+                                if(pfcp_sess_mod_resp.cause.cause_value !=
+                                                        CAUSE_VALUES_REQUESTACCEPTEDSUCCESS){
+                                        //rte_exit( EXIT_FAILURE,"cause received[%d]\n",pfcp_ass_setup_resp->cause.cause_value);
+                                        rte_panic("cause received[%d] \n", pfcp_sess_mod_resp.cause.cause_value);
+                                }
+                                break;
+                        }
+	case PFCP_SESSION_DELETION_RESPONSE:
+                        {
+                                pfcp_session_deletion_response_t pfcp_sess_del_resp = {0};
+                                int decoded = decode_pfcp_session_deletion_response(buf_rx, &pfcp_sess_del_resp);
+				RTE_LOG_DP(DEBUG, DP, "DEOCED bytes in Sess  Delete Resp is %d\n", decoded );
+                                if(pfcp_sess_del_resp.cause.cause_value !=
+                                                        CAUSE_VALUES_REQUESTACCEPTEDSUCCESS){
+                                        //rte_exit( EXIT_FAILURE,"cause received[%d]\n",pfcp_ass_setup_resp->cause.cause_value);
+                                        rte_panic("cause received[%d] \n", pfcp_sess_del_resp.cause.cause_value);
+                                }
+                                break;
+                        }
+#endif
+	default:
+
+#ifdef DP_BUILD
+		rule_msg = (struct msgbuf *) buf_rx;
+
+		if (rule_msg->mtype == MSG_ADC_TBL_ADD) {
+			cb_adc_entry_add(rule_msg);
+		} else if (rule_msg->mtype == MSG_PCC_TBL_ADD) {
+			cb_pcc_entry_add(rule_msg);
+		} else if (rule_msg->mtype == MSG_MTR_ADD) {
+			cb_meter_profile_entry_add(rule_msg);
+		} else if (rule_msg->mtype == MSG_SDF_ADD) {
+			cb_sdf_filter_entry_add(rule_msg);
+		} else {
+			RTE_LOG_DP(DEBUG, DP, "No rules received\n");
+		}
+#endif
+
+		break;
+
+	}
+
+#ifdef DP_BUILD
+	if (sendto(my_sock.sock_fd,
+				(char *)pfcp_msg,
+				encoded,
+				MSG_DONTWAIT,
+				(struct sockaddr *)peer_addr,
+				sizeof(struct sockaddr_in)) < 0)
+		RTE_LOG_DP(DEBUG, DP, "Error sending: %i\n",errno);
+#endif
+	return 0;
+}
+
+#endif
 #ifdef ZMQ_COMM
 #ifdef CP_BUILD
 int process_resp_msg(void *buf)
@@ -966,7 +1411,7 @@ zmq_mbuf_process(struct zmqbuf *zmqmsgbuf_rx, int zmqmsglen)
 	ret = do_zmq_mbuf_send(&zmqmsgbuf_tx);
 
 	if (ret < 0)
-		printf("do_zmq_mbuf_send failed for type: %"PRIu8"\n",
+		RTE_LOG_DP(DEBUG, DP, "do_zmq_mbuf_send failed for type: %"PRIu8"\n",
 				zmqmsgbuf_rx->type);
 
 	return ret;
@@ -1114,7 +1559,7 @@ void iface_module_constructor(void)
 #ifdef ZMQ_COMM
 	char command[100];
 #endif
-	read_interface_config();
+	//read_interface_config();
 
 #ifdef ZMQ_COMM
 #ifdef CP_BUILD
@@ -1170,11 +1615,15 @@ void iface_module_constructor(void)
 
 	set_comm_type(COMM_ZMQ);
 #else   /* ZMQ_COMM */
+#ifdef PFCP_COMM
+	create_udp_socket(dp_comm_ip, dp_comm_port, &my_sock);
+#else  /* PFCP_COMM */
 	register_comm_msg_cb(COMM_SOCKET,
 				udp_init_dp_socket,
 				udp_send_socket,
 				udp_recv_socket,
 				NULL);
+#endif /* PFCP_COMM */
 #endif  /* ZMQ_COMM */
 #else
 /* Code Rel. Jan 30, 2017

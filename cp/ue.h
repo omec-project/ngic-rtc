@@ -82,6 +82,8 @@ typedef struct ue_context_t {
 	uint32_t s11_mme_gtpc_teid;
 	struct in_addr s11_mme_gtpc_ipv4;
 
+	uint64_t seid;
+
 	uint16_t bearer_bitmap;
 	uint16_t teid_bitmap;
 	uint8_t num_pdns;

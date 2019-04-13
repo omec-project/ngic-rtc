@@ -110,6 +110,9 @@ struct msgbuf {
 };
 struct msgbuf sbuf;
 struct msgbuf rbuf;
+
+uint8_t pfcp_rx[512]; /* TODO: Decide size */
+
 /* IPC msg node */
 struct ipc_node {
 	int msg_id;	/*msg type*/

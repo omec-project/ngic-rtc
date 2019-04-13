@@ -1688,7 +1688,8 @@ cb_sdf_filter_table_delete(struct msgbuf *msg_payload)
  *	- 0 on success
  *	- -1 on failure
  */
-static int
+//static int
+int
 cb_sdf_filter_entry_add(struct msgbuf *msg_payload)
 {
 	return sdf_filter_entry_add(msg_payload->dp_id,

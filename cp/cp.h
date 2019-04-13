@@ -21,6 +21,14 @@
 #include <ue.h>
 
 #include <rte_version.h>
+#include <stdbool.h>
+#include <rte_ether.h>
+#include <rte_ethdev.h>
+
+#ifdef USE_REST
+#include "../restoration/gstimer.h"
+#endif /* USE_REST */
+
 
 #ifndef PERF_TEST
 /** Temp. work around for support debug log level into DP, DPDK version 16.11.4 */
@@ -72,12 +80,12 @@ typedef long long int _timer_t;
  * Define type of Control Plane (CP)
  * SGWC - Serving GW Control Plane
  * PGWC - PDN GW Control Plane
- * SPGWC - Combined SAEGW Control Plane
+ * SAEGWC - Combined SAEGW Control Plane
  */
 enum cp_config {
 	SGWC = 01,
 	PGWC = 02,
-	SPGWC = 03,
+	SAEGWC = 03,
 };
 extern enum cp_config spgw_cfg;
 
@@ -136,7 +144,7 @@ extern int s11_fd;
 extern int s11_pcap_fd;
 extern int s5s8_sgwc_fd;
 extern int s5s8_pgwc_fd;
-
+extern int pfcp_sgwc_fd ;
 extern struct cp_params cp_params;
 
 #if defined(ZMQ_COMM) || defined(SDN_ODL_BUILD)
@@ -286,4 +294,95 @@ void
 close_stats(void);
 #endif   /* SYNC_STATS */
 /* ================================================================================= */
+
+/*PFCP Config file*/
+#define STATIC_CP_FILE "../config/cp.cfg"
+
+#define MAX_DP_SIZE   5
+#define MAX_CP_SIZE   1
+#define MAX_NUM_MME   5
+#define MAX_NUM_SGWC  5
+#define MAX_NUM_PGWC  5
+#define MAX_NUM_SGWU  5
+#define MAX_NUM_PGWU  5
+#define MAX_NUM_SPGWU 5
+
+#define SGWU_PFCP_PORT   8805
+#define PGWU_PFCP_PORT   8805
+#define SPGWU_PFCP_PORT   8805
+
+
+typedef struct pfcp_config_t
+{
+       uint8_t cp_type; /*SGWC=01; PGWC=02; SAEGWC=03*/
+
+       //MME
+       uint32_t num_mme;
+       struct in_addr mme_s11_ip[MAX_NUM_MME];
+       uint16_t mme_s11_port[MAX_NUM_MME];
+
+       //SGWC SAEGWC
+       uint32_t num_sgwc;
+       struct in_addr sgwc_s11_ip[MAX_NUM_SGWC];
+       uint16_t sgwc_s11_port[MAX_NUM_SGWC];
+
+       struct in_addr sgwc_s5s8_ip[MAX_NUM_SGWC];
+       uint16_t sgwc_s5s8_port[MAX_NUM_SGWC];
+
+       struct in_addr sgwc_pfcp_ip[MAX_NUM_SGWC];
+       uint16_t sgwc_pfcp_port[MAX_NUM_SGWC];
+
+       //PGWC
+       uint32_t num_pgwc;
+       struct in_addr pgwc_s5s8_ip[MAX_NUM_PGWC];
+       uint16_t pgwc_s5s8_port[MAX_NUM_PGWC];
+
+       struct in_addr pgwc_pfcp_ip[MAX_NUM_PGWC];
+       uint16_t pgwc_pfcp_port[MAX_NUM_PGWC];
+
+       //SPGWU
+       uint32_t num_spgwu;
+       struct in_addr spgwu_pfcp_ip[MAX_NUM_SPGWU];
+       uint16_t spgwu_pfcp_port[MAX_NUM_SPGWU];
+
+       //SGWU
+       uint32_t num_sgwu;
+       struct in_addr sgwu_pfcp_ip[MAX_NUM_SGWU];
+       uint16_t sgwu_pfcp_port[MAX_NUM_SGWU];
+
+       //PGWU
+       uint32_t num_pgwu;
+       struct in_addr pgwu_pfcp_ip[MAX_NUM_PGWU];
+       uint16_t pgwu_pfcp_port[MAX_NUM_PGWU];
+
+	//REST 	
+	uint8_t transmit_cnt;
+	int transmit_timer;
+	int periodic_timer;
+
+} pfcp_config_t;
+
+
+void
+init_pfcp(void);
+
+void
+pfcp_init_cp(void);
+
+void
+pfcp_init_s11(void);
+
+void
+pfcp_init_s5s8_pgwc(void);
+
+void
+pfcp_init_s5s8_sgwc(void);
+
+//void
+//pfcp_association_setup(void);
+
+void get_upf_list(struct in_addr *p_upf_list);
+
+void received_create_session_request(void);
+
 #endif

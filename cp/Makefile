@@ -25,6 +25,7 @@ include $(RTE_SDK)/mk/rte.vars.mk
 include $(NG_CORE)/config/ng-core_cfg.mk
 
 LIBGTPV2C_ROOT = $(SRCDIR)/../libgtpv2c
+LIBPFCP_ROOT = $(SRCDIR)/../libpfcp
 
 # binary name
 APP = ngic_controlplane
@@ -38,6 +39,9 @@ SRCS-y += debug_str.c
 SRCS-y += ue.c
 SRCS-y += cp_stats.c
 SRCS-y += packet_filters.c
+SRCS-y += cp_config.c
+SRCS-y += pfcp.c
+#SRCS-y += pfcp_set_ie.c
 
 SRCS-y += gtpv2c_messages/bearer_resource_cmd.o
 SRCS-y += gtpv2c_messages/create_bearer.o
@@ -50,6 +54,10 @@ SRCS-y += gtpv2c_messages/gtpv2c_echo.o
 SRCS-y += gtpv2c_messages/modify_bearer.o
 SRCS-y += gtpv2c_messages/downlink_data_notification.o
 SRCS-y += gtpv2c_messages/release_access_bearer.o
+SRCS-y += $(SRCDIR)/../pfcp_messages/pfcp_association.o
+SRCS-y += $(SRCDIR)/../pfcp_messages/pfcp_session.o
+SRCS-y += $(SRCDIR)/../pfcp_messages/pfcp_set_ie.o
+SRCS-y += $(SRCDIR)/../pfcp_messages/pfcp_util.o
 
 SRCS-y += $(SRCDIR)/../test/simu_cp/simu_cp.o
 SRCS-y += $(SRCDIR)/../interface/ipc/dp_ipc_api.o
@@ -61,6 +69,7 @@ SRCS-y += $(SRCDIR)/../cp_dp_api/vepc_cp_dp_api.o
 
 CFLAGS += -Wno-psabi # suppress "The ABI for passing parameters with 64-byte alignment has changed in GCC 4.6"
 CFLAGS += -Werror
+CFLAGS += -Wunused-variable
 
 CFLAGS += -I$(SRCDIR)/../cp
 CFLAGS += -I$(SRCDIR)/../dp
@@ -72,6 +81,11 @@ CFLAGS += -I$(SRCDIR)/../interface/udp
 CFLAGS += -I$(SRCDIR)/../interface/sdn
 CFLAGS += -I$(SRCDIR)/../interface/zmq
 CFLAGS += -I$(LIBGTPV2C_ROOT)/include
+CFLAGS += -I$(LIBPFCP_ROOT)/include
+
+CFLAGS += -I$(SRCDIR)/..
+CFLAGS += -I$(SRCDIR)/../pfcp_messages
+#CFLAGS += -I$(SRCDIR)/../dp/pfcp_message/
 
 # Mandatory CFLAGS, LDFLAGS- DO NOT MODIFY
 # #############################################################
@@ -84,6 +98,7 @@ CFLAGS_controlplane.o += -Wno-return-type
 endif
 
 LDLIBS += -L$(LIBGTPV2C_ROOT)/lib -lgtpv2c
+LDLIBS += -L$(LIBPFCP_ROOT)/lib -lpfcp
 
 LDLIBS += -lpcap
 
@@ -131,6 +146,17 @@ CFLAGS_config.o := -D_GNU_SOURCE
 
 ifneq (,$(findstring SYNC_STATS, $(CFLAGS)))
 	SRCS-y += stats_sync.c
+endif
+
+#un-comment below line to enable check peer node heartbeat.
+CFLAGS += -DUSE_REST
+
+ifneq (,$(findstring USE_REST, $(CFLAGS)))
+	#VS: ECHO FILES
+	CFLAGS += -I$(SRCDIR)/../restoration
+	SRCS-y += $(SRCDIR)/../restoration/gstimer.c
+	SRCS-y += rest_peer.c
+	SRCS-y += gtpv2c_echo_req.c
 endif
 
 # Un-comment below line to read fake cp config.

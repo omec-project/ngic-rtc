@@ -277,5 +277,8 @@ dp_sdf_default_entry_action_modify(struct dp_id dp_id, uint32_t rule_id);
 int
 dp_adc_filter_default_entry_add(struct dp_id dp_id);
 
+int
+cb_sdf_filter_entry_add(struct msgbuf *msg_payload);
+
 #endif /* _ACL_H_ */
 

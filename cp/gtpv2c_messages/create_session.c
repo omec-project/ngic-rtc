@@ -23,6 +23,8 @@
 #include "gtpv2c_set_ie.h"
 #include "../cp_dp_api/vepc_cp_dp_api.h"
 
+extern pfcp_config_t pfcp_config;
+
 #define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
 
 
@@ -45,7 +47,12 @@ set_create_session_response(gtpv2c_header *gtpv2c_tx,
 	set_cause_accepted(&cs_resp.cause, IE_INSTANCE_ZERO);
 
 	struct in_addr ip;
-	ip.s_addr = ntohl(s11_sgw_ip.s_addr);
+	#ifdef PFCP_COMM
+		ip.s_addr = ntohl(pfcp_config.sgwc_s11_ip[0].s_addr);
+	#else
+		ip.s_addr = ntohl(s11_sgw_ip.s_addr);
+	#endif
+		
 	set_ipv4_fteid(&cs_resp.s11_ftied, GTPV2C_IFTYPE_S11S4_SGW_GTPC,
 			IE_INSTANCE_ZERO,
 			ip, context->s11_sgw_gtpc_teid);
@@ -221,8 +228,9 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 		pdn->s5s8_sgw_gtpc_teid = context->s11_sgw_gtpc_teid;
 		pdn->s5s8_pgw_gtpc_ipv4 = csr.s5s8pgw_pmip.ip.ipv4;
 
-		/* Set the s5s8 pgw gtpc teid */
-		set_s5s8_pgw_gtpc_teid(pdn);
+		/* Note: s5s8_pgw_gtpc_teid updated by
+		 * process_sgwc_s5s8_create_session_response (...)
+		 */
 		//pdn->s5s8_pgw_gtpc_teid = csr.s5s8pgw_pmip.teid_gre;
 	}
 

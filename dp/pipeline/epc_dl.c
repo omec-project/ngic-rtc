@@ -87,7 +87,8 @@ static inline void epc_dl_set_port_id(struct rte_mbuf *m)
 	*port_id_offset = 1;
 
 	/* Flag ARP pkt for linux handling */
-	if (eh->ether_type == rte_cpu_to_be_16(ETHER_TYPE_ARP))
+	if (eh->ether_type == rte_cpu_to_be_16(ETHER_TYPE_ARP) ||
+			ipv4_hdr->next_proto_id == IPPROTO_ICMP)
 	{
 		RTE_LOG_DP(DEBUG, DP, "epc_dl.c:%s::"
 				"\n\t@SGI:eh->ether_type==ETHER_TYPE_ARP= 0x%X\n",
@@ -414,6 +415,10 @@ void epc_dl(void *args)
 		uint32_t rx_cnt = rte_ring_dequeue_bulk(shared_ring[S1U_PORT_ID],
 				(void**)pkts, queued_cnt, NULL);
 		uint32_t pkt_indx = 0;
+/* Capture the echo packets.*/
+#ifdef PCAP_GEN
+        	dump_pcap(pkts, rx_cnt, pcap_dumper_west);
+#endif /* PCAP_GEN */
 		while (rx_cnt) {
 			uint16_t pkt_cnt = PKT_BURST_SZ;
 			if (rx_cnt < PKT_BURST_SZ)

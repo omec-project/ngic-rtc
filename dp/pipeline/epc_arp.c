@@ -66,6 +66,11 @@
 #include "main.h"
 #include "stats.h"
 #include "gtpu.h"
+#include "ipv4.h"
+
+#ifdef use_rest
+#include "../rest_timer/gstimer.h"
+#endif /* use_rest */
 
 #ifdef STATIC_ARP
 #define STATIC_ARP_FILE "../config/static_arp.cfg"
@@ -826,7 +831,59 @@ arp_send_buffered_pkts(struct rte_ring *queue,
 	}
 
 	rte_ring_free(queue);
+	//queue = NULL;
 }
+
+#ifdef USE_REST
+/* Brief: Function to process GTP-U echo response
+ * @ Input param: echo_pkt rte_mbuf pointer
+ * @ Output param: none
+ * Return: void
+ */
+static void 
+process_echo_response(struct rte_mbuf *echo_pkt) 
+{
+	if (conn_cnt == 0) 
+		return;
+	//uint8_t rest_cnt = 0;
+	int32_t inx = 0;
+	//struct ether_hdr *eth_h = rte_pktmbuf_mtod(echo_pkt, struct ether_hdr *);
+	//struct ether_addr tmp_mac;
+	//ether_addr_copy(&eth_h->s_addr, &tmp_mac);
+
+	/* Retrive src IP addresses */
+	struct ipv4_hdr *ip_hdr = get_mtoip(echo_pkt);
+
+	//struct gtpu_hdr *gtpu_hdr = get_mtogtpu(echo_pkt);
+	//gtpu_recovery_ie *recovery_ie = (gtpu_recovery_ie*)(rte_pktmbuf_mtod(echo_pkt, unsigned char *) +
+	//		ETH_HDR_LEN + IPV4_HDR_LEN + UDP_HDR_LEN + GTPU_HDR_SIZE);
+	//recovery_ie = (gtpu_recovery_ie*)((char*)gtpu_hdr+
+	//		GTPU_HDR_SIZE + ntohs(gtpu_hdr->msglen));
+	//rest_cnt = recovery_ie->restart_cntr;
+	//
+	inx = inx_bsearch(data, 0, (conn_cnt - 1), ip_hdr->src_addr); 
+
+	if (inx >= 0) {
+		data[inx].itr_cnt = 0;
+		/* Stop Timer transmit timer for specific MME */
+		stopTimer( &data[inx].tt );
+		/* Stop Timer periodic timer for specific MME */
+		stopTimer( &data[inx].pt );
+		/* Reset Periodic Timer */
+		if ( startTimer( &data[inx].pt ) < 0)
+			RTE_LOG_DP(ERR, DP, "Periodic Timer failed to start...\n");
+	}
+
+	//if (rest_cnt < data[inx].rstCnt) {
+	//	flush_eNB_session(&data[inx]);
+	//	data[inx].rstCnt = 0;
+	//	return;
+	//}
+	//
+	//data[inx].rstCnt = rest_cnt;
+
+}
+#endif /* USE_REST */
 
 static
 void process_arp_msg(const struct ether_addr *hw_addr,
@@ -1073,6 +1130,13 @@ pkt_work_arp_key(
 					return;
 				}
 			}
+		} else if (gtpuhdr && gtpuhdr->msgtype == GTPU_ECHO_RESPONSE) {
+#ifdef USE_REST
+			/*VS: TODO Add check for Restart counter */
+			/* If peer Restart counter value of peer node is less than privious value than start flusing session*/
+			printf("VS: GTP-U Echo Response Received\n");
+			process_echo_response(pkt);
+#endif /* USE_REST */
 		}
 	}
 }
