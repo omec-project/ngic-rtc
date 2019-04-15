@@ -8,9 +8,9 @@ source ../config/dp_config.cfg
 dp_static_arp_flag="CFLAGS += -DSTATIC_ARP"
 
 #Code to check if STATIC_ARP is enabled or disabled in DP Makefile
-if grep -q -e "^$dp_static_arp_flag" ../dp/Makefile; then
+if grep -q -e "^$dp_static_arp_flag" ../dp/Makefile ../dp/*.mk; then
 	   echo -e ""
-	   echo -e "WARNING: STATIC_ARP enabled in dp/Makefile. Enabling kni interfaces along with STATIC_ARP will cause duplicate ARP responses on the wire."
+	   echo -e "WARNING: STATIC_ARP enabled in dp/Makefile or in dp/*.mk. Enabling kni interfaces along with STATIC_ARP will cause duplicate ARP responses on the wire."
 	   echo -e ""
 	   while true; do
 			   read -p "Do you wish to continue?" response
