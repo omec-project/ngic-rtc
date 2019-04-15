@@ -170,13 +170,13 @@ Dataplane supported command line arguments are:
 | --s1u_ip          | MANDATORY   | S1U IP address of the SGW.                 |
 | --s1u_mac         | MANDATORY   | S1U port mac address of the SGW.           |
 | --sgi_ip          | MANDATORY   | SGI IP address of the SGW.                 |
-| --s5s8_sgwu_port  | MANDATORY   | Port of SGWU s5s8 interface. Applicable for|
+| --s5s8_sgwu_port  | OPTIONAL    | Port of SGWU s5s8 interface. Applicable for|
 |                   |             | SGWU configuration only                    |
-| --s5s8_sgwu_mac   | MANDATORY   | MAC of SGWU s5s8 interface. Applicable for |
+| --s5s8_sgwu_mac   | OPTIONAL    | MAC of SGWU s5s8 interface. Applicable for |
 |                   |             | SGWU configuration only                    |
-| --s5s8_pgwu_port  | MANDATORY   | Port of PGWU s5s8 interface. Applicable for|
+| --s5s8_pgwu_port  | OPTIONAL    | Port of PGWU s5s8 interface. Applicable for|
 |                   |             | PGWU configuration only                    |
-| --s5s8_pgwu_mac   | MANDATORY   | MAC of PGWU s5s8 interface. Applicable for |
+| --s5s8_pgwu_mac   | OPTIONAL    | MAC of PGWU s5s8 interface. Applicable for |
 |                   |             | PGWU configuration only                    |
 | --sgi_mac         | MANDATORY   | SGI port mac address of the PGW.           |
 | --s1uc            | OPTIONAL    | core number to run s1u rx/tx.              |
