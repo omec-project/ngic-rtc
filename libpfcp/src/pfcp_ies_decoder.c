@@ -1,6 +1,5 @@
 /*
- * Copyright (c) 2003-2018, Great Software Laboratory Pvt. Ltd.
- * Copyright (c) 2017 Intel Corporation
+ * Copyright (c) 2019 Sprint
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
