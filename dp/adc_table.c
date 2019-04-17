@@ -24,6 +24,7 @@
 #include "util.h"
 #include "acl_dp.h"
 #include "interface.h"
+#include "meter.h"
 #include <sponsdn.h>
 
 #define IS_MAX_REACHED(table) \
@@ -370,8 +371,8 @@ cb_adc_table_delete(struct msgbuf *msg_payload)
  *	- 0 on success
  *	- -1 on failure
  */
-static int
-cb_adc_entry_add(struct msgbuf *msg_payload)
+//static
+int cb_adc_entry_add(struct msgbuf *msg_payload)
 {
 	return adc_entry_add(msg_payload->dp_id,
 					msg_payload->msg_union.adc_filter_entry);

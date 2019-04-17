@@ -235,7 +235,10 @@ add_ul_pcc_entry_key_with_idx(struct dp_session_info *old,
 		return;
 
 	/* get pcc rule info address*/
-	iface_lookup_pcc_data(pcc_id, &pcc_info);
+	ret = iface_lookup_pcc_data(pcc_id, &pcc_info);
+	if(ret == ENOENT || ret == EINVAL)
+               printf("Error in add_ul_pcc_entry_key_with_idx\n\n");
+
 	old->ul_pcc_rule_id[idx] = pcc_id;
 
 	/* update rating group idx*/
@@ -864,7 +867,7 @@ dp_session_create(struct dp_id dp_id,
 			RTE_LOG_DP(ERR, DP, "BEAR_SESS ADD Fail: Default bearer not found for sess_id:%u, bear_id:%u\n",
 						ue_sess_id, bear_id);
 			rte_hash_del_key(rte_sess_hash, &entry->sess_id);
-			free(data);
+			rte_free(data);
 			return 0;
 		}
 		/* add UE data*/
@@ -980,8 +983,11 @@ dp_session_modify(struct dp_id dp_id,
 	}
 
 	/* Update PCC rules addr*/
-	update_pcc_rules(data, &mod_data);
-
+	//TODO PFCP TRY
+	if (entry->num_dl_pcc_rules || entry->num_ul_pcc_rules) {
+		printf("**** going inside update pcc rules  ****\n");
+		update_pcc_rules(data, &mod_data);
+	}
 	/* Copy dl information */
 	struct dl_s1_info *dl_info;
 	dl_info = &data->dl_s1_info;
@@ -1046,7 +1052,82 @@ dp_session_modify(struct dp_id dp_id,
 		}
 	}
 
+#ifdef PFCP_COMM 
+	entry->ul_s1_info.sgw_teid = data->ul_s1_info.sgw_teid;
+	entry->ul_s1_info.sgw_addr.u.ipv4_addr = data->ul_s1_info.sgw_addr.u.ipv4_addr;
+#endif
+
+#ifdef USE_REST
+	/* VS: Add eNB peer node information in connection table */
+	if ((add_node_conn_entry(entry->dl_s1_info.enb_addr.u.ipv4_addr, entry->sess_id, S1U_PORT_ID)) < 0) {
+		RTE_LOG_DP(ERR, DP, "Failed to add connection entry for eNB");
+	} 
+#endif /* USE_REST */
 	return 0;
+}
+
+/**
+ * Flush CDR records of all the PCC rules for the given Bearer session,
+ * into cdr cvs record file.
+ * @param session
+ *	dp bearer session.
+ *
+ * @return
+ * Void
+ */
+static void
+flush_session_pcc_records(struct dp_session_info *session)
+{
+	uint32_t i, j;
+	struct ul_bm_key ul_key;
+	struct dl_bm_key dl_key;
+	struct dp_sdf_per_bearer_info *psdf = NULL;
+
+	/* list of pcc rules for all all ul and dl */
+	uint32_t ul_dl_pcc_rules[MAX_PCC_RULES + MAX_PCC_RULES];
+	uint32_t num_ul_dl_pcc_rules = session->num_dl_pcc_rules;
+
+	/* add all dl pcc rules to list */
+	for (i = 0; i < session->num_dl_pcc_rules; ++i)
+		ul_dl_pcc_rules[i] = session->dl_pcc_rule_id[i];
+	/* add all ul pcc rules to list if not added previously */
+	for (i = 0; i < session->num_ul_pcc_rules; i++) {
+		for (j = 0; j < session->num_dl_pcc_rules; ++j) {
+			if (session->ul_pcc_rule_id[i] ==
+					session->dl_pcc_rule_id[j])
+				break;
+		}
+		if (j == session->num_dl_pcc_rules) {
+			ul_dl_pcc_rules[num_ul_dl_pcc_rules] =
+					session->ul_pcc_rule_id[i];
+			++num_ul_dl_pcc_rules;
+		}
+	}
+
+	dl_key.ue_ipv4 = session->ue_addr.u.ipv4_addr;
+	ul_key.s1u_sgw_teid = session->ul_s1_info.sgw_teid;
+	for (i = 0; i < num_ul_dl_pcc_rules; ++i) {
+		dl_key.rid = ul_dl_pcc_rules[i];
+		ul_key.rid = ul_dl_pcc_rules[i];
+
+		rte_hash_lookup_data(rte_downlink_hash, &dl_key,
+				(void **)&psdf);
+
+		if (psdf == NULL)
+			rte_hash_lookup_data(rte_uplink_hash, &ul_key,
+					(void **)&psdf);
+
+		if (psdf == NULL) {
+			RTE_LOG_DP(ERR, DP, "CDR read error for session id 0x%"
+					PRIx64", PCC %d, "IPV4_ADDR"\n",
+					session->sess_id, dl_key.rid,
+					IPV4_ADDR_HOST_FORMAT(
+						session->ue_addr.u.ipv4_addr));
+			continue;
+		}
+
+		export_session_pcc_record(&psdf->pcc_info, &psdf->sdf_cdr, session);
+	}
 }
 
 /**
@@ -1357,6 +1438,11 @@ dp_session_delete(struct dp_id dp_id,
 		}
 #endif	/* NGCORE_SHRINK */
 	}
+
+#ifdef USE_REST
+	/* VS: Delete session id from connection table */
+	dp_flush_session(data->dl_s1_info.enb_addr.u.ipv4_addr, entry->sess_id);
+#endif /* USE_REST */
 
 	flush_session_adc_records(data);
 	/*flush_session_pcc_records(data);*/

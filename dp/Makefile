@@ -24,6 +24,8 @@ RTE_TARGET ?= x86_64-native-linuxapp-gcc
 include $(RTE_SDK)/mk/rte.vars.mk
 include $(NG_CORE)/config/ng-core_cfg.mk
 
+LIBPFCP_ROOT = $(SRCDIR)/../libpfcp
+
 #DIRS-y += pipeline
 # binary name
 APP = ngic_dataplane
@@ -61,6 +63,10 @@ SRCS-y := main.c\
 	$(SRCDIR)/../test/simu_cp/pkt_filtrs.o\
 	$(SRCDIR)/../interface/ipc/dp_ipc_api.o\
 	$(SRCDIR)/../interface/udp/vepc_udp.o\
+	$(SRCDIR)/../pfcp_messages/pfcp_association.o\
+	$(SRCDIR)/../pfcp_messages/pfcp_session.o\
+	$(SRCDIR)/../pfcp_messages/pfcp_set_ie.o\
+	$(SRCDIR)/../pfcp_messages/pfcp_util.o\
 
 CFLAGS += -I$(SRCDIR)/
 CFLAGS += -I$(SRCDIR)/../interface
@@ -75,6 +81,8 @@ CFLAGS += -I$(SRCDIR)/pipeline
 CFLAGS += -I$(SRCDIR)/../cp
 CFLAGS += -I$(SRCDIR)/../lib/libsponsdn
 CFLAGS += -I$(SRCDIR)/../dpdk/lib/librte_acl/
+CFLAGS += -I$(LIBPFCP_ROOT)/include
+CFLAGS += -I$(SRCDIR)/../pfcp_messages
 
 # Mandatory CFLAGS, LDFLAGS- DO NOT MODIFY
 # #############################################################
@@ -153,6 +161,12 @@ ifneq (,$(findstring ZMQ_COMM, $(CFLAGS)))
 	LDFLAGS += -L/usr/local/lib -lzmq
 endif
 
+#ifneq (,$(findstring PFCP_COMM, $(CFLAGS)))
+#	LDFLAGS += -L$(LIBPFCP_ROOT)/lib -lpfcp
+#endif
+
+LDFLAGS += -L$(LIBPFCP_ROOT)/lib -lpfcp
+
 # ngic-dp debug/testing/profiling options CFLAGS
 # #############################################################
 # gdb: un-comment 'CFLAGS += -g -O0' comment 'CFLAGS += -O3'
@@ -178,7 +192,7 @@ ifneq (,$(findstring SIMU_CP, $(CFLAGS)))
 endif
 
 # Enable STATIC ARP for testing with il_nperf
-# Un-comment below line to enable STATIC ARP
+# NGCORE_SHRINK:: Un-comment below line to enable STATIC ARP
 #CFLAGS += -DSTATIC_ARP
 
 # Un-comment below line to print ADC, PCC, METER and SDF rule entry
@@ -231,6 +245,16 @@ CFLAGS += -DSTATS
 
 # Un-comment below line to enable PCC, ADC, CDR, FILTERING, METERING pipeline stages.
 #CFLAGS += -DINCLUDE_MTR_STAGE
+
+#un-comment below line to enable check peer node heartbeat.
+CFLAGS += -DUSE_REST
+
+ifneq (,$(findstring USE_REST, $(CFLAGS)))
+	CFLAGS += -I$(SRCDIR)/../restoration
+	SRCS-y += $(SRCDIR)/../restoration/gstimer.o
+	SRCS-y += rest_peer.c
+	SRCS-y += gtpu_echo_req.c
+endif
 
 # ngic-dp  CFLAGS to be deprecated
 # #############################################################

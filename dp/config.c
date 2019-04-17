@@ -305,12 +305,15 @@ parse_config_args(struct app_params *app, int argc, char **argv)
 		{"kni_portmask", required_argument, 0, 'p'},
 		{"ul_iface", required_argument, 0, 'b'},
 		{"dl_iface", required_argument, 0, 'c'},
+		{"transmit_timer", required_argument, 0, 'T'},
+		{"periodic_timer", required_argument, 0, 'P'},
+		{"transmit_count", required_argument, 0, 'Q'},
 		{NULL, 0, 0, 0}
 	};
 
 	optind = 0;/* reset getopt lib */
 
-	while ((opt = getopt_long(argc, argv, "i:m:s:n:w:l:f:h:a:e:I:O",
+	while ((opt = getopt_long(argc, argv, "i:m:s:n:w:l:f:h:a:e:I:O:T:P:Q",
 					spgw_opts, &option_index)) != EOF) {
 		switch (opt) {
 		case 'h':
@@ -589,6 +592,21 @@ parse_config_args(struct app_params *app, int argc, char **argv)
 			/* Configure SGI interface name*/
 		case 'c':
 			memcpy(app->dl_iface_name, optarg, RTE_KNI_NAMESIZE);
+			break;
+
+			/* Configure Transmit timer */
+		case 'T':
+			app->transmit_timer = atoi(optarg);
+			break;
+
+			/* Configure Periodic timer */
+		case 'P':
+			app->periodic_timer = atoi(optarg);
+			break;
+
+			/* Configure Transmit count */
+		case 'Q':
+			app->transmit_cnt = atoi(optarg);
 			break;
 
 		default:

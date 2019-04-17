@@ -19,6 +19,7 @@
 #include <sys/types.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <inttypes.h>
 
 #include <rte_string_fns.h>
@@ -43,10 +44,15 @@
 #include <rte_port_ring.h>
 #include <rte_kni.h>
 #include <rte_arp.h>
+#include <unistd.h>
 
 #include "epc_packet_framework.h"
 #include "main.h"
 #include "gtpu.h"
+
+#ifdef USE_REST
+#include "../restoration/gstimer.h"
+#endif /* USE_REST */
 
 /* Borrowed from dpdk ip_frag_internal.c */
 #define PRIME_VALUE	0xeaad8405
@@ -57,6 +63,7 @@ extern pcap_dumper_t *pcap_dumper_west;
 #endif /* PCAP_GEN */
 
 extern struct kni_port_params *kni_port_params_array[RTE_MAX_ETHPORTS];
+
 #ifdef TIMER_STATS
 #include "perf_timer.h"
 extern _timer_t _init_time;
@@ -82,6 +89,20 @@ static inline void epc_ul_set_port_id(struct rte_mbuf *m)
 
 	ipv4_packet = (eh->ether_type == htons(ETHER_TYPE_IPv4));
 
+#ifdef USE_REST
+
+	if (conn_cnt > 0) {
+		int32_t index = 0;
+   		index = inx_bsearch(data, 0, (conn_cnt - 1), ipv4_hdr->src_addr); 
+		if (index >= 0) {
+			RTE_LOG_DP(DEBUG, DP, "VS: Recv pkts from NODE :%s\n", 
+							inet_ntoa(*(struct in_addr *)&ipv4_hdr->src_addr));
+			data[index].activityFlag = 1;
+		}
+	}
+
+#endif /* USE_REST */
+
 	if (unlikely(
 		     (m->ol_flags & PKT_RX_IP_CKSUM_MASK) == PKT_RX_IP_CKSUM_BAD ||
 		     (m->ol_flags & PKT_RX_L4_CKSUM_MASK) == PKT_RX_L4_CKSUM_BAD)) {
@@ -91,7 +112,8 @@ static inline void epc_ul_set_port_id(struct rte_mbuf *m)
 	*port_id_offset = 1;
 
 	/* Flag ARP pkt for linux handling */
-	if (eh->ether_type == rte_cpu_to_be_16(ETHER_TYPE_ARP))
+	if (eh->ether_type == rte_cpu_to_be_16(ETHER_TYPE_ARP) ||
+			ipv4_hdr->next_proto_id == IPPROTO_ICMP)
 	{
 		RTE_LOG_DP(DEBUG, DP, "epc_ul.c:%s::"
 				"\n\t@S1U:eh->ether_type==ETHER_TYPE_ARP= 0x%X\n",

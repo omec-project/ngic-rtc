@@ -55,7 +55,7 @@ int zmq_pull_create(void)
 	assert(rc == 0);
 
 	printf("ZMQ Server connect to:\t%s\t\t; device:\t%s\n",
-	zmq_pull_ifconnect, ZMQ_DEV_ID);
+			zmq_pull_ifconnect, ZMQ_DEV_ID);
 #endif /* ZMQ_DIRECT */
 #endif	/* CP_BUILD */
 

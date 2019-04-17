@@ -1,3 +1,4 @@
+
 #include <rte_log.h>
 #include <rte_common.h>
 #include <rte_ether.h>
@@ -8,11 +9,8 @@
 //#include "gtpu_echo.h"
 #include "util.h"
 
-/* GTPU-Recovery Information Element */
-typedef struct gtpu_recovery_ie_t {
-    uint8_t type;
-    uint8_t restart_cntr;
-} gtpu_recovery_ie;
+/* VS: TODO*/
+//static uint8_t resp_cnt = 1;
 
 /* Brief: Function to set echo request as echo response
  * @ Input param: echo_pkt rte_mbuf pointer
@@ -70,6 +68,7 @@ static int set_recovery(struct rte_mbuf *echo_pkt) {
 	gtpu_hdr->msglen = htons(ntohs(gtpu_hdr->msglen)+
 		sizeof(gtpu_recovery_ie));
 	recovery_ie->type = GTPU_ECHO_RECOVERY;
+	//recovery_ie->restart_cntr = resp_cnt;
 	recovery_ie->restart_cntr = 0;
 	return 0;
 }

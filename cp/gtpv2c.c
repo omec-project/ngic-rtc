@@ -41,6 +41,13 @@ struct sockaddr_in s11_sgw_sockaddr;
 uint8_t s11_rx_buf[MAX_GTPV2C_UDP_LEN];
 uint8_t s11_tx_buf[MAX_GTPV2C_UDP_LEN];
 
+uint8_t pfcp_tx_buf[MAX_GTPV2C_UDP_LEN];
+
+#ifdef USE_REST
+//VS: ECHO PKTS HANDLING
+uint8_t echo_tx_buf[MAX_GTPV2C_UDP_LEN];
+#endif /* USE_REST */
+
 struct in_addr s5s8_sgwc_ip;
 in_port_t s5s8_sgwc_port;
 struct sockaddr_in s5s8_sgwc_sockaddr;
@@ -81,16 +88,17 @@ get_next_ie(gtpv2c_ie *gtpv2c_ie_ptr, gtpv2c_ie *limit)
 void
 set_gtpv2c_header(gtpv2c_header *gtpv2c_tx,
 				uint8_t teidFlg, uint8_t type,
-				uint32_t teid, uint32_t seq)
+				uint32_t has_teid, uint32_t seq)
 {
-	gtpv2c_tx->gtpc.spare = 0;
-	gtpv2c_tx->gtpc.teidFlg = teidFlg;
-	gtpv2c_tx->gtpc.piggyback = 0;
 	gtpv2c_tx->gtpc.version = GTP_VERSION_GTPV2C;
+	gtpv2c_tx->gtpc.piggyback = 0;
 	gtpv2c_tx->gtpc.type = type;
+	gtpv2c_tx->gtpc.spare = 0;
+	gtpv2c_tx->gtpc.teidFlg = teidFlg;	
+	
 
 	if (teidFlg) {
-	   gtpv2c_tx->teid_u.has_teid.teid = teid;
+	   gtpv2c_tx->teid_u.has_teid.teid = has_teid;
 	   gtpv2c_tx->teid_u.has_teid.seq = seq;
 	} else {
 	   gtpv2c_tx->teid_u.no_teid.seq  = seq;

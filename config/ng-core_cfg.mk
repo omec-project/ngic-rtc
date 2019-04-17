@@ -5,6 +5,9 @@
 #ZMQ communication is enabled by default
 #CFLAGS += -DZMQ_COMM
 
+#PFCP flag is set for direct PFCP communication
+CFLAGS += -DPFCP_COMM
+
 # ASR- Un-comment below line to shrink pipeline COREs used
 CFLAGS += -DNGCORE_SHRINK
 

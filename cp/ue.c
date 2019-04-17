@@ -50,12 +50,12 @@ uint32_t base_s1u_sgw_gtpu_teid = 0xf0000000;
  * Define type of Control Plane (CP)
  * SGWC - Serving GW Control Plane
  * PGWC - PDN GW Control Plane
- * SPGWC - Combined SAEGW Control Plane
+ * SAEGWC - Combined SAEGW Control Plane
  */
 enum cp_config {
 	SGWC = 01,
 	PGWC = 02,
-	SPGWC = 03,
+	SAEGWC = 03,
 };
 extern enum cp_config spgw_cfg;
 
@@ -251,7 +251,7 @@ create_ue_context(uint8_t *imsi_val, uint16_t imsi_len,
 		}
 	}
 
-	if ((spgw_cfg == SGWC) || (spgw_cfg == SPGWC)) {
+	if ((spgw_cfg == SGWC) || (spgw_cfg == SAEGWC)) {
 		(*context)->s11_sgw_gtpc_teid = s11_sgw_gtpc_base_teid
 		    + s11_sgw_gtpc_teid_offset;
 		++s11_sgw_gtpc_teid_offset;

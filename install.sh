@@ -490,6 +490,14 @@ download_linux_sgx()
 	                return
 	fi
 }
+	
+build_pfcp_lib()
+{
+	pushd $NGIC_DIR/libpfcp
+	make clean
+	make || { echo -e "\nLibPfcp: Make lib failed\n"; }
+	popd
+}
 
 step_3()
 {
@@ -508,6 +516,10 @@ build_ngic()
 {
 	pushd $NGIC_DIR
 	source setenv.sh
+
+	echo "Building PFCP Libs ..."
+	build_pfcp_lib
+
 	if [ $SERVICE == 2 ] || [ $SERVICE == 3 ] ; then
 		make clean
 		echo "Building Libs..."

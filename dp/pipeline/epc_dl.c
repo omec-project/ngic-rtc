@@ -56,6 +56,7 @@ _timer_t _init_time = 0;
 extern struct kni_port_params *kni_port_params_array[RTE_MAX_ETHPORTS];
 /* Generate new pcap for sgi port. */
 #ifdef PCAP_GEN
+extern pcap_dumper_t *pcap_dumper_west;
 extern pcap_dumper_t *pcap_dumper_east;
 #endif /* PCAP_GEN */
 uint32_t dl_nkni_pkts = 0;
@@ -87,7 +88,8 @@ static inline void epc_dl_set_port_id(struct rte_mbuf *m)
 	*port_id_offset = 1;
 
 	/* Flag ARP pkt for linux handling */
-	if (eh->ether_type == rte_cpu_to_be_16(ETHER_TYPE_ARP))
+	if (eh->ether_type == rte_cpu_to_be_16(ETHER_TYPE_ARP) ||
+			ipv4_hdr->next_proto_id == IPPROTO_ICMP)
 	{
 		RTE_LOG_DP(DEBUG, DP, "epc_dl.c:%s::"
 				"\n\t@SGI:eh->ether_type==ETHER_TYPE_ARP= 0x%X\n",
@@ -414,6 +416,10 @@ void epc_dl(void *args)
 		uint32_t rx_cnt = rte_ring_dequeue_bulk(shared_ring[S1U_PORT_ID],
 				(void**)pkts, queued_cnt, NULL);
 		uint32_t pkt_indx = 0;
+/* Capture the echo packets.*/
+#ifdef PCAP_GEN
+        	dump_pcap(pkts, rx_cnt, pcap_dumper_west);
+#endif /* PCAP_GEN */
 		while (rx_cnt) {
 			uint16_t pkt_cnt = PKT_BURST_SZ;
 			if (rx_cnt < PKT_BURST_SZ)

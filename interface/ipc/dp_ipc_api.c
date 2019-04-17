@@ -31,7 +31,7 @@
 #include "interface.h"
 #include "udp/vepc_udp.h"
 #include "dp_ipc_api.h"
-
+#include "../../pfcp_messages/pfcp_util.h"
 
 void iface_ipc_register_msg_cb(int msg_id,
 				int (*msg_cb)(struct msgbuf *msg_payload))
@@ -51,6 +51,23 @@ void iface_init_ipc_node(void)
 	if (basenode == NULL)
 		exit(0);
 }
+
+#ifndef CP_BUILD
+static int
+udp_recv(void *msg_payload, uint32_t size,
+		struct sockaddr_in *peer_addr)
+{
+	socklen_t addr_len = sizeof(*peer_addr);
+
+	int bytes = recvfrom(my_sock.sock_fd, msg_payload, size, 0,
+			(struct sockaddr *)peer_addr, &addr_len);
+	/*if (bytes < size) {
+		RTE_LOG_DP(ERR, DP, "Failed recv msg !!!\n");
+		return -1;
+	}*/
+	return bytes;
+}
+#endif /* CP_BUILD */
 
 /**
  * @brief Function to Process msgs.
@@ -72,6 +89,18 @@ int iface_remove_que(enum cp_dp_comm id)
 		process_resp_msg((void *)&r_buf);
 	}
 #else
+#ifdef PFCP_COMM
+	RTE_SET_USED(id);
+	struct sockaddr_in peer_addr;
+	int bytes_rx = 0;
+	if ((bytes_rx = pfcp_recv(pfcp_rx, 512,
+					&peer_addr)) < 0) {
+		perror("msgrecv");
+		return -1;
+	}
+	process_pfcp_msg(pfcp_rx, bytes_rx, &peer_addr);
+
+#else
 	RTE_SET_USED(id);
 
 	if (comm_node[id].recv((void *)&rbuf,
@@ -81,10 +110,13 @@ int iface_remove_que(enum cp_dp_comm id)
 	}
 
 	process_comm_msg((void *)&rbuf);
+#endif /*PFCP_COMM*/
 #endif /* ZMQ_COMM */
 #else
+#ifndef PFCP_COMM
 	if (comm_node[id].init == NULL)
 		return 0;
+#endif /* PFCP_COMM */
 #ifdef SDN_ODL_BUILD
 	if (id == COMM_ZMQ) {
 		int rc;
@@ -110,12 +142,24 @@ int iface_remove_que(enum cp_dp_comm id)
 	}
 #else
 	if (id == COMM_SOCKET) {
+#ifdef PFCP_COMM
+		struct sockaddr_in peer_addr;
+		int bytes_rx = 0;
+		if ((bytes_rx = udp_recv(pfcp_rx, 512,
+				&peer_addr)) < 0) {
+			perror("msgrecv");
+			return -1;
+		}
+		process_pfcp_msg(pfcp_rx, bytes_rx, &peer_addr);
+
+#else   /* PFCP_COMM */
 		if (comm_node[id].recv((void *)&rbuf,
 					sizeof(struct msgbuf)) < 0) {
 			perror("msgrecv");
 			return -1;
 		}
 		process_comm_msg((void *)&rbuf);
+#endif /* PFCP_COMM */
 	}
 #endif /* ZMQ_COMM */
 #endif /*CP_BUILD*/

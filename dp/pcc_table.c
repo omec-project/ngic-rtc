@@ -159,8 +159,8 @@ cb_pcc_table_delete(struct msgbuf *msg_payload)
  *	- 0 Success.
  *	- -1 Failure.
  */
-static int
-cb_pcc_entry_add(struct msgbuf *msg_payload)
+//static
+int cb_pcc_entry_add(struct msgbuf *msg_payload)
 {
 	return pcc_entry_add(msg_payload->dp_id,
 					msg_payload->msg_union.pcc_entry);
