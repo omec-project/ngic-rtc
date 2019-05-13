@@ -72,7 +72,8 @@ set_modify_bearer_response(gtpv2c_header *gtpv2c_tx,
 	ip.s_addr = htonl(s1u_sgw_ip.s_addr);
 	set_ipv4_fteid(&mb_resp.bearer_context.s1u_sgw_ftied,
 			GTPV2C_IFTYPE_S1U_SGW_GTPU, IE_INSTANCE_ZERO, ip,
-			htonl(bearer->s1u_sgw_gtpu_teid));
+			(bearer->s1u_sgw_gtpu_teid));
+			//htonl(bearer->s1u_sgw_gtpu_teid));
 	mb_resp.bearer_context.header.len += sizeof(struct fteid_ie_hdr_t) +
 		sizeof(struct in_addr) + IE_HEADER_SIZE;
 

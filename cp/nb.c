@@ -311,7 +311,7 @@ get_topology(void) {
 					&consume_topology_output);
 			break;
 
-		case SPGWC:
+		case SAEGWC:
 			init_curl(&curl_topology, &topology_list, HTTP_METHOD_GET,
 					strcat(URI_PATH, "/dpn-types/spgw"),
 					fpc_ip, fpc_topology_port,
@@ -1449,7 +1449,7 @@ server(void)
 		if (s5s8_sgwc_fd != -1)
 			FD_SET(s5s8_sgwc_fd, &fd_set_active);
 
-	case SPGWC:
+	case SAEGWC:
 		if (s11_fd != -1)
 			FD_SET(s11_fd, &fd_set_active);
 		if (s11_pcap_fd != -1)
@@ -1484,7 +1484,7 @@ server(void)
 					control_plane();
 				}
 
-			case SPGWC:
+			case SAEGWC:
 				if (FD_ISSET(s11_fd, &fd_set_read)) {
 					FD_CLR(s11_fd, &fd_set_read);
 					control_plane();

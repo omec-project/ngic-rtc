@@ -512,7 +512,12 @@ set_recovery_ie(gtpv2c_header *header, enum ie_instance instance)
 	 * (modulo 256) which is denoted  as the 'local Restart Counter'.
 	 * Instead we set this value as 0
 	 */
+#ifdef USE_REST
+	/* VS: Support for restart counter */
+	return set_uint8_ie(header, IE_RECOVERY, instance, rstCnt);
+#else
 	return set_uint8_ie(header, IE_RECOVERY, instance, 0);
+#endif /* USE_REST */
 }
 
 

@@ -30,6 +30,10 @@
 
 #define MAX_GTPV2C_LENGTH (MAX_GTPV2C_UDP_LEN-sizeof(struct gtpc_t))
 
+#ifdef USE_REST
+extern uint8_t rstCnt;
+#endif /* USE_REST */
+
 /**
  * Structure for handling synchronus Create/Modify/delete session response
  * table.
@@ -381,7 +385,7 @@ set_modify_bearer_response(gtpv2c_header *gtpv2c_tx,
 void
 set_gtpv2c_header(gtpv2c_header *gtpv2c_tx,
 				uint8_t teidFlg, uint8_t type,
-				uint32_t teid, uint32_t seq);
+				uint32_t has_teid, uint32_t seq);
 
 /**
  * Helper function to set the gtp header for a gtpv2c message with the

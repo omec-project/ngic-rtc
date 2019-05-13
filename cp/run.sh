@@ -18,7 +18,7 @@ source chk_cpcfg.sh
 
 source ../config/cp_config.cfg
 
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:../libgtpv2c/lib
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:../libgtpv2c/lib:../libpfcp/lib
 
 APP_PATH="./build"
 APP="ngic_controlplane"

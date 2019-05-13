@@ -43,6 +43,11 @@
 #ifdef TIMER_STATS
 #include "perf_timer.h"
 #endif /* TIMER_STATS */
+
+#ifdef USE_REST
+#include "../restoration/gstimer.h"
+#endif /* use_rest */
+
 /**
  * dataplane rte logs.
  */
@@ -284,6 +289,38 @@ struct ul_timer_stats {
 /* UDP socket port configure */
 #define SOCKET_PORT 5556
 
+#ifdef USE_REST
+/**
+ * no. of mbuf.
+ */
+#define NB_ECHO_MBUF  1024
+
+struct rte_mempool *echo_mpool;
+
+extern int32_t conn_cnt;
+
+void rest_thread_init(void);
+
+#ifdef CP_BUILD
+uint8_t 
+add_node_conn_entry(uint32_t dstIp, uint8_t portId); 
+
+uint8_t
+process_response(uint32_t dstIp); 
+
+uint8_t 
+update_rstCnt(void);
+#else
+uint8_t 
+add_node_conn_entry(uint32_t dstIp, uint64_t sess_id, uint8_t portId); 
+#endif /* CP_BUILD */
+
+void
+flush_eNB_session(peerData *data_t, int32_t inx);
+
+void
+dp_flush_session(uint32_t ip_addr, uint32_t sess_id);
+#endif  /* USE_REST */
 /**
  * Structure of port parameters
  */
@@ -367,25 +404,25 @@ enum dp_config {
 struct app_params {
 	uint32_t s1u_ip;			/* s1u ipv4 address */
 	uint32_t s1u_net;			/* s1u network address */
-	uint32_t s1u_bcast_addr;	/* s1u broadcast ipv4 address */
+	uint32_t s1u_bcast_addr;		/* s1u broadcast ipv4 address */
 	uint32_t s1u_gw_ip;			/* s1u gateway ipv4 address */
 	uint32_t s1u_mask;			/* s1u network mask */
 	uint32_t sgw_s5s8gw_ip;			/* SGW_S5S8 gateway ipv4 address */
-	uint32_t sgw_s5s8gw_net;			/* SGW_S5S8 gateway network address */
-	uint32_t sgw_s5s8gw_mask;			/* SGW_S5S8 network mask */
-	uint32_t s5s8_sgwu_ip;		/* s5s8_sgwu gateway ipv4 address */
-	uint32_t s5s8_pgwu_ip;		/* s5s8_pgwu gateway ipv4 address */
+	uint32_t sgw_s5s8gw_net;		/* SGW_S5S8 gateway network address */
+	uint32_t sgw_s5s8gw_mask;		/* SGW_S5S8 network mask */
+	uint32_t s5s8_sgwu_ip;			/* s5s8_sgwu gateway ipv4 address */
+	uint32_t s5s8_pgwu_ip;			/* s5s8_pgwu gateway ipv4 address */
 	uint32_t pgw_s5s8gw_ip;			/* PGW_S5S8 gateway ipv4 address */
-	uint32_t pgw_s5s8gw_net;			/* PGW_S5S8 gateway network address */
-	uint32_t pgw_s5s8gw_mask;			/* PGW_S5S8 network mask */
+	uint32_t pgw_s5s8gw_net;		/* PGW_S5S8 gateway network address */
+	uint32_t pgw_s5s8gw_mask;		/* PGW_S5S8 network mask */
 	uint32_t sgi_ip;			/* sgi ipv4 address */
 	uint32_t sgi_net;			/* sgi network address */
-	uint32_t sgi_bcast_addr;	/* sgi broadcast ipv4 address */
+	uint32_t sgi_bcast_addr;		/* sgi broadcast ipv4 address */
 	uint32_t sgi_gw_ip;			/* sgi gateway ipv4 address */
 	uint32_t sgi_mask;			/* sgi network mask */
 	uint32_t s1u_port;			/* port no. to act as s1u */
-	uint32_t s5s8_sgwu_port;	/* port no. to act as s5s8_sgwu */
-	uint32_t s5s8_pgwu_port;	/* port no. to act as s5s8_pgwu */
+	uint32_t s5s8_sgwu_port;		/* port no. to act as s5s8_sgwu */
+	uint32_t s5s8_pgwu_port;		/* port no. to act as s5s8_pgwu */
 	uint32_t sgi_port;			/* port no. to act as sgi */
 	uint32_t log_level;			/* log level default - INFO,
 						 * 1 - DEBUG	 */
@@ -399,13 +436,16 @@ struct app_params {
 						 * 0 - do not include (default)
 						 * 1 - include */
 	uint32_t ports_mask;
+	uint8_t transmit_cnt;
+	int transmit_timer;
+	int periodic_timer;
 	char ul_iface_name[MAX_LEN];
 	char dl_iface_name[MAX_LEN];
 	enum dp_config spgw_cfg;
-	struct ether_addr s1u_ether_addr;		/* s1u mac addr */
+	struct ether_addr s1u_ether_addr;	/* s1u mac addr */
 	struct ether_addr s5s8_sgwu_ether_addr;	/* s5s8_sgwu mac addr */
 	struct ether_addr s5s8_pgwu_ether_addr;	/* s5s8_pgwu mac addr */
-	struct ether_addr sgi_ether_addr;		/* sgi mac addr */
+	struct ether_addr sgi_ether_addr;	/* sgi mac addr */
 
 #ifdef SGX_CDR
 	const char *dealer_in_ip;		/* dealerIn ip */
@@ -416,8 +456,8 @@ struct app_params {
 	const char *dealer_in_mrsigner;		/* dealerIn mrsigner */
 	const char *dealer_in_isvsvn;		/* dealerIn isvsvn */
 
-	const char *dp_cert_path;			/* dp cert path */
-	const char *dp_pkey_path;			/* dp publickey path */
+	const char *dp_cert_path;		/* dp cert path */
+	const char *dp_pkey_path;		/* dp publickey path */
 #endif /* SGX_CDR */
 };
 
@@ -1648,6 +1688,27 @@ get_session_data(uint64_t sess_id, uint32_t is_mod);
 
 /***********************ddn_utils.c functions start**********************/
 #ifdef NGCORE_SHRINK
+#ifdef USE_REST
+#ifndef CP_BUILD
+/**
+ * Function to initialize/create shared ring, ring_container and mem_pool to
+ * inter-communication between DL and iface core.
+ *
+ * @param void
+ *	void.
+ *
+ * @return
+ *	None
+ */
+void
+echo_table_init(void);
+
+void
+build_echo_request(struct rte_mbuf *echo_pkt, peerData *entry);
+#endif /* CP_BUILD*/
+
+#endif /* USE_REST */
+
 #ifdef DP_DDN
 
 /**

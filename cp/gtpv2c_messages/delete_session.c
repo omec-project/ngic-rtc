@@ -24,6 +24,12 @@
 
 extern struct response_info resp_t;
 
+//TODO : put this declatation appropriately
+int
+delete_context(delete_session_request_t *ds_req,
+			ue_context **_context);
+
+
 /**
  * Handles the removal of data structures internal to the control plane
  * as well as notifying the data plane of such changes.
@@ -37,7 +43,8 @@ extern struct response_info resp_t;
  *   specified cause error value
  *   \- < 0 for all other errors
  */
-static int
+//static int
+int
 delete_context(delete_session_request_t *ds_req,
 			ue_context **_context)
 {

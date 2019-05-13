@@ -330,7 +330,7 @@ session_create(struct dp_id dp_id,
 #ifdef SDN_ODL_BUILD
 	switch(spgw_cfg) {
 	case SGWC :
-	case SPGWC :
+	case SAEGWC :
 		return send_nb_create_modify(
 				JSON_OBJ_OP_TYPE_CREATE,
 				JSON_OBJ_INSTR_3GPP_MOB_CREATE,

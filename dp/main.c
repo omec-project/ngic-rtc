@@ -30,6 +30,16 @@
 #include "cdr.h"
 #include "session_cdr.h"
 #include "master_cdr.h"
+#include "../pfcp_messages/pfcp_util.h"
+#include "../pfcp_messages/pfcp_set_ie.h"
+#include "pfcp_association.h"
+/**
+ * Main function.
+ */
+
+uint32_t start_time;
+extern struct in_addr cp_comm_ip;
+
 
 /**
  * Main function.
@@ -38,6 +48,8 @@ int main(int argc, char **argv)
 {
 	int ret;
 
+	start_time = current_ntp_timestamp();
+	
 	/* Initialize the Environment Abstraction Layer */
 	ret = rte_eal_init(argc, argv);
 	if (ret < 0)
@@ -77,6 +89,8 @@ int main(int argc, char **argv)
 				rte_log_get_global_level());
 	}
 #endif
+
+	create_node_id_hash();
 
 	/* Initialize DP PORTS and membufs */
 	dp_port_init();
@@ -170,6 +184,30 @@ int main(int argc, char **argv)
 
 	iface_module_constructor();
 	dp_table_init();
+
+#ifdef USE_REST
+
+	/* VS: Set current component start/up time */
+	//up_time = current_ntp_timestamp();
+
+	/* VS: Create thread for handling for sending echo req to its peer node */
+	rest_thread_init();
+
+	//if ((spgw_cfg == SGWU) || (spgw_cfg == SAEGWU)) {
+	//	/* VS: Added default entry for SGWU/SAEGWU */
+	//	if ((add_node_conn_entry((uint32_t)pfcp_config.sgwu_pfcp_ip[0].s_addr, SX_PORT_ID)) != 0) {
+	//		RTE_LOG_DP(ERR, DP, "Failed to add connection entry for SGWU/SAEGWU");
+	//	}
+
+	//} else if (spgw_cfg == PGWU) {
+	//	/* VS: Added default entry for PGWC */
+	//	if ((add_node_conn_entry((uint32_t)pfcp_config.pgwc_s5s8_ip[0].s_addr, S11_SGW_PORT_ID)) != 0) {
+	//		RTE_LOG_DP(ERR, DP, "Failed to add connection entry for MME");
+	//	}
+
+	//}
+
+#endif  /* USE_REST */
 
 	packet_framework_launch();
 

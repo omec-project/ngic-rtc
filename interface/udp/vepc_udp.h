@@ -38,6 +38,13 @@ __create_udp_socket(struct in_addr send_ip, uint16_t send_port,
 		uint16_t recv_port, udp_sock_t *__sock);
 
 /**
+ * @brief API to create udp socket.
+ */
+int
+create_udp_socket(struct in_addr recv_ip, uint16_t recv_port,
+		udp_sock_t *sock);
+
+/**
  * @brief API to send pkts over udp socket.
  */
 int __send_udp_packet(udp_sock_t *__sock, void *data, int size);

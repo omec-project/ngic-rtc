@@ -167,7 +167,7 @@ delete_pgwc_context(gtpv2c_header *gtpv2c_rx, ue_context **_context,
 			si.ue_addr.u.ipv4_addr =
 				htonl(pdn->ipv4.s_addr);
 			si.ul_s1_info.sgw_teid = 
-                bearer->s1u_sgw_gtpu_teid;
+                	bearer->s1u_sgw_gtpu_teid;
 			//si.ul_s1_info.sgw_teid =
 			//	htonl(bearer->s1u_sgw_gtpu_teid);
 			si.sess_id = SESS_ID(

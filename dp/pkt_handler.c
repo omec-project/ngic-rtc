@@ -72,7 +72,7 @@ notification_handler(struct rte_pipeline *p,
 	struct dp_session_info *sess_info[MAX_BURST_SZ];
 	unsigned int *ring_entry = NULL;
 	uint64_t pkt_mask = 0, pkts_queue_mask = 0;
-	int64_t *sess = NULL;
+	uint64_t *sess = NULL;
 	unsigned int ret = 32, num = 32, i;
 
 #ifndef NGCORE_SHRINK

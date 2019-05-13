@@ -133,7 +133,7 @@ del_resp_op_id(uint64_t resp_op_id)
 		case GTP_CREATE_SESSION_REQ: {
 			switch(spgw_cfg){
 				case SGWC:
-				case SPGWC: {
+				case SAEGWC: {
 					set_create_session_response(&(tmp->gtpv2c_tx_t),
 							tmp->gtpv2c_tx_t.teid_u.has_teid.seq,
 							&(tmp->context_t), &(tmp->pdn_t),
@@ -189,7 +189,7 @@ del_resp_op_id(uint64_t resp_op_id)
 		case GTP_DELETE_SESSION_REQ: {
 			switch(spgw_cfg){
 				case SGWC:
-				case SPGWC:
+				case SAEGWC:
 					set_gtpv2c_teid_header(&(tmp->gtpv2c_tx_t),
 							GTP_DELETE_SESSION_RSP,
 							htonl(tmp->context_t.s11_mme_gtpc_teid),

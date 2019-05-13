@@ -312,6 +312,11 @@ extern struct sockaddr_in s11_sgw_sockaddr;
 extern uint8_t s11_rx_buf[MAX_GTPV2C_UDP_LEN];
 extern uint8_t s11_tx_buf[MAX_GTPV2C_UDP_LEN];
 
+#ifdef USE_REST
+//VS: ECHO BUFFERS
+extern uint8_t echo_tx_buf[MAX_GTPV2C_UDP_LEN];
+#endif /* USE_REST */
+
 extern struct in_addr s5s8_sgwc_ip;
 extern in_port_t s5s8_sgwc_port;
 extern struct sockaddr_in s5s8_sgwc_sockaddr;
@@ -319,6 +324,7 @@ extern struct sockaddr_in s5s8_sgwc_sockaddr;
 extern struct in_addr s5s8_pgwc_ip;
 extern in_port_t s5s8_pgwc_port;
 extern struct sockaddr_in s5s8_pgwc_sockaddr;
+extern uint8_t pfcp_tx_buf[MAX_GTPV2C_UDP_LEN];
 extern uint8_t s5s8_rx_buf[MAX_GTPV2C_UDP_LEN];
 extern uint8_t s5s8_tx_buf[MAX_GTPV2C_UDP_LEN];
 
@@ -326,6 +332,7 @@ extern struct in_addr s1u_sgw_ip;
 extern struct in_addr s5s8_sgwu_ip;
 extern struct in_addr s5s8_pgwu_ip;
 
+#ifdef CP_BUILD
 /**
  * @brief
  * Writes packet at @tx_buf of length @payload_length to pcap file specified
@@ -333,6 +340,7 @@ extern struct in_addr s5s8_pgwu_ip;
  */
 void
 dump_pcap(uint16_t payload_length, uint8_t *tx_buf);
+#endif /* CP_BUILD */
 
 /**
  * Helper function to set the gtp header for a gtpv2c message.
@@ -378,7 +386,7 @@ dump_pcap(uint16_t payload_length, uint8_t *tx_buf);
 void
 set_gtpv2c_echo(gtpv2c_header *gtpv2c_tx,
 				uint8_t teidFlg, uint8_t type,
-				uint32_t teid, uint32_t seq);
+				uint32_t has_teid, uint32_t seq);
 
 /* gtpv2c message handlers as defined in gtpv2c_messages folder */
 
@@ -710,4 +718,7 @@ void
 gtpv2c_send(int gtpv2c_if_id, uint8_t *gtpv2c_tx_buf,
 			uint16_t gtpv2c_pyld_len, struct sockaddr *dest_addr,
 			socklen_t dest_addr_len);
+
+void
+build_gtpv2_echo_request(gtpv2c_header *echo_pkt);
 #endif /* GTPV2C_H */
