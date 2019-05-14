@@ -35,7 +35,7 @@ CP_NUMA_NODE=0
 DP_NUMA_NODE=0
 
 
-OSS_UTIL_GIT_LINK="http://gsgit.gslab.com/nilesh/oss_util_gslab.git"
+OSS_UTIL_GIT_LINK="http://10.155.205.206/C3PO-NGIC/oss-util.git"
 OSS_UTIL_DIR="oss_adapter/c3po_oss/"
 
 #
@@ -525,7 +525,6 @@ install_oss_util()
 {
    pushd $NGIC_DIR/$OSS_UTIL_DIR
    git clone $OSS_UTIL_GIT_LINK
-   mv oss_util_gslab oss-util
    pushd oss-util
    ./install.sh
    popd
