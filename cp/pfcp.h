@@ -71,9 +71,9 @@ extern struct sockaddr_in pfcp_sgwu_sockaddr_arr[MAX_NUM_SGWU];
 extern in_port_t pfcp_pgwu_port_arr[MAX_NUM_PGWU];
 extern struct sockaddr_in pfcp_pgwu_sockaddr_arr[MAX_NUM_PGWU];
 
-//SPGWU PFCP
-extern in_port_t pfcp_spgwu_port_arr[MAX_NUM_SPGWU];
-extern struct sockaddr_in pfcp_spgwu_sockaddr_arr[MAX_NUM_SPGWU];
+//SAEGWU PFCP
+extern in_port_t pfcp_spgwu_port_arr[MAX_NUM_SAEGWU];
+extern struct sockaddr_in pfcp_spgwu_sockaddr_arr[MAX_NUM_SAEGWU];
 
 
 #endif /* PFCP_H */

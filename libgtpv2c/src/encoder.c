@@ -651,6 +651,27 @@ encode_eps_bearer_id_ie_t(eps_bearer_id_ie_t *val, gtpv2c_buffer_t *buf)
 	return enc_len;
 }
 
+
+/**
+ * Encodes eps bearer id to buffer.
+ * @param val
+ *   eps bearer id value
+ * @param buf
+ *   buffer to store encoded values.
+ * @return
+ *   number of encoded bytes.
+ */
+static int
+encode_mapped_ue_usage_type_ie_t(mapped_ue_usage_type_ie_t *val,
+		gtpv2c_buffer_t *buf)
+{
+	uint16_t enc_len = 0;
+
+	enc_len += encode_ie_header_t(&val->header, buf);
+	enc_len += encode_uint16_t(val->mapped_ue_usage_type, buf);
+	return enc_len;
+}
+
 /**
  * Encodes pci,pl,pvi value to buffer.
  * @param val
@@ -824,6 +845,25 @@ encode_bearer_context_modified_ie_t(bearer_context_modified_ie_t *val,
 }
 
 /**
+ * Encodes fqdn to buffer.
+ * @param val
+ *   fqdn value
+ * @param buf
+ *   buffer to store encoded values.
+ * @return
+ *   number of encoded bytes.
+ */
+static int
+encode_fqdn_ie_t(fqdn_ie_t *val, gtpv2c_buffer_t *buf)
+{
+	uint16_t enc_len = 0;
+
+	enc_len += encode_ie_header_t(&val->header, buf);
+	enc_len += encode_common_type(&val->fqdn, buf, val->header.len);
+	return enc_len;
+}
+
+/**
  * Encodes create session request to buffer.
  * @param val
  *   create session request
@@ -899,6 +939,12 @@ encode_create_session_request_t(create_session_request_t *val,
 
 	if (val->ue_timezone.header.len)
 		enc_len += encode_ue_timezone_ie_t(&(val->ue_timezone), &buf);
+
+	if (val->ue_usage_type.header.len)
+		enc_len += encode_mapped_ue_usage_type_ie_t(&(val->ue_usage_type), &buf);
+
+	if (val->sgwu_nodename.header.len)
+		enc_len += encode_fqdn_ie_t(&(val->sgwu_nodename), &buf);
 
 	*msg_len = enc_len;
 	memcpy(msg, buf.val, buf.len);
@@ -1066,5 +1112,32 @@ encode_delete_session_response_t(delete_session_response_t *val,
 	*msg_len = enc_len;
 	memcpy(msg, buf.val, buf.len);
 
+	return enc_len;
+}
+
+/**
+ * Encodes echo request to buffer.
+ * @param val
+ *   gtpv2c_header
+ * @param buf
+ *   buffer to store encoded values.
+ * @return
+ *   number of encoded bytes.
+ */
+int
+encode_echo_request_t(echo_request_t *val,
+		uint8_t *msg, uint16_t *msg_len)
+{
+
+	uint16_t enc_len = 0;
+	gtpv2c_buffer_t buf = {0};
+
+	enc_len += encode_gtpv2c_header_t(&(val->header), &buf);
+
+	if (val->recovery.header.len)
+		enc_len += encode_recovery_ie_t(&(val->recovery), &buf);
+
+	*msg_len = enc_len;
+	memcpy(msg, buf.val, buf.len);
 	return enc_len;
 }

@@ -495,7 +495,9 @@ process_pgwc_s5s8_create_session_request(gtpv2c_header *gtpv2c_rx,
  *   PDN Connection data structure pertaining to the session to be created
  * @param bearer
  *   Default EPS Bearer corresponding to the PDN Connection to be created
-  * @return
+ * @param sgwu_fqdn
+ *   SGWU fqdn to be sent to PGWC
+ * @return
  *   \- 0 if successful
  *   \- > 0 if error occurs during packet filter parsing corresponds to 3gpp
  *   specified cause error value
@@ -505,7 +507,7 @@ int
 gen_sgwc_s5s8_create_session_request(gtpv2c_header *gtpv2c_s11_rx,
 		gtpv2c_header *gtpv2c_s5s8_tx,
 		uint32_t sequence, pdn_connection *pdn,
-		eps_bearer *bearer);
+		eps_bearer *bearer, char *sgwu_fqdn);
 
 /**
  * Handles processing of sgwc s5s8 create session response messages
@@ -720,5 +722,5 @@ gtpv2c_send(int gtpv2c_if_id, uint8_t *gtpv2c_tx_buf,
 			socklen_t dest_addr_len);
 
 void
-build_gtpv2_echo_request(gtpv2c_header *echo_pkt);
+build_gtpv2_echo_request(gtpv2c_header *echo_pkt, uint16_t gtpu_seqnb);
 #endif /* GTPV2C_H */

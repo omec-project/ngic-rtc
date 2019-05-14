@@ -35,6 +35,8 @@
 #define PDN_TYPE_IPV6	2
 #define PDN_TYPE_IPV4_IPV6	3
 
+#define HOSTNAME_LEN 256
+
 /* Information Element type values according to 3GPP TS 29.274 Table 8.1-1 */
 #define IE_RESERVED (0)
 #define IE_IMSI (1)
@@ -111,6 +113,7 @@
 #define IE_CSG_MEMBERSHIP_INDICATION (148)
 #define IE_SERVICE_INDICATOR (149)
 #define IE_ALLOCATION_RETENTION_PRIORITY (155)
+#define IE_MAPPED_UE_USAGE_TYPE (200)
 #define IE_PRIVATE_EXTENSION (255)
 
 /**
@@ -497,6 +500,21 @@ typedef struct bearer_context_modified_ie_t {
 	eps_bearer_id_ie_t ebi;
 	fteid_ie_t s1u_sgw_ftied;
 } bearer_context_modified_ie_t;
+
+/**
+ * Mapped UE Usage Type
+ * as defined by 3GPP TS 29.274, clause 8.131 for the
+ * IE type value 200.
+ */
+typedef struct mapped_ue_usage_type_ie_t {
+	ie_header_t header;
+	uint16_t mapped_ue_usage_type;
+} mapped_ue_usage_type_ie_t;
+
+typedef struct fqdn_ie_t {
+	ie_header_t header;
+	uint8_t fqdn[HOSTNAME_LEN];
+} fqdn_ie_t;
 
 #pragma pack()
 

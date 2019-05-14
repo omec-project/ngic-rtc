@@ -16,6 +16,7 @@
 
 #include "ue.h"
 #include "interface.h"
+#include "cp.h"
 
 #include <rte_debug.h>
 #include <rte_branch_prediction.h>
@@ -37,6 +38,8 @@ struct rte_hash *ue_context_by_fteid_hash;
 static struct in_addr ip_pool_ip;
 static struct in_addr ip_pool_mask;
 
+extern struct pfcp_config_t pfcp_config;
+
 apn apn_list[MAX_NB_DPN];
 
 const uint32_t s11_sgw_gtpc_base_teid = 0xC0FFEE;
@@ -45,19 +48,6 @@ const uint32_t s5s8_pgw_gtpc_base_teid = 0xD0FFEE;
 static uint32_t s5s8_pgw_gtpc_teid_offset;
 
 uint32_t base_s1u_sgw_gtpu_teid = 0xf0000000;
-
-/*
- * Define type of Control Plane (CP)
- * SGWC - Serving GW Control Plane
- * PGWC - PDN GW Control Plane
- * SAEGWC - Combined SAEGW Control Plane
- */
-enum cp_config {
-	SGWC = 01,
-	PGWC = 02,
-	SAEGWC = 03,
-};
-extern enum cp_config spgw_cfg;
 
 void
 set_s1u_sgw_gtpu_teid(eps_bearer *bearer, ue_context *context)
@@ -371,17 +361,19 @@ get_apn(char *apn_label, uint16_t apn_length)
 {
 	int i;
 
-	for(i=0; i < MAX_NB_DPN; i++)   {
-	        if ((apn_length == apn_list[i].apn_name_length)
-	         && !memcmp(apn_label, apn_list[i].apn_name_label, apn_length)) {
-	                break;
+	for (i = 0; i < MAX_NB_DPN; i++)   {
+		if ((apn_length == apn_list[i].apn_name_length)
+			&& !memcmp(apn_label, apn_list[i].apn_name_label,
+			apn_length)) {
+			break;
 	        }
 	}
 	if(i >= MAX_NB_DPN)     {
-	                fprintf(stderr,
-	                    "Received create session request with incorrect "
-	                                "apn_label :%s", apn_label);
-	                return NULL;
+		fprintf(stderr,
+		"Received create session"
+		"request with incorrect"
+		"apn_label :%s", apn_label);
+		return NULL;
 	}
 
 	apn_list[i].apn_idx = i;

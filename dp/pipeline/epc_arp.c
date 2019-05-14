@@ -840,13 +840,14 @@ arp_send_buffered_pkts(struct rte_ring *queue,
  * @ Output param: none
  * Return: void
  */
-static void 
-process_echo_response(struct rte_mbuf *echo_pkt) 
+static void
+process_echo_response(struct rte_mbuf *echo_pkt)
 {
-	if (conn_cnt == 0) 
-		return;
+
+	int ret = 0;
+	peerData *conn_data = NULL;
+
 	//uint8_t rest_cnt = 0;
-	int32_t inx = 0;
 	//struct ether_hdr *eth_h = rte_pktmbuf_mtod(echo_pkt, struct ether_hdr *);
 	//struct ether_addr tmp_mac;
 	//ether_addr_copy(&eth_h->s_addr, &tmp_mac);
@@ -861,26 +862,36 @@ process_echo_response(struct rte_mbuf *echo_pkt)
 	//		GTPU_HDR_SIZE + ntohs(gtpu_hdr->msglen));
 	//rest_cnt = recovery_ie->restart_cntr;
 	//
-	inx = inx_bsearch(data, 0, (conn_cnt - 1), ip_hdr->src_addr); 
 
-	if (inx >= 0) {
-		data[inx].itr_cnt = 0;
-		/* Stop Timer transmit timer for specific MME */
-		stopTimer( &data[inx].tt );
-		/* Stop Timer periodic timer for specific MME */
-		stopTimer( &data[inx].pt );
+	/* VS: TODO */
+	ret = rte_hash_lookup_data(conn_hash_handle,
+				&ip_hdr->src_addr, (void **)&conn_data);
+
+	if ( ret < 0) {
+		RTE_LOG_DP(DEBUG, DP, " Entry not found for NODE :%s\n",
+							inet_ntoa(*(struct in_addr *)&ip_hdr->src_addr));
+		return;
+
+	} else {
+		conn_data->itr_cnt = 0;
+		/* Reset Activity flag */
+		conn_data->activityFlag = 0;
+		/* Stop transmit timer for specific Node */
+		stopTimer( &conn_data->tt );
+		/* Stop periodic timer for specific Node */
+		stopTimer( &conn_data->pt );
 		/* Reset Periodic Timer */
-		if ( startTimer( &data[inx].pt ) < 0)
+		if ( startTimer( &conn_data->pt ) < 0)
 			RTE_LOG_DP(ERR, DP, "Periodic Timer failed to start...\n");
 	}
 
-	//if (rest_cnt < data[inx].rstCnt) {
+	//if (rest_cnt < conn_data->rstCnt) {
 	//	flush_eNB_session(&data[inx]);
-	//	data[inx].rstCnt = 0;
+	//	conn_data->rstCnt = 0;
 	//	return;
 	//}
 	//
-	//data[inx].rstCnt = rest_cnt;
+	//conn_data->rstCnt = rest_cnt;
 
 }
 #endif /* USE_REST */
@@ -965,7 +976,7 @@ get_mac_ip_addr(struct arp_port_address *addr, uint8_t port_id)
 			}
 			break;
 
-		case SPGWU:
+		case SAEGWU:
 			if (app.s1u_port == port_id) {
 				addr[port_id].ip = app.s1u_ip;
 				addr[port_id].mac_addr = &app.s1u_ether_addr;

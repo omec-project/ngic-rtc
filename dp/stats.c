@@ -49,8 +49,6 @@
 #include "acl_dp.h"
 #include "commands.h"
 
-#define DEBUG_DDN 0
-
 struct ul_pkt_struct {
 	uint64_t IfPKTS;
 	uint64_t IfMisPKTS;
@@ -274,7 +272,7 @@ nic_in_stats(void)
 		if (ret != 0)
 			fprintf(stderr, "Packets are not read from sgi port\n");
 		break;
-	case SPGWU:
+	case SAEGWU:
 		ret = rte_eth_stats_get(app.s1u_port, &stats0);
 		if (ret != 0)
 			fprintf(stderr, "Packets are not read from s1u port\n");

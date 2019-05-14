@@ -20,6 +20,22 @@
 #include "gtpv2c_set_ie.h"
 #include "../cp_dp_api/vepc_cp_dp_api.h"
 
+#include "pfcp_messages.h"
+#include "pfcp_set_ie.h"
+#include "pfcp_messages_encoder.h"
+#include "pfcp_util.h"
+#include "pfcp_session.h"
+
+#include "../cp_stats.h"
+
+extern pfcp_config_t pfcp_config;
+extern pfcp_context_t pfcp_ctxt;
+extern int pfcp_sgwc_fd_arr[MAX_NUM_PGWC];
+extern int pfcp_pgwc_fd_arr[MAX_NUM_PGWC];
+extern struct sockaddr_in pfcp_sgwu_sockaddr_arr[MAX_NUM_PGWU];
+extern struct sockaddr_in pfcp_pgwu_sockaddr_arr[MAX_NUM_PGWU];
+
+
 #define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
 
 /* PGWC S5S8 handlers:
@@ -271,8 +287,11 @@ process_pgwc_s5s8_create_session_request(gtpv2c_header *gtpv2c_rx,
 		pdn->s5s8_sgw_gtpc_teid =
 			create_s5s8_session_request.
 			s5s8_sgw_gtpc_fteid->fteid_ie_hdr.teid_or_gre;
-		pdn->s5s8_pgw_gtpc_ipv4 =
-			s5s8_pgwc_ip;
+#ifdef PFCP_COMM
+	        pdn->s5s8_pgw_gtpc_ipv4 = pfcp_config.pgwc_s5s8_ip[0];
+#else
+		pdn->s5s8_pgw_gtpc_ipv4 = s5s8_pgwc_ip;
+#endif
 		/* Note: s5s8_pgw_gtpc_teid generated from
 		 * s5s8_pgw_gtpc_base_teid and incremented
 		 * for each pdn connection, similar to
@@ -297,7 +316,11 @@ process_pgwc_s5s8_create_session_request(gtpv2c_header *gtpv2c_rx,
 				IE_TYPE_PTR_FROM_GTPV2C_IE(fteid_ie,
 						create_s5s8_session_request.s5s8_sgw_gtpu_fteid)->
 							fteid_ie_hdr.teid_or_gre;
+#ifdef PFCP_COMM
+		bearer->s5s8_pgw_gtpu_ipv4.s_addr = htonl(pfcp_ctxt.s5s8_pgwu_ip);
+#else
 		bearer->s5s8_pgw_gtpu_ipv4 = s5s8_pgwu_ip;
+#endif
 		/* Note: s5s8_pgw_gtpu_teid = s5s8_pgw_gtpc_teid */
 		bearer->s5s8_pgw_gtpu_teid = pdn->s5s8_pgw_gtpc_teid;
 		bearer->pdn = pdn;
@@ -317,6 +340,46 @@ process_pgwc_s5s8_create_session_request(gtpv2c_header *gtpv2c_rx,
 	resp_t.msg_type = GTP_CREATE_SESSION_REQ;
 	/* resp_t.msg_type = gtpv2c_rx->gtpc.type;
 	 * TODO:Revisit this for to handle type received from message */
+#endif
+
+
+#ifdef PFCP_COMM
+
+	pfcp_session_establishment_request_t pfcp_sess_est_req = {0};
+
+	//fill_pfcp_sess_est_s5s8_req(&pfcp_sess_est_req, &create_s5s8_session_request);
+
+	/* Below Passing 3rd Argumt. as NULL to reuse the fill_pfcp_sess_estab*/
+	context->seid = SESS_ID(pdn->s5s8_sgw_gtpc_teid, bearer->eps_bearer_id);
+	fill_pfcp_sess_est_req(&pfcp_sess_est_req, NULL, context, bearer, pdn);
+
+	/*Filling sequence number */
+	pfcp_sess_est_req.header.seid_seqno.has_seid.seq_no  = htonl(gtpv2c_rx->teid_u.has_teid.seq);
+
+	/* Filling PDN structure*/
+
+	pfcp_sess_est_req.pdn_type.header.type = IE_PFCP_PDN_TYPE;
+	pfcp_sess_est_req.pdn_type.header.len = UINT8_SIZE;
+	pfcp_sess_est_req.pdn_type.spare = 0;
+	pfcp_sess_est_req.pdn_type.pdn_type =  PFCP_PDN_TYPE_IPV4; // create_s5s8_session_request.pdn_type_ie->type ;
+
+	uint8_t pfcp_msg[512]={0};
+	int encoded = encode_pfcp_session_establishment_request(&pfcp_sess_est_req, pfcp_msg);
+
+	pfcp_header_t *header = (pfcp_header_t *) pfcp_msg;
+	header->message_len = htons(encoded - 4);
+
+	/*Send the packet to PGWU*/
+
+	//if(pfcp_ctxt.flag_ava_ip == true)
+	{
+		for(uint32_t i=0;i < pfcp_config.num_pgwu; i++) {
+			if ( pfcp_send(pfcp_pgwc_fd_arr[i], pfcp_msg, encoded, &pfcp_pgwu_sockaddr_arr[i]) < 0 )
+				printf("Error sending: %i\n",errno);
+		}
+	}
+	return 0;
+
 #endif
 
 	/* using the s1u_sgw_gtpu_teid as unique identifier to the session */
@@ -484,7 +547,7 @@ int
 gen_sgwc_s5s8_create_session_request(gtpv2c_header *gtpv2c_rx,
 		gtpv2c_header *gtpv2c_tx,
 		uint32_t sequence, pdn_connection *pdn,
-		eps_bearer *bearer)
+		eps_bearer *bearer, char *sgwu_fqdn)
 {
 
 	gtpv2c_ie *current_rx_ie;
@@ -566,6 +629,8 @@ gen_sgwc_s5s8_create_session_request(gtpv2c_header *gtpv2c_rx,
 		}
 	}
 
+	set_fqdn_ie(gtpv2c_tx, sgwu_fqdn);
+
 	return 0;
 }
 
@@ -573,7 +638,8 @@ int
 process_sgwc_s5s8_create_session_response(gtpv2c_header *gtpv2c_s5s8_rx,
 			gtpv2c_header *gtpv2c_s11_tx)
 {
-	struct parse_sgwc_s5s8_create_session_response_t create_s5s8_session_response = { 0 };
+	pfcp_session_modification_request_t pfcp_sess_mod_req = {0};
+	struct parse_sgwc_s5s8_create_session_response_t create_s5s8_session_response = {0};
 	ue_context *context = NULL;
 	pdn_connection *pdn = NULL;
 	eps_bearer *bearer = NULL;
@@ -643,6 +709,7 @@ process_sgwc_s5s8_create_session_response(gtpv2c_header *gtpv2c_s5s8_rx,
 				IE_TYPE_PTR_FROM_GTPV2C_IE(fteid_ie,
 						create_s5s8_session_response.s5s8_pgw_gtpu_fteid)->
 							fteid_ie_hdr.teid_or_gre;
+
 		bearer->pdn = pdn;
 	}
 #ifndef ZMQ_COMM
@@ -686,6 +753,35 @@ process_sgwc_s5s8_create_session_response(gtpv2c_header *gtpv2c_s5s8_rx,
 			inet_ntoa(bearer->s5s8_pgw_gtpu_ipv4),
 			bearer->s5s8_pgw_gtpu_teid);
 
+#ifdef PFCP_COMM
+
+	fill_pfcp_sess_mod_req(&pfcp_sess_mod_req, NULL, context, bearer, pdn);
+	pfcp_sess_mod_req.create_pdr[0].pdi.local_fteid.teid = htonl(bearer->s5s8_pgw_gtpu_teid) ;
+	pfcp_sess_mod_req.create_pdr[0].pdi.local_fteid.ipv4_address = htonl(bearer->s5s8_pgw_gtpu_ipv4.s_addr) ;
+	pfcp_sess_mod_req.create_pdr[0].pdi.ue_ip_address.ipv4_address = htonl(pdn->ipv4.s_addr);
+	pfcp_sess_mod_req.create_pdr[0].pdi.source_interface.interface_value = SOURCE_INTERFACE_VALUE_ACCESS;
+	pfcp_sess_mod_req.header.seid_seqno.has_seid.seq_no = gtpv2c_s5s8_rx->teid_u.has_teid.seq ;
+
+	/*pfcp_sess_mod_req.pdn_type.header.type = IE_PFCP_PDN_TYPE;
+	pfcp_sess_mod_req.pdn_type.header.len = UINT8_SIZE;
+	pfcp_sess_mod_req.pdn_type.spare = 0;
+	pfcp_sess_mod_req.pdn_type.pdn_type = PFCP_PDN_TYPE_IPV4;*/
+
+	uint8_t pfcp_msg[512]={0};
+	int encoded = encode_pfcp_session_modification_request(&pfcp_sess_mod_req, pfcp_msg);
+	pfcp_header_t *header = (pfcp_header_t *) pfcp_msg;
+	header->message_len = htons(encoded - 4);
+
+	for(uint32_t i=0; i < pfcp_config.num_sgwu; i++ ) {
+		if ( pfcp_send(pfcp_sgwc_fd_arr[i], pfcp_msg, encoded,
+					&pfcp_sgwu_sockaddr_arr[i]) < 0 )
+
+		printf("Error sending: %i\n",errno);
+	}
+
+
+
+#else
 	/* using the s1u_sgw_gtpu_teid as unique identifier to the session */
 	struct session_info session;
 	memset(&session, 0, sizeof(session));
@@ -721,7 +817,7 @@ process_sgwc_s5s8_create_session_response(gtpv2c_header *gtpv2c_s5s8_rx,
 	/* Pass PGWU IP addr to SGWU */
 	session.ul_s1_info.s5s8_pgwu_addr.iptype = IPTYPE_IPV4;
 	session.ul_s1_info.s5s8_pgwu_addr.u.ipv4_addr =
-            bearer->s5s8_pgw_gtpu_ipv4.s_addr;
+			bearer->s5s8_pgw_gtpu_ipv4.s_addr;
 	session.dl_s1_info.sgw_addr.iptype = IPTYPE_IPV4;
 	session.dl_s1_info.sgw_addr.u.ipv4_addr =
 			htonl(bearer->s1u_sgw_gtpu_ipv4.s_addr);
@@ -743,6 +839,7 @@ process_sgwc_s5s8_create_session_response(gtpv2c_header *gtpv2c_s5s8_rx,
 
 	if (session_create(dp_id, session) < 0)
 		rte_exit(EXIT_FAILURE,"Bearer Session create fail !!!");
+#endif
 	return 0;
 }
 

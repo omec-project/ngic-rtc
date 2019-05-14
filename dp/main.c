@@ -49,7 +49,10 @@ int main(int argc, char **argv)
 	int ret;
 
 	start_time = current_ntp_timestamp();
-	
+
+#ifdef USE_REST
+	recovery_time_into_file(start_time);
+#endif
 	/* Initialize the Environment Abstraction Layer */
 	ret = rte_eal_init(argc, argv);
 	if (ret < 0)
@@ -91,7 +94,7 @@ int main(int argc, char **argv)
 #endif
 
 	create_node_id_hash();
-
+	create_heartbeat_hash_table();
 	/* Initialize DP PORTS and membufs */
 	dp_port_init();
 
@@ -146,11 +149,11 @@ int main(int argc, char **argv)
 #endif	/* NGCORE_SHRINK */
 			break;
 
-		case SPGWU:
+		case SAEGWU:
 			/**
 			 * UE <--S1U--> [SPGW] <--SGi-->
 			 */
-			RTE_LOG_DP(INFO, DP, "SPGW_CFG=SPGWU::"
+			RTE_LOG_DP(INFO, DP, "SPGW_CFG=SAEGWU::"
 					"\n\tWEST_PORT=S1U <> EAST_PORT=SGi\n");
 			/* Pipeline Init */
 			epc_init_packet_framework(app.sgi_port, app.s1u_port);
@@ -193,17 +196,29 @@ int main(int argc, char **argv)
 	/* VS: Create thread for handling for sending echo req to its peer node */
 	rest_thread_init();
 
-	//if ((spgw_cfg == SGWU) || (spgw_cfg == SAEGWU)) {
-	//	/* VS: Added default entry for SGWU/SAEGWU */
-	//	if ((add_node_conn_entry((uint32_t)pfcp_config.sgwu_pfcp_ip[0].s_addr, SX_PORT_ID)) != 0) {
-	//		RTE_LOG_DP(ERR, DP, "Failed to add connection entry for SGWU/SAEGWU");
+	//if ((app.spgw_cfg == SGWU) || (app.spgw_cfg == SAEGWU)) {
+	//	if (app.spgw_cfg == SGWU) {
+	//		/* VS: Added default entry for PGWU */
+	//		if ((add_node_conn_entry(app.s5s8_pgwu_ip, 0, SGI_PORT_ID)) != 0) {
+	//			RTE_LOG_DP(ERR, DP, "Failed to add connection entry for PGWU");
+	//		}
 	//	}
 
-	//} else if (spgw_cfg == PGWU) {
-	//	/* VS: Added default entry for PGWC */
-	//	if ((add_node_conn_entry((uint32_t)pfcp_config.pgwc_s5s8_ip[0].s_addr, S11_SGW_PORT_ID)) != 0) {
-	//		RTE_LOG_DP(ERR, DP, "Failed to add connection entry for MME");
+	//	/* VS: Added default entry for SGWC */
+	//	//if ((add_node_conn_entry((uint32_t)pfcp_config.sgwc_pfcp_ip[0].s_addr, 0, SX_PORT_ID)) != 0) {
+	//	//	RTE_LOG_DP(ERR, DP, "Failed to add connection entry for SGWC");
+	//	//}
+
+	//} else if (app.spgw_cfg == PGWU) {
+	//	/* VS: Added default entry for PGWU */
+	//	if ((add_node_conn_entry(app.s5s8_sgwu_ip, 0, S1U_PORT_ID)) != 0) {
+	//		RTE_LOG_DP(ERR, DP, "Failed to add connection entry for SGWU");
 	//	}
+
+	//	/* VS: Added default entry for PGWC */
+	//	//if ((add_node_conn_entry((uint32_t)pfcp_config.pgwc_pfcp_ip[0].s_addr, SX_PORT_ID)) != 0) {
+	//	//	RTE_LOG_DP(ERR, DP, "Failed to add connection entry for PGWC");
+	//	//}
 
 	//}
 

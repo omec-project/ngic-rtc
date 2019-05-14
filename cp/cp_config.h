@@ -17,8 +17,11 @@
 #include "cp.h"
 
 /**
-* @brief  parse the SGWU/PGWU/SPGWU IP from config file
+* @brief  parse the SGWU/PGWU/SAEGWU IP from config file
 *
 **/
 void
 config_cp_ip_port(pfcp_config_t *pfcp_config);
+
+void parse_apn_args(char *temp,char *ptr[3]);
+

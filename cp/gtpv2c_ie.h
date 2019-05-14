@@ -430,6 +430,10 @@ typedef struct pdn_type_ie {
 	uint8_t spare :6;
 } pdn_type_ie;
 
+typedef struct fqdn_type_ie {
+	uint8_t fqdn[256];
+} fqdn_type_ie;
+
 #pragma pack()
 
 #define IE_TYPE_PTR_FROM_GTPV2C_IE(ptr_type, gtpv2c_ie_ptr) \

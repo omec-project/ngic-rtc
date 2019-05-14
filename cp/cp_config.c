@@ -20,12 +20,16 @@
 #include <rte_cfgfile.h>
 
 #include "cp_config.h"
+#include "ue.h"
 
 #define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
 
 #define GLOBAL_ENTRIES                    "GLOBAL"
 #define STATIC_PGWC_ENTRIES               "STATIC_PGWC"
 #define STATIC_SAEGWC_SGWC_ENTRIES  "STATIC_SAEGWC_SGWC"
+#define APN_ENTRIES                       "APN_CONFIG"
+#define NAMESERVER_ENTRIES                "NAMESERVER_CONFIG"
+#define IP_POOL_ENTRIES                   "IP_POOL_CONFIG"
 
 #define CP_TYPE          "CP_TYPE"
 #define MME_S11_IPS      "MME_S11_IP"
@@ -42,13 +46,17 @@
 #define PGWC_S5S8_PORTS  "PGWC_S5S8_PORT"
 #define PGWU_PFCP_IPS    "PGWU_PFCP_IP"
 #define PGWU_PFCP_PORTS  "PGWU_PFCP_PORT"
-#define PGWC_PFCP_IPS    "PGWC_S5S8_IP"
-#define PGWC_PFCP_PORTS  "PGWC_S5S8_PORT"
-#define SPGWU_PFCP_IPS   "SPGWU_PFCP_IP"
-#define SPGWU_PFCP_PORTS "SPGWU_PFCP_PORT"
+#define PGWC_PFCP_IPS    "PGWC_PFCP_IP"
+#define PGWC_PFCP_PORTS  "PGWC_PFCP_PORT"
+#define SAEGWU_PFCP_IPS   "SAEGWU_PFCP_IP"
+#define SAEGWU_PFCP_PORTS "SAEGWU_PFCP_PORT"
+#define APN              "APN"
+#define NAMESERVER       "nameserver"
+#define IP_POOL_IP       "IP_POOL_IP"
+#define IP_POOL_MASK     "IP_POOL_MASK"
 
 //VS: Restoration Parameters
-#define TRANSMIT_TIMER "TRANSMIT_TIMER" 
+#define TRANSMIT_TIMER "TRANSMIT_TIMER"
 #define PERIODIC_TIMER "PERIODIC_TIMER"
 #define TRANSMIT_COUNT "TRANSMIT_COUNT"
 
@@ -58,6 +66,12 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 	struct rte_cfgfile_entry *global_entries     = NULL;
 	struct rte_cfgfile_entry *pgwu_entries       = NULL;
 	struct rte_cfgfile_entry *spgwu_sgwu_entries = NULL;
+	struct rte_cfgfile_entry *apn_entries = NULL;
+	struct rte_cfgfile_entry *nameserver_entries = NULL;
+	struct rte_cfgfile_entry *ip_pool_entries = NULL;
+	uint32_t num_ip_pool_entries;
+	uint32_t num_nameserver_entries;
+	uint32_t num_apn_entries;
 	uint32_t num_global_entries;
 	uint32_t num_pgwu_entries;
 	uint32_t num_spgwu_sgwu_entries;
@@ -107,6 +121,145 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 	rte_free(global_entries);
 	RTE_LOG(DEBUG, CP, "CP_TYPE[%d]\n",pfcp_config->cp_type);
 
+	//Read APN,nameserver.
+
+	uint16_t apn_idx = 0;
+	uint16_t nameserver_ip_idx = 0;
+
+	//Reading APN param
+	num_apn_entries =
+		rte_cfgfile_section_num_entries(file, APN_ENTRIES);
+
+	if (num_apn_entries > 0) {
+		apn_entries = rte_malloc_socket(NULL,
+		//allocate the memory
+				sizeof(struct rte_cfgfile_entry) *
+				num_apn_entries,
+				RTE_CACHE_LINE_SIZE, rte_socket_id());
+	}
+
+	if (apn_entries == NULL)
+		rte_panic("Error configuring"
+				"apn entry of %s\n", STATIC_CP_FILE);
+
+
+	rte_cfgfile_section_entries(file,
+			APN_ENTRIES, apn_entries,	//fill the entries/value
+			num_apn_entries);
+
+	for (i = 0; i < num_apn_entries; ++i) {
+		RTE_LOG(DEBUG, CP, "[%s] = %s\n",
+				apn_entries[i].name,
+				apn_entries[i].value);
+
+		if (strncmp(APN, apn_entries[i].name,
+					strlen(APN)) == 0) {	 //key match
+			if (i < MAX_NUM_APN) {
+				char *ptr[3];
+
+				parse_apn_args(apn_entries[i].value, ptr);
+
+				apn_list[i].apn_name_label = ptr[0];
+
+			if (ptr[1] != NULL)
+				apn_list[i].apn_usage_type = atoi(ptr[1]);
+
+		if (ptr[2] != NULL)
+			memcpy(apn_list[i].apn_net_cap, ptr[2], strlen(ptr[2]));
+
+			set_apn_name(&apn_list[i], apn_list[i].apn_name_label);
+
+				int f = 0;
+				//free the memory allocated by malloc.
+
+				for (f = 0; f < 3; f++)
+					free(ptr[f]);
+
+				apn_idx++;
+			}
+		}
+	}
+	rte_free(apn_entries);
+
+	//Reading nameserver
+
+	num_nameserver_entries =
+		rte_cfgfile_section_num_entries(file, NAMESERVER_ENTRIES);
+
+	if (num_nameserver_entries > 0) {
+		nameserver_entries = rte_malloc_socket(NULL,
+						sizeof(struct rte_cfgfile_entry)
+							*num_nameserver_entries,
+						RTE_CACHE_LINE_SIZE,
+						rte_socket_id());
+	}
+
+	if (nameserver_entries == NULL)
+		rte_panic("Error configuring"
+				"nameserver entry of %s\n", STATIC_CP_FILE);
+
+	rte_cfgfile_section_entries(file, NAMESERVER_ENTRIES,
+					nameserver_entries,
+					num_nameserver_entries);
+
+	for (i = 0; i < num_nameserver_entries; ++i) {
+		RTE_LOG(DEBUG, CP, "[%s] = %s\n",
+				nameserver_entries[i].name,
+				nameserver_entries[i].value);
+		if (strncmp(NAMESERVER, nameserver_entries[i].name,
+						strlen(CP_TYPE)) == 0)
+			//inet_aton(nameserver_entries[i].value,
+			//&(pfcp_config->nameserver_ip[nameserver_ip_idx]));
+			strncpy(pfcp_config->nameserver_ip[nameserver_ip_idx],
+					nameserver_entries[i].value,
+					strlen(nameserver_entries[i].value));
+		nameserver_ip_idx++;
+	}
+
+	rte_free(nameserver_entries);
+
+	//Reading IP_POOL_CONFIG
+
+	num_ip_pool_entries = rte_cfgfile_section_num_entries
+						(file, IP_POOL_ENTRIES);
+
+
+	if (num_ip_pool_entries > 0) {
+		ip_pool_entries = rte_malloc_socket(NULL,
+					sizeof(struct rte_cfgfile_entry) *
+					num_ip_pool_entries,
+					RTE_CACHE_LINE_SIZE,
+					rte_socket_id());
+	}
+
+	if (ip_pool_entries == NULL)
+		rte_panic("Error configuring ip"
+				"pool entry of %s\n", STATIC_CP_FILE);
+
+
+	rte_cfgfile_section_entries(file, IP_POOL_ENTRIES,
+					ip_pool_entries,
+					num_ip_pool_entries);
+
+
+	for (i = 0; i < num_ip_pool_entries; ++i) {
+		RTE_LOG(DEBUG, CP, "[%s] = %s\n",
+				ip_pool_entries[i].name,
+				ip_pool_entries[i].value);
+		if (strncmp(IP_POOL_IP,
+					ip_pool_entries[i].name,
+					strlen(IP_POOL_IP)) == 0) {
+			inet_aton(ip_pool_entries[i].value,
+					&(pfcp_config->ip_pool_ip));
+		} else if (strncmp
+				(IP_POOL_MASK, ip_pool_entries[i].name,
+				 strlen(IP_POOL_MASK)) == 0) {
+			inet_aton(ip_pool_entries[i].value,
+					&(pfcp_config->ip_pool_mask));
+		}
+	}
+	rte_free(ip_pool_entries);
+
 	//Reading SAEGWC_SGWC IP's
 	if(pfcp_config->cp_type == SGWC || pfcp_config->cp_type == SAEGWC){
 
@@ -137,7 +290,7 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 					spgwu_sgwu_entries[i].value);
 			if (strncmp(SGWU_PFCP_IPS , spgwu_sgwu_entries[i].name,
 						strlen(SGWU_PFCP_IPS)) == 0) {
-				inet_aton(spgwu_sgwu_entries[i].value, 
+				inet_aton(spgwu_sgwu_entries[i].value,
 						&(pfcp_config->sgwu_pfcp_ip[sgwu_pfcp_ip_idx]));
 				RTE_LOG(DEBUG, CP, "SGWU_PFCP_IP_[%s]\n",
 						inet_ntoa(pfcp_config->sgwu_pfcp_ip[sgwu_pfcp_ip_idx]));
@@ -146,26 +299,26 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 						strlen(SGWU_PFCP_PORTS)) == 0) {
 				pfcp_config->sgwu_pfcp_port[sgwu_pfcp_port_idx] =
 					(uint16_t)atoi(spgwu_sgwu_entries[i].value);
-				RTE_LOG(DEBUG, CP, "SGWU_PFCP_PORT_[%d]\n", 
+				RTE_LOG(DEBUG, CP, "SGWU_PFCP_PORT_[%d]\n",
 						pfcp_config->sgwu_pfcp_port[sgwu_pfcp_port_idx]);
 				sgwu_pfcp_port_idx++;
-			} else if (strncmp(SPGWU_PFCP_IPS, spgwu_sgwu_entries[i].name,
-						strlen(SPGWU_PFCP_IPS)) == 0) {
+			} else if (strncmp(SAEGWU_PFCP_IPS, spgwu_sgwu_entries[i].name,
+						strlen(SAEGWU_PFCP_IPS)) == 0) {
 				inet_aton(spgwu_sgwu_entries[i].value,
 						&(pfcp_config->spgwu_pfcp_ip[spgwu_pfcp_ip_idx]));
-				RTE_LOG(DEBUG, CP, "SPGWU_PFCP_IP_[%s]\n", 
+				RTE_LOG(DEBUG, CP, "SAEGWU_PFCP_IP_[%s]\n",
 						inet_ntoa(pfcp_config->spgwu_pfcp_ip[spgwu_pfcp_ip_idx]));
 				spgwu_pfcp_ip_idx++;
-			} else if (strncmp(SPGWU_PFCP_PORTS, spgwu_sgwu_entries[i].name,
-						strlen(SPGWU_PFCP_PORTS)) == 0) {
-				pfcp_config->spgwu_pfcp_port[spgwu_pfcp_port_idx] = 
+			} else if (strncmp(SAEGWU_PFCP_PORTS, spgwu_sgwu_entries[i].name,
+						strlen(SAEGWU_PFCP_PORTS)) == 0) {
+				pfcp_config->spgwu_pfcp_port[spgwu_pfcp_port_idx] =
 					(uint16_t)atoi(spgwu_sgwu_entries[i].value);
-				RTE_LOG(DEBUG, CP, "SPGWU_PFCP_PORT_[%d]\n", 
+				RTE_LOG(DEBUG, CP, "SAEGWU_PFCP_PORT_[%d]\n",
 						pfcp_config->spgwu_pfcp_port[spgwu_pfcp_port_idx]);
 				spgwu_pfcp_port_idx++;
 			} else if (strncmp(MME_S11_IPS, spgwu_sgwu_entries[i].name,
 						strlen(MME_S11_IPS)) == 0) {
-				inet_aton(spgwu_sgwu_entries[i].value, 
+				inet_aton(spgwu_sgwu_entries[i].value,
 						&(pfcp_config->mme_s11_ip[mme_s11_ip_idx]));
 				RTE_LOG(DEBUG, CP, "MME_S11_IP_[%s]\n",
 						inet_ntoa(pfcp_config->mme_s11_ip[mme_s11_ip_idx]));
@@ -173,7 +326,7 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 
 			} else if (strncmp(MME_S11_PORTS, spgwu_sgwu_entries[i].name,
 						strlen(MME_S11_PORTS)) == 0) {
-				pfcp_config->mme_s11_port[mme_s11_port_idx] = 
+				pfcp_config->mme_s11_port[mme_s11_port_idx] =
 					(uint16_t)atoi(spgwu_sgwu_entries[i].value);
 				RTE_LOG(DEBUG, CP, "MME_S11_PORT[%d]\n", pfcp_config->mme_s11_port[mme_s11_port_idx]);
 				mme_s11_port_idx++;
@@ -194,7 +347,7 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 						strlen(SGW_S11_IPS)) == 0) {
 				inet_aton(spgwu_sgwu_entries[i].value,
 						&(pfcp_config->sgwc_s11_ip[sgwc_s11_ip_idx]));
-				RTE_LOG(DEBUG, CP, "SGW_S11_IP[%s]\n", 
+				RTE_LOG(DEBUG, CP, "SGW_S11_IP[%s]\n",
 						inet_ntoa(pfcp_config->sgwc_s11_ip[sgwc_s11_ip_idx]));
 				sgwc_s11_ip_idx++;
 			}else if (strncmp(SGW_S11_PORTS, spgwu_sgwu_entries[i].name,
@@ -213,7 +366,7 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 				sgwc_s5s8_ip_idx++;
 			} else if (strncmp(SGWC_S5S8_PORTS, spgwu_sgwu_entries[i].name,
 						strlen(SGWC_S5S8_PORTS)) == 0) {
-				pfcp_config->sgwc_s5s8_port[sgwc_s5s8_port_idx] = 
+				pfcp_config->sgwc_s5s8_port[sgwc_s5s8_port_idx] =
 							(uint16_t)atoi(spgwu_sgwu_entries[i].value);
 				RTE_LOG(DEBUG, CP, "SGWC_S5S8_PORT[%d]\n",
 							pfcp_config->sgwc_s5s8_port[sgwc_s5s8_port_idx]);
@@ -263,7 +416,7 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 					pgwu_entries[i].value);
 
 			if(strncmp(PGWU_PFCP_IPS, pgwu_entries[i].name, strlen(PGWU_PFCP_IPS)) == 0){
-				inet_aton(pgwu_entries[i].value, 
+				inet_aton(pgwu_entries[i].value,
 						&(pfcp_config->pgwu_pfcp_ip[pgwu_pfcp_ip_idx]));
 				RTE_LOG(DEBUG, CP, "PGWU_PFCP_IP_[%s]\n",
 					inet_ntoa(pfcp_config->pgwu_pfcp_ip[pgwu_pfcp_ip_idx]));
@@ -284,7 +437,7 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 				sgwc_s5s8_ip_idx++;
 			} else if (strncmp(SGWC_S5S8_PORTS, pgwu_entries[i].name,
 						strlen(SGWC_S5S8_PORTS)) == 0){
-				pfcp_config->pgwu_pfcp_port[sgwc_s5s8_port_idx] =
+				pfcp_config->sgwc_s5s8_port[sgwc_s5s8_port_idx] =
 						(uint16_t)atoi(pgwu_entries[i].value);
 				RTE_LOG(DEBUG, CP, "SGWC_S5S8_PORT_[%d]\n",
 						pfcp_config->sgwc_s5s8_port[sgwc_s5s8_port_idx]);
@@ -300,7 +453,7 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 						strlen(PGWC_PFCP_PORTS)) == 0){
 				pfcp_config->pgwc_pfcp_port[pgwc_pfcp_port_idx] =
 						(uint16_t)atoi(pgwu_entries[i].value) ;
-				RTE_LOG(DEBUG, CP, "PGWC_PFCP_PORT_[%d]\n", 
+				RTE_LOG(DEBUG, CP, "PGWC_PFCP_PORT_[%d]\n",
 						pfcp_config->pgwc_pfcp_port[pgwc_pfcp_port_idx]);
 				pgwc_pfcp_port_idx++;
 			} else if (strncmp(PGWC_S5S8_IPS, pgwu_entries[i].name,
@@ -329,3 +482,37 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 	}
 	return;
 }
+
+void
+parse_apn_args(char *temp, char *ptr[3])
+{
+
+	int i;
+	char *next = NULL, *prev = NULL;
+	char *delim_ptr;
+
+	for (i = 0; i < 3; i++) {
+		ptr[i] = malloc(100);
+		memset(ptr[i], 0, 100);
+	}
+
+
+	for (i = 0; i < 3; i++) {
+		delim_ptr = strchr(temp, ',');
+		next = delim_ptr;
+		if (prev != NULL && next == prev + 1)
+			ptr[i] = NULL;
+		else if (next == NULL && *(prev + 1) == '\0')
+			ptr[i] = NULL;
+		else if (next == NULL)
+			strcpy(ptr[i], temp);
+		else
+			strncpy(ptr[i], temp, delim_ptr - temp);
+
+		if (delim_ptr != NULL)
+			temp = temp + (delim_ptr - temp) + 1;
+		prev = next;
+	}
+
+}
+

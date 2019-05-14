@@ -339,7 +339,7 @@ s1u_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
 #endif
 
 	switch(app.spgw_cfg) {
-		case SPGWU: {
+		case SAEGWU: {
 #ifdef TIMER_STATS
 			_timer_t _init_time = 0;
 			TIMER_GET_CURRENT_TP(_init_time);
@@ -348,11 +348,11 @@ s1u_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
 			gtpu_decap(pkts, n, &pkts_mask);
 #ifdef TIMER_STATS
 #ifndef AUTO_ANALYSIS
-	ul_stat_info.gtp_decap_delta = TIMER_GET_ELAPSED_NS(_init_time);
+			ul_stat_info.gtp_decap_delta = TIMER_GET_ELAPSED_NS(_init_time);
 #else
-	/* calculate min time, max time, min_burst_sz, max_burst_sz
-	 * ul_perf_stats.op_time[9] = gtpu_decap */
-	SET_PERF_MAX_MIN_TIME(ul_perf_stats.op_time[9], _init_time, n, 0);
+			/* calculate min time, max time, min_burst_sz, max_burst_sz
+			 * ul_perf_stats.op_time[9] = gtpu_decap */
+			SET_PERF_MAX_MIN_TIME(ul_perf_stats.op_time[9], _init_time, n, 0);
 #endif /* AUTO_ANAYSIS */
 #endif /*TIMER_STATS */
 #ifdef EXTENDED_CDR
@@ -436,7 +436,7 @@ sgw_s5_s8_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts,
 	update_nexthop_info(pkts, n, &pkts_mask, app.s1u_port, &sdf_info[0]);
 
 #ifdef PCAP_GEN
-	dump_pcap(pkts, n, pcap_dumper_east);
+	//dump_pcap(pkts, n, pcap_dumper_east);
 #endif /* PCAP_GEN */
 	/* Intimate the packets to be dropped*/
 	rte_pipeline_ah_packet_drop(p, ~pkts_mask);
@@ -462,7 +462,7 @@ pgw_s5_s8_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts,
 	update_nexthop_info(pkts, n, &pkts_mask, app.sgi_port, &sdf_info[0]);
 
 #ifdef PCAP_GEN
-	dump_pcap(pkts, n, pcap_dumper_west);
+	//dump_pcap(pkts, n, pcap_dumper_west);
 #endif /* PCAP_GEN */
 	/* Intimate the packets to be dropped*/
 	rte_pipeline_ah_packet_drop(p, ~pkts_mask);
@@ -682,13 +682,13 @@ sgi_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
 	 *      Do we need enqueue_dl_pkts and hijack ?
 	 */
 	switch(app.spgw_cfg) {
-		case SPGWU:
+		case SAEGWU:
 			/* Filter Downlink traffic. Apply adc, sdf, pcc*/
 			pkts_mask = filter_dl_traffic(p, pkts, n, wk_index, sdf_info, si);
 
 #ifdef TIMER_STATS
-	_timer_t _init_time = 0;
-	TIMER_GET_CURRENT_TP(_init_time);
+			_timer_t _init_time = 0;
+			TIMER_GET_CURRENT_TP(_init_time);
 #endif /* TIMER_STATS */
 			/* Encap GTPU header*/
 			gtpu_encap(&si[0], pkts, n, &pkts_mask, &pkts_queue_mask);
@@ -710,11 +710,11 @@ sgi_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
 			}
 #ifdef TIMER_STATS
 #ifndef AUTO_ANALYSIS
-	dl_stat_info.gtp_encap_delta = TIMER_GET_ELAPSED_NS(_init_time);
+			dl_stat_info.gtp_encap_delta = TIMER_GET_ELAPSED_NS(_init_time);
 #else
-	/* calculate min time, max time, min_burst_sz, max_burst_sz
-	 * dl_perf_stats.op_time[11] = gtp_encap */
-	SET_PERF_MAX_MIN_TIME(dl_perf_stats.op_time[11], _init_time, n, 1);
+			/* calculate min time, max time, min_burst_sz, max_burst_sz
+			 * dl_perf_stats.op_time[11] = gtp_encap */
+			SET_PERF_MAX_MIN_TIME(dl_perf_stats.op_time[11], _init_time, n, 1);
 #endif /* AUTO_ANALYSIS */
 #endif /* TIMER_STATS */
 			break;

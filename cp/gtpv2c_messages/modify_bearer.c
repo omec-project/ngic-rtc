@@ -18,6 +18,9 @@
 #include "gtpv2c_messages.h"
 #include "gtpv2c_set_ie.h"
 #include "../cp_dp_api/vepc_cp_dp_api.h"
+#include "../pfcp_messages/pfcp_set_ie.h"
+
+extern pfcp_context_t pfcp_ctxt;
 
 struct parse_modify_bearer_request_t {
 	ue_context *context;
@@ -69,11 +72,15 @@ set_modify_bearer_response(gtpv2c_header *gtpv2c_tx,
 	mb_resp.bearer_context.header.len += sizeof(uint8_t) + IE_HEADER_SIZE;
 
 	struct in_addr ip;
+#ifdef PFCP_COMM
+	ip.s_addr = pfcp_ctxt.s1u_ip[0];
+#else
 	ip.s_addr = htonl(s1u_sgw_ip.s_addr);
+#endif
 	set_ipv4_fteid(&mb_resp.bearer_context.s1u_sgw_ftied,
 			GTPV2C_IFTYPE_S1U_SGW_GTPU, IE_INSTANCE_ZERO, ip,
-			(bearer->s1u_sgw_gtpu_teid));
-			//htonl(bearer->s1u_sgw_gtpu_teid));
+			htonl(bearer->s1u_sgw_gtpu_teid));
+
 	mb_resp.bearer_context.header.len += sizeof(struct fteid_ie_hdr_t) +
 		sizeof(struct in_addr) + IE_HEADER_SIZE;
 

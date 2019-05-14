@@ -66,7 +66,7 @@ int construct_ether_hdr(struct rte_mbuf *m, uint8_t portid,
 		.ip = ipv4_hdr->dst_addr
 	};
 
-	if (app.spgw_cfg == SPGWU) {
+	if (app.spgw_cfg == SAEGWU) {
 		if (portid == app.s1u_port) {
 			if (app.s1u_gw_ip != 0 &&
 					(tmp_arp_key.ip & app.s1u_mask) != app.s1u_net)

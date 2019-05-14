@@ -18,7 +18,7 @@
 #define CP_STATS_H
 
 #include <stdint.h>
-
+#include<time.h>
 #include <rte_common.h>
 
 /**
@@ -31,7 +31,13 @@
  * @brief counters used to display statistics on the control plane
  */
 struct cp_stats_t {
+	uint64_t number_of_mme_health_req;
+	uint64_t number_of_sgwc_resp_to_mme_health_req;
+	uint64_t number_of_sgwc_health_req;
+	uint64_t number_of_mme_resp_to_sgwc_health_req;
 	uint64_t time;
+	clock_t  execution_time;
+	clock_t  reset_time;
 
 	uint64_t create_session;
 	uint64_t delete_session;
@@ -47,6 +53,40 @@ struct cp_stats_t {
 	uint64_t tx;
 	uint64_t rx_last;
 	uint64_t tx_last;
+	
+        //const char *create_session_time;
+	//const char *delete_session_time;
+
+
+	uint64_t number_of_ues;
+	uint64_t number_of_connected_ues;
+	uint64_t number_of_suspended_ues;
+	uint64_t sgw_nbr_of_pdn_connections;
+	uint64_t sgw_nbr_of_bearers;
+	uint64_t sgw_nbr_of_active_bearers;
+	uint64_t sgw_nbr_of_idle_bearers;
+	uint64_t sm_create_session_req_sent;
+	uint64_t sm_create_session_req_rcvd;
+	uint64_t create_session_resp_acc_rcvd;
+	uint64_t create_session_resp_rej_rcvd;
+	uint64_t sm_delete_session_req_sent;
+	uint64_t sm_delete_session_req_rcvd;
+	uint64_t sm_delete_session_resp_acc_rcvd;
+	uint64_t sm_delete_session_resp_rej_rcvd;
+
+        uint64_t session_establishment_req_sent;
+	uint64_t session_establishment_resp_acc_rcvd;
+	uint64_t session_establishment_resp_rej_rcvd;
+	uint64_t session_modification_req_sent;
+	uint64_t session_modification_resp_acc_rcvd;
+	uint64_t session_modification_resp_rej_rcvd;
+	uint64_t session_deletion_req_sent;
+	uint64_t session_deletion_resp_acc_rcvd;
+	uint64_t session_deletion_resp_rej_rcvd;
+	uint64_t association_setup_req_sent;	 
+	uint64_t association_setup_resp_acc_rcvd;
+	uint64_t association_setup_resp_rej_rcvd;
+
 #ifdef SDN_ODL_BUILD
 	uint64_t nb_sent;
 	uint64_t nb_ok;

@@ -912,6 +912,18 @@ dp_session_create(struct dp_id dp_id,
 	data->ue_info_ptr = ue_data;
 	data->sess_state = IN_PROGRESS;
 
+#ifdef USE_REST
+	if (app.spgw_cfg == PGWU) {
+		/* VS: Add SGW-U peer node information in connection table */
+		if (data->dl_s1_info.s5s8_sgwu_addr.u.ipv4_addr != 0 ) {
+			if ((add_node_conn_entry(ntohl(data->dl_s1_info.s5s8_sgwu_addr.u.ipv4_addr),
+							entry->sess_id, S1U_PORT_ID)) < 0) {
+				RTE_LOG_DP(ERR, DP, "Failed to add connection entry for SGW-U");
+			}
+		}
+	}
+#endif  /* USE_REST */
+
 	/* Update adc rules */
 	if (entry->num_adc_rules) {
 		struct ue_session_info new_ue_data;
@@ -927,6 +939,35 @@ dp_session_create(struct dp_id dp_id,
 
 	data->client_id = entry->client_id;
 	new.client_id = entry->client_id;
+
+	return 0;
+}
+
+int
+update_uplink_hash( uint32_t s1u_teid, uint32_t ul_pcc_rid, uint32_t s5s8_pgwu_addr)
+{
+	int ret;
+	struct ul_bm_key ul_key;
+	struct dp_sdf_per_bearer_info *psdf = NULL;
+
+	ul_key.s1u_sgw_teid = s1u_teid;
+	ul_key.rid = ul_pcc_rid;
+
+	RTE_LOG_DP(DEBUG, DP, "BEAR_SESS UPDATE:UL_KEY: teid:0x%X, rid:%u\n",
+			ul_key.s1u_sgw_teid, ul_key.rid);
+
+	if (ul_key.rid == 0)
+		return -1;
+
+	/* Get the sdf per bearer info */
+		ret = iface_lookup_uplink_data(&ul_key, (void **)&psdf);
+	if (ret < 0) {
+		RTE_LOG_DP(DEBUG, DP, "BEAR_SESS UPDATE FAIL:UL_KEY: teid:0x%X, rid:%u\n",
+				ul_key.s1u_sgw_teid, ul_key.rid);
+		return -1;
+	}
+	psdf->bear_sess_info->ul_s1_info.s5s8_pgwu_addr.iptype  = IPTYPE_IPV4;
+	psdf->bear_sess_info->ul_s1_info.s5s8_pgwu_addr.u.ipv4_addr = s5s8_pgwu_addr;
 
 	return 0;
 }
@@ -985,7 +1026,6 @@ dp_session_modify(struct dp_id dp_id,
 	/* Update PCC rules addr*/
 	//TODO PFCP TRY
 	if (entry->num_dl_pcc_rules || entry->num_ul_pcc_rules) {
-		printf("**** going inside update pcc rules  ****\n");
 		update_pcc_rules(data, &mod_data);
 	}
 	/* Copy dl information */
@@ -1052,16 +1092,39 @@ dp_session_modify(struct dp_id dp_id,
 		}
 	}
 
-#ifdef PFCP_COMM 
-	entry->ul_s1_info.sgw_teid = data->ul_s1_info.sgw_teid;
+#ifdef PFCP_COMM
+	entry->ul_s1_info.sgw_teid = data->ul_s1_info.sgw_teid; /*S1u TEID*/
 	entry->ul_s1_info.sgw_addr.u.ipv4_addr = data->ul_s1_info.sgw_addr.u.ipv4_addr;
+	if (app.spgw_cfg == SGWU) {
+		int ret ;
+		if( entry->ul_s1_info.s5s8_pgwu_addr.u.ipv4_addr != 0 )
+		{
+			ret = update_uplink_hash(entry->ul_s1_info.sgw_teid,
+					entry->ul_pcc_rule_id[0],
+					entry->ul_s1_info.s5s8_pgwu_addr.u.ipv4_addr);
+			if( ret < 0 )
+				RTE_LOG_DP(DEBUG, DP, "Update UL hash fail\n");
+		}
+	}
 #endif
 
 #ifdef USE_REST
-	/* VS: Add eNB peer node information in connection table */
-	if ((add_node_conn_entry(entry->dl_s1_info.enb_addr.u.ipv4_addr, entry->sess_id, S1U_PORT_ID)) < 0) {
-		RTE_LOG_DP(ERR, DP, "Failed to add connection entry for eNB");
-	} 
+	if (entry->dl_s1_info.enb_addr.u.ipv4_addr != 0 ) {
+		/* VS: Add eNB peer node information in connection table */
+		if ((add_node_conn_entry(ntohl(entry->dl_s1_info.enb_addr.u.ipv4_addr), entry->sess_id, S1U_PORT_ID)) < 0) {
+			RTE_LOG_DP(ERR, DP, "Failed to add connection entry for eNB");
+		}
+	}
+
+	if (app.spgw_cfg == SGWU) {
+		/* VS: Add PGW-U peer node information in connection table */
+		if (entry->ul_s1_info.s5s8_pgwu_addr.u.ipv4_addr != 0 ) {
+			if ((add_node_conn_entry(ntohl(entry->ul_s1_info.s5s8_pgwu_addr.u.ipv4_addr),
+							entry->sess_id, SGI_PORT_ID)) < 0) {
+				RTE_LOG_DP(ERR, DP, "Failed to add connection entry for PGW-U");
+			}
+		}
+	}
 #endif /* USE_REST */
 	return 0;
 }
@@ -1441,7 +1504,9 @@ dp_session_delete(struct dp_id dp_id,
 
 #ifdef USE_REST
 	/* VS: Delete session id from connection table */
-	dp_flush_session(data->dl_s1_info.enb_addr.u.ipv4_addr, entry->sess_id);
+	if (data->dl_s1_info.enb_addr.u.ipv4_addr != 0)
+		dp_flush_session(ntohl(data->dl_s1_info.enb_addr.u.ipv4_addr),
+						entry->sess_id);
 #endif /* USE_REST */
 
 	flush_session_adc_records(data);

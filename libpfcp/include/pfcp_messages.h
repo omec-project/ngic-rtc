@@ -27,7 +27,7 @@
 #include "pfcp_ies.h"
 
 #define CHAR_SIZE 8
-
+#define MAX_LIST_SIZE 16
 #pragma pack(1)
 
 typedef struct pfcp_association_setup_request_t {
@@ -45,7 +45,8 @@ typedef struct pfcp_association_setup_response_t {
 	recovery_time_stamp_ie_t recovery_time_stamp;
 	up_function_features_ie_t up_function_features;
 	cp_function_features_ie_t cp_function_features;
-	user_plane_ip_resource_information_ie_t up_ip_resource_info;
+	uint8_t user_plane_ip_resource_information_count;
+	user_plane_ip_resource_information_ie_t up_ip_resource_info[MAX_LIST_SIZE];
 } pfcp_association_setup_response_t;
 
 typedef struct pfcp_association_update_request_t {
@@ -69,7 +70,8 @@ typedef struct pfcp_session_establishment_request_t {
 	pfcp_header_t header;
 	node_id_ie_t node_id;
 	f_seid_ie_t cp_fseid;
-	create_pdr_ie_t create_pdr;	
+	uint8_t create_pdr_count;
+	create_pdr_ie_t create_pdr[MAX_LIST_SIZE];
 	create_bar_ie_t create_bar;
 	pfcp_pdn_type_ie_t pdn_type;
 	fq_csid_ie_t sgwc_fqcsid;
@@ -88,7 +90,8 @@ typedef struct pfcp_session_establishment_response_t {
 	pfcp_cause_ie_t cause;
 	offending_ie_ie_t offending_ie;
 	f_seid_ie_t up_fseid;
-	created_pdr_ie_t created_pdr;
+	uint8_t created_pdr_count;
+	created_pdr_ie_t created_pdr[MAX_LIST_SIZE];
 	load_control_information_ie_t load_control_information;
 	overload_control_information_ie_t overload_control_information;
 	fq_csid_ie_t sgwu_fqcsid;
@@ -102,7 +105,8 @@ typedef struct pfcp_session_modification_request_t {
 	f_seid_ie_t cp_fseid;
 	remove_bar_ie_t remove_bar;
 	remove_traffic_endpoint_ie_t remove_traffic_endpoint;
-	create_pdr_ie_t create_pdr;
+	uint8_t create_pdr_count;
+	create_pdr_ie_t create_pdr[MAX_LIST_SIZE];
 	create_bar_ie_t create_bar;
 	create_traffic_endpoint_ie_t create_traffic_endpoint;
 	update_qer_ie_t update_qer;
@@ -123,7 +127,8 @@ typedef struct pfcp_session_modification_response_t {
 	pfcp_header_t header;
 	pfcp_cause_ie_t cause;
 	offending_ie_ie_t offending_ie;
-	created_pdr_ie_t created_pdr;
+	uint8_t created_pdr_count;
+	created_pdr_ie_t created_pdr[MAX_LIST_SIZE];
 	load_control_information_ie_t load_control_information;
 	overload_control_information_ie_t overload_control_information;
 	failed_rule_id_ie_t failed_rule_id;

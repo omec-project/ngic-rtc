@@ -22,9 +22,9 @@
 #include "gtpv2c_messages.h"
 #include "gtpv2c_set_ie.h"
 #include "../cp_dp_api/vepc_cp_dp_api.h"
-
+#include "../pfcp_messages/pfcp_set_ie.h"
 extern pfcp_config_t pfcp_config;
-
+extern pfcp_context_t pfcp_ctxt;
 #define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
 
 
@@ -52,13 +52,17 @@ set_create_session_response(gtpv2c_header *gtpv2c_tx,
 	#else
 		ip.s_addr = ntohl(s11_sgw_ip.s_addr);
 	#endif
-		
+
 	set_ipv4_fteid(&cs_resp.s11_ftied, GTPV2C_IFTYPE_S11S4_SGW_GTPC,
 			IE_INSTANCE_ZERO,
 			ip, context->s11_sgw_gtpc_teid);
-	set_ipv4_fteid(&cs_resp.pgws5s8_pmip, GTPV2C_IFTYPE_S5S8_PGW_GTPC,
-			IE_INSTANCE_ONE,
-			pdn->s5s8_pgw_gtpc_ipv4, pdn->s5s8_pgw_gtpc_teid);
+
+
+	if (pfcp_config.cp_type != SAEGWC) {
+		set_ipv4_fteid(&cs_resp.pgws5s8_pmip, GTPV2C_IFTYPE_S5S8_PGW_GTPC,
+				IE_INSTANCE_ONE,
+				pdn->s5s8_pgw_gtpc_ipv4, pdn->s5s8_pgw_gtpc_teid);
+	}
 
 	set_ipv4_paa(&cs_resp.paa, IE_INSTANCE_ZERO, pdn->ipv4);
 
@@ -100,21 +104,37 @@ set_create_session_response(gtpv2c_header *gtpv2c_tx,
 			*/
 
 		} else {
+#ifdef PFCP_COMM
+			ip.s_addr = pfcp_ctxt.s1u_ip[0];
+#else
 			ip.s_addr = htonl(s1u_sgw_ip.s_addr);
+#endif
+
 		    set_ipv4_fteid(&cs_resp.bearer_context.s1u_sgw_ftied,
 			GTPV2C_IFTYPE_S1U_SGW_GTPU,
 				IE_INSTANCE_ZERO, ip,
 				htonl(bearer->s1u_sgw_gtpu_teid));
-//				bearer->s1u_sgw_gtpu_teid);
 			cs_resp.bearer_context.header.len += sizeof(struct fteid_ie_hdr_t) +
 				sizeof(struct in_addr) + IE_HEADER_SIZE;
 		}
 
+#ifdef PFCP_COMM
+		set_ipv4_fteid(&cs_resp.bearer_context.s5s8_pgw,
+				GTPV2C_IFTYPE_S5S8_PGW_GTPU,
+				IE_INSTANCE_TWO, bearer->s5s8_pgw_gtpu_ipv4,
+				htonl(bearer->s5s8_pgw_gtpu_teid));
+
+		/*set_ipv4_fteid(&cs_resp.bearer_context.s5s8_pgw,
+				GTPV2C_IFTYPE_S5S8_PGW_GTPC,
+				IE_INSTANCE_TWO, pdn->s5s8_pgw_gtpc_ipv4,
+				htonl(pdn->s5s8_pgw_gtpc_teid));*/
+#else
 		set_ipv4_fteid(&cs_resp.bearer_context.s5s8_pgw,
 				GTPV2C_IFTYPE_S5S8_PGW_GTPU,
 				IE_INSTANCE_TWO, pdn->s5s8_pgw_gtpc_ipv4,
 				htonl(bearer->s1u_sgw_gtpu_teid));
-//				bearer->s1u_sgw_gtpu_teid);
+#endif
+
 		cs_resp.bearer_context.header.len += sizeof(struct fteid_ie_hdr_t) +
 				sizeof(struct in_addr) + IE_HEADER_SIZE;
 	}
@@ -272,10 +292,11 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 	}
 
 	if (spgw_cfg == SGWC) {
+		char sgwu_fqdn[MAX_HOSTNAME_LENGTH] = {0};
 		ret =
 			gen_sgwc_s5s8_create_session_request(gtpv2c_rx,
 				gtpv2c_s5s8_tx, csr.header.teid.has_teid.seq,
-				pdn, bearer);
+				pdn, bearer, sgwu_fqdn);
 		RTE_LOG_DP(DEBUG, CP, "NGIC- create_session.c::"
 				"\n\tprocess_create_session_request::case= %d;"
 				"\n\tprocess_sgwc_s5s8_cs_req_cnt= %u;"

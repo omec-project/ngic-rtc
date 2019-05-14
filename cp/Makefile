@@ -24,6 +24,7 @@ RTE_TARGET ?= x86_64-native-linuxapp-gcc
 include $(RTE_SDK)/mk/rte.vars.mk
 include $(NG_CORE)/config/ng-core_cfg.mk
 
+OSS_UTIL_ROOT = $(NG_CORE)/oss_adapter/c3po_oss/oss-util
 LIBGTPV2C_ROOT = $(SRCDIR)/../libgtpv2c
 LIBPFCP_ROOT = $(SRCDIR)/../libpfcp
 
@@ -41,7 +42,6 @@ SRCS-y += cp_stats.c
 SRCS-y += packet_filters.c
 SRCS-y += cp_config.c
 SRCS-y += pfcp.c
-#SRCS-y += pfcp_set_ie.c
 
 SRCS-y += gtpv2c_messages/bearer_resource_cmd.o
 SRCS-y += gtpv2c_messages/create_bearer.o
@@ -66,6 +66,10 @@ SRCS-y += $(SRCDIR)/../interface/udp/vepc_udp.o
 
 SRCS-y += $(SRCDIR)/../cp_dp_api/vepc_cp_dp_api.o
 
+ifneq (,$(findstring C3PO_OSS, $(CFLAGS)))
+SRCS-y += $(SRCDIR)/../oss_adapter/c3po_oss/cp_adapter.o
+CFLAGS += -I$(SRCDIR)/../oss_adapter/c3po_oss
+endif
 
 CFLAGS += -Wno-psabi # suppress "The ABI for passing parameters with 64-byte alignment has changed in GCC 4.6"
 CFLAGS += -Werror
@@ -85,7 +89,6 @@ CFLAGS += -I$(LIBPFCP_ROOT)/include
 
 CFLAGS += -I$(SRCDIR)/..
 CFLAGS += -I$(SRCDIR)/../pfcp_messages
-#CFLAGS += -I$(SRCDIR)/../dp/pfcp_message/
 
 # Mandatory CFLAGS, LDFLAGS- DO NOT MODIFY
 # #############################################################
@@ -124,6 +127,16 @@ ifneq (,$(findstring ZMQ_COMM, $(CFLAGS)))
 	LDFLAGS += -L/usr/local/lib -lzmq
 endif
 
+# OSS-UTIL
+CFLAGS +=  -I$(OSS_UTIL_ROOT)/include
+LDFLAGS += -lstdc++
+LDLIBS += -lstdc++
+#LDLIBS +=  -L$(OSS_UTIL_ROOT)/lib -loss-util
+LDLIBS += -lpthread
+LDLIBS += -lrt
+LDLIBS += -lpistache
+LDLIBS += -lm
+
 # ngic-cp debug/testing/profiling options CFLAGS
 # #############################################################
 #Enable'-g -O0' option for gdb
@@ -154,8 +167,8 @@ CFLAGS += -DUSE_REST
 ifneq (,$(findstring USE_REST, $(CFLAGS)))
 	#VS: ECHO FILES
 	CFLAGS += -I$(SRCDIR)/../restoration
-	SRCS-y += $(SRCDIR)/../restoration/gstimer.c
-	SRCS-y += rest_peer.c
+	SRCS-y += $(SRCDIR)/../restoration/restoration_timer.o
+	SRCS-y += restoration_peer.c
 	SRCS-y += gtpv2c_echo_req.c
 endif
 
@@ -164,6 +177,16 @@ endif
 
 # Un-comment below line to send fake delete session request from simulator.
 #CFLAGS += -DDEL_SESS_REQ
+
+# Comment below line to read UPF ip from cp.cfg instead of DNS query.
+CFLAGS += -DUSE_DNS_QUERY
+
+ifneq (,$(findstring USE_DNS_QUERY, $(CFLAGS)))
+	LIBDNSCLIENT_ROOT = $(SRCDIR)/../oss_adapter/c3po_oss/oss-util
+	CFLAGS += -I$(LIBDNSCLIENT_ROOT)/include
+	LDLIBS += $(LIBDNSCLIENT_ROOT)/lib/liboss-util.a -lstdc++ -lpistache
+	LDLIBS += -L$(LIBDNSCLIENT_ROOT)/modules/c-ares -lcares
+endif
 
 # ngic-cp application security check CFLAGS
 ###############################################################
