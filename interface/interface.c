@@ -1213,15 +1213,15 @@ void sig_handler(int signo)
 #ifndef CP_BUILD
 		close(route_sock);
 		cdr_close();
-#endif
+#ifdef USE_AF_PACKET
+		mnl_socket_close(mnl_sock);
+#endif /* USE_AF_PACKET */
+#endif /* CP_BUILD */
 #ifdef TIMER_STATS
 #ifdef AUTO_ANALYSIS
 		print_perf_statistics();
 #endif /* AUTO_ANALYSIS */
 #endif /* TIMER_STATS */
-#ifdef USE_AF_PACKET
-		mnl_socket_close(mnl_sock);
-#endif
 		rte_exit(EXIT_SUCCESS, "received SIGINT\n");
 	}
 	else if (signo == SIGSEGV)
