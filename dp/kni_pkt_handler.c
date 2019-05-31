@@ -131,7 +131,7 @@ validate_parameters(uint32_t portmask)
 
 #ifdef USE_AF_PACKET
 void
-init_mnl()
+init_mnl(void)
 {
 	int fd;
 	mnl_sock = mnl_socket_open(NETLINK_ROUTE);

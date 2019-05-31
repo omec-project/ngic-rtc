@@ -294,7 +294,7 @@ extern struct kni_port_params *kni_port_params_array[RTE_MAX_ETHPORTS];
  * Initialize libmnl netlink subsystem
  */
 void
-init_mnl();
+init_mnl(void);
 
 /**
  * Interface to burst rx and enqueue in to kernel
