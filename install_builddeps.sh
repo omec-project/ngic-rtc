@@ -193,6 +193,7 @@ install_build_deps() {
        install_dpdk
        if [[ $SERVICES == "CP" ]] || [[ $SERVICES == "cp" ]]; then
 	    install_oss_util
+            download_freediameter
             build_libgtpcv2c 
             build_fd_gxapp
        elif [[ $SERVICES == "DP" ]] || [[ $SERVICES == "dp" ]]; then
