@@ -135,6 +135,19 @@ static inline void epc_dl_set_port_id(struct rte_mbuf *m)
 			((ipv4_hdr->next_proto_id == IPPROTO_UDP) ||
 			(ipv4_hdr->next_proto_id == IPPROTO_TCP)))) {
 			RTE_LOG_DP(DEBUG, DP, "SGI packet\n");
+#ifdef USE_REST
+			if (app.spgw_cfg == SGWU) {
+				struct udp_hdr *udph =
+					(struct udp_hdr *)&m_data[sizeof(struct ether_hdr) +
+					((ipv4_hdr->version_ihl & 0xf) << 2)];
+				if (likely(udph->dst_port == UDP_PORT_GTPU_NW_ORDER)) {
+					struct gtpu_hdr *gtpuhdr = get_mtogtpu(m);
+					if (gtpuhdr->msgtype == GTPU_ECHO_REQUEST || 
+						gtpuhdr->msgtype == GTPU_ECHO_RESPONSE)
+							return;
+				}
+			}
+#endif /* USE_REST */
 			*port_id_offset = 0;
 			dl_sgi_pkt = 1;
 			dl_arp_pkt = 0;
@@ -240,7 +253,7 @@ void epc_dl_init(struct epc_dl_params *param, int core, uint8_t in_port_id, uint
                 rte_exit(EXIT_FAILURE, "Wrong MAC configured for S5S8_PGWU/SGI interface\n");
             break;
 
-        case SPGWU:
+        case SAEGWU:
             if (in_port_id != app.sgi_port && in_port_id != app.s1u_port)
                 rte_exit(EXIT_FAILURE, "Wrong MAC configured for S1U/SGI interface\n");
             break;
@@ -248,7 +261,7 @@ void epc_dl_init(struct epc_dl_params *param, int core, uint8_t in_port_id, uint
         default:
             rte_exit(EXIT_FAILURE, "Invalid DP type(SPGW_CFG).\n");
 
-    }
+    	}
 
 	memset(param, 0, sizeof(*param));
 

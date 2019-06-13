@@ -528,10 +528,10 @@ int
 ue_cdr_flush(struct dp_id dp_id, struct msg_ue_cdr ue_cdr)
 {
 #ifdef CP_BUILD
-    struct msgbuf msg_payload;
-    build_dp_msg(MSG_EXP_CDR, dp_id, (void *)&ue_cdr, &msg_payload);
-    return send_dp_msg(dp_id, &msg_payload);
+	struct msgbuf msg_payload;
+	build_dp_msg(MSG_EXP_CDR, dp_id, (void *)&ue_cdr, &msg_payload);
+	return send_dp_msg(dp_id, &msg_payload);
 #else
-    return dp_ue_cdr_flush(dp_id, &ue_cdr);
+	return dp_ue_cdr_flush(dp_id, &ue_cdr);
 #endif
 }

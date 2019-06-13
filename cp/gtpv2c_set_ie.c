@@ -535,4 +535,12 @@ create_bearer_context_ie(gtpv2c_header *header,
 	return set_next_ie(header, IE_BEARER_CONTEXT, instance, 0);
 }
 
+void
+set_fqdn_ie(gtpv2c_header *header, char *fqdn)
+{
+	gtpv2c_ie *ie = set_next_ie(header, IE_FQDN, IE_INSTANCE_ZERO,
+			    strnlen(fqdn, 256));
+	fqdn_type_ie *fqdn_ie_ptr = IE_TYPE_PTR_FROM_GTPV2C_IE(fqdn_type_ie, ie);
+	strncpy((char *)fqdn_ie_ptr->fqdn, fqdn, strnlen(fqdn, 255) + 1);
+}
 

@@ -477,6 +477,29 @@ decode_selection_mode_ie_t(uint8_t *buf, selection_mode_ie_t *val)
 }
 
 /**
+ * decodes buffer to mapped ue usage type.
+ * @param buf
+ *   buffer to be decoded
+ * @param val
+ *   selection mode value
+ * @return
+ *   number of decoded bytes.
+ */
+static int
+decode_mapped_ue_usage_type_ie_t(uint8_t *buf, mapped_ue_usage_type_ie_t *val)
+{
+	uint16_t count = 0;
+	decode_ie_header_t(buf, &(val->header), IE_HEADER_SIZE);
+	count += IE_HEADER_SIZE;
+
+	memcpy(&(val->header) + 1, (uint8_t * )buf + count, val->header.len);
+	count += val->header.len;
+
+	return count;
+}
+
+
+/**
  * decodes buffer to pdn type.
  * @param buf
  *   buffer to be decoded
@@ -889,6 +912,28 @@ decode_gtpv2c_header_t(uint8_t *buf, gtpv2c_header_t *header)
 }
 
 /**
+ * decodes buffer to fqdn.
+ * @param buf
+ *   buffer to be decoded
+ * @param val
+ *   fqdn value
+ * @return
+ *   number of decoded bytes.
+ */
+static int
+decode_fqdn_ie_t(uint8_t *buf, fqdn_ie_t *val)
+{
+	uint16_t count = 0;
+	decode_ie_header_t(buf, &(val->header), IE_HEADER_SIZE);
+	count += IE_HEADER_SIZE;
+
+	count += decode_common_type((uint8_t * )buf + count,
+			&(val->fqdn), val->header.len);
+
+	return count;
+}
+
+/**
  * decodes buffer to create session request.
  * @param buf
  *   buffer to be decoded
@@ -990,6 +1035,14 @@ decode_create_session_request_t(uint8_t *msg,
 				ie_header->instance == IE_INSTANCE_ZERO) {
 			count += decode_ue_timezone_ie_t(msg + count,
 								&cs_req->ue_timezone);
+		} else if (ie_header->type == IE_MAPPED_UE_USAGE_TYPE &&
+				ie_header->instance == IE_INSTANCE_ZERO) {
+			count += decode_mapped_ue_usage_type_ie_t(msg + count,
+								&cs_req->ue_usage_type);
+		} else if (ie_header->type == IE_FQDN &&
+				ie_header->instance == IE_INSTANCE_ZERO) {
+			count += decode_fqdn_ie_t(msg + count,
+								&cs_req->sgwu_nodename);
 		} else {
 			count += sizeof(ie_header_t) + ntohs(ie_header->len);
 		}

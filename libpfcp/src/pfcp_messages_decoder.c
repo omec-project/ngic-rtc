@@ -92,6 +92,8 @@ int decode_pfcp_association_setup_response(uint8_t *msg,
 	msg = msg + count;
 	count = 0;
 
+	pas_resp->user_plane_ip_resource_information_count = 0;
+
 	while (count < msg_len) {
 
 		pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (msg + count);
@@ -108,7 +110,7 @@ int decode_pfcp_association_setup_response(uint8_t *msg,
 		} else if (ie_type == IE_CP_FUNCTION_FEATURES) {
 			count += decode_cp_function_features_ie_t(msg + count, &pas_resp->cp_function_features);
 		} else if (ie_type == IE_UP_IP_RESOURCE_INFORMATION) {
-			count += decode_user_plane_ip_resource_information_ie_t(msg + count, &pas_resp->up_ip_resource_info);
+				count += decode_user_plane_ip_resource_information_ie_t(msg + count, &pas_resp->up_ip_resource_info[pas_resp->user_plane_ip_resource_information_count++]);
 		} else {
 			count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
 		}
@@ -132,6 +134,8 @@ int decode_pfcp_session_establishment_response(uint8_t *msg,
 	uint16_t count = 0;
 	uint16_t msg_len;
 
+	pse_res->created_pdr_count = 0;
+
 	count = decode_pfcp_header_t(msg + count, &pse_res->header);
 
 	if (pse_res->header.s)
@@ -154,8 +158,8 @@ int decode_pfcp_session_establishment_response(uint8_t *msg,
 			count += decode_offending_ie_t(msg + count, &pse_res->offending_ie);
 		} else if (ie_type == IE_F_SEID) {
 			count += decode_f_seid_ie_t(msg + count, &pse_res->up_fseid);
-		} else if ( ie_type == IE_CREATED_PDR) { 
-			count += decode_created_pdr_ie_t(msg + count, &pse_res->created_pdr);
+		} else if ( ie_type == IE_CREATED_PDR) {
+			count += decode_created_pdr_ie_t(msg + count, &pse_res->created_pdr[pse_res->created_pdr_count++]);
 		} else if (ie_type == IE_LOAD_CONTROL_INFORMATION) {
 			count += decode_load_control_information_ie_t(msg + count, &pse_res->load_control_information);
 		} else if (ie_type == IE_OVERLOAD_CONTROL_INFORMATION) {
@@ -202,6 +206,7 @@ int decode_pfcp_session_establishment_request(uint8_t *msg,
 
 	msg = msg + count;
 	count = 0;
+	pse_req->create_pdr_count = 0;
 
 	while (count < msg_len) {
 
@@ -214,7 +219,7 @@ int decode_pfcp_session_establishment_request(uint8_t *msg,
 		} else if (ie_type == IE_F_SEID ) {
 			count += decode_f_seid_ie_t(msg + count, &pse_req->cp_fseid);
 		} else if(ie_type == IE_CREATE_PDR) {
-			count += decode_create_pdr_ie_t(msg + count, &pse_req->create_pdr);
+			count += decode_create_pdr_ie_t(msg + count, &pse_req->create_pdr[pse_req->create_pdr_count++]);
 		} else if (ie_type == IE_CREATE_BAR ) {
 			count += decode_create_bar_ie_t(msg + count, &pse_req->create_bar);
 		} else if (ie_type == IE_PFCP_PDN_TYPE ) {
@@ -270,6 +275,8 @@ int decode_pfcp_session_modification_request(uint8_t *msg,
 	msg = msg + count;
 	count = 0;
 
+	psm_req->create_pdr_count = 0;
+
 	while (count < msg_len) {
 
 		pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (msg + count);
@@ -283,7 +290,7 @@ int decode_pfcp_session_modification_request(uint8_t *msg,
 		} else if (ie_type == IE_REMOVE_TRAFFIC_ENDPOINT) {
 			count += decode_remove_traffic_endpoint_ie_t(msg + count, &psm_req->remove_traffic_endpoint);
 		} else if(ie_type == IE_CREATE_PDR) {
-                        count += decode_create_pdr_ie_t(msg + count, &psm_req->create_pdr);
+			count += decode_create_pdr_ie_t(msg + count, &psm_req->create_pdr[psm_req->create_pdr_count++]);
 		} else if (ie_type == IE_CREATE_BAR ) {
 			count += decode_create_bar_ie_t(msg + count, &psm_req->create_bar);
 		} else if (ie_type == IE_CREATE_TRAFFIC_ENDPOINT) {
@@ -348,6 +355,8 @@ int decode_pfcp_session_modification_response(uint8_t *msg,
 	msg = msg + count;
 	count = 0;
 
+	psm_res->created_pdr_count = 0;
+
 	while (count < msg_len) {
 
 		pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (msg + count);
@@ -359,7 +368,7 @@ int decode_pfcp_session_modification_response(uint8_t *msg,
 		} else if (ie_type == IE_OFFENDING_IE) {
 			count += decode_offending_ie_t(msg + count, &psm_res->offending_ie);
 		} else if (ie_type == IE_CREATED_PDR) {
-			count += decode_created_pdr_ie_t(msg + count, &psm_res->created_pdr);
+			count += decode_created_pdr_ie_t(msg + count, &psm_res->created_pdr[psm_res->created_pdr_count++]);
 		} else if (ie_type == IE_LOAD_CONTROL_INFORMATION) {
 			count += decode_load_control_information_ie_t(msg + count, &psm_res->load_control_information);
 		} else if (ie_type == IE_OVERLOAD_CONTROL_INFORMATION) {

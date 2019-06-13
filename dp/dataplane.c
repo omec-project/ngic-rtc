@@ -69,7 +69,7 @@ gtpu_decap(struct rte_mbuf **pkts, uint32_t n,
 		uint32_t ip = 0; //GCC_Security flag
 
 		switch(app.spgw_cfg) {
-			case SPGWU:
+			case SAEGWU:
 				ip = app.s1u_ip;
 				break;
 
@@ -211,7 +211,7 @@ gtpu_encap(struct dp_session_info **sess_info, struct rte_mbuf **pkts,
 
 		/* construct iphdr */
 		switch(app.spgw_cfg) {
-			case SPGWU:
+			case SAEGWU:
 				src_addr = app.s1u_ip;
 				break;
 
@@ -253,7 +253,7 @@ ul_sess_info_get(struct rte_mbuf **pkts, uint32_t n,
 		key_ptr[j] = &key[j];
 
 		switch (app.spgw_cfg) {
-			case SPGWU: {
+			case SAEGWU: {
 				meta_data =
 					(struct epc_meta_data *)RTE_MBUF_METADATA_UINT8_PTR(pkts[j],
 					META_DATA_OFFSET);
@@ -398,10 +398,10 @@ dl_sess_info_get(struct rte_mbuf **pkts, uint32_t n,
 			}
 
 			case PGWU: {
-				/* Values are same as SPGWU.*/
+				/* Values are same as SAEGWU.*/
 			}
 
-			case SPGWU: {
+			case SAEGWU: {
 				ipv4_hdr = get_mtoip(pkts[j]);
 				dst_addr = ntohl(ipv4_hdr->dst_addr);
 				break;
@@ -1064,7 +1064,7 @@ void dp_table_init(void)
 	char west_file[PCAP_FILENAME_LEN] = {0};
 
 	switch(app.spgw_cfg) {
-		case SPGWU:
+		case SAEGWU:
 			strncpy(east_file, SPGW_SGI_PCAP_FILE,
 					sizeof(SPGW_SGI_PCAP_FILE));
 			strncpy(west_file, SPGW_S1U_PCAP_FILE,

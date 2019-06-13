@@ -34,6 +34,10 @@ LINUX_SGX_SDK_BRANCH_TAG="sgx_1.9"
 CP_NUMA_NODE=0
 DP_NUMA_NODE=0
 
+
+OSS_UTIL_GIT_LINK="http://10.155.205.206/C3PO-NGIC/oss-util.git"
+OSS_UTIL_DIR="oss_adapter/c3po_oss/"
+
 #
 # Sets QUIT variable so script will finish.
 #
@@ -125,6 +129,10 @@ step_2()
 	TEXT[6]="Download Intel(R) SGX SDK"
 	FUNC[6]="download_linux_sgx"
 	fi
+	fi
+	if [ "$SERVICE" -ne 2 ] ; then
+	TEXT[5]="Download and install oss-util for DNS and cli"
+    FUNC[5]="install_oss_util"
 	fi
 }
 
@@ -286,7 +294,7 @@ configure_services()
 				SERVICE=1
 				SERVICE_NAME="CP"
 				recom_memory=1024
-				memory=`cat config/cp_config.cfg  | grep "MEMORY=" | head -n 1 | cut -d '=' -f 2`
+				memory=`cat cp/run.sh  | grep "MEMORY=" | head -n 1 | cut -d '=' -f 2`
 				setup_memory
 				setup_numa_node
 				setup_hugepages
@@ -324,7 +332,7 @@ configure_services()
 
 setup_numa_node()
 {
-	if [ `cat config/cp_config.cfg  | grep "NUMA0_MEMORY=0" | wc -l` != 0 ]; then
+	if [ `cat cp/run.sh  | grep "NUMA0_MEMORY=0" | wc -l` != 0 ]; then
 		CP_NUMA_NODE=1
 	fi
 	if [ `cat config/dp_config.cfg  | grep "NUMA0_MEMORY=0" | wc -l` != 0 ]; then
@@ -341,7 +349,7 @@ setup_memory()
 			case $yn in
 				[Yy]* )	if [ $SERVICE == 1 ] || [ $SERVICE == 3 ] ; then
 							set_size CP
-							sed -i '/^MEMORY=/s/=.*/='$memory'/' config/cp_config.cfg
+							sed -i '/^MEMORY=/s/=.*/='$memory'/' cp/run.sh
 						fi
 
 						if [ $SERVICE == 2 ] || [ $SERVICE == 3 ] ; then
@@ -380,7 +388,7 @@ set_size()
 setup_collocated_memory()
 {
 	dp_memory=`cat config/dp_config.cfg  | grep "MEMORY=" | head -n 1 | cut -d '=' -f 2`
-	cp_memory=`cat config/cp_config.cfg  | grep "MEMORY=" | head -n 1 | cut -d '=' -f 2`
+	cp_memory=`cat cp/run.sh  | grep "MEMORY=" | head -n 1 | cut -d '=' -f 2`
 	memory=$(($cp_memory + $dp_memory))
 }
 
@@ -490,7 +498,7 @@ download_linux_sgx()
 	                return
 	fi
 }
-	
+
 build_pfcp_lib()
 {
 	pushd $NGIC_DIR/libpfcp
@@ -503,15 +511,28 @@ step_3()
 {
         TITLE="Build NGIC"
         CONFIG_NUM=1
-        TEXT[1]="Build NGIC"
+		TEXT[1]="Build NGIC"
         FUNC[1]="build_ngic"
         sed -i '/SGX_BUILD/d' setenv.sh
-	if [ "$SGX_SERVICE" -eq 1 ] ; then
-		echo "export SGX_BUILD=1" >> setenv.sh
-		TEXT[1]="Build NGIC With SGX"
-		FUNC[1]="build_ngic"
-	fi
+		if [ "$SGX_SERVICE" -eq 1 ] ; then
+			echo "export SGX_BUILD=1" >> setenv.sh
+			TEXT[1]="Build NGIC With SGX"
+			FUNC[1]="build_ngic"
+		fi
 }
+
+install_oss_util()
+{
+   pushd $NGIC_DIR/$OSS_UTIL_DIR
+   git clone $OSS_UTIL_GIT_LINK
+   pushd oss-util
+   ./install.sh
+   popd
+   popd
+}
+
+
+
 build_ngic()
 {
 	pushd $NGIC_DIR
@@ -521,7 +542,8 @@ build_ngic()
 	build_pfcp_lib
 
 	if [ $SERVICE == 2 ] || [ $SERVICE == 3 ] ; then
-		make clean
+		make clean-lib
+		make clean-dp
 		echo "Building Libs..."
 		make build-lib || { echo -e "\nNG-CORE: Make lib failed\n"; }
 		echo "Building DP..."

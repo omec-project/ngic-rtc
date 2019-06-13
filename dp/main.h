@@ -45,7 +45,7 @@
 #endif /* TIMER_STATS */
 
 #ifdef USE_REST
-#include "../restoration/gstimer.h"
+#include "../restoration/restoration_timer.h"
 #endif /* use_rest */
 
 /**
@@ -290,6 +290,10 @@ struct ul_timer_stats {
 #define SOCKET_PORT 5556
 
 #ifdef USE_REST
+
+/* VS: Number of connection can maitain in the hash */
+#define NUM_CONN	500
+
 /**
  * no. of mbuf.
  */
@@ -302,21 +306,27 @@ extern int32_t conn_cnt;
 void rest_thread_init(void);
 
 #ifdef CP_BUILD
-uint8_t 
-add_node_conn_entry(uint32_t dstIp, uint8_t portId); 
+uint8_t
+add_node_conn_entry(uint32_t dstIp, uint8_t portId);
+
 
 uint8_t
-process_response(uint32_t dstIp); 
-
-uint8_t 
 update_rstCnt(void);
 #else
-uint8_t 
-add_node_conn_entry(uint32_t dstIp, uint64_t sess_id, uint8_t portId); 
+uint8_t
+add_node_conn_entry(uint32_t dstIp, uint64_t sess_id, uint8_t portId);
+
+/**
+ * rte hash handler.
+ *
+ * hash handles connections for S1U, SGI and PFCP
+ */
+extern struct rte_hash *conn_hash_handle;
+
 #endif /* CP_BUILD */
 
 void
-flush_eNB_session(peerData *data_t, int32_t inx);
+flush_eNB_session(peerData *data_t);
 
 void
 dp_flush_session(uint32_t ip_addr, uint32_t sess_id);
@@ -395,7 +405,7 @@ extern struct rte_hash *route_hash_handle;
 enum dp_config {
 	SGWU = 01,
 	PGWU = 02,
-	SPGWU = 03,
+	SAEGWU = 03,
 };
 
 /**
@@ -1422,6 +1432,22 @@ int
 dp_session_modify(struct dp_id dp_id, struct session_info *session);
 
 /**
+ * To modify Bearer session information per user. The information
+ * regarding uplink and downlink should be updated when passing session.
+ * @param s1u teid , ul_pcc_rid
+ *  table identifier.
+ * @param  s5s8_pgwu_ip
+ *  S5s8 pgwu ip
+ *
+ * @return
+ *  - 0 - success
+ *  - -1 - fail
+ */
+
+int
+update_uplink_hash( uint32_t s1u_teid, uint32_t ul_pcc_rid, uint32_t s5s8_pgwu_addr);
+
+/**
  * To Delete Bearer session information of user.
  * @param dp_id
  *	table identifier.
@@ -1689,7 +1715,6 @@ get_session_data(uint64_t sess_id, uint32_t is_mod);
 /***********************ddn_utils.c functions start**********************/
 #ifdef NGCORE_SHRINK
 #ifdef USE_REST
-#ifndef CP_BUILD
 /**
  * Function to initialize/create shared ring, ring_container and mem_pool to
  * inter-communication between DL and iface core.
@@ -1703,8 +1728,9 @@ get_session_data(uint64_t sess_id, uint32_t is_mod);
 void
 echo_table_init(void);
 
+#ifndef CP_BUILD
 void
-build_echo_request(struct rte_mbuf *echo_pkt, peerData *entry);
+build_echo_request(struct rte_mbuf *echo_pkt, peerData *entry, uint16_t gtpu_seqnb);
 #endif /* CP_BUILD*/
 
 #endif /* USE_REST */
