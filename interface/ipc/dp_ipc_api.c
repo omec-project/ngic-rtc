@@ -33,6 +33,12 @@
 #include "dp_ipc_api.h"
 #include "../../pfcp_messages/pfcp_util.h"
 
+#ifdef CP_BUILD
+#include "../cp/cp_app.h"
+extern int g_cp_sock;
+#endif /* CP_BUILD */
+
+
 void iface_ipc_register_msg_cb(int msg_id,
 				int (*msg_cb)(struct msgbuf *msg_payload))
 {
@@ -76,20 +82,7 @@ udp_recv(void *msg_payload, uint32_t size,
 int iface_remove_que(enum cp_dp_comm id)
 {
 
-
 #ifdef CP_BUILD
-#ifdef ZMQ_COMM
-	if (id == COMM_ZMQ) {
-		int rc;
-
-		rc = comm_node[id].recv((void *)&r_buf, sizeof(struct resp_msgbuf));
-
-		if (rc <= 0)
-			return rc;
-		process_resp_msg((void *)&r_buf);
-	}
-#else
-#ifdef PFCP_COMM
 	RTE_SET_USED(id);
 	struct sockaddr_in peer_addr;
 	int bytes_rx = 0;
@@ -100,23 +93,18 @@ int iface_remove_que(enum cp_dp_comm id)
 	}
 	process_pfcp_msg(pfcp_rx, bytes_rx, &peer_addr);
 
-#else
-	RTE_SET_USED(id);
+	//RTE_SET_USED(id);
 
-	if (comm_node[id].recv((void *)&rbuf,
-				sizeof(struct msgbuf)) < 0) {
-		perror("msgrecv");
-		return -1;
-	}
+	//if (comm_node[id].recv((void *)&rbuf,
+	//			sizeof(struct msgbuf)) < 0) {
+	//	perror("msgrecv");
+	//	return -1;
+	//}
 
-	process_comm_msg((void *)&rbuf);
-#endif /*PFCP_COMM*/
-#endif /* ZMQ_COMM */
+	//process_comm_msg((void *)&rbuf);
 #else
-#ifndef PFCP_COMM
-	if (comm_node[id].init == NULL)
-		return 0;
-#endif /* PFCP_COMM */
+	/* if (comm_node[id].init == NULL)
+		return 0; */
 #ifdef SDN_ODL_BUILD
 	if (id == COMM_ZMQ) {
 		int rc;
@@ -130,19 +118,7 @@ int iface_remove_que(enum cp_dp_comm id)
 		return zmq_mbuf_process(&zbuf, rc);
 	}
 #endif /*SDN_ODL_BUILD*/
-#ifdef ZMQ_COMM
-	if (id == COMM_ZMQ) {
-		int rc;
-
-		rc = comm_node[id].recv((void *)&rbuf, sizeof(struct msgbuf));
-
-		if (rc <= 0)
-			return rc;
-		process_comm_msg((void *)&rbuf);
-	}
-#else
 	if (id == COMM_SOCKET) {
-#ifdef PFCP_COMM
 		struct sockaddr_in peer_addr;
 		int bytes_rx = 0;
 		if ((bytes_rx = udp_recv(pfcp_rx, 512,
@@ -152,16 +128,13 @@ int iface_remove_que(enum cp_dp_comm id)
 		}
 		process_pfcp_msg(pfcp_rx, bytes_rx, &peer_addr);
 
-#else   /* PFCP_COMM */
-		if (comm_node[id].recv((void *)&rbuf,
-					sizeof(struct msgbuf)) < 0) {
-			perror("msgrecv");
-			return -1;
-		}
-		process_comm_msg((void *)&rbuf);
-#endif /* PFCP_COMM */
+		//if (comm_node[id].recv((void *)&rbuf,
+		//			sizeof(struct msgbuf)) < 0) {
+		//	perror("msgrecv");
+		//	return -1;
+		//}
+		//process_comm_msg((void *)&rbuf);
 	}
-#endif /* ZMQ_COMM */
 #endif /*CP_BUILD*/
 
 	return 0;
@@ -190,10 +163,18 @@ int iface_process_ipc_msgs(void)
 	 */
 	n = my_sock.sock_fd + 1;
 
+#ifdef CP_BUILD
+	/* add cp app descriptors for unix sock commu to pcef */
+	if(g_cp_sock  > 0)
+		FD_SET(g_cp_sock, &readfds);
+
+	if( g_cp_sock > my_sock.sock_fd )
+		n = g_cp_sock + 1;
+#endif /* CP_BUILD */
+
 	/* wait until either socket has data
 	 *  ready to be recv()d (timeout 10.5 secs)
 	 */
-
 #ifdef NGCORE_SHRINK
 	tv.tv_sec = 1;
 	tv.tv_usec = 500000;
@@ -208,6 +189,11 @@ int iface_process_ipc_msgs(void)
 		/* one or both of the descriptors have data */
 		if (FD_ISSET(my_sock.sock_fd, &readfds))
 			ret = iface_remove_que(COMM_SOCKET);
+#ifdef CP_BUILD
+		if (FD_ISSET(g_cp_sock, &readfds))
+			ret = msg_handler(g_cp_sock);
+#endif
+
 	}
 	return ret;
 }

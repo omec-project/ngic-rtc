@@ -22,9 +22,6 @@
 
 #define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
 
-extern struct response_info resp_t;
-
-//TODO : put this declatation appropriately
 int
 delete_context(delete_session_request_t *ds_req,
 			ue_context **_context);
@@ -43,7 +40,6 @@ delete_context(delete_session_request_t *ds_req,
  *   specified cause error value
  *   \- < 0 for all other errors
  */
-//static int
 int
 delete_context(delete_session_request_t *ds_req,
 			ue_context **_context)
@@ -101,15 +97,6 @@ delete_context(delete_session_request_t *ds_req,
 		return GTPV2C_CAUSE_MANDATORY_IE_INCORRECT;
 	}
 
-
-#ifdef ZMQ_COMM
-	/*set the delete session response */
-	/*TODO: Revisit this for to handle type received from message*/
-	/*resp_t.msg_type = ds_req->header.gtpc.type;*/
-	resp_t.msg_type = GTP_DELETE_SESSION_REQ;
-	resp_t.context_t = *context;
-#endif
-
 	for (i = 0; i < MAX_BEARERS; ++i) {
 		if (pdn->eps_bearers[i] == NULL)
 			continue;
@@ -127,7 +114,6 @@ delete_context(delete_session_request_t *ds_req,
 				htonl(pdn->ipv4.s_addr);
 			si.ul_s1_info.sgw_teid =
 				bearer->s1u_sgw_gtpu_teid;
-				//htonl(bearer->s1u_sgw_gtpu_teid);
 			si.sess_id = SESS_ID(
 					context->s11_sgw_gtpc_teid,
 					si.bearer_id);
@@ -179,7 +165,6 @@ process_delete_session_request(gtpv2c_header *gtpv2c_rx,
 		/* s11_sgw_gtpc_teid = s5s8_pgw_gtpc_base_teid =
 		 * key->ue_context_by_fteid_hash */
 		s5s8_pgw_gtpc_del_teid = ntohl(pdn->s5s8_pgw_gtpc_teid);
-		//s5s8_pgw_gtpc_del_teid = pdn->s5s8_pgw_gtpc_teid;
 
 		ret =
 			gen_sgwc_s5s8_delete_session_request(gtpv2c_rx,
@@ -206,19 +191,13 @@ process_delete_session_request(gtpv2c_header *gtpv2c_rx,
 
 	gtpv2c_s11_tx->teid_u.has_teid.seq = gtpv2c_rx->teid_u.has_teid.seq;
 
-#ifdef ZMQ_COMM
-	resp_t.gtpv2c_tx_t = *gtpv2c_s11_tx;
-#endif  /* ZMQ_COMM */
-
 	ret = delete_context(&ds_req, &context);
 	if (ret)
 		return ret;
 
-#ifndef ZMQ_COMM
 	set_gtpv2c_teid_header(gtpv2c_s11_tx, GTP_DELETE_SESSION_RSP,
 	    htonl(context->s11_mme_gtpc_teid), gtpv2c_rx->teid_u.has_teid.seq);
 	set_cause_accepted_ie(gtpv2c_s11_tx, IE_INSTANCE_ZERO);
-#endif
 
 	return 0;
 }

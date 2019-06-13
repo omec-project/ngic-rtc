@@ -15,8 +15,18 @@
  */
 
 #include "ue.h"
+#include "pfcp.h"
+#include "cp_stats.h"
+#include "pfcp_util.h"
+#include "pfcp_session.h"
+#include "pfcp_messages.h"
 #include "gtpv2c_set_ie.h"
+#include "pfcp_messages_encoder.h"
 #include "../cp_dp_api/vepc_cp_dp_api.h"
+
+#define size sizeof(pfcp_sess_mod_req_t)
+
+extern int pfcp_fd;
 
 struct parse_release_access_bearer_request_t {
 	ue_context *context;
@@ -42,6 +52,7 @@ parse_release_access_bearer_request(gtpv2c_header *gtpv2c_rx,
 {
 
 	uint32_t teid = ntohl(gtpv2c_rx->teid_u.has_teid.teid);
+
 	int ret = rte_hash_lookup_data(ue_context_by_fteid_hash,
 	    (const void *) &teid,
 	    (void **) &release_access_bearer_request->context);
@@ -78,12 +89,16 @@ int
 process_release_access_bearer_request(gtpv2c_header *gtpv2c_rx,
 		gtpv2c_header *gtpv2c_tx)
 {
-	int i;
-	struct dp_id dp_id = { .id = DPN_ID };
+	int ret = 0;
+	uint8_t ebi_index = 0;
+	eps_bearer *bearer  = NULL;
+	pdn_connection *pdn =  NULL;
+	pfcp_sess_mod_req_t pfcp_sess_mod_req = {0};
+
 	struct parse_release_access_bearer_request_t
 		release_access_bearer_request = { 0 };
 
-	int ret = parse_release_access_bearer_request(gtpv2c_rx,
+	ret = parse_release_access_bearer_request(gtpv2c_rx,
 			&release_access_bearer_request);
 	if (ret)
 		return ret;
@@ -92,55 +107,39 @@ process_release_access_bearer_request(gtpv2c_header *gtpv2c_rx,
 			gtpv2c_rx->teid_u.has_teid.seq,
 			release_access_bearer_request.context);
 
-	for (i = 0; i < MAX_BEARERS; ++i) {
-		if (release_access_bearer_request.context->eps_bearers[i]
-				== NULL)
+	for (int i = 0; i < MAX_BEARERS; ++i) {
+		if (release_access_bearer_request.context->eps_bearers[i] == NULL)
 			continue;
 
-		eps_bearer *bearer = release_access_bearer_request.
-				context->eps_bearers[i];
+		bearer = release_access_bearer_request.context->eps_bearers[ebi_index];
+		if (!bearer) {
+			fprintf(stderr,
+					"Retrive Context for release access bearer is non-existent EBI - "
+					"Bitmap Inconsistency - Dropping packet\n");
+			return -EPERM;
+		}
 
 		bearer->s1u_enb_gtpu_teid = 0;
 
-		/* using the s1u_sgw_gtpu_teid as unique identifier to
-		 * the session */
-		struct session_info session;
-		memset(&session, 0, sizeof(session));
-		session.ue_addr.iptype = IPTYPE_IPV4;
-		session.ue_addr.u.ipv4_addr = ntohl(bearer->pdn->ipv4.s_addr);
-		session.ul_s1_info.sgw_teid =
-		    ntohl(bearer->s1u_sgw_gtpu_teid);
-		session.ul_s1_info.sgw_addr.iptype = IPTYPE_IPV4;
-		session.ul_s1_info.sgw_addr.u.ipv4_addr =
-		    ntohl(bearer->s1u_sgw_gtpu_ipv4.s_addr);
-		session.ul_s1_info.enb_addr.iptype = IPTYPE_IPV4;
-		session.ul_s1_info.enb_addr.u.ipv4_addr =
-		    ntohl(bearer->s1u_enb_gtpu_ipv4.s_addr);
-		session.dl_s1_info.enb_teid =
-		    ntohl(bearer->s1u_enb_gtpu_teid);
-		session.dl_s1_info.enb_addr.iptype = IPTYPE_IPV4;
-		session.dl_s1_info.enb_addr.u.ipv4_addr =
-		    ntohl(bearer->s1u_enb_gtpu_ipv4.s_addr);
-		session.dl_s1_info.sgw_addr.iptype = IPTYPE_IPV4;
-		session.dl_s1_info.sgw_addr.u.ipv4_addr =
-		    ntohl(bearer->s1u_sgw_gtpu_ipv4.s_addr);
-		session.bearer_id = bearer->eps_bearer_id;
-		session.ul_apn_mtr_idx = ulambr_idx;
-		session.dl_apn_mtr_idx = dlambr_idx;
-		session.num_ul_pcc_rules = 1;
-		session.ul_pcc_rule_id[0] = FIRST_FILTER_ID;
-		session.num_dl_pcc_rules = 1;
-		session.dl_pcc_rule_id[0] = FIRST_FILTER_ID;
+		pdn = bearer->pdn;
 
-		session.sess_id = SESS_ID(
-			release_access_bearer_request.context->
-			s11_sgw_gtpc_teid,
-			bearer->eps_bearer_id);
+		release_access_bearer_request.context->seid =
+			SESS_ID(release_access_bearer_request.context->s11_sgw_gtpc_teid, bearer->eps_bearer_id);
 
-		if (session_modify(dp_id, session) < 0)
-			rte_exit(EXIT_FAILURE,
-				"Bearer Session modify fail !!!");
-		return 0;
+		fill_pfcp_sess_mod_req(&pfcp_sess_mod_req, gtpv2c_rx, release_access_bearer_request.context,
+						bearer, pdn);
+
+		uint8_t pfcp_msg[size]={0};
+		int encoded = encode_pfcp_sess_mod_req_t(&pfcp_sess_mod_req, pfcp_msg);
+
+		pfcp_header_t *header = (pfcp_header_t *) pfcp_msg;
+		header->message_len = htons(encoded - 4);
+
+		if ( pfcp_send(pfcp_fd, pfcp_msg, encoded, &upf_pfcp_sockaddr) < 0 )
+			printf("Error sending: %i\n",errno);
+		else
+			cp_stats.session_modification_req_sent++;
+
 	}
 	return 0;
 }

@@ -1,1035 +1,2925 @@
-/*
- * Copyright (c) 2019 Sprint
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
+/*Copyright (c) 2019 Sprint
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*      http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
 
 #include "../include/pfcp_ies_decoder.h"
 #include "../include/pfcp_messages_decoder.h"
 
 /**
- * Decodes pfcp association setup request to buffer.
- * @param pas_req
- *     pfcp association setup request
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of decoded bytes.
- */
-int decode_pfcp_association_setup_request(uint8_t *msg,
-	pfcp_association_setup_request_t *pas_req)
+* Decodes pfcp_sess_rpt_req_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_sess_rpt_req_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_sess_rpt_req_t(uint8_t *buf,
+      pfcp_sess_rpt_req_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+      count = decode_pfcp_header_t(buf + count, &value->header);
+
+      if (value->header.s)
+          buf_len = value->header.message_len - 12;
+      else
+          buf_len = value->header.message_len - 4;
+
+      buf = buf + count;
+      count = 0;
+
+      value->usage_report_count = 0;
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == PFCP_IE_REPORT_TYPE) {
+            count += decode_pfcp_report_type_ie_t(buf + count, &value->report_type);
+      }  else if (ie_type == IE_DNLNK_DATA_RPT) {
+            count += decode_pfcp_dnlnk_data_rpt_ie_t(buf + count, &value->dnlnk_data_rpt);
+      }  else if (ie_type == IE_ERR_INDCTN_RPT) {
+            count += decode_pfcp_err_indctn_rpt_ie_t(buf + count, &value->err_indctn_rpt);
+      }  else if (ie_type == IE_LOAD_CTL_INFO) {
+            count += decode_pfcp_load_ctl_info_ie_t(buf + count, &value->load_ctl_info);
+      }  else if (ie_type == IE_OVRLD_CTL_INFO) {
+            count += decode_pfcp_ovrld_ctl_info_ie_t(buf + count, &value->ovrld_ctl_info);
+      }  else if (ie_type == PFCP_IE_ADD_USAGE_RPTS_INFO) {
+            count += decode_pfcp_add_usage_rpts_info_ie_t(buf + count, &value->add_usage_rpts_info);
+      }  else if (ie_type == IE_USAGE_RPT_SESS_RPT_REQ) {
+            count += decode_pfcp_usage_rpt_sess_rpt_req_ie_t(buf + count, &value->usage_report[value->usage_report_count++]);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_pfd_mgmt_req_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_pfd_mgmt_req_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_pfd_mgmt_req_t(uint8_t *buf,
+      pfcp_pfd_mgmt_req_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+      count = decode_pfcp_header_t(buf + count, &value->header);
+
+      if (value->header.s)
+          buf_len = value->header.message_len - 12;
+      else
+          buf_len = value->header.message_len - 4;
+
+      buf = buf + count;
+      count = 0;
+
+      value->app_ids_pfds_count = 0;
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == IE_APP_IDS_PFDS) {
+            count += decode_pfcp_app_ids_pfds_ie_t(buf + count, &value->app_ids_pfds[value->app_ids_pfds_count++]);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_create_traffic_endpt_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_create_traffic_endpt_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_create_traffic_endpt_ie_t(uint8_t *buf,
+		pfcp_create_traffic_endpt_ie_t *value)
 {
 	uint16_t count = 0;
-	uint16_t msg_len;
+	uint16_t buf_len = 0;
 
-	count = decode_pfcp_header_t(msg + count, &pas_req->header);
+	/* TODO: Revisit this for change in yang */
+	count = decode_pfcp_ie_header_t(buf + count, &value->header);
+	count = count/CHAR_SIZE;
 
-	if (pas_req->header.s)
-		msg_len = pas_req->header.message_len - 12;
-	else
-		msg_len = pas_req->header.message_len - 4;
+	buf_len = value->header.len;
 
-	msg = msg + count;
-	count = 0;
+	value->framed_route_count = 0;
+	value->frmd_ipv6_rte_count = 0;
 
-	while (count < msg_len) {
 
-		pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (msg + count);
+	while (count < buf_len) {
+
+		pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
 
 		uint16_t ie_type = ntohs(ie_header->type);
 
-		if (ie_type == IE_NODE_ID) {
-			count += decode_node_id_ie_t(msg + count, &pas_req->node_id);
-		} else if (ie_type == IE_RECOVERY_TIME_STAMP) {
-			count += decode_recovery_time_stamp_ie_t(msg + count, &pas_req->recovery_time_stamp);
-		} else if (ie_type == IE_UP_FUNCTION_FEATURES) {
-			count += decode_up_function_features_ie_t(msg + count, &pas_req->up_function_features);
-		} else if (ie_type == IE_CP_FUNCTION_FEATURES) {
-			count += decode_cp_function_features_ie_t(msg + count, &pas_req->cp_function_features);
-		} else {
+		if (ie_type == PFCP_IE_TRAFFIC_ENDPT_ID) {
+			count += decode_pfcp_traffic_endpt_id_ie_t(buf + count, &value->traffic_endpt_id);
+		}  else if (ie_type == PFCP_IE_FTEID) {
+			count += decode_pfcp_fteid_ie_t(buf + count, &value->local_fteid);
+		}  else if (ie_type == PFCP_IE_NTWK_INST) {
+			count += decode_pfcp_ntwk_inst_ie_t(buf + count, &value->ntwk_inst);
+		}  else if (ie_type == PFCP_IE_UE_IP_ADDRESS) {
+			count += decode_pfcp_ue_ip_address_ie_t(buf + count, &value->ue_ip_address);
+		}  else if (ie_type == PFCP_IE_ETH_PDU_SESS_INFO) {
+			count += decode_pfcp_eth_pdu_sess_info_ie_t(buf + count, &value->eth_pdu_sess_info);
+		}  else if (ie_type == PFCP_IE_FRAMED_ROUTING) {
+			count += decode_pfcp_framed_routing_ie_t(buf + count, &value->framed_routing);
+		}  else if (ie_type == PFCP_IE_FRAMED_ROUTE) {
+			count += decode_pfcp_framed_route_ie_t(buf + count, &value->framed_route[value->framed_route_count++]);
+		}  else if (ie_type == PFCP_IE_FRMD_IPV6_RTE) {
+			count += decode_pfcp_frmd_ipv6_rte_ie_t(buf + count, &value->frmd_ipv6_rte[value->frmd_ipv6_rte_count++]);
+		}  else
 			count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
-		}
 	}
-
 	return count;
 }
-
 /**
- * Decodes pfcp association setup response to buffer.
- * @param pas_req
- *     pfcp association setup request
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of decoded bytes.
- */
-int decode_pfcp_association_setup_response(uint8_t *msg,
-	pfcp_association_setup_response_t *pas_resp)
+* Decodes pfcp_pfd_context_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_pfd_context_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_pfd_context_ie_t(uint8_t *buf,
+      pfcp_pfd_context_ie_t *value)
 {
-	uint16_t count = 0;
-	uint16_t msg_len;
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
 
-	count = decode_pfcp_header_t(msg + count, &pas_resp->header);
-	if (pas_resp->header.s)
-		msg_len = pas_resp->header.message_len - 12;
-	else
-		msg_len = pas_resp->header.message_len - 4;
+      count = decode_pfcp_ie_header_t(buf + count, &value->header);
 
-	msg = msg + count;
-	count = 0;
+      value->pfd_contents_count = 0;
 
-	pas_resp->user_plane_ip_resource_information_count = 0;
+      while (count < buf_len) {
 
-	while (count < msg_len) {
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
 
-		pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (msg + count);
-		uint16_t ie_type = ntohs(ie_header->type);
+          uint16_t ie_type = ntohs(ie_header->type);
 
-		if (ie_type == IE_NODE_ID) {
-			count += decode_node_id_ie_t(msg + count, &pas_resp->node_id);
-		} else if (ie_type == IE_CAUSE_ID) {
-			count += decode_cause_id_ie_t(msg + count, &pas_resp->cause);
-		} else if (ie_type == IE_RECOVERY_TIME_STAMP) {
-			count += decode_recovery_time_stamp_ie_t(msg + count, &pas_resp->recovery_time_stamp);
-		} else if (ie_type == IE_UP_FUNCTION_FEATURES) {
-			count += decode_up_function_features_ie_t(msg + count, &pas_resp->up_function_features);
-		} else if (ie_type == IE_CP_FUNCTION_FEATURES) {
-			count += decode_cp_function_features_ie_t(msg + count, &pas_resp->cp_function_features);
-		} else if (ie_type == IE_UP_IP_RESOURCE_INFORMATION) {
-				count += decode_user_plane_ip_resource_information_ie_t(msg + count, &pas_resp->up_ip_resource_info[pas_resp->user_plane_ip_resource_information_count++]);
-		} else {
-			count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
-		}
-	}
-
-	return count;
+      if (ie_type == PFCP_IE_PFD_CONTENTS) {
+            count += decode_pfcp_pfd_contents_ie_t(buf + count, &value->pfd_contents[value->pfd_contents_count++]);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
 }
-
 /**
- * Decodes pfcp session establishment response to buffer.
- * @param pse_res
- *     pfcp session establishment response
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of decoded bytes.
- */
-int decode_pfcp_session_establishment_response(uint8_t *msg,
-		pfcp_session_establishment_response_t *pse_res)
+* Decodes pfcp_create_urr_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_create_urr_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_create_urr_ie_t(uint8_t *buf,
+      pfcp_create_urr_ie_t *value)
 {
-	uint16_t count = 0;
-	uint16_t msg_len;
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
 
-	pse_res->created_pdr_count = 0;
+      count = decode_pfcp_ie_header_t(buf + count, &value->header);
 
-	count = decode_pfcp_header_t(msg + count, &pse_res->header);
+      value->linked_urr_id_count = 0;
+      value->aggregated_urrs_count = 0;
+      value->add_mntrng_time_count = 0;
 
-	if (pse_res->header.s)
-		msg_len = pse_res->header.message_len - 12;
-	else
-		msg_len = pse_res->header.message_len - 4;
+      while (count < buf_len) {
 
-	msg = msg + count;
-	count = 0;
-	while (count < msg_len) {
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
 
-		pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (msg + count);
-		uint16_t ie_type = ntohs(ie_header->type);
+          uint16_t ie_type = ntohs(ie_header->type);
 
-		if (ie_type== IE_NODE_ID) {
-			count += decode_node_id_ie_t(msg + count, &pse_res->node_id);
-		} else if (ie_type == IE_CAUSE_ID) {
-			count += decode_cause_id_ie_t(msg + count, &pse_res->cause);
-		} else if (ie_type == IE_OFFENDING_IE) {
-			count += decode_offending_ie_t(msg + count, &pse_res->offending_ie);
-		} else if (ie_type == IE_F_SEID) {
-			count += decode_f_seid_ie_t(msg + count, &pse_res->up_fseid);
-		} else if ( ie_type == IE_CREATED_PDR) {
-			count += decode_created_pdr_ie_t(msg + count, &pse_res->created_pdr[pse_res->created_pdr_count++]);
-		} else if (ie_type == IE_LOAD_CONTROL_INFORMATION) {
-			count += decode_load_control_information_ie_t(msg + count, &pse_res->load_control_information);
-		} else if (ie_type == IE_OVERLOAD_CONTROL_INFORMATION) {
-			count += decode_overload_control_information_ie_t(msg + count, &pse_res->overload_control_information);
-		} else if (ie_type == IE_PFCP_FQ_CSID) {
-			count += decode_fq_csid_ie_t(msg + count, &pse_res->sgwu_fqcsid);
-		} else if (ie_type == IE_PFCP_FQ_CSID) {
-			count += decode_fq_csid_ie_t(msg + count, &pse_res->pgwu_fqcsid);
-		} else if (ie_type == IE_FAILED_RULE_ID) {
-			count += decode_failed_rule_id_ie_t(msg + count, &pse_res->failed_rule_id);
-		} else {
-			count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
-		}
-	}
-
-	return count;
+      if (ie_type == PFCP_IE_URR_ID) {
+            count += decode_pfcp_urr_id_ie_t(buf + count, &value->urr_id);
+      }  else if (ie_type == PFCP_IE_MEAS_MTHD) {
+            count += decode_pfcp_meas_mthd_ie_t(buf + count, &value->meas_mthd);
+      }  else if (ie_type == PFCP_IE_RPTNG_TRIGGERS) {
+            count += decode_pfcp_rptng_triggers_ie_t(buf + count, &value->rptng_triggers);
+      }  else if (ie_type == PFCP_IE_MEAS_PERIOD) {
+            count += decode_pfcp_meas_period_ie_t(buf + count, &value->meas_period);
+      }  else if (ie_type == PFCP_IE_VOL_THRESH) {
+            count += decode_pfcp_vol_thresh_ie_t(buf + count, &value->vol_thresh);
+      }  else if (ie_type == PFCP_IE_VOLUME_QUOTA) {
+            count += decode_pfcp_volume_quota_ie_t(buf + count, &value->volume_quota);
+      }  else if (ie_type == PFCP_IE_EVENT_THRESHOLD) {
+            count += decode_pfcp_event_threshold_ie_t(buf + count, &value->event_threshold);
+      }  else if (ie_type == PFCP_IE_EVENT_QUOTA) {
+            count += decode_pfcp_event_quota_ie_t(buf + count, &value->event_quota);
+      }  else if (ie_type == PFCP_IE_TIME_THRESHOLD) {
+            count += decode_pfcp_time_threshold_ie_t(buf + count, &value->time_threshold);
+      }  else if (ie_type == PFCP_IE_TIME_QUOTA) {
+            count += decode_pfcp_time_quota_ie_t(buf + count, &value->time_quota);
+      }  else if (ie_type == PFCP_IE_QUOTA_HLDNG_TIME) {
+            count += decode_pfcp_quota_hldng_time_ie_t(buf + count, &value->quota_hldng_time);
+      }  else if (ie_type == PFCP_IE_DRPD_DL_TRAFFIC_THRESH) {
+            count += decode_pfcp_drpd_dl_traffic_thresh_ie_t(buf + count, &value->drpd_dl_traffic_thresh);
+      }  else if (ie_type == PFCP_IE_MONITORING_TIME) {
+            count += decode_pfcp_monitoring_time_ie_t(buf + count, &value->monitoring_time);
+      }  else if (ie_type == PFCP_IE_SBSQNT_VOL_THRESH) {
+            count += decode_pfcp_sbsqnt_vol_thresh_ie_t(buf + count, &value->sbsqnt_vol_thresh);
+      }  else if (ie_type == PFCP_IE_SBSQNT_TIME_THRESH) {
+            count += decode_pfcp_sbsqnt_time_thresh_ie_t(buf + count, &value->sbsqnt_time_thresh);
+      }  else if (ie_type == PFCP_IE_SBSQNT_VOL_QUOTA) {
+            count += decode_pfcp_sbsqnt_vol_quota_ie_t(buf + count, &value->sbsqnt_vol_quota);
+      }  else if (ie_type == PFCP_IE_SBSQNT_TIME_QUOTA) {
+            count += decode_pfcp_sbsqnt_time_quota_ie_t(buf + count, &value->sbsqnt_time_quota);
+      }  else if (ie_type == PFCP_IE_SBSQNT_EVNT_THRESH) {
+            count += decode_pfcp_sbsqnt_evnt_thresh_ie_t(buf + count, &value->sbsqnt_evnt_thresh);
+      }  else if (ie_type == PFCP_IE_SBSQNT_EVNT_QUOTA) {
+            count += decode_pfcp_sbsqnt_evnt_quota_ie_t(buf + count, &value->sbsqnt_evnt_quota);
+      }  else if (ie_type == PFCP_IE_INACT_DET_TIME) {
+            count += decode_pfcp_inact_det_time_ie_t(buf + count, &value->inact_det_time);
+      }  else if (ie_type == PFCP_IE_MEAS_INFO) {
+            count += decode_pfcp_meas_info_ie_t(buf + count, &value->meas_info);
+      }  else if (ie_type == PFCP_IE_TIME_QUOTA_MECH) {
+            count += decode_pfcp_time_quota_mech_ie_t(buf + count, &value->time_quota_mech);
+      }  else if (ie_type == PFCP_IE_FAR_ID) {
+            count += decode_pfcp_far_id_ie_t(buf + count, &value->far_id_for_quota_act);
+      }  else if (ie_type == PFCP_IE_ETH_INACT_TIMER) {
+            count += decode_pfcp_eth_inact_timer_ie_t(buf + count, &value->eth_inact_timer);
+      }  else if (ie_type == PFCP_IE_LINKED_URR_ID) {
+            count += decode_pfcp_linked_urr_id_ie_t(buf + count, &value->linked_urr_id[value->linked_urr_id_count++]);
+      }  else if (ie_type == IE_AGGREGATED_URRS) {
+            count += decode_pfcp_aggregated_urrs_ie_t(buf + count, &value->aggregated_urrs[value->aggregated_urrs_count++]);
+      }  else if (ie_type == IE_ADD_MNTRNG_TIME) {
+            count += decode_pfcp_add_mntrng_time_ie_t(buf + count, &value->add_mntrng_time[value->add_mntrng_time_count++]);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
 }
-
-
-
 /**
- * Decodes pfcp session establishment request to buffer.
- * @param pse_req
- *     pfcp session establishment request
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of decoded bytes.
- */
-
-
-int decode_pfcp_session_establishment_request(uint8_t *msg,
-	pfcp_session_establishment_request_t *pse_req)
+* Decodes pfcp_eth_pckt_fltr_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_eth_pckt_fltr_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_eth_pckt_fltr_ie_t(uint8_t *buf,
+      pfcp_eth_pckt_fltr_ie_t *value)
 {
-	uint16_t count = 0;
-	uint16_t msg_len;
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
 
-	count = decode_pfcp_header_t(msg + count, &pse_req->header);
+      count = decode_pfcp_ie_header_t(buf + count, &value->header);
 
-	if (pse_req->header.s)
-		msg_len = pse_req->header.message_len - 12;
-	else
-		msg_len = pse_req->header.message_len - 4;
+      value->sdf_filter_count = 0;
 
-	msg = msg + count;
-	count = 0;
-	pse_req->create_pdr_count = 0;
+      while (count < buf_len) {
 
-	while (count < msg_len) {
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
 
-		pfcp_ie_header_t *ie_header = ( pfcp_ie_header_t*) (msg + count);
+          uint16_t ie_type = ntohs(ie_header->type);
 
-		uint16_t ie_type = ntohs(ie_header->type);
-
-		if (ie_type == IE_NODE_ID ) {
-			count += decode_node_id_ie_t(msg + count, &pse_req->node_id);
-		} else if (ie_type == IE_F_SEID ) {
-			count += decode_f_seid_ie_t(msg + count, &pse_req->cp_fseid);
-		} else if(ie_type == IE_CREATE_PDR) {
-			count += decode_create_pdr_ie_t(msg + count, &pse_req->create_pdr[pse_req->create_pdr_count++]);
-		} else if (ie_type == IE_CREATE_BAR ) {
-			count += decode_create_bar_ie_t(msg + count, &pse_req->create_bar);
-		} else if (ie_type == IE_PFCP_PDN_TYPE ) {
-			count += decode_pdn_type_ie_t(msg + count, &pse_req->pdn_type);
-		} else if (ie_type == IE_PFCP_FQ_CSID ) {
-			count += decode_fq_csid_ie_t(msg + count, &pse_req->sgwc_fqcsid);
-		} else if (ie_type == IE_PFCP_FQ_CSID ) {
-			count += decode_fq_csid_ie_t(msg + count, &pse_req->mme_fqcsid);
-		} else if (ie_type == IE_PFCP_FQ_CSID ) {
-			count += decode_fq_csid_ie_t(msg + count, &pse_req->pgwc_fqcsid);
-		} else if (ie_type == IE_PFCP_FQ_CSID ) {
-			count += decode_fq_csid_ie_t(msg + count, &pse_req->epdg_fqcsid);
-		} else if (ie_type == IE_PFCP_FQ_CSID ) {
-			count += decode_fq_csid_ie_t(msg + count, &pse_req->twan_fqcsid);
-		} else if (ie_type == IE_USER_PLANE_INACTIVITY_TIMER ) {
-			count += decode_user_plane_inactivity_timer_ie_t(msg + count, &pse_req->user_plane_inactivity_timer);
-		} else if (ie_type == IE_USER_ID ) {
-			count += decode_user_id_ie_t(msg + count, &pse_req->user_id);
-		} else if (ie_type == IE_PFCP_TRACE_INFORMATION ) {
-			count += decode_trace_information_ie_t(msg + count, &pse_req->trace_information);
-		} else {
-			count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
-		}
-	}
-
-	return count;
+      if (ie_type == PFCP_IE_ETH_FLTR_ID) {
+            count += decode_pfcp_eth_fltr_id_ie_t(buf + count, &value->eth_fltr_id);
+      }  else if (ie_type == PFCP_IE_ETH_FLTR_PROPS) {
+            count += decode_pfcp_eth_fltr_props_ie_t(buf + count, &value->eth_fltr_props);
+      }  else if (ie_type == PFCP_IE_MAC_ADDRESS) {
+            count += decode_pfcp_mac_address_ie_t(buf + count, &value->mac_address);
+      }  else if (ie_type == PFCP_IE_ETHERTYPE) {
+            count += decode_pfcp_ethertype_ie_t(buf + count, &value->ethertype);
+      }  else if (ie_type == PFCP_IE_CTAG) {
+            count += decode_pfcp_ctag_ie_t(buf + count, &value->ctag);
+      }  else if (ie_type == PFCP_IE_STAG) {
+            count += decode_pfcp_stag_ie_t(buf + count, &value->stag);
+      }  else if (ie_type == PFCP_IE_SDF_FILTER) {
+            count += decode_pfcp_sdf_filter_ie_t(buf + count, &value->sdf_filter[value->sdf_filter_count++]);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
 }
-
-
-
 /**
- * Decodes pfcp session modification request to buffer.
- * @param psm_req
- *     pfcp session modification request
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of decoded bytes.
- */
-int decode_pfcp_session_modification_request(uint8_t *msg,
-		pfcp_session_modification_request_t *psm_req)
+* Decodes pfcp_remove_far_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_remove_far_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_remove_far_ie_t(uint8_t *buf,
+		pfcp_remove_far_ie_t *value)
 {
 	uint16_t count = 0;
-	uint16_t msg_len;
+	uint16_t buf_len = 0;
 
-	count = decode_pfcp_header_t(msg + count, &psm_req->header);
+	/* TODO: Revisit this for change in yang */
 
-	if (psm_req->header.s)
-		msg_len = psm_req->header.message_len - 12;
-	else
-		msg_len = psm_req->header.message_len - 4;
+	count = decode_pfcp_ie_header_t(buf + count, &value->header);
+	count = count/CHAR_SIZE;
+	buf_len = value->header.len;
 
-	msg = msg + count;
-	count = 0;
+	while (count < buf_len) {
 
-	psm_req->create_pdr_count = 0;
-
-	while (count < msg_len) {
-
-		pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (msg + count);
+		pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
 
 		uint16_t ie_type = ntohs(ie_header->type);
 
-		if ( ie_type == IE_F_SEID ) {
-			count += decode_f_seid_ie_t(msg + count, &psm_req->cp_fseid);
-		} else if (ie_type == IE_REMOVE_BAR ) {
-			count += decode_remove_bar_ie_t(msg + count, &psm_req->remove_bar);
-		} else if (ie_type == IE_REMOVE_TRAFFIC_ENDPOINT) {
-			count += decode_remove_traffic_endpoint_ie_t(msg + count, &psm_req->remove_traffic_endpoint);
-		} else if(ie_type == IE_CREATE_PDR) {
-			count += decode_create_pdr_ie_t(msg + count, &psm_req->create_pdr[psm_req->create_pdr_count++]);
-		} else if (ie_type == IE_CREATE_BAR ) {
-			count += decode_create_bar_ie_t(msg + count, &psm_req->create_bar);
-		} else if (ie_type == IE_CREATE_TRAFFIC_ENDPOINT) {
-			count += decode_create_traffic_endpoint_ie_t(msg + count, &psm_req->create_traffic_endpoint);
-		} else if (ie_type == IE_UPDATE_QER) {
-			count += decode_update_qer_ie_t(msg + count, &psm_req->update_qer);
-		} else if (ie_type == IE_UPDATE_BAR ) {
-			count += decode_update_bar_ie_t(msg + count, &psm_req->update_bar);
-		} else if (ie_type == IE_UPDATE_TRAFFIC_ENDPOINT) {
-			count += decode_update_traffic_endpoint_ie_t(msg + count, &psm_req->update_traffic_endpoint);
-		} else if (ie_type == IE_PFCPSMREQ_FLAGS) {
-			count += decode_pfcpsmreq_flags_ie_t(msg + count, &psm_req->pfcpsmreqflags);
-		} else if (ie_type == IE_PFCP_FQ_CSID ) {
-			count += decode_fq_csid_ie_t(msg + count, &psm_req->pgwc_fqcsid);
-		} else if (ie_type == IE_PFCP_FQ_CSID) {
-			count += decode_fq_csid_ie_t(msg + count, &psm_req->sgwc_fqcsid);
-		} else if (ie_type == IE_PFCP_FQ_CSID) {
-			count += decode_fq_csid_ie_t(msg + count, &psm_req->mme_fqcsid);
-		} else if (ie_type == IE_PFCP_FQ_CSID) {
-			count += decode_fq_csid_ie_t(msg + count, &psm_req->epdg_fqcsid);
-		} else if (ie_type == IE_PFCP_FQ_CSID) {
-			count += decode_fq_csid_ie_t(msg + count, &psm_req->twan_fqcsid);
-		} else if (ie_type == IE_USER_PLANE_INACTIVITY_TIMER) {
-			count += decode_user_plane_inactivity_timer_ie_t(msg + count, &psm_req->user_plane_inactivity_timer);
-		} else if (ie_type == IE_QUERY_URR_REFERENCE) {
-			count += decode_query_urr_reference_ie_t(msg + count, &psm_req->query_urr_reference);
-		} else if (ie_type == IE_PFCP_TRACE_INFORMATION ) {
-			count += decode_trace_information_ie_t(msg + count, &psm_req->trace_information);
-		} else {
+		if (ie_type == PFCP_IE_FAR_ID) {
+			count += decode_pfcp_far_id_ie_t(buf + count, &value->far_id);
+		}  else
 			count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
-		}
 	}
-
 	return count;
 }
-
-
-
 /**
- * Decodes pfcp session modification response to buffer.
- * @param psm_res
- *     pfcp session modification response
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of decoded bytes.
- */
+* Decodes pfcp_hrtbeat_req_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_hrtbeat_req_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_hrtbeat_req_t(uint8_t *buf,
+      pfcp_hrtbeat_req_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
 
-int decode_pfcp_session_modification_response(uint8_t *msg,
-		pfcp_session_modification_response_t *psm_res)
+      count = decode_pfcp_header_t(buf + count, &value->header);
+
+      if (value->header.s)
+          buf_len = value->header.message_len - 12;
+      else
+          buf_len = value->header.message_len - 4;
+
+      buf = buf + count;
+      count = 0;
+
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == PFCP_IE_RCVRY_TIME_STMP) {
+            count += decode_pfcp_rcvry_time_stmp_ie_t(buf + count, &value->rcvry_time_stmp);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_create_far_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_create_far_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_create_far_ie_t(uint8_t *buf,
+		pfcp_create_far_ie_t *value)
 {
 	uint16_t count = 0;
-	uint16_t msg_len;
+	uint16_t buf_len = 0;
 
-	count = decode_pfcp_header_t(msg + count, &psm_res->header);
+	/* TODO: Revisit this for change in yang */
+	count = decode_pfcp_ie_header_t(buf + count, &value->header);
+	count = count/CHAR_SIZE;
 
-	if (psm_res->header.s)
-		msg_len = psm_res->header.message_len - 12;
-	else
-		msg_len = psm_res->header.message_len - 4;
+	buf_len = value->header.len;
 
-	msg = msg + count;
-	count = 0;
+	value->dupng_parms_count = 0;
 
-	psm_res->created_pdr_count = 0;
+	while (count < buf_len) {
 
-	while (count < msg_len) {
+		pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
 
-		pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (msg + count);
 		uint16_t ie_type = ntohs(ie_header->type);
 
+		if (ie_type == PFCP_IE_FAR_ID) {
+			count += decode_pfcp_far_id_ie_t(buf + count, &value->far_id);
+		}  else if (ie_type == PFCP_IE_APPLY_ACTION) {
+			count += decode_pfcp_apply_action_ie_t(buf + count, &value->apply_action);
+		}  else if (ie_type == IE_FRWDNG_PARMS) {
+			count += decode_pfcp_frwdng_parms_ie_t(buf + count, &value->frwdng_parms);
+		}  else if (ie_type == PFCP_IE_BAR_ID) {
+			count += decode_pfcp_bar_id_ie_t(buf + count, &value->bar_id);
+		}  else if (ie_type == IE_DUPNG_PARMS) {
+			count += decode_pfcp_dupng_parms_ie_t(buf + count, &value->dupng_parms[value->dupng_parms_count++]);
+		}  else
+			count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+	}
+	return count;
+}
+/**
+* Decodes pfcp_assn_setup_rsp_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_assn_setup_rsp_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_assn_setup_rsp_t(uint8_t *buf,
+		pfcp_assn_setup_rsp_t *value)
+{
+	uint16_t count = 0;
+	uint16_t buf_len = 0;
 
-		if (ie_type== IE_CAUSE_ID) {
-			count += decode_cause_id_ie_t(msg + count, &psm_res->cause);
-		} else if (ie_type == IE_OFFENDING_IE) {
-			count += decode_offending_ie_t(msg + count, &psm_res->offending_ie);
-		} else if (ie_type == IE_CREATED_PDR) {
-			count += decode_created_pdr_ie_t(msg + count, &psm_res->created_pdr[psm_res->created_pdr_count++]);
-		} else if (ie_type == IE_LOAD_CONTROL_INFORMATION) {
-			count += decode_load_control_information_ie_t(msg + count, &psm_res->load_control_information);
-		} else if (ie_type == IE_OVERLOAD_CONTROL_INFORMATION) {
-			count += decode_overload_control_information_ie_t(msg + count, &psm_res->overload_control_information);
-		} else if (ie_type == IE_FAILED_RULE_ID) {
-			count += decode_failed_rule_id_ie_t(msg + count, &psm_res->failed_rule_id);
-		} else if (ie_type == IE_ADDITIONAL_USAGE_REPORTS_INFORMATION) {
-			count += decode_additional_usage_reports_information_ie_t(msg + count, &psm_res->additional_usage_reports_information);
-		} else if (ie_type == IE_CREATE_TRAFFIC_ENDPOINT) {
-			count += decode_created_traffic_endpoint_ie_t(msg + count, &psm_res->createdupdated_traffic_endpoint);
-		} else {
+	count = decode_pfcp_header_t(buf + count, &value->header);
+
+	if (value->header.s)
+		buf_len = value->header.message_len - 12;
+	else
+		buf_len = value->header.message_len - 4;
+
+	buf = buf + count;
+	count = 0;
+
+	value->user_plane_ip_rsrc_info_count = 0;
+
+	while (count < buf_len) {
+
+		pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+		uint16_t ie_type = ntohs(ie_header->type);
+
+		if (ie_type == PFCP_IE_NODE_ID) {
+			count += decode_pfcp_node_id_ie_t(buf + count, &value->node_id);
+		}  else if (ie_type == PFCP_IE_CAUSE) {
+			count += decode_pfcp_cause_ie_t(buf + count, &value->cause);
+		}  else if (ie_type == PFCP_IE_RCVRY_TIME_STMP) {
+			count += decode_pfcp_rcvry_time_stmp_ie_t(buf + count, &value->rcvry_time_stmp);
+		}  else if (ie_type == PFCP_IE_UP_FUNC_FEAT) {
+			count += decode_pfcp_up_func_feat_ie_t(buf + count, &value->up_func_feat);
+		}  else if (ie_type == PFCP_IE_CP_FUNC_FEAT) {
+			count += decode_pfcp_cp_func_feat_ie_t(buf + count, &value->cp_func_feat);
+		}  else if (ie_type == PFCP_IE_USER_PLANE_IP_RSRC_INFO) {
+			count += decode_pfcp_user_plane_ip_rsrc_info_ie_t(buf + count, &value->user_plane_ip_rsrc_info[value->user_plane_ip_rsrc_info_count++]);
+		}  else
+			count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+	}
+	return count;
+}
+/**
+* Decodes pfcp_dnlnk_data_rpt_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_dnlnk_data_rpt_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_dnlnk_data_rpt_ie_t(uint8_t *buf,
+      pfcp_dnlnk_data_rpt_ie_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+      count = decode_pfcp_ie_header_t(buf + count, &value->header);
+      count /= CHAR_SIZE;
+
+      buf_len = value->header.len;
+
+      value->pdr_id_count = 0;
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == PFCP_IE_PDR_ID) {
+            count += decode_pfcp_pdr_id_ie_t(buf + count, &value->pdr_id[value->pdr_id_count++]);
+      }  else if (ie_type == PFCP_IE_DNLNK_DATA_SVC_INFO) {
+            count += decode_pfcp_dnlnk_data_svc_info_ie_t(buf + count, &value->dnlnk_data_svc_info);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_query_urr_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_query_urr_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_query_urr_ie_t(uint8_t *buf,
+		pfcp_query_urr_ie_t *value)
+{
+	uint16_t count = 0;
+	uint16_t buf_len = 0;
+
+	/* TODO: Revisit this for change in yang */
+	count = decode_pfcp_ie_header_t(buf + count, &value->header);
+	count = count/CHAR_SIZE;
+
+	buf_len = value->header.len;
+
+	while (count < buf_len) {
+
+		pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+		uint16_t ie_type = ntohs(ie_header->type);
+
+		if (ie_type == PFCP_IE_URR_ID) {
+			count += decode_pfcp_urr_id_ie_t(buf + count, &value->urr_id);
+		}  else
+			count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+	}
+	return count;
+}
+/**
+* Decodes pfcp_assn_setup_req_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_assn_setup_req_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_assn_setup_req_t(uint8_t *buf,
+      pfcp_assn_setup_req_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+      count = decode_pfcp_header_t(buf + count, &value->header);
+
+      if (value->header.s)
+          buf_len = value->header.message_len - 12;
+      else
+          buf_len = value->header.message_len - 4;
+
+      buf = buf + count;
+      count = 0;
+
+      value->user_plane_ip_rsrc_info_count = 0;
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == PFCP_IE_NODE_ID) {
+            count += decode_pfcp_node_id_ie_t(buf + count, &value->node_id);
+      }  else if (ie_type == PFCP_IE_RCVRY_TIME_STMP) {
+            count += decode_pfcp_rcvry_time_stmp_ie_t(buf + count, &value->rcvry_time_stmp);
+      }  else if (ie_type == PFCP_IE_UP_FUNC_FEAT) {
+            count += decode_pfcp_up_func_feat_ie_t(buf + count, &value->up_func_feat);
+      }  else if (ie_type == PFCP_IE_CP_FUNC_FEAT) {
+            count += decode_pfcp_cp_func_feat_ie_t(buf + count, &value->cp_func_feat);
+      }  else if (ie_type == PFCP_IE_USER_PLANE_IP_RSRC_INFO) {
+            count += decode_pfcp_user_plane_ip_rsrc_info_ie_t(buf + count, &value->user_plane_ip_rsrc_info[value->user_plane_ip_rsrc_info_count++]);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_upd_bar_sess_rpt_rsp_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_upd_bar_sess_rpt_rsp_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_upd_bar_sess_rpt_rsp_ie_t(uint8_t *buf,
+      pfcp_upd_bar_sess_rpt_rsp_ie_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+      count = decode_pfcp_ie_header_t(buf + count, &value->header);
+
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == PFCP_IE_BAR_ID) {
+            count += decode_pfcp_bar_id_ie_t(buf + count, &value->bar_id);
+      }  else if (ie_type == PFCP_IE_DNLNK_DATA_NOTIF_DELAY) {
+            count += decode_pfcp_dnlnk_data_notif_delay_ie_t(buf + count, &value->dnlnk_data_notif_delay);
+      }  else if (ie_type == PFCP_IE_DL_BUF_DUR) {
+            count += decode_pfcp_dl_buf_dur_ie_t(buf + count, &value->dl_buf_dur);
+      }  else if (ie_type == PFCP_IE_DL_BUF_SUGGSTD_PCKT_CNT) {
+            count += decode_pfcp_dl_buf_suggstd_pckt_cnt_ie_t(buf + count, &value->dl_buf_suggstd_pckt_cnt);
+      }  else if (ie_type == PFCP_IE_SUGGSTD_BUF_PCKTS_CNT) {
+            count += decode_pfcp_suggstd_buf_pckts_cnt_ie_t(buf + count, &value->suggstd_buf_pckts_cnt);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_sess_mod_req_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_sess_mod_req_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_sess_mod_req_t(uint8_t *buf,
+		pfcp_sess_mod_req_t *value)
+{
+	uint16_t count = 0;
+	uint16_t buf_len = 0;
+
+	count = decode_pfcp_header_t(buf + count, &value->header);
+
+	if (value->header.s)
+		buf_len = value->header.message_len - 12;
+	else
+		buf_len = value->header.message_len - 4;
+
+	buf = buf + count;
+	count = 0;
+
+	value->remove_pdr_count = 0;
+	value->remove_far_count = 0;
+	value->remove_urr_count = 0;
+	value->remove_qer_count = 0;
+	value->create_pdr_count = 0;
+	value->create_far_count = 0;
+	value->create_urr_count = 0;
+	value->create_qer_count = 0;
+	value->update_pdr_count = 0;
+	value->update_far_count = 0;
+	value->update_urr_count = 0;
+	value->update_qer_count = 0;
+	value->query_urr_count = 0;
+
+	while (count < buf_len) {
+
+		pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+		uint16_t ie_type = ntohs(ie_header->type);
+
+		if (ie_type == PFCP_IE_FSEID) {
+			count += decode_pfcp_fseid_ie_t(buf + count, &value->cp_fseid);
+		}  else if (ie_type == IE_REMOVE_BAR) {
+			count += decode_pfcp_remove_bar_ie_t(buf + count, &value->remove_bar);
+		}  else if (ie_type == IE_RMV_TRAFFIC_ENDPT) {
+			count += decode_pfcp_rmv_traffic_endpt_ie_t(buf + count, &value->rmv_traffic_endpt);
+		}  else if (ie_type == IE_CREATE_BAR) {
+			count += decode_pfcp_create_bar_ie_t(buf + count, &value->create_bar);
+		}  else if (ie_type == IE_CREATE_TRAFFIC_ENDPT) {
+			count += decode_pfcp_create_traffic_endpt_ie_t(buf + count, &value->create_traffic_endpt);
+		}  else if (ie_type == IE_UPD_BAR_SESS_MOD_REQ) {
+			count += decode_pfcp_upd_bar_sess_mod_req_ie_t(buf + count, &value->update_bar);
+		}  else if (ie_type == IE_UPD_TRAFFIC_ENDPT) {
+			count += decode_pfcp_upd_traffic_endpt_ie_t(buf + count, &value->upd_traffic_endpt);
+		}  else if (ie_type == PFCP_IE_PFCPSMREQ_FLAGS) {
+			count += decode_pfcp_pfcpsmreq_flags_ie_t(buf + count, &value->pfcpsmreq_flags);
+		}  else if (ie_type == PFCP_IE_FQCSID) {
+			count += decode_pfcp_fqcsid_ie_t(buf + count, &value->pgw_c_fqcsid);
+		}  else if (ie_type == PFCP_IE_FQCSID) {
+			count += decode_pfcp_fqcsid_ie_t(buf + count, &value->sgw_c_fqcsid);
+		}  else if (ie_type == PFCP_IE_FQCSID) {
+			count += decode_pfcp_fqcsid_ie_t(buf + count, &value->mme_fqcsid);
+		}  else if (ie_type == PFCP_IE_FQCSID) {
+			count += decode_pfcp_fqcsid_ie_t(buf + count, &value->epdg_fqcsid);
+		}  else if (ie_type == PFCP_IE_FQCSID) {
+			count += decode_pfcp_fqcsid_ie_t(buf + count, &value->twan_fqcsid);
+		}  else if (ie_type == PFCP_IE_USER_PLANE_INACT_TIMER) {
+			count += decode_pfcp_user_plane_inact_timer_ie_t(buf + count, &value->user_plane_inact_timer);
+		}  else if (ie_type == PFCP_IE_QUERY_URR_REF) {
+			count += decode_pfcp_query_urr_ref_ie_t(buf + count, &value->query_urr_ref);
+		}  else if (ie_type == PFCP_IE_TRC_INFO) {
+			count += decode_pfcp_trc_info_ie_t(buf + count, &value->trc_info);
+		}  else if (ie_type == IE_REMOVE_PDR) {
+			count += decode_pfcp_remove_pdr_ie_t(buf + count, &value->remove_pdr[value->remove_pdr_count++]);
+		}  else if (ie_type == IE_REMOVE_FAR) {
+			count += decode_pfcp_remove_far_ie_t(buf + count, &value->remove_far[value->remove_far_count++]);
+		}  else if (ie_type == IE_REMOVE_URR) {
+			count += decode_pfcp_remove_urr_ie_t(buf + count, &value->remove_urr[value->remove_urr_count++]);
+		}  else if (ie_type == IE_REMOVE_QER) {
+			count += decode_pfcp_remove_qer_ie_t(buf + count, &value->remove_qer[value->remove_qer_count++]);
+		}  else if (ie_type == IE_CREATE_PDR) {
+			count += decode_pfcp_create_pdr_ie_t(buf + count, &value->create_pdr[value->create_pdr_count++]);
+		}  else if (ie_type == IE_CREATE_FAR) {
+			count += decode_pfcp_create_far_ie_t(buf + count, &value->create_far[value->create_far_count++]);
+		}  else if (ie_type == IE_CREATE_URR) {
+			count += decode_pfcp_create_urr_ie_t(buf + count, &value->create_urr[value->create_urr_count++]);
+		}  else if (ie_type == IE_CREATE_QER) {
+			count += decode_pfcp_create_qer_ie_t(buf + count, &value->create_qer[value->create_qer_count++]);
+		}  else if (ie_type == IE_UPDATE_PDR) {
+			count += decode_pfcp_update_pdr_ie_t(buf + count, &value->update_pdr[value->update_pdr_count++]);
+		}  else if (ie_type == IE_UPDATE_FAR) {
+			count += decode_pfcp_update_far_ie_t(buf + count, &value->update_far[value->update_far_count++]);
+		}  else if (ie_type == IE_UPDATE_URR) {
+			count += decode_pfcp_update_urr_ie_t(buf + count, &value->update_urr[value->update_urr_count++]);
+		}  else if (ie_type == IE_UPDATE_QER) {
+			count += decode_pfcp_update_qer_ie_t(buf + count, &value->update_qer[value->update_qer_count++]);
+		}  else if (ie_type == IE_QUERY_URR) {
+			count += decode_pfcp_query_urr_ie_t(buf + count, &value->query_urr[value->query_urr_count++]);
+		}  else
+			count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+	}
+	return count;
+}
+/**
+* Decodes pfcp_usage_rpt_sess_mod_rsp_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_usage_rpt_sess_mod_rsp_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_usage_rpt_sess_mod_rsp_ie_t(uint8_t *buf,
+      pfcp_usage_rpt_sess_mod_rsp_ie_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+      count = decode_pfcp_ie_header_t(buf + count, &value->header);
+
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == PFCP_IE_URR_ID) {
+            count += decode_pfcp_urr_id_ie_t(buf + count, &value->urr_id);
+      }  else if (ie_type == PFCP_IE_URSEQN) {
+            count += decode_pfcp_urseqn_ie_t(buf + count, &value->urseqn);
+      }  else if (ie_type == PFCP_IE_USAGE_RPT_TRIG) {
+            count += decode_pfcp_usage_rpt_trig_ie_t(buf + count, &value->usage_rpt_trig);
+      }  else if (ie_type == PFCP_IE_START_TIME) {
+            count += decode_pfcp_start_time_ie_t(buf + count, &value->start_time);
+      }  else if (ie_type == PFCP_IE_END_TIME) {
+            count += decode_pfcp_end_time_ie_t(buf + count, &value->end_time);
+      }  else if (ie_type == PFCP_IE_VOL_MEAS) {
+            count += decode_pfcp_vol_meas_ie_t(buf + count, &value->vol_meas);
+      }  else if (ie_type == PFCP_IE_DUR_MEAS) {
+            count += decode_pfcp_dur_meas_ie_t(buf + count, &value->dur_meas);
+      }  else if (ie_type == PFCP_IE_TIME_OF_FRST_PCKT) {
+            count += decode_pfcp_time_of_frst_pckt_ie_t(buf + count, &value->time_of_frst_pckt);
+      }  else if (ie_type == PFCP_IE_TIME_OF_LST_PCKT) {
+            count += decode_pfcp_time_of_lst_pckt_ie_t(buf + count, &value->time_of_lst_pckt);
+      }  else if (ie_type == PFCP_IE_USAGE_INFO) {
+            count += decode_pfcp_usage_info_ie_t(buf + count, &value->usage_info);
+      }  else if (ie_type == PFCP_IE_QUERY_URR_REF) {
+            count += decode_pfcp_query_urr_ref_ie_t(buf + count, &value->query_urr_ref);
+      }  else if (ie_type == IE_ETH_TRAFFIC_INFO) {
+            count += decode_pfcp_eth_traffic_info_ie_t(buf + count, &value->eth_traffic_info);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_remove_urr_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_remove_urr_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_remove_urr_ie_t(uint8_t *buf,
+		pfcp_remove_urr_ie_t *value)
+{
+	uint16_t count = 0;
+	uint16_t buf_len = 0;
+
+	/* TODO: Revisit this for change in yang */
+	count = decode_pfcp_ie_header_t(buf + count, &value->header);
+	count = count/CHAR_SIZE;
+	buf_len = value->header.len;
+
+	while (count < buf_len) {
+
+		pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+		uint16_t ie_type = ntohs(ie_header->type);
+
+		if (ie_type == PFCP_IE_URR_ID) {
+			count += decode_pfcp_urr_id_ie_t(buf + count, &value->urr_id);
+		}  else
+			count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+	}
+	return count;
+}
+/**
+* Decodes pfcp_sess_rpt_rsp_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_sess_rpt_rsp_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_sess_rpt_rsp_t(uint8_t *buf,
+      pfcp_sess_rpt_rsp_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+      count = decode_pfcp_header_t(buf + count, &value->header);
+
+      if (value->header.s)
+          buf_len = value->header.message_len - 12;
+      else
+          buf_len = value->header.message_len - 4;
+
+      buf = buf + count;
+      count = 0;
+
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == PFCP_IE_CAUSE) {
+            count += decode_pfcp_cause_ie_t(buf + count, &value->cause);
+      }  else if (ie_type == PFCP_IE_OFFENDING_IE) {
+            count += decode_pfcp_offending_ie_ie_t(buf + count, &value->offending_ie);
+      }  else if (ie_type == IE_UPD_BAR_SESS_RPT_RSP) {
+            count += decode_pfcp_upd_bar_sess_rpt_rsp_ie_t(buf + count, &value->update_bar);
+      }  else if (ie_type == PFCP_IE_PFCPSRRSP_FLAGS) {
+            count += decode_pfcp_pfcpsrrsp_flags_ie_t(buf + count, &value->sxsrrsp_flags);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_usage_rpt_sess_del_rsp_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_usage_rpt_sess_del_rsp_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_usage_rpt_sess_del_rsp_ie_t(uint8_t *buf,
+      pfcp_usage_rpt_sess_del_rsp_ie_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+      count = decode_pfcp_ie_header_t(buf + count, &value->header);
+
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == PFCP_IE_URR_ID) {
+            count += decode_pfcp_urr_id_ie_t(buf + count, &value->urr_id);
+      }  else if (ie_type == PFCP_IE_URSEQN) {
+            count += decode_pfcp_urseqn_ie_t(buf + count, &value->urseqn);
+      }  else if (ie_type == PFCP_IE_USAGE_RPT_TRIG) {
+            count += decode_pfcp_usage_rpt_trig_ie_t(buf + count, &value->usage_rpt_trig);
+      }  else if (ie_type == PFCP_IE_START_TIME) {
+            count += decode_pfcp_start_time_ie_t(buf + count, &value->start_time);
+      }  else if (ie_type == PFCP_IE_END_TIME) {
+            count += decode_pfcp_end_time_ie_t(buf + count, &value->end_time);
+      }  else if (ie_type == PFCP_IE_VOL_MEAS) {
+            count += decode_pfcp_vol_meas_ie_t(buf + count, &value->vol_meas);
+      }  else if (ie_type == PFCP_IE_DUR_MEAS) {
+            count += decode_pfcp_dur_meas_ie_t(buf + count, &value->dur_meas);
+      }  else if (ie_type == PFCP_IE_TIME_OF_FRST_PCKT) {
+            count += decode_pfcp_time_of_frst_pckt_ie_t(buf + count, &value->time_of_frst_pckt);
+      }  else if (ie_type == PFCP_IE_TIME_OF_LST_PCKT) {
+            count += decode_pfcp_time_of_lst_pckt_ie_t(buf + count, &value->time_of_lst_pckt);
+      }  else if (ie_type == PFCP_IE_USAGE_INFO) {
+            count += decode_pfcp_usage_info_ie_t(buf + count, &value->usage_info);
+      }  else if (ie_type == IE_ETH_TRAFFIC_INFO) {
+            count += decode_pfcp_eth_traffic_info_ie_t(buf + count, &value->eth_traffic_info);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_assn_upd_rsp_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_assn_upd_rsp_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_assn_upd_rsp_t(uint8_t *buf,
+      pfcp_assn_upd_rsp_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+      count = decode_pfcp_header_t(buf + count, &value->header);
+
+      if (value->header.s)
+          buf_len = value->header.message_len - 12;
+      else
+          buf_len = value->header.message_len - 4;
+
+      buf = buf + count;
+      count = 0;
+
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == PFCP_IE_NODE_ID) {
+            count += decode_pfcp_node_id_ie_t(buf + count, &value->node_id);
+      }  else if (ie_type == PFCP_IE_CAUSE) {
+            count += decode_pfcp_cause_ie_t(buf + count, &value->cause);
+      }  else if (ie_type == PFCP_IE_UP_FUNC_FEAT) {
+            count += decode_pfcp_up_func_feat_ie_t(buf + count, &value->up_func_feat);
+      }  else if (ie_type == PFCP_IE_CP_FUNC_FEAT) {
+            count += decode_pfcp_cp_func_feat_ie_t(buf + count, &value->cp_func_feat);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_assn_rel_rsp_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_assn_rel_rsp_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_assn_rel_rsp_t(uint8_t *buf,
+      pfcp_assn_rel_rsp_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+      count = decode_pfcp_header_t(buf + count, &value->header);
+
+      if (value->header.s)
+          buf_len = value->header.message_len - 12;
+      else
+          buf_len = value->header.message_len - 4;
+
+      buf = buf + count;
+      count = 0;
+
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == PFCP_IE_NODE_ID) {
+            count += decode_pfcp_node_id_ie_t(buf + count, &value->node_id);
+      }  else if (ie_type == PFCP_IE_CAUSE) {
+            count += decode_pfcp_cause_ie_t(buf + count, &value->cause);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_usage_rpt_sess_rpt_req_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_usage_rpt_sess_rpt_req_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_usage_rpt_sess_rpt_req_ie_t(uint8_t *buf,
+      pfcp_usage_rpt_sess_rpt_req_ie_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+      count = decode_pfcp_ie_header_t(buf + count, &value->header);
+
+      value->evnt_time_stmp_count = 0;
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == PFCP_IE_URR_ID) {
+            count += decode_pfcp_urr_id_ie_t(buf + count, &value->urr_id);
+      }  else if (ie_type == PFCP_IE_URSEQN) {
+            count += decode_pfcp_urseqn_ie_t(buf + count, &value->urseqn);
+      }  else if (ie_type == PFCP_IE_USAGE_RPT_TRIG) {
+            count += decode_pfcp_usage_rpt_trig_ie_t(buf + count, &value->usage_rpt_trig);
+      }  else if (ie_type == PFCP_IE_START_TIME) {
+            count += decode_pfcp_start_time_ie_t(buf + count, &value->start_time);
+      }  else if (ie_type == PFCP_IE_END_TIME) {
+            count += decode_pfcp_end_time_ie_t(buf + count, &value->end_time);
+      }  else if (ie_type == PFCP_IE_VOL_MEAS) {
+            count += decode_pfcp_vol_meas_ie_t(buf + count, &value->vol_meas);
+      }  else if (ie_type == PFCP_IE_DUR_MEAS) {
+            count += decode_pfcp_dur_meas_ie_t(buf + count, &value->dur_meas);
+      }  else if (ie_type == IE_APP_DET_INFO) {
+            count += decode_pfcp_app_det_info_ie_t(buf + count, &value->app_det_info);
+      }  else if (ie_type == PFCP_IE_UE_IP_ADDRESS) {
+            count += decode_pfcp_ue_ip_address_ie_t(buf + count, &value->ue_ip_address);
+      }  else if (ie_type == PFCP_IE_NTWK_INST) {
+            count += decode_pfcp_ntwk_inst_ie_t(buf + count, &value->ntwk_inst);
+      }  else if (ie_type == PFCP_IE_TIME_OF_FRST_PCKT) {
+            count += decode_pfcp_time_of_frst_pckt_ie_t(buf + count, &value->time_of_frst_pckt);
+      }  else if (ie_type == PFCP_IE_TIME_OF_LST_PCKT) {
+            count += decode_pfcp_time_of_lst_pckt_ie_t(buf + count, &value->time_of_lst_pckt);
+      }  else if (ie_type == PFCP_IE_USAGE_INFO) {
+            count += decode_pfcp_usage_info_ie_t(buf + count, &value->usage_info);
+      }  else if (ie_type == PFCP_IE_QUERY_URR_REF) {
+            count += decode_pfcp_query_urr_ref_ie_t(buf + count, &value->query_urr_ref);
+      }  else if (ie_type == IE_ETH_TRAFFIC_INFO) {
+            count += decode_pfcp_eth_traffic_info_ie_t(buf + count, &value->eth_traffic_info);
+      }  else if (ie_type == PFCP_IE_EVNT_TIME_STMP) {
+            count += decode_pfcp_evnt_time_stmp_ie_t(buf + count, &value->evnt_time_stmp[value->evnt_time_stmp_count++]);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_sess_del_rsp_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_sess_del_rsp_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_sess_del_rsp_t(uint8_t *buf,
+      pfcp_sess_del_rsp_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+      count = decode_pfcp_header_t(buf + count, &value->header);
+
+      if (value->header.s)
+          buf_len = value->header.message_len - 12;
+      else
+          buf_len = value->header.message_len - 4;
+
+      buf = buf + count;
+      count = 0;
+
+      value->usage_report_count = 0;
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == PFCP_IE_CAUSE) {
+            count += decode_pfcp_cause_ie_t(buf + count, &value->cause);
+      }  else if (ie_type == PFCP_IE_OFFENDING_IE) {
+            count += decode_pfcp_offending_ie_ie_t(buf + count, &value->offending_ie);
+      }  else if (ie_type == IE_LOAD_CTL_INFO) {
+            count += decode_pfcp_load_ctl_info_ie_t(buf + count, &value->load_ctl_info);
+      }  else if (ie_type == IE_OVRLD_CTL_INFO) {
+            count += decode_pfcp_ovrld_ctl_info_ie_t(buf + count, &value->ovrld_ctl_info);
+      }  else if (ie_type == IE_USAGE_RPT_SESS_DEL_RSP) {
+            count += decode_pfcp_usage_rpt_sess_del_rsp_ie_t(buf + count, &value->usage_report[value->usage_report_count++]);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_sess_set_del_req_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_sess_set_del_req_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_sess_set_del_req_t(uint8_t *buf,
+      pfcp_sess_set_del_req_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+      count = decode_pfcp_header_t(buf + count, &value->header);
+
+      if (value->header.s)
+          buf_len = value->header.message_len - 12;
+      else
+          buf_len = value->header.message_len - 4;
+
+      buf = buf + count;
+      count = 0;
+
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == PFCP_IE_NODE_ID) {
+            count += decode_pfcp_node_id_ie_t(buf + count, &value->node_id);
+      }  else if (ie_type == PFCP_IE_FQCSID) {
+            count += decode_pfcp_fqcsid_ie_t(buf + count, &value->sgw_c_fqcsid);
+      }  else if (ie_type == PFCP_IE_FQCSID) {
+            count += decode_pfcp_fqcsid_ie_t(buf + count, &value->pgw_c_fqcsid);
+      }  else if (ie_type == PFCP_IE_FQCSID) {
+            count += decode_pfcp_fqcsid_ie_t(buf + count, &value->sgw_u_fqcsid);
+      }  else if (ie_type == PFCP_IE_FQCSID) {
+            count += decode_pfcp_fqcsid_ie_t(buf + count, &value->pgw_u_fqcsid);
+      }  else if (ie_type == PFCP_IE_FQCSID) {
+            count += decode_pfcp_fqcsid_ie_t(buf + count, &value->twan_fqcsid);
+      }  else if (ie_type == PFCP_IE_FQCSID) {
+            count += decode_pfcp_fqcsid_ie_t(buf + count, &value->epdg_fqcsid);
+      }  else if (ie_type == PFCP_IE_FQCSID) {
+            count += decode_pfcp_fqcsid_ie_t(buf + count, &value->mme_fqcsid);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_sess_set_del_rsp_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_sess_set_del_rsp_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_sess_set_del_rsp_t(uint8_t *buf,
+      pfcp_sess_set_del_rsp_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+      count = decode_pfcp_header_t(buf + count, &value->header);
+
+      if (value->header.s)
+          buf_len = value->header.message_len - 12;
+      else
+          buf_len = value->header.message_len - 4;
+
+      buf = buf + count;
+      count = 0;
+
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == PFCP_IE_NODE_ID) {
+            count += decode_pfcp_node_id_ie_t(buf + count, &value->node_id);
+      }  else if (ie_type == PFCP_IE_CAUSE) {
+            count += decode_pfcp_cause_ie_t(buf + count, &value->cause);
+      }  else if (ie_type == PFCP_IE_OFFENDING_IE) {
+            count += decode_pfcp_offending_ie_ie_t(buf + count, &value->offending_ie);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_created_pdr_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_created_pdr_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_created_pdr_ie_t(uint8_t *buf,
+      pfcp_created_pdr_ie_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+      count = decode_pfcp_ie_header_t(buf + count, &value->header);
+
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == PFCP_IE_PDR_ID) {
+            count += decode_pfcp_pdr_id_ie_t(buf + count, &value->pdr_id);
+      }  else if (ie_type == PFCP_IE_FTEID) {
+            count += decode_pfcp_fteid_ie_t(buf + count, &value->local_fteid);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_load_ctl_info_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_load_ctl_info_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_load_ctl_info_ie_t(uint8_t *buf,
+      pfcp_load_ctl_info_ie_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+      count = decode_pfcp_ie_header_t(buf + count, &value->header);
+
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == PFCP_IE_SEQUENCE_NUMBER) {
+            count += decode_pfcp_sequence_number_ie_t(buf + count, &value->load_ctl_seqn_nbr);
+      }  else if (ie_type == PFCP_IE_METRIC) {
+            count += decode_pfcp_metric_ie_t(buf + count, &value->load_metric);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_sess_mod_rsp_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_sess_mod_rsp_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_sess_mod_rsp_t(uint8_t *buf,
+      pfcp_sess_mod_rsp_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+      count = decode_pfcp_header_t(buf + count, &value->header);
+
+      if (value->header.s)
+          buf_len = value->header.message_len - 12;
+      else
+          buf_len = value->header.message_len - 4;
+
+      buf = buf + count;
+      count = 0;
+
+      value->usage_report_count = 0;
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == PFCP_IE_CAUSE) {
+            count += decode_pfcp_cause_ie_t(buf + count, &value->cause);
+      }  else if (ie_type == PFCP_IE_OFFENDING_IE) {
+            count += decode_pfcp_offending_ie_ie_t(buf + count, &value->offending_ie);
+      }  else if (ie_type == IE_CREATED_PDR) {
+            count += decode_pfcp_created_pdr_ie_t(buf + count, &value->created_pdr);
+      }  else if (ie_type == IE_LOAD_CTL_INFO) {
+            count += decode_pfcp_load_ctl_info_ie_t(buf + count, &value->load_ctl_info);
+      }  else if (ie_type == IE_OVRLD_CTL_INFO) {
+            count += decode_pfcp_ovrld_ctl_info_ie_t(buf + count, &value->ovrld_ctl_info);
+      }  else if (ie_type == PFCP_IE_FAILED_RULE_ID) {
+            count += decode_pfcp_failed_rule_id_ie_t(buf + count, &value->failed_rule_id);
+      }  else if (ie_type == PFCP_IE_ADD_USAGE_RPTS_INFO) {
+            count += decode_pfcp_add_usage_rpts_info_ie_t(buf + count, &value->add_usage_rpts_info);
+      }  else if (ie_type == IE_CREATED_TRAFFIC_ENDPT) {
+            count += decode_pfcp_created_traffic_endpt_ie_t(buf + count, &value->createdupdated_traffic_endpt);
+      }  else if (ie_type == IE_USAGE_RPT_SESS_MOD_RSP) {
+            count += decode_pfcp_usage_rpt_sess_mod_rsp_ie_t(buf + count, &value->usage_report[value->usage_report_count++]);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_created_traffic_endpt_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_created_traffic_endpt_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_created_traffic_endpt_ie_t(uint8_t *buf,
+      pfcp_created_traffic_endpt_ie_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+      count = decode_pfcp_ie_header_t(buf + count, &value->header);
+
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == PFCP_IE_TRAFFIC_ENDPT_ID) {
+            count += decode_pfcp_traffic_endpt_id_ie_t(buf + count, &value->traffic_endpt_id);
+      }  else if (ie_type == PFCP_IE_FTEID) {
+            count += decode_pfcp_fteid_ie_t(buf + count, &value->local_fteid);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_pfd_mgmt_rsp_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_pfd_mgmt_rsp_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_pfd_mgmt_rsp_t(uint8_t *buf,
+      pfcp_pfd_mgmt_rsp_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+      count = decode_pfcp_header_t(buf + count, &value->header);
+
+      if (value->header.s)
+          buf_len = value->header.message_len - 12;
+      else
+          buf_len = value->header.message_len - 4;
+
+      buf = buf + count;
+      count = 0;
+
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == PFCP_IE_CAUSE) {
+            count += decode_pfcp_cause_ie_t(buf + count, &value->cause);
+      }  else if (ie_type == PFCP_IE_OFFENDING_IE) {
+            count += decode_pfcp_offending_ie_ie_t(buf + count, &value->offending_ie);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_upd_traffic_endpt_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_upd_traffic_endpt_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_upd_traffic_endpt_ie_t(uint8_t *buf,
+		pfcp_upd_traffic_endpt_ie_t *value)
+{
+	uint16_t count = 0;
+	uint16_t buf_len = 0;
+
+	/* TODO: Revisit this for change in yang */
+	count = decode_pfcp_ie_header_t(buf + count, &value->header);
+	count = count/CHAR_SIZE;
+
+	buf_len = value->header.len;
+
+	value->framed_route_count = 0;
+	value->frmd_ipv6_rte_count = 0;
+
+	while (count < buf_len) {
+
+		pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+		uint16_t ie_type = ntohs(ie_header->type);
+
+		if (ie_type == PFCP_IE_TRAFFIC_ENDPT_ID) {
+			count += decode_pfcp_traffic_endpt_id_ie_t(buf + count, &value->traffic_endpt_id);
+		}  else if (ie_type == PFCP_IE_FTEID) {
+			count += decode_pfcp_fteid_ie_t(buf + count, &value->local_fteid);
+		}  else if (ie_type == PFCP_IE_NTWK_INST) {
+			count += decode_pfcp_ntwk_inst_ie_t(buf + count, &value->ntwk_inst);
+		}  else if (ie_type == PFCP_IE_UE_IP_ADDRESS) {
+			count += decode_pfcp_ue_ip_address_ie_t(buf + count, &value->ue_ip_address);
+		}  else if (ie_type == PFCP_IE_FRAMED_ROUTING) {
+			count += decode_pfcp_framed_routing_ie_t(buf + count, &value->framed_routing);
+		}  else if (ie_type == PFCP_IE_FRAMED_ROUTE) {
+			count += decode_pfcp_framed_route_ie_t(buf + count, &value->framed_route[value->framed_route_count++]);
+		}  else if (ie_type == PFCP_IE_FRMD_IPV6_RTE) {
+			count += decode_pfcp_frmd_ipv6_rte_ie_t(buf + count, &value->frmd_ipv6_rte[value->frmd_ipv6_rte_count++]);
+		}  else
+			count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+	}
+	return count;
+}
+/**
+* Decodes pfcp_upd_dupng_parms_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_upd_dupng_parms_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_upd_dupng_parms_ie_t(uint8_t *buf,
+      pfcp_upd_dupng_parms_ie_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+      count = decode_pfcp_ie_header_t(buf + count, &value->header);
+
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == PFCP_IE_DST_INTFC) {
+            count += decode_pfcp_dst_intfc_ie_t(buf + count, &value->dst_intfc);
+      }  else if (ie_type == PFCP_IE_OUTER_HDR_CREATION) {
+            count += decode_pfcp_outer_hdr_creation_ie_t(buf + count, &value->outer_hdr_creation);
+      }  else if (ie_type == PFCP_IE_TRNSPT_LVL_MARKING) {
+            count += decode_pfcp_trnspt_lvl_marking_ie_t(buf + count, &value->trnspt_lvl_marking);
+      }  else if (ie_type == PFCP_IE_FRWDNG_PLCY) {
+            count += decode_pfcp_frwdng_plcy_ie_t(buf + count, &value->frwdng_plcy);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_frwdng_parms_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_frwdng_parms_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_frwdng_parms_ie_t(uint8_t *buf,
+      pfcp_frwdng_parms_ie_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+      count = decode_pfcp_ie_header_t(buf + count, &value->header);
+
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == PFCP_IE_DST_INTFC) {
+            count += decode_pfcp_dst_intfc_ie_t(buf + count, &value->dst_intfc);
+      }  else if (ie_type == PFCP_IE_NTWK_INST) {
+            count += decode_pfcp_ntwk_inst_ie_t(buf + count, &value->ntwk_inst);
+      }  else if (ie_type == PFCP_IE_REDIR_INFO) {
+            count += decode_pfcp_redir_info_ie_t(buf + count, &value->redir_info);
+      }  else if (ie_type == PFCP_IE_OUTER_HDR_CREATION) {
+            count += decode_pfcp_outer_hdr_creation_ie_t(buf + count, &value->outer_hdr_creation);
+      }  else if (ie_type == PFCP_IE_TRNSPT_LVL_MARKING) {
+            count += decode_pfcp_trnspt_lvl_marking_ie_t(buf + count, &value->trnspt_lvl_marking);
+      }  else if (ie_type == PFCP_IE_FRWDNG_PLCY) {
+            count += decode_pfcp_frwdng_plcy_ie_t(buf + count, &value->frwdng_plcy);
+      }  else if (ie_type == PFCP_IE_HDR_ENRCHMT) {
+            count += decode_pfcp_hdr_enrchmt_ie_t(buf + count, &value->hdr_enrchmt);
+      }  else if (ie_type == PFCP_IE_TRAFFIC_ENDPT_ID) {
+            count += decode_pfcp_traffic_endpt_id_ie_t(buf + count, &value->lnkd_traffic_endpt_id);
+      }  else if (ie_type == PFCP_IE_PROXYING) {
+            count += decode_pfcp_proxying_ie_t(buf + count, &value->proxying);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_dupng_parms_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_dupng_parms_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_dupng_parms_ie_t(uint8_t *buf,
+		pfcp_dupng_parms_ie_t *value)
+{
+	uint16_t count = 0;
+	uint16_t buf_len = 0;
+
+	count = decode_pfcp_ie_header_t(buf + count, &value->header);
+
+	/* TODO: Revisit this for change in yang */
+	count = count/CHAR_SIZE;
+	buf_len = value->header.len;
+
+	while (count < buf_len) {
+
+		pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+		uint16_t ie_type = ntohs(ie_header->type);
+
+		if (ie_type == PFCP_IE_DST_INTFC) {
+			count += decode_pfcp_dst_intfc_ie_t(buf + count, &value->dst_intfc);
+		}  else if (ie_type == PFCP_IE_OUTER_HDR_CREATION) {
+			count += decode_pfcp_outer_hdr_creation_ie_t(buf + count, &value->outer_hdr_creation);
+		}  else if (ie_type == PFCP_IE_TRNSPT_LVL_MARKING) {
+			count += decode_pfcp_trnspt_lvl_marking_ie_t(buf + count, &value->trnspt_lvl_marking);
+		}  else if (ie_type == PFCP_IE_FRWDNG_PLCY) {
+			count += decode_pfcp_frwdng_plcy_ie_t(buf + count, &value->frwdng_plcy);
+		}  else
+			count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+	}
+	return count;
+}
+/**
+* Decodes pfcp_update_pdr_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_update_pdr_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_update_pdr_ie_t(uint8_t *buf,
+      pfcp_update_pdr_ie_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+      count = decode_pfcp_ie_header_t(buf + count, &value->header);
+
+      value->actvt_predef_rules_count = 0;
+      value->deact_predef_rules_count = 0;
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == PFCP_IE_PDR_ID) {
+            count += decode_pfcp_pdr_id_ie_t(buf + count, &value->pdr_id);
+      }  else if (ie_type == PFCP_IE_OUTER_HDR_REMOVAL) {
+            count += decode_pfcp_outer_hdr_removal_ie_t(buf + count, &value->outer_hdr_removal);
+      }  else if (ie_type == PFCP_IE_PRECEDENCE) {
+            count += decode_pfcp_precedence_ie_t(buf + count, &value->precedence);
+      }  else if (ie_type == IE_PDI) {
+            count += decode_pfcp_pdi_ie_t(buf + count, &value->pdi);
+      }  else if (ie_type == PFCP_IE_FAR_ID) {
+            count += decode_pfcp_far_id_ie_t(buf + count, &value->far_id);
+      }  else if (ie_type == PFCP_IE_URR_ID) {
+            count += decode_pfcp_urr_id_ie_t(buf + count, &value->urr_id);
+      }  else if (ie_type == PFCP_IE_QER_ID) {
+            count += decode_pfcp_qer_id_ie_t(buf + count, &value->qer_id);
+      }  else if (ie_type == PFCP_IE_ACTVT_PREDEF_RULES) {
+            count += decode_pfcp_actvt_predef_rules_ie_t(buf + count, &value->actvt_predef_rules[value->actvt_predef_rules_count++]);
+      }  else if (ie_type == PFCP_IE_DEACT_PREDEF_RULES) {
+            count += decode_pfcp_deact_predef_rules_ie_t(buf + count, &value->deact_predef_rules[value->deact_predef_rules_count++]);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_upd_frwdng_parms_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_upd_frwdng_parms_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_upd_frwdng_parms_ie_t(uint8_t *buf,
+      pfcp_upd_frwdng_parms_ie_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+      count = decode_pfcp_ie_header_t(buf + count, &value->header);
+
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == PFCP_IE_DST_INTFC) {
+            count += decode_pfcp_dst_intfc_ie_t(buf + count, &value->dst_intfc);
+      }  else if (ie_type == PFCP_IE_NTWK_INST) {
+            count += decode_pfcp_ntwk_inst_ie_t(buf + count, &value->ntwk_inst);
+      }  else if (ie_type == PFCP_IE_REDIR_INFO) {
+            count += decode_pfcp_redir_info_ie_t(buf + count, &value->redir_info);
+      }  else if (ie_type == PFCP_IE_OUTER_HDR_CREATION) {
+            count += decode_pfcp_outer_hdr_creation_ie_t(buf + count, &value->outer_hdr_creation);
+      }  else if (ie_type == PFCP_IE_TRNSPT_LVL_MARKING) {
+            count += decode_pfcp_trnspt_lvl_marking_ie_t(buf + count, &value->trnspt_lvl_marking);
+      }  else if (ie_type == PFCP_IE_FRWDNG_PLCY) {
+            count += decode_pfcp_frwdng_plcy_ie_t(buf + count, &value->frwdng_plcy);
+      }  else if (ie_type == PFCP_IE_HDR_ENRCHMT) {
+            count += decode_pfcp_hdr_enrchmt_ie_t(buf + count, &value->hdr_enrchmt);
+      }  else if (ie_type == PFCP_IE_PFCPSMREQ_FLAGS) {
+            count += decode_pfcp_pfcpsmreq_flags_ie_t(buf + count, &value->pfcpsmreq_flags);
+      }  else if (ie_type == PFCP_IE_TRAFFIC_ENDPT_ID) {
+            count += decode_pfcp_traffic_endpt_id_ie_t(buf + count, &value->lnkd_traffic_endpt_id);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_node_rpt_rsp_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_node_rpt_rsp_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_node_rpt_rsp_t(uint8_t *buf,
+      pfcp_node_rpt_rsp_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+      count = decode_pfcp_header_t(buf + count, &value->header);
+
+      if (value->header.s)
+          buf_len = value->header.message_len - 12;
+      else
+          buf_len = value->header.message_len - 4;
+
+      buf = buf + count;
+      count = 0;
+
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == PFCP_IE_NODE_ID) {
+            count += decode_pfcp_node_id_ie_t(buf + count, &value->node_id);
+      }  else if (ie_type == PFCP_IE_CAUSE) {
+            count += decode_pfcp_cause_ie_t(buf + count, &value->cause);
+      }  else if (ie_type == PFCP_IE_OFFENDING_IE) {
+            count += decode_pfcp_offending_ie_ie_t(buf + count, &value->offending_ie);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_ovrld_ctl_info_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_ovrld_ctl_info_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_ovrld_ctl_info_ie_t(uint8_t *buf,
+      pfcp_ovrld_ctl_info_ie_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+      count = decode_pfcp_ie_header_t(buf + count, &value->header);
+
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == PFCP_IE_SEQUENCE_NUMBER) {
+            count += decode_pfcp_sequence_number_ie_t(buf + count, &value->ovrld_ctl_seqn_nbr);
+      }  else if (ie_type == PFCP_IE_METRIC) {
+            count += decode_pfcp_metric_ie_t(buf + count, &value->ovrld_reduction_metric);
+      }  else if (ie_type == PFCP_IE_TIMER) {
+            count += decode_pfcp_timer_ie_t(buf + count, &value->period_of_validity);
+      }  else if (ie_type == PFCP_IE_OCI_FLAGS) {
+            count += decode_pfcp_oci_flags_ie_t(buf + count, &value->ovrld_ctl_info_flgs);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_hrtbeat_rsp_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_hrtbeat_rsp_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_hrtbeat_rsp_t(uint8_t *buf,
+      pfcp_hrtbeat_rsp_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+      count = decode_pfcp_header_t(buf + count, &value->header);
+
+      if (value->header.s)
+          buf_len = value->header.message_len - 12;
+      else
+          buf_len = value->header.message_len - 4;
+
+      buf = buf + count;
+      count = 0;
+
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == PFCP_IE_RCVRY_TIME_STMP) {
+            count += decode_pfcp_rcvry_time_stmp_ie_t(buf + count, &value->rcvry_time_stmp);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_node_rpt_req_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_node_rpt_req_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_node_rpt_req_t(uint8_t *buf,
+      pfcp_node_rpt_req_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+      count = decode_pfcp_header_t(buf + count, &value->header);
+
+      if (value->header.s)
+          buf_len = value->header.message_len - 12;
+      else
+          buf_len = value->header.message_len - 4;
+
+      buf = buf + count;
+      count = 0;
+
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == PFCP_IE_NODE_ID) {
+            count += decode_pfcp_node_id_ie_t(buf + count, &value->node_id);
+      }  else if (ie_type == PFCP_IE_NODE_RPT_TYPE) {
+            count += decode_pfcp_node_rpt_type_ie_t(buf + count, &value->node_rpt_type);
+      }  else if (ie_type == IE_USER_PLANE_PATH_FAIL_RPT) {
+            count += decode_pfcp_user_plane_path_fail_rpt_ie_t(buf + count, &value->user_plane_path_fail_rpt);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_app_det_info_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_app_det_info_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_app_det_info_ie_t(uint8_t *buf,
+      pfcp_app_det_info_ie_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+      count = decode_pfcp_ie_header_t(buf + count, &value->header);
+
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == PFCP_IE_APPLICATION_ID) {
+            count += decode_pfcp_application_id_ie_t(buf + count, &value->application_id);
+      }  else if (ie_type == PFCP_IE_APP_INST_ID) {
+            count += decode_pfcp_app_inst_id_ie_t(buf + count, &value->app_inst_id);
+      }  else if (ie_type == PFCP_IE_FLOW_INFO) {
+            count += decode_pfcp_flow_info_ie_t(buf + count, &value->flow_info);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_pdi_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_pdi_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_pdi_ie_t(uint8_t *buf,
+		pfcp_pdi_ie_t *value)
+{
+	uint16_t count = 0;
+	uint16_t buf_len = 0;
+
+//	buf_len = sizeof(*value) - 4;
+
+
+	count = decode_pfcp_ie_header_t(buf + count, &value->header);
+
+	count = count/CHAR_SIZE;
+
+	buf_len = value->header.len;
+
+	value->sdf_filter_count = 0;
+	value->eth_pckt_fltr_count = 0;
+	value->qfi_count = 0;
+	value->framed_route_count = 0;
+	value->frmd_ipv6_rte_count = 0;
+
+	while (count < buf_len) {
+
+		pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+		uint16_t ie_type = ntohs(ie_header->type);
+
+		if (ie_type == PFCP_IE_SRC_INTFC) {
+			count += decode_pfcp_src_intfc_ie_t(buf + count, &value->src_intfc);
+		}  else if (ie_type == PFCP_IE_FTEID) {
+			count += decode_pfcp_fteid_ie_t(buf + count, &value->local_fteid);
+		}  else if (ie_type == PFCP_IE_NTWK_INST) {
+			count += decode_pfcp_ntwk_inst_ie_t(buf + count, &value->ntwk_inst);
+		}  else if (ie_type == PFCP_IE_UE_IP_ADDRESS) {
+			count += decode_pfcp_ue_ip_address_ie_t(buf + count, &value->ue_ip_address);
+		}  else if (ie_type == PFCP_IE_TRAFFIC_ENDPT_ID) {
+			count += decode_pfcp_traffic_endpt_id_ie_t(buf + count, &value->traffic_endpt_id);
+		}  else if (ie_type == PFCP_IE_APPLICATION_ID) {
+			count += decode_pfcp_application_id_ie_t(buf + count, &value->application_id);
+		}  else if (ie_type == PFCP_IE_ETH_PDU_SESS_INFO) {
+			count += decode_pfcp_eth_pdu_sess_info_ie_t(buf + count, &value->eth_pdu_sess_info);
+		}  else if (ie_type == PFCP_IE_FRAMED_ROUTING) {
+			count += decode_pfcp_framed_routing_ie_t(buf + count, &value->framed_routing);
+		}  else if (ie_type == PFCP_IE_SDF_FILTER) {
+			count += decode_pfcp_sdf_filter_ie_t(buf + count, &value->sdf_filter[value->sdf_filter_count++]);
+		}  else if (ie_type == IE_ETH_PCKT_FLTR) {
+			count += decode_pfcp_eth_pckt_fltr_ie_t(buf + count, &value->eth_pckt_fltr[value->eth_pckt_fltr_count++]);
+		}  else if (ie_type == PFCP_IE_QFI) {
+			count += decode_pfcp_qfi_ie_t(buf + count, &value->qfi[value->qfi_count++]);
+		}  else if (ie_type == PFCP_IE_FRAMED_ROUTE) {
+			count += decode_pfcp_framed_route_ie_t(buf + count, &value->framed_route[value->framed_route_count++]);
+		}  else if (ie_type == PFCP_IE_FRMD_IPV6_RTE) {
+			count += decode_pfcp_frmd_ipv6_rte_ie_t(buf + count, &value->frmd_ipv6_rte[value->frmd_ipv6_rte_count++]);
+		}  else {
 			count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
 		}
 	}
 	return count;
 }
-
-
-
 /**
- * Decodes pfcp session deletion request to buffer.
- * @param psd_req
- *     pfcp session deletion request
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of decoded bytes.
- */
-
-int decode_pfcp_session_deletion_request(uint8_t *msg,
-		pfcp_session_deletion_request_t *psd_req)
+* Decodes pfcp_create_bar_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_create_bar_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_create_bar_ie_t(uint8_t *buf,
+		pfcp_create_bar_ie_t *value)
 {
 	uint16_t count = 0;
-	//uint16_t msg_len = 0;
+	uint16_t buf_len = 0;
 
-	count = decode_pfcp_header_t(msg + count, &psd_req->header);
-/*
-	if (psd_req->header.s)
-		msg_len = psd_req->header.message_len - 12;
+/* TODO: Revisit this for change in yang */
+	count = decode_pfcp_ie_header_t(buf + count, &value->header);
+	count  = count/CHAR_SIZE;
+
+	buf_len = value->header.len;
+
+	while (count < buf_len) {
+
+		pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+		uint16_t ie_type = ntohs(ie_header->type);
+
+		if (ie_type == PFCP_IE_BAR_ID) {
+			count += decode_pfcp_bar_id_ie_t(buf + count, &value->bar_id);
+		}  else if (ie_type == PFCP_IE_DNLNK_DATA_NOTIF_DELAY) {
+			count += decode_pfcp_dnlnk_data_notif_delay_ie_t(buf + count, &value->dnlnk_data_notif_delay);
+			/* TODO: Revisit this for change in yang */
+		}  else if (ie_type == PFCP_IE_DL_BUF_SUGGSTD_PCKT_CNT /*PFCP_IE_SUGGSTD_BUF_PCKTS_CNT*/) {
+			count += decode_pfcp_suggstd_buf_pckts_cnt_ie_t(buf + count, &value->suggstd_buf_pckts_cnt);
+		}  else {
+			count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+		}
+	}
+	return count;
+}
+/**
+* Decodes pfcp_sess_del_req_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_sess_del_req_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_sess_del_req_t(uint8_t *buf,
+      pfcp_sess_del_req_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+      count = decode_pfcp_header_t(buf + count, &value->header);
+
+      if (value->header.s)
+          buf_len = value->header.message_len - 12;
+      else
+          buf_len = value->header.message_len - 4;
+
+      buf = buf + count;
+      count = 0;
+
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_assn_upd_req_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_assn_upd_req_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_assn_upd_req_t(uint8_t *buf,
+      pfcp_assn_upd_req_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+      count = decode_pfcp_header_t(buf + count, &value->header);
+
+      if (value->header.s)
+          buf_len = value->header.message_len - 12;
+      else
+          buf_len = value->header.message_len - 4;
+
+      buf = buf + count;
+      count = 0;
+
+      value->user_plane_ip_rsrc_info_count = 0;
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == PFCP_IE_NODE_ID) {
+            count += decode_pfcp_node_id_ie_t(buf + count, &value->node_id);
+      }  else if (ie_type == PFCP_IE_UP_FUNC_FEAT) {
+            count += decode_pfcp_up_func_feat_ie_t(buf + count, &value->up_func_feat);
+      }  else if (ie_type == PFCP_IE_CP_FUNC_FEAT) {
+            count += decode_pfcp_cp_func_feat_ie_t(buf + count, &value->cp_func_feat);
+      }  else if (ie_type == PFCP_IE_UP_ASSN_REL_REQ) {
+            count += decode_pfcp_up_assn_rel_req_ie_t(buf + count, &value->up_assn_rel_req);
+      }  else if (ie_type == PFCP_IE_GRACEFUL_REL_PERIOD) {
+            count += decode_pfcp_graceful_rel_period_ie_t(buf + count, &value->graceful_rel_period);
+      }  else if (ie_type == PFCP_IE_USER_PLANE_IP_RSRC_INFO) {
+            count += decode_pfcp_user_plane_ip_rsrc_info_ie_t(buf + count, &value->user_plane_ip_rsrc_info[value->user_plane_ip_rsrc_info_count++]);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_sess_estab_req_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_sess_estab_req_t
+* @return
+v*   number of decoded bytes.
+*/
+int decode_pfcp_sess_estab_req_t(uint8_t *buf,
+		pfcp_sess_estab_req_t *value)
+{
+	uint16_t count = 0;
+	uint16_t buf_len = 0;
+
+	count = decode_pfcp_header_t(buf + count, &value->header);
+
+	if (value->header.s)
+		buf_len = value->header.message_len - 12;
 	else
-		msg_len = psd_req->header.message_len - 4;
+		buf_len = value->header.message_len - 4;
 
-	msg = msg + count;
+	buf = buf + count;
 	count = 0;
 
-	while (count < msg_len) {
+	value->create_pdr_count = 0;
+	value->create_far_count = 0;
+	value->create_urr_count = 0;
+	value->create_qer_count = 0;
+	value->create_traffic_endpt_count = 0;
 
-		pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (msg + count);
-		count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+	while (count < buf_len) {
+
+		pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+		uint16_t ie_type = ntohs(ie_header->type);
+
+		if (ie_type == PFCP_IE_NODE_ID) {
+			count += decode_pfcp_node_id_ie_t(buf + count, &value->node_id);
+		}  else if (ie_type == PFCP_IE_FSEID) {
+			count += decode_pfcp_fseid_ie_t(buf + count, &value->cp_fseid);
+		}  else if (ie_type == IE_CREATE_BAR) {
+			count += decode_pfcp_create_bar_ie_t(buf + count, &value->create_bar);
+		}  else if (ie_type == PFCP_IE_PDN_TYPE) {
+			count += decode_pfcp_pdn_type_ie_t(buf + count, &value->pdn_type);
+		}  else if (ie_type == PFCP_IE_FQCSID) {
+			count += decode_pfcp_fqcsid_ie_t(buf + count, &value->sgw_c_fqcsid);
+		}  else if (ie_type == PFCP_IE_FQCSID) {
+			count += decode_pfcp_fqcsid_ie_t(buf + count, &value->mme_fqcsid);
+		}  else if (ie_type == PFCP_IE_FQCSID) {
+			count += decode_pfcp_fqcsid_ie_t(buf + count, &value->pgw_c_fqcsid);
+		}  else if (ie_type == PFCP_IE_FQCSID) {
+			count += decode_pfcp_fqcsid_ie_t(buf + count, &value->epdg_fqcsid);
+		}  else if (ie_type == PFCP_IE_FQCSID) {
+			count += decode_pfcp_fqcsid_ie_t(buf + count, &value->twan_fqcsid);
+		}  else if (ie_type == PFCP_IE_USER_PLANE_INACT_TIMER) {
+			count += decode_pfcp_user_plane_inact_timer_ie_t(buf + count, &value->user_plane_inact_timer);
+		}  else if (ie_type == PFCP_IE_USER_ID) {
+			count += decode_pfcp_user_id_ie_t(buf + count, &value->user_id);
+		}  else if (ie_type == PFCP_IE_TRC_INFO) {
+			count += decode_pfcp_trc_info_ie_t(buf + count, &value->trc_info);
+		}  else if (ie_type == IE_CREATE_PDR) {
+			count += decode_pfcp_create_pdr_ie_t(buf + count, &value->create_pdr[value->create_pdr_count++]);
+		}  else if (ie_type == IE_CREATE_FAR) {
+			count += decode_pfcp_create_far_ie_t(buf + count, &value->create_far[value->create_far_count++]);
+		}  else if (ie_type == IE_CREATE_URR) {
+			count += decode_pfcp_create_urr_ie_t(buf + count, &value->create_urr[value->create_urr_count++]);
+		}  else if (ie_type == IE_CREATE_QER) {
+			count += decode_pfcp_create_qer_ie_t(buf + count, &value->create_qer[value->create_qer_count++]);
+		}  else if (ie_type == IE_CREATE_TRAFFIC_ENDPT) {
+			count += decode_pfcp_create_traffic_endpt_ie_t(buf + count, &value->create_traffic_endpt[value->create_traffic_endpt_count++]);
+		}  else
+			count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
 	}
+	return count;
+}
+/**
+* Decodes pfcp_err_indctn_rpt_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_err_indctn_rpt_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_err_indctn_rpt_ie_t(uint8_t *buf,
+      pfcp_err_indctn_rpt_ie_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+      count = decode_pfcp_ie_header_t(buf + count, &value->header);
+
+      value->remote_fteid_count = 0;
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == PFCP_IE_FTEID) {
+            count += decode_pfcp_fteid_ie_t(buf + count, &value->remote_fteid[value->remote_fteid_count++]);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_eth_traffic_info_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_eth_traffic_info_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_eth_traffic_info_ie_t(uint8_t *buf,
+      pfcp_eth_traffic_info_ie_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+      count = decode_pfcp_ie_header_t(buf + count, &value->header);
+
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == PFCP_IE_MAC_ADDRS_DETCTD) {
+            count += decode_pfcp_mac_addrs_detctd_ie_t(buf + count, &value->mac_addrs_detctd);
+      }  else if (ie_type == PFCP_IE_MAC_ADDRS_RMVD) {
+            count += decode_pfcp_mac_addrs_rmvd_ie_t(buf + count, &value->mac_addrs_rmvd);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_app_ids_pfds_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_app_ids_pfds_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_app_ids_pfds_ie_t(uint8_t *buf,
+      pfcp_app_ids_pfds_ie_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+      count = decode_pfcp_ie_header_t(buf + count, &value->header);
+
+      value->pfd_context_count = 0;
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == PFCP_IE_APPLICATION_ID) {
+            count += decode_pfcp_application_id_ie_t(buf + count, &value->application_id);
+      }  else if (ie_type == IE_PFD_CONTEXT) {
+            count += decode_pfcp_pfd_context_ie_t(buf + count, &value->pfd_context[value->pfd_context_count++]);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_remove_qer_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_remove_qer_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_remove_qer_ie_t(uint8_t *buf,
+		pfcp_remove_qer_ie_t *value)
+{
+	uint16_t count = 0;
+	uint16_t buf_len = 0;
+
+/* TODO: Revisit this for change in yang */
+	count = decode_pfcp_ie_header_t(buf + count, &value->header);
+	count = count/CHAR_SIZE;
+
+	buf_len = value->header.len;
+
+	while (count < buf_len) {
+
+		pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+		uint16_t ie_type = ntohs(ie_header->type);
+
+		if (ie_type == PFCP_IE_QER_ID) {
+			count += decode_pfcp_qer_id_ie_t(buf + count, &value->qer_id);
+		}  else
+			count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+	}
+	return count;
+}
+/**
+* Decodes pfcp_create_qer_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_create_qer_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_create_qer_ie_t(uint8_t *buf,
+      pfcp_create_qer_ie_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+      count = decode_pfcp_ie_header_t(buf + count, &value->header);
+
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == PFCP_IE_QER_ID) {
+            count += decode_pfcp_qer_id_ie_t(buf + count, &value->qer_id);
+      }  else if (ie_type == PFCP_IE_QER_CORR_ID) {
+            count += decode_pfcp_qer_corr_id_ie_t(buf + count, &value->qer_corr_id);
+      }  else if (ie_type == PFCP_IE_GATE_STATUS) {
+            count += decode_pfcp_gate_status_ie_t(buf + count, &value->gate_status);
+      }  else if (ie_type == PFCP_IE_MBR) {
+            count += decode_pfcp_mbr_ie_t(buf + count, &value->maximum_bitrate);
+      }  else if (ie_type == PFCP_IE_GBR) {
+            count += decode_pfcp_gbr_ie_t(buf + count, &value->guaranteed_bitrate);
+      }  else if (ie_type == PFCP_IE_PACKET_RATE) {
+            count += decode_pfcp_packet_rate_ie_t(buf + count, &value->packet_rate);
+      }  else if (ie_type == PFCP_IE_DL_FLOW_LVL_MARKING) {
+            count += decode_pfcp_dl_flow_lvl_marking_ie_t(buf + count, &value->dl_flow_lvl_marking);
+      }  else if (ie_type == PFCP_IE_QFI) {
+            count += decode_pfcp_qfi_ie_t(buf + count, &value->qos_flow_ident);
+      }  else if (ie_type == PFCP_IE_RQI) {
+            count += decode_pfcp_rqi_ie_t(buf + count, &value->reflective_qos);
+      }  else if (ie_type == PFCP_IE_PAGING_PLCY_INDCTR) {
+            count += decode_pfcp_paging_plcy_indctr_ie_t(buf + count, &value->paging_plcy_indctr);
+      }  else if (ie_type == PFCP_IE_AVGNG_WND) {
+            count += decode_pfcp_avgng_wnd_ie_t(buf + count, &value->avgng_wnd);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_rmv_traffic_endpt_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_rmv_traffic_endpt_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_rmv_traffic_endpt_ie_t(uint8_t *buf,
+		pfcp_rmv_traffic_endpt_ie_t *value)
+{
+	uint16_t count = 0;
+	uint16_t buf_len = 0;
+
+	/* TODO: Revisit this for change in yang */
+
+	count = decode_pfcp_ie_header_t(buf + count, &value->header);
+	count = count/CHAR_SIZE;
+
+	buf_len = value->header.len;
+
+	while (count < buf_len) {
+
+		pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+		uint16_t ie_type = ntohs(ie_header->type);
+
+		if (ie_type == PFCP_IE_TRAFFIC_ENDPT_ID) {
+			count += decode_pfcp_traffic_endpt_id_ie_t(buf + count, &value->traffic_endpt_id);
+		}  else
+			count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+	}
+	return count;
+}
+/**
+* Decodes pfcp_update_urr_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_update_urr_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_update_urr_ie_t(uint8_t *buf,
+      pfcp_update_urr_ie_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+      count = decode_pfcp_ie_header_t(buf + count, &value->header);
+
+      value->linked_urr_id_count = 0;
+      value->aggregated_urrs_count = 0;
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == PFCP_IE_URR_ID) {
+            count += decode_pfcp_urr_id_ie_t(buf + count, &value->urr_id);
+      }  else if (ie_type == PFCP_IE_MEAS_MTHD) {
+            count += decode_pfcp_meas_mthd_ie_t(buf + count, &value->meas_mthd);
+      }  else if (ie_type == PFCP_IE_RPTNG_TRIGGERS) {
+            count += decode_pfcp_rptng_triggers_ie_t(buf + count, &value->rptng_triggers);
+      }  else if (ie_type == PFCP_IE_MEAS_PERIOD) {
+            count += decode_pfcp_meas_period_ie_t(buf + count, &value->meas_period);
+      }  else if (ie_type == PFCP_IE_VOL_THRESH) {
+            count += decode_pfcp_vol_thresh_ie_t(buf + count, &value->vol_thresh);
+      }  else if (ie_type == PFCP_IE_VOLUME_QUOTA) {
+            count += decode_pfcp_volume_quota_ie_t(buf + count, &value->volume_quota);
+      }  else if (ie_type == PFCP_IE_TIME_THRESHOLD) {
+            count += decode_pfcp_time_threshold_ie_t(buf + count, &value->time_threshold);
+      }  else if (ie_type == PFCP_IE_TIME_QUOTA) {
+            count += decode_pfcp_time_quota_ie_t(buf + count, &value->time_quota);
+      }  else if (ie_type == PFCP_IE_EVENT_THRESHOLD) {
+            count += decode_pfcp_event_threshold_ie_t(buf + count, &value->event_threshold);
+      }  else if (ie_type == PFCP_IE_EVENT_QUOTA) {
+            count += decode_pfcp_event_quota_ie_t(buf + count, &value->event_quota);
+      }  else if (ie_type == PFCP_IE_QUOTA_HLDNG_TIME) {
+            count += decode_pfcp_quota_hldng_time_ie_t(buf + count, &value->quota_hldng_time);
+      }  else if (ie_type == PFCP_IE_DRPD_DL_TRAFFIC_THRESH) {
+            count += decode_pfcp_drpd_dl_traffic_thresh_ie_t(buf + count, &value->drpd_dl_traffic_thresh);
+      }  else if (ie_type == PFCP_IE_MONITORING_TIME) {
+            count += decode_pfcp_monitoring_time_ie_t(buf + count, &value->monitoring_time);
+      }  else if (ie_type == PFCP_IE_SBSQNT_VOL_THRESH) {
+            count += decode_pfcp_sbsqnt_vol_thresh_ie_t(buf + count, &value->sbsqnt_vol_thresh);
+      }  else if (ie_type == PFCP_IE_SBSQNT_TIME_THRESH) {
+            count += decode_pfcp_sbsqnt_time_thresh_ie_t(buf + count, &value->sbsqnt_time_thresh);
+      }  else if (ie_type == PFCP_IE_SBSQNT_VOL_QUOTA) {
+            count += decode_pfcp_sbsqnt_vol_quota_ie_t(buf + count, &value->sbsqnt_vol_quota);
+      }  else if (ie_type == PFCP_IE_SBSQNT_TIME_QUOTA) {
+            count += decode_pfcp_sbsqnt_time_quota_ie_t(buf + count, &value->sbsqnt_time_quota);
+      }  else if (ie_type == PFCP_IE_SBSQNT_EVNT_THRESH) {
+            count += decode_pfcp_sbsqnt_evnt_thresh_ie_t(buf + count, &value->sbsqnt_evnt_thresh);
+      }  else if (ie_type == PFCP_IE_SBSQNT_EVNT_QUOTA) {
+            count += decode_pfcp_sbsqnt_evnt_quota_ie_t(buf + count, &value->sbsqnt_evnt_quota);
+      }  else if (ie_type == PFCP_IE_INACT_DET_TIME) {
+            count += decode_pfcp_inact_det_time_ie_t(buf + count, &value->inact_det_time);
+      }  else if (ie_type == PFCP_IE_MEAS_INFO) {
+            count += decode_pfcp_meas_info_ie_t(buf + count, &value->meas_info);
+      }  else if (ie_type == PFCP_IE_TIME_QUOTA_MECH) {
+            count += decode_pfcp_time_quota_mech_ie_t(buf + count, &value->time_quota_mech);
+      }  else if (ie_type == PFCP_IE_FAR_ID) {
+            count += decode_pfcp_far_id_ie_t(buf + count, &value->far_id_for_quota_act);
+      }  else if (ie_type == PFCP_IE_ETH_INACT_TIMER) {
+            count += decode_pfcp_eth_inact_timer_ie_t(buf + count, &value->eth_inact_timer);
+      }  else if (ie_type == IE_ADD_MNTRNG_TIME) {
+            count += decode_pfcp_add_mntrng_time_ie_t(buf + count, &value->add_mntrng_time);
+      }  else if (ie_type == PFCP_IE_LINKED_URR_ID) {
+            count += decode_pfcp_linked_urr_id_ie_t(buf + count, &value->linked_urr_id[value->linked_urr_id_count++]);
+      }  else if (ie_type == IE_AGGREGATED_URRS) {
+            count += decode_pfcp_aggregated_urrs_ie_t(buf + count, &value->aggregated_urrs[value->aggregated_urrs_count++]);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_update_far_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_update_far_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_update_far_ie_t(uint8_t *buf,
+      pfcp_update_far_ie_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+      count = decode_pfcp_ie_header_t(buf + count, &value->header);
+
+      value->upd_dupng_parms_count = 0;
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == PFCP_IE_FAR_ID) {
+            count += decode_pfcp_far_id_ie_t(buf + count, &value->far_id);
+      }  else if (ie_type == PFCP_IE_APPLY_ACTION) {
+            count += decode_pfcp_apply_action_ie_t(buf + count, &value->apply_action);
+      }  else if (ie_type == IE_UPD_FRWDNG_PARMS) {
+            count += decode_pfcp_upd_frwdng_parms_ie_t(buf + count, &value->upd_frwdng_parms);
+      }  else if (ie_type == PFCP_IE_BAR_ID) {
+            count += decode_pfcp_bar_id_ie_t(buf + count, &value->bar_id);
+      }  else if (ie_type == IE_UPD_DUPNG_PARMS) {
+            count += decode_pfcp_upd_dupng_parms_ie_t(buf + count, &value->upd_dupng_parms[value->upd_dupng_parms_count++]);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_user_plane_path_fail_rpt_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_user_plane_path_fail_rpt_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_user_plane_path_fail_rpt_ie_t(uint8_t *buf,
+      pfcp_user_plane_path_fail_rpt_ie_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+      count = decode_pfcp_ie_header_t(buf + count, &value->header);
+
+      value->rmt_gtpu_peer_count = 0;
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == PFCP_IE_RMT_GTPU_PEER) {
+            count += decode_pfcp_rmt_gtpu_peer_ie_t(buf + count, &value->rmt_gtpu_peer[value->rmt_gtpu_peer_count++]);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_remove_pdr_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_remove_pdr_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_remove_pdr_ie_t(uint8_t *buf,
+		pfcp_remove_pdr_ie_t *value)
+{
+	uint16_t count = 0;
+	uint16_t buf_len = 0;
+
+	/* TODO: Revisit this for change in yang */
+	count = decode_pfcp_ie_header_t(buf + count, &value->header);
+	count = count/CHAR_SIZE;
+
+	buf_len = value->header.len;
+
+	while (count < buf_len) {
+
+		pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+		uint16_t ie_type = ntohs(ie_header->type);
+
+		if (ie_type == PFCP_IE_PDR_ID) {
+			count += decode_pfcp_pdr_id_ie_t(buf + count, &value->pdr_id);
+		}  else
+			count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+	}
+	return count;
+}
+/**
+* Decodes pfcp_update_qer_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_update_qer_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_update_qer_ie_t(uint8_t *buf,
+	pfcp_update_qer_ie_t *value)
+{
+	uint16_t count = 0;
+	uint16_t buf_len = 0;
+/* TODO: Revisit this for change in yang */
+	count = decode_pfcp_ie_header_t(buf + count, &value->header);
+	count =  count/CHAR_SIZE;
+
+	buf_len = value->header.len;
+
+	while (count < buf_len) {
+
+		pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+		uint16_t ie_type = ntohs(ie_header->type);
+
+		if (ie_type == PFCP_IE_QER_ID) {
+			count += decode_pfcp_qer_id_ie_t(buf + count, &value->qer_id);
+		}  else if (ie_type == PFCP_IE_QER_CORR_ID) {
+			count += decode_pfcp_qer_corr_id_ie_t(buf + count, &value->qer_corr_id);
+		}  else if (ie_type == PFCP_IE_GATE_STATUS) {
+			count += decode_pfcp_gate_status_ie_t(buf + count, &value->gate_status);
+		}  else if (ie_type == PFCP_IE_MBR) {
+			count += decode_pfcp_mbr_ie_t(buf + count, &value->maximum_bitrate);
+		}  else if (ie_type == PFCP_IE_GBR) {
+			count += decode_pfcp_gbr_ie_t(buf + count, &value->guaranteed_bitrate);
+		}  else if (ie_type == PFCP_IE_PACKET_RATE) {
+			count += decode_pfcp_packet_rate_ie_t(buf + count, &value->packet_rate);
+		}  else if (ie_type == PFCP_IE_DL_FLOW_LVL_MARKING) {
+			count += decode_pfcp_dl_flow_lvl_marking_ie_t(buf + count, &value->dl_flow_lvl_marking);
+		}  else if (ie_type == PFCP_IE_QFI) {
+			count += decode_pfcp_qfi_ie_t(buf + count, &value->qos_flow_ident);
+		}  else if (ie_type == PFCP_IE_RQI) {
+			count += decode_pfcp_rqi_ie_t(buf + count, &value->reflective_qos);
+		}  else if (ie_type == PFCP_IE_PAGING_PLCY_INDCTR) {
+			count += decode_pfcp_paging_plcy_indctr_ie_t(buf + count, &value->paging_plcy_indctr);
+		}  else if (ie_type == PFCP_IE_AVGNG_WND) {
+			count += decode_pfcp_avgng_wnd_ie_t(buf + count, &value->avgng_wnd);
+		}  else
+			count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+	}
+	return count;
+}
+/**
+* Decodes pfcp_add_mntrng_time_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_add_mntrng_time_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_add_mntrng_time_ie_t(uint8_t *buf,
+      pfcp_add_mntrng_time_ie_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+      count = decode_pfcp_ie_header_t(buf + count, &value->header);
+
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == PFCP_IE_MONITORING_TIME) {
+            count += decode_pfcp_monitoring_time_ie_t(buf + count, &value->monitoring_time);
+      }  else if (ie_type == PFCP_IE_SBSQNT_VOL_THRESH) {
+            count += decode_pfcp_sbsqnt_vol_thresh_ie_t(buf + count, &value->sbsqnt_vol_thresh);
+      }  else if (ie_type == PFCP_IE_SBSQNT_TIME_THRESH) {
+            count += decode_pfcp_sbsqnt_time_thresh_ie_t(buf + count, &value->sbsqnt_time_thresh);
+      }  else if (ie_type == PFCP_IE_SBSQNT_VOL_QUOTA) {
+            count += decode_pfcp_sbsqnt_vol_quota_ie_t(buf + count, &value->sbsqnt_vol_quota);
+      }  else if (ie_type == PFCP_IE_SBSQNT_TIME_QUOTA) {
+            count += decode_pfcp_sbsqnt_time_quota_ie_t(buf + count, &value->sbsqnt_time_quota);
+      }  else if (ie_type == PFCP_IE_EVENT_THRESHOLD) {
+            count += decode_pfcp_event_threshold_ie_t(buf + count, &value->sbsqnt_evnt_thresh);
+      }  else if (ie_type == PFCP_IE_EVENT_QUOTA) {
+            count += decode_pfcp_event_quota_ie_t(buf + count, &value->sbsqnt_evnt_quota);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_sess_estab_rsp_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_sess_estab_rsp_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_sess_estab_rsp_t(uint8_t *buf,
+      pfcp_sess_estab_rsp_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+      count = decode_pfcp_header_t(buf + count, &value->header);
+
+      if (value->header.s)
+          buf_len = value->header.message_len - 12;
+      else
+          buf_len = value->header.message_len - 4;
+
+      buf = buf + count;
+      count = 0;
+
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == PFCP_IE_NODE_ID) {
+            count += decode_pfcp_node_id_ie_t(buf + count, &value->node_id);
+      }  else if (ie_type == PFCP_IE_CAUSE) {
+            count += decode_pfcp_cause_ie_t(buf + count, &value->cause);
+      }  else if (ie_type == PFCP_IE_OFFENDING_IE) {
+            count += decode_pfcp_offending_ie_ie_t(buf + count, &value->offending_ie);
+      }  else if (ie_type == PFCP_IE_FSEID) {
+            count += decode_pfcp_fseid_ie_t(buf + count, &value->up_fseid);
+      }  else if (ie_type == IE_CREATED_PDR) {
+            count += decode_pfcp_created_pdr_ie_t(buf + count, &value->created_pdr);
+      }  else if (ie_type == IE_LOAD_CTL_INFO) {
+            count += decode_pfcp_load_ctl_info_ie_t(buf + count, &value->load_ctl_info);
+      }  else if (ie_type == IE_OVRLD_CTL_INFO) {
+            count += decode_pfcp_ovrld_ctl_info_ie_t(buf + count, &value->ovrld_ctl_info);
+      }  else if (ie_type == PFCP_IE_FQCSID) {
+            count += decode_pfcp_fqcsid_ie_t(buf + count, &value->sgw_u_fqcsid);
+      }  else if (ie_type == PFCP_IE_FQCSID) {
+            count += decode_pfcp_fqcsid_ie_t(buf + count, &value->pgw_u_fqcsid);
+      }  else if (ie_type == PFCP_IE_FAILED_RULE_ID) {
+            count += decode_pfcp_failed_rule_id_ie_t(buf + count, &value->failed_rule_id);
+      }  else if (ie_type == IE_CREATED_TRAFFIC_ENDPT) {
+            count += decode_pfcp_created_traffic_endpt_ie_t(buf + count, &value->created_traffic_endpt);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_remove_bar_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_remove_bar_ie_t
+* @return
+*   number of decoded bytes.
 */
 
-	return count;
-}
-
-
-/**
- * Decodes pfcp session deletion response to buffer.
- * @param psd_res
- *     pfcp session deletion response
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of decoded bytes.
- */
-int decode_pfcp_session_deletion_response(uint8_t *msg,
-		pfcp_session_deletion_response_t *psd_res)
+int decode_pfcp_remove_bar_ie_t(uint8_t *buf,
+		pfcp_remove_bar_ie_t *value)
 {
 	uint16_t count = 0;
-	uint16_t msg_len;
+	uint16_t buf_len = 0;
 
-	count = decode_pfcp_header_t(msg + count, &psd_res->header);
+	/* TODO: Revisit this for change in yang */
+	count = decode_pfcp_ie_header_t(buf + count, &value->header);
+	count = count/CHAR_SIZE;
+	buf_len = value->header.len;
 
-	if (psd_res->header.s)
-		msg_len = psd_res->header.message_len - 12;
-	else
-		msg_len = psd_res->header.message_len - 4;
+	while (count < buf_len) {
 
-	msg = msg + count;
-	count = 0;
+		pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
 
-	while (count < msg_len) {
-
-		pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (msg + count);
 		uint16_t ie_type = ntohs(ie_header->type);
 
-		if (ie_type == IE_CAUSE_ID) {
-			count += decode_cause_id_ie_t(msg + count, &psd_res->cause);
-		} else if (ie_type == IE_OFFENDING_IE ) {
-			count += decode_offending_ie_t(msg + count, &psd_res->offending_ie);
-		} else if (ie_type == IE_LOAD_CONTROL_INFORMATION ) {
-			count += decode_load_control_information_ie_t(msg + count, &psd_res->load_control_information);
-		} else if (ie_type == IE_OVERLOAD_CONTROL_INFORMATION ) {
-			count += decode_overload_control_information_ie_t(msg + count, &psd_res->overload_control_information);
-		} else {
+		if (ie_type == PFCP_IE_BAR_ID) {
+			count += decode_pfcp_bar_id_ie_t(buf + count, &value->bar_id);
+		}  else
+			count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+	}
+	return count;
+}
+/**
+* Decodes pfcp_assn_rel_req_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_assn_rel_req_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_assn_rel_req_t(uint8_t *buf,
+      pfcp_assn_rel_req_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+      count = decode_pfcp_header_t(buf + count, &value->header);
+
+      if (value->header.s)
+          buf_len = value->header.message_len - 12;
+      else
+          buf_len = value->header.message_len - 4;
+
+      buf = buf + count;
+      count = 0;
+
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == PFCP_IE_NODE_ID) {
+            count += decode_pfcp_node_id_ie_t(buf + count, &value->node_id);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_create_pdr_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_create_pdr_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_create_pdr_ie_t(uint8_t *buf,
+		pfcp_create_pdr_ie_t *value)
+{
+	uint16_t count = 0;
+	uint16_t buf_len = 0;
+
+
+	/* TODO: Revisit this for change in yang */
+	count = decode_pfcp_ie_header_t(buf + count, &value->header);
+	count =  count/CHAR_SIZE;
+
+	buf_len = value->header.len;
+
+	value->urr_id_count = 0;
+	value->qer_id_count = 0;
+	value->actvt_predef_rules_count = 0;
+
+
+	while (count < buf_len) {
+
+		pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+		uint16_t ie_type = ntohs(ie_header->type);
+
+		if (ie_type == PFCP_IE_PDR_ID) {
+			count += decode_pfcp_pdr_id_ie_t(buf + count, &value->pdr_id);
+		}  else if (ie_type == PFCP_IE_PRECEDENCE) {
+			count += decode_pfcp_precedence_ie_t(buf + count, &value->precedence);
+		}  else if (ie_type == IE_PDI) {
+			count += decode_pfcp_pdi_ie_t(buf + count, &value->pdi);
+		}  else if (ie_type == PFCP_IE_OUTER_HDR_REMOVAL) {
+			count += decode_pfcp_outer_hdr_removal_ie_t(buf + count, &value->outer_hdr_removal);
+		}  else if (ie_type == PFCP_IE_FAR_ID) {
+			count += decode_pfcp_far_id_ie_t(buf + count, &value->far_id);
+		}  else if (ie_type == PFCP_IE_URR_ID) {
+			count += decode_pfcp_urr_id_ie_t(buf + count, &value->urr_id[value->urr_id_count++]);
+		}  else if (ie_type == PFCP_IE_QER_ID) {
+			count += decode_pfcp_qer_id_ie_t(buf + count, &value->qer_id[value->qer_id_count++]);
+		}  else if (ie_type == PFCP_IE_ACTVT_PREDEF_RULES) {
+			count += decode_pfcp_actvt_predef_rules_ie_t(buf + count, &value->actvt_predef_rules[value->actvt_predef_rules_count++]);
+		}  else{
 			count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
 		}
 	}
-
+	/* TODO: Revisit this for change in yang */
 	return count;
 }
-
-
 /**
- * Decodes pfcp session set deletion request to buffer.
- * @param pssd_req
- *     pfcp session set deletion request
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of decoded bytes.
- */
+* Decodes pfcp_aggregated_urrs_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_aggregated_urrs_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_aggregated_urrs_ie_t(uint8_t *buf,
+      pfcp_aggregated_urrs_ie_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
 
-int decode_pfcp_session_set_deletion_request(uint8_t *msg,
-		pfcp_session_set_deletion_request_t *pssd_req)
+      count = decode_pfcp_ie_header_t(buf + count, &value->header);
+
+
+      while (count < buf_len) {
+
+          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+
+          uint16_t ie_type = ntohs(ie_header->type);
+
+      if (ie_type == PFCP_IE_AGG_URR_ID) {
+            count += decode_pfcp_agg_urr_id_ie_t(buf + count, &value->agg_urr_id);
+      }  else if (ie_type == PFCP_IE_MULTIPLIER) {
+            count += decode_pfcp_multiplier_ie_t(buf + count, &value->multiplier);
+      }  else
+            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes pfcp_upd_bar_sess_mod_req_ie_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    pfcp_upd_bar_sess_mod_req_ie_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_upd_bar_sess_mod_req_ie_t(uint8_t *buf,
+		pfcp_upd_bar_sess_mod_req_ie_t *value)
 {
 	uint16_t count = 0;
-	uint16_t msg_len;
+	uint16_t buf_len = 0;
+/* TODO: Revisit this for change in yang */
+	count = decode_pfcp_ie_header_t(buf + count, &value->header);
+	count = count/CHAR_SIZE;
 
-	count = decode_pfcp_header_t(msg + count, &pssd_req->header);
+	buf_len =  value->header.len;
 
-	if (pssd_req->header.s)
-		msg_len = pssd_req->header.message_len - 12;
-	else
-		msg_len = pssd_req->header.message_len - 4;
+	while (count < buf_len) {
 
-	msg = msg + count;
-	count = 0;
-	while (count < msg_len) {
+		pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
 
-		pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (msg + count);
 		uint16_t ie_type = ntohs(ie_header->type);
 
-		if (ie_type== IE_NODE_ID) {
-			count += decode_node_id_ie_t(msg + count, &pssd_req->node_id);
-		} else if (ie_type == IE_PFCP_FQ_CSID) {
-			count += decode_fq_csid_ie_t(msg + count, &pssd_req->sgwc_fqcsid);
-		} else if (ie_type == IE_PFCP_FQ_CSID) {
-			count += decode_fq_csid_ie_t(msg + count, &pssd_req->pgwc_fqcsid);
-		} else if (ie_type == IE_PFCP_FQ_CSID) {
-			count += decode_fq_csid_ie_t(msg + count, &pssd_req->sgwu_fqcsid);
-		} else if (ie_type == IE_PFCP_FQ_CSID) {
-			count += decode_fq_csid_ie_t(msg + count, &pssd_req->pgwu_fqcsid);
-		} else if (ie_type == IE_PFCP_FQ_CSID ) {
-			count += decode_fq_csid_ie_t(msg + count, &pssd_req->twan_fqcsid);
-		} else if (ie_type == IE_PFCP_FQ_CSID ) {
-			count += decode_fq_csid_ie_t(msg + count, &pssd_req->epdg_fqcsid);
-		} else if (ie_type == IE_PFCP_FQ_CSID ) {
-			count += decode_fq_csid_ie_t(msg + count, &pssd_req->mme_fqcsid);
-		} else {
+		if (ie_type == PFCP_IE_BAR_ID) {
+			count += decode_pfcp_bar_id_ie_t(buf + count, &value->bar_id);
+		}  else if (ie_type == PFCP_IE_DNLNK_DATA_NOTIF_DELAY) {
+			count += decode_pfcp_dnlnk_data_notif_delay_ie_t(buf + count, &value->dnlnk_data_notif_delay);
+		}  else if (ie_type == PFCP_IE_SUGGSTD_BUF_PCKTS_CNT) {
+			count += decode_pfcp_suggstd_buf_pckts_cnt_ie_t(buf + count, &value->suggstd_buf_pckts_cnt);
+		}  else
 			count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
-		}
 	}
-
 	return count;
 }
-
-
-/**
- * Decodes pfcp session set deletion response to buffer.
- * @param pssd_res
- *     pfcp session set deletion response
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of decoded bytes.
- */
-int decode_pfcp_session_set_deletion_response(uint8_t *msg,
-		pfcp_session_set_deletion_response_t *pssd_res)
-{
-	uint16_t count = 0;
-	uint16_t msg_len;
-
-	count = decode_pfcp_header_t(msg + count, &pssd_res->header);
-
-	if (pssd_res->header.s)
-		msg_len = pssd_res->header.message_len - 12;
-	else
-		msg_len = pssd_res->header.message_len - 4;
-
-	msg = msg + count;
-	count = 0;
-
-
-	while (count < msg_len) {
-
-		pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (msg + count);
-		uint16_t ie_type = ntohs(ie_header->type);
-
-		if (ie_type== IE_NODE_ID) {
-			count += decode_node_id_ie_t(msg + count, &pssd_res->node_id);
-		} else if (ie_type == IE_CAUSE_ID) {
-			count += decode_cause_id_ie_t(msg + count, &pssd_res->cause);
-		} else if (ie_type == IE_OFFENDING_IE) {
-			count += decode_offending_ie_t(msg + count, &pssd_res->offending_ie);
-		} else {
-			count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
-		}
-	}
-
-	return count;
-}
-
-
-
-
-
-/**
- * Decodes pfcp association update request to buffer.
- * @param pau_req
- *     pfcp association update request
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of decoded bytes.
- */
-int decode_pfcp_association_update_request(uint8_t *msg,
-		pfcp_association_update_request_t *pau_req)
-{
-	uint16_t count = 0;
-	uint16_t msg_len;
-
-	count = decode_pfcp_header_t(msg + count, &pau_req->header);
-
-	if (pau_req->header.s)
-		msg_len = pau_req->header.message_len - 12;
-	else
-		msg_len = pau_req->header.message_len - 4;
-
-	msg = msg + count;
-	count = 0;
-
-	while (count < msg_len) {
-
-		pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (msg + count);
-		uint16_t ie_type = ntohs(ie_header->type);
-
-		if (ie_type== IE_NODE_ID) {
-			count += decode_node_id_ie_t(msg + count, &pau_req->node_id);
-		} else if (ie_type == IE_UP_FUNCTION_FEATURES ) {
-			count += decode_up_function_features_ie_t(msg + count, &pau_req->up_function_features);
-		} else if (ie_type == IE_CP_FUNCTION_FEATURES) {
-			count += decode_cp_function_features_ie_t(msg + count, &pau_req->cp_function_features);
-		} else if (ie_type == IE_PFCP_ASSOCIATION_RELEASE_REQUEST) {
-			count += decode_pfcp_association_release_request_ie_t(msg + count, &pau_req->pfcp_association_release_request);
-		} else if (ie_type == IE_GRACEFUL_RELEASE_PERIOD) {
-			count += decode_graceful_release_period_ie_t(msg + count, &pau_req->graceful_release_period);
-		} else {
-			count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
-		}
-	}
-
-	return count;
-}
-
-
-/**
- * Decodes pfcp association update response to buffer.
- * @param pau_res
- *     pfcp association update response
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of decoded bytes.
- */
-int decode_pfcp_association_update_response(uint8_t *msg,
-		pfcp_association_update_response_t *pau_res)
-{
-	uint16_t count = 0;
-	uint16_t msg_len;
-
-	count = decode_pfcp_header_t(msg + count, &pau_res->header);
-
-	if (pau_res->header.s)
-		msg_len = pau_res->header.message_len - 12;
-	else
-		msg_len = pau_res->header.message_len - 4;
-
-	msg = msg + count;
-	count = 0;
-
-	while (count < msg_len) {
-
-		pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (msg + count);
-		uint16_t ie_type = ntohs(ie_header->type);
-
-		if (ie_type== IE_NODE_ID) {
-			count += decode_node_id_ie_t(msg + count, &pau_res->node_id);
-		} else if (ie_type == IE_CAUSE_ID) {
-			count += decode_cause_id_ie_t(msg + count, &pau_res->cause);
-		} else if (ie_type == IE_UP_FUNCTION_FEATURES) {
-			count += decode_up_function_features_ie_t(msg + count, &pau_res->up_function_features);
-		} else if (ie_type == IE_CP_FUNCTION_FEATURES) {
-			count += decode_cp_function_features_ie_t(msg + count, &pau_res->cp_function_features);
-		} else {
-			count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
-		}
-	}
-
-	return count;
-}
-
-
-
-/**
- * Decodes pfcp association release request to buffer.
- * @param par_req
- *     pfcp association release request
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of decoded bytes.
- */
-
- 
- int decode_pfcp_association_release_request(uint8_t *msg,
-    pfcp_association_release_request_t *par_req)
-{
-    uint16_t count = 0;
-    uint16_t msg_len;
-
-    count = decode_pfcp_header_t(msg + count, &par_req->header);
-
-    if (par_req->header.s)
-        msg_len = par_req->header.message_len - 12;
-    else
-        msg_len = par_req->header.message_len - 4;
-
-    msg = msg + count;
-    count = 0;
-
-    while (count < msg_len) {
-
-        pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (msg + count);
-	uint16_t ie_type = ntohs(ie_header->type);
-
-        if (ie_type== IE_NODE_ID) {
-            count += decode_node_id_ie_t(msg + count, &par_req->node_id);
-        } else {
-            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
-        }
-    }
-
-    return count;
-}
-
-/**
- * Decodes pfcp association release response to buffer.
- * @param par_res
- *     pfcp association release response
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of decoded bytes.
- */
-
- int decode_pfcp_association_release_response(uint8_t *msg,
-    pfcp_association_release_response_t *par_res)
-{
-    uint16_t count = 0;
-    uint16_t msg_len;
-
-    count = decode_pfcp_header_t(msg + count, &par_res->header);
-
-    if (par_res->header.s)
-        msg_len = par_res->header.message_len - 12;
-    else
-        msg_len = par_res->header.message_len - 4;
-
-    msg = msg + count;
-    count = 0;
-
-    while (count < msg_len) {
-
-        pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (msg + count);
-	uint16_t ie_type = ntohs(ie_header->type);
-
-        if (ie_type== IE_NODE_ID) {
-            count += decode_node_id_ie_t(msg + count, &par_res->node_id);
-        } else if (ie_type == IE_CAUSE_ID) {
-            count += decode_cause_id_ie_t(msg + count, &par_res->cause);
-        } else {
-            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
-        }
-    }
-
-    return count;
-}
-
- 
-
-/**
- * Decodes pfcp node report request to buffer.
- * @param pnr_req
- *     pfcp node report request
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of decoded bytes.
- */
-
- int decode_pfcp_node_report_request(uint8_t *msg,
-    pfcp_node_report_request_t *pnr_req)
-{
-    uint16_t count = 0;
-    uint16_t msg_len;
-
-    count = decode_pfcp_header_t(msg + count, &pnr_req->header);
-
-    if (pnr_req->header.s)
-        msg_len = pnr_req->header.message_len - 12;
-    else
-        msg_len = pnr_req->header.message_len - 4;
-
-    msg = msg + count;
-    count = 0;
-
-    while (count < msg_len) {
-
-        pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (msg + count);
-	uint16_t ie_type = ntohs(ie_header->type);
-
-        if (ie_type== IE_NODE_ID) {
-            count += decode_node_id_ie_t(msg + count, &pnr_req->node_id);
-        } else if (ie_type == IE_NODE_REPORT_TYPE) {
-            count += decode_node_report_type_ie_t(msg + count, &pnr_req->node_report_type);
-        } else if (ie_type == IE_USER_PLANE_PATH_FAILURE_REPORT) {
-            count += decode_user_plane_path_failure_report_ie_t(msg + count, &pnr_req->user_plane_path_failure_report);
-        } else {
-            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
-        }
-    }
-
-    return count;
-}
-
-/**
- * Decodes pfcp node report response to buffer.
- * @param pnr_res
- *     pfcp node report response
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of decoded bytes.
- */
-
- int decode_pfcp_node_report_response(uint8_t *msg,
-    pfcp_node_report_response_t *pnr_res)
-{
-    uint16_t count = 0;
-    uint16_t msg_len;
-
-    count = decode_pfcp_header_t(msg + count, &pnr_res->header);
-
-    if (pnr_res->header.s)
-        msg_len = pnr_res->header.message_len - 8;
-    else
-        msg_len = pnr_res->header.message_len - 4;
-
-    msg = msg + count;
-    count = 0;
-
-    while (count < msg_len) {
-
-        pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (msg + count);
-	uint16_t ie_type = ntohs(ie_header->type);
-
-        if (ie_type== IE_NODE_ID) {
-            count += decode_node_id_ie_t(msg + count, &pnr_res->node_id);
-        } else if (ie_type == IE_CAUSE_ID) {
-            count += decode_cause_id_ie_t(msg + count, &pnr_res->cause);
-        } else if (ie_type == IE_OFFENDING_IE) {
-            count += decode_offending_ie_t(msg + count, &pnr_res->offending_ie);
-        } else {
-            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
-        }
-    }
-
-    return count;
-}
-
-
-
-
-/**
- * Decodes pfcp heartbeat request to buffer.
- * @param ph_req
- *     pfcp heartbeat request
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of decoded bytes.
- */
-
- int decode_pfcp_heartbeat_request(uint8_t *msg,
-    pfcp_heartbeat_request_t *ph_req)
-{
-    uint16_t count = 0;
-    uint16_t msg_len;
-
-    count = decode_pfcp_header_t(msg + count, &ph_req->header);
-
-    if (ph_req->header.s)
-        msg_len = ph_req->header.message_len - 12;
-    else
-        msg_len = ph_req->header.message_len - 4;
-
-    msg = msg + count;
-    count = 0;
-
-    while (count < msg_len) {
-
-        pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (msg + count);
-	uint16_t ie_type = ntohs(ie_header->type);
-
-        if (ie_type == IE_RECOVERY_TIME_STAMP) {
-            count += decode_recovery_time_stamp_ie_t(msg + count, &ph_req->recovery_time_stamp);
-        } else {
-            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
-        }
-    }
-
-    return count;
-}
-
-/**
- * Decodes pfcp heartbeat response to buffer.
- * @param ph_res
- *     pfcp heartbeat response
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of decoded bytes.
- */
-int decode_pfcp_heartbeat_response(uint8_t *msg,
-    pfcp_heartbeat_response_t *ph_res)
-{
-    uint16_t count = 0;
-    uint16_t msg_len;
-
-    count = decode_pfcp_header_t(msg + count, &ph_res->header);
-
-    if (ph_res->header.s)
-        msg_len = ph_res->header.message_len - 12;
-    else
-        msg_len = ph_res->header.message_len - 4;
-
-    msg = msg + count;
-    count = 0;
-
-    while (count < msg_len) {
-
-        pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (msg + count);
-	uint16_t ie_type = ntohs(ie_header->type);
-
-        if (ie_type== IE_RECOVERY_TIME_STAMP) {
-            count += decode_recovery_time_stamp_ie_t(msg + count, &ph_res->recovery_time_stamp);
-        } else {
-            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
-        }
-    }
-
-    return count;
-}
-
-/**
- * Decodes pfcp session report request to buffer.
- * @param psr_req
- *     pfcp session report request
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of decoded bytes.
- */
-int decode_pfcp_session_report_request(uint8_t *msg,
-    pfcp_session_report_request_t *psr_req)
-{
-    uint16_t count = 0;
-    uint16_t msg_len;
-
-    count = decode_pfcp_header_t(msg + count, &psr_req->header);
-
-    if (psr_req->header.s)
-        msg_len = psr_req->header.message_len - 12;
-    else
-        msg_len = psr_req->header.message_len - 4;
-
-    msg = msg + count;
-    count = 0;
-  while (count < msg_len) {
-
-        pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (msg + count);
-	uint16_t ie_type = ntohs(ie_header->type);
-
-        if (ie_type== IE_REPORT_TYPE) {
-            count += decode_report_type_ie_t(msg + count, &psr_req->report_type);
-        } else if (ie_type == IE_DOWNLINK_DATA_REPORT) {
-            count += decode_downlink_data_report_ie_t(msg + count, &psr_req->downlink_data_report);
-        } else if (ie_type == IE_SESSION_REPORT_USAGE_REPORT) {
-            count += decode_session_report_usage_report_ie_t(msg + count, &psr_req->usage_report);
-        } else if (ie_type == IE_ERROR_INDICATION_REPORT) {
-            count += decode_error_indication_report_ie_t(msg + count, &psr_req->error_indication_report);
-        } else if (ie_type == IE_LOAD_CONTROL_INFORMATION) {
-            count += decode_load_control_information_ie_t(msg + count, &psr_req->load_control_information);
-        } else if (ie_type == IE_OVERLOAD_CONTROL_INFORMATION) {
-            count += decode_overload_control_information_ie_t(msg + count, &psr_req->overload_control_information);
-        } else if (ie_type == IE_ADDITIONAL_USAGE_REPORTS_INFORMATION) {
-            count += decode_additional_usage_reports_information_ie_t(msg + count, &psr_req->additional_usage_reports_information);
-        } else {
-            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
-        }
-    }
-    return count;
-}
-
-/**
- * Decodes pfcp session report response to buffer.
- * @param psr_res
- *     pfcp session report response
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of decoded bytes.
- */
-
- int decode_pfcp_session_report_response(uint8_t *msg,
-    pfcp_session_report_response_t *psr_res)
-{
-    uint16_t count = 0;
-    uint16_t msg_len;
-
-    count = decode_pfcp_header_t(msg + count, &psr_res->header);
-
-    if (psr_res->header.s)
-        msg_len = psr_res->header.message_len - 12;
-    else
-        msg_len = psr_res->header.message_len - 4;
-
-    msg = msg + count;
-    count = 0;
-
-    while (count < msg_len) {
-
-        pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (msg + count);
-	uint16_t ie_type = ntohs(ie_header->type);
-
-        if (ie_type== IE_CAUSE_ID) {
-            count += decode_cause_id_ie_t(msg + count, &psr_res->cause);
-        } else if (ie_type == IE_OFFENDING_IE) {
-            count += decode_offending_ie_t(msg + count, &psr_res->offending_ie);
-        } else if (ie_type == IE_SESSION_REPORT_RESPONSE_UPDATE_BAR) {
-            count += decode_session_report_response_update_bar_ie_t(msg + count, &psr_res->update_bar);
-        } else if (ie_type == IE_PFCPSRRSP_FLAGS) {
-            count += decode_pfcpsrrsp_flags_ie_t(msg + count, &psr_res->sxsrrspflags);
-        } else {
-            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
-        }
-    }
-
-    return count;
-	
-}
-
-

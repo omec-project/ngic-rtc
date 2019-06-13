@@ -70,6 +70,7 @@ struct dl_pkt_struct {
 	uint64_t iWKRNG;
 	uint64_t iTXRNG;
 	uint64_t DLTX;
+	uint64_t ddn_req;
 	uint64_t ddn_pkts;
 };
 
@@ -92,15 +93,15 @@ print_headers(void)
 #else
 #if DEBUG_DDN
 	printf("%24s %29s %24s\n", "UPLINK", "||", "DOWNLINK");
-	printf("%9s %9s %9s %9s %9s %4s %9s %9s %9s %9s %9s %9s \n",
+	printf("%9s %9s %9s %9s %9s %4s %9s %9s %9s %9s %9s %9s  %9s\n",
 			"IfMisPKTS", "IfPKTS", "UL-RX", "UL-TX", "UL-DFF", "||",
-			"IfMisPKTS", "IfPKTS", "DL-RX", "DL-TX", "DL-DFF", "DDN");
+			"IfMisPKTS", "IfPKTS", "DL-RX", "DL-TX", "DL-DFF", "DDN", "DDN_BUF_PKTS");
 #else
 	printf("%24s %29s %24s\n", "UPLINK", "||", "DOWNLINK");
 	printf("%9s %9s %9s %9s %9s %4s %9s %9s %9s %9s %9s \n",
 			"IfMisPKTS", "IfPKTS", "UL-RX", "UL-TX", "UL-DFF", "||",
 			"IfMisPKTS", "IfPKTS", "DL-RX", "DL-TX", "DL-DFF");
-#endif /* DP_DDN */
+#endif /* DEBUG_DDN */
 #endif /* EXSTATS */
 #else
 	printf("%s\n", "##NGCORE_SHRINK(PIPELINE)");
@@ -123,18 +124,18 @@ display_stats(void)
 			(dl_param.DLRX - dl_param.DLTX));
 #else
 #if DEBUG_DDN
-	printf("%9lu %9lu %9lu %9lu %9lu %4s %9lu %9lu %9lu %9lu %9lu %9lu \n",
+	printf("%9lu %9lu %9lu %9lu %9lu %4s %9lu %9lu %9lu %9lu %9lu %9lu  %9lu\n",
 			ul_param.IfMisPKTS, ul_param.IfPKTS, ul_param.ULRX, ul_param.ULTX,
 			(ul_param.ULRX - ul_param.ULTX), "||",
 			dl_param.IfMisPKTS, dl_param.IfPKTS, dl_param.DLRX, dl_param.DLTX,
-			(dl_param.DLRX - dl_param.DLTX), dl_param.ddn_pkts);
+			(dl_param.DLRX - dl_param.DLTX), dl_param.ddn_req, dl_param.ddn_pkts);
 #else
 	printf("%9lu %9lu %9lu %9lu %9lu %4s %9lu %9lu %9lu %9lu %9lu \n",
 			ul_param.IfMisPKTS, ul_param.IfPKTS, ul_param.ULRX, ul_param.ULTX,
 			(ul_param.ULRX - ul_param.ULTX), "||",
 			dl_param.IfMisPKTS, dl_param.IfPKTS, dl_param.DLRX, dl_param.DLTX,
 			(dl_param.DLRX - dl_param.DLTX));
-#endif  /* DP_DDN */
+#endif  /* DEBUG_DDN */
 #endif /* EXSTATS */
 #else
 	printf("%9lu %9lu %9lu %9lu %9lu %9lu %9lu %4s %9lu %9lu %9lu %9lu %9lu %9lu %9lu\n",
@@ -165,9 +166,8 @@ pipeline_in_stats(void)
 #ifdef NGCORE_SHRINK
 	ul_param.ULRX = epc_app.ul_params[S1U_PORT_ID].pkts_in;
 	dl_param.DLRX = epc_app.dl_params[SGI_PORT_ID].pkts_in;
-#ifdef DP_DDN
-	dl_param.ddn_pkts = epc_app.dl_params[SGI_PORT_ID].ddn;
-#endif  /* DP_DDN */
+	dl_param.ddn_req = epc_app.dl_params[SGI_PORT_ID].ddn;
+	dl_param.ddn_pkts = epc_app.dl_params[SGI_PORT_ID].ddn_buf_pkts;
 #ifdef EXSTATS
 	ul_param.GTP_ECHO = epc_app.ul_params[S1U_PORT_ID].pkts_echo;
 #endif /* EXSTATS */

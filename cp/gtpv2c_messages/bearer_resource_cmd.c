@@ -398,11 +398,13 @@ set_create_bearer_request(gtpv2c_header *gtpv2c_tx, uint32_t sequence,
 			set_bearer_qos_ie(gtpv2c_tx, IE_INSTANCE_ZERO, bearer));
 		add_grouped_ie_length(bearer_context_group,
 			set_bearer_tft_ie(gtpv2c_tx, IE_INSTANCE_ZERO, bearer));
-		add_grouped_ie_length(bearer_context_group,
+
+		/* TODO Need to handle in PFCP */
+		/* add_grouped_ie_length(bearer_context_group,
 			set_ipv4_fteid_ie(gtpv2c_tx,
 				GTPV2C_IFTYPE_S1U_SGW_GTPU,
 				IE_INSTANCE_ZERO,
-				s1u_sgw_ip, bearer->s1u_sgw_gtpu_teid));
+				s1u_sgw_ip, bearer->s1u_sgw_gtpu_teid)); */
 	}
 }
 
@@ -463,7 +465,8 @@ create_dedicated_bearer(gtpv2c_header *gtpv2c_rx,
 
 	set_s1u_sgw_gtpu_teid(ded_bearer, brc->context);
 
-	ded_bearer->s1u_sgw_gtpu_ipv4 = s1u_sgw_ip;
+	/* TODO: Need to handle when providing dedicate beare feature */
+	/* ded_bearer->s1u_sgw_gtpu_ipv4 = s1u_sgw_ip; */
 	ded_bearer->pdn = brc->pdn;
 	memcpy(&ded_bearer->qos.qos, &fqos->qos, sizeof(qos_segment));
 	/* default values - to be considered later */

@@ -79,6 +79,7 @@ struct epc_app_params epc_app = {
 	.dl_params[SGI_PORT_ID].pkts_in = 0,
 	.dl_params[SGI_PORT_ID].pkts_out = 0,
 	.dl_params[SGI_PORT_ID].ddn = 0,
+	.dl_params[SGI_PORT_ID].ddn_buf_pkts = 0,
 #endif
 #else
 	.core_rx[S1U_PORT_ID] = -1,
@@ -128,12 +129,7 @@ static void epc_iface_core(__rte_unused void *args)
 	 * Poll message que. Populate hash table from que.
 	 */
 	while (1) {
-#ifdef ZMQ_COMM
-		iface_remove_que(COMM_ZMQ);
-#else
 		iface_process_ipc_msgs();
-#endif /* ZMQ_COMM */
-
 #ifdef NGCORE_SHRINK
 		scan_dns_ring();
 #endif

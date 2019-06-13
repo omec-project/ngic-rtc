@@ -16,6 +16,13 @@
 
 #include "cp.h"
 
+#ifdef C3PO_OSS
+#include "cp_adapter.h"
+#include "clogger.h"
+#include "cstats.h"
+#endif /* C3PO_OSS */
+
+
 /**
 * @brief  parse the SGWU/PGWU/SAEGWU IP from config file
 *
@@ -25,3 +32,7 @@ config_cp_ip_port(pfcp_config_t *pfcp_config);
 
 void parse_apn_args(char *temp,char *ptr[3]);
 
+#ifdef C3PO_OSS
+void
+init_cli_module(pfcp_config_t *pfcp_config);
+#endif /* C3PO_OSS */

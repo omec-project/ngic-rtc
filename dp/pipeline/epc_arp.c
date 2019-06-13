@@ -1145,7 +1145,7 @@ pkt_work_arp_key(
 #ifdef USE_REST
 			/*VS: TODO Add check for Restart counter */
 			/* If peer Restart counter value of peer node is less than privious value than start flusing session*/
-			printf("VS: GTP-U Echo Response Received\n");
+			RTE_LOG_DP(DEBUG, DP, "VS: GTP-U Echo Response Received\n");
 			process_echo_response(pkt);
 #endif /* USE_REST */
 		}

@@ -15,8 +15,17 @@
  */
 
 #include "ue.h"
+#include "cp_stats.h"
+#include "debug_str.h"
+#include "dp_ipc_api.h"
 #include "gtpv2c_set_ie.h"
 #include "../cp_dp_api/vepc_cp_dp_api.h"
+
+#ifdef CP_BUILD
+#define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
+#endif
+
+extern struct cp_stats_t cp_stats;
 
 /* TODO remove if not necessary later */
 /*struct downlink_data_notification_t {
@@ -37,6 +46,92 @@ struct downlink_data_notification_ack_t {
 	 * for the first time'
 	 */
 };
+
+/**
+ * @brief callback to handle downlink data notification messages from the
+ * data plane
+ * @param msg_payload
+ * message payload received by control plane from the data plane
+ * @return
+ * 0 inicates success, error otherwise
+ */
+int
+cb_ddn(struct msgbuf *msg_payload)
+{
+	int ret = ddn_by_session_id(msg_payload->msg_union.sess_entry.sess_id);
+
+	if (ret) {
+		fprintf(stderr, "Error on DDN Handling %s: (%d) %s\n",
+				gtp_type_str(ret), ret,
+				(ret < 0 ? strerror(-ret) : cause_str(ret)));
+	}
+	return ret;
+}
+
+/**
+ * @brief creates and sends downlink data notification according to session
+ * identifier
+ * @param session_id - session identifier pertaining to downlink data packets
+ * arrived at data plane
+ * @return
+ * 0 - indicates success, failure otherwise
+ */
+int
+ddn_by_session_id(uint64_t session_id)
+{
+	uint8_t tx_buf[MAX_GTPV2C_UDP_LEN] = { 0 };
+	gtpv2c_header *gtpv2c_tx = (gtpv2c_header *) tx_buf;
+	uint32_t sgw_s11_gtpc_teid = UE_SESS_ID(session_id);
+	ue_context *context = NULL;
+	static uint32_t ddn_sequence = 1;
+
+	RTE_LOG_DP(DEBUG, CP, "%s: sgw_s11_gtpc_teid:%u\n",
+			__func__, sgw_s11_gtpc_teid);
+
+	int ret = rte_hash_lookup_data(ue_context_by_fteid_hash,
+			(const void *) &sgw_s11_gtpc_teid,
+			(void **) &context);
+
+	if (ret < 0 || !context)
+		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+
+	ret = create_downlink_data_notification(context,
+			UE_BEAR_ID(session_id),
+			ddn_sequence,
+			gtpv2c_tx);
+
+	if (ret)
+		return ret;
+
+	struct sockaddr_in mme_s11_sockaddr_in = {
+		.sin_family = AF_INET,
+		.sin_port = htons(GTPC_UDP_PORT),
+		.sin_addr.s_addr = htonl(context->s11_mme_gtpc_ipv4.s_addr),
+		.sin_zero = {0},
+	};
+
+
+	uint16_t payload_length = ntohs(gtpv2c_tx->gtpc.length)
+			+ sizeof(gtpv2c_tx->gtpc);
+
+	if (pcap_dumper) {
+		dump_pcap(payload_length, tx_buf);
+	} else {
+		uint32_t bytes_tx = sendto(s11_fd, tx_buf, payload_length, 0,
+		    (struct sockaddr *) &mme_s11_sockaddr_in,
+		    sizeof(mme_s11_sockaddr_in));
+
+		if (bytes_tx != (int) payload_length) {
+			fprintf(stderr, "Transmitted Incomplete GTPv2c Message:"
+					"%u of %u tx bytes\n",
+					payload_length, bytes_tx);
+		}
+	}
+	ddn_sequence += 2;
+	++cp_stats.ddn;
+
+	return 0;
+}
 
 /**
  * parses gtpv2c message and populates downlink_data_notification_ack_t
@@ -152,10 +247,12 @@ process_ddn_ack(gtpv2c_header *gtpv2c_rx, uint8_t *delay)
 	else
 		*delay = 0;
 
+	/*
 	struct dp_id dp_id = { .id = DPN_ID };
 
 	if (send_ddn_ack(dp_id, downlink_data_notification_ack) < 0)
 		rte_exit(EXIT_FAILURE, "Downlink data notification ack fail !!!");
+	*/
 	return 0;
 
 }

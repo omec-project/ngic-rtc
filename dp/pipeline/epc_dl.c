@@ -142,7 +142,7 @@ static inline void epc_dl_set_port_id(struct rte_mbuf *m)
 					((ipv4_hdr->version_ihl & 0xf) << 2)];
 				if (likely(udph->dst_port == UDP_PORT_GTPU_NW_ORDER)) {
 					struct gtpu_hdr *gtpuhdr = get_mtogtpu(m);
-					if (gtpuhdr->msgtype == GTPU_ECHO_REQUEST || 
+					if (gtpuhdr->msgtype == GTPU_ECHO_REQUEST ||
 						gtpuhdr->msgtype == GTPU_ECHO_RESPONSE)
 							return;
 				}
@@ -445,7 +445,6 @@ void epc_dl(void *args)
 		}
 	}
 
-#ifdef DP_DDN
 	uint32_t count = rte_ring_count(notify_ring);
 	if (count) {
 		struct rte_mbuf *pkts[count];
@@ -455,8 +454,6 @@ void epc_dl(void *args)
 		if (ret < 0)
 			printf("ERROR: notification handler failed..\n");
 	}
-
-#endif /* DP_DDN */
 
 }
 

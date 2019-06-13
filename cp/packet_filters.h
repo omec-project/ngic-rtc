@@ -25,9 +25,6 @@
  * to the Data Plane.
  */
 
-#include <stdint.h>
-#include <netinet/in.h>
-
 #include "ue.h"
 
 #define FIRST_FILTER_ID 1

@@ -64,6 +64,7 @@ SRCS-y := main.c\
 	$(SRCDIR)/../interface/ipc/dp_ipc_api.o\
 	$(SRCDIR)/../interface/udp/vepc_udp.o\
 	$(SRCDIR)/../pfcp_messages/pfcp_association.o\
+	$(SRCDIR)/../pfcp_messages/pfcp_req_resp.o\
 	$(SRCDIR)/../pfcp_messages/pfcp_session.o\
 	$(SRCDIR)/../pfcp_messages/pfcp_set_ie.o\
 	$(SRCDIR)/../pfcp_messages/pfcp_util.o\
@@ -80,9 +81,9 @@ CFLAGS += -I$(SRCDIR)/../test/simu_cp/nsb
 CFLAGS += -I$(SRCDIR)/pipeline
 CFLAGS += -I$(SRCDIR)/../cp
 CFLAGS += -I$(SRCDIR)/../lib/libsponsdn
-CFLAGS += -I$(SRCDIR)/../dpdk/lib/librte_acl/
 CFLAGS += -I$(LIBPFCP_ROOT)/include
 CFLAGS += -I$(SRCDIR)/../pfcp_messages
+CFLAGS += -I$(RTE_SDK)/lib/librte_acl/
 
 # Mandatory CFLAGS, LDFLAGS- DO NOT MODIFY
 # #############################################################
@@ -121,6 +122,8 @@ LDFLAGS += -lrte_pmd_af_packet
 
 LDFLAGS += -lpcap
 
+LDFLAGS += -L$(LIBPFCP_ROOT)/lib -lpfcp
+
 # ngic-dp application options CFLAGS
 # #############################################################
 # ASR- Shrink pipeline COREs for Run to Completion (rtc) model
@@ -136,13 +139,6 @@ else
 		ddn_utils.c
 endif
 
-#validate both SDN_ODL_BUILD and ZMQ_COMM flag are not defined
-ifneq (,$(findstring SDN_ODL_BUILD, $(CFLAGS)))
-ifneq (,$(findstring ZMQ_COMM, $(CFLAGS)))
-$(error "Both "SDN_ODL_BUILD" and "ZMQ_COMM" flags are defined. Exiting..")
-endif
-endif
-
 ifneq (,$(findstring SDN_ODL_BUILD, $(CFLAGS)))
 	SRCS-y += $(SRCDIR)/../interface/zmq/zmqsub.o
 	SRCS-y += $(SRCDIR)/../interface/zmq/zmqpub.o
@@ -155,17 +151,6 @@ ifeq ($(SGX_BUILD), 1)
 	CFLAGS += -I$(NG_CORE)/linux-sgx/common/inc
 	LDFLAGS += -lssl
 endif
-
-ifneq (,$(findstring ZMQ_COMM, $(CFLAGS)))
-	SRCS-y += $(SRCDIR)/../interface/zmq/zmq_push_pull.o
-	LDFLAGS += -L/usr/local/lib -lzmq
-endif
-
-#ifneq (,$(findstring PFCP_COMM, $(CFLAGS)))
-#	LDFLAGS += -L$(LIBPFCP_ROOT)/lib -lpfcp
-#endif
-
-LDFLAGS += -L$(LIBPFCP_ROOT)/lib -lpfcp
 
 # ngic-dp debug/testing/profiling options CFLAGS
 # #############################################################
@@ -225,9 +210,6 @@ CFLAGS += -DSTATS
 
 # ngic-dp inter-op/functional options CFLAGS
 # #############################################################
-# Un-comment below line to enable DDN(Downlink data notification)
-#CFLAGS += -DDP_DDN
-
 # Un-comment below line to enable DDN(Downlink data notification) statstics
 #CFLAGS += -DDEBUG_DDN
 
@@ -261,7 +243,6 @@ endif
 
 # ngic-dp  CFLAGS to be deprecated
 # #############################################################
-# Un-comment below line to enable DDN(Downlink data notification)
 # Un-comment below line to get packet stats from command line.
 #CFLAGS += -DCMDLINE_STATS
 

@@ -20,8 +20,6 @@
 #include "../cp_dp_api/vepc_cp_dp_api.h"
 #include "../pfcp_messages/pfcp_set_ie.h"
 
-extern pfcp_context_t pfcp_ctxt;
-
 struct parse_modify_bearer_request_t {
 	ue_context *context;
 	pdn_connection *pdn;
@@ -34,7 +32,6 @@ struct parse_modify_bearer_request_t {
 };
 extern uint32_t num_adc_rules;
 extern uint32_t adc_rule_id[];
-extern struct response_info resp_t;
 
 /**
  * from parameters, populates gtpv2c message 'modify bearer response' and
@@ -53,6 +50,14 @@ void
 set_modify_bearer_response(gtpv2c_header *gtpv2c_tx,
 		uint32_t sequence, ue_context *context, eps_bearer *bearer)
 {
+	int ret = 0;
+	upf_context_t *upf_ctx = NULL;
+
+	if ((ret = upf_context_entry_lookup(context->upf_ipv4.s_addr,
+			&upf_ctx)) < 0) {
+		return;
+	}
+
 	modify_bearer_response_t mb_resp = {0};
 
 	set_gtpv2c_teid_header((gtpv2c_header *) &mb_resp, GTP_MODIFY_BEARER_RSP,
@@ -72,11 +77,8 @@ set_modify_bearer_response(gtpv2c_header *gtpv2c_tx,
 	mb_resp.bearer_context.header.len += sizeof(uint8_t) + IE_HEADER_SIZE;
 
 	struct in_addr ip;
-#ifdef PFCP_COMM
-	ip.s_addr = pfcp_ctxt.s1u_ip[0];
-#else
-	ip.s_addr = htonl(s1u_sgw_ip.s_addr);
-#endif
+	ip.s_addr = upf_ctx->s1u_ip;
+
 	set_ipv4_fteid(&mb_resp.bearer_context.s1u_sgw_ftied,
 			GTPV2C_IFTYPE_S1U_SGW_GTPU, IE_INSTANCE_ZERO, ip,
 			htonl(bearer->s1u_sgw_gtpu_teid));
@@ -148,19 +150,8 @@ process_modify_bearer_request(gtpv2c_header *gtpv2c_rx,
 
 	bearer->eps_bearer_id = mb_req.bearer_context.ebi.eps_bearer_id;
 
-#ifndef ZMQ_COMM
 	set_modify_bearer_response(gtpv2c_tx, mb_req.header.teid.has_teid.seq,
 	    context, bearer);
-#else
-	/*Set modify bearer response*/
-	resp_t.gtpv2c_tx_t=*gtpv2c_tx;
-	resp_t.context_t=*(context);
-	resp_t.bearer_t=*(bearer);
-	resp_t.gtpv2c_tx_t.teid_u.has_teid.seq = mb_req.header.teid.has_teid.seq;
-	resp_t.msg_type = GTP_MODIFY_BEARER_REQ;
-	/*TODO: Revisit this for to handle type received from message*/
-	/*resp_t.msg_type = mb_req.header.gtpc.type;*/
-#endif
 
 	/* using the s1u_sgw_gtpu_teid as unique identifier to the session */
 	struct session_info session;

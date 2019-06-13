@@ -23,20 +23,27 @@
 #include "gtpv2c_set_ie.h"
 #include "../cp_dp_api/vepc_cp_dp_api.h"
 #include "../pfcp_messages/pfcp_set_ie.h"
-extern pfcp_config_t pfcp_config;
-extern pfcp_context_t pfcp_ctxt;
+
 #define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
 
+extern pfcp_config_t pfcp_config;
 
 extern uint32_t num_adc_rules;
 extern uint32_t adc_rule_id[];
-struct response_info resp_t;
 
 void
 set_create_session_response(gtpv2c_header *gtpv2c_tx,
 		uint32_t sequence, ue_context *context, pdn_connection *pdn,
 		eps_bearer *bearer)
 {
+	int ret = 0;
+	upf_context_t *upf_ctx = NULL;
+
+	if ((ret = upf_context_entry_lookup(context->upf_ipv4.s_addr,
+			&upf_ctx)) < 0) {
+		RTE_LOG_DP(ERR, CP, "%s : Error: %d \n", __func__, ret);
+		return;
+	}
 
 	create_session_response_t cs_resp = {0};
 
@@ -47,11 +54,7 @@ set_create_session_response(gtpv2c_header *gtpv2c_tx,
 	set_cause_accepted(&cs_resp.cause, IE_INSTANCE_ZERO);
 
 	struct in_addr ip;
-	#ifdef PFCP_COMM
-		ip.s_addr = ntohl(pfcp_config.sgwc_s11_ip[0].s_addr);
-	#else
-		ip.s_addr = ntohl(s11_sgw_ip.s_addr);
-	#endif
+	ip.s_addr = ntohl(pfcp_config.s11_ip.s_addr);
 
 	set_ipv4_fteid(&cs_resp.s11_ftied, GTPV2C_IFTYPE_S11S4_SGW_GTPC,
 			IE_INSTANCE_ZERO,
@@ -104,11 +107,8 @@ set_create_session_response(gtpv2c_header *gtpv2c_tx,
 			*/
 
 		} else {
-#ifdef PFCP_COMM
-			ip.s_addr = pfcp_ctxt.s1u_ip[0];
-#else
-			ip.s_addr = htonl(s1u_sgw_ip.s_addr);
-#endif
+
+			ip.s_addr = upf_ctx->s1u_ip;
 
 		    set_ipv4_fteid(&cs_resp.bearer_context.s1u_sgw_ftied,
 			GTPV2C_IFTYPE_S1U_SGW_GTPU,
@@ -118,22 +118,10 @@ set_create_session_response(gtpv2c_header *gtpv2c_tx,
 				sizeof(struct in_addr) + IE_HEADER_SIZE;
 		}
 
-#ifdef PFCP_COMM
 		set_ipv4_fteid(&cs_resp.bearer_context.s5s8_pgw,
 				GTPV2C_IFTYPE_S5S8_PGW_GTPU,
 				IE_INSTANCE_TWO, bearer->s5s8_pgw_gtpu_ipv4,
 				htonl(bearer->s5s8_pgw_gtpu_teid));
-
-		/*set_ipv4_fteid(&cs_resp.bearer_context.s5s8_pgw,
-				GTPV2C_IFTYPE_S5S8_PGW_GTPC,
-				IE_INSTANCE_TWO, pdn->s5s8_pgw_gtpc_ipv4,
-				htonl(pdn->s5s8_pgw_gtpc_teid));*/
-#else
-		set_ipv4_fteid(&cs_resp.bearer_context.s5s8_pgw,
-				GTPV2C_IFTYPE_S5S8_PGW_GTPU,
-				IE_INSTANCE_TWO, pdn->s5s8_pgw_gtpc_ipv4,
-				htonl(bearer->s1u_sgw_gtpu_teid));
-#endif
 
 		cs_resp.bearer_context.header.len += sizeof(struct fteid_ie_hdr_t) +
 				sizeof(struct in_addr) + IE_HEADER_SIZE;
@@ -191,7 +179,6 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 			return GTPV2C_CAUSE_PREFERRED_PDN_TYPE_UNSUPPORTED;
 	}
 
-
 	apn *apn_requested = get_apn((char *)csr.apn.apn, csr.apn.header.len);
 
 	if (!apn_requested)
@@ -214,10 +201,9 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 
 	memcpy(&context->msisdn, &csr.msisdn.msisdn, csr.msisdn.header.len);
 
-	context->s11_sgw_gtpc_ipv4 = s11_sgw_ip;
-	//context->s11_mme_gtpc_teid = htonl(csr.sender_ftied.teid_gre);
+	context->s11_sgw_gtpc_ipv4 = pfcp_config.s11_ip;
 	context->s11_mme_gtpc_teid = csr.sender_ftied.teid_gre;
-	context->s11_mme_gtpc_ipv4 = s11_mme_ip;
+	context->s11_mme_gtpc_ipv4 = pfcp_config.s11_mme_ip;
 
 	pdn = context->pdns[ebi_index];
 	{
@@ -241,17 +227,15 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 					&csr.charging_characteristics.value,
 					sizeof(csr.charging_characteristics.value));
 
-		pdn->s5s8_sgw_gtpc_ipv4 = s5s8_sgwc_ip;
+		pdn->s5s8_sgw_gtpc_ipv4 = pfcp_config.s5s8_ip;
 		/* Note: s5s8_sgw_gtpc_teid =
 		 * s11_sgw_gtpc_teid
 		 */
 		pdn->s5s8_sgw_gtpc_teid = context->s11_sgw_gtpc_teid;
-		pdn->s5s8_pgw_gtpc_ipv4 = csr.s5s8pgw_pmip.ip.ipv4;
-
 		/* Note: s5s8_pgw_gtpc_teid updated by
 		 * process_sgwc_s5s8_create_session_response (...)
 		 */
-		//pdn->s5s8_pgw_gtpc_teid = csr.s5s8pgw_pmip.teid_gre;
+		pdn->s5s8_pgw_gtpc_ipv4 = csr.s5s8pgw_pmip.ip.ipv4;
 	}
 
 	bearer = context->eps_bearers[ebi_index];
@@ -270,25 +254,12 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 		bearer->qos.qos.dl_gbr =
 			csr.bearer_context.bearer_qos.guaranteed_bit_rate_for_downlink;
 
-		bearer->s1u_sgw_gtpu_ipv4 = s1u_sgw_ip;
 		set_s1u_sgw_gtpu_teid(bearer, context);
-		bearer->s5s8_sgw_gtpu_ipv4 = s5s8_sgwu_ip;
 		/* Note: s5s8_sgw_gtpu_teid based s11_sgw_gtpc_teid
 		 * Computation same as s1u_sgw_gtpu_teid
 		 */
 		set_s5s8_sgw_gtpu_teid(bearer, context);
 		bearer->pdn = pdn;
-
-		/*
-		if (create_session_request.s11u_mme_fteid) {
-			bearer->s11u_mme_gtpu_ipv4 =
-				IE_TYPE_PTR_FROM_GTPV2C_IE(fteid_ie,
-						create_session_request.s11u_mme_fteid)->ip_u.ipv4;
-			bearer->s11u_mme_gtpu_teid =
-				IE_TYPE_PTR_FROM_GTPV2C_IE(fteid_ie,
-						create_session_request.s11u_mme_fteid)->
-				fteid_ie_hdr.teid_or_gre;
-		}*/
 	}
 
 	if (spgw_cfg == SGWC) {
@@ -305,22 +276,11 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 				ret);
 		return ret;
 	}
-#ifndef ZMQ_COMM
+
 	set_create_session_response(
 			gtpv2c_s11_tx, csr.header.teid.has_teid.seq,
 			context, pdn, bearer);
 
-#else
-		/* Set create session response */
-		resp_t.gtpv2c_tx_t = *gtpv2c_s11_tx;
-		resp_t.context_t = *context;
-		resp_t.pdn_t = *pdn;
-		resp_t.bearer_t = *bearer;
-		resp_t.gtpv2c_tx_t.teid_u.has_teid.seq = csr.header.teid.has_teid.seq;
-		resp_t.msg_type = GTP_CREATE_SESSION_REQ;
-		/*resp_t.msg_type = csr.header.gtpc.type;
-		 * TODO: Revisit this for to handle type received from message*/
-#endif
 	RTE_LOG_DP(DEBUG, CP, "NGIC- create_session.c::"
 			"\n\tprocess_create_session_request::case= %d;"
 			"\n\tprocess_spgwc_s11_cs_res_cnt= %u;"
@@ -333,12 +293,10 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 
 	session.ue_addr.iptype = IPTYPE_IPV4;
 	session.ue_addr.u.ipv4_addr = pdn->ipv4.s_addr;
-	session.ul_s1_info.sgw_teid =
-		//bearer->s1u_sgw_gtpu_teid;
-		htonl(bearer->s1u_sgw_gtpu_teid);
+	session.ul_s1_info.sgw_teid = htonl(bearer->s1u_sgw_gtpu_teid);
 	session.ul_s1_info.sgw_addr.iptype = IPTYPE_IPV4;
 	session.ul_s1_info.sgw_addr.u.ipv4_addr =
-		htonl(bearer->s1u_sgw_gtpu_ipv4.s_addr);
+			htonl(bearer->s1u_sgw_gtpu_ipv4.s_addr);
 
 	if (bearer->s11u_mme_gtpu_teid) {
 		/* If CIOT: [enb_addr,enb_teid] =
@@ -365,8 +323,7 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 
 	session.dl_s1_info.sgw_addr.iptype = IPTYPE_IPV4;
 	session.dl_s1_info.sgw_addr.u.ipv4_addr =
-		//bearer->s1u_sgw_gtpu_ipv4.s_addr;
-		htonl(bearer->s1u_sgw_gtpu_ipv4.s_addr);
+			htonl(bearer->s1u_sgw_gtpu_ipv4.s_addr);
 	session.ul_apn_mtr_idx = ulambr_idx;
 	session.dl_apn_mtr_idx = dlambr_idx;
 	session.num_ul_pcc_rules = 1;
@@ -385,6 +342,7 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 
 	if (session_create(dp_id, session) < 0)
 		rte_exit(EXIT_FAILURE,"Bearer Session create fail !!!");
+
 	if (bearer->s11u_mme_gtpu_teid) {
 		session.num_dl_pcc_rules = 1;
 		session.dl_pcc_rule_id[0] = FIRST_FILTER_ID;

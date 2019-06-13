@@ -229,6 +229,9 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 		if (ti == &md->pt) {
 			if ( startTimer( &md->tt ) < 0)
 				RTE_LOG_DP(ERR, DP, "Transmit Timer failed to start..\n");
+
+			/* Stop periodic timer for specific Peer Node */
+			stopTimer( &md->pt );
 		}
 
 		return;

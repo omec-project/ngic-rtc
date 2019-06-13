@@ -14,18 +14,12 @@
  * limitations under the License.
  */
 
-#include <rte_log.h>
-#include <rte_common.h>
-#include <rte_ether.h>
-#include <rte_ip.h>
-#include <rte_udp.h>
 #include "ipv4.h"
 #include "gtpv2c.h"
 #include "util.h"
 #include "gtpv2c_messages.h"
 #include "gtpv2c_set_ie.h"
 
-#include <rte_cfgfile.h>
 
 #define GTPU_HDR_LEN   8
 #define IPV4_HDR_LEN   20
@@ -79,7 +73,6 @@ set_recovery_ie_t(recovery_ie_t *recovery, uint8_t type, uint16_t length,
 void
 build_gtpv2_echo_request(gtpv2c_header *echo_pkt, uint16_t gtpu_seqnb)
 {
-	//set_gtpv2c_echo(echo_pkt, gtpv2c_rx->gtpc.teidFlg, GTP_ECHO_REQ, 1, gtpu_seqnb);
 	echo_request_t echo_req = {0};
 
 	set_gtpv2c_teid_header((gtpv2c_header *)&echo_req.header,
