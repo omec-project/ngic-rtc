@@ -48,6 +48,8 @@ typedef struct create_session_request_t {
 	bearer_context_to_be_created_ie_t bearer_context;
 	recovery_ie_t recovery;
 	ue_timezone_ie_t ue_timezone;
+	mapped_ue_usage_type_ie_t ue_usage_type;
+	fqdn_ie_t sgwu_nodename;
 } create_session_request_t;
 
 typedef struct create_session_response_t {
@@ -83,6 +85,11 @@ typedef struct delete_session_response_t {
 	gtpv2c_header_t header;
 	cause_ie_t cause;
 } delete_session_response_t;
+
+typedef struct echo_request_t {
+	gtpv2c_header_t header;
+	recovery_ie_t recovery;
+} echo_request_t;
 
 #pragma pack()
 

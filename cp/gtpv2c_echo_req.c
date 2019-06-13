@@ -22,6 +22,8 @@
 #include "ipv4.h"
 #include "gtpv2c.h"
 #include "util.h"
+#include "gtpv2c_messages.h"
+#include "gtpv2c_set_ie.h"
 
 #include <rte_cfgfile.h>
 
@@ -43,9 +45,6 @@
 
 #define CONN_ENTRIY_FILE "../config/static_arp.cfg"
 
-//int32_t conn_cnt = 0;
-//struct conn_ipv4_key conn_arr_keys[512] = {0};
-
 typedef struct gtpuHdr_s {
 	uint8_t version_flags;
 	uint8_t msg_type;
@@ -61,20 +60,37 @@ typedef struct gtpu_recovery_ie_t {
     uint8_t restart_cntr;
 } gtpu_recovery_ie;
 
+static void
+set_recovery_ie_t(recovery_ie_t *recovery, uint8_t type, uint16_t length,
+					uint8_t instance)
+{
+	recovery->header.type = type;
+	recovery->header.len = length;
+	recovery->header.instance = instance;
 
-static uint16_t gtpu_seqnb = 1;
+	recovery->restart_counter = rstCnt;
 
+}
 /* Brief: Function to build GTP-U echo request
  * @ Input param: echo_pkt rte_mbuf pointer
  * @ Output param: none
  * Return: void
  */
-void 
-build_gtpv2_echo_request(gtpv2c_header *echo_pkt)
+void
+build_gtpv2_echo_request(gtpv2c_header *echo_pkt, uint16_t gtpu_seqnb)
 {
-	//printf("Check : %u, sizeof:%lu", entry->port, sizeof(echo_pkt)); 
-
 	//set_gtpv2c_echo(echo_pkt, gtpv2c_rx->gtpc.teidFlg, GTP_ECHO_REQ, 1, gtpu_seqnb);
-	set_gtpv2c_echo(echo_pkt, 1, GTP_ECHO_REQ, 0, gtpu_seqnb);
-	gtpu_seqnb++;
+	echo_request_t echo_req = {0};
+
+	set_gtpv2c_teid_header((gtpv2c_header *)&echo_req.header,
+			GTP_ECHO_REQ, 0, gtpu_seqnb);
+
+	set_recovery_ie_t((recovery_ie_t *)&echo_req.recovery, IE_RECOVERY,
+						sizeof(uint8_t), IE_INSTANCE_ZERO);
+
+	uint16_t msg_len = 0;
+	encode_echo_request_t(&echo_req, (uint8_t *)echo_pkt,
+			&msg_len);
+
+	echo_pkt->gtpc.length = htons(msg_len - 4);
 }

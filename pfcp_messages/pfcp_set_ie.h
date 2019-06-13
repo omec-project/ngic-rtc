@@ -32,13 +32,13 @@
 #include "gtpv2c_set_ie.h"
 #endif
 
-/* TODO: HP: Move following lines to another file */
+/* TODO: Move following lines to another file */
 #define HAS_SEID 1
 #define NO_SEID  0
 
 #define PFCP_VERSION                            (1)
 
-#define OFFSET 					2208988800ULL
+#define OFFSET 2208988800ULL
 
 /* PFCP Message Type Values */
 /*NODE RELATED MESSAGED*/
@@ -63,9 +63,11 @@
 #define PFCP_SESSION_DELETION_REQUEST               (54)
 #define PFCP_SESSION_DELETION_RESPONSE              (55)
 
-/* TODO: HP: Move above lines to another file */
+/* TODO: Move above lines to another file */
 
+#define PFCP_ASSOC_ALREADY_ESTABLISHED				(1)
 
+#define MAX_HOSTNAME_LENGTH							(256)
 
 #define MAX_GTPV2C_LENGTH (MAX_GTPV2C_UDP_LEN-sizeof(struct gtpc_t))
 
@@ -86,6 +88,8 @@ typedef struct pfcp_context_t{
 	uint16_t up_supported_features;
 	uint8_t  cp_supported_features;
 	uint32_t s1u_ip[20];
+	uint32_t s5s8_sgwu_ip;
+	uint32_t s5s8_pgwu_ip;
 	struct in_addr ava_ip;
 	bool flag_ava_ip;
 
@@ -105,23 +109,25 @@ void
 pfcp_set_ie_header(pfcp_ie_header_t *header, uint8_t type, uint16_t length);
 
 int
-process_pfcp_association_request(void);
-
-int
-process_pfcp_heartbeat_req(struct sockaddr_in *peer_addr);
+process_pfcp_heartbeat_req(struct sockaddr_in *peer_addr, uint32_t seq);
 
 
 #if defined(PFCP_COMM)  && defined(CP_BUILD)
 int
-process_pfcp_sess_est_request(gtpv2c_header *gtpv2c_rx,
-		gtpv2c_header *gtpv2c_s11_tx);
+process_pfcp_assoication_request(gtpv2c_header *gtpv2c_rx,
+		create_session_request_t *csr, char *sgwu_fqdn);
 int
-process_pfcp_sess_mod_request(gtpv2c_header *gtpv2c_rx,gtpv2c_header *gtpv2c_s11_tx);
+process_pfcp_sess_est_request(gtpv2c_header *gtpv2c_rx,
+		gtpv2c_header *gtpv2c_s11_tx, gtpv2c_header *gtpv2c_s5s8_tx,
+		char *sgwu_fqdn);
+int
+process_pfcp_sess_mod_request(gtpv2c_header *gtpv2c_rx,
+		gtpv2c_header *gtpv2c_s11_tx);
 int
 process_pfcp_sess_del_request(gtpv2c_header *gtpv2c_rx,
 		gtpv2c_header *gtpv2c_s11_tx, gtpv2c_header *gtpv2c_s5s8_tx);
 void
-set_pdn_type(pfcp_pdn_type_ie_t *pdn,pdn_type_ie_t *pdn_mme);
+set_pdn_type(pfcp_pdn_type_ie_t *pdn, pdn_type_ie_t *pdn_mme);
 
 #else
 int
@@ -152,10 +158,12 @@ void
 set_bar_id(bar_id_ie_t *bar_id);
 
 void
-set_dl_data_notification_delay(downlink_data_notification_delay_ie_t *dl_data_notification_delay);
+set_dl_data_notification_delay(downlink_data_notification_delay_ie_t
+		*dl_data_notification_delay);
 
 void
-set_sgstd_buff_pkts_cnt( suggested_buffering_packets_count_ie_t *sgstd_buff_pkts_cnt);
+set_sgstd_buff_pkts_cnt( suggested_buffering_packets_count_ie_t
+		*sgstd_buff_pkts_cnt);
 
 void
 set_up_inactivity_timer(user_plane_inactivity_timer_ie_t *up_inact_timer);
@@ -164,9 +172,7 @@ void
 set_user_id(user_id_ie_t *user_id);
 
 void
-set_fseid(f_seid_ie_t *fseid,uint64_t seid,uint32_t nodeid_value);
-
-
+set_fseid(f_seid_ie_t *fseid, uint64_t seid, uint32_t nodeid_value);
 
 void
 set_recovery_time_stamp(recovery_time_stamp_ie_t *rec_time_stamp);
@@ -188,9 +194,11 @@ void
 set_traffic_endpoint(traffic_endpoint_id_ie_t *traffic_endpoint_id);
 
 void
-removing_traffic_endpoint(remove_traffic_endpoint_ie_t *remove_traffic_endpoint);
+removing_traffic_endpoint(remove_traffic_endpoint_ie_t
+		*remove_traffic_endpoint);
 void
-creating_traffic_endpoint(create_traffic_endpoint_ie_t  *create_traffic_endpoint);
+creating_traffic_endpoint(create_traffic_endpoint_ie_t  *
+		create_traffic_endpoint);
 
 void
 set_fteid( f_teid_ie_t *local_fteid);
@@ -202,7 +210,8 @@ void
 set_ue_ip(ue_ip_address_ie_t *ue_ip);
 
 void
-set_ethernet_pdu_sess_info( ethernet_pdu_session_information_ie_t *eth_pdu_sess_info);
+set_ethernet_pdu_sess_info( ethernet_pdu_session_information_ie_t
+		*eth_pdu_sess_info);
 
 void
 set_framed_routing(framed_routing_ie_t *framedrouting);
@@ -239,7 +248,6 @@ updating_qer(update_qer_ie_t *up_qer);
 
 void
 updating_bar( update_bar_ie_t *up_bar);
-
 
 void
 updating_traffic_endpoint(update_traffic_endpoint_ie_t *up_traffic_endpoint);
@@ -290,20 +298,20 @@ set_pdr_id_ie(pdr_id_ie_t *pdr);
 void
 set_created_pdr_ie(created_pdr_ie_t *pdr);
 
-void 
+void
 set_created_traffic_endpoint(created_traffic_endpoint_ie_t *cte);
 
 void
 set_additional_usage(additional_usage_reports_information_ie_t *adr);
 
-void	
+void
 set_node_report_type( node_report_type_ie_t *nrt);
 
 void
 set_user_plane_path_failure_report(user_plane_path_failure_report_ie_t *uppfr);
 
 
-void	
+void
 set_remote_gtpu_peer_ip( remote_gtp_u_peer_ie_t *remote_gtpu_peer);
 
 long
@@ -311,23 +319,21 @@ uptime(void);
 
 void
 cause_check_association(pfcp_association_setup_request_t *pfcp_ass_setup_req,
-                uint8_t *cause_id, int *offend_id);
-				
-				
-void
-cause_check_sess_estab(pfcp_session_establishment_request_t *pfcp_session_request,
-                                 uint8_t *cause_id, int *offend_id);
+						uint8_t *cause_id, int *offend_id);
 
 
 void
-cause_check_sess_modification(pfcp_session_modification_request_t *pfcp_session_mod_req,
-                uint8_t *cause_id, int *offend_id);
-								 
+cause_check_sess_estab(pfcp_session_establishment_request_t
+			*pfcp_session_request, uint8_t *cause_id, int *offend_id);
+
+
 void
-cause_check_delete_session(pfcp_session_deletion_request_t *pfcp_session_delete_req,
-                uint8_t *cause_id, int *offend_id);
+cause_check_sess_modification(pfcp_session_modification_request_t
+		*pfcp_session_mod_req, uint8_t *cause_id, int *offend_id);
 
-
+void
+cause_check_delete_session(pfcp_session_deletion_request_t
+		*pfcp_session_delete_req, uint8_t *cause_id, int *offend_id);
 
 uint8_t
 add_node_id_hash(uint32_t *nodeid, uint64_t *data);
@@ -339,7 +345,7 @@ void
 create_heartbeat_hash_table(void);
 
 void
-add_ip_to_heartbeat_hash(struct sockaddr_in *peer_addr);
+add_ip_to_heartbeat_hash(struct sockaddr_in *peer_addr, uint32_t recover_time);
 
 void
 delete_entry_heartbeat_hash(struct sockaddr_in *peer_addr);
@@ -361,21 +367,22 @@ set_far_id(far_id_ie_t *far_id);
 void
 set_urr_id(urr_id_ie_t *urr_id);
 
-void	
+void
 set_outer_hdr_removal(outer_header_removal_ie_t *out_hdr_rem);
 
-void	
+void
 set_precedence(precedence_ie_t *prec);
 void
 set_pdi(pdi_ie_t *pdi);
 void
 set_application_id(application_id_ie_t *app_id);
 
-void	
+void
 set_source_intf(source_interface_ie_t *src_intf);
 void
 set_activate_predefined_rules(activate_predefined_rules_ie_t *act_predef_rule);
 void
-set_up_ip_resource_info(user_plane_ip_resource_information_ie_t *up_ip_resource_info);
+set_up_ip_resource_info(user_plane_ip_resource_information_ie_t *up_ip_resource_info,
+  uint8_t i);
 
 #endif /* PFCP_SET_IE_H */

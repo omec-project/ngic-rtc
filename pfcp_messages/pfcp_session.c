@@ -27,17 +27,20 @@
 #include "pfcp_util.h"
 #include "pfcp_session.h"
 #include "pfcp_association.h"
+#include "../dp/main.h"
+#include "../cp/cp_stats.h"
 
 #if defined(PFCP_COMM) && defined(CP_BUILD)
 #include "../cp/ue.h"
 #include "../cp/gtpv2c_set_ie.h"
 #include "../libgtpv2c/include/req_resp.h"
+
 int
-delete_context(delete_session_request_t *ds_req,
-                        ue_context **_context);
+delete_context(delete_session_request_t *ds_req, ue_context **_context);
 #endif
 
 #define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
+//#define RTE_LOGTYPE_DP RTE_LOGTYPE_USER4
 #define size sizeof(pfcp_session_modification_request_t)
 
 pfcp_config_t pfcp_config;
@@ -45,107 +48,125 @@ extern pfcp_context_t pfcp_ctxt;
 extern int pfcp_sgwc_fd_arr[MAX_NUM_SGWC];
 extern int pfcp_pgwc_fd_arr[MAX_NUM_PGWC];
 
+struct app_params app;
+
 void
 fill_pfcp_sess_del_req( pfcp_session_deletion_request_t *pfcp_sess_del_req)
 {
-	memset(pfcp_sess_del_req,0,sizeof(pfcp_session_deletion_request_t));
+	memset(pfcp_sess_del_req, 0, sizeof(pfcp_session_deletion_request_t));
 	uint32_t seq = 1;
-	memset(pfcp_sess_del_req,0,sizeof(pfcp_session_deletion_request_t));
+	memset(pfcp_sess_del_req, 0, sizeof(pfcp_session_deletion_request_t));
 
 	//filing of pfcp header
-	set_pfcp_seid_header((pfcp_header_t *) &(pfcp_sess_del_req->header),PFCP_SESSION_DELETION_REQUEST,
-			HAS_SEID,seq);
+	set_pfcp_seid_header((pfcp_header_t *) &(pfcp_sess_del_req->header),
+		PFCP_SESSION_DELETION_REQUEST, HAS_SEID, seq);
+
 }
 
 void
 fill_pfcp_sess_set_del_req( pfcp_session_set_deletion_request_t *pfcp_sess_set_del_req)
 {
+
 	uint32_t seq = 1;
-	memset(pfcp_sess_set_del_req,0,sizeof(pfcp_session_set_deletion_request_t));
+	char sgwc_addr[INET_ADDRSTRLEN] = {0};
+	char pgwc_addr[INET_ADDRSTRLEN] = {0};
+	char mme_addr[INET_ADDRSTRLEN]  = {0};
+	char sgwu_addr[INET_ADDRSTRLEN] = {0};
+	char pgwu_addr[INET_ADDRSTRLEN] = {0};
+	uint32_t node_value = 0;
+
+	/*Added hardcoded value to remove compile error.Right now,we are using
+	function. Will remove hard value  */
+	const char* pAddr = "192.168.0.10";
+	const char* twan_addr = "192.16.0.1";
+	const char* epdg_addr = "192.16.0.2";
+	unsigned long sgwc_value = 0;
+
+	memset(pfcp_sess_set_del_req, 0, sizeof(pfcp_session_set_deletion_request_t));
 
 	//filing of pfcp header
-	set_pfcp_seid_header((pfcp_header_t *) &(pfcp_sess_set_del_req->header),PFCP_SESSION_SET_DELETION_REQUEST,
-			HAS_SEID,seq);
+	set_pfcp_seid_header((pfcp_header_t *) &(pfcp_sess_set_del_req->header),
+			PFCP_SESSION_SET_DELETION_REQUEST, HAS_SEID, seq);
+
 	 // set of node id
-	const char* pAddr = "192.168.0.10";
-	uint32_t node_value = inet_addr(pAddr);
-	set_node_id(&(pfcp_sess_set_del_req->node_id),node_value);
+	node_value = inet_addr(pAddr);
+	set_node_id(&(pfcp_sess_set_del_req->node_id), node_value);
 
 	// set of sgwc fqcsid
-	char sgwc_addr[INET_ADDRSTRLEN] ;
-	inet_ntop(AF_INET, &(pfcp_config.sgwc_pfcp_ip[0]),sgwc_addr, INET_ADDRSTRLEN);	
-	unsigned long sgwc_value = inet_addr(sgwc_addr);
-	set_fq_csid( &(pfcp_sess_set_del_req->sgwc_fqcsid),sgwc_value);
+	inet_ntop(AF_INET, &(pfcp_config.sgwc_pfcp_ip[0]), sgwc_addr, INET_ADDRSTRLEN);
+	sgwc_value = inet_addr(sgwc_addr);
+	set_fq_csid( &(pfcp_sess_set_del_req->sgwc_fqcsid), sgwc_value);
 
 	// set of pgwc fqcsid
-	char pgwc_addr[INET_ADDRSTRLEN] ;
-	inet_ntop(AF_INET, &(pfcp_config.pgwc_pfcp_ip[0]),pgwc_addr, INET_ADDRSTRLEN);	
+	inet_ntop(AF_INET, &(pfcp_config.pgwc_pfcp_ip[0]), pgwc_addr, INET_ADDRSTRLEN);
 	unsigned long pgwc_value = inet_addr(pgwc_addr);
-	set_fq_csid( &(pfcp_sess_set_del_req->pgwc_fqcsid),pgwc_value);
+	set_fq_csid( &(pfcp_sess_set_del_req->pgwc_fqcsid), pgwc_value);
 
 	// set of sgwu fqcsid
-	char sgwu_addr[INET_ADDRSTRLEN] ;
-	inet_ntop(AF_INET, &(pfcp_config.sgwu_pfcp_ip[0]),sgwu_addr, INET_ADDRSTRLEN);	
+	inet_ntop(AF_INET, &(pfcp_config.sgwu_pfcp_ip[0]), sgwu_addr, INET_ADDRSTRLEN);
 	unsigned long sgwu_value = inet_addr(sgwu_addr);
-	set_fq_csid( &(pfcp_sess_set_del_req->sgwu_fqcsid),sgwu_value);
+	set_fq_csid( &(pfcp_sess_set_del_req->sgwu_fqcsid), sgwu_value);
 
 	// set of pgwu fqcsid
-	char pgwu_addr[INET_ADDRSTRLEN] ;
-	inet_ntop(AF_INET, &(pfcp_config.pgwu_pfcp_ip[0]),pgwu_addr, INET_ADDRSTRLEN);	
+	inet_ntop(AF_INET, &(pfcp_config.pgwu_pfcp_ip[0]), pgwu_addr, INET_ADDRSTRLEN);
 	unsigned long pgwu_value = inet_addr(pgwu_addr);
-	set_fq_csid( &(pfcp_sess_set_del_req->pgwu_fqcsid),pgwu_value);
+	set_fq_csid( &(pfcp_sess_set_del_req->pgwu_fqcsid), pgwu_value);
 
 	// set of twan fqcsid
 	//TODO : IP addres for twan is hardcoded
-	const char* twan_addr = "192.16.0.1";
 	uint32_t twan_value = inet_addr(twan_addr);
-	set_fq_csid( &(pfcp_sess_set_del_req->twan_fqcsid),twan_value);
+	set_fq_csid( &(pfcp_sess_set_del_req->twan_fqcsid), twan_value);
 
 	// set of epdg fqcsid
 	//TODO : IP addres for epdgg is hardcoded
-	const char* epdg_addr = "192.16.0.2";
 	uint32_t epdg_value = inet_addr(epdg_addr);
-	set_fq_csid( &(pfcp_sess_set_del_req->epdg_fqcsid),epdg_value);
+	set_fq_csid( &(pfcp_sess_set_del_req->epdg_fqcsid), epdg_value);
 
 	// set of mme fqcsid
-	char mme_addr[INET_ADDRSTRLEN] ;
-	inet_ntop(AF_INET, &(pfcp_config.mme_s11_ip[0]),mme_addr, INET_ADDRSTRLEN);	
+	inet_ntop(AF_INET, &(pfcp_config.mme_s11_ip[0]),mme_addr, INET_ADDRSTRLEN);
 	unsigned long mme_value = inet_addr(mme_addr);
-	set_fq_csid( &(pfcp_sess_set_del_req->mme_fqcsid),mme_value);
+	set_fq_csid( &(pfcp_sess_set_del_req->mme_fqcsid), mme_value);
 
 }
 #if defined(PFCP_COMM) && defined(CP_BUILD)
 void
-fill_pfcp_sess_mod_req( pfcp_session_modification_request_t *pfcp_sess_mod_req,modify_bearer_request_t *mbr)
+fill_pfcp_sess_mod_req( pfcp_session_modification_request_t *pfcp_sess_mod_req,
+		modify_bearer_request_t *mbr,
+		ue_context *context, eps_bearer *bearer, pdn_connection *pdn)
 #else
 void
 fill_pfcp_sess_mod_req( pfcp_session_modification_request_t *pfcp_sess_mod_req)
 #endif
 {
-	uint32_t seq = 1;
+	uint32_t seq = 0;
 #if defined(PFCP_COMM) && defined(CP_BUILD)
-	RTE_LOG_DP(DEBUG, CP, "TEID[%d]\n",mbr->s11_mme_fteid.teid_gre);
+	if( mbr != NULL)
+		RTE_LOG_DP(DEBUG, CP, "TEID[%d]\n", mbr->s11_mme_fteid.teid_gre);
 #endif
-	memset(pfcp_sess_mod_req,0,sizeof(pfcp_session_modification_request_t));
+	memset(pfcp_sess_mod_req, 0, sizeof(pfcp_session_modification_request_t));
 
-#if defined(PFCP_COMM) && defined(CP_BUILD) 
-	if(mbr->header.gtpc.teid_flag == 1)
-		seq = mbr->header.teid.has_teid.seq;
-	else
-		seq = mbr->header.teid.no_teid.seq;
+#if defined(PFCP_COMM) && defined(CP_BUILD)
+	if(mbr != NULL) {
+		if(mbr->header.gtpc.teid_flag == 1)
+			seq = mbr->header.teid.has_teid.seq;
+		else
+			seq = mbr->header.teid.no_teid.seq;
+	}
 #endif
 	//filing of pfcp header
-	set_pfcp_seid_header((pfcp_header_t *) &(pfcp_sess_mod_req->header),PFCP_SESSION_MODIFICATION_REQUEST,
+	set_pfcp_seid_header((pfcp_header_t *) &(pfcp_sess_mod_req->header), PFCP_SESSION_MODIFICATION_REQUEST,
 					           HAS_SEID, seq);
+#if defined(PFCP_COMM) && defined(CP_BUILD)
+	pfcp_sess_mod_req->header.seid_seqno.has_seid.seid = context->seid;
+
 	//TODO modify this hard code to generic
 	char pAddr[INET_ADDRSTRLEN] ;
-	inet_ntop(AF_INET, &(pfcp_config.sgwc_pfcp_ip[0]),pAddr, INET_ADDRSTRLEN);	
+	inet_ntop(AF_INET, &(pfcp_config.sgwc_pfcp_ip[0]), pAddr, INET_ADDRSTRLEN);
 	unsigned long node_value = inet_addr(pAddr);
 
-	// set of cp_fseid
-	uint64_t cp_seid = pfcp_sess_mod_req->header.seid_seqno.has_seid.seid;
-	set_fseid(&(pfcp_sess_mod_req->cp_fseid),cp_seid,node_value);
-
+	//uint64_t cp_seid = pfcp_sess_mod_req->header.seid_seqno.has_seid.seid;
+	set_fseid(&(pfcp_sess_mod_req->cp_fseid), context->seid, node_value);
+#endif
 	//set of remove bar
 	removing_bar(&(pfcp_sess_mod_req->remove_bar));
 
@@ -153,10 +174,52 @@ fill_pfcp_sess_mod_req( pfcp_session_modification_request_t *pfcp_sess_mod_req)
 	if( pfcp_ctxt.up_supported_features & UP_PDIU )
 		removing_traffic_endpoint(&(pfcp_sess_mod_req->remove_traffic_endpoint));
 
+#if defined(PFCP_COMM) && defined(CP_BUILD)
 	//set create PDR
 
-	creating_pdr(&(pfcp_sess_mod_req->create_pdr));
-	
+	/************************************************
+	 *  cp_type  count     FTEID_1          FTEID_2 *
+	 *************************************************
+	 In case MBR received from MME:-
+	 SGWC         1      enodeB               -
+	 PGWC         -        -                  -
+	 SAEGWC       1      enodeB               -
+	 *************************************************
+	 In case of CSResp received from PGWC to SGWC :-
+	 SGWC <----CSResp--- PGWC
+	 |
+	 pfcp_sess_mod_req
+	 |
+	 v
+	 SGWU
+	 In above scenario:
+	 count = 1 ,     FTEID_1 = s5s8 PGWU
+	 ************************************************/
+	pfcp_sess_mod_req->create_pdr_count = 1;
+
+	for( int i = 0; i < pfcp_sess_mod_req->create_pdr_count ; i++)
+		creating_pdr(&(pfcp_sess_mod_req->create_pdr[i]));
+
+	switch (pfcp_config.cp_type)
+	{
+		case SGWC :
+		case SAEGWC :
+			pfcp_sess_mod_req->create_pdr[0].pdi.local_fteid.teid = bearer->s1u_enb_gtpu_teid;
+			pfcp_sess_mod_req->create_pdr[0].pdi.ue_ip_address.ipv4_address = htonl(pdn->ipv4.s_addr);
+			pfcp_sess_mod_req->create_pdr[0].pdi.local_fteid.ipv4_address = htonl(bearer->s1u_enb_gtpu_ipv4.s_addr) ;
+			pfcp_sess_mod_req->create_pdr[0].pdi.source_interface.interface_value = SOURCE_INTERFACE_VALUE_CORE;
+			break;
+
+		case PGWC :
+			/* modification request for split is only when handover indication flag is on in CSR */
+			/* need to handle HO scenario*/
+			break;
+
+		default :
+			printf("default pfcp sess mod req\n");
+			break;
+	}
+#endif
 	// set of create BAR
 	creating_bar(&(pfcp_sess_mod_req->create_bar));
 
@@ -179,33 +242,33 @@ fill_pfcp_sess_mod_req( pfcp_session_modification_request_t *pfcp_sess_mod_req)
 
 	// set of sgwc fqcsid
 	char sgwc_addr[INET_ADDRSTRLEN] ;
-	inet_ntop(AF_INET, &(pfcp_config.sgwc_pfcp_ip[0]),sgwc_addr, INET_ADDRSTRLEN);	
+	inet_ntop(AF_INET, &(pfcp_config.sgwc_pfcp_ip[0]), sgwc_addr, INET_ADDRSTRLEN);
 	unsigned long sgwc_value = inet_addr(sgwc_addr);
-	set_fq_csid( &(pfcp_sess_mod_req->sgwc_fqcsid),sgwc_value);
+	set_fq_csid( &(pfcp_sess_mod_req->sgwc_fqcsid), sgwc_value);
 
 	// set of mme fqcsid
 	char mme_addr[INET_ADDRSTRLEN] ;
-	inet_ntop(AF_INET, &(pfcp_config.mme_s11_ip[0]),mme_addr, INET_ADDRSTRLEN);	
+	inet_ntop(AF_INET, &(pfcp_config.mme_s11_ip[0]), mme_addr, INET_ADDRSTRLEN);
 	unsigned long mme_value = inet_addr(mme_addr);
-	set_fq_csid( &(pfcp_sess_mod_req->mme_fqcsid),mme_value);
+	set_fq_csid( &(pfcp_sess_mod_req->mme_fqcsid), mme_value);
 
 	// set of pgwc fqcsid
 	char pgwc_addr[INET_ADDRSTRLEN] ;
-	inet_ntop(AF_INET, &(pfcp_config.pgwc_pfcp_ip[0]),pgwc_addr, INET_ADDRSTRLEN);	
+	inet_ntop(AF_INET, &(pfcp_config.pgwc_pfcp_ip[0]), pgwc_addr, INET_ADDRSTRLEN);
 	unsigned long pgwc_value = inet_addr(pgwc_addr);
-	set_fq_csid( &(pfcp_sess_mod_req->pgwc_fqcsid),pgwc_value);
+	set_fq_csid( &(pfcp_sess_mod_req->pgwc_fqcsid), pgwc_value);
 
 	// set of epdg fqcsid
 	//TODO : IP addres for epdgg is hardcoded
 	const char* epdg_addr = "0.0.0.0";
 	uint32_t epdg_value = inet_addr(epdg_addr);
-	set_fq_csid( &(pfcp_sess_mod_req->epdg_fqcsid),epdg_value);
+	set_fq_csid( &(pfcp_sess_mod_req->epdg_fqcsid), epdg_value);
 
 	// set of twan fqcsid
 	//TODO : IP addres for twan is hardcoded
 	const char* twan_addr = "0.0.0.0";
 	uint32_t twan_value = inet_addr(twan_addr);
-	set_fq_csid( &(pfcp_sess_mod_req->twan_fqcsid),twan_value);
+	set_fq_csid( &(pfcp_sess_mod_req->twan_fqcsid), twan_value);
 
 	// set of UP inactivity timer
 	set_up_inactivity_timer(&(pfcp_sess_mod_req->user_plane_inactivity_timer));
@@ -221,83 +284,153 @@ fill_pfcp_sess_mod_req( pfcp_session_modification_request_t *pfcp_sess_mod_req)
 
 #if defined(PFCP_COMM) && defined(CP_BUILD)
 void
-fill_pfcp_sess_est_req( pfcp_session_establishment_request_t *pfcp_sess_est_req,create_session_request_t *csr)
+fill_pfcp_sess_est_req( pfcp_session_establishment_request_t *pfcp_sess_est_req,
+		create_session_request_t *csr,
+		ue_context *context, eps_bearer *bearer, pdn_connection *pdn)
 #else
 void
 fill_pfcp_sess_est_req( pfcp_session_establishment_request_t *pfcp_sess_est_req)
 #endif
+
 {
-	uint32_t seq = 1;
+	uint32_t seq = 0;
 	/*TODO :generate seid value and store this in array
-	 to send response from cp/dp , first check seid is there in array or not if yes then 
-	 fill that seid in response and if not then seid =0 */
+	  to send response from cp/dp , first check seid is there in array or not if yes then
+	  fill that seid in response and if not then seid =0 */
 
 	memset(pfcp_sess_est_req,0,sizeof(pfcp_session_establishment_request_t));
 
-#if defined(PFCP_COMM) && defined(CP_BUILD) 
-	if(csr->header.gtpc.teid_flag == 1)
-		seq = csr->header.teid.has_teid.seq;
-	else
-		seq = csr->header.teid.no_teid.seq;
+#if defined(PFCP_COMM) && defined(CP_BUILD)
+	if(csr != NULL) {
+		if(csr->header.gtpc.teid_flag == 1)
+			seq = csr->header.teid.has_teid.seq;
+		else
+			seq = csr->header.teid.no_teid.seq;
+	}
 #endif
 	//filing of pfcp header
-	set_pfcp_seid_header((pfcp_header_t *) &(pfcp_sess_est_req->header),PFCP_SESSION_ESTABLISHMENT_REQUEST,
-					           HAS_SEID, seq);
+	set_pfcp_seid_header((pfcp_header_t *) &(pfcp_sess_est_req->header), PFCP_SESSION_ESTABLISHMENT_REQUEST,
+			HAS_SEID, seq);
+
+#if defined(PFCP_COMM) && defined(CP_BUILD)
+	pfcp_sess_est_req->header.seid_seqno.has_seid.seid = context->seid;
+#endif
 
 	// set of node id
 	char pAddr[INET_ADDRSTRLEN] ;
-	inet_ntop(AF_INET, &(pfcp_config.sgwc_pfcp_ip[0]),pAddr, INET_ADDRSTRLEN);	
+	if(pfcp_config.cp_type == SGWC || pfcp_config.cp_type == SAEGWC)
+		inet_ntop(AF_INET, &(pfcp_config.sgwc_pfcp_ip[0]), pAddr, INET_ADDRSTRLEN);
+	else
+		inet_ntop(AF_INET, &(pfcp_config.pgwc_pfcp_ip[0]), pAddr, INET_ADDRSTRLEN);
+
 	unsigned long node_value = inet_addr(pAddr);
 
-	set_node_id(&(pfcp_sess_est_req->node_id),node_value);
+	set_node_id(&(pfcp_sess_est_req->node_id), node_value);
 
 	// set of cp_fseid
-	uint64_t cp_seid = pfcp_sess_est_req->header.seid_seqno.has_seid.seid ;
-	set_fseid(&(pfcp_sess_est_req->cp_fseid),cp_seid,node_value);
+	//uint64_t cp_seid = pfcp_sess_est_req->header.seid_seqno.has_seid.seid ;
+
+#if defined(PFCP_COMM) && defined(CP_BUILD)
+	set_fseid(&(pfcp_sess_est_req->cp_fseid), context->seid, node_value);
 
 	//creating pdr for Fteid only,TODO : Rules will be implemented later
-	creating_pdr(&(pfcp_sess_est_req->create_pdr));
+	/************************************************
+	 *  cp_type  count      FTEID_1        FTEID_2 *
+	 *************************************************
+	 SGWC         2      s1u  SGWU      s5s8 SGWU
+	 PGWC         1      s5s8 PGWU          -
+	 SAEGWC       1      s1u SAEGWU         -
+	 ************************************************/
 
+	if (pfcp_config.cp_type == SGWC || pfcp_config.cp_type == PGWC )
+		pfcp_sess_est_req->create_pdr_count = 2;
+	else
+		pfcp_sess_est_req->create_pdr_count = 1;
+
+	for(int i = 0; i < pfcp_sess_est_req->create_pdr_count; i++)
+		creating_pdr(&(pfcp_sess_est_req->create_pdr[i]));
+
+	switch (pfcp_config.cp_type)
+	{
+		case SGWC :
+			pfcp_sess_est_req->create_pdr[0].pdi.local_fteid.teid = htonl(bearer->s1u_sgw_gtpu_teid);
+			pfcp_sess_est_req->create_pdr[0].pdi.ue_ip_address.ipv4_address = htonl(pdn->ipv4.s_addr);
+			pfcp_sess_est_req->create_pdr[0].pdi.local_fteid.ipv4_address = htonl(pfcp_ctxt.s1u_ip[0]);
+			pfcp_sess_est_req->create_pdr[0].pdi.source_interface.interface_value = SOURCE_INTERFACE_VALUE_ACCESS;
+
+			pfcp_sess_est_req->create_pdr[1].pdi.local_fteid.teid = htonl(bearer->s5s8_sgw_gtpu_teid);
+			pfcp_sess_est_req->create_pdr[1].pdi.ue_ip_address.ipv4_address = htonl(pdn->ipv4.s_addr);
+			pfcp_sess_est_req->create_pdr[1].pdi.local_fteid.ipv4_address = htonl(pfcp_ctxt.s5s8_sgwu_ip);
+			pfcp_sess_est_req->create_pdr[1].pdi.source_interface.interface_value = SOURCE_INTERFACE_VALUE_CORE;
+			break;
+
+		case PGWC :
+			pfcp_sess_est_req->create_pdr[0].pdi.local_fteid.teid = htonl(bearer->s5s8_pgw_gtpu_teid);
+			pfcp_sess_est_req->create_pdr[0].pdi.ue_ip_address.ipv4_address = (pdn->ipv4.s_addr);
+			pfcp_sess_est_req->create_pdr[0].pdi.local_fteid.ipv4_address = htonl(pfcp_ctxt.s5s8_pgwu_ip);
+			pfcp_sess_est_req->create_pdr[0].pdi.source_interface.interface_value = SOURCE_INTERFACE_VALUE_ACCESS;
+
+			pfcp_sess_est_req->create_pdr[1].pdi.local_fteid.teid = htonl(bearer->s5s8_sgw_gtpu_teid);
+			pfcp_sess_est_req->create_pdr[1].pdi.ue_ip_address.ipv4_address = (pdn->ipv4.s_addr);
+			pfcp_sess_est_req->create_pdr[1].pdi.local_fteid.ipv4_address =(bearer->s5s8_sgw_gtpu_ipv4.s_addr);
+			pfcp_sess_est_req->create_pdr[1].pdi.source_interface.interface_value = SOURCE_INTERFACE_VALUE_CORE;
+			break;
+
+		case SAEGWC :
+			pfcp_sess_est_req->create_pdr[0].pdi.local_fteid.teid = htonl(bearer->s1u_sgw_gtpu_teid);
+			pfcp_sess_est_req->create_pdr[0].pdi.ue_ip_address.ipv4_address = htonl(pdn->ipv4.s_addr);
+			pfcp_sess_est_req->create_pdr[0].pdi.local_fteid.ipv4_address = htonl(pfcp_ctxt.s1u_ip[0]);
+			pfcp_sess_est_req->create_pdr[0].pdi.source_interface.interface_value = SOURCE_INTERFACE_VALUE_ACCESS;
+			break;
+
+		default :
+			printf("Default PFCP Sess Est Req\n");
+			break;
+	}
+
+#endif
 	// set of create BAR
 	creating_bar(&(pfcp_sess_est_req->create_bar));
 
 	// set of pdn type
 #if defined(PFCP_COMM) && defined(CP_BUILD)
-	set_pdn_type(&(pfcp_sess_est_req->pdn_type),&(csr->pdn_type));
+	if(csr != NULL) {
+		set_pdn_type(&(pfcp_sess_est_req->pdn_type), &(csr->pdn_type));
+	}
 #else
 	set_pdn_type(&(pfcp_sess_est_req->pdn_type));
 #endif
-	
+
 	//TODO can make generic function , if we can change the flag of FQ_CSID  specific to module
 	// set of sgwc fqcsid
 	char sgwc_addr[INET_ADDRSTRLEN] ;
-	inet_ntop(AF_INET, &(pfcp_config.sgwc_pfcp_ip[0]),sgwc_addr, INET_ADDRSTRLEN);	
+	inet_ntop(AF_INET, &(pfcp_config.sgwc_pfcp_ip[0]), sgwc_addr, INET_ADDRSTRLEN);
 	unsigned long sgwc_value = inet_addr(sgwc_addr);
-	set_fq_csid( &(pfcp_sess_est_req->sgwc_fqcsid),sgwc_value);
+	set_fq_csid( &(pfcp_sess_est_req->sgwc_fqcsid), sgwc_value);
 
 	// set of mme fqcsid
 	char mme_addr[INET_ADDRSTRLEN] ;
-	inet_ntop(AF_INET, &(pfcp_config.mme_s11_ip[0]),mme_addr, INET_ADDRSTRLEN);	
+	inet_ntop(AF_INET, &(pfcp_config.mme_s11_ip[0]), mme_addr, INET_ADDRSTRLEN);
 	unsigned long mme_value = inet_addr(mme_addr);
-	set_fq_csid( &(pfcp_sess_est_req->mme_fqcsid),mme_value);
+	set_fq_csid( &(pfcp_sess_est_req->mme_fqcsid), mme_value);
 
 	// set of pgwc fqcsid
 	char pgwc_addr[INET_ADDRSTRLEN] ;
-	inet_ntop(AF_INET, &(pfcp_config.pgwc_pfcp_ip[0]),pgwc_addr, INET_ADDRSTRLEN);	
+	inet_ntop(AF_INET, &(pfcp_config.pgwc_pfcp_ip[0]), pgwc_addr, INET_ADDRSTRLEN);
 	unsigned long pgwc_value = inet_addr(pgwc_addr);
-	set_fq_csid( &(pfcp_sess_est_req->pgwc_fqcsid),pgwc_value);
+	set_fq_csid( &(pfcp_sess_est_req->pgwc_fqcsid), pgwc_value);
 
 	// set of epdg fqcsid
 	//TODO : IP addres for epdgg is hardcoded
 	const char* epdg_addr = "0.0.0.0";
 	uint32_t epdg_value = inet_addr(epdg_addr);
-	set_fq_csid( &(pfcp_sess_est_req->epdg_fqcsid),epdg_value);
+	set_fq_csid( &(pfcp_sess_est_req->epdg_fqcsid), epdg_value);
 
 	// set of twan fqcsid
 	//TODO : IP addres for twan is hardcoded
 	const char* twan_addr = "0.0.0.0";
 	uint32_t twan_value = inet_addr(twan_addr);
-	set_fq_csid( &(pfcp_sess_est_req->twan_fqcsid),twan_value);
+	set_fq_csid( &(pfcp_sess_est_req->twan_fqcsid), twan_value);
 
 	// set of UP inactivity timer
 	set_up_inactivity_timer(&(pfcp_sess_est_req->user_plane_inactivity_timer));
@@ -311,11 +444,11 @@ fill_pfcp_sess_est_req( pfcp_session_establishment_request_t *pfcp_sess_est_req)
 
 }
 
-//modify the below function with gtpv2c_rx
 #if defined(PFCP_COMM) && defined(CP_BUILD)
 int
 process_pfcp_sess_est_request(gtpv2c_header *gtpv2c_rx,
-		gtpv2c_header *gtpv2c_s11_tx)
+		gtpv2c_header *gtpv2c_s11_tx, gtpv2c_header *gtpv2c_s5s8_tx,
+		char *sgwu_fqdn)
 #else
 int
 process_pfcp_sess_est_request(void)
@@ -329,6 +462,8 @@ process_pfcp_sess_est_request(void)
 	eps_bearer *bearer = NULL;
 	pdn_connection *pdn = NULL;
 	struct in_addr ue_ip;
+	static uint32_t process_pfcp_sgwc_s5s8_cs_req_cnt;
+
 	create_session_request_t csr = { 0 };
 	ret = decode_create_session_request_t((uint8_t *) gtpv2c_rx,
 			&csr);
@@ -385,7 +520,6 @@ process_pfcp_sess_est_request(void)
 	context->s11_sgw_gtpc_ipv4 = pfcp_config.sgwc_s11_ip[0];
 	context->s11_mme_gtpc_teid = csr.sender_ftied.teid_gre;
 	context->s11_mme_gtpc_ipv4 = csr.sender_ftied.ip.ipv4;
-	//context->s11_mme_gtpc_ipv4 = pfcp_config.mme_s11_ip[0];
 
 	pdn = context->pdns[ebi_index];
 	{
@@ -413,7 +547,7 @@ process_pfcp_sess_est_request(void)
 		/* Note: s5s8_sgw_gtpc_teid =
 		 *                  * s11_sgw_gtpc_teid
 		 *                                   */
-		pdn->s5s8_sgw_gtpc_teid = context->s11_sgw_gtpc_teid;
+		pdn->s5s8_sgw_gtpc_teid = (context->s11_sgw_gtpc_teid);
 		pdn->s5s8_pgw_gtpc_ipv4 = csr.s5s8pgw_pmip.ip.ipv4;
 
 		/* Note: s5s8_pgw_gtpc_teid updated by
@@ -436,31 +570,33 @@ process_pfcp_sess_est_request(void)
 			csr.bearer_context.bearer_qos.guaranteed_bit_rate_for_uplink;
 		bearer->qos.qos.dl_gbr =
 			csr.bearer_context.bearer_qos.guaranteed_bit_rate_for_downlink;
-		//TODO modify the s1u_sgw_ip
-		//bearer->s1u_sgw_gtpu_ipv4 = s1u_sgw_ip;
-		bearer->s1u_sgw_gtpu_ipv4 = pfcp_config.sgwu_pfcp_ip[0];
-		set_s1u_sgw_gtpu_teid(bearer, context);
-		//bearer->s5s8_sgw_gtpu_ipv4 = s5s8_sgwu_ip;
-		//TODO VG  :below mention must be replaced with sgwu
-		bearer->s5s8_sgw_gtpu_ipv4 = pfcp_config.sgwc_s5s8_ip[0];
+
+#ifdef PFCP_COMM
+		bearer->s5s8_sgw_gtpu_ipv4.s_addr = htonl(pfcp_ctxt.s5s8_sgwu_ip);
+		bearer->s1u_sgw_gtpu_ipv4.s_addr = pfcp_ctxt.s1u_ip[0];
+#else
+		bearer->s5s8_sgw_gtpu_ipv4 = s5s8_sgwu_ip;
+		bearer->s1u_sgw_gtpu_ipv4 = s1u_sgw_ip;
+#endif
 		/* Note: s5s8_sgw_gtpu_teid based s11_sgw_gtpc_teid
 		 *                  * Computation same as s1u_sgw_gtpu_teid
 		 *                                   */
+		set_s1u_sgw_gtpu_teid(bearer, context);
 		set_s5s8_sgw_gtpu_teid(bearer, context);
 		bearer->pdn = pdn;
 	}
-
-
 #endif
 
 #if defined(PFCP_COMM) && defined(CP_BUILD)
-	fill_pfcp_sess_est_req(&pfcp_sess_est_req,&csr);
-	context->seid = SESS_ID(context->s11_sgw_gtpc_teid,bearer->eps_bearer_id);
-	pfcp_sess_est_req.header.seid_seqno.has_seid.seid = context->seid;
+	/*fill_pfcp_sess_est_req(&pfcp_sess_est_req, &csr );*/
+	context->seid = SESS_ID(context->s11_sgw_gtpc_teid, bearer->eps_bearer_id);
+	fill_pfcp_sess_est_req(&pfcp_sess_est_req, &csr, context, bearer, pdn);
+
+	/*pfcp_sess_est_req.header.seid_seqno.has_seid.seid = context->seid;
 	pfcp_sess_est_req.cp_fseid.seid = context->seid;
-	pfcp_sess_est_req.create_pdr.pdi.local_fteid.teid = htonl(bearer->s1u_sgw_gtpu_teid);
-	pfcp_sess_est_req.create_pdr.pdi.ue_ip_address.ipv4_address = htonl(pdn->ipv4.s_addr);
-	pfcp_sess_est_req.create_pdr.pdi.local_fteid.ipv4_address = htonl(pfcp_ctxt.s1u_ip[0]);
+	pfcp_sess_est_req.create_pdr[0].pdi.local_fteid.teid = htonl(bearer->s1u_sgw_gtpu_teid);
+	pfcp_sess_est_req.create_pdr[0].pdi.ue_ip_address.ipv4_address = htonl(pdn->ipv4.s_addr);
+	pfcp_sess_est_req.create_pdr[0].pdi.local_fteid.ipv4_address = htonl(pfcp_ctxt.s1u_ip[0]);*/
 
 #else
 	fill_pfcp_sess_est_req(&pfcp_sess_est_req);
@@ -471,46 +607,63 @@ process_pfcp_sess_est_request(void)
 	pfcp_header_t *header = (pfcp_header_t *) pfcp_msg;
 	header->message_len = htons(encoded - 4);
 
-	if(pfcp_ctxt.flag_ava_ip == true)
-	{
 		for(uint32_t i=0;i < pfcp_config.num_sgwu; i++ ){
 
 			if(pfcp_config.cp_type == SGWC || pfcp_config.cp_type == SAEGWC) {
-				//TODO :TEMP 	pfcp_sgwu_sockaddr_arr[i].sin_addr = pfcp_ctxt.ava_ip;
+				//TODO :TEMP pfcp_sgwu_sockaddr_arr[i].sin_addr = pfcp_ctxt.ava_ip;
 
-				if ( pfcp_send(pfcp_sgwc_fd_arr[i],pfcp_msg,encoded,&pfcp_sgwu_sockaddr_arr[i]) < 0 )
+				if ( pfcp_send(pfcp_sgwc_fd_arr[i], pfcp_msg,encoded, &pfcp_sgwu_sockaddr_arr[i]) < 0 ){
 					printf("Error sending: %i\n",errno);
+				}else {
+#ifdef CP_BUILD
+					cp_stats.session_establishment_req_sent++;
+#endif /* CP_BUILD */
+				}
 
 #if defined (PFCP_COMM) && defined (CP_BUILD)
-				set_create_session_response(
-						gtpv2c_s11_tx, csr.header.teid.has_teid.seq,
-						context, pdn, bearer);
-#endif
-			}else if (pfcp_config.cp_type == PGWC) {
-				//TODO:TEMP pfcp_pgwu_sockaddr_arr[i].sin_addr = pfcp_ctxt.ava_ip;
+				if (pfcp_config.cp_type == SAEGWC) {
+					set_create_session_response(
+							gtpv2c_s11_tx, csr.header.teid.has_teid.seq,
+							context, pdn, bearer);
+				}
 
-				if (sendto(pfcp_pgwc_fd_arr[i],
-							(char *) &pfcp_sess_est_req,
-							sizeof(pfcp_sess_est_req),
-							MSG_DONTWAIT,
-							(struct sockaddr *)&pfcp_pgwu_sockaddr_arr[i],
-							sizeof(pfcp_pgwu_sockaddr_arr[i])) < 0)
+				if (pfcp_config.cp_type == SGWC) {
+					ret = gen_sgwc_s5s8_create_session_request(gtpv2c_rx,
+							gtpv2c_s5s8_tx, csr.header.teid.has_teid.seq,
+							pdn, bearer, sgwu_fqdn);
+					RTE_LOG_DP(DEBUG, CP, "NGIC- create_session.c::"
+							"\n\tprocess_create_session_request::case= %d;"
+							"\n\tprocess_pfcp_sgwc_s5s8_cs_req_cnt= %u;"
+							"\n\tgen_create_s5s8_session_request= %d\n",
+							spgw_cfg, process_pfcp_sgwc_s5s8_cs_req_cnt++,
+							ret);
+					return ret;
+				}
+#endif
+			} else if (pfcp_config.cp_type == PGWC) {
+				//TODO:TEMP pfcp_pgwu_sockaddr_arr[i].sin_addr = pfcp_ctxt.ava_ip;
+				if ( pfcp_send(pfcp_pgwc_fd_arr[i], pfcp_msg,encoded, &pfcp_pgwu_sockaddr_arr[i]) < 0 ) {
 					printf("Error sending: %i\n",errno);
+			} else {
+#ifdef CP_BUILD
+					cp_stats.session_establishment_req_sent++;
+#endif /* CP_BUILD */
+
+			}		
 			}
 
 		}
-	} else {
-		/*see flow diagram for implementation*/
-
-	}
 	return 0;
 }
 
 #if defined(PFCP_COMM) && defined(CP_BUILD)
+
 int
 process_pfcp_sess_mod_request(gtpv2c_header *gtpv2c_rx,
-		gtpv2c_header *gtpv2c_s11_tx )
+		gtpv2c_header *gtpv2c_s11_tx)
+
 #else
+
 int
 process_pfcp_sess_mod_request(void)
 #endif
@@ -518,9 +671,9 @@ process_pfcp_sess_mod_request(void)
 	pfcp_session_modification_request_t pfcp_sess_mod_req = {0};
 #if defined(PFCP_COMM) && defined(CP_BUILD)
 
-	int ret ;
+	int ret = 0;
 	ue_context *context = NULL;
-	eps_bearer *bearer = NULL;
+	eps_bearer *bearer  = NULL;
 	pdn_connection *pdn =  NULL;
 	modify_bearer_request_t mb_req = {0};
 	decode_modify_bearer_request_t((uint8_t *) gtpv2c_rx, &mb_req);
@@ -570,17 +723,14 @@ process_pfcp_sess_mod_request(void)
 
 	bearer->eps_bearer_id = mb_req.bearer_context.ebi.eps_bearer_id;
 #endif
-	pfcp_session_modification_response_t *pfcp_sess_mod_resp = malloc(sizeof(pfcp_session_modification_response_t));
+	pfcp_session_modification_response_t *pfcp_sess_mod_resp =
+			malloc(sizeof(pfcp_session_modification_response_t));
 	memset(pfcp_sess_mod_resp,0,sizeof(pfcp_session_modification_response_t));
 
 #if defined(PFCP_COMM) && defined(CP_BUILD)
-	fill_pfcp_sess_mod_req(&pfcp_sess_mod_req,&mb_req);
-	context->seid = SESS_ID(context->s11_sgw_gtpc_teid,bearer->eps_bearer_id);
-	pfcp_sess_mod_req.header.seid_seqno.has_seid.seid = context->seid;
-	pfcp_sess_mod_req.cp_fseid.seid = context->seid;
-	pfcp_sess_mod_req.create_pdr.pdi.local_fteid.teid = bearer->s1u_enb_gtpu_teid ;
-	pfcp_sess_mod_req.create_pdr.pdi.local_fteid.ipv4_address = htonl(bearer->s1u_enb_gtpu_ipv4.s_addr) ;
-	pfcp_sess_mod_req.create_pdr.pdi.ue_ip_address.ipv4_address = htonl(pdn->ipv4.s_addr);
+	context->seid = SESS_ID(context->s11_sgw_gtpc_teid, bearer->eps_bearer_id);
+	fill_pfcp_sess_mod_req(&pfcp_sess_mod_req, &mb_req, context, bearer, pdn);
+
 #else
 	fill_pfcp_sess_mod_req(&pfcp_sess_mod_req);
 
@@ -590,60 +740,69 @@ process_pfcp_sess_mod_request(void)
 	pfcp_header_t *header = (pfcp_header_t *) pfcp_msg;
 	header->message_len = htons(encoded - 4);
 
-	if(pfcp_ctxt.flag_ava_ip == true)
-	{
-		for(uint32_t i=0;i < pfcp_config.num_sgwu; i++ ){
+	for(uint32_t i=0;i < pfcp_config.num_sgwu; i++ ){
 			if(pfcp_config.cp_type == SGWC || pfcp_config.cp_type == SAEGWC) {
 				// TODO :TEMP pfcp_sgwu_sockaddr_arr[i].sin_addr = pfcp_ctxt.ava_ip;
-				if ( pfcp_send(pfcp_sgwc_fd_arr[i],pfcp_msg,encoded,&pfcp_sgwu_sockaddr_arr[i]) < 0 )
+				if ( pfcp_send(pfcp_sgwc_fd_arr[i], pfcp_msg, encoded,
+								&pfcp_sgwu_sockaddr_arr[i]) < 0 ) {
+
 					printf("Error sending: %i\n",errno);
+				} else {
+#ifdef CP_BUILD
+				 
+                                     cp_stats.session_modification_req_sent++;
+#endif /* CP_BUILD */
+				}
 			}
 #if defined (PFCP_COMM) && defined (CP_BUILD)
-			set_modify_bearer_response(gtpv2c_s11_tx, mb_req.header.teid.has_teid.seq,
-					context,bearer);
+			set_modify_bearer_response(gtpv2c_s11_tx,
+				mb_req.header.teid.has_teid.seq, context, bearer);
 #endif
 		}
-	}
 	return 0;
 }
 
 #if defined(PFCP_COMM) && defined(CP_BUILD)
+
 int
 process_pfcp_sess_del_request(gtpv2c_header *gtpv2c_rx,
 		gtpv2c_header *gtpv2c_s11_tx, gtpv2c_header *gtpv2c_s5s8_tx)
 #else
+
 int
 process_pfcp_sess_del_request(void)
 #endif
 {
 	pfcp_session_deletion_request_t pfcp_sess_del_req = {0};
-#if defined(PFCP_COMM) && defined(CP_BUILD) 
+#if defined(PFCP_COMM) && defined(CP_BUILD)
 	int ret ;
 	ue_context *context = NULL;
 	delete_session_request_t ds_req = {0};
 
 	decode_delete_session_request_t((uint8_t *) gtpv2c_rx, &ds_req);
+
 	if (spgw_cfg == SGWC) {
 		pdn_connection *pdn = NULL;
 		uint32_t s5s8_pgw_gtpc_del_teid;
 		static uint32_t process_sgwc_s5s8_ds_req_cnt;
 		/* s11_sgw_gtpc_teid= key->ue_context_by_fteid_hash */
+
 		ret = rte_hash_lookup_data(ue_context_by_fteid_hash,
-			(const void *) &ds_req.header.teid.has_teid.teid,
-			(void **) &context);
-		
+				(const void *) &ds_req.header.teid.has_teid.teid,
+				(void **) &context);
+
 		if (ret < 0 || !context)
 			return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
-		
+
 		uint8_t del_ebi_index = ds_req.linked_ebi.eps_bearer_id - 5;
 		pdn = context->pdns[del_ebi_index];
 		/* s11_sgw_gtpc_teid = s5s8_pgw_gtpc_base_teid =
 		 * key->ue_context_by_fteid_hash */
-		s5s8_pgw_gtpc_del_teid = pdn->s5s8_pgw_gtpc_teid;
+		s5s8_pgw_gtpc_del_teid = htonl(pdn->s5s8_pgw_gtpc_teid);
 		ret =
 			gen_sgwc_s5s8_delete_session_request(gtpv2c_rx,
-				gtpv2c_s5s8_tx, s5s8_pgw_gtpc_del_teid,
-				gtpv2c_rx->teid_u.has_teid.seq, ds_req.linked_ebi.eps_bearer_id);
+					gtpv2c_s5s8_tx, s5s8_pgw_gtpc_del_teid,
+					gtpv2c_rx->teid_u.has_teid.seq, ds_req.linked_ebi.eps_bearer_id);
 		RTE_LOG(DEBUG, CP, "NGIC- delete_session.c::"
 				"\n\tprocess_delete_session_request::case= %d;"
 				"\n\tprocess_sgwc_s5s8_ds_req_cnt= %u;"
@@ -661,42 +820,57 @@ process_pfcp_sess_del_request(void)
 				pdn->s5s8_pgw_gtpc_teid,
 				ret);
 #ifndef PFCP_COMM
+
 		return ret;
 #endif
 	}
+
 	gtpv2c_s11_tx->teid_u.has_teid.seq = gtpv2c_rx->teid_u.has_teid.seq;
 	ret = delete_context(&ds_req, &context);
 	if (ret)
 		return ret;
+
 #endif
-	pfcp_session_deletion_response_t *pfcp_sess_del_resp = malloc(sizeof(pfcp_session_deletion_response_t));
-	memset(pfcp_sess_del_resp,0,sizeof(pfcp_session_deletion_response_t));
+	pfcp_session_deletion_response_t *pfcp_sess_del_resp =
+					malloc(sizeof(pfcp_session_deletion_response_t));
+	memset(pfcp_sess_del_resp, 0, sizeof(pfcp_session_deletion_response_t));
 
 	fill_pfcp_sess_del_req(&pfcp_sess_del_req);
 
 #if defined(PFCP_COMM) && defined(CP_BUILD)
 	context->seid = SESS_ID(context->s11_sgw_gtpc_teid,ds_req.linked_ebi.eps_bearer_id);
 	pfcp_sess_del_req.header.seid_seqno.has_seid.seid = context->seid;
+
 	if(ds_req.header.gtpc.teid_flag == 1)
-		pfcp_sess_del_req.header.seid_seqno.has_seid.seq_no = ds_req.header.teid.has_teid.seq;
+		pfcp_sess_del_req.header.seid_seqno.has_seid.seq_no =
+				ds_req.header.teid.has_teid.seq;
 	else
-		pfcp_sess_del_req.header.seid_seqno.has_seid.seq_no = ds_req.header.teid.no_teid.seq;
+		pfcp_sess_del_req.header.seid_seqno.has_seid.seq_no =
+				ds_req.header.teid.no_teid.seq;
+
 #endif
+
 	uint8_t pfcp_msg[512]={0};
 
 	int encoded = encode_pfcp_session_deletion_request(&pfcp_sess_del_req, pfcp_msg);
 	pfcp_header_t *header = (pfcp_header_t *) pfcp_msg;
 	header->message_len = htons(encoded - 4);
 
-	if(pfcp_ctxt.flag_ava_ip == true)
-	{
-		for(uint32_t i=0;i < pfcp_config.num_sgwu; i++ ){
+	for(uint32_t i=0;i < pfcp_config.num_sgwu; i++ ){
+		if(pfcp_config.cp_type == SGWC || pfcp_config.cp_type == SAEGWC ) {
+		//TODO TEMP pfcp_sgwu_sockaddr_arr[i].sin_addr = pfcp_ctxt.ava_ip;
+		if ( pfcp_send(pfcp_sgwc_fd_arr[i], pfcp_msg,encoded,
+					&pfcp_sgwu_sockaddr_arr[i]) < 0 ) {
+			printf("Error sending: %i\n",errno);
+		} else  {
+#ifdef CP_BUILD
+					cp_stats.session_deletion_req_sent++;
+#endif /* CP_BUILD */
+			
 
-			if(pfcp_config.cp_type == SGWC || pfcp_config.cp_type == SAEGWC ) {
-				//TODO TEMP pfcp_sgwu_sockaddr_arr[i].sin_addr = pfcp_ctxt.ava_ip;
-				if ( pfcp_send(pfcp_sgwc_fd_arr[i],pfcp_msg,encoded,&pfcp_sgwu_sockaddr_arr[i]) < 0 )
-					printf("Error sending: %i\n",errno);
-			}
+		}
+
+	}
 
 #if defined(PFCP_COMM) && defined(CP_BUILD)
 			set_gtpv2c_teid_header(gtpv2c_s11_tx, GTP_DELETE_SESSION_RSP,
@@ -705,44 +879,46 @@ process_pfcp_sess_del_request(void)
 
 #endif
 		}
-	}
 	return 0;
 }
 
-void
+	void
 fill_pfcp_sess_set_del_resp(pfcp_session_set_deletion_response_t *pfcp_sess_set_del_resp)
 {
+
 	uint32_t seq  = 1;
+	uint32_t node_value = 0 ;
+
 	memset(pfcp_sess_set_del_resp,0,sizeof(pfcp_session_set_deletion_response_t));
 	//filing of pfcp header
-	set_pfcp_seid_header((pfcp_header_t *) &(pfcp_sess_set_del_resp->header),PFCP_SESSION_SET_DELETION_RESPONSE,
-				NO_SEID, seq);
-	uint32_t node_value = 0 ;
-	set_node_id(&(pfcp_sess_set_del_resp->node_id),node_value);
+	set_pfcp_seid_header((pfcp_header_t *) &(pfcp_sess_set_del_resp->header),
+		PFCP_SESSION_SET_DELETION_RESPONSE, NO_SEID, seq);
+
+	set_node_id(&(pfcp_sess_set_del_resp->node_id), node_value);
 	// TODO : REmove the CAUSE_VALUES_REQUESTACCEPTEDSUCCESS in set_cause
-	set_cause(&(pfcp_sess_set_del_resp->cause), CAUSE_VALUES_REQUESTACCEPTEDSUCCESS);  
+	set_cause(&(pfcp_sess_set_del_resp->cause), CAUSE_VALUES_REQUESTACCEPTEDSUCCESS);
 	//TODO Replace IE_NODE_ID with the  real offendID
-	set_offending_ie(&(pfcp_sess_set_del_resp->offending_ie),IE_NODE_ID );
+	set_offending_ie(&(pfcp_sess_set_del_resp->offending_ie), IE_NODE_ID );
 
 }
 
 void
 fill_pfcp_sess_del_resp(pfcp_session_deletion_response_t *
-			pfcp_sess_del_resp, uint8_t cause, int offend)
+		pfcp_sess_del_resp, uint8_t cause, int offend)
 {
 
 	uint32_t seq  = 1;
 	memset(pfcp_sess_del_resp,0,sizeof(pfcp_session_deletion_response_t));
 	//filing of pfcp header
 	set_pfcp_seid_header((pfcp_header_t *) &(pfcp_sess_del_resp->header),PFCP_SESSION_DELETION_RESPONSE,
-				HAS_SEID, seq);
+			HAS_SEID, seq);
 	//set cause
 	set_cause(&(pfcp_sess_del_resp->cause), cause);
 
 	// filling of offending IE
 	if(cause == CAUSE_VALUES_CONDITIONALIEMISSING ||
-			 cause == CAUSE_VALUES_MANDATORYIEMISSING) {
-		
+			cause == CAUSE_VALUES_MANDATORYIEMISSING) {
+
 		set_offending_ie(&(pfcp_sess_del_resp->offending_ie), offend);
 	}
 
@@ -757,26 +933,30 @@ fill_pfcp_sess_del_resp(pfcp_session_deletion_response_t *
 
 void
 fill_pfcp_session_modify_resp(pfcp_session_modification_response_t *
-			pfcp_sess_modify_resp, uint8_t cause, int offend)
+		pfcp_sess_modify_resp, uint8_t cause, int offend)
 {
 	uint32_t seq  = 1;
-	memset(pfcp_sess_modify_resp,0,sizeof(pfcp_session_modification_response_t));
+	memset(pfcp_sess_modify_resp, 0, sizeof(pfcp_session_modification_response_t));
 	//filing of pfcp header
-	set_pfcp_seid_header((pfcp_header_t *) &(pfcp_sess_modify_resp->header),PFCP_SESSION_MODIFICATION_RESPONSE,
-						HAS_SEID, seq);
+	set_pfcp_seid_header((pfcp_header_t *) &(pfcp_sess_modify_resp->header),
+			PFCP_SESSION_MODIFICATION_RESPONSE, HAS_SEID, seq);
+
 	//set cause
 	set_cause(&(pfcp_sess_modify_resp->cause), cause);
 
 	// filling of offending IE
 
-	if(cause == CAUSE_VALUES_CONDITIONALIEMISSING || cause == CAUSE_VALUES_MANDATORYIEMISSING) {
-		
+	if(cause == CAUSE_VALUES_CONDITIONALIEMISSING
+			|| cause == CAUSE_VALUES_MANDATORYIEMISSING) {
+
 		set_offending_ie(&(pfcp_sess_modify_resp->offending_ie), offend);
 	}
 
 	//created_bar
 	// Need to do
-	set_created_pdr_ie(&(pfcp_sess_modify_resp->created_pdr));
+	pfcp_sess_modify_resp->created_pdr_count = 1;
+	for( int i = 0; i < pfcp_sess_modify_resp->created_pdr_count ; i++)
+		set_created_pdr_ie(&(pfcp_sess_modify_resp->created_pdr[i]));
 
 	// filling of LCI
 	if( pfcp_ctxt.cp_supported_features & CP_LOAD )
@@ -801,24 +981,28 @@ fill_pfcp_session_modify_resp(pfcp_session_modification_response_t *
 }
 
 void
-fill_pfcp_session_est_resp(pfcp_session_establishment_response_t *pfcp_sess_est_resp, uint8_t cause, int offend)
+fill_pfcp_session_est_resp(pfcp_session_establishment_response_t *pfcp_sess_est_resp,
+			uint8_t cause, int offend)
 {
-	uint32_t seq  = 1;
+	uint32_t seq  = 0;
+	uint32_t node_value = 0;
+
 	memset(pfcp_sess_est_resp,0,sizeof(pfcp_session_establishment_response_t)) ;
 
 	//filing of pfcp header
-	set_pfcp_seid_header((pfcp_header_t *) &(pfcp_sess_est_resp->header),PFCP_SESSION_ESTABLISHMENT_RESPONSE,
-			HAS_SEID, seq);
+	set_pfcp_seid_header((pfcp_header_t *) &(pfcp_sess_est_resp->header),
+			PFCP_SESSION_ESTABLISHMENT_RESPONSE, HAS_SEID, seq);
+
 	// filling of node id
-	uint32_t node_value = 0;
-	set_node_id(&(pfcp_sess_est_resp->node_id),node_value);
+	set_node_id(&(pfcp_sess_est_resp->node_id), node_value);
 
 	//set cause
-	 // TODO : REmove the CAUSE_VALUES_REQUESTACCEPTEDSUCCESS in set_cause
- 
+	// TODO : REmove the CAUSE_VALUES_REQUESTACCEPTEDSUCCESS in set_cause
+
 	set_cause(&(pfcp_sess_est_resp->cause), cause);
 
-	if(cause == CAUSE_VALUES_CONDITIONALIEMISSING || cause == CAUSE_VALUES_MANDATORYIEMISSING) {
+	if(cause == CAUSE_VALUES_CONDITIONALIEMISSING
+			|| cause == CAUSE_VALUES_MANDATORYIEMISSING) {
 
 		// filling of offending IE
 		set_offending_ie(&(pfcp_sess_est_resp->offending_ie), offend);
@@ -826,29 +1010,45 @@ fill_pfcp_session_est_resp(pfcp_session_establishment_response_t *pfcp_sess_est_
 
 	// filling of UP FSEID
 	uint64_t up_seid = pfcp_sess_est_resp->header.seid_seqno.has_seid.seid ;
-	set_fseid(&(pfcp_sess_est_resp->up_fseid),up_seid,node_value);
+	set_fseid(&(pfcp_sess_est_resp->up_fseid), up_seid,node_value);
 
-	set_created_pdr_ie(&(pfcp_sess_est_resp->created_pdr));
+
+	//creating pdr for Fteid only,TODO : Rules will be implemented later
+	/************************************************
+	 *  cp_type     count    FTEID_1        FTEID_2 *
+	 *************************************************
+	 SGWU         2      s1u  SGWU      s5s8 SGWU
+	 PGWU         2      s5s8 PGWU      s5s8SGWU
+	 SAEGWU       1      s1u SAEGWU         -
+	 ************************************************/
+
+	if (app.spgw_cfg == SGWU || app.spgw_cfg == PGWU )
+		pfcp_sess_est_resp->created_pdr_count = 2;
+	else
+		pfcp_sess_est_resp->created_pdr_count = 1;
+
+	for(int i=0; i < pfcp_sess_est_resp->created_pdr_count; i++ )
+		set_created_pdr_ie(&(pfcp_sess_est_resp->created_pdr[i]));
 
 	// filling of LCI
 	if( pfcp_ctxt.cp_supported_features & CP_LOAD )
-	set_lci(&(pfcp_sess_est_resp->load_control_information));
+		set_lci(&(pfcp_sess_est_resp->load_control_information));
 
 	// filling of OLCI
 	if( pfcp_ctxt.cp_supported_features & CP_OVRL )
-	set_olci(&(pfcp_sess_est_resp->overload_control_information));
+		set_olci(&(pfcp_sess_est_resp->overload_control_information));
 
 	// filling of sgwu FQCSID
 	char sgwu_addr[INET_ADDRSTRLEN] ;
-	inet_ntop(AF_INET, &(pfcp_config.sgwu_pfcp_ip[0]),sgwu_addr, INET_ADDRSTRLEN);	
+	inet_ntop(AF_INET, &(pfcp_config.sgwu_pfcp_ip[0]), sgwu_addr, INET_ADDRSTRLEN);
 	unsigned long sgwu_value = inet_addr(sgwu_addr);
-	set_fq_csid( &(pfcp_sess_est_resp->sgwu_fqcsid),sgwu_value);
+	set_fq_csid( &(pfcp_sess_est_resp->sgwu_fqcsid), sgwu_value);
 
 	// filling of pgwu FQCSID
 	char pgwu_addr[INET_ADDRSTRLEN] ;
-	inet_ntop(AF_INET, &(pfcp_config.pgwu_pfcp_ip[0]),pgwu_addr, INET_ADDRSTRLEN);	
+	inet_ntop(AF_INET, &(pfcp_config.pgwu_pfcp_ip[0]), pgwu_addr, INET_ADDRSTRLEN);
 	unsigned long pgwu_value = inet_addr(pgwu_addr);
-	set_fq_csid( &(pfcp_sess_est_resp->pgwu_fqcsid),pgwu_value);
+	set_fq_csid( &(pfcp_sess_est_resp->pgwu_fqcsid), pgwu_value);
 
 	// filling of failed rule ID
 	set_failed_rule_id(&(pfcp_sess_est_resp->failed_rule_id));

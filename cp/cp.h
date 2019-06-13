@@ -26,9 +26,12 @@
 #include <rte_ethdev.h>
 
 #ifdef USE_REST
-#include "../restoration/gstimer.h"
+#include "../restoration/restoration_timer.h"
 #endif /* USE_REST */
 
+#if defined(CP_BUILD)
+#include "gtpv2c_messages.h"
+#endif
 
 #ifndef PERF_TEST
 /** Temp. work around for support debug log level into DP, DPDK version 16.11.4 */
@@ -70,6 +73,9 @@ typedef long long int _timer_t;
 })
 
 #endif /* SYNC_STATS */
+
+#define MAX_UPF 10
+
 /**
  * @file
  *
@@ -305,60 +311,77 @@ close_stats(void);
 #define MAX_NUM_PGWC  5
 #define MAX_NUM_SGWU  5
 #define MAX_NUM_PGWU  5
-#define MAX_NUM_SPGWU 5
+#define MAX_NUM_SAEGWU 5
+
+#define MAX_NUM_APN   8
+
+#define MAX_NUM_NAMESERVER 5
 
 #define SGWU_PFCP_PORT   8805
 #define PGWU_PFCP_PORT   8805
-#define SPGWU_PFCP_PORT   8805
+#define SAEGWU_PFCP_PORT   8805
 
 
 typedef struct pfcp_config_t
 {
-       uint8_t cp_type; /*SGWC=01; PGWC=02; SAEGWC=03*/
+	uint8_t cp_type; /*SGWC=01; PGWC=02; SAEGWC=03*/
 
-       //MME
-       uint32_t num_mme;
-       struct in_addr mme_s11_ip[MAX_NUM_MME];
-       uint16_t mme_s11_port[MAX_NUM_MME];
+	//MME
+	uint32_t num_mme;
+	struct in_addr mme_s11_ip[MAX_NUM_MME];
+	uint16_t mme_s11_port[MAX_NUM_MME];
 
-       //SGWC SAEGWC
-       uint32_t num_sgwc;
-       struct in_addr sgwc_s11_ip[MAX_NUM_SGWC];
-       uint16_t sgwc_s11_port[MAX_NUM_SGWC];
+	//SGWC SAEGWC
+	uint32_t num_sgwc;
+	struct in_addr sgwc_s11_ip[MAX_NUM_SGWC];
+	uint16_t sgwc_s11_port[MAX_NUM_SGWC];
 
-       struct in_addr sgwc_s5s8_ip[MAX_NUM_SGWC];
-       uint16_t sgwc_s5s8_port[MAX_NUM_SGWC];
+	struct in_addr sgwc_s5s8_ip[MAX_NUM_SGWC];
+	uint16_t sgwc_s5s8_port[MAX_NUM_SGWC];
 
-       struct in_addr sgwc_pfcp_ip[MAX_NUM_SGWC];
-       uint16_t sgwc_pfcp_port[MAX_NUM_SGWC];
+	struct in_addr sgwc_pfcp_ip[MAX_NUM_SGWC];
+	uint16_t sgwc_pfcp_port[MAX_NUM_SGWC];
 
-       //PGWC
-       uint32_t num_pgwc;
-       struct in_addr pgwc_s5s8_ip[MAX_NUM_PGWC];
-       uint16_t pgwc_s5s8_port[MAX_NUM_PGWC];
+	//PGWC
+	uint32_t num_pgwc;
+	struct in_addr pgwc_s5s8_ip[MAX_NUM_PGWC];
+	uint16_t pgwc_s5s8_port[MAX_NUM_PGWC];
 
-       struct in_addr pgwc_pfcp_ip[MAX_NUM_PGWC];
-       uint16_t pgwc_pfcp_port[MAX_NUM_PGWC];
+	struct in_addr pgwc_pfcp_ip[MAX_NUM_PGWC];
+	uint16_t pgwc_pfcp_port[MAX_NUM_PGWC];
 
-       //SPGWU
-       uint32_t num_spgwu;
-       struct in_addr spgwu_pfcp_ip[MAX_NUM_SPGWU];
-       uint16_t spgwu_pfcp_port[MAX_NUM_SPGWU];
+	//SAEGWU
+	uint32_t num_spgwu;
+	struct in_addr spgwu_pfcp_ip[MAX_NUM_SAEGWU];
+	uint16_t spgwu_pfcp_port[MAX_NUM_SAEGWU];
 
-       //SGWU
-       uint32_t num_sgwu;
-       struct in_addr sgwu_pfcp_ip[MAX_NUM_SGWU];
-       uint16_t sgwu_pfcp_port[MAX_NUM_SGWU];
+	//SGWU
+	uint32_t num_sgwu;
+	struct in_addr sgwu_pfcp_ip[MAX_NUM_SGWU];
+	uint16_t sgwu_pfcp_port[MAX_NUM_SGWU];
 
-       //PGWU
-       uint32_t num_pgwu;
-       struct in_addr pgwu_pfcp_ip[MAX_NUM_PGWU];
-       uint16_t pgwu_pfcp_port[MAX_NUM_PGWU];
+	//PGWU
+	uint32_t num_pgwu;
+	struct in_addr pgwu_pfcp_ip[MAX_NUM_PGWU];
+	uint16_t pgwu_pfcp_port[MAX_NUM_PGWU];
 
-	//REST 	
+	//RESTORATION PARAMETERS
 	uint8_t transmit_cnt;
 	int transmit_timer;
 	int periodic_timer;
+
+	//APN
+	uint32_t num_apn;
+	//apn apn_list[MAX_NUM_APN];
+
+	//NAMESERVER
+	uint32_t num_nameserver;
+	char nameserver_ip[MAX_NUM_NAMESERVER][INET_ADDRSTRLEN];
+
+       //IP_POOL_CONFIG
+       struct in_addr ip_pool_ip;
+       struct in_addr ip_pool_mask;
+
 
 } pfcp_config_t;
 
@@ -377,11 +400,6 @@ pfcp_init_s5s8_pgwc(void);
 
 void
 pfcp_init_s5s8_sgwc(void);
-
-//void
-//pfcp_association_setup(void);
-
-void get_upf_list(struct in_addr *p_upf_list);
 
 void received_create_session_request(void);
 

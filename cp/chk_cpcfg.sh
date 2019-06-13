@@ -12,8 +12,9 @@ cp_debug_flag="CFLAGS += -g -O0"
 NUMA_MEMORY="1024"
 
 #Reading the MEMORY set in config/cp_config
-source ../config/cp_config.cfg
 source ../services.cfg
+
+MEMORY=`cat run.sh  | grep "MEMORY=" | head -n 1 | cut -d '=' -f 2`
 CP_MEMORY=$MEMORY
 HUGEPGSZ=`cat /proc/meminfo  | grep Hugepagesize | cut -d : -f 2 | tr -d ' '`
 

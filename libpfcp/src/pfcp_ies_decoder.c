@@ -334,43 +334,6 @@ int decode_overload_control_information_ie_t(uint8_t *buf,
 
 	return total_decoded/CHAR_SIZE;
 }
-#if 0
-int decode_overload_control_information_ie_t(uint8_t *msg,
-		overload_control_information_ie_t *oc_inf)
-{
-	uint16_t count = 0;
-	uint16_t msg_len;
-
-	count = decode_pfcp_header_t(msg + count, &oc_inf->header);
-
-	if (oc_inf->header.s)
-		msg_len = oc_inf->header.message_len - 12;
-	else
-		msg_len = oc_inf->header.message_len - 4;
-
-	msg = msg + count;
-	count = 0;
-	while (count < msg_len) {
-
-		pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (msg + count);
-		uint16_t ie_type = ntohs(ie_header->type);
-
-		if (ie_type == IE_SEQUENCE_NUMBER) {
-			count += decode_sequence_number_ie_t(msg + count, &oc_inf->overload_control_sequence_number);
-		} else if (ie_type == IE_METRIC) {
-			count += decode_metric_ie_t(msg + count, &oc_inf->overload_reduction_metric);
-		} else if (ie_type == IE_TIMER) {
-			count += decode_timer_ie_t(msg + count, &oc_inf->period_of_validity);
-		} else if (ie_type == IE_OCI_FLAGS) {
-			count += decode_oci_flags_ie_t(msg + count, &oc_inf->overload_control_information_flags);
-		} else {
-			count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
-		}
-	}
-
-	return count;
-}
-#endif
 
 /**
  * decodes offending ie ie to buffer.
@@ -1081,7 +1044,7 @@ int decode_ue_ip_address_ie_t(uint8_t *buf,
 		total_decoded += decoded;
 		value->ipv6_prefix_delegation_bits = decode_bits(buf, total_decoded, 8, &decoded);
 		total_decoded += decoded;
-	} 
+	}
 	return total_decoded;
 }
 
@@ -2416,7 +2379,7 @@ int decode_pdi_ie_t(uint8_t *buf,
         total_decoded += decode_application_id_ie_t(buf + (total_decoded/CHAR_SIZE),&pi->application_id);
         total_decoded += decode_ethernet_pdu_session_information_ie_t(buf + (total_decoded/CHAR_SIZE),&pi->ethernet_pdu_session_information);
         total_decoded += decode_framed_routing_ie_t(buf + (total_decoded/CHAR_SIZE),&pi->framedrouting);
-	
+
         return total_decoded; //CHAR_SIZE;
 }
 

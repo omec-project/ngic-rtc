@@ -24,8 +24,6 @@ RTE_TARGET ?= x86_64-native-linuxapp-gcc
 include $(RTE_SDK)/mk/rte.vars.mk
 include $(NG_CORE)/config/ng-core_cfg.mk
 
-LIBPFCP_ROOT = $(SRCDIR)/../libpfcp
-
 #DIRS-y += pipeline
 # binary name
 APP = ngic_dataplane
@@ -36,7 +34,7 @@ SRCS-y := main.c\
 	master_cdr.c\
 	session_cdr.c\
 	config.c\
-	init.c\
+	init_ngic4.c\
 	dataplane.c\
 	gtpu.c\
 	ether.c\
@@ -51,22 +49,16 @@ SRCS-y := main.c\
 	stats.c\
 	extended_cdr.c\
 	timer_stats.c\
-	kni_pkt_handler.c\
 	gtpu_echo.c\
 	pipeline/epc_packet_framework.o\
-	pipeline/epc_arp.o\
+	pipeline/epc_arp_ngic4.o\
 	pipeline/epc_spns_dns.o\
 	$(SRCDIR)/../interface/interface.o\
 	$(SRCDIR)/../cp_dp_api/vepc_cp_dp_api.o\
 	$(SRCDIR)/../test/simu_cp/nsb/nsb_test_util.o\
-	$(SRCDIR)/../test/simu_cp/simu_cp.o\
 	$(SRCDIR)/../test/simu_cp/pkt_filtrs.o\
 	$(SRCDIR)/../interface/ipc/dp_ipc_api.o\
 	$(SRCDIR)/../interface/udp/vepc_udp.o\
-	$(SRCDIR)/../pfcp_messages/pfcp_association.o\
-	$(SRCDIR)/../pfcp_messages/pfcp_session.o\
-	$(SRCDIR)/../pfcp_messages/pfcp_set_ie.o\
-	$(SRCDIR)/../pfcp_messages/pfcp_util.o\
 
 CFLAGS += -I$(SRCDIR)/
 CFLAGS += -I$(SRCDIR)/../interface
@@ -75,59 +67,22 @@ CFLAGS += -I$(SRCDIR)/../interface/udp
 CFLAGS += -I$(SRCDIR)/../interface/sdn
 CFLAGS += -I$(SRCDIR)/../interface/zmq
 CFLAGS += -I$(SRCDIR)/../cp_dp_api
-CFLAGS += -I$(SRCDIR)/../test/simu_cp
 CFLAGS += -I$(SRCDIR)/../test/simu_cp/nsb
 CFLAGS += -I$(SRCDIR)/pipeline
 CFLAGS += -I$(SRCDIR)/../cp
 CFLAGS += -I$(SRCDIR)/../lib/libsponsdn
-CFLAGS += -I$(SRCDIR)/../dpdk/lib/librte_acl/
-CFLAGS += -I$(LIBPFCP_ROOT)/include
-CFLAGS += -I$(SRCDIR)/../pfcp_messages
 
-# Mandatory CFLAGS, LDFLAGS- DO NOT MODIFY
-# #############################################################
 CFLAGS += -Wno-psabi # suppress "The ABI for passing parameters with 64-byte alignment has changed in GCC 4.6"
 
 CFLAGS += -DLDB_DP	# should be included for dataplane.
 
 CFLAGS += -DDP_BUILD
 
-CFLAGS += -Werror
-CFLAGS += -Wunused-variable
-
-# un-comment below line to Expose declaration of tdestroy()#
-CFLAGS_config.o := -D_GNU_SOURCE
-
-# ngic-dp application security check CFLAGS
-# #############################################################
-SECURITY_FLAGS = -D_FORTIFY_SOURCE=2 -fasynchronous-unwind-tables -fexceptions -fpie -fstack-protector-all -fstack-protector-strong -Wall -Werror=format-security -Werror=implicit-function-declaration -Wno-unused-function
-
-CFLAGS += $(SECURITY_FLAGS)
-
-# workaround for a gcc bug with noreturn attribute
-#  http://gcc.gnu.org/bugzilla/show_bug.cgi?id=12603
-ifeq ($(CONFIG_RTE_TOOLCHAIN_GCC),y)
-CFLAGS_dataplane.o += -Wno-return-type
-endif
-
-#dpdk-18.02 change build directory structure
-LDFLAGS += -L$(RTE_SRCDIR)/../lib/libsponsdn/x86_64-native-linuxapp-gcc/ -lsponsdn
-
-LDFLAGS += -L$(HYPERSCANDIR)/build/lib
-
-LDFLAGS += -lexpressionutil -lhs -lhs_runtime -lstdc++ -lm -lcrypto
-
-LDFLAGS += -lrte_pmd_af_packet
-
-LDFLAGS += -lpcap
-
-# ngic-dp application options CFLAGS
-# #############################################################
 # ASR- Shrink pipeline COREs for Run to Completion (rtc) model
 ifneq (,$(findstring NGCORE_SHRINK, $(CFLAGS)))
         SRCS-y += ddn.c
-        SRCS-y += pipeline/epc_ul.o
-        SRCS-y += pipeline/epc_dl.o
+        SRCS-y += pipeline/epc_ul_ngic4.o
+        SRCS-y += pipeline/epc_dl_ngic4.o
 else
 		SRCS-y += pipeline/epc_rx.o\
 		pipeline/epc_tx.o\
@@ -161,23 +116,9 @@ ifneq (,$(findstring ZMQ_COMM, $(CFLAGS)))
 	LDFLAGS += -L/usr/local/lib -lzmq
 endif
 
-#ifneq (,$(findstring PFCP_COMM, $(CFLAGS)))
-#	LDFLAGS += -L$(LIBPFCP_ROOT)/lib -lpfcp
-#endif
-
-LDFLAGS += -L$(LIBPFCP_ROOT)/lib -lpfcp
-
-# ngic-dp debug/testing/profiling options CFLAGS
-# #############################################################
 # gdb: un-comment 'CFLAGS += -g -O0' comment 'CFLAGS += -O3'
 CFLAGS += -O3
 #CFLAGS += -g -O0
-
-#un-comment below line to remove all log level for preformance testing.
-CFLAGS += -DPERF_TEST
-
-#un-comment below line to generate pcap on east-west interfaces
-#CFLAGS += -DPCAP_GEN
 
 # Un-comment below line to read fake cp config.
 #CFLAGS += -DSIMU_CP
@@ -186,25 +127,28 @@ CFLAGS += -DPERF_TEST
 #Note: This will impact data traffic performance.
 #CFLAGS += -DDEL_SESS_REQ
 
+# NGCORE_SHRINK:: Un-comment below line to enable STATIC ARP
+# Enable STATIC ARP for testing with il_nperf
+CFLAGS += -DSTATIC_ARP
+
 # VS- Used CP counters for maintain simulator stats.
 ifneq (,$(findstring SIMU_CP, $(CFLAGS)))
+		CFLAGS += -I$(SRCDIR)/../test/simu_cp
+		SRCS-y += $(SRCDIR)/../test/simu_cp/simu_cp.o
         SRCS-y += $(SRCDIR)/../cp/cp_stats.o
 endif
 
-# Enable STATIC ARP for testing with il_nperf
-# NGCORE_SHRINK:: Un-comment below line to enable STATIC ARP
-#CFLAGS += -DSTATIC_ARP
+# ASR- Un-comment below line to enable GTPU HEADER Sequence Number option.
+#CFLAGS += -DGTPU_HDR_SEQNB
 
-# Un-comment below line to print ADC, PCC, METER and SDF rule entry
-# passed from FPC-SDN in add entry operation.
-# Note : This flag works with Log level 'DEBUG'
-#CFLAGS += -DPRINT_NEW_RULE_ENTRY
+# ASR- Un-comment below line to enable PCC, ADC, CDR, FILTERING, METERING pipeline stages.
+#CFLAGS += -DINCLUDE_PIPELINE_STAGE
 
-# Un-comment below line to get packet stats on each core.
-CFLAGS += -DSTATS
+# Un-comment below line to enable PCC, ADC, CDR, FILTERING, METERING pipeline stages.
+#CFLAGS += -DINCLUDE_ADC_STAGE
 
-# Un-comment below line to enable GTP-ECHO packets count on display(For SHRINK version).
-#CFLAGS += -DEXSTATS
+# Un-comment below line to enable PCC, ADC, CDR, FILTERING, METERING pipeline stages.
+#CFLAGS += -DINCLUDE_MTR_STAGE
 
 #un-comment below line to generate timer stats file.
 #Note: This will impact data traffic performance.
@@ -214,54 +158,12 @@ CFLAGS += -DSTATS
 # Criteria to uncomment: if (PPS * test_duration) > 0.1M, then enable AUTO_ANALYSIS flag
 #CFLAGS += -DAUTO_ANALYSIS
 
-# ASR- Un-comment below line to enable PCC, ADC, CDR, FILTERING, METERING pipeline stages.
-#CFLAGS += -DINCLUDE_PIPELINE_STAGE
+# Un-comment below line to get packet stats on each core.
+CFLAGS += -DSTATS
 
-# Un-comment below line to enable PCC, ADC, CDR, FILTERING, METERING pipeline stages.
-#CFLAGS += -DINCLUDE_ADC_STAGE
+# Un-comment below line to enable GTP-ECHO packets count on display(For SHRINK version).
+#CFLAGS += -DEXSTATS
 
-# Un-comment below line if you have 16 x 1GB hugepages.
-#CFLAGS += -DHUGE_PAGE_16GB
-
-# ngic-dp inter-op/functional options CFLAGS
-# #############################################################
-# Un-comment below line to enable DDN(Downlink data notification)
-#CFLAGS += -DDP_DDN
-
-# Un-comment below line to enable DDN(Downlink data notification) statstics
-#CFLAGS += -DDEBUG_DDN
-
-# Un-comment below line to enable Rating group CDRs.
-# Disable/Comment out  RATING_GRP_CDR for performance profiling.
-#CFLAGS += -DRATING_GRP_CDR
-
-#un-comment below line to generate extended CDR file.
-#Note: This will impact data traffic performance.
-#CFLAGS += -DEXTENDED_CDR
-
-# ASR- Un-comment below line to enable GTPU HEADER Sequence Number option.
-#CFLAGS += -DGTPU_HDR_SEQNB
-
-# Un-comment below line to enable hyperscan DPI.
-# ASR- NGCORE_SHRINK for HYPERSCAN to be tested
-#CFLAGS += -DHYPERSCAN_DPI
-
-# Un-comment below line to enable PCC, ADC, CDR, FILTERING, METERING pipeline stages.
-#CFLAGS += -DINCLUDE_MTR_STAGE
-
-#un-comment below line to enable check peer node heartbeat.
-CFLAGS += -DUSE_REST
-
-ifneq (,$(findstring USE_REST, $(CFLAGS)))
-	CFLAGS += -I$(SRCDIR)/../restoration
-	SRCS-y += $(SRCDIR)/../restoration/restoration_timer.o
-	SRCS-y += restoration_peer.c
-	SRCS-y += gtpu_echo_req.c
-endif
-
-# ngic-dp  CFLAGS to be deprecated
-# #############################################################
-# Un-comment below line to enable DDN(Downlink data notification)
 # Un-comment below line to get packet stats from command line.
 #CFLAGS += -DCMDLINE_STATS
 
@@ -285,6 +187,14 @@ endif
 # Un-comment below line to enable ADC upfront.
 #CFLAGS += -DADC_UPFRONT
 
+# Un-comment below line to enable hyperscan DPI.
+# ASR- NGCORE_SHRINK for HYPERSCAN to be tested
+#CFLAGS += -DHYPERSCAN_DPI
+
+# Un-comment below line to enable Rating group CDRs.
+# Disable/Comment out  RATING_GRP_CDR for performance profiling.
+#CFLAGS += -DRATING_GRP_CDR
+
 # Un-comment below line to skip LB rte_hash_crc_4byte
 # and enable LB based on UE ip last byte.
 #CFLAGS += -DSKIP_LB_HASH_CRC
@@ -295,9 +205,51 @@ endif
 # Un-comment below line to read acl rules from file.
 #CFLAGS += -DACL_READ_CFG
 
-# Un-comment below line to configure DP Tables from DP app.
-#CFLAGS += -DDP_TABLE_CONFIG
+# Un-comment below line if you have 16 x 1GB hugepages.
+#CFLAGS += -DHUGE_PAGE_16GB
 
-# ngic-dp include make overlays
-# #############################################################
+# Un-comment below line to print ADC, PCC, METER and SDF rule entry
+# passed from FPC-SDN in add entry operation.
+# Note : This flag works with Log level 'DEBUG'
+#CFLAGS += -DPRINT_NEW_RULE_ENTRY
+
+# Un-comment below line to configure DP Tables from DP app.
+CFLAGS += -DDP_TABLE_CONFIG
+
+#un-comment below line to remove all log level for preformance testing.
+CFLAGS += -DPERF_TEST
+
+#un-comment below line to generate pcap on east-west interfaces
+#CFLAGS += -DPCAP_GEN
+
+#un-comment below line to generate extended CDR file.
+#Note: This will impact data traffic performance.
+#CFLAGS += -DEXTENDED_CDR
+
+# Un-comment below line to enable DDN(Downlink data notification)
+#CFLAGS += -DDP_DDN
+
+CFLAGS += -Werror
+CFLAGS += -Wunused-variable
+
+# un-comment below line to Expose declaration of tdestroy()#
+CFLAGS_config.o := -D_GNU_SOURCE
+
+# workaround for a gcc bug with noreturn attribute
+#  http://gcc.gnu.org/bugzilla/show_bug.cgi?id=12603
+ifeq ($(CONFIG_RTE_TOOLCHAIN_GCC),y)
+CFLAGS_dataplane.o += -Wno-return-type
+endif
+
+#dpdk-18.02 change build directory structure
+LDFLAGS += -L$(RTE_SRCDIR)/../lib/libsponsdn/x86_64-native-linuxapp-gcc/ -lsponsdn
+
+LDFLAGS += -L$(HYPERSCANDIR)/build/lib
+
+LDFLAGS += -lexpressionutil -lhs -lhs_runtime -lstdc++ -lm -lcrypto
+
+LDFLAGS += -lrte_pmd_af_packet
+
+LDFLAGS += -lpcap
+
 include $(RTE_SDK)/mk/rte.extapp.mk

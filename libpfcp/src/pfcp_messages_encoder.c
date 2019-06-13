@@ -99,9 +99,10 @@ int encode_pfcp_association_setup_response(pfcp_association_setup_response_t *pa
 	if (pas_res->cp_function_features.header.len)
 		enc_len += encode_cp_function_features_ie_t(&(pas_res->cp_function_features), msg + enc_len);
 
-	if (pas_res->up_ip_resource_info.header.len)
-		enc_len += encode_user_plane_ip_resource_information_ie_t(&(pas_res->up_ip_resource_info), msg + enc_len);
-
+	for (uint8_t i = 0; i < pas_res->user_plane_ip_resource_information_count; i++) {
+		if (pas_res->up_ip_resource_info[i].header.len)
+			enc_len += encode_user_plane_ip_resource_information_ie_t(&(pas_res->up_ip_resource_info[i]), msg + enc_len);
+	}
 	return enc_len;
 }
 
@@ -127,8 +128,10 @@ int encode_pfcp_session_establishment_request(pfcp_session_establishment_request
 	if (pse_req->cp_fseid.header.len)
 		enc_len += encode_f_seid_ie_t(&(pse_req->cp_fseid), msg + enc_len);
 
-	if (pse_req->create_pdr.header.len)
-		enc_len += encode_create_pdr_ie_t(&(pse_req->create_pdr), msg + enc_len);
+	for (uint8_t i = 0; i < pse_req->create_pdr_count; i++) {
+		if (pse_req->create_pdr[i].header.len)
+			enc_len += encode_create_pdr_ie_t(&(pse_req->create_pdr[i]), msg + enc_len);
+	}
 
 	if (pse_req->create_bar.header.len)
 		enc_len += encode_create_bar_ie_t(&(pse_req->create_bar), msg + enc_len);
@@ -191,8 +194,10 @@ int encode_pfcp_session_establishment_response(pfcp_session_establishment_respon
 	if (pse_res->up_fseid.header.len)
 		enc_len += encode_f_seid_ie_t(&(pse_res->up_fseid), msg+enc_len);
 
-	if (pse_res->created_pdr.header.len)
-		enc_len += encode_created_pdr_ie_t(&(pse_res->created_pdr), msg + enc_len);
+	for (uint8_t i = 0; i < pse_res->created_pdr_count; i++) {
+		if (pse_res->created_pdr[i].header.len)
+			enc_len += encode_created_pdr_ie_t(&(pse_res->created_pdr[i]), msg + enc_len);
+	}
 
 	if (pse_res->load_control_information.header.len)
 		enc_len += encode_load_control_information_ie_t(&(pse_res->load_control_information), msg+enc_len);
@@ -236,8 +241,10 @@ int encode_pfcp_session_modification_request(pfcp_session_modification_request_t
 	if (psm_req->remove_traffic_endpoint.header.len)
 		enc_len += encode_remove_traffic_endpoint_ie_t(&(psm_req->remove_traffic_endpoint), msg+ enc_len);
 
-	if (psm_req->create_pdr.header.len)
-		enc_len += encode_create_pdr_ie_t(&(psm_req->create_pdr), msg + enc_len);
+	for (uint8_t i = 0; i < psm_req->create_pdr_count; i++ ) {
+		if (psm_req->create_pdr[i].header.len)
+			enc_len += encode_create_pdr_ie_t(&(psm_req->create_pdr[i]), msg + enc_len);
+	}
 
 	if (psm_req->create_bar.header.len)
 		enc_len += encode_create_bar_ie_t(&(psm_req->create_bar), msg + enc_len);
@@ -307,9 +314,10 @@ int encode_pfcp_session_modification_response(pfcp_session_modification_response
 	if (psm_res->offending_ie.header.len)
 		enc_len += encode_offending_ie_ie_t(&(psm_res->offending_ie), msg + enc_len);
 
-	if (psm_res->created_pdr.header.len)
-		enc_len += encode_created_pdr_ie_t(&(psm_res->created_pdr), msg + enc_len);
-
+	for (uint8_t i = 0; i < psm_res->created_pdr_count; i++ ) {
+		if (psm_res->created_pdr[i].header.len)
+			enc_len += encode_created_pdr_ie_t(&(psm_res->created_pdr[i]), msg + enc_len);
+	}
 	if (psm_res->load_control_information.header.len)
 		enc_len += encode_load_control_information_ie_t(&(psm_res->load_control_information), msg + enc_len);
 

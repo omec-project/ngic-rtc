@@ -438,4 +438,7 @@ gtpv2c_ie *
 create_bearer_context_ie(gtpv2c_header *header,
 	enum ie_instance instance);
 
+void
+set_fqdn_ie(gtpv2c_header *header, char *fqdn);
+
 #endif /* GTPV2C_SET_IE_H */

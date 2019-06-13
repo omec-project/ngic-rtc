@@ -196,7 +196,7 @@ void epc_rx_init(struct epc_rx_params *param, int core, uint8_t port_id)
 			west_port = app.s5s8_pgwu_port;
 			break;
 
-		case SPGWU:
+		case SAEGWU:
 			if (port_id != app.sgi_port && port_id != app.s1u_port)
 				rte_panic("%s: Unknown port no %d", __func__, port_id);
 			east_port = app.sgi_port;

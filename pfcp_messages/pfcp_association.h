@@ -42,9 +42,7 @@ fill_pfcp_node_report_resp(pfcp_node_report_response_t *pfcp_node_rep_resp);
 void
 fill_pfcp_heartbeat_resp(pfcp_heartbeat_response_t *pfcp_heartbeat_resp);
 void
-fill_pfcp_heartbeat_req(pfcp_heartbeat_request_t *pfcp_heartbeat_req);
-int
-process_pfcp_heartbeat_req(struct sockaddr_in *peer_addr);
+fill_pfcp_heartbeat_req(pfcp_heartbeat_request_t *pfcp_heartbeat_req, uint32_t seq);
 
 
 #endif /* PFCP_ASSOC_H */

@@ -26,11 +26,11 @@ extern uint32_t start_time;
 extern struct rte_hash *node_id_hash;
 extern struct rte_hash *heartbeat_recovery_hash;
 
-void
-get_upf_list(struct in_addr *p_upf_list);
-
-void
-get_ava_ip( struct in_addr *upf_list);
+#if defined(PFCP_COMM) && defined(CP_BUILD)
+int
+get_upf_list(create_session_request_t *csr,
+		struct in_addr *p_upf_list, char *sgwu_fqdn);
+#endif
 
 int
 pfcp_recv(void *msg_payload, uint32_t size,
@@ -52,7 +52,7 @@ create_associated_upf_hash(void );
 uint32_t
 current_ntp_timestamp(void);
 
-void 
+void
 time_to_ntp(struct timeval *tv, uint8_t *ntp);
 
 #endif /* PFCP_UTIL_H */

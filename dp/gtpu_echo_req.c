@@ -23,10 +23,6 @@
 #include "gtpu.h"
 #include "util.h"
 
-//#define GTPU_HDR_LEN   8
-//#define IPV4_HDR_LEN   20
-//#define ETH_HDR_LEN    14
-//#define UDP_HDR_LEN    8
 #define IP_PROTO_UDP   17
 #define UDP_PORT_GTPU  2152
 #define GTPU_OFFSET    50
@@ -38,9 +34,6 @@
 #define GTPu_PN_FLAG	0x01
 
 #define PKT_SIZE    54
-
-//uint8_t conn_cnt = 0;
-//struct conn_ipv4_key conn_arr_keys[256] = {0};
 
 typedef struct gtpuHdr_s {
 	uint8_t version_flags;
@@ -63,10 +56,8 @@ static int set_recovery(struct rte_mbuf *echo_pkt) {
 		recovery_ie = (gtpu_recovery_ie*)((char*)gtpu_hdr+
 				GTPU_HDR_SIZE + ntohs(gtpu_hdr->msglen));
 	} else if ((echo_pkt->pkt_len - (ETHER_HDR_LEN +(ip_hdr->total_length))) == 0) {
-		//if (recovery_ie == NULL) {
 			recovery_ie = (gtpu_recovery_ie *)rte_pktmbuf_append(echo_pkt,
 					(sizeof(gtpu_recovery_ie)));
-		//}
 	}
 
 	if (recovery_ie == NULL) {
@@ -75,7 +66,6 @@ static int set_recovery(struct rte_mbuf *echo_pkt) {
 		 return -1;
 	}
 
-	//gtpu_hdr->msgtype = GTPU_ECHO_REQUEST;
 	gtpu_hdr->msglen = htons(ntohs(gtpu_hdr->msglen)+
 		sizeof(gtpu_recovery_ie));
 	recovery_ie->type = GTPU_ECHO_RECOVERY;
@@ -97,33 +87,26 @@ static void set_checksum(struct rte_mbuf *echo_pkt) {
 	ipv4hdr->hdr_checksum = rte_ipv4_cksum(ipv4hdr);
 }
 
-static uint16_t gtpu_seqnb = 1;
-static __inline__ void encap_gtpu_hdr(struct rte_mbuf *m)
+static __inline__ void encap_gtpu_hdr(struct rte_mbuf *m, uint16_t gtpu_seqnb)
 {
-	//uint32_t teid = gtpu_info.s1u_teid + ((pkt->ip_src_addr.addr.ipv4.s_addr)-start_ip);
 	uint32_t teid = 0;
-	//uint32_t seq_no = 0;
-	//set_recovery(m);
 	uint16_t len = rte_pktmbuf_data_len(m)- (ETH_HDR_LEN + IPV4_HDR_LEN + UDP_HDR_LEN);
-	//uint16_t len = rte_pktmbuf_data_len(m);
+
 	len -= ETH_HDR_LEN;
+
 	gtpuHdr_t  *gtpu_hdr = (gtpuHdr_t*)(rte_pktmbuf_mtod(m, unsigned char *) +
 		ETH_HDR_LEN + IPV4_HDR_LEN + UDP_HDR_LEN);
-	//struct gtpu_hdr *gtpu_hdr = get_mtogtpu(m);
-	//gtpu_hdr->version_flags = GTPu_VERSION  | GTPu_PT_FLAG;
+
 	gtpu_hdr->version_flags = (GTPU_VERSION << 5) | (GTP_PROTOCOL_TYPE_GTP << 4) | (GTP_FLAG_SEQNB);
-	//len = len + sizeof(GTPU_STATIC_SEQNB);
-	gtpu_hdr->msg_type = 0x01;
+	gtpu_hdr->msg_type = GTPU_ECHO_REQUEST;
 	gtpu_hdr->teid = htonl(teid);
 	gtpu_hdr->seq_no = htons(gtpu_seqnb);
-	//gtpu_hdr->tot_len  = htons(m->pkt_len - (UDP_HDR_LEN + ETH_HDR_LEN + GTPU_HDR_LEN));
 	gtpu_hdr->tot_len  = htons(4);
-	gtpu_seqnb++;
 
 }
 
 
-static __inline__ void create_udp_hdr(struct rte_mbuf *m, peerData *entry) 
+static __inline__ void create_udp_hdr(struct rte_mbuf *m, peerData *entry)
 {
 	uint16_t len = rte_pktmbuf_data_len(m)- ETH_HDR_LEN - IPV4_HDR_LEN;
 
@@ -136,7 +119,7 @@ static __inline__ void create_udp_hdr(struct rte_mbuf *m, peerData *entry)
 }
 
 
-static __inline__ void create_ipv4_hdr(struct rte_mbuf *m, peerData *entry) 
+static __inline__ void create_ipv4_hdr(struct rte_mbuf *m, peerData *entry)
 {
 	uint16_t len = rte_pktmbuf_data_len(m)- ETH_HDR_LEN;
 	struct ipv4_hdr *ipv4_hdr = (struct ipv4_hdr*)(rte_pktmbuf_mtod(m, unsigned char*) + ETH_HDR_LEN);
@@ -153,7 +136,7 @@ static __inline__ void create_ipv4_hdr(struct rte_mbuf *m, peerData *entry)
 }
 
 
-static __inline__ void create_ether_hdr(struct rte_mbuf *m, peerData *entry) 
+static __inline__ void create_ether_hdr(struct rte_mbuf *m, peerData *entry)
 {
 	struct ether_hdr *eth_hdr = (struct ether_hdr*)rte_pktmbuf_mtod(m, void*);
 	ether_addr_copy(&entry->dst_eth_addr, &eth_hdr->d_addr);
@@ -167,29 +150,18 @@ static __inline__ void create_ether_hdr(struct rte_mbuf *m, peerData *entry)
  * @ Output param: none
  * Return: void
  */
-void build_echo_request(struct rte_mbuf *echo_pkt, peerData *entry)
+void build_echo_request(struct rte_mbuf *echo_pkt, peerData *entry, uint16_t gtpu_seqnb)
 {
-	//gtpuHdr_t *gtpu_hdr = (gtpuHdr_t*)(rte_pktmbuf_mtod(m, unsigned char *) +
-	//	ETH_HDR_LEN + IPV4_HDR_LEN + UDP_HDR_LEN);
-
 	echo_pkt->pkt_len = PKT_SIZE;
 	echo_pkt->data_len = PKT_SIZE;
 
 
-	//encap_gtpu_hdr(echo_pkt, entry);
-	encap_gtpu_hdr(echo_pkt);
+	encap_gtpu_hdr(echo_pkt, gtpu_seqnb);
 	create_udp_hdr(echo_pkt, entry);
 	create_ipv4_hdr(echo_pkt, entry);
 	create_ether_hdr(echo_pkt, entry);
-	//int ret;
-	//ret = set_recovery(echo_pkt);
-	//if (ret < 0) {
-	//	fprintf(stderr, "Failed to create echo response..\n");
-	//	return;
-	//}
-	//rte_memcpy((uint8_t *)echo_pkt->buf_addr + echo_pkt->data_off + GTPU_OFFSET,
-	//					   ((uint8_t *)(ETH_HDR_LEN +  IPV4_HDR_LEN +  UDP_HDR_LEN + 8)), ((ETHER_MAX_LEN - 4)-GTPU_OFFSET));
-	/* Set outer IP and UDP checksum, after inner
-	 * 				   IP and UDP checksum is set */
+
+	/* Set outer IP and UDP checksum, after inner IP and UDP checksum is set.
+	 */
 	set_checksum(echo_pkt);
 }

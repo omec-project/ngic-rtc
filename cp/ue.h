@@ -56,6 +56,8 @@
 #define MAX_BEARERS                  (11)
 #define MAX_FILTERS_PER_UE           (16)
 
+#define MAX_NETCAP_LEN               (64)
+
 #define GET_UE_IP(ue_index) \
 		(((ip_pool_ip.s_addr | (~ip_pool_mask.s_addr)) \
 				- htonl(ue_index)) - 0x01000000)
@@ -65,6 +67,8 @@ struct pdn_connection_t;
 
 typedef struct apn_t {
 	char *apn_name_label;
+	int apn_usage_type;
+	char apn_net_cap[MAX_NETCAP_LEN];
 	size_t apn_name_length;
 	uint8_t apn_idx;
 } apn;
@@ -154,6 +158,7 @@ extern struct rte_hash *ue_context_by_imsi_hash;
 extern struct rte_hash *ue_context_by_fteid_hash;
 
 extern apn apn_list[MAX_NB_DPN];
+extern int apnidx;
 
 /**
  * sets the s1u_sgw gtpu teid given the bearer

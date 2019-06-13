@@ -21,6 +21,20 @@
 #include "gtpv2c_set_ie.h"
 #include "../cp_dp_api/vepc_cp_dp_api.h"
 
+#include "pfcp_messages.h"
+#include "pfcp_set_ie.h"
+#include "pfcp_messages_encoder.h"
+#include "pfcp_util.h"
+#include "pfcp_session.h"
+
+extern pfcp_config_t pfcp_config;
+extern pfcp_context_t pfcp_ctxt;
+extern int pfcp_sgwc_fd_arr[MAX_NUM_PGWC];
+extern int pfcp_pgwc_fd_arr[MAX_NUM_PGWC];
+extern struct sockaddr_in pfcp_sgwu_sockaddr_arr[MAX_NUM_PGWU];
+extern struct sockaddr_in pfcp_pgwu_sockaddr_arr[MAX_NUM_PGWU];
+
+
 #define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
 
 /* PGWC S5S8 handlers:
@@ -166,10 +180,10 @@ delete_pgwc_context(gtpv2c_header *gtpv2c_rx, ue_context **_context,
 			si.bearer_id = ebi;
 			si.ue_addr.u.ipv4_addr =
 				htonl(pdn->ipv4.s_addr);
-			si.ul_s1_info.sgw_teid = 
-                	bearer->s1u_sgw_gtpu_teid;
+			si.ul_s1_info.sgw_teid =
+				bearer->s1u_sgw_gtpu_teid;
 			//si.ul_s1_info.sgw_teid =
-			//	htonl(bearer->s1u_sgw_gtpu_teid);
+			//htonl(bearer->s1u_sgw_gtpu_teid);
 			si.sess_id = SESS_ID(
 					context->s11_sgw_gtpc_teid,
 					si.bearer_id);
@@ -203,7 +217,30 @@ process_pgwc_s5s8_delete_session_request(gtpv2c_header *gtpv2c_rx,
 	int ret = delete_pgwc_context(gtpv2c_rx, &context,
 					&s5s8_sgw_gtpc_del_teid_ptr);
 	if (ret)
-		return ret;
+	return ret;
+
+#ifdef PFCP_COMM
+
+	pfcp_session_deletion_request_t pfcp_sess_del_req = {0};
+	fill_pfcp_sess_del_req(&pfcp_sess_del_req);
+	pfcp_sess_del_req.header.seid_seqno.has_seid.seid = context->seid;
+
+	pfcp_sess_del_req.header.seid_seqno.has_seid.seq_no = gtpv2c_rx->teid_u.has_teid.seq;
+
+	uint8_t pfcp_msg[512]={0};
+
+	int encoded = encode_pfcp_session_deletion_request(&pfcp_sess_del_req, pfcp_msg);
+	pfcp_header_t *header = (pfcp_header_t *) pfcp_msg;
+	header->message_len = htons(encoded - 4);
+
+	for(uint32_t i=0;i < pfcp_config.num_pgwu; i++ ){
+
+		if ( pfcp_send(pfcp_pgwc_fd_arr[i], pfcp_msg,encoded,
+					&pfcp_pgwu_sockaddr_arr[i]) < 0 )
+				printf("Error sending: %i\n",errno);
+	}
+
+#endif
 
 	set_gtpv2c_teid_header(gtpv2c_tx, GTP_DELETE_SESSION_RSP,
 				s5s8_sgw_gtpc_del_teid_ptr,
@@ -288,10 +325,10 @@ delete_sgwc_context(gtpv2c_header *gtpv2c_rx, ue_context **_context)
 			si.bearer_id = i + 5;
 			si.ue_addr.u.ipv4_addr =
 				htonl(pdn_ctxt->ipv4.s_addr);
-			si.ul_s1_info.sgw_teid = 
-                bearer->s1u_sgw_gtpu_teid;
+			si.ul_s1_info.sgw_teid =
+				bearer->s1u_sgw_gtpu_teid;
 			//si.ul_s1_info.sgw_teid =
-			//	htonl(bearer->s1u_sgw_gtpu_teid);
+			//htonl(bearer->s1u_sgw_gtpu_teid);
 			si.sess_id = SESS_ID(
 					context->s11_sgw_gtpc_teid,
 					si.bearer_id);

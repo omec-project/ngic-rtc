@@ -187,4 +187,18 @@ int
 decode_delete_session_response_t(uint8_t *msg,
 		delete_session_response_t *ds_resp);
 
+/**
+ * Encodes the echo request structure to buffer.
+ * @param val
+ *   echo request structure pre-populated
+ * @param msg
+ *   buffer containing encoded echo request values.
+ * @param msg_len
+ *   length of buffer containing encoded values.
+ * @return
+ *   number of encoded bytes.
+ */
+int
+encode_echo_request_t(echo_request_t *val,
+		uint8_t *msg, uint16_t *msg_len);
 #endif /* _LIBGTPV2C_MESSAGES_H_ */
