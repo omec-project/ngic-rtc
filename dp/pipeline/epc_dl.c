@@ -116,14 +116,11 @@ static inline void epc_dl_set_port_id(struct rte_mbuf *m)
 	}
 
 	/* Flag all other pkts for epc_dl proc handling */
-	if (likely
-			(ipv4_packet &&
-			((ipv4_hdr->next_proto_id == IPPROTO_UDP) ||
-			(ipv4_hdr->next_proto_id == IPPROTO_TCP)))) {
-			RTE_LOG_DP(DEBUG, DP, "SGI packet\n");
-			*port_id_offset = 0;
-			dl_sgi_pkt = 1;
-			dl_arp_pkt = 0;
+	if (likely(ipv4_packet)) {
+		RTE_LOG_DP(DEBUG, DP, "SGI packet\n");
+		*port_id_offset = 0;
+		dl_sgi_pkt = 1;
+		dl_arp_pkt = 0;
 	} //GCC_Security flag
 }
 
