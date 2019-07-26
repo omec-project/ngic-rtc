@@ -189,7 +189,7 @@ set_pgwc_s5s8_create_session_response(gtpv2c_header *gtpv2c_tx,
 	set_cause_accepted_ie(gtpv2c_tx, IE_INSTANCE_ZERO);
 	set_ipv4_fteid_ie(gtpv2c_tx, GTPV2C_IFTYPE_S5S8_PGW_GTPC,
 			IE_INSTANCE_ONE,
-			pdn->s5s8_pgw_gtpc_ipv4, pdn->s5s8_pgw_gtpc_teid);
+			pdn->s5s8_pgw_gtpc_ipv4, htonl(pdn->s5s8_pgw_gtpc_teid));
 	set_ipv4_paa_ie(gtpv2c_tx, IE_INSTANCE_ZERO, pdn->ipv4);
 	set_apn_restriction_ie(gtpv2c_tx, IE_INSTANCE_ZERO,
 			pdn->apn_restriction);
@@ -206,7 +206,7 @@ set_pgwc_s5s8_create_session_response(gtpv2c_header *gtpv2c_tx,
 		add_grouped_ie_length(bearer_context_group,
 	    set_ipv4_fteid_ie(gtpv2c_tx, GTPV2C_IFTYPE_S5S8_PGW_GTPU,
 			    IE_INSTANCE_ZERO, bearer->s5s8_pgw_gtpu_ipv4,
-			    bearer->s5s8_pgw_gtpu_teid));
+			    htonl(bearer->s5s8_pgw_gtpu_teid)));
 	}
 }
 
@@ -338,7 +338,7 @@ process_pgwc_s5s8_create_session_request(gtpv2c_header *gtpv2c_rx,
 	pfcp_sess_estab_req_t pfcp_sess_est_req = {0};
 
 	/* Below Passing 3rd Argumt. as NULL to reuse the fill_pfcp_sess_estab*/
-	context->seid = SESS_ID(pdn->s5s8_sgw_gtpc_teid, bearer->eps_bearer_id);
+	context->seid = SESS_ID(pdn->s5s8_pgw_gtpc_teid, bearer->eps_bearer_id);
 	fill_pfcp_sess_est_req(&pfcp_sess_est_req, NULL, context, bearer, pdn);
 
 	/*Filling sequence number */
@@ -487,7 +487,7 @@ gen_sgwc_s5s8_create_session_request(gtpv2c_header *gtpv2c_rx,
 			add_grouped_ie_length(bearer_context_group,
 			    set_ipv4_fteid_ie(gtpv2c_tx, GTPV2C_IFTYPE_S5S8_SGW_GTPU,
 			    IE_INSTANCE_TWO, bearer->s5s8_sgw_gtpu_ipv4,
-			    bearer->s5s8_sgw_gtpu_teid));
+			    htonl(bearer->s5s8_sgw_gtpu_teid)));
 		} else if (current_rx_ie->type == IE_FTEID &&
 				current_rx_ie->instance == IE_INSTANCE_ONE) {
 			continue;
@@ -495,7 +495,7 @@ gen_sgwc_s5s8_create_session_request(gtpv2c_header *gtpv2c_rx,
 				current_rx_ie->instance == IE_INSTANCE_ZERO) {
 			set_ipv4_fteid_ie(gtpv2c_tx, GTPV2C_IFTYPE_S5S8_SGW_GTPC,
 				IE_INSTANCE_ZERO,
-				pdn->s5s8_sgw_gtpc_ipv4, pdn->s5s8_sgw_gtpc_teid);
+				pdn->s5s8_sgw_gtpc_ipv4, htonl(pdn->s5s8_sgw_gtpc_teid));
 		} else if (current_rx_ie->type == IE_APN &&
 				current_rx_ie->instance == IE_INSTANCE_ZERO) {
 			set_ie_copy(gtpv2c_tx, current_rx_ie);
@@ -570,11 +570,14 @@ process_sgwc_s5s8_create_session_response(gtpv2c_header *gtpv2c_s5s8_rx,
 	uint8_t ebi_index =
 		*create_s5s8_session_response.bearer_context_to_be_created_ebi - 5;
 
+	gtpv2c_s5s8_rx->teid_u.has_teid.teid = ntohl(gtpv2c_s5s8_rx->teid_u.has_teid.teid);
+
 	/* s11_sgw_gtpc_teid= s5s8_sgw_gtpc_teid =
 	 * key->ue_context_by_fteid_hash */
 	ret = rte_hash_lookup_data(ue_context_by_fteid_hash,
 	    (const void *) &gtpv2c_s5s8_rx->teid_u.has_teid.teid,
 	    (void **) &context);
+
 	RTE_LOG_DP(DEBUG, CP, "NGIC- create_s5s8_session.c::"
 			"\n\tprocess_sgwc_s5s8_create_session_response"
 			"\n\tprocess_sgwc_s5s8_cs_rsp_cnt= %u;"

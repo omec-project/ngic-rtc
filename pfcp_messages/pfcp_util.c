@@ -20,6 +20,8 @@
 
 #if defined(CP_BUILD) && defined(USE_DNS_QUERY)
 #include "cdnshelper.h"
+
+#define FAILED_ENB_FILE "logs/failed_enb_queries.log"
 #endif
 
 #define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
@@ -51,18 +53,28 @@ add_canonical_result_upflist_entry(canonical_result_t *res,
 		return -1;
 	}
 
-	upf_list->upf_count = res_count;
+	uint8_t upf_count = 0;
 
 	for (int i = 0; i < res_count; i++) {
-		inet_aton(res[i].host2_info.ipv4_hosts[0],
-				&upf_list->upf_ip[i]);
-		memcpy(upf_list->upf_fqdn[i], res[i].cano_name2,
-				strlen((char *)res[i].cano_name2));
+		for (int j = 0; j < res[i].host2_info.ipv4host_count; j++) {
+			inet_aton(res[i].host2_info.ipv4_hosts[j],
+					&upf_list->upf_ip[upf_count]);
+			memcpy(upf_list->upf_fqdn[upf_count], res[i].cano_name2,
+					strlen((char *)res[i].cano_name2));
+			upf_count++;
+		}
 	}
 
-	int ret = upflist_by_ue_hash_entry_add(imsi_val, imsi_len, upf_list);
+	if (upf_count == 0) {
+		fprintf(stderr, "Could not get collocated candidate list. \n");
+		return 0;
+	}
 
-	return ret;
+	upf_list->upf_count = upf_count;
+
+	upflist_by_ue_hash_entry_add(imsi_val, imsi_len, upf_list);
+
+	return upf_count;
 }
 
 static int
@@ -81,18 +93,46 @@ add_dns_result_upflist_entry(dns_query_result_t *res,
 		return -1;
 	}
 
-	upf_list->upf_count = res_count;
+	uint8_t upf_count = 0;
 
 	for (int i = 0; i < res_count; i++) {
-		inet_aton(res[i].ipv4_hosts[0],
-				&upf_list->upf_ip[i]);
-		memcpy(upf_list->upf_fqdn[i], res[i].hostname,
-				strlen(res[i].hostname));
+		for (int j = 0; j < res[i].ipv4host_count; j++) {
+			inet_aton(res[i].ipv4_hosts[j],
+					&upf_list->upf_ip[upf_count]);
+			memcpy(upf_list->upf_fqdn[upf_count], res[i].hostname,
+					strlen(res[i].hostname));
+			upf_count++;
+		}
 	}
 
-	int ret = upflist_by_ue_hash_entry_add(imsi_val, imsi_len, upf_list);
+	if (upf_count == 0) {
+		fprintf(stderr, "Could not get SGW-U list using DNS query \n");
+		return 0;
+	}
 
-	return ret;
+	upf_list->upf_count = upf_count;
+
+	upflist_by_ue_hash_entry_add(imsi_val, imsi_len, upf_list);
+
+	return upf_count;
+}
+
+static int
+record_fialed_enbid(char *enbid)
+{
+	FILE *fp = fopen(FAILED_ENB_FILE, "a");
+
+	if (fp == NULL) {
+		fprintf(stderr, "Could not open %s for writing failed "
+				"eNodeB query entry.\n", FAILED_ENB_FILE);
+		return 1;
+	}
+
+	fwrite(enbid, sizeof(char), strlen(enbid), fp);
+	fwrite("\n", sizeof(char), 1, fp);
+	fclose(fp);
+
+	return 0;
 }
 
 int
@@ -130,30 +170,66 @@ get_upf_list(create_session_request_t *csr)
 	}
 
 	char apn_name[MAX_APN_LEN] = {0};
+
 	memcpy(apn_name, csr->apn.apn + 1, apn_requested->apn_name_length -1);
 
 	if (pfcp_config.cp_type == SAEGWC || pfcp_config.cp_type == SGWC) {
 
-		void *enbupf_node_sel = init_enbupf_node_selector(enodeb, mnc, mcc);
+		void *sgwupf_node_sel = init_enbupf_node_selector(enodeb, mnc, mcc);
 
-		set_desired_proto(enbupf_node_sel, ENBUPFNODESELECTOR, UPF_X_SXA);
-		set_nwcapability(enbupf_node_sel, apn_requested->apn_net_cap);
+		set_desired_proto(sgwupf_node_sel, ENBUPFNODESELECTOR, UPF_X_SXA);
+		set_nwcapability(sgwupf_node_sel, apn_requested->apn_net_cap);
 		if (csr->ue_usage_type.header.len)
-			set_ueusage_type(enbupf_node_sel,
+			set_ueusage_type(sgwupf_node_sel,
 					csr->ue_usage_type.mapped_ue_usage_type);
-		else
-			set_ueusage_type(enbupf_node_sel,
+		else {
+			if (apn_requested->apn_usage_type >= 0)
+				set_ueusage_type(sgwupf_node_sel,
 					apn_requested->apn_usage_type);
+		}
 
 		dns_query_result_t sgwu_list[QUERY_RESULT_COUNT] = {0};
 		uint16_t sgwu_count = 0;
-		process_dnsreq(enbupf_node_sel, sgwu_list, &sgwu_count);
+		process_dnsreq(sgwupf_node_sel, sgwu_list, &sgwu_count);
 
 		if (!sgwu_count) {
-			fprintf(stderr, "Could not get SGW-U list using DNS"
+
+			record_fialed_enbid(enodeb);
+			deinit_node_selector(sgwupf_node_sel);
+
+			/* Query DNS based on lb and hb of tac */
+			char lb[8] = {0};
+			char hb[8] = {0};
+
+			if (!csr->uli.header.len) {
+				fprintf(stderr, "Could not get SGW-U list using DNS"
+								"query. TAC missing in CSR.\n");
+				return 0;
+			}
+
+			sprintf(lb, "%u", csr->uli.tai.tac & 0xFF);
+			sprintf(hb, "%u", (csr->uli.tai.tac >> 8) & 0xFF);
+
+			sgwupf_node_sel = init_sgwupf_node_selector(lb, hb, mnc, mcc);
+
+			set_desired_proto(sgwupf_node_sel, SGWUPFNODESELECTOR, UPF_X_SXA);
+			set_nwcapability(sgwupf_node_sel, apn_requested->apn_net_cap);
+			if (csr->ue_usage_type.header.len)
+				set_ueusage_type(sgwupf_node_sel,
+						csr->ue_usage_type.mapped_ue_usage_type);
+			else {
+				if (apn_requested->apn_usage_type >= 0)
+					set_ueusage_type(sgwupf_node_sel,
+						apn_requested->apn_usage_type);
+			}
+
+			process_dnsreq(sgwupf_node_sel, sgwu_list, &sgwu_count);
+
+			if (!sgwu_count) {
+				fprintf(stderr, "Could not get SGW-U list using DNS"
 					"query \n");
-			deinit_node_selector(enbupf_node_sel);
-			return 0;
+				return 0;
+			}
 		}
 
 		/* SAEGW-C */
@@ -170,15 +246,17 @@ get_upf_list(create_session_request_t *csr)
 			if (csr->ue_usage_type.header.len)
 				set_ueusage_type(pwupf_node_sel,
 						csr->ue_usage_type.mapped_ue_usage_type);
-			else
-				set_ueusage_type(pwupf_node_sel,
+			else {
+				if (apn_requested->apn_usage_type >= 0)
+					set_ueusage_type(pwupf_node_sel,
 						apn_requested->apn_usage_type);
+			}
 
 			process_dnsreq(pwupf_node_sel, pgwu_list, &pgwu_count);
 
 			/* Get colocated candidate list */
 			canonical_result_t result[QUERY_RESULT_COUNT] = {0};
-			int res_count = get_colocated_candlist(enbupf_node_sel,
+			int res_count = get_colocated_candlist(sgwupf_node_sel,
 						pwupf_node_sel, result);
 
 			if (!res_count) {
@@ -186,22 +264,19 @@ get_upf_list(create_session_request_t *csr)
 				return 0;
 			}
 
-			add_canonical_result_upflist_entry(result, res_count,
+			upf_count = add_canonical_result_upflist_entry(result, res_count,
 					csr->imsi.imsi, csr->imsi.header.len);
-
-			upf_count = res_count;
 
 			deinit_node_selector(pwupf_node_sel);
 
 		} else { /* SGW-C */
 
-			add_dns_result_upflist_entry(sgwu_list, sgwu_count,
+			upf_count = add_dns_result_upflist_entry(sgwu_list, sgwu_count,
 					csr->imsi.imsi, csr->imsi.header.len);
 
-			upf_count = sgwu_count;
 		}
 
-		deinit_node_selector(enbupf_node_sel);
+		deinit_node_selector(sgwupf_node_sel);
 
 	} else if (pfcp_config.cp_type == PGWC) {
 
@@ -216,9 +291,11 @@ get_upf_list(create_session_request_t *csr)
 		if (csr->ue_usage_type.header.len)
 			set_ueusage_type(pwupf_node_sel,
 					csr->ue_usage_type.mapped_ue_usage_type);
-		else
-			set_ueusage_type(pwupf_node_sel,
+		else {
+			if (apn_requested->apn_usage_type >= 0)
+				set_ueusage_type(pwupf_node_sel,
 					apn_requested->apn_usage_type);
+		}
 
 		process_dnsreq(pwupf_node_sel, pgwu_list, &pgwu_count);
 
@@ -239,10 +316,8 @@ get_upf_list(create_session_request_t *csr)
 			return 0;
 		}
 
-		add_canonical_result_upflist_entry(result, res_count,
+		upf_count = add_canonical_result_upflist_entry(result, res_count,
 				csr->imsi.imsi, csr->imsi.header.len);
-
-		upf_count = res_count;
 
 		deinit_node_selector(pwupf_node_sel);
 	}

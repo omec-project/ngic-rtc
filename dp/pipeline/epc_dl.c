@@ -61,6 +61,27 @@ extern pcap_dumper_t *pcap_dumper_east;
 #endif /* PCAP_GEN */
 uint32_t dl_nkni_pkts = 0;
 
+#ifdef USE_REST
+static inline void check_activity(uint32_t srcIp)
+{
+	/* VS: TODO */
+	int ret = 0;
+	peerData *conn_data = NULL;
+
+	ret = rte_hash_lookup_data(conn_hash_handle,
+				&srcIp, (void **)&conn_data);
+	if ( ret < 0) {
+		RTE_LOG_DP(DEBUG, DP, "Entry not found for NODE :%s\n",
+							inet_ntoa(*(struct in_addr *)&srcIp));
+		return;
+	} else {
+		RTE_LOG_DP(DEBUG, DP, "Recv pkts from NODE :%s\n",
+						inet_ntoa(*(struct in_addr *)&srcIp));
+		conn_data->activityFlag = 1;
+	}
+}
+#endif /* USE_REST */
+
 static inline void epc_dl_set_port_id(struct rte_mbuf *m)
 {
 	uint8_t *m_data = rte_pktmbuf_mtod(m, uint8_t *);
@@ -137,14 +158,17 @@ static inline void epc_dl_set_port_id(struct rte_mbuf *m)
 			RTE_LOG_DP(DEBUG, DP, "SGI packet\n");
 #ifdef USE_REST
 			if (app.spgw_cfg == SGWU) {
+				/* VS: TODO Set activity flag if data receive from peer node */
+				check_activity(ipv4_hdr->src_addr);
 				struct udp_hdr *udph =
 					(struct udp_hdr *)&m_data[sizeof(struct ether_hdr) +
 					((ipv4_hdr->version_ihl & 0xf) << 2)];
 				if (likely(udph->dst_port == UDP_PORT_GTPU_NW_ORDER)) {
 					struct gtpu_hdr *gtpuhdr = get_mtogtpu(m);
 					if (gtpuhdr->msgtype == GTPU_ECHO_REQUEST ||
-						gtpuhdr->msgtype == GTPU_ECHO_RESPONSE)
+						gtpuhdr->msgtype == GTPU_ECHO_RESPONSE) {
 							return;
+					}
 				}
 			}
 #endif /* USE_REST */

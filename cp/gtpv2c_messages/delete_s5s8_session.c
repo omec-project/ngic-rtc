@@ -69,6 +69,7 @@ delete_pgwc_context(gtpv2c_header *gtpv2c_rx, ue_context **_context,
 	ue_context *context = NULL;
 	gtpv2c_ie *ebi_ei_to_be_removed = NULL;
 
+	gtpv2c_rx->teid_u.has_teid.teid = ntohl(gtpv2c_rx->teid_u.has_teid.teid);
 	/* s11_sgw_gtpc_teid = s5s8_pgw_gtpc_base_teid =
 	 * key->ue_context_by_fteid_hash */
 	ret = rte_hash_lookup_data(ue_context_by_fteid_hash,
@@ -269,6 +270,8 @@ delete_sgwc_context(gtpv2c_header *gtpv2c_rx, ue_context **_context)
 	int i;
 	static uint32_t process_sgwc_s5s8_ds_rsp_cnt;
 	ue_context *context = NULL;
+
+	gtpv2c_rx->teid_u.has_teid.teid = ntohl(gtpv2c_rx->teid_u.has_teid.teid);
 
 	/* s11_sgw_gtpc_teid= s5s8_sgw_gtpc_teid =
 	 * key->ue_context_by_fteid_hash */

@@ -122,7 +122,6 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 		ti->ti_ms );
 
 	if (md->itr_cnt == md->itr) {
-		RTE_LOG_DP(DEBUG, CP, "Stopped Periodic/transmit timer, peer node is not reachable\n");
 		/* Stop transmit timer for specific Peer Node */
 		stopTimer( &md->tt );
 		/* Stop periodic timer for specific Peer Node */
@@ -131,6 +130,9 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 		//deinitTimer( &md->tt );
 		/* Deinit transmit timer for specific Peer Node */
 		//deinitTimer( &md->pt );
+
+		RTE_LOG_DP(DEBUG, CP, "Stopped Periodic/transmit timer, peer node %s is not reachable\n",
+				inet_ntoa(*(struct in_addr *)&md->dstIP));
 
 		if (md->portId == S11_SGW_PORT_ID)
 		{

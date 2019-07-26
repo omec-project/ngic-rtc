@@ -292,9 +292,9 @@ control_plane(void)
 					return;
 				}
 
-				cp_stats.session_deletion_req_sent++;
+				//cp_stats.session_deletion_req_sent++;
 				cp_stats.sm_delete_session_resp_acc_rcvd++;
-				cp_stats.session_deletion_resp_acc_rcvd++;
+				//cp_stats.session_deletion_resp_acc_rcvd++;
 
 				payload_length = ntohs(gtpv2c_s11_tx->gtpc.length)
 						+ sizeof(gtpv2c_s11_tx->gtpc);

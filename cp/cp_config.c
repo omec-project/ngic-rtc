@@ -27,6 +27,9 @@
 #define APN_ENTRIES				"APN_CONFIG"
 #define NAMESERVER_ENTRIES		"NAMESERVER_CONFIG"
 #define IP_POOL_ENTRIES			"IP_POOL_CONFIG"
+#define CACHE_ENTRIES			"CACHE"
+#define APP_ENTRIES				"APP"
+#define OPS_ENTRIES				"OPS"
 
 #define CP_TYPE					"CP_TYPE"
 #define S11_IPS					"S11_IP"
@@ -43,6 +46,11 @@
 #define NAMESERVER				"nameserver"
 #define IP_POOL_IP				"IP_POOL_IP"
 #define IP_POOL_MASK			"IP_POOL_MASK"
+#define CONCURRENT				"concurrent"
+#define PERCENTAGE				"percentage"
+#define INT_SEC					"interval_seconds"
+#define FREQ_SEC				"frequency_seconds"
+#define FILENAME				"filename"
 
 /* Restoration Parameters */
 #define TRANSMIT_TIMER			"TRANSMIT_TIMER"
@@ -53,15 +61,20 @@ void
 config_cp_ip_port(pfcp_config_t *pfcp_config)
 {
 	uint32_t i = 0;
-	uint32_t num_ip_pool_entries	= 0;
-	uint32_t num_nameserver_entries = 0;
-	uint32_t num_apn_entries		= 0;
-	uint32_t num_global_entries		= 0;
+	uint32_t num_ops_entries = 0;
+	uint32_t num_app_entries = 0;
+	uint32_t num_cache_entries = 0;
+	uint32_t num_ip_pool_entries = 0;
+	uint32_t num_apn_entries = 0;
+	uint32_t num_global_entries = 0;
 
-	struct rte_cfgfile_entry *global_entries		= NULL;
-	struct rte_cfgfile_entry *apn_entries			= NULL;
-	struct rte_cfgfile_entry *nameserver_entries	= NULL;
-	struct rte_cfgfile_entry *ip_pool_entries		= NULL;
+	struct rte_cfgfile_entry *global_entries = NULL;
+	struct rte_cfgfile_entry *apn_entries = NULL;
+	struct rte_cfgfile_entry *ip_pool_entries = NULL;
+	struct rte_cfgfile_entry *cache_entries = NULL;
+	struct rte_cfgfile_entry *app_entries = NULL;
+	struct rte_cfgfile_entry *ops_entries = NULL;
+
 
 	struct rte_cfgfile *file = rte_cfgfile_load(STATIC_CP_FILE, 0);
 	if (file == NULL) {
@@ -205,7 +218,8 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 
 	/* Parse APN and nameserver values. */
 	uint16_t apn_idx = 0;
-	uint16_t nameserver_ip_idx = 0;
+	uint16_t app_nameserver_ip_idx = 0;
+	uint16_t ops_nameserver_ip_idx = 0;
 
 	num_apn_entries =
 		rte_cfgfile_section_num_entries(file, APN_ENTRIES);
@@ -236,6 +250,8 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 			/* If key matches */
 			if (i < MAX_NUM_APN) {
 				char *ptr[3];
+				/* Based on default value, set usage type */
+				apn_list[i].apn_usage_type = -1;
 
 				parse_apn_args(apn_entries[i].value, ptr);
 
@@ -261,39 +277,144 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 	}
 	rte_free(apn_entries);
 
-	/* Read nameserver values from cfg seaction. */
-	num_nameserver_entries =
-		rte_cfgfile_section_num_entries(file, NAMESERVER_ENTRIES);
 
-	if (num_nameserver_entries > 0) {
-		nameserver_entries = rte_malloc_socket(NULL,
+	/* Read cache values from cfg seaction. */
+	num_cache_entries =
+		rte_cfgfile_section_num_entries(file, CACHE_ENTRIES);
+
+	if (num_cache_entries > 0) {
+		cache_entries = rte_malloc_socket(NULL,
 						sizeof(struct rte_cfgfile_entry)
-							*num_nameserver_entries,
+							*num_cache_entries,
 							RTE_CACHE_LINE_SIZE,
 							rte_socket_id());
 	}
 
-	if (nameserver_entries == NULL)
+	if (cache_entries == NULL)
 		rte_panic("Error configuring"
-				"nameserver entry of %s\n", STATIC_CP_FILE);
+				"CACHE entry of %s\n", STATIC_CP_FILE);
 
-	rte_cfgfile_section_entries(file, NAMESERVER_ENTRIES,
-					nameserver_entries,
-					num_nameserver_entries);
+	rte_cfgfile_section_entries(file, CACHE_ENTRIES,
+					cache_entries,
+					num_cache_entries);
 
-	for (i = 0; i < num_nameserver_entries; ++i) {
+	for (i = 0; i < num_cache_entries; ++i) {
 		fprintf(stderr, "CP: [%s] = %s\n",
-				nameserver_entries[i].name,
-				nameserver_entries[i].value);
-		if (strncmp(NAMESERVER, nameserver_entries[i].name,
-						strlen(CP_TYPE)) == 0)
-			strncpy(pfcp_config->nameserver_ip[nameserver_ip_idx],
-					nameserver_entries[i].value,
-					strlen(nameserver_entries[i].value));
-		nameserver_ip_idx++;
+				cache_entries[i].name,
+				cache_entries[i].value);
+		if (strncmp(CONCURRENT, cache_entries[i].name,
+						strlen(CONCURRENT)) == 0)
+			pfcp_config->dns_cache.concurrent =
+					(uint32_t)atoi(cache_entries[i].value);
+		if (strncmp(PERCENTAGE, cache_entries[i].name,
+						strlen(CONCURRENT)) == 0)
+			pfcp_config->dns_cache.percent =
+					(uint32_t)atoi(cache_entries[i].value);
+		if (strncmp(INT_SEC, cache_entries[i].name,
+						strlen(CONCURRENT)) == 0)
+			pfcp_config->dns_cache.sec =
+					(uint32_t)atoi(cache_entries[i].value);
 	}
 
-	rte_free(nameserver_entries);
+	rte_free(cache_entries);
+
+	/* Read app values from cfg seaction. */
+	num_app_entries =
+		rte_cfgfile_section_num_entries(file, APP_ENTRIES);
+
+	if (num_app_entries > 0) {
+		app_entries = rte_malloc_socket(NULL,
+						sizeof(struct rte_cfgfile_entry)
+							*num_app_entries,
+							RTE_CACHE_LINE_SIZE,
+							rte_socket_id());
+	}
+
+	if (app_entries == NULL)
+		rte_panic("Error configuring"
+				"APP entry of %s\n", STATIC_CP_FILE);
+
+	rte_cfgfile_section_entries(file, APP_ENTRIES,
+					app_entries,
+					num_app_entries);
+
+	for (i = 0; i < num_app_entries; ++i) {
+		fprintf(stderr, "CP: [%s] = %s\n",
+				app_entries[i].name,
+				app_entries[i].value);
+
+		if (strncmp(FREQ_SEC, app_entries[i].name,
+						strlen(FREQ_SEC)) == 0)
+			pfcp_config->app_dns.freq_sec =
+					(uint8_t)atoi(app_entries[i].value);
+
+		if (strncmp(FILENAME, app_entries[i].name,
+						strlen(FILENAME)) == 0)
+			strncpy(pfcp_config->app_dns.filename,
+					app_entries[i].value,
+					strlen(app_entries[i].value));
+
+		if (strncmp(NAMESERVER, app_entries[i].name,
+						strlen(NAMESERVER)) == 0) {
+			strncpy(pfcp_config->app_dns.nameserver_ip[app_nameserver_ip_idx],
+					app_entries[i].value,
+					strlen(app_entries[i].value));
+			app_nameserver_ip_idx++;
+		}
+	}
+
+	pfcp_config->app_dns.nameserver_cnt = app_nameserver_ip_idx;
+
+	rte_free(app_entries);
+
+	/* Read ops values from cfg seaction. */
+	num_ops_entries =
+		rte_cfgfile_section_num_entries(file, OPS_ENTRIES);
+
+	if (num_ops_entries > 0) {
+		ops_entries = rte_malloc_socket(NULL,
+						sizeof(struct rte_cfgfile_entry)
+							*num_ops_entries,
+							RTE_CACHE_LINE_SIZE,
+							rte_socket_id());
+	}
+
+	if (ops_entries == NULL)
+		rte_panic("Error configuring"
+				"OPS entry of %s\n", STATIC_CP_FILE);
+
+	rte_cfgfile_section_entries(file, OPS_ENTRIES,
+					ops_entries,
+					num_ops_entries);
+
+	for (i = 0; i < num_ops_entries; ++i) {
+		fprintf(stderr, "CP: [%s] = %s\n",
+				ops_entries[i].name,
+				ops_entries[i].value);
+
+		if (strncmp(FREQ_SEC, app_entries[i].name,
+						strlen(FREQ_SEC)) == 0)
+			pfcp_config->ops_dns.freq_sec =
+					(uint8_t)atoi(ops_entries[i].value);
+
+		if (strncmp(FILENAME, ops_entries[i].name,
+						strlen(FILENAME)) == 0)
+			strncpy(pfcp_config->ops_dns.filename,
+					ops_entries[i].value,
+					strlen(ops_entries[i].value));
+
+		if (strncmp(NAMESERVER, ops_entries[i].name,
+						strlen(NAMESERVER)) == 0) {
+			strncpy(pfcp_config->ops_dns.nameserver_ip[ops_nameserver_ip_idx],
+					app_entries[i].value,
+					strlen(ops_entries[i].value));
+			ops_nameserver_ip_idx++;
+		}
+	}
+
+	pfcp_config->ops_dns.nameserver_cnt = ops_nameserver_ip_idx;
+
+	rte_free(ops_entries);
 
 	/* Read IP_POOL_CONFIG seaction */
 	num_ip_pool_entries = rte_cfgfile_section_num_entries

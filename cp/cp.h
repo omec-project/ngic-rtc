@@ -284,14 +284,26 @@ close_stats(void);
 #define MAX_NUM_PGWU  5
 #define MAX_NUM_SAEGWU 5
 
-#define MAX_NUM_APN   8
+#define MAX_NUM_APN   16
 
-#define MAX_NUM_NAMESERVER 5
+#define MAX_NUM_NAMESERVER 8
 
 #define SGWU_PFCP_PORT   8805
 #define PGWU_PFCP_PORT   8805
 #define SAEGWU_PFCP_PORT   8805
 
+typedef struct dns_cache_params_t {
+	uint32_t concurrent;
+	uint32_t sec;
+	uint8_t percent;
+} dns_cache_params_t;
+
+typedef struct dns_config_t {
+	uint8_t freq_sec;
+	char filename[PATH_MAX];
+	uint8_t nameserver_cnt;
+	char nameserver_ip[MAX_NUM_NAMESERVER][INET_ADDRSTRLEN];
+} dns_config_t;
 
 typedef struct pfcp_config_t {
 	/* CP Configuration : SGWC=01; PGWC=02; SAEGWC=03 */
@@ -322,14 +334,13 @@ typedef struct pfcp_config_t {
 	uint32_t num_apn;
 	/* apn apn_list[MAX_NUM_APN]; */
 
-	/* NAMESERVER Params */
-	uint32_t num_nameserver;
-	char nameserver_ip[MAX_NUM_NAMESERVER][INET_ADDRSTRLEN];
+	dns_cache_params_t dns_cache;
+	dns_config_t ops_dns;
+	dns_config_t app_dns;
 
 	/* IP_POOL_CONFIG Params */
 	struct in_addr ip_pool_ip;
 	struct in_addr ip_pool_mask;
-
 
 } pfcp_config_t;
 

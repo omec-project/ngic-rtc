@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <byteswap.h>
+
 #include "main.h"
 #include "meter.h"
 #include "acl_dp.h"
@@ -265,7 +267,7 @@ process_pfcp_msg(uint8_t *buf_rx, int bytes_rx,
 
 					case PGWU:
 						sess_info.ul_s1_info.sgw_teid =
-							ntohl(pfcp_session_request->create_pdr[0].pdi.local_fteid.teid);
+							pfcp_session_request->create_pdr[0].pdi.local_fteid.teid;
 						sess_info.ul_s1_info.sgw_addr.iptype = IPTYPE_IPV4;
 						sess_info.ul_s1_info.sgw_addr.u.ipv4_addr =
 							ntohl(pfcp_session_request->create_pdr[0].pdi.local_fteid.ipv4_address);
@@ -324,7 +326,7 @@ process_pfcp_msg(uint8_t *buf_rx, int bytes_rx,
 				 case PGWU:
 					/* TODO: Revisit this for change in yang */
 					pfcp_session_response.created_pdr.local_fteid.teid =
-						ntohl(pfcp_session_request->create_pdr[0].pdi.local_fteid.teid);
+						pfcp_session_request->create_pdr[0].pdi.local_fteid.teid;
 					/* TODO: Revisit this for change in yang */
 					pfcp_session_response.created_pdr.local_fteid.ipv4_address =
 						(pfcp_session_request->create_pdr[0].pdi.local_fteid.ipv4_address);
@@ -367,7 +369,7 @@ process_pfcp_msg(uint8_t *buf_rx, int bytes_rx,
 				pfcp_hdr->message_len = htons(encoded - 4);
 
 				pfcp_hdr->seid_seqno.has_seid.seid =
-							htonl(pfcp_session_request->header.seid_seqno.has_seid.seid);
+							bswap_64(pfcp_session_response.up_fseid.seid);
 
 				free(pfcp_session_request);
 				break;
@@ -445,9 +447,9 @@ process_pfcp_msg(uint8_t *buf_rx, int bytes_rx,
 						htonl(sess_info.ul_s1_info.sgw_addr.u.ipv4_addr);
 				} else {
 					pfcp_sess_mod_res.created_pdr.local_fteid.teid =
-						pfcp_session_mod_req->create_pdr[0].pdi.local_fteid.teid;
+						htonl(pfcp_session_mod_req->create_pdr[0].pdi.local_fteid.teid);
 					pfcp_sess_mod_res.created_pdr.local_fteid.ipv4_address =
-						htonl(pfcp_session_mod_req->create_pdr[0].pdi.local_fteid.ipv4_address);
+						pfcp_session_mod_req->create_pdr[0].pdi.local_fteid.ipv4_address;
 				}
 
 				RTE_LOG_DP(DEBUG, DP, "In MODIFY S1U TEID[%u]\n",

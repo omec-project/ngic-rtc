@@ -238,13 +238,28 @@ gtpv2c_send(int gtpv2c_if_fd, uint8_t *gtpv2c_tx_buf,
 static void
 set_dns_config(void)
 {
-	set_dnscache_refresh_params(DNSCACHE_CONCURRENT,
-			DNSCACHE_PERCENTAGE, DNSCACHE_INTERVAL);
+	set_dnscache_refresh_params(pfcp_config.dns_cache.concurrent,
+			pfcp_config.dns_cache.percent, pfcp_config.dns_cache.sec);
 
-	for (uint32_t i = 0; i < pfcp_config.num_nameserver; i++)
-		set_named_server(pfcp_config.nameserver_ip[i],
-				DNS_PORT, DNS_PORT);
+	/* set OPS dns config */
+	for (uint32_t i = 0; i < pfcp_config.ops_dns.nameserver_cnt; i++)
+		set_nameserver_config(pfcp_config.ops_dns.nameserver_ip[i],
+				DNS_PORT, DNS_PORT, NS_OPS);
 
+	apply_nameserver_config(NS_OPS);
+	init_save_dns_queries(NS_OPS, pfcp_config.ops_dns.filename,
+			pfcp_config.ops_dns.freq_sec);
+	load_dns_queries(NS_OPS, pfcp_config.ops_dns.filename);
+
+	/* set APP dns config */
+	for (uint32_t i = 0; i < pfcp_config.app_dns.nameserver_cnt; i++)
+		set_nameserver_config(pfcp_config.app_dns.nameserver_ip[i],
+				DNS_PORT, DNS_PORT, NS_APP);
+
+	apply_nameserver_config(NS_APP);
+	init_save_dns_queries(NS_APP, pfcp_config.app_dns.filename,
+			pfcp_config.app_dns.freq_sec);
+	load_dns_queries(NS_APP, pfcp_config.app_dns.filename);
 }
 #endif /* USE_DNS_QUERY */
 

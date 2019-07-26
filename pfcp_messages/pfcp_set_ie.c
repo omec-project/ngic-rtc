@@ -29,7 +29,7 @@ extern pfcp_config_t pfcp_config;
 static uint32_t pfcp_sgwc_seid_offset;
 #endif /* CP_BUILD */
 
-static uint16_t pdn_conn_set_id;
+//static uint16_t pdn_conn_set_id;
 extern struct rte_hash *node_id_hash;
 struct rte_hash *heartbeat_recovery_hash;
 const uint64_t pfcp_sgwc_base_seid = 0xC0FFEE;
@@ -357,8 +357,11 @@ set_fq_csid(pfcp_fqcsid_ie_t *fq_csid,uint32_t nodeid_value)
 	fq_csid->number_of_csids = 1;
 	memcpy(&(fq_csid->node_address), &nodeid_value, IPV4_SIZE);
 
-	for(int i = 0; i < fq_csid->number_of_csids ;i++)
-		fq_csid->pdn_conn_set_ident[i] = htons(pdn_conn_set_id++);
+	for(int i = 0; i < fq_csid->number_of_csids ;i++) {
+		/*PDN CONN value is 0 when it is not used */
+		fq_csid->pdn_conn_set_ident[i] = 0;
+		/*fq_csid->pdn_conn_set_ident[i] = htons(pdn_conn_set_id++);*/
+	}
 	pfcp_set_ie_header(&(fq_csid->header),
 			PFCP_IE_FQCSID,2*(fq_csid->number_of_csids) + 5);
 
@@ -1418,8 +1421,10 @@ decode_check_csr(gtpv2c_header *gtpv2c_rx,
 	ret = decode_create_session_request_t((uint8_t *) gtpv2c_rx,
 			csr);
 
-	if (!ret)
-		 return -EPERM;
+	if (!ret) {
+		fprintf(stderr, "%s: Decoding failed for CSR message.\n", __func__);
+		return -EPERM;
+	}
 
 	if (csr->indication.header.len &&
 			csr->indication.indication_value.uimsi) {

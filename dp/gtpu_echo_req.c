@@ -43,36 +43,6 @@ typedef struct gtpuHdr_s {
 	uint16_t seq_no;		/**< Optional fields if E, S or PN flags set */
 } __attribute__((__packed__)) gtpuHdr_t;
 
-/* Brief: Function to set recovery IE
- * @ Input param: echo_pkt rte_mbuf pointer
- * @ Output param: none
- * Return: void
- */
-static int set_recovery(struct rte_mbuf *echo_pkt) {
-	struct ipv4_hdr *ip_hdr = get_mtoip(echo_pkt);
-	struct gtpu_hdr *gtpu_hdr = get_mtogtpu(echo_pkt);
-	gtpu_recovery_ie *recovery_ie = NULL;
-	if (echo_pkt->pkt_len - (ETHER_HDR_LEN +(ip_hdr->total_length))) {
-		recovery_ie = (gtpu_recovery_ie*)((char*)gtpu_hdr+
-				GTPU_HDR_SIZE + ntohs(gtpu_hdr->msglen));
-	} else if ((echo_pkt->pkt_len - (ETHER_HDR_LEN +(ip_hdr->total_length))) == 0) {
-			recovery_ie = (gtpu_recovery_ie *)rte_pktmbuf_append(echo_pkt,
-					(sizeof(gtpu_recovery_ie)));
-	}
-
-	if (recovery_ie == NULL) {
-		RTE_LOG_DP(ERR, DP, "Couldn't append %lu bytes to mbuf",
-				sizeof(gtpu_recovery_ie));
-		 return -1;
-	}
-
-	gtpu_hdr->msglen = htons(ntohs(gtpu_hdr->msglen)+
-		sizeof(gtpu_recovery_ie));
-	recovery_ie->type = GTPU_ECHO_RECOVERY;
-	recovery_ie->restart_cntr = 0;
-	return 0;
-}
-
 /* Brief: Function to set checksum of IPv4 and UDP header
  * @ Input param: echo_pkt rte_mbuf pointer
  * @ Output param: none
@@ -92,7 +62,7 @@ static __inline__ void encap_gtpu_hdr(struct rte_mbuf *m, uint16_t gtpu_seqnb)
 	uint32_t teid = 0;
 	uint16_t len = rte_pktmbuf_data_len(m)- (ETH_HDR_LEN + IPV4_HDR_LEN + UDP_HDR_LEN);
 
-	len -= ETH_HDR_LEN;
+	len -= GTPU_HDR_LEN;
 
 	gtpuHdr_t  *gtpu_hdr = (gtpuHdr_t*)(rte_pktmbuf_mtod(m, unsigned char *) +
 		ETH_HDR_LEN + IPV4_HDR_LEN + UDP_HDR_LEN);
@@ -101,7 +71,7 @@ static __inline__ void encap_gtpu_hdr(struct rte_mbuf *m, uint16_t gtpu_seqnb)
 	gtpu_hdr->msg_type = GTPU_ECHO_REQUEST;
 	gtpu_hdr->teid = htonl(teid);
 	gtpu_hdr->seq_no = htons(gtpu_seqnb);
-	gtpu_hdr->tot_len  = htons(4);
+	gtpu_hdr->tot_len = htons(len);
 
 }
 

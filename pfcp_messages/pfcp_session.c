@@ -330,13 +330,13 @@ fill_pfcp_sess_est_req( pfcp_sess_estab_req_t *pfcp_sess_est_req,
 	switch (pfcp_config.cp_type)
 	{
 		case SGWC :
-			pfcp_sess_est_req->create_pdr[0].pdi.local_fteid.teid = htonl(bearer->s1u_sgw_gtpu_teid);
+			pfcp_sess_est_req->create_pdr[0].pdi.local_fteid.teid = (bearer->s1u_sgw_gtpu_teid);
 			pfcp_sess_est_req->create_pdr[0].pdi.ue_ip_address.ipv4_address = (pdn->ipv4.s_addr);
 			pfcp_sess_est_req->create_pdr[0].pdi.local_fteid.ipv4_address =
 					htonl(upf_ctx->s1u_ip);
 			pfcp_sess_est_req->create_pdr[0].pdi.src_intfc.interface_value = SOURCE_INTERFACE_VALUE_ACCESS;
 
-			pfcp_sess_est_req->create_pdr[1].pdi.local_fteid.teid = htonl(bearer->s5s8_sgw_gtpu_teid);
+			pfcp_sess_est_req->create_pdr[1].pdi.local_fteid.teid = (bearer->s5s8_sgw_gtpu_teid);
 			pfcp_sess_est_req->create_pdr[1].pdi.ue_ip_address.ipv4_address = (pdn->ipv4.s_addr);
 			pfcp_sess_est_req->create_pdr[1].pdi.local_fteid.ipv4_address =
 					htonl(upf_ctx->s5s8_sgwu_ip);
@@ -344,7 +344,7 @@ fill_pfcp_sess_est_req( pfcp_sess_estab_req_t *pfcp_sess_est_req,
 			break;
 
 		case PGWC :
-			pfcp_sess_est_req->create_pdr[0].pdi.local_fteid.teid = htonl(bearer->s5s8_pgw_gtpu_teid);
+			pfcp_sess_est_req->create_pdr[0].pdi.local_fteid.teid = (bearer->s5s8_pgw_gtpu_teid);
 			pfcp_sess_est_req->create_pdr[0].pdi.ue_ip_address.ipv4_address = htonl(pdn->ipv4.s_addr);
 			pfcp_sess_est_req->create_pdr[0].pdi.local_fteid.ipv4_address =
 					htonl(upf_ctx->s5s8_pgwu_ip);
@@ -357,7 +357,7 @@ fill_pfcp_sess_est_req( pfcp_sess_estab_req_t *pfcp_sess_est_req,
 			break;
 
 		case SAEGWC :
-			pfcp_sess_est_req->create_pdr[0].pdi.local_fteid.teid = htonl(bearer->s1u_sgw_gtpu_teid);
+			pfcp_sess_est_req->create_pdr[0].pdi.local_fteid.teid = (bearer->s1u_sgw_gtpu_teid);
 			pfcp_sess_est_req->create_pdr[0].pdi.ue_ip_address.ipv4_address = pdn->ipv4.s_addr;
 			pfcp_sess_est_req->create_pdr[0].pdi.local_fteid.ipv4_address =
 					htonl(upf_ctx->s1u_ip);
@@ -548,6 +548,7 @@ process_pfcp_sess_est_request(gtpv2c_header *gtpv2c_rx,
 		bearer->pdn = pdn;
 	}
 
+
 	/*fill_pfcp_sess_est_req(&pfcp_sess_est_req, &csr );*/
 	context->seid = SESS_ID(context->s11_sgw_gtpc_teid, bearer->eps_bearer_id);
 	fill_pfcp_sess_est_req(&pfcp_sess_est_req, csr, context, bearer, pdn);
@@ -718,7 +719,7 @@ process_pfcp_sess_del_request(gtpv2c_header *gtpv2c_rx,
 		s5s8_recv_sockaddr.sin_addr.s_addr =
 						htonl(pdn->s5s8_pgw_gtpc_ipv4.s_addr);
 
-		return ret;
+		/* return ret; */
 	}
 
 	gtpv2c_s11_tx->teid_u.has_teid.seq = gtpv2c_rx->teid_u.has_teid.seq;
