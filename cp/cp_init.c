@@ -239,7 +239,7 @@ static void
 set_dns_config(void)
 {
 	set_dnscache_refresh_params(pfcp_config.dns_cache.concurrent,
-			pfcp_config.dns_cache.percent, pfcp_config.dns_cache.sec);
+			pfcp_config.dns_cache.percent, pfcp_config.dns_cache.sec * 1000);
 
 	/* set OPS dns config */
 	for (uint32_t i = 0; i < pfcp_config.ops_dns.nameserver_cnt; i++)
