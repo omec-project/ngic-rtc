@@ -41,20 +41,24 @@ docker-build:
 	docker build $(DOCKER_BUILD_ARGS) \
 		--target ${CP_NAME} \
 		--tag ${CP_IMAGENAME} \
-		--build-arg org_label_schema_version="${VERSION}" \
-		--build-arg org_label_schema_vcs_url="${DOCKER_LABEL_VCS_URL}" \
-		--build-arg org_label_schema_vcs_ref="${DOCKER_LABEL_VCS_REF}" \
-		--build-arg org_label_schema_build_date="${DOCKER_LABEL_BUILD_DATE}" \
-		--build-arg org_opencord_vcs_commit_date="${DOCKER_LABEL_COMMIT_DATE}" \
+		--label "org.label-schema.schema-version=1.0" \
+		--label "org.label-schema.name=ngic-${CP_NAME}" \
+		--label "org.label-schema.version=${VERSION}" \
+		--label "org.label-schema.vcs-url=${DOCKER_LABEL_VCS_URL}" \
+		--label "org.label-schema.vcs-ref=${DOCKER_LABEL_VCS_REF}" \
+		--label "org.label-schema.build-date=${DOCKER_LABEL_BUILD_DATE}" \
+		--label "org.opencord.vcs-commit-date=${DOCKER_LABEL_COMMIT_DATE}" \
                 .
 	docker build $(DOCKER_BUILD_ARGS) \
 		--target ${DP_NAME} \
 		--tag ${DP_IMAGENAME} \
-		--build-arg org_label_schema_version="${VERSION}" \
-		--build-arg org_label_schema_vcs_url="${DOCKER_LABEL_VCS_URL}" \
-		--build-arg org_label_schema_vcs_ref="${DOCKER_LABEL_VCS_REF}" \
-		--build-arg org_label_schema_build_date="${DOCKER_LABEL_BUILD_DATE}" \
-		--build-arg org_opencord_vcs_commit_date="${DOCKER_LABEL_COMMIT_DATE}" \
+		--label "org.label-schema.schema-version=1.0" \
+		--label "org.label-schema.name=ngic-${DP_NAME}" \
+		--label "org.label-schema.version=${VERSION}" \
+		--label "org.label-schema.vcs-url=${DOCKER_LABEL_VCS_URL}" \
+		--label "org.label-schema.vcs-ref=${DOCKER_LABEL_VCS_REF}" \
+		--label "org.label-schema.build-date=${DOCKER_LABEL_BUILD_DATE}" \
+		--label "org.opencord.vcs-commit-date=${DOCKER_LABEL_COMMIT_DATE}" \
                 .
 
 docker-push:
