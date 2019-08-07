@@ -21,6 +21,7 @@ test: $(CPDEPS) $(DPDEPS)
 
 VERSION                  ?= $(shell cat ./VERSION)
 DOCKER_TAG               ?= ${VERSION}
+DOCKER_DEBUG_TAG         ?= ${DOCKER_TAG}-debug
 DOCKER_REGISTRY          ?=
 DOCKER_REPOSITORY        ?=
 # Note that we set the target platform of Docker images to Haswell
@@ -50,11 +51,25 @@ docker-build:
 			--label "org.label-schema.build-date=${DOCKER_LABEL_BUILD_DATE}" \
 			--label "org.opencord.vcs-commit-date=${DOCKER_LABEL_COMMIT_DATE}" \
 			.; \
+		docker build $(DOCKER_BUILD_ARGS) \
+			--target $$target \
+			--tag ${DOCKER_REGISTRY}${DOCKER_REPOSITORY}ngic-$$target:${DOCKER_DEBUG_TAG} \
+			--build-arg RUN_BASE="runtime-utils" \
+			--build-arg EXTRA_CFLAGS="-DUSE_AF_PACKET -UPERF_TEST -ggdb -O2" \
+			--label "org.label-schema.schema-version=1.0" \
+			--label "org.label-schema.name=ngic-$$target-af-packet" \
+			--label "org.label-schema.version=${VERSION}" \
+			--label "org.label-schema.vcs-url=${DOCKER_LABEL_VCS_URL}" \
+			--label "org.label-schema.vcs-ref=${DOCKER_LABEL_VCS_REF}" \
+			--label "org.label-schema.build-date=${DOCKER_LABEL_BUILD_DATE}" \
+			--label "org.opencord.vcs-commit-date=${DOCKER_LABEL_COMMIT_DATE}" \
+			.; \
 	done
 
 docker-push:
 	for target in $(DOCKER_TARGETS); do \
 		docker push ${DOCKER_REGISTRY}${DOCKER_REPOSITORY}ngic-$$target:${DOCKER_TAG}; \
+		docker push ${DOCKER_REGISTRY}${DOCKER_REPOSITORY}ngic-$$target:${DOCKER_DEBUG_TAG}; \
 	done
 
 .PHONY: $(RECURSIVETARGETS) $(WHAT) $(CPDEPS) $(DPDEPS) docker-build docker-push

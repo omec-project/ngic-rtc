@@ -23,18 +23,19 @@ RUN source ./install_builddeps.sh && make -j $CPUS clean && make -j $CPUS RTE_MA
 
 ## Stage runtime: no utils
 FROM $BASE_OS as runtime
+SHELL ["/bin/bash", "-c"]
 COPY install_rundeps.sh .
 
 ## Stage runtime-utils: install common production runtime utils
 FROM runtime as runtime-utils
-RUN bash -c "source ./install_rundeps.sh && install_run_utils && cleanup_image"
+RUN source ./install_rundeps.sh && install_run_utils && cleanup_image
 
 ## Stage cp: creates the runtime image of control plane
 FROM $RUN_BASE as cp
-RUN bash -c "source ./install_rundeps.sh && install_run_cp_deps && cleanup_image"
+RUN source ./install_rundeps.sh && install_run_cp_deps && cleanup_image
 COPY --from=build /ngic-rtc/cp/build/ngic_controlplane /bin/ngic_controlplane
 
 ## Stage dp: creates the runtime image of data plane
 FROM $RUN_BASE as dp
-RUN bash -c "source ./install_rundeps.sh && install_run_dp_deps && cleanup_image"
+RUN source ./install_rundeps.sh && install_run_dp_deps && cleanup_image
 COPY --from=build /ngic-rtc/dp/build/ngic_dataplane /bin/ngic_dataplane
