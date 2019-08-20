@@ -51,15 +51,6 @@ extern uint16_t cp_nb_port;
 
 #endif
 
-#ifdef ZMQ_COMM
-char zmq_pull_ifconnect[128];
-char zmq_push_ifconnect[128];
-
-extern struct in_addr zmq_cp_ip, zmq_dp_ip;
-extern uint16_t zmq_cp_pull_port, zmq_dp_pull_port;
-extern uint16_t zmq_cp_push_port, zmq_dp_push_port;
-#endif	/* ZMQ_COMM */
-
 extern udp_sock_t my_sock;
 
 /* CP DP communication message type*/

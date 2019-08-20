@@ -119,7 +119,7 @@ set_dpn_id(const char *dpn_id_from_json)
 	if (dpn_id == NULL && dpn_id_from_json == NULL)
 		return 0;
 	dpn_id = strdup(dpn_id_from_json);
-	printf("Configured to use %s\n", dpn_id);
+
 	return 0;
 }
 

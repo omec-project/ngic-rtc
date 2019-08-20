@@ -551,6 +551,7 @@ struct dp_session_info {
 
 	/** Session state for use with downlink data processing*/
 	enum dp_session_state sess_state;
+
 	/** Ring to hold the DL pkts for this session */
 	struct rte_ring *dl_ring;
 } __attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
@@ -606,8 +607,6 @@ extern uint64_t total_wrkr_pkts_processed;
 
 extern struct rte_ring *shared_ring[NUM_SPGW_PORTS];
 
-#ifdef DP_DDN
-
 /** Holds a set of rings to be used for downlink data buffering */
 extern struct rte_ring *dl_ring_container;
 
@@ -622,7 +621,7 @@ extern struct rte_ring *notify_ring;
 /** Pool for notification msg pkts */
 extern struct rte_mempool *notify_msg_pool;
 
-#endif /* DP_DDN */
+extern struct sockaddr_in dest_addr_t;
 
 extern int arp_icmp_get_dest_mac_address(const uint32_t ipaddr,
 		const uint32_t phy_port,
@@ -945,7 +944,7 @@ ul_sess_info_get(struct rte_mbuf **pkts, uint32_t n,
 void
 dl_sess_info_get(struct rte_mbuf **pkts, uint32_t n,
 		uint64_t *pkts_mask, struct dp_sdf_per_bearer_info **sess_info,
-		struct dp_session_info **si);
+		struct dp_session_info **si, uint64_t *pkts_queue_mask);
 
 
 /**
@@ -1735,8 +1734,7 @@ build_echo_request(struct rte_mbuf *echo_pkt, peerData *entry, uint16_t gtpu_seq
 
 #endif /* USE_REST */
 
-#ifdef DP_DDN
-
+#ifdef DP_BUILD
 /**
  * Function to initialize/create shared ring, ring_container and mem_pool to
  * inter-communication between DL and iface core.
@@ -1783,7 +1781,10 @@ void
 enqueue_dl_pkts(struct dp_sdf_per_bearer_info **sess_info,
 		struct rte_mbuf **pkts, uint64_t pkts_queue_mask );
 
-#endif /* DP_DDN */
+uint8_t
+process_pfcp_session_report_req(struct sockaddr_in *peer_addr,
+		struct dp_session_info *sess);
+#endif /* DP_BUILD */
 #else
 
 /**

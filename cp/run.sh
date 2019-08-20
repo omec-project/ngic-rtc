@@ -23,7 +23,7 @@ APP="ngic_controlplane"
 LOG_LEVEL=0
 
 #Set NUMA memory
-MEMORY=1024
+MEMORY=2048
 NUMA0_MEMORY=$MEMORY
 NUMA1_MEMORY=0
 
@@ -63,43 +63,6 @@ elif [ "$1" == "debug" ];then
 
 	GDB_EX="-ex 'set print pretty on'"
 	gdb $GDB_EX --args $APP_PATH/$APP $ARGS
-
-#elif [ "$1" == "zmq" ];then
-#	pgrep -fa python | grep req_streamer_dev.py  &> /dev/null
-#	if [ $? -eq 1 ]; then
-#		echo "Starting req_streamer_dev.py"
-#		$NG_CORE/test/zmq_device/req_streamer_dev.py &
-#	else
-#		echo "req_streamer_dev.py already Running"
-#	fi
-
-#	pgrep -fa python | grep resp_streamer_dev.py  &> /dev/null
-#	if [ $? -eq 1 ]; then
-#		echo "Starting resp_streamer_dev.py"
-#		$NG_CORE/test/zmq_device/resp_streamer_dev.py &
-#	else
-#		echo "resp_streamer_dev.py already Running"
-#	fi
-#	sleep 2
-
-	$APP_PATH/$APP $ARGS
-
-#elif [ "$1" == "kill" ];then
-#	pgrep -fa python | grep req_streamer_dev.py  &> /dev/null
-#	if [ $? -eq 1 ]; then
-#		echo "req_streamer_dev.py no longer running.."
-#	else
-#		echo "Stopping req_streamer_dev.py"
-#		killall -9 req_streamer_dev.py
-#	fi
-
-#	pgrep -fa python | grep resp_streamer_dev.py  &> /dev/null
-#	if [ $? -eq 1 ]; then
-#		echo "resp_streamer_dev.py no longer running.."
-#	else
-#		echo "Stopping resp_streamer_dev.py"
-#		killall -9 resp_streamer_dev.py
-#	fi
 
 else
 	echo "$USAGE"

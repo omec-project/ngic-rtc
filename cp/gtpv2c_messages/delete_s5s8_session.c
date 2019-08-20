@@ -27,12 +27,10 @@
 #include "pfcp_util.h"
 #include "pfcp_session.h"
 
-extern pfcp_config_t pfcp_config;
-extern pfcp_context_t pfcp_ctxt;
-extern int pfcp_sgwc_fd_arr[MAX_NUM_PGWC];
-extern int pfcp_pgwc_fd_arr[MAX_NUM_PGWC];
-extern struct sockaddr_in pfcp_sgwu_sockaddr_arr[MAX_NUM_PGWU];
-extern struct sockaddr_in pfcp_pgwu_sockaddr_arr[MAX_NUM_PGWU];
+#include "../cp_stats.h"
+
+extern int pfcp_fd;
+extern struct sockaddr_in upf_pfcp_sockaddr;
 
 
 #define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
@@ -71,6 +69,7 @@ delete_pgwc_context(gtpv2c_header *gtpv2c_rx, ue_context **_context,
 	ue_context *context = NULL;
 	gtpv2c_ie *ebi_ei_to_be_removed = NULL;
 
+	gtpv2c_rx->teid_u.has_teid.teid = ntohl(gtpv2c_rx->teid_u.has_teid.teid);
 	/* s11_sgw_gtpc_teid = s5s8_pgw_gtpc_base_teid =
 	 * key->ue_context_by_fteid_hash */
 	ret = rte_hash_lookup_data(ue_context_by_fteid_hash,
@@ -182,8 +181,6 @@ delete_pgwc_context(gtpv2c_header *gtpv2c_rx, ue_context **_context,
 				htonl(pdn->ipv4.s_addr);
 			si.ul_s1_info.sgw_teid =
 				bearer->s1u_sgw_gtpu_teid;
-			//si.ul_s1_info.sgw_teid =
-			//htonl(bearer->s1u_sgw_gtpu_teid);
 			si.sess_id = SESS_ID(
 					context->s11_sgw_gtpc_teid,
 					si.bearer_id);
@@ -219,9 +216,7 @@ process_pgwc_s5s8_delete_session_request(gtpv2c_header *gtpv2c_rx,
 	if (ret)
 	return ret;
 
-#ifdef PFCP_COMM
-
-	pfcp_session_deletion_request_t pfcp_sess_del_req = {0};
+	pfcp_sess_del_req_t pfcp_sess_del_req = {0};
 	fill_pfcp_sess_del_req(&pfcp_sess_del_req);
 	pfcp_sess_del_req.header.seid_seqno.has_seid.seid = context->seid;
 
@@ -229,18 +224,15 @@ process_pgwc_s5s8_delete_session_request(gtpv2c_header *gtpv2c_rx,
 
 	uint8_t pfcp_msg[512]={0};
 
-	int encoded = encode_pfcp_session_deletion_request(&pfcp_sess_del_req, pfcp_msg);
+	int encoded = encode_pfcp_sess_del_req_t(&pfcp_sess_del_req, pfcp_msg);
 	pfcp_header_t *header = (pfcp_header_t *) pfcp_msg;
 	header->message_len = htons(encoded - 4);
 
-	for(uint32_t i=0;i < pfcp_config.num_pgwu; i++ ){
-
-		if ( pfcp_send(pfcp_pgwc_fd_arr[i], pfcp_msg,encoded,
-					&pfcp_pgwu_sockaddr_arr[i]) < 0 )
-				printf("Error sending: %i\n",errno);
-	}
-
-#endif
+	if (pfcp_send(pfcp_fd, pfcp_msg,encoded,
+				&upf_pfcp_sockaddr) < 0 )
+		printf("Error sending: %i\n",errno);
+	else
+		cp_stats.session_deletion_req_sent++;
 
 	set_gtpv2c_teid_header(gtpv2c_tx, GTP_DELETE_SESSION_RSP,
 				s5s8_sgw_gtpc_del_teid_ptr,
@@ -278,6 +270,8 @@ delete_sgwc_context(gtpv2c_header *gtpv2c_rx, ue_context **_context)
 	int i;
 	static uint32_t process_sgwc_s5s8_ds_rsp_cnt;
 	ue_context *context = NULL;
+
+	gtpv2c_rx->teid_u.has_teid.teid = ntohl(gtpv2c_rx->teid_u.has_teid.teid);
 
 	/* s11_sgw_gtpc_teid= s5s8_sgw_gtpc_teid =
 	 * key->ue_context_by_fteid_hash */
@@ -327,11 +321,9 @@ delete_sgwc_context(gtpv2c_header *gtpv2c_rx, ue_context **_context)
 				htonl(pdn_ctxt->ipv4.s_addr);
 			si.ul_s1_info.sgw_teid =
 				bearer->s1u_sgw_gtpu_teid;
-			//si.ul_s1_info.sgw_teid =
-			//htonl(bearer->s1u_sgw_gtpu_teid);
 			si.sess_id = SESS_ID(
-					context->s11_sgw_gtpc_teid,
-					si.bearer_id);
+				context->s11_sgw_gtpc_teid,
+				si.bearer_id);
 			struct dp_id dp_id = { .id = DPN_ID };
 			session_delete(dp_id, si);
 
@@ -390,6 +382,9 @@ process_sgwc_s5s8_delete_session_response(gtpv2c_header *gtpv2c_rx,
 	set_gtpv2c_teid_header(gtpv2c_tx, GTP_DELETE_SESSION_RSP,
 	    htonl(context->s11_mme_gtpc_teid), gtpv2c_rx->teid_u.has_teid.seq);
 	set_cause_accepted_ie(gtpv2c_tx, IE_INSTANCE_ZERO);
+
+	s11_mme_sockaddr.sin_addr.s_addr =
+					htonl(context->s11_mme_gtpc_ipv4.s_addr);
 
 	return 0;
 }

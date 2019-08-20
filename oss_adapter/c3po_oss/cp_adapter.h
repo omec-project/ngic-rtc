@@ -18,13 +18,14 @@ enum cli_response_common_stat {
  * Define type of Control Plane health Switch Cases(CP)
  */
 enum cp_health_stat {
-	set_resp_timeout = -1,
-	set_max_timeouts = -2,
-	set_timeouts = -3,
-	set_req_sent = -4,
-	set_req_received = -5,
-	set_resp_sent = -6,
-	set_resp_received = -7,
+	/*set_resp_timeout = 0,
+	set_max_timeouts = 1,*/
+	set_status = 0,
+	set_timeouts = 1,
+	set_req_sent = 2,
+	set_req_received = 3,
+	set_resp_sent = 4,
+	set_resp_received = 5,
 };
 
 /*
@@ -37,8 +38,11 @@ enum cp_stat_s11 {
 	number_of_ues = 3,
 	//number_of_connected_ues = 3,
 	//number_of_suspended_ues = 4,
-	sgw_nbr_of_pdn_connections = 4,
-	sgw_nbr_of_bearers = 5,
+	release_access_bearer = 4,
+	downlink_data_notification_ack = 5,
+	sgw_nbr_of_pdn_connections = 6,
+	sgw_nbr_of_bearers = 7,
+	downlink_data_notification_req_send = 8,
 	//sgw_nbr_of_active_bearers = 7,
 	//sgw_nbr_of_idle_bearers = 8,
 };
@@ -48,18 +52,19 @@ enum cp_stat_s11 {
 
 enum cp_stat_sx {
 
-	session_establishment_req_sent = 0,  
+	session_establishment_req_sent = 0,
 	session_establishment_resp_acc_rcvd = 1,
-	session_establishment_resp_rej_rcvd = 2, 
-	session_deletion_req_sent = 3,             
-	session_deletion_resp_acc_rcvd = 4,   
-	session_deletion_resp_rej_rcvd = 5,  
-	association_setup_req_sent = 6,        
-	association_setup_resp_acc_rcvd = 7,   
-	association_setup_resp_rej_rcvd = 8,   
-	session_modification_req_sent = 9,         
+	session_establishment_resp_rej_rcvd = 2,
+	session_deletion_req_sent = 3,
+	session_deletion_resp_acc_rcvd = 4,
+	session_deletion_resp_rej_rcvd = 5,
+	association_setup_req_sent = 6,
+	association_setup_resp_acc_rcvd = 7,
+	association_setup_resp_rej_rcvd = 8,
+	session_modification_req_sent = 9,
 	session_modification_resp_acc_rcvd = 10,
-	session_modification_resp_rej_rcvd = 11,  
+	session_modification_resp_rej_rcvd = 11,
+	downlink_data_notification = 12,
 
 };
 
@@ -78,27 +83,27 @@ enum cp_stat_s5s8 {
 /////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////
 
-
+/*
 enum cli_response_common_stat_pgwc {
 	active_session_pgwc = 0,
 	upsecs_pgwc = 1,
 	resetsecs_pgwc = 2,
 };
-
+*/
 enum cp_stat_sx_pgwc {
 
-	session_establishment_req_sent_pgwc = 0,  
+	session_establishment_req_sent_pgwc = 0,
 	session_establishment_resp_acc_rcvd_pgwc = 1,
-	session_establishment_resp_rej_rcvd_pgwc = 2, 
-	session_deletion_req_sent_pgwc = 3,             
-	session_deletion_resp_acc_rcvd_pgwc = 4,   
-	session_deletion_resp_rej_rcvd_pgwc = 5,  
-	association_setup_req_sent_pgwc = 6,        
-	association_setup_resp_acc_rcvd_pgwc = 7,   
-	association_setup_resp_rej_rcvd_pgwc = 8,   
-	/*session_modification_req_sent_pgwc = 9,         
+	session_establishment_resp_rej_rcvd_pgwc = 2,
+	session_deletion_req_sent_pgwc = 3,
+	session_deletion_resp_acc_rcvd_pgwc = 4,
+	session_deletion_resp_rej_rcvd_pgwc = 5,
+	association_setup_req_sent_pgwc = 6,
+	association_setup_resp_acc_rcvd_pgwc = 7,
+	association_setup_resp_rej_rcvd_pgwc = 8,
+	/*session_modification_req_sent_pgwc = 9,
 	session_modification_resp_acc_rcvd_pgwc = 10,
-	session_modification_resp_rej_rcvd_pgwc = 11,*/  
+	session_modification_resp_rej_rcvd_pgwc = 11,*/
 
 };
 /*enum cp_stat_s5s8_sgwc {
@@ -122,17 +127,19 @@ enum cp_stat_s5s8_pgwc {
  * Define type of Control Plane catagories Cases(CP)
  */
 enum cli_response_catagory_case_spgwc {
-	common_stat = -1,
+	//common_stat = -1,
 	s11_interface = 0,
 	sx_interface = 1,
 	s5s8_interface = 2,
 };
+
 enum cli_response_catagory_case_pgwc {
-	common_stat_pgwc = -1,
+	//common_stat_pgwc = -1,
 	//s11_interface_pgwc = 0,
 	sx_interface_pgwc = 0,
 	s5s8_interface_pgwc = 1,
 };
+/*
 enum cp_health_stat_pgwc {
 	set_resp_timeout_pgwc = -1,
 	set_max_timeouts_pgwc = -2,
@@ -142,7 +149,7 @@ enum cp_health_stat_pgwc {
 	set_resp_sent_pgwc = -6,
 	set_resp_received_pgwc = -7,
 };
-
+*/
 
 ///////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -174,7 +181,7 @@ extern enum sx_peer_list peer_list_sx;*/
  */
 
 /**
- * @brief counters used to log SGW UEs statistics 
+ * @brief counters used to log SGW UEs statistics
  */
 
 /*
@@ -197,6 +204,9 @@ struct sgw_ues_stats {
 //int64_t get_stat(int category_id, int value_id, int peer_id);
 int64_t get_stat_spgwc(int category_id, int value_id, int peer_id);
 int64_t get_stat_pgwc(int category_id, int value_id, int peer_id);
+int64_t get_stat_common(int value_id);
+int64_t get_stat_health(int category_id, int value_id, int peer_id);
+int64_t get_stat_health_pgwc(int category_id, int value_id, int peer_id);
 //const char * get_time_stat(int category_id, int value_id, int peer_id);
 //void get_current_file_size(size_t len);
 /**

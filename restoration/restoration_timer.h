@@ -110,10 +110,10 @@ typedef struct {
 
 #endif
 
-/* VS: Configured start/up time of component */
-//extern uint32_t up_time;
-//
-//uint32_t current_ntp_timestamp(void);
+/* Configured start/up time of component */
+/*	extern uint32_t up_time;
+	uint32_t current_ntp_timestamp(void);
+*/
 
 bool gst_init(void);
 

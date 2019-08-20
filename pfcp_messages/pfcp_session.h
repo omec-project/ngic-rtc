@@ -17,18 +17,20 @@
 #ifndef PFCP_SESSION_H
 #define PFCP_SESSION_H
 
+#include "gtpv2c.h"
 #include "pfcp_messages.h"
-#include "../cp/gtpv2c.h"
 
-#if defined(PFCP_COMM) && defined(CP_BUILD)
-#include "../cp/gtpv2c_ie.h"
-#include "../cp/gtpv2c_set_ie.h"
-#include "gtpv2c_messages.h"
+#ifdef CP_BUILD
 #include "req_resp.h"
+#include "gtpv2c_ie.h"
+#include "pfcp_set_ie.h"
+#include "gtpv2c_set_ie.h"
+#include "gtpv2c_messages.h"
 #endif
 
 #define NUM_UE 10000
 #define NUM_DP 100
+
 typedef struct association_context{
 	uint8_t       rx_buf[NUM_DP][NUM_UE];
 	char sgwu_fqdn[NUM_DP][MAX_HOSTNAME_LENGTH];
@@ -42,46 +44,38 @@ void
 stats_update(uint8_t msg_type);
 
 void
-pfcp_gtpv2c_send(uint16_t gtpv2c_pyld_len,
-		uint8_t *tx_buf,gtpv2c_header *gtpv2c_s11_rx);
-
-void
-pfcp_s5s8_send(uint16_t gtpv2c_pyld_len, uint8_t *tx_buf, uint8_t msg_type);
-
-void
-fill_pfcp_session_est_resp(pfcp_session_establishment_response_t
+fill_pfcp_session_est_resp(pfcp_sess_estab_rsp_t
 				*pfcp_sess_est_resp, uint8_t cause, int offend);
 void
-fill_pfcp_sess_set_del_resp(pfcp_session_set_deletion_response_t *pfcp_sess_set_del_resp);
+fill_pfcp_sess_set_del_resp(pfcp_sess_set_del_rsp_t *pfcp_sess_set_del_resp);
 
 void
-fill_pfcp_sess_del_resp(pfcp_session_deletion_response_t
+fill_pfcp_sess_del_resp(pfcp_sess_del_rsp_t
 			*pfcp_sess_del_resp, uint8_t cause, int offend);
 
 void
-fill_pfcp_session_modify_resp(pfcp_session_modification_response_t
+fill_pfcp_session_modify_resp(pfcp_sess_mod_rsp_t
 			*pfcp_sess_modify_resp, uint8_t cause, int offend);
-#if defined(PFCP_COMM) && defined(CP_BUILD)
-/*void
-fill_pfcp_sess_est_req( pfcp_session_establishment_request_t *pfcp_sess_est_req,create_session_request_t *csr);*/
-
+#ifdef CP_BUILD
 void
-fill_pfcp_sess_est_req( pfcp_session_establishment_request_t *pfcp_sess_est_req,
+fill_pfcp_sess_est_req( pfcp_sess_estab_req_t *pfcp_sess_est_req,
 		create_session_request_t *csr, ue_context *context, eps_bearer *bearer,
 		pdn_connection *pdn);
 
 void
-fill_pfcp_sess_mod_req( pfcp_session_modification_request_t *pfcp_sess_mod_req,
-		modify_bearer_request_t *mbr, ue_context *context, eps_bearer *bearer,
+fill_pfcp_sess_mod_req( pfcp_sess_mod_req_t *pfcp_sess_mod_req,
+		gtpv2c_header *header, ue_context *context, eps_bearer *bearer,
 		pdn_connection *pdn);
 #else
 void
-fill_pfcp_sess_est_req( pfcp_session_establishment_request_t *pfcp_sess_est_req);
+fill_pfcp_sess_est_req( pfcp_sess_estab_req_t *pfcp_sess_est_req);
+
 void
-fill_pfcp_sess_mod_req( pfcp_session_modification_request_t *pfcp_sess_mod_req);
-#endif //PFCP_COMM
+fill_pfcp_sess_mod_req( pfcp_sess_mod_req_t *pfcp_sess_mod_req);
+#endif /* CP_BUILD */
+
 void
-fill_pfcp_sess_del_req( pfcp_session_deletion_request_t *pfcp_sess_del_req);
+fill_pfcp_sess_del_req( pfcp_sess_del_req_t *pfcp_sess_del_req);
 void
-fill_pfcp_sess_set_del_req( pfcp_session_set_deletion_request_t *pfcp_sess_set_del_req);
+fill_pfcp_sess_set_del_req( pfcp_sess_set_del_req_t *pfcp_sess_set_del_req);
 #endif /* PFCP_SESSION_H */

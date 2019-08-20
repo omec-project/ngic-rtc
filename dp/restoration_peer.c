@@ -184,10 +184,11 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 		/* Deinit transmit timer for specific Peer Node */
 		deinitTimer( &md->pt );
 
-		RTE_LOG_DP(DEBUG, DP, "Stopped Periodic/transmit timer, peer node is not reachable\n");
+		RTE_LOG_DP(DEBUG, DP, "Stopped Periodic/transmit timer, peer node %s is not reachable\n",
+				inet_ntoa(*(struct in_addr *)&md->dstIP));
 
 		/* VS: Flush eNB sessions */
-		if (md->portId == S1U_PORT_ID) {
+		if ((md->portId == S1U_PORT_ID) || (md->portId == SGI_PORT_ID)) {
 			/* TODO: Future Enhancement */
 			/* flush_eNB_session(md); */
 			del_entry_from_hash(md->dstIP);
@@ -229,6 +230,9 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 		if (ti == &md->pt) {
 			if ( startTimer( &md->tt ) < 0)
 				RTE_LOG_DP(ERR, DP, "Transmit Timer failed to start..\n");
+
+			/* Stop periodic timer for specific Peer Node */
+			stopTimer( &md->pt );
 		}
 
 		return;
@@ -274,7 +278,7 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 
 	}
 
-	struct rte_mbuf *mt = pkt;
+	//struct rte_mbuf *mt = pkt;
 	//struct ipv4_hdr *ipv4_hdr_t = (struct ipv4_hdr*)(rte_pktmbuf_mtod(mt, unsigned char*) + 14);
 	//printf("**** portId:%u : Enqueu IP DST:%s\n", md->portId, inet_ntoa(*(struct in_addr *)&ipv4_hdr_t->dst_addr));
 
@@ -293,7 +297,7 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 	} else if(md->portId == SGI_PORT_ID) {
 		RTE_LOG_DP(DEBUG, DP, "Pkts enqueue for SGI port..!!\n");
 
-		if (rte_ring_enqueue(shared_ring[SGI_PORT_ID], mt) == -ENOBUFS) {
+		if (rte_ring_enqueue(shared_ring[SGI_PORT_ID], pkt) == -ENOBUFS) {
 			//rte_pktmbuf_free(pkt1);
 			RTE_LOG_DP(ERR, DP, "%s::Can't queue pkt- ring full..."
 					" Dropping pkt\n", __func__);
@@ -436,6 +440,7 @@ uint8_t add_node_conn_entry(uint32_t dstIp, uint64_t sess_id, uint8_t portId)
 		//conn_data->dstIP = htonl(dstIp);
 		conn_data->itr = app.transmit_cnt;
 		conn_data->itr_cnt = 0;
+		conn_data->sess_cnt = 0;
 		conn_data->sess_id[conn_data->sess_cnt] = sess_id;
 
 		if ( sess_id > 0)
@@ -477,14 +482,15 @@ uint8_t add_node_conn_entry(uint32_t dstIp, uint64_t sess_id, uint8_t portId)
 
 
 	} else {
-		/* TODO: eNB entry already exit in conn table */
+		/* VS: eNB entry already exit in conn table */
 		RTE_LOG_DP(DEBUG, DP, " Conn entry already exit in conn table :%s\n",
 					inet_ntoa(*((struct in_addr *)&dstIp)));
+
 		conn_data->sess_id[conn_data->sess_cnt] = sess_id;
 
-		if (sess_id > 0)
+		if (sess_id > 0) {
 			conn_data->sess_cnt++;
-
+		}
 	}
 
 	RTE_LOG_DP(DEBUG, DP, " Current Active Conn Cnt:%u\n", conn_cnt);

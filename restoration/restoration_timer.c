@@ -30,7 +30,9 @@
 
 #include "restoration_timer.h"
 #include "main.h"
-
+#ifdef C3PO_OSS
+#include "cp_stats.h"
+#endif
 char hbt_filename[256] = "../config/hrtbeat_recov_time.txt";
 
 static pthread_t _gstimer_thread;
@@ -132,7 +134,7 @@ bool gst_init(void)
 	status = pthread_create( &_gstimer_thread, NULL, &_gstimer_thread_func, &sem );
 	if (status != 0)
 		return False;
-	//return false;
+
 	sem_wait( &sem );
 	sem_destroy( &sem );
 
@@ -197,7 +199,6 @@ bool gst_timer_start(gstimerinfo_t *ti)
 
 void gst_timer_stop(gstimerinfo_t *ti)
 {
-	//int status;
 	struct itimerspec ts;
 
 	/*
@@ -208,7 +209,6 @@ void gst_timer_stop(gstimerinfo_t *ti)
 	ts.it_interval.tv_sec = 0;
 	ts.it_interval.tv_nsec = 0;
 
-	//status = timer_settime( ti->ti_id, 0, &ts, NULL );
 	timer_settime( ti->ti_id, 0, &ts, NULL );
 
 }
@@ -252,7 +252,7 @@ void del_entry_from_hash(uint32_t ipAddr)
 	RTE_LOG_DP(DEBUG, DP, " Delete entry from connection table of ip:%s\n",
 			inet_ntoa(*(struct in_addr *)&ipAddr));
 
-	/* VS: delete entry from connection hash table */
+	/* Delete entry from connection hash table */
 	ret = rte_hash_del_key(conn_hash_handle,
 			&ipAddr);
 
@@ -273,7 +273,6 @@ uint8_t process_response(uint32_t dstIp)
 	int ret = 0;
 	peerData *conn_data = NULL;
 
-	/* VS: TODO */
 	ret = rte_hash_lookup_data(conn_hash_handle,
 			&dstIp, (void **)&conn_data);
 
@@ -282,6 +281,27 @@ uint8_t process_response(uint32_t dstIp)
 				inet_ntoa(*(struct in_addr *)&dstIp));
 	} else {
 		conn_data->itr_cnt = 0;
+#ifdef CP_BUILD
+		if (conn_data->portId == SX_PORT_ID)
+		{
+			cp_stats.nbr_of_sgwu_to_sgwc_timeouts = 0; //cli timeouts.
+			cp_stats.nbr_of_pgwu_to_pgwc_timeouts = 0; //cli timeouts.
+		}
+		if (conn_data->portId == S11_SGW_PORT_ID)
+		{
+			cp_stats.nbr_of_mme_to_sgwc_timeouts = 0;
+		}
+		if (conn_data->portId == S5S8_SGWC_PORT_ID)
+		{
+			cp_stats.nbr_of_pgwc_to_sgwc_timeouts = 0;
+		}
+		if (conn_data->portId == S5S8_PGWC_PORT_ID)
+		{
+			cp_stats.nbr_of_sgwc_to_pgwc_timeouts = 0;
+		}
+
+#endif /*CP_BUILD*/
+
 		/* Stop transmit timer for specific peer node */
 		stopTimer( &conn_data->tt );
 		/* Stop periodic timer for specific peer node */
@@ -298,7 +318,7 @@ void recovery_time_into_file(uint32_t recov_time)
 {
 	FILE *fp = NULL;
 
-	if ((fp = fopen(hbt_filename,"w+")) == NULL) {
+	if ((fp = fopen(hbt_filename, "w+")) == NULL) {
 				RTE_LOG_DP(ERR, DP, "Unable to open heartbeat recovery file..\n");
 
 	} else {

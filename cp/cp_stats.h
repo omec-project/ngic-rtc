@@ -18,7 +18,7 @@
 #define CP_STATS_H
 
 #include <stdint.h>
-#include<time.h>
+#include <time.h>
 #include <rte_common.h>
 
 /**
@@ -31,10 +31,61 @@
  * @brief counters used to display statistics on the control plane
  */
 struct cp_stats_t {
-	uint64_t number_of_mme_health_req;
-	uint64_t number_of_sgwc_resp_to_mme_health_req;
-	uint64_t number_of_sgwc_health_req;
-	uint64_t number_of_mme_resp_to_sgwc_health_req;
+
+	// MME --> SGWC
+	uint64_t nbr_of_mme_to_sgwc_echo_req_rcvd;  // request  : received
+	uint64_t nbr_of_mme_to_sgwc_echo_resp_rcvd; // response : received
+
+	uint64_t nbr_of_sgwc_to_mme_echo_req_sent;  // request  : sent
+	uint64_t nbr_of_sgwc_to_mme_echo_resp_sent; // response : sent
+
+	// PGWC --> SGWC
+	uint64_t nbr_of_pgwc_to_sgwc_echo_req_rcvd;
+	uint64_t nbr_of_pgwc_to_sgwc_echo_resp_rcvd;
+
+	uint64_t nbr_of_sgwc_to_pgwc_echo_req_sent;
+	uint64_t nbr_of_sgwc_to_pgwc_echo_resp_sent;
+
+	// SGWU --> SGWC
+	uint64_t nbr_of_sgwu_to_sgwc_echo_req_rcvd;
+	uint64_t nbr_of_sgwu_to_sgwc_echo_resp_rcvd;
+
+	uint64_t nbr_of_sgwc_to_sgwu_echo_req_sent;
+	uint64_t nbr_of_sgwc_to_sgwu_echo_resp_sent;
+
+	// SGWC --> PGWC
+	uint64_t nbr_of_sgwc_to_pgwc_echo_req_rcvd;
+	uint64_t nbr_of_sgwc_to_pgwc_echo_resp_rcvd;
+
+	uint64_t nbr_of_pgwc_to_sgwc_echo_req_sent;
+	uint64_t nbr_of_pgwc_to_sgwc_echo_resp_sent;
+
+	// PGWU --> PGWC
+	uint64_t nbr_of_pgwu_to_pgwc_echo_req_rcvd;
+	uint64_t nbr_of_pgwu_to_pgwc_echo_resp_rcvd;
+
+	uint64_t nbr_of_pgwc_to_pgwu_echo_req_sent;
+	uint64_t nbr_of_pgwc_to_pgwu_echo_resp_sent;
+
+	uint64_t nbr_of_timeouts;
+
+	uint64_t nbr_of_mme_to_sgwc_timeouts;
+	uint64_t nbr_of_sgwu_to_sgwc_timeouts;
+	uint64_t nbr_of_pgwc_to_sgwc_timeouts;
+
+	uint64_t nbr_of_sgwc_to_pgwc_timeouts;
+	uint64_t nbr_of_pgwu_to_pgwc_timeouts;
+
+	int mme_status;
+	int sgwc_status;
+	int pgwc_status;
+	int sgwu_status;
+	int pgwu_status;
+	int spgwc_status;
+	int spgwu_status;
+
+
+
 	uint64_t time;
 	clock_t  execution_time;
 	clock_t  reset_time;
@@ -53,7 +104,7 @@ struct cp_stats_t {
 	uint64_t tx;
 	uint64_t rx_last;
 	uint64_t tx_last;
-	
+
         //const char *create_session_time;
 	//const char *delete_session_time;
 
@@ -74,7 +125,7 @@ struct cp_stats_t {
 	uint64_t sm_delete_session_resp_acc_rcvd;
 	uint64_t sm_delete_session_resp_rej_rcvd;
 
-        uint64_t session_establishment_req_sent;
+    uint64_t session_establishment_req_sent;
 	uint64_t session_establishment_resp_acc_rcvd;
 	uint64_t session_establishment_resp_rej_rcvd;
 	uint64_t session_modification_req_sent;
@@ -83,7 +134,7 @@ struct cp_stats_t {
 	uint64_t session_deletion_req_sent;
 	uint64_t session_deletion_resp_acc_rcvd;
 	uint64_t session_deletion_resp_rej_rcvd;
-	uint64_t association_setup_req_sent;	 
+	uint64_t association_setup_req_sent;
 	uint64_t association_setup_resp_acc_rcvd;
 	uint64_t association_setup_resp_rej_rcvd;
 

@@ -333,7 +333,7 @@ decode_rat_type_ie_t(uint8_t *buf, rat_type_ie_t *val)
 	decode_ie_header_t(buf, &(val->header), IE_HEADER_SIZE);
 	count += IE_HEADER_SIZE;
 
-	memcpy(&(val->rat_type), (uint8_t * )buf + count, sizeof(rat_type_ie_t));
+	memcpy(&(val->rat_type), (uint8_t * )buf + count, val->header.len);
 	count += sizeof(val->rat_type);
 
 	return count;
@@ -739,10 +739,10 @@ decode_bearer_context_to_be_created_ie_t(uint8_t *buf,
 	count += IE_HEADER_SIZE;
 
 	count += decode_eps_bearer_id_ie_t(buf + count, &val->ebi);
-	ie_header_t *header = (ie_header_t *) (buf + count);
-	if (header->type == IE_FTEID && header->instance == IE_INSTANCE_ZERO)
-		count += decode_fteid_ie_t(buf + count, &val->s11u_mme_fteid);
 	count += decode_bearer_qos_ie_t(buf + count, &val->bearer_qos);
+	ie_header_t *header = (ie_header_t *) (buf + count);
+	if (header->type == IE_FTEID && header->instance == IE_INSTANCE_TWO)
+		count += decode_fteid_ie_t(buf + count, &val->s5s8_sgwu_fteid);
 
 	return count;
 }

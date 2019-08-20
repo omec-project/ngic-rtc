@@ -408,10 +408,6 @@ struct session_info {
 	struct ipcan_dp_bearer_cdr ipcan_dp_bearer_cdr;			/* Charging Data Records*/
 	uint32_t client_id;
 
-#ifdef ZMQ_COMM
-	uint64_t op_id;
-#endif  /* ZMQ_COMM */
-
 	uint64_t sess_id;						/* session id of this bearer
 									 * last 4 bits of sess_id
 									 * maps to bearer id*/
@@ -456,7 +452,7 @@ struct msg_ue_cdr {
 							 * write new logs into cdr log file.*/
 } __attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
 
-#ifdef DP_DDN
+#ifdef DP_BUILD
 /**
  * Structure to downlink data notification ack information struct.
  */
@@ -470,7 +466,7 @@ struct downlink_data_notification_ack_t {
 	uint64_t dl_buff_cnt;
 	uint64_t dl_buff_duration;
 };
-#endif 	/* DP_DDN */
+#endif 	/* DP_BUILD */
 
 #define MAX_NB_DPN	8  /* Note: MAX_NB_DPN <= 8 */
 
@@ -727,7 +723,6 @@ int
 session_modify(struct dp_id dp_id, struct session_info session);
 
 #ifdef DP_BUILD
-#ifdef DP_DDN
 /**
  * Downlink data notification ack information. The information
  * regarding downlink should be updated bearer info.
@@ -743,7 +738,6 @@ session_modify(struct dp_id dp_id, struct session_info session);
 int
 send_ddn_ack(struct dp_id dp_id,
 		struct downlink_data_notification_ack_t ddn_ack);
-#endif 	/* DP_DDN */
 #endif 	/* DP_BUILD */
 
 /**
