@@ -21,7 +21,6 @@
 
 #include "cp_config.h"
 
-#define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
 
 #define GLOBAL_ENTRIES			"GLOBAL"
 #define APN_ENTRIES				"APN_CONFIG"
@@ -56,6 +55,12 @@
 #define TRANSMIT_TIMER			"TRANSMIT_TIMER"
 #define PERIODIC_TIMER			"PERIODIC_TIMER"
 #define TRANSMIT_COUNT			"TRANSMIT_COUNT"
+
+int s11logger;
+int s5s8logger;
+int sxlogger;
+int apilogger;
+int epclogger;
 
 void
 config_cp_ip_port(pfcp_config_t *pfcp_config)
@@ -505,142 +510,109 @@ init_cli_module(pfcp_config_t *pfcp_config)
 
 	clInit("sgwc");
 
-	int s11logger = clAddLogger("s11");
-	int s5s8logger = clAddLogger("s5s8");
+        if (spgw_cfg == SGWC || spgw_cfg == SAEGWC)
+                s11logger = clAddLogger("s11");
+	if (spgw_cfg == SGWC || spgw_cfg == PGWC)
+		s5s8logger = clAddLogger("s5s8");
+	sxlogger = clAddLogger("sx");
+	apilogger = clAddLogger("api");
+	epclogger = clAddLogger("epc");
 
 	clAddRecentLogger("sgwc-001","cp",5);
 
 	clStart();
 
-
-	clLog(clSystemLog, eCLSeverityMinor, "sample [system] [Minor] log msg" );
-	clLog(s11logger, eCLSeverityMajor, "sample [s11] [Major] log msg");
-	clLog(s5s8logger, eCLSeverityCritical, "sample [s5s8] [critical] log msg");
-
 	if (spgw_cfg == SGWC) {
 		csSetName("SGWC");
-		csInit(clGetStatsLogger(), get_stat_spgwc, get_stat_common, get_stat_health, 2, 5000);
+		csInit(clGetStatsLogger(), get_stat_spgwc, get_stat_common, get_stat_health, get_time_stat, 2, 5000);
+		csInitLastactivity(get_lastactivity_time_sgwc);
 	} else if(spgw_cfg == PGWC) {
 	        csSetName("PGWC");
-	csInit(clGetStatsLogger(), get_stat_pgwc, get_stat_common, get_stat_health_pgwc, 2, 5000);
+		csInit(clGetStatsLogger(), get_stat_pgwc, get_stat_common, get_stat_health_pgwc, get_time_stat_pgwc, 2, 5000);
+		csInitLastactivity(get_lastactivity_time_pgwc);
 	} else {
-	       csSetName("SPGWC");
-		csInit(clGetStatsLogger(), get_stat_spgwc, get_stat_common, get_stat_health, 2, 5000);
+	        csSetName("SPGWC");
+		csInit(clGetStatsLogger(), get_stat_spgwc, get_stat_common, get_stat_health, get_time_stat, 2, 5000);
+		csInitLastactivity(get_lastactivity_time_sgwc);
 	}
-
-
-	/* csInit(clGetStatsLogger(), get_stat, get_time_stat, 2, 5000);
-	 * csInit(clGetStatsLogger(), get_stat, 2, 5000);
-	 * csInit(clGetStatsLogger(), get_stat_spgwc, 2, 5000); */
 
 	if (spgw_cfg == SGWC || spgw_cfg == SAEGWC) {
 
-	int Interface1 = csAddInterface("S11", "gtpv2");   /* <----make it interface */
-	/* int peer1     = csAddPeer(Interface1, "true", inet_ntoa(pfcp_config->s11_mme_ip[0])); */
-	int peer1 = csAddPeer(Interface1, "false", inet_ntoa(pfcp_config->s11_mme_ip));
+	int Interface1 = csAddInterface("S11", "gtpv2");
+
+	//int peer1 = csAddPeer(Interface1, "false", inet_ntoa(pfcp_config->s11_mme_ip));
+	int peer1 = csAddPeer(Interface1, "false", "not found");
 
 	csAddLastactivity(Interface1, peer1, "2019-01-01T01:03:05");
-	//csAddHealth(Interface1, peer1, 5, 3, 0);
+
 	csAddHealth(Interface1, peer1, pfcp_config->transmit_timer, pfcp_config->transmit_cnt, 0);
-	csAddMessage(Interface1, peer1, "Create-session-request", "IN");
-	csAddMessage(Interface1, peer1, "Modify-bearer-request", "IN");
-	csAddMessage(Interface1, peer1, "Delete-session-request", "IN");
+	csAddMessage(Interface1, peer1, "Create Session Request", "in");
+	csAddMessage(Interface1, peer1, "Modify Bearer Request", "in");
+	csAddMessage(Interface1, peer1, "Delete Session Request", "in");
 
 
-	csAddMessage(Interface1, peer1, "Nbr-of-ues", "IN");
-	csAddMessage(Interface1, peer1, "Release-access-bearer-request", "IN");
-	csAddMessage(Interface1, peer1, "Downlink-data-notification-ack", "IN");
-	csAddMessage(Interface1, peer1, "Nbr-of-pdn-connections", "IN");
-	csAddMessage(Interface1, peer1, "Nbr-of-bearers", "IN");
-	csAddMessage(Interface1, peer1, "Downlink-data-notification-req-send", "OUT");
-
-	/*  csAddMessage(Interface1, peer1, "sgw-nbr-of-connected-ues", "IN");
-	 *  csAddMessage(Interface1, peer1, "nbr-of-suspended-ues", "IN");
-	 *  csAddMessage(Interface1, peer1, "sgw-nbr-of-pdn-connections", "IN");
-	 *  csAddMessage(Interface1, peer1, "sgw-nbr-of-active-bearers", "IN");
-	 *  csAddMessage(Interface1, peer1, "sgw-nbr-of-idle-bearers", "IN"); */
+	csAddMessage(Interface1, peer1, "Number Of UEs", "in");
+	csAddMessage(Interface1, peer1, "Release Access Bearers Request", "in");
+	csAddMessage(Interface1, peer1, "Downlink Data Notification Acknowledge", "in");
+	csAddMessage(Interface1, peer1, "Number Of PDN Connections", "in");
+	csAddMessage(Interface1, peer1, "Number Of Bearers", "in");
+	csAddMessage(Interface1, peer1, "Downlink Data Notification", "out");
 
 	}
 
 	int Interface2,peer2;
 
-	/*Interface2 = csAddInterface("Sx", "PFCP");
-	 *peer2 = csAddPeer(Interface2, "true", inet_ntoa(pfcp_config->pfcp_ip));
-	 */
-
 	if (spgw_cfg == SAEGWC) {
 		Interface2 = csAddInterface("Sx", "PFCP");
-		peer2 = csAddPeer(Interface2, "false", inet_ntoa(pfcp_config->pfcp_ip));
+		//peer2 = csAddPeer(Interface2, "false", inet_ntoa(pfcp_config->pfcp_ip));
+		peer2 = csAddPeer(Interface2, "false", "not found");
 	  } else if (spgw_cfg == SGWC) {
 		Interface2 = csAddInterface("Sxa", "PFCP");
-		peer2 = csAddPeer(Interface2, "false", inet_ntoa(pfcp_config->pfcp_ip));
+		//peer2 = csAddPeer(Interface2, "false", inet_ntoa(pfcp_config->pfcp_ip));
+		peer2 = csAddPeer(Interface2, "false", "not found");
 	  } else {
 		Interface2 = csAddInterface("Sxb", "PFCP");
-		peer2 = csAddPeer(Interface2, "false", inet_ntoa(pfcp_config->pfcp_ip));
+		//peer2 = csAddPeer(Interface2, "false", inet_ntoa(pfcp_config->pfcp_ip));
+		peer2 = csAddPeer(Interface2, "false", "not found");
 	  }
-
-	/* peer2 = csAddPeer(Interface2, "true", inet_ntoa(s1u_sgw_ip)); */
 
 	csAddLastactivity(Interface2, peer2, "2019-01-01T01:03:05");
 	csAddHealth(Interface2, peer2, pfcp_config->transmit_timer, pfcp_config->transmit_cnt, 0);
-	csAddMessage(Interface2, peer2, "Session-establishment-req-sent", "OUT");
-	csAddMessage(Interface2, peer2, "Session-establishment-resp-acc-rcvd", "IN");
-	csAddMessage(Interface2, peer2, "Session-establishment-resp-rej-rcvd", "IN");
-
-
-	csAddMessage(Interface2, peer2, "Session-deletion-req-sent", "OUT");
-	csAddMessage(Interface2, peer2, "Session-deletion-resp-acc-rcvd", "IN");
-	csAddMessage(Interface2, peer2, "Session-deletion-resp-rej-rcvd", "IN");
-	csAddMessage(Interface2, peer2, "Association-setup-req-sent", "OUT");
-	csAddMessage(Interface2, peer2, "Association-setup-resp-acc-rcvd", "IN");
-	csAddMessage(Interface2, peer2, "Association-setup-resp-rej-rcvd", "IN");
-
+	csAddMessage(Interface2, peer2, "PFCP Session Establishment Request", "out");
+	csAddMessage(Interface2, peer2, "PFCP Session Establishment Response", "in");
+	csAddMessage(Interface2, peer2, "PFCP Session Deletion Request", "out");
+	csAddMessage(Interface2, peer2, "PFCP Session Deletion Response", "in");
+	csAddMessage(Interface2, peer2, "PFCP Association Setup Request", "out");
+	csAddMessage(Interface2, peer2, "PFCP Association Setup Response", "in");
 
 	if (spgw_cfg != PGWC)
 	{
-		csAddMessage(Interface2, peer2, "Session-modification-req-sent", "OUT");
-		csAddMessage(Interface2, peer2, "Session-modification-resp-acc-rcvd", "IN");
-		csAddMessage(Interface2, peer2, "Session-modification-resp-rej-rcvd", "IN");
+		csAddMessage(Interface2, peer2, "PFCP Session Modification Request", "out");
+		csAddMessage(Interface2, peer2, "PFCP Session Modification Response", "in");
 	}
 
 	if (spgw_cfg == SGWC){
 		int Interface3 = csAddInterface("S5-S8", "gtpv2");
-		int peer3 = csAddPeer(Interface3, "false", inet_ntoa(pfcp_config->s5s8_ip));
+		//int peer3 = csAddPeer(Interface3, "false", inet_ntoa(pfcp_config->s5s8_ip));
+		int peer3 = csAddPeer(Interface3, "false", "not found");
 
 		csAddLastactivity(Interface3, peer3, "2019-01-01T01:03:05");
-		//csAddHealth(Interface3, peer3, 5, 3, 0);
 		csAddHealth(Interface3, peer3, pfcp_config->transmit_timer, pfcp_config->transmit_cnt, 0);
-		csAddMessage(Interface3, peer3, "Create-session-req-sent", "OUT"); //To be implemented.
-		csAddMessage(Interface3, peer3, "Create-session-resp-acc-rcvd", "IN");
-		csAddMessage(Interface3, peer3, "Create-session-resp-rej-rcvd", "IN");
-		csAddMessage(Interface3, peer3, "Delete-session-req-sent", "OUT");
-		csAddMessage(Interface3, peer3, "Delete-session-resp-acc-rcvd", "IN");
-		csAddMessage(Interface3, peer3, "Delete-session-resp-rej-rcvd", "IN");
+		csAddMessage(Interface3, peer3, "Create Session Request", "out");
+		csAddMessage(Interface3, peer3, "Create Session Response", "in");
+		csAddMessage(Interface3, peer3, "Delete Session Request", "out");
+		csAddMessage(Interface3, peer3, "Delete Session Response", "in");
 	} else if (spgw_cfg == PGWC ){
 		int Interface3 = csAddInterface("S5-S8", "gtpv2");
-		int peer3 = csAddPeer(Interface3, "false", inet_ntoa(pfcp_config->s5s8_ip));
+		//int peer3 = csAddPeer(Interface3, "false", inet_ntoa(pfcp_config->s5s8_ip));
+		int peer3 = csAddPeer(Interface3, "false", "not found");
 
 		csAddLastactivity(Interface3, peer3, "2019-01-01T01:03:05");
-		//csAddHealth(Interface3, peer3, 5, 3, 0);
 		csAddHealth(Interface3, peer3, pfcp_config->transmit_timer, pfcp_config->transmit_cnt, 0);
-		csAddMessage(Interface3, peer3, "Create-session-req-rcvd", "OUT"); //To check req-rcvd
-		csAddMessage(Interface3, peer3, "Delete-session-req-rcvd", "OUT"); //To check req-rcvd
-		csAddMessage(Interface3, peer3, "Nbr-of-ues", "IN");
-		//csAddMessage(Interface2, peer2, "sm-create-session-resp-acc-rcvd", "IN");
-		//csAddMessage(Interface2, peer2, "sm-create-session-resp-rej-rcvd", "IN");
+		csAddMessage(Interface3, peer3, "Create Session Request", "in");
+		csAddMessage(Interface3, peer3, "Delete Session Request", "in");
+		csAddMessage(Interface3, peer3, "Number Of UEs", "in");
 	}
-
-	/*int peer31 = csAddPeer(Interface3, "true", inet_ntoa(s5s8_pgwc_ip));
-	csAddLastactivity(Interface3, peer31, "2019-01-01T01:03:05");
-	csAddHealth(Interface3, peer31, 5, 3, 0);
-	csAddMessage(Interface3, peer31, "p2first", "OUT");
-	csAddMessage(Interface3, peer31, "p2second", "IN");
-
-	int peer32 = csAddPeer(Interface3, "true", inet_ntoa(s5s8_pgwc_ip));
-	csAddLastactivity(Interface3, peer32, "2019-01-01T01:03:05");
-	csAddHealth(Interface3, peer32, 5, 3, 0);
-	csAddMessage(Interface3, peer32, "p3first", "OUT");
-	csAddMessage(Interface3, peer32, "p3second", "IN");*/
 
 	csStart();
 

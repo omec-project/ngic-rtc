@@ -46,6 +46,11 @@ SRCS-y += packet_filters.c
 SRCS-y += cp_app.c
 SRCS-y += ipc_api.c
 
+SRCS-y += state_machine/sm_init.o
+SRCS-y += state_machine/sm_hand.o
+SRCS-y += state_machine/sm_gtpc_pcnd.o
+SRCS-y += state_machine/sm_s5s8_pcnd.o
+SRCS-y += state_machine/sm_pfcp_pcnd.o
 
 SRCS-y += gtpv2c_messages/bearer_resource_cmd.o
 SRCS-y += gtpv2c_messages/create_bearer.o
@@ -63,6 +68,7 @@ SRCS-y += $(SRCDIR)/../pfcp_messages/pfcp_req_resp.o
 SRCS-y += $(SRCDIR)/../pfcp_messages/pfcp_session.o
 SRCS-y += $(SRCDIR)/../pfcp_messages/pfcp_set_ie.o
 SRCS-y += $(SRCDIR)/../pfcp_messages/pfcp_util.o
+SRCS-y += $(SRCDIR)/../pfcp_messages/pfcp_init.o
 
 SRCS-y += $(SRCDIR)/../test/simu_cp/simu_cp.o
 SRCS-y += $(SRCDIR)/../interface/ipc/dp_ipc_api.o
@@ -94,6 +100,7 @@ CFLAGS += -I$(LIBPFCP_ROOT)/include
 
 CFLAGS += -I$(SRCDIR)/..
 CFLAGS += -I$(SRCDIR)/../pfcp_messages
+CFLAGS += -I$(SRCDIR)/state_machine
 
 # Mandatory CFLAGS, LDFLAGS- DO NOT MODIFY
 # #############################################################

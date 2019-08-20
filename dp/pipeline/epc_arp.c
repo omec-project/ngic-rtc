@@ -1126,7 +1126,7 @@ pkt_work_arp_key(
 		/* If UDP dest port is 2152, then pkt is GTPU-Echo request */
 		struct gtpu_hdr *gtpuhdr = get_mtogtpu(pkt);
 		if (gtpuhdr && gtpuhdr->msgtype == GTPU_ECHO_REQUEST) {
-			process_echo_request(pkt);
+			process_echo_request(pkt, in_port_id);
 			/* Send ECHO_RSP */
 			int pkt_size =
 				RTE_CACHE_LINE_ROUNDUP(sizeof(struct rte_mbuf));

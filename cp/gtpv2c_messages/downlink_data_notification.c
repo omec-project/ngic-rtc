@@ -15,16 +15,22 @@
  */
 
 #include "ue.h"
+#include "pfcp.h"
 #include "cp_stats.h"
+#include "sm_struct.h"
+#include "pfcp_util.h"
 #include "debug_str.h"
 #include "dp_ipc_api.h"
 #include "gtpv2c_set_ie.h"
+#include "pfcp_association.h"
+#include "pfcp_messages_encoder.h"
 #include "../cp_dp_api/vepc_cp_dp_api.h"
 
-#ifdef CP_BUILD
-#define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
-#endif
+#ifdef C3PO_OSS
+#include"cp_config.h"
+#endif /* C3PO_OSS */
 
+extern int pfcp_fd;
 extern struct cp_stats_t cp_stats;
 
 /* TODO remove if not necessary later */
@@ -85,7 +91,7 @@ ddn_by_session_id(uint64_t session_id)
 	ue_context *context = NULL;
 	static uint32_t ddn_sequence = 1;
 
-	RTE_LOG_DP(DEBUG, CP, "%s: sgw_s11_gtpc_teid:%u\n",
+	clLog(clSystemLog, eCLSeverityDebug, "%s: sgw_s11_gtpc_teid:%u\n",
 			__func__, sgw_s11_gtpc_teid);
 
 	int ret = rte_hash_lookup_data(ue_context_by_fteid_hash,
@@ -129,6 +135,7 @@ ddn_by_session_id(uint64_t session_id)
 	}
 	ddn_sequence += 2;
 	++cp_stats.ddn;
+	get_current_time(cp_stats.ddn_time);
 
 	return 0;
 }
@@ -146,9 +153,9 @@ ddn_by_session_id(uint64_t session_id)
  *   specified cause error value
  *   \- < 0 for all other errors
  */
-static int
+int
 parse_downlink_data_notification_ack(gtpv2c_header *gtpv2c_rx,
-			struct downlink_data_notification *ddn_ack)
+			downlink_data_notification_t *ddn_ack)
 {
 
 	gtpv2c_ie *current_ie;
@@ -229,21 +236,26 @@ create_downlink_data_notification(ue_context *context, uint8_t eps_bearer_id,
 }
 
 int
-process_ddn_ack(gtpv2c_header *gtpv2c_rx, uint8_t *delay)
+process_ddn_ack(downlink_data_notification_t ddn_ack, uint8_t *delay)
 {
+	int ret = 0;
+	struct resp_info *resp = NULL;
 
-	struct downlink_data_notification
-			downlink_data_notification_ack = { 0 };
+	/* Lookup entry in hash table on the basis of session id*/
+	if (get_sess_entry((ddn_ack.context)->seid, &resp) != 0){
+		fprintf(stderr, "NO Session Entry Found for sess ID:%lu\n",
+				(ddn_ack.context)->seid);
+		return -1;
+	}
 
-	int ret = parse_downlink_data_notification_ack(gtpv2c_rx,
-			&downlink_data_notification_ack);
-	if (ret)
-		return ret;
+	/* VS: Update the session state */
+	resp->msg_type = GTP_DOWNLINK_DATA_NOTIFICATION_ACK;
+	resp->state = DDN_ACK_RCVD_STATE;
 
 	/* check for conditional delay value, set if necessary,
 	 * or indicate no delay */
-	if (downlink_data_notification_ack.delay != NULL)
-		*delay = *downlink_data_notification_ack.delay;
+	if (ddn_ack.delay != NULL)
+		*delay = *ddn_ack.delay;
 	else
 		*delay = 0;
 
@@ -253,6 +265,14 @@ process_ddn_ack(gtpv2c_header *gtpv2c_rx, uint8_t *delay)
 	if (send_ddn_ack(dp_id, downlink_data_notification_ack) < 0)
 		rte_exit(EXIT_FAILURE, "Downlink data notification ack fail !!!");
 	*/
+
+	/* VS: Update the UE State */
+	ret = update_ue_state((ddn_ack.context)->s11_sgw_gtpc_teid,
+			DDN_ACK_RCVD_STATE);
+	if (ret < 0) {
+		fprintf(stderr, "%s:Failed to update UE State for teid: %u\n", __func__,
+				(ddn_ack.context)->s11_sgw_gtpc_teid);
+	}
 	return 0;
 
 }

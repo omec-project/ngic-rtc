@@ -20,6 +20,18 @@
 #include "req_resp.h"
 
 /**
+ * decodes buffer to gtpv2c header.
+ * @param buf
+ *   buffer to be decoded
+ * @param val
+ *   gtpv2c header
+ * @return
+ *   number of decoded bytes.
+ */
+int
+decode_gtpv2c_header_t(uint8_t *buf, gtpv2c_header_t *header);
+
+/**
  * Encodes the create session rquest structure to buffer.
  * @param val
  *   create session request structure pre-populated

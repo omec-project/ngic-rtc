@@ -19,6 +19,7 @@ SERVICE=3
 SGX_SERVICE=0
 SERVICE_NAME="Collocated CP and DP"
 source ./services.cfg
+source setenv.sh
 export NGIC_DIR=$PWD
 echo "------------------------------------------------------------------------------"
 echo " NGIC_DIR exported as $NGIC_DIR"
@@ -206,9 +207,9 @@ download_dpdk_zip()
 		echo "Failed to download dpdk submodule."
 		return
 	fi
-	
+
         tar -xzvf "${DPDK_DOWNLOAD##*/}"
-	if [ ! -d $THIRD_PARTY_SW_PATH ]; then 
+	if [ ! -d $THIRD_PARTY_SW_PATH ]; then
 	     mkdir $THIRD_PARTY_SW_PATH
         fi
 
@@ -484,7 +485,7 @@ download_hyperscan()
 	fi
 	echo "Downloading HS and dependent libraries"
 	sudo apt-get install cmake ragel
-	if [ ! -d $THIRD_PARTY_SW_PATH ]; then 
+	if [ ! -d $THIRD_PARTY_SW_PATH ]; then
 	     mkdir $THIRD_PARTY_SW_PATH
         fi
         cd $THIRD_PARTY_SW_PATH
@@ -505,7 +506,7 @@ download_hyperscan()
 download_freediameter()
 {
 	echo "Download FreeDiameter from OMEC....."
-	if [ ! -d $THIRD_PARTY_SW_PATH ]; then 
+	if [ ! -d $THIRD_PARTY_SW_PATH ]; then
 	     mkdir $THIRD_PARTY_SW_PATH
         fi
         pushd $THIRD_PARTY_SW_PATH
@@ -582,7 +583,7 @@ step_3()
 install_oss_util()
 {
    pushd $NGIC_DIR/$OSS_UTIL_DIR
-   git clone $OSS_UTIL_GIT_LINK
+   git clone -b cli_dev $OSS_UTIL_GIT_LINK
    mv oss_util_gslab oss-util
    pushd oss-util
    ./install.sh

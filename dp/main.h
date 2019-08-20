@@ -215,8 +215,8 @@
 /**
  * pcap filenames.
  */
-#define SPGW_S1U_PCAP_FILE "logs/uplink.pcap"
-#define SPGW_SGI_PCAP_FILE "logs/downlink.pcap"
+#define SPGW_S1U_PCAP_FILE "logs/saegw_s1u.pcap"
+#define SPGW_SGI_PCAP_FILE "logs/saegw_sgi.pcap"
 
 #define SGW_S1U_PCAP_FILE "logs/sgw_s1u.pcap"
 #define SGW_S5S8_PCAP_FILE "logs/sgw_s5s8.pcap"

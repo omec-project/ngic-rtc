@@ -392,6 +392,18 @@ flush_eNB_session(peerData *data_t)
 
 }
 
+static int
+check_sess_id_present(uint64_t sess_id, peerData *conn_data)
+{
+	int sess_exist = 0;
+	for(uint32_t cnt = 0; cnt < conn_data->sess_cnt; cnt++) {
+		if (sess_id == conn_data->sess_id[cnt]) {
+			sess_exist = 1;
+		}
+	}
+	return sess_exist;
+}
+
 uint8_t add_node_conn_entry(uint32_t dstIp, uint64_t sess_id, uint8_t portId)
 {
 
@@ -489,7 +501,9 @@ uint8_t add_node_conn_entry(uint32_t dstIp, uint64_t sess_id, uint8_t portId)
 		conn_data->sess_id[conn_data->sess_cnt] = sess_id;
 
 		if (sess_id > 0) {
-			conn_data->sess_cnt++;
+			if(check_sess_id_present(sess_id, conn_data) == 0){
+				conn_data->sess_cnt++;
+			}
 		}
 	}
 

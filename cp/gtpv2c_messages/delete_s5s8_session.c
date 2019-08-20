@@ -26,14 +26,22 @@
 #include "pfcp_messages_encoder.h"
 #include "pfcp_util.h"
 #include "pfcp_session.h"
-
+#include "sm_struct.h"
 #include "../cp_stats.h"
+#include "../ue.h"
+
+#ifdef C3PO_OSS
+#include"cp_config.h"
+#endif /* C3PO_OSS */
 
 extern int pfcp_fd;
 extern struct sockaddr_in upf_pfcp_sockaddr;
 
-
-#define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
+struct gw_info {
+	uint8_t eps_bearer_id;
+	uint32_t s5s8_sgw_gtpc_teid;
+	uint32_t s5s8_pgw_gtpc_ipv4;
+};
 
 /* PGWC S5S8 handlers:
  * static int delete_pgwc_context(...)
@@ -59,24 +67,24 @@ extern struct sockaddr_in upf_pfcp_sockaddr;
  */
 static int
 delete_pgwc_context(gtpv2c_header *gtpv2c_rx, ue_context **_context,
-		uint32_t *del_teid_ptr)
+		struct gw_info *resp)
 {
+	int ret = 0, i = 0;
 	gtpv2c_ie *current_ie;
 	gtpv2c_ie *limit_ie;
-	int ret;
-	int i;
-	static uint32_t process_pgwc_s5s8_ds_req_cnt;
 	ue_context *context = NULL;
 	gtpv2c_ie *ebi_ei_to_be_removed = NULL;
+	static uint32_t process_pgwc_s5s8_ds_req_cnt;
 
-	gtpv2c_rx->teid_u.has_teid.teid = ntohl(gtpv2c_rx->teid_u.has_teid.teid);
+	//gtpv2c_rx->teid_u.has_teid.teid = ntohl(gtpv2c_rx->teid_u.has_teid.teid);
 	/* s11_sgw_gtpc_teid = s5s8_pgw_gtpc_base_teid =
 	 * key->ue_context_by_fteid_hash */
 	ret = rte_hash_lookup_data(ue_context_by_fteid_hash,
 	    (const void *) &gtpv2c_rx->teid_u.has_teid.teid,
 	    (void **) &context);
 	if (ret < 0 || !context) {
-		RTE_LOG_DP(DEBUG, CP, "NGIC- delete_s5s8_session.c::"
+
+		clLog(s5s8logger, eCLSeverityDebug, "NGIC- delete_s5s8_session.c::"
 				"\n\tprocess_pgwc_s5s8_delete_session_request:"
 				"\n\tdelete_pgwc_context-ERROR!!!"
 				"\n\tprocess_pgwc_s5s8_ds_req_cnt= %u;"
@@ -110,6 +118,10 @@ delete_pgwc_context(gtpv2c_header *gtpv2c_rx, ue_context **_context,
 
 	uint8_t ebi = *IE_TYPE_PTR_FROM_GTPV2C_IE(uint8_t,
 			ebi_ei_to_be_removed);
+
+	/* VS: Fill the eps bearer id in response */
+	resp->eps_bearer_id = ebi;
+
 	uint8_t ebi_index = ebi - 5;
 	if (!(context->bearer_bitmap & (1 << ebi_index))) {
 		fprintf(stderr,
@@ -138,8 +150,10 @@ delete_pgwc_context(gtpv2c_header *gtpv2c_rx, ue_context **_context,
 	}
 	/* s11_sgw_gtpc_teid= s5s8_sgw_gtpc_teid =
 	 * key->ue_context_by_fteid_hash */
-	*del_teid_ptr = pdn->s5s8_sgw_gtpc_teid;
-	RTE_LOG_DP(DEBUG, CP, "NGIC- delete_s5s8_session.c::"
+	resp->s5s8_sgw_gtpc_teid = pdn->s5s8_sgw_gtpc_teid;
+	resp->s5s8_pgw_gtpc_ipv4 = pdn->s5s8_sgw_gtpc_ipv4.s_addr;
+
+	clLog(s5s8logger, eCLSeverityDebug, "NGIC- delete_s5s8_session.c::"
 			"\n\tdelete_pgwc_context(...);"
 			"\n\tprocess_pgwc_s5s8_ds_req_cnt= %u;"
 			"\n\tue_ip= pdn->ipv4= %s;"
@@ -152,7 +166,7 @@ delete_pgwc_context(gtpv2c_header *gtpv2c_rx, ue_context **_context,
 			process_pgwc_s5s8_ds_req_cnt++,
 			inet_ntoa(pdn->ipv4),
 			inet_ntoa(pdn->s5s8_sgw_gtpc_ipv4),
-			*del_teid_ptr,
+			pdn->s5s8_sgw_gtpc_teid,
 			inet_ntoa(pdn->s5s8_pgw_gtpc_ipv4),
 			pdn->s5s8_pgw_gtpc_teid,
 			ret);
@@ -184,8 +198,10 @@ delete_pgwc_context(gtpv2c_header *gtpv2c_rx, ue_context **_context,
 			si.sess_id = SESS_ID(
 					context->s11_sgw_gtpc_teid,
 					si.bearer_id);
+			/*
 			struct dp_id dp_id = { .id = DPN_ID };
 			session_delete(dp_id, si);
+			*/
 
 			rte_free(pdn->eps_bearers[i]);
 			pdn->eps_bearers[i] = NULL;
@@ -205,14 +221,13 @@ delete_pgwc_context(gtpv2c_header *gtpv2c_rx, ue_context **_context,
 }
 
 int
-process_pgwc_s5s8_delete_session_request(gtpv2c_header *gtpv2c_rx,
-	gtpv2c_header *gtpv2c_tx)
+process_pgwc_s5s8_delete_session_request(gtpv2c_header *gtpv2c_rx)
 {
+	struct gw_info _resp = {0};
 	ue_context *context = NULL;
-	uint32_t s5s8_sgw_gtpc_del_teid_ptr = 0;
+	struct resp_info *resp = NULL;
 
-	int ret = delete_pgwc_context(gtpv2c_rx, &context,
-					&s5s8_sgw_gtpc_del_teid_ptr);
+	int ret = delete_pgwc_context(gtpv2c_rx, &context, &_resp);
 	if (ret)
 	return ret;
 
@@ -220,7 +235,8 @@ process_pgwc_s5s8_delete_session_request(gtpv2c_header *gtpv2c_rx,
 	fill_pfcp_sess_del_req(&pfcp_sess_del_req);
 	pfcp_sess_del_req.header.seid_seqno.has_seid.seid = context->seid;
 
-	pfcp_sess_del_req.header.seid_seqno.has_seid.seq_no = gtpv2c_rx->teid_u.has_teid.seq;
+	pfcp_sess_del_req.header.seid_seqno.has_seid.seq_no =
+		(htonl(gtpv2c_rx->teid_u.has_teid.seq) >> 8);
 
 	uint8_t pfcp_msg[512]={0};
 
@@ -231,13 +247,28 @@ process_pgwc_s5s8_delete_session_request(gtpv2c_header *gtpv2c_rx,
 	if (pfcp_send(pfcp_fd, pfcp_msg,encoded,
 				&upf_pfcp_sockaddr) < 0 )
 		printf("Error sending: %i\n",errno);
-	else
+	else {
 		cp_stats.session_deletion_req_sent++;
+		get_current_time(cp_stats.session_deletion_req_sent_time);
+	}
+	/* Update UE State */
+	context->state = SESS_DEL_REQ_SNT_STATE;
 
-	set_gtpv2c_teid_header(gtpv2c_tx, GTP_DELETE_SESSION_RSP,
-				s5s8_sgw_gtpc_del_teid_ptr,
-				gtpv2c_rx->teid_u.has_teid.seq);
-	set_cause_accepted_ie(gtpv2c_tx, IE_INSTANCE_ZERO);
+	/* VS: Stored/Update the session information. */
+	if (get_sess_entry(context->seid, &resp) != 0) {
+		fprintf(stderr, "Failed to add response in entry in SM_HASH\n");
+		return -1;
+	}
+
+	/* Store s11 struture data into sm_hash for sending delete response back to s11 */
+	resp->eps_bearer_id = _resp.eps_bearer_id;
+	resp->s5s8_sgw_gtpc_del_teid_ptr = _resp.s5s8_sgw_gtpc_teid;
+	resp->s5s8_pgw_gtpc_ipv4 = _resp.s5s8_pgw_gtpc_ipv4;
+	resp->sequence = gtpv2c_rx->teid_u.has_teid.seq;
+	resp->s11_sgw_gtpc_teid = context->s11_sgw_gtpc_teid;
+	resp->context = context;
+	resp->msg_type = GTP_DELETE_SESSION_REQ;
+	resp->state = SESS_DEL_REQ_SNT_STATE;
 
 	return 0;
 }
@@ -271,15 +302,15 @@ delete_sgwc_context(gtpv2c_header *gtpv2c_rx, ue_context **_context)
 	static uint32_t process_sgwc_s5s8_ds_rsp_cnt;
 	ue_context *context = NULL;
 
-	gtpv2c_rx->teid_u.has_teid.teid = ntohl(gtpv2c_rx->teid_u.has_teid.teid);
-
+	//gtpv2c_rx->teid_u.has_teid.teid = ntohl(gtpv2c_rx->teid_u.has_teid.teid);
 	/* s11_sgw_gtpc_teid= s5s8_sgw_gtpc_teid =
 	 * key->ue_context_by_fteid_hash */
 	ret = rte_hash_lookup_data(ue_context_by_fteid_hash,
 	    (const void *) &gtpv2c_rx->teid_u.has_teid.teid,
 	    (void **) &context);
 	if (ret < 0 || !context) {
-		RTE_LOG_DP(DEBUG, CP, "NGIC- delete_s5s8_session.c::"
+
+		clLog(s5s8logger, eCLSeverityDebug, "NGIC- delete_s5s8_session.c::"
 				"\n\tprocess_sgwc_s5s8_delete_session_request:"
 				"\n\tdelete_sgwc_context-ERROR!!!"
 				"\n\tprocess_sgwc_s5s8_ds_rep_cnt= %u;"
@@ -292,7 +323,7 @@ delete_sgwc_context(gtpv2c_header *gtpv2c_rx, ue_context **_context)
 		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 	}
 
-	RTE_LOG_DP(DEBUG, CP, "NGIC- delete_s5s8_session.c::"
+	clLog(s5s8logger, eCLSeverityDebug, "NGIC- delete_s5s8_session.c::"
 			"\n\tdelete_sgwc_context(...);"
 			"\n\tprocess_sgwc_s5s8_ds_rsp_cnt= %u;"
 			"\n\tgtpv2c_rx->teid_u.has_teid.teid="
@@ -324,8 +355,10 @@ delete_sgwc_context(gtpv2c_header *gtpv2c_rx, ue_context **_context)
 			si.sess_id = SESS_ID(
 				context->s11_sgw_gtpc_teid,
 				si.bearer_id);
+			/*
 			struct dp_id dp_id = { .id = DPN_ID };
 			session_delete(dp_id, si);
+			*/
 
 			rte_free(pdn_ctxt->eps_bearers[i]);
 			pdn_ctxt->eps_bearers[i] = NULL;
@@ -374,18 +407,39 @@ int
 process_sgwc_s5s8_delete_session_response(gtpv2c_header *gtpv2c_rx,
 	gtpv2c_header *gtpv2c_tx)
 {
+	uint16_t msg_len = 0;
 	ue_context *context = NULL;
+	delete_session_response_t del_resp = {0};
 	int ret = delete_sgwc_context(gtpv2c_rx, &context);
 	if (ret)
 		return ret;
 
-	set_gtpv2c_teid_header(gtpv2c_tx, GTP_DELETE_SESSION_RSP,
-	    htonl(context->s11_mme_gtpc_teid), gtpv2c_rx->teid_u.has_teid.seq);
-	set_cause_accepted_ie(gtpv2c_tx, IE_INSTANCE_ZERO);
+	gtpv2c_rx->teid_u.has_teid.seq = bswap_32(gtpv2c_rx->teid_u.has_teid.seq) >> 8 ;
+	/*VS: Encode the S11 delete session response message. */
+	set_gtpv2c_teid_header((gtpv2c_header *) &del_resp, GTP_DELETE_SESSION_RSP,
+			context->s11_mme_gtpc_teid, gtpv2c_rx->teid_u.has_teid.seq);
+	set_cause_accepted_ie((gtpv2c_header *) &del_resp, IE_INSTANCE_ZERO);
+
+	/*VS: Encode the S11 delete session response message. */
+	encode_delete_session_response_t(&del_resp, (uint8_t *)gtpv2c_tx,
+			&msg_len);
+
+	gtpv2c_tx->gtpc.length = htons(msg_len - 4);
 
 	s11_mme_sockaddr.sin_addr.s_addr =
 					htonl(context->s11_mme_gtpc_ipv4.s_addr);
 
+	clLog(clSystemLog, eCLSeverityDebug, "%s: s11_mme_sockaddr.sin_addr.s_addr :%s\n", __func__,
+				inet_ntoa(*((struct in_addr *)&s11_mme_sockaddr.sin_addr.s_addr)));
+
+	/* Delete entry from session entry */
+	if (del_sess_entry(context->seid) != 0){
+		fprintf(stderr, "NO Session Entry Found for Key sess ID:%lu\n", context->seid);
+		return -1;
+	}
+
+	/* Delete UE context entry from UE Hash */
+	/*rte_free(context);*/
 	return 0;
 }
 

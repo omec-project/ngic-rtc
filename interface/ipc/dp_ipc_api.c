@@ -27,7 +27,9 @@
 #include <rte_malloc.h>
 #include <rte_cfgfile.h>
 #include <rte_errno.h>
+#include <errno.h>
 
+#include "../cp/cp.h"
 #include "interface.h"
 #include "udp/vepc_udp.h"
 #include "dp_ipc_api.h"
@@ -35,6 +37,9 @@
 
 #ifdef CP_BUILD
 #include "../cp/cp_app.h"
+#include "../cp/cp_stats.h"
+#include "../cp/cp_config.h"
+#include "../cp/state_machine/sm_struct.h"
 extern int g_cp_sock;
 #endif /* CP_BUILD */
 
@@ -59,7 +64,7 @@ void iface_init_ipc_node(void)
 }
 
 #ifndef CP_BUILD
-static int
+int
 udp_recv(void *msg_payload, uint32_t size,
 		struct sockaddr_in *peer_addr)
 {
@@ -82,29 +87,6 @@ udp_recv(void *msg_payload, uint32_t size,
 int iface_remove_que(enum cp_dp_comm id)
 {
 
-#ifdef CP_BUILD
-	RTE_SET_USED(id);
-	struct sockaddr_in peer_addr;
-	int bytes_rx = 0;
-	if ((bytes_rx = pfcp_recv(pfcp_rx, 512,
-					&peer_addr)) < 0) {
-		perror("msgrecv");
-		return -1;
-	}
-	process_pfcp_msg(pfcp_rx, bytes_rx, &peer_addr);
-
-	//RTE_SET_USED(id);
-
-	//if (comm_node[id].recv((void *)&rbuf,
-	//			sizeof(struct msgbuf)) < 0) {
-	//	perror("msgrecv");
-	//	return -1;
-	//}
-
-	//process_comm_msg((void *)&rbuf);
-#else
-	/* if (comm_node[id].init == NULL)
-		return 0; */
 #ifdef SDN_ODL_BUILD
 	if (id == COMM_ZMQ) {
 		int rc;
@@ -117,61 +99,86 @@ int iface_remove_que(enum cp_dp_comm id)
 			return rc;
 		return zmq_mbuf_process(&zbuf, rc);
 	}
-#endif /*SDN_ODL_BUILD*/
-	if (id == COMM_SOCKET) {
-		struct sockaddr_in peer_addr;
-		int bytes_rx = 0;
-		if ((bytes_rx = udp_recv(pfcp_rx, 512,
-				&peer_addr)) < 0) {
-			perror("msgrecv");
-			return -1;
-		}
-		process_pfcp_msg(pfcp_rx, bytes_rx, &peer_addr);
-
-		//if (comm_node[id].recv((void *)&rbuf,
-		//			sizeof(struct msgbuf)) < 0) {
-		//	perror("msgrecv");
-		//	return -1;
-		//}
-		//process_comm_msg((void *)&rbuf);
+#else
+	RTE_SET_USED(id);
+	struct sockaddr_in peer_addr;
+	int bytes_rx = 0;
+#ifdef CP_BUILD
+	if ((bytes_rx = pfcp_recv(pfcp_rx, 512,
+			&peer_addr)) < 0) {
+#else
+	if ((bytes_rx = udp_recv(pfcp_rx, 512,
+			&peer_addr)) < 0) {
+#endif /* CP_BUILD*/
+		perror("msgrecv");
+		return -1;
 	}
-#endif /*CP_BUILD*/
+	process_pfcp_msg(pfcp_rx, &peer_addr);
+#endif /*SDN_ODL_BUILD*/
 
 	return 0;
 }
-
 
 /**
  * @brief Function to Poll message que.
  *
  */
-int iface_process_ipc_msgs(void)
+
+
+void iface_process_ipc_msgs(void)
 {
-	int ret = 0;
 	int n, rv;
 	fd_set readfds;
 	struct timeval tv;
+	struct sockaddr_in peer_addr;
 
-	/* clear the set ahead of time */
+	/* Clear the set ahead of time */
 	FD_ZERO(&readfds);
 
-	/* add our descriptors to the set */
+	/* Setting Descriptors */
 	FD_SET(my_sock.sock_fd, &readfds);
 
-	/* since we got s2 second, it's the "greater", so we use that
-	 * for the n param in select()
-	 */
+#ifdef CP_BUILD
+
+	int max = 0;
+
+	/* add s11 fd*/
+	if ((spgw_cfg  == SGWC) || (spgw_cfg == SAEGWC)) {
+		FD_SET(my_sock.sock_fd_s11, &readfds);
+	}
+
+	/*add s5s8 fd*/
+	if (spgw_cfg != SAEGWC) {
+		FD_SET(my_sock.sock_fd_s5s8, &readfds);
+	}
+
+	/*add gx fd*/
+	if ((spgw_cfg == PGWC)) {
+		FD_SET(g_cp_sock, &readfds);
+	}
+
+	if (spgw_cfg == SGWC) {
+		max = (my_sock.sock_fd > my_sock.sock_fd_s11 ?
+				my_sock.sock_fd : my_sock.sock_fd_s11);
+		max = (max > my_sock.sock_fd_s5s8 ? max : my_sock.sock_fd_s5s8);
+	}
+	if (spgw_cfg == SAEGWC) {
+		max = (my_sock.sock_fd > my_sock.sock_fd_s11 ?
+				my_sock.sock_fd : my_sock.sock_fd_s11);
+	}
+	if (spgw_cfg == PGWC) {
+		max = (my_sock.sock_fd > my_sock.sock_fd_s5s8 ?
+				my_sock.sock_fd : my_sock.sock_fd_s5s8);
+		max = (g_cp_sock > max ? g_cp_sock : max);
+
+	}
+
+	n = max + 1;
+#else
+
 	n = my_sock.sock_fd + 1;
 
-#ifdef CP_BUILD
-	/* add cp app descriptors for unix sock commu to pcef */
-	if(g_cp_sock  > 0)
-		FD_SET(g_cp_sock, &readfds);
-
-	if( g_cp_sock > my_sock.sock_fd )
-		n = g_cp_sock + 1;
-#endif /* CP_BUILD */
-
+#endif
 	/* wait until either socket has data
 	 *  ready to be recv()d (timeout 10.5 secs)
 	 */
@@ -183,18 +190,32 @@ int iface_process_ipc_msgs(void)
 	tv.tv_usec = 500000;
 #endif
 	rv = select(n, &readfds, NULL, NULL, &tv);
-	if (rv == -1)	{
-		perror("select");	/* error occurred in select() */
+	if (rv == -1) {
+		/*TODO: Need to Fix*/
+		//perror("select"); /* error occurred in select() */
 	} else if (rv > 0) {
 		/* one or both of the descriptors have data */
 		if (FD_ISSET(my_sock.sock_fd, &readfds))
-			ret = iface_remove_que(COMM_SOCKET);
+				process_pfcp_msg(pfcp_rx, &peer_addr);
 #ifdef CP_BUILD
-		if (FD_ISSET(g_cp_sock, &readfds))
-			ret = msg_handler(g_cp_sock);
+		if ((spgw_cfg  == SGWC) || (spgw_cfg == SAEGWC)) {
+			if (FD_ISSET(my_sock.sock_fd_s11, &readfds)) {
+					msg_handler_s11();
+			}
+		}
+
+		if (spgw_cfg != SAEGWC) {
+			if (FD_ISSET(my_sock.sock_fd_s5s8, &readfds)) {
+					msg_handler_s5s8();
+			}
+		}
+
+		if ((spgw_cfg == PGWC)) {
+			if (FD_ISSET(g_cp_sock, &readfds))
+					msg_handler(g_cp_sock);
+		}
 #endif
 
 	}
-	return ret;
 }
 

@@ -71,7 +71,7 @@ struct gtpu_hdr {
 	uint8_t msgtype;	/**< message type */
 	uint16_t msglen;	/**< message length */
 	uint32_t teid;		/**< tunnel endpoint id */
-	uint32_t seqnb;		/**< sequence number */
+	uint16_t seqnb;		/**< sequence number */
 };
 #pragma pack()
 
@@ -170,5 +170,5 @@ void gtpu_get_inner_src_dst_ip_without_seqnb(struct rte_mbuf *m, uint32_t *src_i
  * @return
  * void
  */
-void process_echo_request(struct rte_mbuf *echo_pkt);
+void process_echo_request(struct rte_mbuf *echo_pkt, uint8_t port_id);
 #endif	/* _GTPU_H_ */

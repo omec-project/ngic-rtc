@@ -138,9 +138,9 @@ int process_comm_msg(void *buf);
  *	0 - success
  *	-1 - fail
  */
-int process_pfcp_msg(uint8_t *buf_rx, int bytes_rx,
-		struct sockaddr_in *peer_addr);
 
+int process_pfcp_msg(uint8_t *buf_rx,
+		struct sockaddr_in *peer_addr);
 /**
  * Process DP CP Response
  * @param buf

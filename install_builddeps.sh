@@ -61,7 +61,7 @@ install_dpdk() {
 	fi
 
 	cd ${RTE_SDK}
-	sed -ri 's,(IGB_UIO=).*,\1n,' config/common_linuxapp
+	cp $CUR_DIR/dpdk-18.02_common_linuxapp config/common_linuxapp
 	sed -ri 's,(KNI_KMOD=).*,\1n,' config/common_linuxapp
 	make -j $CPUS install T=${RTE_TARGET}
 	echo "Installed DPDK at $RTE_SDK"
@@ -193,7 +193,7 @@ install_build_deps() {
        install_dpdk
        if [[ $SERVICES == "CP" ]] || [[ $SERVICES == "cp" ]]; then
 	    install_oss_util
-            download_freediameter
+	    download_freediameter
             build_libgtpcv2c 
             build_fd_gxapp
        elif [[ $SERVICES == "DP" ]] || [[ $SERVICES == "dp" ]]; then

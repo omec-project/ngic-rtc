@@ -685,6 +685,9 @@ int decode_pfcp_sess_mod_req_t(uint8_t *buf,
 	value->update_urr_count = 0;
 	value->update_qer_count = 0;
 	value->query_urr_count = 0;
+	value->pfcpsmreq_flags.qaurr = 0;
+	value->pfcpsmreq_flags.sndem = 0;
+	value->pfcpsmreq_flags.drobu = 0;
 
 	while (count < buf_len) {
 
@@ -1491,6 +1494,8 @@ int decode_pfcp_upd_dupng_parms_ie_t(uint8_t *buf,
 
       count = decode_pfcp_ie_header_t(buf + count, &value->header);
 
+	  count = count/CHAR_SIZE;
+	  buf_len = value->header.len;
 
       while (count < buf_len) {
 
@@ -1527,7 +1532,9 @@ int decode_pfcp_frwdng_parms_ie_t(uint8_t *buf,
       uint16_t buf_len = 0;
 
       count = decode_pfcp_ie_header_t(buf + count, &value->header);
+	  count = count/CHAR_SIZE;
 
+	  buf_len = value->header.len;
 
       while (count < buf_len) {
 
@@ -1663,7 +1670,9 @@ int decode_pfcp_upd_frwdng_parms_ie_t(uint8_t *buf,
       uint16_t buf_len = 0;
 
       count = decode_pfcp_ie_header_t(buf + count, &value->header);
+	  count = count/CHAR_SIZE;
 
+	  buf_len = value->header.len;
 
       while (count < buf_len) {
 
@@ -2479,8 +2488,10 @@ int decode_pfcp_update_far_ie_t(uint8_t *buf,
       uint16_t buf_len = 0;
 
       count = decode_pfcp_ie_header_t(buf + count, &value->header);
+	  count = count/CHAR_SIZE;
 
       value->upd_dupng_parms_count = 0;
+	  buf_len = value->header.len;
 
       while (count < buf_len) {
 

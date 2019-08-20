@@ -269,7 +269,7 @@ set_ipv4_paa(paa_ie_t *paa, enum ie_instance instance,
 		struct in_addr ipv4)
 {
 	set_ie_header(&paa->header, IE_PAA, instance,
-		sizeof(uint8_t) + sizeof(struct in_addr));
+			sizeof(uint8_t) + sizeof(struct in_addr));
 
 	paa->pdn_type = PDN_IP_TYPE_IPV4;
 	paa->spare = 0;

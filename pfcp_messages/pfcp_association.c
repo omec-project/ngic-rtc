@@ -19,14 +19,20 @@
 #include "pfcp.h"
 #include "cp_stats.h"
 #include "pfcp_util.h"
+#include "pfcp_enum.h"
 #include "pfcp_set_ie.h"
 #include "pfcp_session.h"
 #include "pfcp_association.h"
 #include "pfcp_messages_encoder.h"
 #include "pfcp_messages_decoder.h"
+#include "../cp_dp_api/vepc_cp_dp_api.h"
 
+#ifdef CP_BUILD
+#include"cp_config.h"
+#endif /* CP_BUILD */
 
 #if defined(CP_BUILD) && defined(USE_DNS_QUERY)
+#include "sm_pcnd.h"
 #include "cdnsutil.h"
 #endif /* CP_BUILD && USE_DNS_QUERY */
 
@@ -102,22 +108,32 @@ fill_pfcp_association_setup_req(pfcp_assn_setup_req_t *pfcp_ass_setup_req)
 
 	set_recovery_time_stamp(&(pfcp_ass_setup_req->rcvry_time_stmp));
 
-	set_cpf_features(&(pfcp_ass_setup_req->cp_func_feat));
+	/* As we are not supporting this feature
+	set_cpf_features(&(pfcp_ass_setup_req->cp_func_feat)); */
 }
 
 int
-process_pfcp_assoication_request(create_session_request_t *csr,
-		char *sgwu_fqdn, struct in_addr *upf_ipv4)
+buffer_csr_request(create_session_request_t *csr,
+		upf_context_t *upf_context)
 {
+		create_session_request_t *tmp_csr =
+						rte_zmalloc_socket(NULL, sizeof(create_session_request_t),
+							RTE_CACHE_LINE_SIZE, rte_socket_id());
 
-	int ret = 0;
-	uint32_t upf_ip = 0;
-	char sgwu_fqdn_res[MAX_HOSTNAME_LENGTH] = {0};
-	pfcp_assn_setup_req_t pfcp_ass_setup_req;
+		memcpy(tmp_csr, csr, sizeof(create_session_request_t));
+
+		upf_context->pending_csr[upf_context->csr_cnt] = (uint32_t *)tmp_csr;
+		upf_context->csr_cnt++;
+
+		return 0;
+}
 
 #ifdef USE_DNS_QUERY
-
-	upfs_dnsres_t *entry;
+int
+get_upf_ip(create_session_request_t *csr, upfs_dnsres_t **_entry,
+		uint32_t *upf_ip)
+{
+	upfs_dnsres_t *entry = NULL;
 
 	if (upflist_by_ue_hash_entry_lookup(csr->imsi.imsi,
 			csr->imsi.header.len, &entry) != 0)
@@ -130,16 +146,41 @@ process_pfcp_assoication_request(create_session_request_t *csr,
 		return -1;
 	}
 
-	upf_ip = entry->upf_ip[entry->current_upf].s_addr;
+	*upf_ip = (entry->upf_ip[entry->current_upf].s_addr);
+	*_entry = entry;
+	return 0;
+}
+#endif /* USE_DNS_QUERY */
+
+int
+process_pfcp_assoication_request(create_session_request_t *csr)
+{
+
+	int ret = 0;
+	uint32_t upf_ip = 0;
+	char sgwu_fqdn_res[MAX_HOSTNAME_LENGTH] = {0};
+	pfcp_assn_setup_req_t pfcp_ass_setup_req;
+
+#ifdef USE_DNS_QUERY
+
+	upfs_dnsres_t *entry = NULL;
+
+	if ((get_upf_ip(csr, &entry, &upf_ip)) != 0) {
+		fprintf(stderr, "Failed to get upf ip address\n");
+		return -1;
+	}
 
 	memcpy(sgwu_fqdn_res, entry->upf_fqdn[entry->current_upf],
 			strlen(entry->upf_fqdn[entry->current_upf]));
 
 	entry->current_upf++;
 
-	RTE_LOG_DP(INFO, CP, "DNS discovery selected upf ip:%s\n",
+	clLog(sxlogger, eCLSeverityInfo, "DNS discovery selected upf ip:%s\n",
 				inet_ntoa(*((struct in_addr *)&upf_ip)));
-
+	if ((spgw_cfg == SGWC) || (spgw_cfg == SAEGWC))
+		csUpdateIp(inet_ntoa(*((struct in_addr *)&upf_ip)), 1, 0);
+	else
+		csUpdateIp(inet_ntoa(*((struct in_addr *)&upf_ip)), 0, 0);
 #else  /* USE_DNS_QUERY */
 	upf_ip = pfcp_config.upf_pfcp_ip.s_addr;
 #endif /* USE_DNS_QUERY */
@@ -164,36 +205,17 @@ process_pfcp_assoication_request(create_session_request_t *csr,
 
 		ret = upf_context_entry_add(&upf_ip, upf_context);
 
-		create_session_request_t *tmp_csr =
-				rte_zmalloc_socket(NULL, sizeof(create_session_request_t),
-					RTE_CACHE_LINE_SIZE, rte_socket_id());
-
-		memcpy(tmp_csr, csr, sizeof(create_session_request_t));
-		upf_context->pending_csr[upf_context->csr_cnt] = (uint32_t *)tmp_csr;
+		ret = buffer_csr_request(csr, upf_context);
+		if (ret) {
+				clLog(sxlogger, eCLSeverityCritical, "%s : Error: %d \n", __func__, ret);
+				return -1;
+		}
 
 		memcpy(upf_context->fqdn, sgwu_fqdn_res, strlen(sgwu_fqdn_res));
 
-		upf_context->csr_cnt++;
 		upf_context->assoc_status = ASSOC_IN_PROGRESS;
+		upf_context->state = ASSOC_REQ_SNT_STATE;
 
-	} else if (upf_context->assoc_status == ASSOC_IN_PROGRESS) {
-
-		create_session_request_t *tmp_csr =
-						rte_zmalloc_socket(NULL, sizeof(create_session_request_t),
-							RTE_CACHE_LINE_SIZE, rte_socket_id());
-
-		memcpy(tmp_csr, csr, sizeof(create_session_request_t));
-
-		upf_context->pending_csr[upf_context->csr_cnt] = (uint32_t *)tmp_csr;
-		upf_context->csr_cnt++;
-
-		return 0;
-
-	} else if(upf_context->assoc_status == ASSOC_ESTABLISHED) {
-		upf_ipv4->s_addr = upf_ip;
-		memcpy(sgwu_fqdn, sgwu_fqdn_res, strlen(sgwu_fqdn_res));
-
-		return ASSOC_ESTABLISHED;
 	}
 
 
@@ -213,7 +235,9 @@ process_pfcp_assoication_request(create_session_request_t *csr,
 		printf("Error sending\n\n");
 	}else {
 		cp_stats.association_setup_req_sent++;
+		get_current_time(cp_stats.association_setup_req_sent_time);
 	}
+
 
 	return 0;
 }
@@ -253,6 +277,170 @@ fill_pfcp_sess_report_resp(pfcp_sess_rpt_rsp_t *pfcp_sess_rep_resp,
 
 	//pfcp_sess_rep_resp->header.message_len += sizeof(pfcp_sess_rep_resp->header.seid_seqno.has_seid);
 }
+
+uint8_t
+process_pfcp_ass_resp(msg_info *msg, struct sockaddr_in *peer_addr)
+{
+	int ret = 0;
+	upf_context_t *upf_context = NULL;
+
+	printf("UPF IP:%u \n", msg->upf_ipv4.s_addr);
+	ret = rte_hash_lookup_data(upf_context_by_ip_hash,
+			(const void*) &(msg->upf_ipv4.s_addr), (void **) &(upf_context));
+
+	if (ret < 0) {
+		clLog(sxlogger, eCLSeverityDebug, "NO ENTRY FOUND IN UPF HASH [%u]\n", msg->upf_ipv4.s_addr);
+		return 0;
+	}
+
+	upf_context->assoc_status = ASSOC_ESTABLISHED;
+	upf_context->state = ASSOC_RESP_RCVD_STATE;
+
+	upf_context->up_supp_features =
+			msg->pfcp_msg.pfcp_ass_resp.up_func_feat.sup_feat;
+
+	switch (pfcp_config.cp_type)
+	{
+		case SGWC :
+			if (msg->pfcp_msg.pfcp_ass_resp.user_plane_ip_rsrc_info[0].assosi == 1 &&
+					msg->pfcp_msg.pfcp_ass_resp.user_plane_ip_rsrc_info[0].src_intfc ==
+					SOURCE_INTERFACE_VALUE_ACCESS )
+				upf_context->s1u_ip =
+						msg->pfcp_msg.pfcp_ass_resp.user_plane_ip_rsrc_info[0].ipv4_address;
+
+			if( msg->pfcp_msg.pfcp_ass_resp.user_plane_ip_rsrc_info[1].assosi == 1 &&
+					msg->pfcp_msg.pfcp_ass_resp.user_plane_ip_rsrc_info[1].src_intfc ==
+					SOURCE_INTERFACE_VALUE_CORE )
+				upf_context->s5s8_sgwu_ip =
+						msg->pfcp_msg.pfcp_ass_resp.user_plane_ip_rsrc_info[1].ipv4_address;
+			break;
+
+		case PGWC :
+			if (msg->pfcp_msg.pfcp_ass_resp.user_plane_ip_rsrc_info[0].assosi == 1 &&
+					msg->pfcp_msg.pfcp_ass_resp.user_plane_ip_rsrc_info[0].src_intfc ==
+					SOURCE_INTERFACE_VALUE_ACCESS )
+				upf_context->s5s8_pgwu_ip =
+						msg->pfcp_msg.pfcp_ass_resp.user_plane_ip_rsrc_info[0].ipv4_address;
+			break;
+
+		case SAEGWC :
+			if( msg->pfcp_msg.pfcp_ass_resp.user_plane_ip_rsrc_info[0].assosi == 1 &&
+					msg->pfcp_msg.pfcp_ass_resp.user_plane_ip_rsrc_info[0].src_intfc ==
+					SOURCE_INTERFACE_VALUE_ACCESS )
+				upf_context->s1u_ip =
+						msg->pfcp_msg.pfcp_ass_resp.user_plane_ip_rsrc_info[0].ipv4_address;
+			break;
+
+	}
+
+	for (uint8_t i = 0; i < upf_context->csr_cnt; i++) {
+
+		if (pfcp_config.cp_type == PGWC) {
+			uint16_t msg_len = 0;
+			uint8_t encoded_msg[512];
+
+			encode_create_session_request_t(
+					(create_session_request_t *)(upf_context->pending_csr[i]),
+					encoded_msg, &msg_len);
+
+			ret = process_pgwc_s5s8_create_session_request((gtpv2c_header *)encoded_msg,
+					&msg->upf_ipv4);
+
+		}else {
+			msg->s11_msg.csr = *((create_session_request_t *)upf_context->pending_csr[i]);
+
+			ret = process_pfcp_sess_est_request(&msg->s11_msg.csr,
+								&msg->upf_ipv4);
+
+		}
+		if (ret) {
+				clLog(sxlogger, eCLSeverityCritical, "%s : Error: %d \n", __func__, ret);
+		}
+
+		cp_stats.number_of_ues++;
+
+		//stats_update(msg->gtpc.type);
+
+		rte_free(upf_context->pending_csr[i]);
+		upf_context->csr_cnt--;
+	}
+
+	/*adding ip to cp  heartbeat when dp returns the association response*/
+	add_ip_to_heartbeat_hash(peer_addr,
+			msg->pfcp_msg.pfcp_ass_resp.rcvry_time_stmp.rcvry_time_stmp_val);
+
+#ifdef USE_REST
+	if ((add_node_conn_entry((uint32_t)peer_addr->sin_addr.s_addr,
+					SX_PORT_ID)) != 0) {
+
+		RTE_LOG_DP(ERR, DP, "Failed to add connection entry for SGWU/SAEGWU");
+	}
+
+#endif/* USE_REST */
+	return 0;
+
+}
+
+uint8_t
+process_pfcp_report_req(pfcp_sess_rpt_req_t *pfcp_sess_rep_req)
+{
+
+	/*DDN Handling */
+	int ret = 0, encoded = 0;
+	uint8_t pfcp_msg[250]={0};
+	struct resp_info *resp = NULL;
+	pfcp_sess_rpt_rsp_t pfcp_sess_rep_resp = {0};
+	uint64_t sess_id = pfcp_sess_rep_req->header.seid_seqno.has_seid.seid;
+
+	/* Stored the session information*/
+	if (get_sess_entry(sess_id, &resp) != 0) {
+		fprintf(stderr, "Failed to add response in entry in SM_HASH\n");
+		return -1;
+	}
+
+	/* Retrive the s11 sgwc gtpc teid based on session id.*/
+	resp->s11_sgw_gtpc_teid = UE_SESS_ID(sess_id);
+	resp->sequence = pfcp_sess_rep_req->header.seid_seqno.has_seid.seq_no;
+	resp->msg_type = PFCP_SESSION_REPORT_REQUEST;
+
+	clLog(sxlogger, eCLSeverityDebug, "DDN Request recv from DP for sess:%lu\n", sess_id);
+
+	if (pfcp_sess_rep_req->report_type.dldr == 1) {
+		ret = ddn_by_session_id(sess_id);
+		if (ret) {
+			fprintf(stderr, "DDN %s: (%d) \n", __func__, ret);
+			return -1;
+		}
+		/* Update the Session state */
+		resp->state = DDN_REQ_SNT_STATE;
+	}
+
+	/* Update the UE State */
+	ret = update_ue_state(resp->s11_sgw_gtpc_teid,
+			DDN_REQ_SNT_STATE);
+	if (ret < 0) {
+		fprintf(stderr, "%s:Failed to update UE State for teid: %u\n", __func__,
+				resp->s11_sgw_gtpc_teid);
+	}
+
+	/*Fill and send pfcp session report response. */
+	fill_pfcp_sess_report_resp(&pfcp_sess_rep_resp,
+			resp->sequence);
+
+	pfcp_sess_rep_resp.header.seid_seqno.has_seid.seid = sess_id;
+
+	encoded =  encode_pfcp_sess_rpt_rsp_t(&pfcp_sess_rep_resp, pfcp_msg);
+	pfcp_header_t *pfcp_hdr = (pfcp_header_t *) pfcp_msg;
+	pfcp_hdr->message_len = htons(encoded - 4);
+
+	if ( pfcp_send(pfcp_fd, pfcp_msg, encoded, &upf_pfcp_sockaddr) < 0 ) {
+		clLog(sxlogger, eCLSeverityCritical, "Error REPORT REPONSE message: %i\n", errno);
+		return -1;
+	}
+
+	return 0;
+}
+
 #endif /* CP_BUILD */
 
 #ifdef DP_BUILD
@@ -293,7 +481,8 @@ fill_pfcp_association_setup_resp(pfcp_assn_setup_rsp_t *pfcp_ass_setup_resp,
 
 	set_recovery_time_stamp(&(pfcp_ass_setup_resp->rcvry_time_stmp));
 
-	set_upf_features(&(pfcp_ass_setup_resp->up_func_feat));
+	/* As we are not supporting this feature
+	set_upf_features(&(pfcp_ass_setup_resp->up_func_feat)); */
 
 	if( app.spgw_cfg == SGWU )
 		pfcp_ass_setup_resp->user_plane_ip_rsrc_info_count = 2; /*for s1u and s5s8 sgwc ips*/
@@ -375,11 +564,12 @@ static void
 set_dldr_ie(pfcp_dnlnk_data_rpt_ie_t *dl)
 {
 	dl->pdr_id_count = 1;
-	pfcp_set_ie_header(&(dl->header), IE_DNLNK_DATA_RPT, 13);
+	//pfcp_set_ie_header(&(dl->header), IE_DNLNK_DATA_RPT, 13);
+	pfcp_set_ie_header(&(dl->header), IE_DNLNK_DATA_RPT, 6);
 			/*((sizeof(pfcp_dnlnk_data_rpt_ie_t) - ((MAX_LIST_SIZE - dl->pdr_id_count) * sizeof(dl->pdr_id) - 5))));*/
 
 	set_pdr_id(dl->pdr_id);
-	set_dndl_data_srv_if_ie(&dl->dnlnk_data_svc_info);
+	//set_dndl_data_srv_if_ie(&dl->dnlnk_data_svc_info);
 
 }
 
@@ -409,7 +599,7 @@ fill_pfcp_sess_rep_req(pfcp_sess_rpt_req_t *pfcp_sess_rep_req,
 
 	set_sess_report_type(&pfcp_sess_rep_req->report_type);
 
-	/* VS: TODO Need to Implement handling of other IE's when Rules implementation is done  */
+	/* TODO Need to Implement handling of other IE's when Rules implementation is done  */
 	if (pfcp_sess_rep_req->report_type.dldr == 1)
 		set_dldr_ie(&pfcp_sess_rep_req->dnlnk_data_rpt);
 
@@ -440,6 +630,7 @@ process_pfcp_session_report_req(struct sockaddr_in *peer_addr,
 
 	return 0;
 }
+
 #endif /* DP_BUILD */
 
 void
@@ -486,7 +677,7 @@ int process_pfcp_heartbeat_req(struct sockaddr_in *peer_addr, uint32_t seq)
 
 #ifdef CP_BUILD
 	if ( pfcp_send(pfcp_fd, pfcp_msg, encoded, peer_addr) < 0 ) {
-				RTE_LOG_DP(DEBUG, CP, "Error sending: %i\n", errno);
+				clLog(sxlogger, eCLSeverityDebug, "Error sending: %i\n", errno);
 	}
 #endif
 

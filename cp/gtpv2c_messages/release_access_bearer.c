@@ -17,6 +17,7 @@
 #include "ue.h"
 #include "pfcp.h"
 #include "cp_stats.h"
+#include "sm_struct.h"
 #include "pfcp_util.h"
 #include "pfcp_session.h"
 #include "pfcp_messages.h"
@@ -27,10 +28,6 @@
 #define size sizeof(pfcp_sess_mod_req_t)
 
 extern int pfcp_fd;
-
-struct parse_release_access_bearer_request_t {
-	ue_context *context;
-};
 
 /**
  * parses gtpv2c message and populates parse_release_access_bearer_request_t
@@ -45,20 +42,32 @@ struct parse_release_access_bearer_request_t {
  *   specified cause error value
  *   \- < 0 for all other errors
  */
-static int
+int
 parse_release_access_bearer_request(gtpv2c_header *gtpv2c_rx,
-	struct parse_release_access_bearer_request_t
-	*release_access_bearer_request)
+		rel_acc_ber_req *rel_acc_ber_req_t)
 {
+	/* VS: Remove this part at integration of libgtpv2 lib*/
+	rel_acc_ber_req_t->header = *(gtpv2c_header_t *)gtpv2c_rx;
 
 	uint32_t teid = ntohl(gtpv2c_rx->teid_u.has_teid.teid);
 
 	int ret = rte_hash_lookup_data(ue_context_by_fteid_hash,
 	    (const void *) &teid,
-	    (void **) &release_access_bearer_request->context);
+	    (void **) &rel_acc_ber_req_t->context);
 
-	if (ret < 0 || !release_access_bearer_request->context)
+	if (ret < 0 || !rel_acc_ber_req_t->context)
 		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+
+	if(gtpv2c_rx != NULL) {
+		if(gtpv2c_rx->gtpc.teidFlg == 1) {
+			rel_acc_ber_req_t->seq =
+				gtpv2c_rx->teid_u.has_teid.seq;
+		} else {
+			rel_acc_ber_req_t->seq =
+				gtpv2c_rx->teid_u.no_teid.seq;
+		}
+	}
+
 	return 0;
 }
 
@@ -73,45 +82,34 @@ parse_release_access_bearer_request(gtpv2c_header *gtpv2c_rx,
  * @param context
  *   UE Context data structure pertaining to the bearer to be modified
  */
-static void
+/* TODO: Remove #if 0 before rollup */
+void
 set_release_access_bearer_response(gtpv2c_header *gtpv2c_tx,
-		uint32_t sequence, ue_context *context)
+		uint32_t sequence, uint32_t s11_mme_gtpc_teid)
 {
 	set_gtpv2c_teid_header(gtpv2c_tx, GTP_RELEASE_ACCESS_BEARERS_RSP,
-	    htonl(context->s11_mme_gtpc_teid), sequence);
+	    htonl(s11_mme_gtpc_teid), sequence);
 
 	set_cause_accepted_ie(gtpv2c_tx, IE_INSTANCE_ZERO);
 
 }
 
-
 int
-process_release_access_bearer_request(gtpv2c_header *gtpv2c_rx,
-		gtpv2c_header *gtpv2c_tx)
+process_release_access_bearer_request(rel_acc_ber_req *rel_acc_ber_req_t)
 {
 	int ret = 0;
 	uint8_t ebi_index = 0;
 	eps_bearer *bearer  = NULL;
 	pdn_connection *pdn =  NULL;
+	struct resp_info *resp = NULL;
 	pfcp_sess_mod_req_t pfcp_sess_mod_req = {0};
 
-	struct parse_release_access_bearer_request_t
-		release_access_bearer_request = { 0 };
-
-	ret = parse_release_access_bearer_request(gtpv2c_rx,
-			&release_access_bearer_request);
-	if (ret)
-		return ret;
-
-	set_release_access_bearer_response(gtpv2c_tx,
-			gtpv2c_rx->teid_u.has_teid.seq,
-			release_access_bearer_request.context);
 
 	for (int i = 0; i < MAX_BEARERS; ++i) {
-		if (release_access_bearer_request.context->eps_bearers[i] == NULL)
+		if ((rel_acc_ber_req_t->context)->eps_bearers[i] == NULL)
 			continue;
 
-		bearer = release_access_bearer_request.context->eps_bearers[ebi_index];
+		bearer = (rel_acc_ber_req_t->context)->eps_bearers[ebi_index];
 		if (!bearer) {
 			fprintf(stderr,
 					"Retrive Context for release access bearer is non-existent EBI - "
@@ -123,11 +121,35 @@ process_release_access_bearer_request(gtpv2c_header *gtpv2c_rx,
 
 		pdn = bearer->pdn;
 
-		release_access_bearer_request.context->seid =
-			SESS_ID(release_access_bearer_request.context->s11_sgw_gtpc_teid, bearer->eps_bearer_id);
+		rel_acc_ber_req_t->context->seid =
+			SESS_ID((rel_acc_ber_req_t->context)->s11_sgw_gtpc_teid, bearer->eps_bearer_id);
 
-		fill_pfcp_sess_mod_req(&pfcp_sess_mod_req, gtpv2c_rx, release_access_bearer_request.context,
-						bearer, pdn);
+		fill_pfcp_sess_mod_req(&pfcp_sess_mod_req, &rel_acc_ber_req_t->header,
+				rel_acc_ber_req_t->context, bearer, pdn);
+
+		pfcp_sess_mod_req.update_far_count = 1;
+		if(pfcp_sess_mod_req.update_far_count) {
+			pfcp_sess_mod_req.update_far[0].apply_action.forw = 0;
+			pfcp_sess_mod_req.update_far[0].apply_action.buff = PRESENT;
+			if (pfcp_sess_mod_req.update_far[0].apply_action.buff == PRESENT) {
+				pfcp_sess_mod_req.update_far[0].apply_action.nocp = PRESENT;
+				pfcp_sess_mod_req.update_far[0].upd_frwdng_parms.outer_hdr_creation.teid = 0;
+			}
+		}
+
+
+		if (get_sess_entry((rel_acc_ber_req_t->context)->seid, &resp) != 0) {
+			fprintf(stderr, "Failed to add response in entry in SM_HASH\n");
+			return -1;
+		}
+
+		/* Store s11 struture data into sm_hash for sending delete response back to s11 */
+		resp->s11_mme_gtpc_teid = (rel_acc_ber_req_t->context)->s11_mme_gtpc_teid;
+		resp->s11_mme_gtpc_ipv4 = (rel_acc_ber_req_t->context)->s11_mme_gtpc_ipv4;
+		resp->s11_sgw_gtpc_teid = (rel_acc_ber_req_t->context)->s11_sgw_gtpc_teid;
+		resp->sequence = rel_acc_ber_req_t->header.teid.has_teid.seq;
+		resp->msg_type = GTP_RELEASE_ACCESS_BEARERS_REQ;
+		resp->state = SESS_MOD_REQ_SNT_STATE;
 
 		uint8_t pfcp_msg[size]={0};
 		int encoded = encode_pfcp_sess_mod_req_t(&pfcp_sess_mod_req, pfcp_msg);
@@ -137,9 +159,16 @@ process_release_access_bearer_request(gtpv2c_header *gtpv2c_rx,
 
 		if ( pfcp_send(pfcp_fd, pfcp_msg, encoded, &upf_pfcp_sockaddr) < 0 )
 			printf("Error sending: %i\n",errno);
-		else
+		else {
 			cp_stats.session_modification_req_sent++;
-
+			get_current_time(cp_stats.session_modification_req_sent_time);
+		}
+		/* Update UE State */
+		ret = update_ue_state(resp->s11_sgw_gtpc_teid,
+				SESS_MOD_REQ_SNT_STATE);
+		if (ret < 0) {
+			fprintf(stderr, "%s:Failed to update UE State.\n", __func__);
+		}
 	}
 	return 0;
 }

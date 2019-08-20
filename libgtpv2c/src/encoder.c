@@ -1084,6 +1084,9 @@ encode_delete_session_request_t(delete_session_request_t *val,
 	if (val->indication_flags.header.len)
 		enc_len += encode_indication_ie_t(&(val->indication_flags), &buf);
 
+	if (val->uli.header.len)
+		enc_len += encode_uli_ie_t(&(val->uli), &buf);
+
 	*msg_len = enc_len;
 	memcpy(msg, buf.val, buf.len);
 
