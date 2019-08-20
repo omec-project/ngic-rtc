@@ -14,22 +14,6 @@
  * limitations under the License.
  */
 
-#include <time.h>
-#include <string.h>
-#include <stdio.h>
-#include <arpa/inet.h>
-#include <fcntl.h>
-#include <sys/types.h>
-#include <dirent.h>
-#include <sys/stat.h>
-#include <unistd.h>
-
-#include <rte_common.h>
-#include <rte_acl.h>
-#include <rte_hash.h>
-#include <rte_debug.h>
-#include <rte_errno.h>
-
 #include "cp.h"
 
 #define CSV_EXTENSION ".csv"
@@ -62,7 +46,7 @@ retrive_stats_entry(void)
 		export_stats_report(*stats);
 	}
 
-	printf("\nStatstics export in file completed.\n");
+	fprintf(stderr, "\nStatstics export in file completed.\n");
 	rte_hash_free(stats_hash);
 
 }
@@ -130,7 +114,7 @@ stats_init(void)
 	snprintf(filename, PATH_MAX, "%sCP_Sync_Stats_%s"
 			CSV_EXTENSION, DEFAULT_STATS_PATH, timestamp);
 
-	printf("\nLogging Sync Statistics Records to %s\n", filename);
+	fprintf(stderr, "\nLogging Sync Statistics Records to %s\n", filename);
 
 	stats_file = fopen(filename, "w");
 	if (!stats_file)

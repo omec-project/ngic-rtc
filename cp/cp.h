@@ -76,6 +76,11 @@ typedef long long int _timer_t;
 
 #define MAX_UPF 10
 
+#define DNSCACHE_CONCURRENT 2
+#define DNSCACHE_PERCENTAGE 70
+#define DNSCACHE_INTERVAL 4000
+#define DNS_PORT 53
+
 /**
  * @file
  *
@@ -153,9 +158,9 @@ extern int s5s8_pgwc_fd;
 extern int pfcp_sgwc_fd ;
 extern struct cp_params cp_params;
 
-#if defined(ZMQ_COMM) || defined(SDN_ODL_BUILD)
+#if defined (SYNC_STATS) || defined (SDN_ODL_BUILD)
 extern uint64_t op_id;
-#endif /* ZMQ_COMM */
+#endif /* SDN_ODL_BUILD */
 /**
  * @brief creates and sends downlink data notification according to session
  * identifier
@@ -182,41 +187,7 @@ initialize_tables_on_dp(void);
 void
 control_plane(void);
 
-#ifdef ZMQ_COMM
-/**
- * @brief Adds the current op_id to the hash table used to account for NB
- * Messages
- */
-void
-add_resp_op_id_hash(void);
-
-/**
- * @brief Deletes the op_id from the hash table used to account for NB
- * Messages
- * @param nb_op_id
- * op_id received in process_resp_msg message to indicate message
- * was received and processed by the DPN
- */
-void
-del_resp_op_id(uint64_t resp_op_id);
-
-#endif  /* ZMQ_COMM */
-
 #ifdef CP_BUILD
-#ifdef ZMQ_COMM
-/**
- * @brief callback to handle downlink data notification messages from the
- * data plane
- * @param session id
- * session id received by control plane from the data plane
- * @return
- * 0 inicates success, error otherwise
- */
-int
-cb_ddn(uint64_t sess_id);
-
-#endif  /* ZMQ_COMM */
-
 /**
  * @brief To Downlink data notification ack of user.
  * @param dp_id
@@ -313,75 +284,63 @@ close_stats(void);
 #define MAX_NUM_PGWU  5
 #define MAX_NUM_SAEGWU 5
 
-#define MAX_NUM_APN   8
+#define MAX_NUM_APN   16
 
-#define MAX_NUM_NAMESERVER 5
+#define MAX_NUM_NAMESERVER 8
 
 #define SGWU_PFCP_PORT   8805
 #define PGWU_PFCP_PORT   8805
 #define SAEGWU_PFCP_PORT   8805
 
+typedef struct dns_cache_params_t {
+	uint32_t concurrent;
+	uint32_t sec;
+	uint8_t percent;
+} dns_cache_params_t;
 
-typedef struct pfcp_config_t
-{
-	uint8_t cp_type; /*SGWC=01; PGWC=02; SAEGWC=03*/
+typedef struct dns_config_t {
+	uint8_t freq_sec;
+	char filename[PATH_MAX];
+	uint8_t nameserver_cnt;
+	char nameserver_ip[MAX_NUM_NAMESERVER][INET_ADDRSTRLEN];
+} dns_config_t;
 
-	//MME
-	uint32_t num_mme;
-	struct in_addr mme_s11_ip[MAX_NUM_MME];
-	uint16_t mme_s11_port[MAX_NUM_MME];
+typedef struct pfcp_config_t {
+	/* CP Configuration : SGWC=01; PGWC=02; SAEGWC=03 */
+	uint8_t cp_type;
 
-	//SGWC SAEGWC
-	uint32_t num_sgwc;
-	struct in_addr sgwc_s11_ip[MAX_NUM_SGWC];
-	uint16_t sgwc_s11_port[MAX_NUM_SGWC];
+	/* MME Params. */
+	uint16_t s11_mme_port;
+	struct in_addr s11_mme_ip;
 
-	struct in_addr sgwc_s5s8_ip[MAX_NUM_SGWC];
-	uint16_t sgwc_s5s8_port[MAX_NUM_SGWC];
+	/* Control-Plane IPs and Ports Params. */
+	uint16_t s11_port;
+	uint16_t s5s8_port;
+	uint16_t pfcp_port;
+	struct in_addr s11_ip;
+	struct in_addr s5s8_ip;
+	struct in_addr pfcp_ip;
 
-	struct in_addr sgwc_pfcp_ip[MAX_NUM_SGWC];
-	uint16_t sgwc_pfcp_port[MAX_NUM_SGWC];
+	/* User-Plane IPs and Ports Params. */
+	uint16_t upf_pfcp_port;
+	struct in_addr upf_pfcp_ip;
 
-	//PGWC
-	uint32_t num_pgwc;
-	struct in_addr pgwc_s5s8_ip[MAX_NUM_PGWC];
-	uint16_t pgwc_s5s8_port[MAX_NUM_PGWC];
-
-	struct in_addr pgwc_pfcp_ip[MAX_NUM_PGWC];
-	uint16_t pgwc_pfcp_port[MAX_NUM_PGWC];
-
-	//SAEGWU
-	uint32_t num_spgwu;
-	struct in_addr spgwu_pfcp_ip[MAX_NUM_SAEGWU];
-	uint16_t spgwu_pfcp_port[MAX_NUM_SAEGWU];
-
-	//SGWU
-	uint32_t num_sgwu;
-	struct in_addr sgwu_pfcp_ip[MAX_NUM_SGWU];
-	uint16_t sgwu_pfcp_port[MAX_NUM_SGWU];
-
-	//PGWU
-	uint32_t num_pgwu;
-	struct in_addr pgwu_pfcp_ip[MAX_NUM_PGWU];
-	uint16_t pgwu_pfcp_port[MAX_NUM_PGWU];
-
-	//RESTORATION PARAMETERS
+	/* RESTORATION PARAMETERS */
 	uint8_t transmit_cnt;
 	int transmit_timer;
 	int periodic_timer;
 
-	//APN
+	/* APN */
 	uint32_t num_apn;
-	//apn apn_list[MAX_NUM_APN];
+	/* apn apn_list[MAX_NUM_APN]; */
 
-	//NAMESERVER
-	uint32_t num_nameserver;
-	char nameserver_ip[MAX_NUM_NAMESERVER][INET_ADDRSTRLEN];
+	dns_cache_params_t dns_cache;
+	dns_config_t ops_dns;
+	dns_config_t app_dns;
 
-       //IP_POOL_CONFIG
-       struct in_addr ip_pool_ip;
-       struct in_addr ip_pool_mask;
-
+	/* IP_POOL_CONFIG Params */
+	struct in_addr ip_pool_ip;
+	struct in_addr ip_pool_mask;
 
 } pfcp_config_t;
 
@@ -389,17 +348,21 @@ typedef struct pfcp_config_t
 void
 init_pfcp(void);
 
+/**
+ * @brief
+ * Initializes Control Plane data structures, packet filters, and calls for the
+ * Data Plane to create required tables
+ */
 void
-pfcp_init_cp(void);
+init_cp(void);
 
 void
-pfcp_init_s11(void);
+init_dp_rule_tables(void);
 
+#ifdef SYNC_STATS
 void
-pfcp_init_s5s8_pgwc(void);
-
-void
-pfcp_init_s5s8_sgwc(void);
+init_stats_hash(void);
+#endif /* SYNC_STATS */
 
 void received_create_session_request(void);
 

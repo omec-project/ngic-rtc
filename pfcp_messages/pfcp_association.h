@@ -24,25 +24,36 @@
 #endif
 
 void
-fill_pfcp_association_update_resp(pfcp_association_update_response_t *pfcp_asso_update_resp);
-void
-fill_pfcp_association_setup_req(pfcp_association_setup_request_t *pfcp_ass_setup_req);
-void
-fill_pfcp_association_update_req(pfcp_association_update_request_t *pfcp_ass_update_req);
-void
-fill_pfcp_association_setup_resp(pfcp_association_setup_response_t *pfcp_ass_setup_resp, uint8_t cause);
-void
-fill_pfcp_association_release_req(pfcp_association_release_request_t *pfcp_ass_rel_req);
-void
-fill_pfcp_association_release_resp(pfcp_association_release_response_t *pfcp_ass_rel_resp);
-void
-fill_pfcp_node_report_req(pfcp_node_report_request_t *pfcp_node_rep_req);
-void
-fill_pfcp_node_report_resp(pfcp_node_report_response_t *pfcp_node_rep_resp);
-void
-fill_pfcp_heartbeat_resp(pfcp_heartbeat_response_t *pfcp_heartbeat_resp);
-void
-fill_pfcp_heartbeat_req(pfcp_heartbeat_request_t *pfcp_heartbeat_req, uint32_t seq);
+fill_pfcp_association_update_resp(pfcp_assn_upd_rsp_t *pfcp_asso_update_resp);
 
+void
+fill_pfcp_association_setup_req(pfcp_assn_setup_req_t *pfcp_ass_setup_req);
+
+void
+fill_pfcp_association_update_req(pfcp_assn_upd_req_t *pfcp_ass_update_req);
+
+void
+fill_pfcp_association_setup_resp(pfcp_assn_setup_rsp_t *pfcp_ass_setup_resp, uint8_t cause);
+
+void
+fill_pfcp_association_release_req(pfcp_assn_rel_req_t *pfcp_ass_rel_req);
+
+void
+fill_pfcp_association_release_resp(pfcp_assn_rel_rsp_t *pfcp_ass_rel_resp);
+
+void
+fill_pfcp_node_report_req(pfcp_node_rpt_req_t *pfcp_node_rep_req);
+
+void
+fill_pfcp_node_report_resp(pfcp_node_rpt_rsp_t *pfcp_node_rep_resp);
+
+void
+fill_pfcp_heartbeat_resp(pfcp_hrtbeat_rsp_t *pfcp_heartbeat_resp);
+
+void
+fill_pfcp_heartbeat_req(pfcp_hrtbeat_req_t *pfcp_heartbeat_req, uint32_t seq);
+
+void
+fill_pfcp_sess_report_resp(pfcp_sess_rpt_rsp_t *pfcp_sess_rep_resp, uint32_t seq);
 
 #endif /* PFCP_ASSOC_H */

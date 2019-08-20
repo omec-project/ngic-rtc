@@ -38,8 +38,13 @@
 #include "vepc_cp_dp_api.h"
 #include "cp.h"
 
+#include "pfcp_util.h"
+
 /******************** IPC msgs **********************/
 #ifdef CP_BUILD
+extern int pfcp_fd;
+extern struct sockaddr_in upf_pfcp_sockaddr;
+
 /**
  * @brief Pack the message which has to be sent to DataPlane.
  * @param mtype
@@ -129,8 +134,8 @@ static int
 send_dp_msg(struct dp_id dp_id, struct msgbuf *msg_payload)
 {
 	RTE_SET_USED(dp_id);
-	if (active_comm_msg->send((void *)msg_payload, sizeof(struct msgbuf)) < 0) {
-		perror("msgsnd");
+	if (pfcp_send(pfcp_fd, (void *)msg_payload, sizeof(struct msgbuf), &upf_pfcp_sockaddr) < 0 ){
+		printf("Error sending: %i\n",errno);
 		return -1;
 	}
 	return 0;
@@ -310,11 +315,6 @@ session_create(struct dp_id dp_id,
 					struct session_info entry)
 {
 #ifdef CP_BUILD
-#ifdef ZMQ_COMM
-	entry.op_id = op_id;
-	add_resp_op_id_hash();
-#endif  /* ZMQ_COMM */
-
 	struct msgbuf msg_payload;
 	build_dp_msg(MSG_SESS_CRE, dp_id, (void *)&entry, &msg_payload);
 
@@ -377,10 +377,6 @@ session_modify(struct dp_id dp_id,
 					struct session_info entry)
 {
 #ifdef CP_BUILD
-#ifdef ZMQ_COMM
-	entry.op_id = op_id;
-	add_resp_op_id_hash();
-#endif  /* ZMQ_COMM */
 
 	struct msgbuf msg_payload;
 	build_dp_msg(MSG_SESS_MOD, dp_id, (void *)&entry, &msg_payload);
@@ -433,14 +429,12 @@ send_ddn_ack(struct dp_id dp_id,
 #endif		/* CP_BUILD */
 
 #ifdef DP_BUILD
-#ifdef DP_DDN
 int
 send_ddn_ack(struct dp_id dp_id,
 				struct downlink_data_notification_ack_t entry)
 {
 	return dp_ddn_ack(dp_id, &entry);
 }
-#endif		/* DP_DDN */
 #endif		/* DP_BUILD */
 
 int
@@ -448,11 +442,6 @@ session_delete(struct dp_id dp_id,
 					struct session_info entry)
 {
 #ifdef CP_BUILD
-#ifdef ZMQ_COMM
-	entry.op_id = op_id;
-	add_resp_op_id_hash();
-#endif  /* ZMQ_COMM */
-
 	struct msgbuf msg_payload;
 	build_dp_msg(MSG_SESS_DEL, dp_id, (void *)&entry, &msg_payload);
 

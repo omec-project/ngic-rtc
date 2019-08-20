@@ -24,28 +24,15 @@
  * a message buffer containing a GTP header.
  */
 
+#include "ue.h"
 #include "gtpv2c.h"
 #include "gtpv2c_ie.h"
-#include "ue.h"
 
 #define MAX_GTPV2C_LENGTH (MAX_GTPV2C_UDP_LEN-sizeof(struct gtpc_t))
 
 #ifdef USE_REST
-extern uint8_t rstCnt;
+uint8_t rstCnt;
 #endif /* USE_REST */
-
-/**
- * Structure for handling synchronus Create/Modify/delete session response
- * table.
- */
-struct response_info {
-	struct gtpv2c_header gtpv2c_tx_t;
-	struct ue_context_t context_t;
-	struct pdn_connection_t pdn_t;
-	struct eps_bearer_t bearer_t;
-	uint32_t s5s8_sgw_gtpc_del_teid_ptr;
-	uint8_t msg_type;
-}__attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
 
 /**
  * Copies existing information element to gtp message

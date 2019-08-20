@@ -14,11 +14,6 @@
  * limitations under the License.
  */
 
-#include <stdio.h>
-#include <string.h>
-#include <inttypes.h>
-
-#include <rte_debug.h>
 
 #include "ie.h"
 #include "gtpv2c_set_ie.h"
@@ -358,8 +353,11 @@ uint16_t
 set_bearer_qos_ie(gtpv2c_header *header, enum ie_instance instance,
 		eps_bearer *bearer)
 {
+	/* subtract 12 from size as MBR, GBR for uplink and downlink are
+	 * uint64_t but encoded in 5 bytes.
+	 */
 	gtpv2c_ie *ie = set_next_ie(header, IE_BEARER_QOS, instance,
-	    sizeof(bearer_qos_ie));
+	    sizeof(bearer_qos_ie) - 12);
 	bearer_qos_ie *bqos = IE_TYPE_PTR_FROM_GTPV2C_IE(bearer_qos_ie, ie);
 
 	bqos->arp.preemption_vulnerability =
@@ -370,7 +368,10 @@ set_bearer_qos_ie(gtpv2c_header *header, enum ie_instance instance,
 			bearer->qos.arp.preemption_capability;
 	bqos->arp.spare2 = 0;
 
-	memcpy(&bqos->qos, &bearer->qos.qos, sizeof(bqos->qos));
+	/* subtract 12 from size as MBR, GBR for uplink and downlink are
+	 * uint64_t but encoded in 5 bytes.
+	 */
+	memcpy(&bqos->qos, &bearer->qos.qos, sizeof(bqos->qos) - 12);
 
 	return get_ie_return(ie);
 }
@@ -513,7 +514,7 @@ set_recovery_ie(gtpv2c_header *header, enum ie_instance instance)
 	 * Instead we set this value as 0
 	 */
 #ifdef USE_REST
-	/* VS: Support for restart counter */
+	/* Support for restart counter */
 	return set_uint8_ie(header, IE_RECOVERY, instance, rstCnt);
 #else
 	return set_uint8_ie(header, IE_RECOVERY, instance, 0);

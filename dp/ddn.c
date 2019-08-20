@@ -14,54 +14,36 @@
  * limitations under the License.
  */
 
-#include "main.h"
 #include <rte_errno.h>
-
-#ifdef DP_DDN
+#include "main.h"
 
 /**
- * @brief Data-plane send ddn request to control-plane to activate the bearer. 
+ * @brief Data-plane send ddn request to control-plane to activate the bearer.
  *
- * @param session info 
+ * @param session info
  *
  * @return
  *  - 0 SUCESSS
  *  - -1 on failure
  */
 static int
-send_ddn_request(struct dp_session_info *si) 
+send_ddn_request(struct dp_session_info *si)
 {
 
 #ifdef SDN_ODL_BUILD
-				zmq_ddn(si->sess_id, si->client_id);
+		zmq_ddn(si->sess_id, si->client_id);
 #else
-#ifdef ZMQ_COMM
-				struct resp_msgbuf msg_payload = {
-					.mtype = MSG_DDN,
-					.op_id = 0,
-					.sess_id = si->sess_id,
-					.dp_id.id = DPN_ID };
+		/* VS: Process and initiate the DDN Request */
+		if (process_pfcp_session_report_req(&dest_addr_t, si) < 0 ) {
+			perror("msgsnd");
+			return -1;
+		}
+		RTE_LOG_DP(DEBUG, DP, "VS: DDN Request send to control-plane for sess:%lu\n",
+				si->sess_id);
 
-				if (comm_node[COMM_ZMQ].send(&msg_payload,
-						sizeof(struct resp_msgbuf)) < 0) {
-						perror("msgsnd");
-						return -1;
-				}
-
-#else
-				struct msgbuf msg_payload = {
-					.mtype = MSG_DDN,
-					.dp_id.id = DPN_ID,
-					.msg_union.sess_entry.sess_id = si->sess_id };
-
-				if (comm_node[COMM_SOCKET].send(&msg_payload,
-						sizeof(struct msgbuf)) < 0) {
-						perror("msgsnd");
-						return -1;
-				}
-#endif  /* ZMQ_COMM */
 #endif  /* SDN_ODL_BUILD */
-			return 0;
+		++epc_app.dl_params[SGI_PORT_ID].ddn;
+		return 0;
 
 }
 
@@ -70,7 +52,7 @@ send_ddn_request(struct dp_session_info *si)
  * Allocate downlink packet buffer ring from a set of
  * rings from the ring container.
  *
- * @param void 
+ * @param void
  *
  * @return
  *  - rte_ring Allocated ring
@@ -151,14 +133,14 @@ enqueue_dl_pkts(struct dp_sdf_per_bearer_info **sess_info,
 			si->dl_ring = ring;
 			if (si->sess_state == IDLE) {
 				rc = send_ddn_request(si);
-				
+
 				if(rc < 0) {
 					RTE_LOG_DP(ERR, DP, "failed to send ddn req  "
 							"for this session:%lu\n",
 							si->sess_id);
 
 				}
-					
+
 				si->sess_state = IN_PROGRESS;
 			}
 		}
@@ -178,19 +160,16 @@ enqueue_dl_pkts(struct dp_sdf_per_bearer_info **sess_info,
 
 /* Process ddn ack received by data-plane from control-plane */
 int
-dp_ddn_ack(struct dp_id dp_id, 
+dp_ddn_ack(struct dp_id dp_id,
 		struct downlink_data_notification_ack_t *dl_ddn)
 {
 	/* TBD: Downlink data notification Ack handling need to be implement. */
 
-	/** Currently ack attribute dl_buff_cnt and dl_buff_duration is not handled. 
-	 *  default behaviour is ddn will be issued for the 1st packet for which the 
+	/** Currently ack attribute dl_buff_cnt and dl_buff_duration is not handled.
+	 *  default behaviour is ddn will be issued for the 1st packet for which the
 	 *  session is IDEL and it will issued after ring is full. */
 
 	RTE_LOG_DP(INFO, DP, "DDN ACK processed..\n");
 
 	return 0;
 }
-
-#endif	/* DP_DDN */
-

@@ -100,7 +100,6 @@ const struct rte_eth_conf port_conf_default = {
 
 struct rte_ring *shared_ring[NUM_SPGW_PORTS] = {NULL, NULL};
 
-#ifdef DP_DDN
 struct rte_ring *dl_ring_container = NULL;
 
 uint32_t num_dl_rings = 0;
@@ -109,7 +108,11 @@ struct rte_ring *notify_ring = NULL;
 
 struct rte_mempool *notify_msg_pool = NULL;
 
-#endif /* DP_DDN */
+struct sockaddr_in dest_addr_t = {0};
+
+struct in_addr cp_comm_ip;
+
+uint16_t cp_comm_port;
 
 /**
  * Function to Initialize a given port using global settings and with the rx
@@ -302,7 +305,6 @@ void dp_port_init(void)
 	printf("DP Port initialization completed.\n");
 }
 
-#ifdef DP_DDN
 void
 dp_ddn_init(void)
 {
@@ -336,5 +338,9 @@ dp_ddn_init(void)
 		rte_exit(EXIT_FAILURE, "Cannot create notify_msg_pool !!!\n");
 
 
+	/* VS: TODO Temp. filled CP comm IP and PORT*/
+	dest_addr_t.sin_family = AF_INET;
+	dest_addr_t.sin_addr.s_addr = cp_comm_ip.s_addr;
+	dest_addr_t.sin_port = htons(cp_comm_port);
+
 }
-#endif /* DP_DDN */

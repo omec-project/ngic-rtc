@@ -1,1022 +1,1526 @@
-/*
- * Copyright (c) 2019 Sprint
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+/*Copyright (c) 2019 Sprint
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*      http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
 
-#ifndef PFCP_IES_H
-#define PFCP_IES_H
+
+#ifndef __PFCP_IES_H
+#define __PFCP_IES_H
+
 
 #include <stdint.h>
 #include <arpa/inet.h>
 #include <string.h>
 #include <unistd.h>
 
-
 #define CHAR_SIZE 8
-
-//IE TYPE
-
-//#define IE_PFCP_IMSI                               (01)
-#define IE_CREATED_PDR                             (8)
-#define IE_CREATE_PDR                             (1)
-#define IE_CAUSE_ID                                (19)
-#define IE_OFFENDING_IE                            (40)
-#define IE_UP_FUNCTION_FEATURES                    (43)
-#define IE_DOWNLINK_DATA_NOTIFICATION_DELAY        (46)
-#define IE_DL_BUFFERING_SUGGESTED_PACKET_COUNT     (48)
-#define IE_LOAD_CONTROL_INFORMATION                (51)
-#define IE_SEQUENCE_NUMBER                         (52)
-#define IE_METRIC                                  (53)
-#define IE_OVERLOAD_CONTROL_INFORMATION            (54)
-#define IE_TIMER                                   (55)
-#define IE_F_SEID                                  (57)
-#define IE_NODE_ID                                 (60)
-#define IE_PFCP_FQ_CSID                            (65)
-#define IE_PFCP_IMEI                               (75)
-#define IE_PFCP_MSISDN                             (76)
-#define IE_CREATE_BAR                              (85)
-#define IE_UPDATE_BAR                              (86)
-#define IE_REMOVE_BAR                              (87)
-#define IE_BAR_ID                                  (88)
-#define IE_CP_FUNCTION_FEATURES                    (89)
-#define IE_RECOVERY_TIME_STAMP                     (96)
-#define IE_OCI_FLAGS                               (110)
-#define IE_PFCP_PDN_TYPE                           (113)
-#define IE_FAILED_RULE_ID                          (114)
-#define IE_USER_PLANE_INACTIVITY_TIMER             (117)
-#define IE_USER_ID                                 (141)
-#define IE_PFCP_TRACE_INFORMATION                  (152)
-#define IE_TRAFFIC_ENDPOINT_ID                     (131)
-#define IE_REMOVE_TRAFFIC_ENDPOINT                 (130)
-#define IE_CREATE_TRAFFIC_ENDPOINT                 (127)
-#define IE_UPDATE_TRAFFIC_ENDPOINT                 (129)
-#define IE_FRAMED_ROUTING                          (154)
-#define IE_RQI                                     (123)
-#define IE_QFI                                     (124)
-#define IE_QER_ID                                  (109)
-#define IE_DL_FLOW_LEVEL_MARKING                   (97)
-#define IE_UE_IP_ADDRESS                           (93)
-#define IE_PFCPSMREQ_FLAGS                         (49)
-#define IE_MBR                                     (26)
-#define IE_GBR                                     (27)
-#define IE_UPDATE_QER                              (14)
-#define IE_QER_CORRELATION_ID                      (28)
-#define IE_F_TEID                                  (21)
-#define IE_NETWORK_INSTANCE                        (22)
-#define IE_PDR_ID                                  (56)
-#define IE_USAGE_REPORT_TRIGGER                    (63)
-#define IE_ETHERNET_PDU_SESSION_INFORMATION        (142)
-#define IE_GATE_STATUS                             (25)
-#define IE_PACKET_RATE                             (94)
-#define IE_QUERY_URR_REFERENCE                     (125)
-#define IE_ADDITIONAL_USAGE_REPORTS_INFORMATION    (126)
-#define IE_PFCP_ASSOCIATION_RELEASE_REQUEST        (111)
-#define IE_GRACEFUL_RELEASE_PERIOD                 (112)
-#define IE_NODE_REPORT_TYPE                        (101)
-#define IE_USER_PLANE_PATH_FAILURE_REPORT          (102)
-#define IE_REMOTE_GTP_U_PEER                       (103)
-#define IE_DOWNLINK_DATA_REPORT			   (83)
-#define IE_SESSION_REPORT_USAGE_REPORT             (80)
-#define IE_ERROR_INDICATION_REPORT                 (99)
-#define IE_REPORT_TYPE				   (39)
-#define IE_PFCPSRRSP_FLAGS		           (50)
-#define IE_SESSION_REPORT_RESPONSE_UPDATE_BAR      (12)
-#define IE_PRECEDENCE	(29)
-#define IE_PDI   (2)
-#define IE_OUTER_HEADER_REMOVAL	(95)
-#define IE_FAR_ID	(108)
-#define IE_URR_ID	(81)
-#define IE_ACTIVATE_PREDEFINED_RULES	(106)
-#define IE_SOURCE_INTERFACE	(20)
-#define IE_APPLICATION_ID	(24)
-#define IE_ETHERNET_PDU_SESSION_INFORMATION	(142)
-#define IE_ETHERNET_FILTER_PROPERTIES	(139)
-#define IE_UP_IP_RESOURCE_INFORMATION (116)
-//IE LENGTH
-#define NODE_ID_VALUE_LEN                           (256)
-#define IP_ADDRESS_OF_TRACE_COLLECTION_ENTITY_LEN   (8)
-#define LIST_OF_INTERFACES_LEN                      (8)
-#define TRIGGERING_EVENTS_LEN                       (8)
-#define IMSI_LEN                                    (8)
-#define IMEI_LEN                                    (8)
-#define MSISDN_LEN                                  (8)
-#define NAI_LEN                                     (8)
-#define PDN_CONNECTION_SET_IDENTIFIER_LEN           (8)
-#define RULE_ID_VALUE_LEN                           (8)
-#define NETWORK_INSTANCE_LEN                        (8)
-#define FRAMED_ROUTING_LEN                          (8)
-#define MAC_ADDRESS_VALUE_1_LEN                     (8)
-#define APPLICATION_INSTANCE_IDENTIFIER_LEN         (8)
-#define FLOW_DESCRIPTION_LEN                        (8)
-#define APPLICATION_IDENTIFIER_LEN                  (8)
-
-#define MAC_ADDRESS_VALUE_1_LEN                     (8)
-#define APPLICATION_INSTANCE_IDENTIFIER_LEN         (8)
-#define FLOW_DESCRIPTION_LEN                        (8)
-#define PACKET_COUNT_VALUE_LEN                      (8)
-#define PREDEFINED_RULES_NAME_LEN          	    (8)
-//UP_FUNCTION_FEATURES
-#define UP_BUCP  0x01 /*0b0000000000000001 DL Data Buffering in CPF is supported by the UP function*/
-#define UP_DDND  0x02 /*0b0000000000000010 The buffering parameter 'DL Data Notification Delay'is supported by the UPF*/
-#define UP_DLBD  0x03 /*0b0000000000000100 The buffering parameter 'DL Buffering Duration' is supported by the UPF */
-#define UP_TRST  0x04 /*0b0000000000001000 Traffic Steering is supported by the UPF*/
-#define UP_FTUP  0x05 /*0b0000000000010000 F-TEID allocation/release in the UPF is supported by the UPF*/
-#define UP_PFDM  0x06 /*0b0000000000100000 The PFD Management procedure is supported by the UPF*/
-#define UP_HEEU  0x07 /*0b0000000001000000 Header Enrichment of UL traffic is supported by the UPF*/
-#define UP_TREU  0x08 /*0b0000000010000000 Traffic Redirection Enforcement in the UPF is supported by the UPF*/
-#define UP_EMPU  0x09 /*0b0000000100000000 Sending of End Marker packets supported by the UPF*/
-#define UP_PDIU  0x0A /*0b0000001000000000 Support of PDI optimised signalling in UPF*/
-#define UP_UDBC  0x0B /*0b0000010000000000 Support of UL/DL Buffering Control*/
-#define UP_QUOAC 0x0C /*0b0000100000000000 UPF supports being provisioned with the Quota Action to apply when reaching quotas*/
-#define UP_TRACE 0x0D /*0b0001000000000000 UPF supports trace*/
-#define UP_FRRT  0x0E /*0b0010000000000000 The UPFsupports Framed Routing*/
-
-//CP_FUNCTION_FEATURES
-#define CP_LOAD  0x01 /*0b00000001 Load Control is supported by the CPF*/
-#define CP_OVRL  0x02 /*0b00000010 Overload control is supported by the CPF*/
-
-//IE SIZE FOR CAUSE CHECK
-
-#define NODE_ID_IPV4_LEN		5
-#define NODE_ID_IPV6_LEN             	9
-#define RECOV_TIMESTAMP_LEN          	4
-#define CP_FUNC_FEATURES_LEN         	1
-#define CP_FSEID_LEN                 	13
-#define PGWC_FQCSID_LEN              	7
-#define SGWC_FQCSID_LEN  		7
-#define MME_FQCSID_LEN   		7
-#define EPDG_FQCSID_LEN  		7
-#define TWAN_FQCSID_LEN  		7
-#define REMOVE_TRAFFIC_ENDPOINT_LEN  	5
-#define CREATE_TRAFFIC_ENDPOINT_LEN  	57
-#define UPDATE_TRAFFIC_ENDPOINT_LEN  	52
-#define CREATE_BAR_LEN  		15
-#define UPDATE_QER_LEN  		79  
-#define UPDATE_BAR_LEN  		15
-#define PFCP_SEMREQ_FLAG_LEN  		1
-#define QUERY_URR_REFERENCE_LEN  	4
-#define USER_PLANE_INACTIV_TIMER_LEN 	4
-#define DELETE_SESSION_HEADER_LEN 	12
-
-enum cause_values {
-	CAUSE_VALUES_RESERVED =0,
-	CAUSE_VALUES_REQUESTACCEPTEDSUCCESS =1,
-	CAUSE_VALUES_REQUESTREJECTEDREASONNOTSPECIFIED = 64,
-	CAUSE_VALUES_SESSIONCONTEXTNOTFOUND =65,
-	CAUSE_VALUES_MANDATORYIEMISSING =66,
-	CAUSE_VALUES_CONDITIONALIEMISSING =67,
-	CAUSE_VALUES_INVALIDLENGTH =68,
-	CAUSE_VALUES_MANDATORYIEINCORRECT =69,
-	CAUSE_VALUES_INVALIDFORWARDINGPOLICY =70,
-	CAUSE_VALUES_INVALIDF_TEIDALLOCATIONOPTION =71,
-	CAUSE_VALUES_NOESTABLISHEDPFCPASSOCIATION =72,
-	CAUSE_VALUES_RULECREATIONMODIFICATIONFAILURE =73,
-	CAUSE_VALUES_PFCPENTITYINCONGESTION =74,
-	CAUSE_VALUES_NORESOURCESAVAILABLE =75,
-	CAUSE_VALUES_SERVICENOTSUPPORTED =76,
-	CAUSE_VALUES_SYSTEMFAILURE =77,
-};
-
-enum node_id_type {
-	NODE_ID_TYPE_IPV4ADDRESS =0,
-	NODE_ID_TYPE_IPV6ADDRESS =1,
-	NODE_ID_TYPE_FQDN =2,
-};
-
-enum fq_csid_node_id_type{
-	IPV4_GLOBAL_UNICAST =0,
-	IPV6_GLOBAL_UNICAST =1,
-	MCC_MNC =2,
-
-};
-
-enum pdn_type {
-	PFCP_PDN_TYPE_IPV4 =1,
-	PFCP_PDN_TYPE_IPV6 =2,
-	PFCP_PDN_TYPE_IPV4V6 =3,
-	PFCP_PDN_TYPE_NON_IP =4,
-	PFCP_PDN_TYPE_ETHERNET =5,
-};
+#define PFCP_IE_CAUSE (19)
+#define PFCP_IE_SRC_INTFC (20)
+#define PFCP_IE_FTEID (21)
+#define IPV6_ADDRESS_LEN 16
+#define PFCP_IE_NTWK_INST (22)
+#define PFCP_IE_SDF_FILTER (23)
+#define PFCP_IE_APPLICATION_ID (24)
+#define PFCP_IE_GATE_STATUS (25)
+#define PFCP_IE_MBR (26)
+#define PFCP_IE_GBR (27)
+#define PFCP_IE_QER_CORR_ID (28)
+#define PFCP_IE_PRECEDENCE (29)
+#define PFCP_IE_TRNSPT_LVL_MARKING (30)
+#define PFCP_IE_VOL_THRESH (31)
+#define PFCP_IE_TIME_THRESHOLD (32)
+#define PFCP_IE_MONITORING_TIME (33)
+#define PFCP_IE_SBSQNT_VOL_THRESH (34)
+#define PFCP_IE_SBSQNT_TIME_THRESH (35)
+#define PFCP_IE_INACT_DET_TIME (36)
+#define PFCP_IE_RPTNG_TRIGGERS (37)
+#define PFCP_IE_REDIR_INFO (38)
+#define PFCP_IE_REPORT_TYPE (39)
+#define PFCP_IE_OFFENDING_IE (40)
+#define PFCP_IE_FRWDNG_PLCY (41)
+#define PFCP_IE_DST_INTFC (42)
+#define PFCP_IE_UP_FUNC_FEAT (43)
+#define PFCP_IE_APPLY_ACTION (44)
+#define PFCP_IE_DNLNK_DATA_SVC_INFO (45)
+#define PFCP_IE_DNLNK_DATA_NOTIF_DELAY (46)
+#define PFCP_IE_DL_BUF_DUR (47)
+#define PFCP_IE_DL_BUF_SUGGSTD_PCKT_CNT (48)
+#define PFCP_IE_PFCPSMREQ_FLAGS (49)
+#define PFCP_IE_PFCPSRRSP_FLAGS (50)
+#define PFCP_IE_SEQUENCE_NUMBER (52)
+#define PFCP_IE_METRIC (53)
+#define PFCP_IE_TIMER (55)
+#define PFCP_IE_PDR_ID (56)
+#define PFCP_IE_FSEID (57)
+/* TODO: Revisit this for change in yang */
+#define IPV6_ADDRESS_LEN 16
+#define PFCP_IE_NODE_ID (60)
+#define NODE_ID_VALUE_LEN 8
+#define PFCP_IE_PFD_CONTENTS (61)
+#define PFCP_IE_MEAS_MTHD (62)
+#define PFCP_IE_USAGE_RPT_TRIG (63)
+#define PFCP_IE_MEAS_PERIOD (64)
+#define PFCP_IE_FQCSID (65)
+#define PDN_CONN_SET_IDENT_LEN 8
+#define PFCP_IE_VOL_MEAS (66)
+#define PFCP_IE_DUR_MEAS (67)
+#define PFCP_IE_TIME_OF_FRST_PCKT (69)
+#define PFCP_IE_TIME_OF_LST_PCKT (70)
+#define PFCP_IE_QUOTA_HLDNG_TIME (71)
+#define PFCP_IE_DRPD_DL_TRAFFIC_THRESH (72)
+#define PFCP_IE_VOLUME_QUOTA (73)
+#define PFCP_IE_TIME_QUOTA (74)
+#define PFCP_IE_START_TIME (75)
+#define PFCP_IE_END_TIME (76)
+#define PFCP_IE_URR_ID (81)
+#define PFCP_IE_LINKED_URR_ID (82)
+#define PFCP_IE_OUTER_HDR_CREATION (84)
+/* TODO: Revisit this for change in yang */
+#define IPV6_ADDRESS_LEN 16
+#define PFCP_IE_BAR_ID (88)
+#define PFCP_IE_CP_FUNC_FEAT (89)
+#define PFCP_IE_USAGE_INFO (90)
+#define PFCP_IE_APP_INST_ID (91)
+#define PFCP_IE_FLOW_INFO (92)
+#define PFCP_IE_UE_IP_ADDRESS (93)
+/* TODO: Revisit this for change in yang */
+#define IPV6_ADDRESS_LEN 16
+#define PFCP_IE_PACKET_RATE (94)
+#define PFCP_IE_OUTER_HDR_REMOVAL (95)
+#define PFCP_IE_RCVRY_TIME_STMP (96)
+#define PFCP_IE_DL_FLOW_LVL_MARKING (97)
+#define PFCP_IE_HDR_ENRCHMT (98)
+#define PFCP_IE_MEAS_INFO (100)
+#define PFCP_IE_NODE_RPT_TYPE (101)
+#define PFCP_IE_RMT_GTPU_PEER (103)
+/* TODO: Revisit this for change in yang */
+#define IPV6_ADDRESS_LEN 16
+#define PFCP_IE_URSEQN (104)
+#define PFCP_IE_ACTVT_PREDEF_RULES (106)
+#define PFCP_IE_DEACT_PREDEF_RULES (107)
+#define PFCP_IE_FAR_ID (108)
+#define PFCP_IE_QER_ID (109)
+#define PFCP_IE_OCI_FLAGS (110)
+#define PFCP_IE_UP_ASSN_REL_REQ (111)
+#define PFCP_IE_GRACEFUL_REL_PERIOD (112)
+#define PFCP_IE_PDN_TYPE (113)
+#define PFCP_IE_FAILED_RULE_ID (114)
+#define PFCP_IE_TIME_QUOTA_MECH (115)
+#define PFCP_IE_USER_PLANE_IP_RSRC_INFO (116)
+/* TODO: Revisit this for change in yang */
+#define IPV6_ADDRESS_LEN 16
+#define PFCP_IE_USER_PLANE_INACT_TIMER (117)
+#define PFCP_IE_MULTIPLIER (119)
+#define PFCP_IE_AGG_URR_ID (120)
+#define PFCP_IE_SBSQNT_VOL_QUOTA (121)
+#define PFCP_IE_SBSQNT_TIME_QUOTA (122)
+#define PFCP_IE_RQI (123)
+#define PFCP_IE_QFI (124)
+#define PFCP_IE_QUERY_URR_REF (125)
+#define PFCP_IE_ADD_USAGE_RPTS_INFO (126)
+#define PFCP_IE_TRAFFIC_ENDPT_ID (131)
+#define PFCP_IE_MAC_ADDRESS (133)
+#define PFCP_IE_CTAG (134)
+#define PFCP_IE_STAG (135)
+#define PFCP_IE_ETHERTYPE (136)
+#define PFCP_IE_PROXYING (137)
+#define PFCP_IE_ETH_FLTR_ID (138)
+#define PFCP_IE_ETH_FLTR_PROPS (139)
+#define PFCP_IE_SUGGSTD_BUF_PCKTS_CNT (140)
+#define PFCP_IE_USER_ID (141)
+#define PFCP_IE_ETH_PDU_SESS_INFO (142)
+#define PFCP_IE_MAC_ADDRS_DETCTD (144)
+#define MAC_ADDR_VAL_LEN 8
+#define PFCP_IE_MAC_ADDRS_RMVD (145)
+#define MAC_ADDR_VAL_LEN 8
+#define PFCP_IE_ETH_INACT_TIMER (146)
+#define PFCP_IE_SBSQNT_EVNT_QUOTA (150)
+#define PFCP_IE_SBSQNT_EVNT_THRESH (151)
+#define PFCP_IE_TRC_INFO (152)
+#define PFCP_IE_FRAMED_ROUTE (153)
+#define PFCP_IE_FRAMED_ROUTING (154)
+#define PFCP_IE_FRMD_IPV6_RTE (155)
+#define PFCP_IE_EVENT_QUOTA (148)
+#define PFCP_IE_EVENT_THRESHOLD (149)
+#define PFCP_IE_EVNT_TIME_STMP (156)
+#define PFCP_IE_AVGNG_WND (157)
+#define PFCP_IE_PAGING_PLCY_INDCTR (158)
 
 #pragma pack(1)
 
 typedef struct pfcp_ie_header_t {
-	uint16_t type;
-	uint16_t len;
+    uint16_t type;
+    uint16_t len;
 } pfcp_ie_header_t;
 
-
 typedef struct pfcp_header_t {
-	uint8_t s :1;
-	uint8_t mp :1;
-	uint8_t spare :3;
-	uint8_t version :3;
-	uint8_t message_type;
-	uint16_t message_len;
+    uint8_t s :1;
+    uint8_t mp :1;
+    uint8_t spare :3;
+    uint8_t version :3;
+    uint8_t message_type;
+    uint16_t message_len;
 
-	union seid_seqno {
-		struct has_seid {
-			uint64_t seid;
-			uint32_t seq_no :24;
-			uint8_t message_prio :4;
-			uint8_t spare :4;
-		} has_seid;
-		struct no_seid {
-			uint32_t seq_no :24;
-			uint8_t spare :8;
-		} no_seid;
-	} seid_seqno;
-
+    union seid_seqno {
+        struct has_seid {
+            uint64_t seid;
+            uint32_t seq_no :24;
+            uint8_t message_prio :4;
+            uint8_t spare :4;
+        } has_seid;
+        struct no_seid {
+            uint32_t seq_no :24;
+            uint8_t spare :8;
+        } no_seid;
+    } seid_seqno;
 } pfcp_header_t;
 
-typedef struct node_id_ie_t {
-	pfcp_ie_header_t header;
-	uint8_t spare :4;
-	uint8_t node_id_type :4;
-	uint8_t node_id_value_len;
-	uint8_t node_id_value[NODE_ID_VALUE_LEN];
-} node_id_ie_t;
-
-typedef struct recovery_time_stamp_ie_t {
-	pfcp_ie_header_t header;
-	uint32_t recovery_time_stamp_value;
-} recovery_time_stamp_ie_t;
-
-typedef struct up_function_features_ie_t {
-	pfcp_ie_header_t header;
-	uint16_t supported_features;
-} up_function_features_ie_t;
-
-typedef struct cp_function_features_ie_t {
-	pfcp_ie_header_t header;
-	uint8_t supported_features;
-} cp_function_features_ie_t;
-
+/**
+Description -Cause
+*/
 typedef struct pfcp_cause_ie_t {
-	pfcp_ie_header_t header;
-	uint8_t cause_value;
+  pfcp_ie_header_t header;
+  uint8_t cause_value;
 } pfcp_cause_ie_t;
 
+/**
+Description -Source Interface
+*/
+typedef struct pfcp_src_intfc_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t src_intfc_spare :4;
+  uint8_t interface_value :4;
+} pfcp_src_intfc_ie_t;
 
-typedef struct f_seid_ie_t {
+/**
+Description -F-TEID
+*/
+typedef struct pfcp_fteid_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t fteid_spare :4;
+  uint8_t chid :1;
+  uint8_t ch :1;
+  uint8_t v6 :1;
+  uint8_t v4 :1;
+  uint32_t teid;
+  uint32_t ipv4_address;
+  uint8_t ipv6_address[IPV6_ADDRESS_LEN];
+  uint8_t choose_id;
+} pfcp_fteid_ie_t;
+
+/**
+Description -Network Instance
+*/
+typedef struct pfcp_ntwk_inst_ie_t {
+  pfcp_ie_header_t header;
+/* TODO: Revisit this for change in yang */
+  uint8_t ntwk_inst[8];
+} pfcp_ntwk_inst_ie_t;
+
+/**
+Description -SDF Filter
+*/
+typedef struct pfcp_sdf_filter_ie_t {
 	pfcp_ie_header_t header;
-	uint8_t spare :1;
-	uint8_t spare2 :1;
-	uint8_t spare3 :1;
-	uint8_t spare4 :1;
-	uint8_t spare5 :1;
-	uint8_t spare6 :1;
+	uint8_t sdf_fltr_spare :3;
+	uint8_t bid :1;
+	uint8_t fl :1;
+	uint8_t spi :1;
+	uint8_t ttc :1;
+	uint8_t fd :1;
+	uint8_t sdf_fltr_spare2;
+	uint16_t len_of_flow_desc;
+	uint8_t flow_desc;
+	uint16_t tos_traffic_cls;
+	uint32_t secur_parm_idx;
+	uint32_t flow_label :24;
+	uint32_t sdf_filter_id;
+} pfcp_sdf_filter_ie_t;
+
+/**
+Description -Application ID
+*/
+typedef struct pfcp_application_id_ie_t {
+  pfcp_ie_header_t header;
+  /* TODO: Revisit this for change in yang */
+  uint8_t app_ident[8];
+} pfcp_application_id_ie_t;
+
+/**
+Description -Gate Status
+*/
+typedef struct pfcp_gate_status_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t gate_status_spare :4;
+  uint8_t ul_gate :2;
+  uint8_t dl_gate :2;
+} pfcp_gate_status_ie_t;
+
+/**
+Description -MBR
+*/
+typedef struct pfcp_mbr_ie_t {
+  pfcp_ie_header_t header;
+  uint64_t ul_mbr :40;
+  uint64_t dl_mbr :40;
+} pfcp_mbr_ie_t;
+
+/**
+Description -GBR
+*/
+typedef struct pfcp_gbr_ie_t {
+  pfcp_ie_header_t header;
+  uint64_t ul_gbr :40;
+  uint64_t dl_gbr :40;
+} pfcp_gbr_ie_t;
+
+/**
+Description -QER Correlation ID
+*/
+typedef struct pfcp_qer_corr_id_ie_t {
+  pfcp_ie_header_t header;
+  uint32_t qer_corr_id_val;
+} pfcp_qer_corr_id_ie_t;
+
+/**
+Description -Precedence
+*/
+typedef struct pfcp_precedence_ie_t {
+	pfcp_ie_header_t header;
+	uint32_t prcdnc_val;
+} pfcp_precedence_ie_t;
+
+/**
+Description -Transport Level Marking
+*/
+typedef struct pfcp_trnspt_lvl_marking_ie_t {
+  pfcp_ie_header_t header;
+  uint16_t tostraffic_cls;
+} pfcp_trnspt_lvl_marking_ie_t;
+
+/**
+Description -Volume Threshold
+*/
+typedef struct pfcp_vol_thresh_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t vol_thresh_spare :5;
+  uint8_t dlvol :1;
+  uint8_t ulvol :1;
+  uint8_t tovol :1;
+  uint64_t total_volume;
+  uint64_t uplink_volume;
+  uint64_t downlink_volume;
+} pfcp_vol_thresh_ie_t;
+
+/**
+Description -Time Threshold
+*/
+typedef struct pfcp_time_threshold_ie_t {
+  pfcp_ie_header_t header;
+  uint32_t time_threshold;
+} pfcp_time_threshold_ie_t;
+
+/**
+Description -Monitoring Time
+*/
+typedef struct pfcp_monitoring_time_ie_t {
+  pfcp_ie_header_t header;
+  uint32_t monitoring_time;
+} pfcp_monitoring_time_ie_t;
+
+/**
+Description -Subsequent Volume Threshold
+*/
+typedef struct pfcp_sbsqnt_vol_thresh_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t sbsqnt_vol_thresh_spare :5;
+  uint8_t dlvol :1;
+  uint8_t ulvol :1;
+  uint8_t tovol :1;
+  uint64_t total_volume;
+  uint64_t uplink_volume;
+  uint64_t downlink_volume;
+} pfcp_sbsqnt_vol_thresh_ie_t;
+
+/**
+Description -Subsequent Time Threshold
+*/
+typedef struct pfcp_sbsqnt_time_thresh_ie_t {
+  pfcp_ie_header_t header;
+  uint32_t sbsqnt_time_thresh;
+} pfcp_sbsqnt_time_thresh_ie_t;
+
+/**
+Description -Inactivity Detection Time
+*/
+typedef struct pfcp_inact_det_time_ie_t {
+  pfcp_ie_header_t header;
+  uint32_t inact_det_time;
+} pfcp_inact_det_time_ie_t;
+
+/**
+Description -Reporting Triggers
+*/
+typedef struct pfcp_rptng_triggers_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t liusa :1;
+  uint8_t droth :1;
+  uint8_t stopt :1;
+  uint8_t start :1;
+  uint8_t quhti :1;
+  uint8_t timth :1;
+  uint8_t volth :1;
+  uint8_t perio :1;
+  uint8_t rptng_triggers_spare :1;
+  uint8_t rptng_triggers_spare2 :1;
+  uint8_t evequ :1;
+  uint8_t eveth :1;
+  uint8_t macar :1;
+  uint8_t envcl :1;
+  uint8_t timqu :1;
+  uint8_t volqu :1;
+} pfcp_rptng_triggers_ie_t;
+
+/**
+Description -Redirect Information
+*/
+typedef struct pfcp_redir_info_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t redir_info_spare :4;
+  uint8_t redir_addr_type :4;
+  uint8_t redir_svr_addr_len;
+  uint8_t redir_svr_addr;
+} pfcp_redir_info_ie_t;
+
+/**
+Description -Report Type
+*/
+typedef struct pfcp_report_type_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t rpt_type_spare :4;
+  uint8_t upir :1;
+  uint8_t erir :1;
+  uint8_t usar :1;
+  uint8_t dldr :1;
+} pfcp_report_type_ie_t;
+
+/**
+Description -Offending IE
+*/
+typedef struct pfcp_offending_ie_ie_t {
+  pfcp_ie_header_t header;
+  uint16_t type_of_the_offending_ie;
+} pfcp_offending_ie_ie_t;
+
+/**
+Description -Forwarding Policy
+*/
+typedef struct pfcp_frwdng_plcy_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t frwdng_plcy_ident_len;
+  uint8_t frwdng_plcy_ident;
+} pfcp_frwdng_plcy_ie_t;
+
+/**
+Description -Destination Interface
+*/
+typedef struct pfcp_dst_intfc_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t dst_intfc_spare :4;
+  uint8_t interface_value :4;
+} pfcp_dst_intfc_ie_t;
+
+/**
+Description -UP Function Features
+*/
+typedef struct pfcp_up_func_feat_ie_t {
+  pfcp_ie_header_t header;
+  uint16_t sup_feat;
+} pfcp_up_func_feat_ie_t;
+
+/**
+Description -Apply Action
+*/
+typedef struct pfcp_apply_action_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t apply_act_spare :1;
+  uint8_t apply_act_spare2 :1;
+  uint8_t apply_act_spare3 :1;
+  uint8_t dupl :1;
+  uint8_t nocp :1;
+  uint8_t buff :1;
+  uint8_t forw :1;
+  uint8_t drop :1;
+} pfcp_apply_action_ie_t;
+
+/**
+Description -Downlink Data Service Information
+*/
+typedef struct pfcp_dnlnk_data_svc_info_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t dnlnk_data_svc_info_spare :6;
+  uint8_t qfii :1;
+  uint8_t ppi :1;
+  uint8_t dnlnk_data_svc_info_spare2 :2;
+  uint8_t paging_plcy_indctn_val :6;
+  uint8_t dnlnk_data_svc_info_spare3 :2;
+  uint8_t qfi :6;
+} pfcp_dnlnk_data_svc_info_ie_t;
+
+/**
+Description -Downlink Data Notification Delay
+*/
+typedef struct pfcp_dnlnk_data_notif_delay_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t delay_val_in_integer_multiples_of_50_millisecs_or_zero;
+} pfcp_dnlnk_data_notif_delay_ie_t;
+
+/**
+Description -DL Buffering Duration
+*/
+typedef struct pfcp_dl_buf_dur_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t timer_unit :3;
+  uint8_t timer_value :5;
+} pfcp_dl_buf_dur_ie_t;
+
+/**
+Description -DL Buffering Suggested Packet Count
+*/
+typedef struct pfcp_dl_buf_suggstd_pckt_cnt_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t pckt_cnt_val;
+} pfcp_dl_buf_suggstd_pckt_cnt_ie_t;
+
+/**
+Description -PFCPSMReq-Flags
+*/
+typedef struct pfcp_pfcpsmreq_flags_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t pfcpsmreq_flgs_spare :1;
+  uint8_t pfcpsmreq_flgs_spare2 :1;
+  uint8_t pfcpsmreq_flgs_spare3 :1;
+  uint8_t pfcpsmreq_flgs_spare4 :1;
+  uint8_t pfcpsmreq_flgs_spare5 :1;
+  uint8_t qaurr :1;
+  uint8_t sndem :1;
+  uint8_t drobu :1;
+} pfcp_pfcpsmreq_flags_ie_t;
+
+/**
+Description -PFCPSRRsp-Flags
+*/
+typedef struct pfcp_pfcpsrrsp_flags_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t pfcpsrrsp_flgs_spare :1;
+  uint8_t pfcpsrrsp_flgs_spare2 :1;
+  uint8_t pfcpsrrsp_flgs_spare3 :1;
+  uint8_t pfcpsrrsp_flgs_spare4 :1;
+  uint8_t pfcpsrrsp_flgs_spare5 :1;
+  uint8_t pfcpsrrsp_flgs_spare6 :1;
+  uint8_t pfcpsrrsp_flgs_spare7 :1;
+  uint8_t drobu :1;
+} pfcp_pfcpsrrsp_flags_ie_t;
+
+/**
+Description -Sequence Number
+*/
+typedef struct pfcp_sequence_number_ie_t {
+  pfcp_ie_header_t header;
+  uint32_t sequence_number;
+} pfcp_sequence_number_ie_t;
+
+/**
+Description -Metric
+*/
+typedef struct pfcp_metric_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t metric;
+} pfcp_metric_ie_t;
+
+/**
+Description -Timer
+*/
+typedef struct pfcp_timer_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t timer_unit :3;
+  uint8_t timer_value :5;
+} pfcp_timer_ie_t;
+
+/**
+Description -PDR ID
+*/
+typedef struct pfcp_pdr_id_ie_t {
+	pfcp_ie_header_t header;
+	uint16_t rule_id;
+} pfcp_pdr_id_ie_t;
+
+/**
+	Description -F-SEID
+*/
+typedef struct pfcp_fseid_ie_t {
+	pfcp_ie_header_t header;
+	uint8_t fseid_spare :1;
+	uint8_t fseid_spare2 :1;
+	uint8_t fseid_spare3 :1;
+	uint8_t fseid_spare4 :1;
+	uint8_t fseid_spare5 :1;
+	uint8_t fseid_spare6 :1;
 	uint8_t v4 :1;
 	uint8_t v6 :1;
 	uint64_t seid;
 	uint32_t ipv4_address;
-	uint64_t ipv6_address;
-} f_seid_ie_t;
+	uint8_t ipv6_address[IPV6_ADDRESS_LEN];
+} pfcp_fseid_ie_t;
 
+/**
+Description -Node ID
+*/
+typedef struct pfcp_node_id_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t node_id_spare :4;
+  uint8_t node_id_type :4;
+  uint8_t node_id_value[NODE_ID_VALUE_LEN];
+} pfcp_node_id_ie_t;
 
-typedef struct bar_id_ie_t {
+/**
+Description -PFD contents
+*/
+typedef struct pfcp_pfd_contents_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t pfd_contents_spare :4;
+  uint8_t pfd_contents_cp :1;
+  uint8_t dn :1;
+  uint8_t url :1;
+  uint8_t fd :1;
+  uint8_t pfd_contents_spare2;
+  uint16_t len_of_flow_desc;
+  uint8_t flow_desc;
+  uint16_t length_of_url;
+  uint8_t url2;
+  uint16_t len_of_domain_nm;
+  uint8_t domain_name;
+  uint16_t len_of_cstm_pfd_cntnt;
+  uint8_t cstm_pfd_cntnt;
+} pfcp_pfd_contents_ie_t;
+
+/**
+Description -Measurement Method
+*/
+typedef struct pfcp_meas_mthd_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t meas_mthd_spare :1;
+  uint8_t meas_mthd_spare2 :1;
+  uint8_t meas_mthd_spare3 :1;
+  uint8_t meas_mthd_spare4 :1;
+  uint8_t meas_mthd_spare5 :1;
+  uint8_t event :1;
+  uint8_t volum :1;
+  uint8_t durat :1;
+} pfcp_meas_mthd_ie_t;
+
+/**
+	Description -Usage Report Trigger
+*/
+typedef struct pfcp_usage_rpt_trig_ie_t {
+	pfcp_ie_header_t header;
+	uint8_t immer :1;
+	uint8_t droth :1;
+	uint8_t stopt :1;
+	uint8_t start :1;
+	uint8_t quhti :1;
+	uint8_t timth :1;
+	uint8_t volth :1;
+	uint8_t perio :1;
+	uint8_t eveth :1;
+	uint8_t macar :1;
+	uint8_t envcl :1;
+	uint8_t monit :1;
+	uint8_t termr :1;
+	uint8_t liusa :1;
+	uint8_t timqu :1;
+	uint8_t volqu :1;
+	uint8_t usage_rpt_trig_spare :7;
+	uint8_t evequ :1;
+} pfcp_usage_rpt_trig_ie_t;
+
+/**
+Description -Measurement Period
+*/
+typedef struct pfcp_meas_period_ie_t {
+  pfcp_ie_header_t header;
+  uint32_t meas_period;
+} pfcp_meas_period_ie_t;
+
+/**
+Description -FQ-CSID
+*/
+typedef struct pfcp_fqcsid_ie_t {
+	pfcp_ie_header_t header;
+	uint8_t fqcsid_node_id_type :4;
+	uint8_t number_of_csids :4;
+	//TODO: Revisit this for change in yang
+	uint8_t node_address[IPV6_ADDRESS_LEN];
+	uint16_t pdn_conn_set_ident[PDN_CONN_SET_IDENT_LEN];
+} pfcp_fqcsid_ie_t;
+
+/**
+Description -Volume Measurement
+*/
+typedef struct pfcp_vol_meas_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t vol_meas_spare :5;
+  uint8_t dlvol :1;
+  uint8_t ulvol :1;
+  uint8_t tovol :1;
+  uint64_t total_volume;
+  uint64_t uplink_volume;
+  uint64_t downlink_volume;
+} pfcp_vol_meas_ie_t;
+
+/**
+Description -Duration Measurement
+*/
+typedef struct pfcp_dur_meas_ie_t {
+  pfcp_ie_header_t header;
+  uint32_t duration_value;
+} pfcp_dur_meas_ie_t;
+
+/**
+Description -Time of First Packet
+*/
+typedef struct pfcp_time_of_frst_pckt_ie_t {
+  pfcp_ie_header_t header;
+  uint32_t time_of_frst_pckt;
+} pfcp_time_of_frst_pckt_ie_t;
+
+/**
+Description -Time of Last Packet
+*/
+typedef struct pfcp_time_of_lst_pckt_ie_t {
+  pfcp_ie_header_t header;
+  uint32_t time_of_lst_pckt;
+} pfcp_time_of_lst_pckt_ie_t;
+
+/**
+Description -Quota Holding Time
+*/
+typedef struct pfcp_quota_hldng_time_ie_t {
+  pfcp_ie_header_t header;
+  uint32_t quota_hldng_time_val;
+} pfcp_quota_hldng_time_ie_t;
+
+/**
+Description -Dropped DL Traffic Threshold
+*/
+typedef struct pfcp_drpd_dl_traffic_thresh_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t drpd_dl_traffic_thresh_spare :6;
+  uint8_t dlby :1;
+  uint8_t dlpa :1;
+  uint64_t dnlnk_pckts;
+  uint64_t nbr_of_bytes_of_dnlnk_data;
+} pfcp_drpd_dl_traffic_thresh_ie_t;
+
+/**
+Description -Volume Quota
+*/
+typedef struct pfcp_volume_quota_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t vol_quota_spare :5;
+  uint8_t dlvol :1;
+  uint8_t ulvol :1;
+  uint8_t tovol :1;
+  uint64_t total_volume;
+  uint64_t uplink_volume;
+  uint64_t downlink_volume;
+} pfcp_volume_quota_ie_t;
+
+/**
+Description -Time Quota
+*/
+typedef struct pfcp_time_quota_ie_t {
+  pfcp_ie_header_t header;
+  uint32_t time_quota_val;
+} pfcp_time_quota_ie_t;
+
+/**
+Description -Start Time
+*/
+typedef struct pfcp_start_time_ie_t {
+  pfcp_ie_header_t header;
+  uint32_t start_time;
+} pfcp_start_time_ie_t;
+
+/**
+Description -End Time
+*/
+typedef struct pfcp_end_time_ie_t {
+  pfcp_ie_header_t header;
+  uint32_t end_time;
+} pfcp_end_time_ie_t;
+
+/**
+Description -URR ID
+*/
+typedef struct pfcp_urr_id_ie_t {
+  pfcp_ie_header_t header;
+  uint32_t urr_id_value;
+} pfcp_urr_id_ie_t;
+
+/**
+Description -Linked URR ID
+*/
+typedef struct pfcp_linked_urr_id_ie_t {
+  pfcp_ie_header_t header;
+  uint32_t lnkd_urr_id_val;
+} pfcp_linked_urr_id_ie_t;
+
+/**
+Description -Outer Header Creation
+*/
+typedef struct pfcp_outer_hdr_creation_ie_t {
+  pfcp_ie_header_t header;
+  uint16_t outer_hdr_creation_desc;
+  uint32_t teid;
+  uint32_t ipv4_address;
+  uint8_t ipv6_address[IPV6_ADDRESS_LEN];
+  uint16_t port_number;
+  uint32_t ctag :24;
+  uint32_t stag :24;
+} pfcp_outer_hdr_creation_ie_t;
+
+/**
+Description -BAR ID
+*/
+typedef struct pfcp_bar_id_ie_t {
 	pfcp_ie_header_t header;
 	uint8_t bar_id_value;
-} bar_id_ie_t;
+} pfcp_bar_id_ie_t;
 
+/**
+Description -CP Function Features
+*/
+typedef struct pfcp_cp_func_feat_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t sup_feat;
+} pfcp_cp_func_feat_ie_t;
 
-typedef struct downlink_data_notification_delay_ie_t {
+/**
+Description -Usage Information
+*/
+typedef struct pfcp_usage_info_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t usage_info_spare :5;
+  uint8_t ube :1;
+  uint8_t uae :1;
+  uint8_t aft :1;
+  uint8_t bef :1;
+} pfcp_usage_info_ie_t;
+
+/**
+Description -Application Instance ID
+*/
+typedef struct pfcp_app_inst_id_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t app_inst_ident;
+} pfcp_app_inst_id_ie_t;
+
+/**
+Description -Flow Information
+*/
+typedef struct pfcp_flow_info_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t flow_info_spare :5;
+  uint8_t flow_direction :3;
+  uint16_t len_of_flow_desc;
+  uint8_t flow_desc;
+} pfcp_flow_info_ie_t;
+
+/**
+Description -UE IP Address
+*/
+typedef struct pfcp_ue_ip_address_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t ue_ip_addr_spare :4;
+  uint8_t ipv6d :1;
+  uint8_t sd :1;
+  uint8_t v4 :1;
+  uint8_t v6 :1;
+  uint32_t ipv4_address;
+  uint8_t ipv6_address[IPV6_ADDRESS_LEN];
+  uint8_t ipv6_pfx_dlgtn_bits;
+} pfcp_ue_ip_address_ie_t;
+
+/**
+Description -Packet Rate
+*/
+typedef struct pfcp_packet_rate_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t pckt_rate_spare :6;
+  uint8_t dlpr :1;
+  uint8_t ulpr :1;
+  uint8_t pckt_rate_spare2 :5;
+  uint8_t uplnk_time_unit :3;
+  uint16_t max_uplnk_pckt_rate;
+  uint8_t pckt_rate_spare3 :5;
+  uint8_t dnlnk_time_unit :3;
+  uint16_t max_dnlnk_pckt_rate;
+} pfcp_packet_rate_ie_t;
+
+/**
+Description -Outer Header Removal
+*/
+typedef struct pfcp_outer_hdr_removal_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t outer_hdr_removal_desc;
+/* TODO: Revisit this for change in yang */
+//  uint8_t gtpu_ext_hdr_del;
+} pfcp_outer_hdr_removal_ie_t;
+
+/**
+Description -Recovery Time Stamp
+*/
+typedef struct pfcp_rcvry_time_stmp_ie_t {
+  pfcp_ie_header_t header;
+  uint32_t rcvry_time_stmp_val;
+} pfcp_rcvry_time_stmp_ie_t;
+
+/**
+Description -DL Flow Level Marking
+*/
+typedef struct pfcp_dl_flow_lvl_marking_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t dl_flow_lvl_marking_spare :6;
+  uint8_t sci :1;
+  uint8_t ttc :1;
+  uint16_t tostraffic_cls;
+  uint16_t svc_cls_indctr;
+} pfcp_dl_flow_lvl_marking_ie_t;
+
+/**
+Description -Header Enrichment
+*/
+typedef struct pfcp_hdr_enrchmt_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t hdr_enrchmt_spare :3;
+  uint8_t header_type :5;
+  uint8_t len_of_hdr_fld_nm;
+  uint8_t hdr_fld_nm;
+  uint8_t len_of_hdr_fld_val;
+  uint8_t hdr_fld_val;
+} pfcp_hdr_enrchmt_ie_t;
+
+/**
+Description -Measurement Information
+*/
+typedef struct pfcp_meas_info_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t meas_info_spare :4;
+  uint8_t istm :1;
+  uint8_t radi :1;
+  uint8_t inam :1;
+  uint8_t mbqe :1;
+} pfcp_meas_info_ie_t;
+
+/**
+Description -Node Report Type
+*/
+typedef struct pfcp_node_rpt_type_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t node_rpt_type_spare :7;
+  uint8_t upfr :1;
+} pfcp_node_rpt_type_ie_t;
+
+/**
+Description -Remote GTP-U Peer
+*/
+typedef struct pfcp_rmt_gtpu_peer_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t rmt_gtpu_peer_spare :6;
+  uint8_t v4 :1;
+  uint8_t v6 :1;
+  uint32_t ipv4_address;
+  uint8_t ipv6_address[IPV6_ADDRESS_LEN];
+} pfcp_rmt_gtpu_peer_ie_t;
+
+/**
+Description -UR-SEQN
+*/
+typedef struct pfcp_urseqn_ie_t {
+  pfcp_ie_header_t header;
+  uint32_t urseqn;
+} pfcp_urseqn_ie_t;
+
+/**
+Description -Activate Predefined Rules
+*/
+typedef struct pfcp_actvt_predef_rules_ie_t {
+  pfcp_ie_header_t header;
+  /* TODO: Revisit this for change in yang */
+  uint8_t predef_rules_nm[8];
+} pfcp_actvt_predef_rules_ie_t;
+
+/**
+Description -Deactivate Predefined Rules
+*/
+typedef struct pfcp_deact_predef_rules_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t predef_rules_nm;
+} pfcp_deact_predef_rules_ie_t;
+
+/**
+Description -FAR ID
+*/
+typedef struct pfcp_far_id_ie_t {
+  pfcp_ie_header_t header;
+  uint32_t far_id_value;
+} pfcp_far_id_ie_t;
+
+/**
+Description -QER ID
+*/
+typedef struct pfcp_qer_id_ie_t {
+  pfcp_ie_header_t header;
+  uint32_t qer_id_value;
+} pfcp_qer_id_ie_t;
+
+/**
+Description -OCI Flags
+*/
+typedef struct pfcp_oci_flags_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t oci_flags_spare :7;
+  uint8_t aoci :1;
+} pfcp_oci_flags_ie_t;
+
+/**
+Description -UP Association Release Request
+*/
+typedef struct pfcp_up_assn_rel_req_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t up_assn_rel_req_spare :7;
+  uint8_t sarr :1;
+} pfcp_up_assn_rel_req_ie_t;
+
+/**
+Description -Graceful Release Period
+*/
+typedef struct pfcp_graceful_rel_period_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t timer_unit :3;
+  uint8_t timer_value :5;
+} pfcp_graceful_rel_period_ie_t;
+
+/**
+Description -PDN Type
+*/
+typedef struct pfcp_pdn_type_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t pdn_type_spare :5;
+  uint8_t pdn_type :3;
+} pfcp_pdn_type_ie_t;
+
+/**
+Description -Failed Rule ID
+*/
+typedef struct pfcp_failed_rule_id_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t failed_rule_id_spare :3;
+  uint8_t rule_id_type :5;
+/* TODO: Revisit this for change in yang */
+  uint8_t rule_id_value[8];
+} pfcp_failed_rule_id_ie_t;
+
+/**
+Description -Time Quota Mechanism
+*/
+typedef struct pfcp_time_quota_mech_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t time_quota_mech_spare :6;
+  uint8_t btit :2;
+  uint32_t base_time_int;
+} pfcp_time_quota_mech_ie_t;
+
+/**
+Description -User Plane IP Resource Information
+*/
+typedef struct pfcp_user_plane_ip_rsrc_info_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t user_plane_ip_rsrc_info_spare :1;
+  uint8_t assosi :1;
+  uint8_t assoni :1;
+  uint8_t teidri :3;
+  uint8_t v6 :1;
+  uint8_t v4 :1;
+  uint8_t teid_range;
+  uint32_t ipv4_address;
+  uint8_t ipv6_address[IPV6_ADDRESS_LEN];
+  uint8_t ntwk_inst;
+  uint8_t user_plane_ip_rsrc_info_spare2 :4;
+  uint8_t src_intfc :4;
+} pfcp_user_plane_ip_rsrc_info_ie_t;
+
+/**
+Description -User Plane Inactivity Timer
+*/
+typedef struct pfcp_user_plane_inact_timer_ie_t {
 	pfcp_ie_header_t header;
-	uint8_t delay_value_in_integer_multiples_of_50_millisecs_or_zero;
-} downlink_data_notification_delay_ie_t;
+	uint32_t user_plane_inact_timer;
+} pfcp_user_plane_inact_timer_ie_t;
 
-typedef struct suggested_buffering_packets_count_ie_t {
+/**
+Description -Multiplier
+*/
+typedef struct pfcp_multiplier_ie_t {
+  pfcp_ie_header_t header;
+  uint64_t value_digits;
+  uint32_t exponent;
+} pfcp_multiplier_ie_t;
+
+/**
+Description -Aggregated URR ID
+*/
+typedef struct pfcp_agg_urr_id_ie_t {
+  pfcp_ie_header_t header;
+  uint32_t urr_id_value;
+} pfcp_agg_urr_id_ie_t;
+
+/**
+Description -Subsequent Volume Quota
+*/
+typedef struct pfcp_sbsqnt_vol_quota_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t sbsqnt_vol_quota_spare :5;
+  uint8_t dlvol :1;
+  uint8_t ulvol :1;
+  uint8_t tovol :1;
+  uint64_t total_volume;
+  uint64_t uplink_volume;
+  uint64_t downlink_volume;
+} pfcp_sbsqnt_vol_quota_ie_t;
+
+/**
+Description -Subsequent Time Quota
+*/
+typedef struct pfcp_sbsqnt_time_quota_ie_t {
+  pfcp_ie_header_t header;
+  uint32_t time_quota_val;
+} pfcp_sbsqnt_time_quota_ie_t;
+
+/**
+Description -RQI
+*/
+typedef struct pfcp_rqi_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t rqi_spare :7;
+  uint8_t rqi :1;
+} pfcp_rqi_ie_t;
+
+/**
+Description -QFI
+*/
+typedef struct pfcp_qfi_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t qfi_spare :2;
+  uint8_t qfi_value :6;
+} pfcp_qfi_ie_t;
+
+/**
+Description -Query URR Reference
+*/
+typedef struct pfcp_query_urr_ref_ie_t {
 	pfcp_ie_header_t header;
-	uint8_t packet_count_value;
-} suggested_buffering_packets_count_ie_t;
+	uint32_t query_urr_ref_val;
+} pfcp_query_urr_ref_ie_t;
 
-typedef struct create_bar_ie_t {
+/**
+Description -Additional Usage Reports Information
+*/
+typedef struct pfcp_add_usage_rpts_info_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t auri :1;
+  uint8_t nbr_of_add_usage_rpts_val :7;
+  uint8_t nbr_of_add_usage_rpts_value2;
+} pfcp_add_usage_rpts_info_ie_t;
+
+/**
+Description -Traffic Endpoint ID
+*/
+typedef struct pfcp_traffic_endpt_id_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t traffic_endpt_id_val;
+} pfcp_traffic_endpt_id_ie_t;
+
+/**
+Description -MAC address
+*/
+typedef struct pfcp_mac_address_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t spare :5;
+  uint8_t udes :1;
+  uint8_t usou :1;
+  uint8_t dest :1;
+  uint8_t sour :1;
+  uint64_t src_mac_addr_val :48;
+  uint64_t dst_mac_addr_val :48;
+  uint64_t upr_src_mac_addr_val :48;
+  uint64_t upr_dst_mac_addr_val :48;
+} pfcp_mac_address_ie_t;
+
+/**
+Description -C-TAG
+*/
+typedef struct pfcp_ctag_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t ctag_spare :5;
+  uint8_t ctag_vid :1;
+  uint8_t ctag_dei :1;
+  uint8_t ctag_pcp :1;
+  uint8_t cvid_value :4;
+  uint8_t ctag_dei_flag :1;
+  uint8_t ctag_pcp_value :3;
+  uint8_t cvid_value2;
+} pfcp_ctag_ie_t;
+
+/**
+Description -S-TAG
+*/
+typedef struct pfcp_stag_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t stag_spare :5;
+  uint8_t stag_vid :1;
+  uint8_t stag_dei :1;
+  uint8_t stag_pcp :1;
+  uint8_t svid_value :4;
+  uint8_t stag_dei_flag :1;
+  uint8_t stag_pcp_value :3;
+  uint8_t svid_value2;
+} pfcp_stag_ie_t;
+
+/**
+Description -Ethertype
+*/
+typedef struct pfcp_ethertype_ie_t {
+  pfcp_ie_header_t header;
+  uint16_t ethertype;
+} pfcp_ethertype_ie_t;
+
+/**
+Description -Proxying
+*/
+typedef struct pfcp_proxying_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t proxying_spare :6;
+  uint8_t ins :1;
+  uint8_t arp :1;
+} pfcp_proxying_ie_t;
+
+/**
+Description -Ethernet Filter ID
+*/
+typedef struct pfcp_eth_fltr_id_ie_t {
+  pfcp_ie_header_t header;
+  uint32_t eth_fltr_id_val;
+} pfcp_eth_fltr_id_ie_t;
+
+/**
+Description -Ethernet Filter Properties
+*/
+typedef struct pfcp_eth_fltr_props_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t eth_fltr_props_spare :7;
+  uint8_t bide :1;
+} pfcp_eth_fltr_props_ie_t;
+
+/**
+Description -Suggested Buffering Packets Count
+*/
+typedef struct pfcp_suggstd_buf_pckts_cnt_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t pckt_cnt_val;
+} pfcp_suggstd_buf_pckts_cnt_ie_t;
+
+/**
+Description -User ID
+*/
+typedef struct pfcp_user_id_ie_t {
 	pfcp_ie_header_t header;
-	bar_id_ie_t bar_id;
-	downlink_data_notification_delay_ie_t downlink_data_notification_delay;
-	suggested_buffering_packets_count_ie_t suggested_buffering_packets_count;
-} create_bar_ie_t;
-
-typedef union node_adddress_ie_t {
-	uint32_t ipv4_address;
-	uint64_t ipv6_address;
-	uint32_t mcc:20;
-	uint32_t mnc:12;
-
-}node_address_ie_t;
-
-typedef struct fq_csid_ie_t {
-	pfcp_ie_header_t header;
-	uint8_t fq_csid_node_id_type :4;
-	uint8_t number_of_csids :4;
-	node_address_ie_t  node_address;
-	uint16_t pdn_connection_set_identifier[PDN_CONNECTION_SET_IDENTIFIER_LEN];
-} fq_csid_ie_t;
-
-
-typedef struct user_plane_inactivity_timer_ie_t {
-	pfcp_ie_header_t header;
-	uint32_t user_plane_inactivity_timer;
-} user_plane_inactivity_timer_ie_t;
-
-#if 0
-typedef struct pfcp_imsi_ie_t{
-	pfcp_ie_header_t header;
-	uint8_t value[IMSI_LEN];
-}pfcp_imsi_ie_t;
-
-typedef struct pfcp_imei_ie_t{
-	pfcp_ie_header_t header;
-	uint8_t value[IMEI_LEN];
-}pfcp_imei_ie_t;
-
-typedef struct pfcp_msisdn_ie_t{
-	pfcp_ie_header_t header;
-	uint8_t value[MSISDN_LEN];
-}pfcp_msisdn_ie_t;
-
-#endif
-typedef struct user_id_ie_t {
-	pfcp_ie_header_t header;
-	uint8_t spare :4;
+	uint8_t user_id_spare :4;
 	uint8_t naif :1;
 	uint8_t msisdnf :1;
 	uint8_t imeif :1;
 	uint8_t imsif :1;
 	uint8_t length_of_imsi;
-	uint8_t imsi[IMSI_LEN];
-	//pfcp_imsi_ie_t imsi;
+	/* TODO: Revisit this for change in yang */
+	uint8_t imsi[8];
 	uint8_t length_of_imei;
-	uint8_t imei[IMEI_LEN];
-	//pfcp_imei_ie_t imei;
-	uint8_t length_of_msisdn;
-	uint8_t msisdn[MSISDN_LEN];
-	//pfcp_msisdn_ie_t msisdn;
+	/* TODO: Revisit this for change in yang */
+	uint8_t imei[8];
+	uint8_t len_of_msisdn;
+	/* TODO: Revisit this for change in yang */
+	uint8_t msisdn[8];
 	uint8_t length_of_nai;
-	uint8_t nai[NAI_LEN];
-} user_id_ie_t;
+	/* TODO: Revisit this for change in yang */
+	uint8_t nai[8];
+} pfcp_user_id_ie_t;
 
-typedef struct trace_information_ie_t {
-	pfcp_ie_header_t header;
-	uint8_t mcc_digit_2 :4;
-	uint8_t mcc_digit_1 :4;
-	uint8_t mnc_digit_3 :4;
-	uint8_t mcc_digit_3 :4;
-	uint8_t mnc_digit_2 :4;
-	uint8_t mnc_digit_1 :4;
-	uint32_t trace_id:24;
-	uint32_t spare:8;
-	uint8_t length_of_triggering_events;
-	uint8_t triggering_events[TRIGGERING_EVENTS_LEN];
-	uint8_t session_trace_depth;
-	uint8_t length_of_list_of_interfaces;
-	uint8_t list_of_interfaces[LIST_OF_INTERFACES_LEN];
-	uint8_t length_of_ip_address_of_trace_collection_entity;
-	uint32_t ip_address_of_trace_collection_entity[IP_ADDRESS_OF_TRACE_COLLECTION_ENTITY_LEN];
-} trace_information_ie_t;
+/**
+Description -Ethernet PDU Session Information
+*/
+typedef struct pfcp_eth_pdu_sess_info_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t eth_pdu_sess_info_spare :7;
+  uint8_t ethi :1;
+} pfcp_eth_pdu_sess_info_ie_t;
 
-typedef struct pfcp_pdn_type_ie_t {
-	pfcp_ie_header_t header;
-	uint8_t spare :5;
-	uint8_t pdn_type :3;
-} pfcp_pdn_type_ie_t;
+/**
+Description -MAC Addresses Detected
+*/
+typedef struct pfcp_mac_addrs_detctd_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t nbr_of_mac_addrs;
+  uint64_t mac_addr_val[MAC_ADDR_VAL_LEN];
+} pfcp_mac_addrs_detctd_ie_t;
 
-typedef struct offending_ie_ie_t {
-	pfcp_ie_header_t header;
-	uint16_t type_of_the_offending_ie;
-} offending_ie_ie_t;
+/**
+Description -MAC Addresses Removed
+*/
+typedef struct pfcp_mac_addrs_rmvd_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t nbr_of_mac_addrs;
+  uint64_t mac_addr_val[MAC_ADDR_VAL_LEN];
+} pfcp_mac_addrs_rmvd_ie_t;
 
-typedef struct failed_rule_id_ie_t {
-	pfcp_ie_header_t header;
-	uint8_t spare :3;
-	uint8_t rule_id_type :5;
-	uint8_t rule_id_value[RULE_ID_VALUE_LEN];
-} failed_rule_id_ie_t;
+/**
+Description -Ethernet Inactivity Timer
+*/
+typedef struct pfcp_eth_inact_timer_ie_t {
+  pfcp_ie_header_t header;
+  uint32_t eth_inact_timer;
+} pfcp_eth_inact_timer_ie_t;
 
+/**
+Description -Subsequent Event Quota
+*/
+typedef struct pfcp_sbsqnt_evnt_quota_ie_t {
+  pfcp_ie_header_t header;
+  uint32_t sbsqnt_evnt_quota;
+} pfcp_sbsqnt_evnt_quota_ie_t;
 
-typedef struct sequence_number_ie_t {
-	pfcp_ie_header_t header;
-	uint32_t sequence_number;
-} sequence_number_ie_t;
+/**
+Description -Subsequent Event Threshold
+*/
+typedef struct pfcp_sbsqnt_evnt_thresh_ie_t {
+  pfcp_ie_header_t header;
+  uint32_t sbsqnt_evnt_thresh;
+} pfcp_sbsqnt_evnt_thresh_ie_t;
 
+/**
+Description -Trace Information
+*/
+typedef struct pfcp_trc_info_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t mcc_digit_2 :4;
+  uint8_t mcc_digit_1 :4;
+  uint8_t mnc_digit_3 :4;
+  uint8_t mcc_digit_3 :4;
+  uint8_t mnc_digit_2 :4;
+  uint8_t mnc_digit_1 :4;
+  uint32_t trace_id :24;
+  uint8_t len_of_trigrng_evnts;
+  uint8_t trigrng_evnts;
+  uint8_t sess_trc_depth;
+  uint8_t len_of_list_of_intfcs;
+  uint8_t list_of_intfcs;
+  uint8_t len_of_ip_addr_of_trc_coll_ent;
+  uint8_t ip_addr_of_trc_coll_ent;
+} pfcp_trc_info_ie_t;
 
-enum rule_id_type {
-	RULE_ID_TYPE_PDR =0,
-	RULE_ID_TYPE_FAR =1,
-	RULE_ID_TYPE_QER =2,
-	RULE_ID_TYPE_URR =3,
-	RULE_ID_TYPE_BAR =4,
+/**
+Description -Framed-Route
+*/
+typedef struct pfcp_framed_route_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t framed_route;
+} pfcp_framed_route_ie_t;
+
+/**
+Description -Framed-Routing
+*/
+typedef struct pfcp_framed_routing_ie_t {
+  pfcp_ie_header_t header;
+  uint32_t framed_routing;
+} pfcp_framed_routing_ie_t;
+
+/**
+Description -Framed-IPv6-Route
+*/
+typedef struct pfcp_frmd_ipv6_rte_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t frmd_ipv6_rte;
+} pfcp_frmd_ipv6_rte_ie_t;
+
+/**
+Description -Event Quota
+*/
+typedef struct pfcp_event_quota_ie_t {
+  pfcp_ie_header_t header;
+  uint32_t sbsqnt_evnt_quota;
+} pfcp_event_quota_ie_t;
+
+/**
+Description -Event Threshold
+*/
+typedef struct pfcp_event_threshold_ie_t {
+  pfcp_ie_header_t header;
+  uint32_t event_threshold;
+} pfcp_event_threshold_ie_t;
+
+/**
+Description -Event Time Stamp
+*/
+typedef struct pfcp_evnt_time_stmp_ie_t {
+  pfcp_ie_header_t header;
+  uint32_t evnt_time_stmp;
+} pfcp_evnt_time_stmp_ie_t;
+
+/**
+Description -Averaging Window
+*/
+typedef struct pfcp_avgng_wnd_ie_t {
+  pfcp_ie_header_t header;
+  uint32_t avgng_wnd;
+} pfcp_avgng_wnd_ie_t;
+
+/**
+Description -Paging Policy Indicator
+*/
+typedef struct pfcp_paging_plcy_indctr_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t paging_plcy_indctr_spare :5;
+  uint8_t ppi_value :3;
+} pfcp_paging_plcy_indctr_ie_t;
+
+enum cause_values_type {
+  REQUESTACCEPTED =1,
+  REQUESTREJECTED =64,
+  SESSIONCONTEXTNOTFOUND =65,
+  MANDATORYIEMISSING =66,
+  CONDITIONALIEMISSING =67,
+  INVALIDLENGTH =68,
+  MANDATORYIEINCORRECT =69,
+  INVALIDFORWARDINGPOLICY =70,
+  INVALIDFTEIDALLOCATIONOPTION =71,
+  NOESTABLISHEDPFCPASSOCIATION =72,
+  RULECREATION_MODIFICATIONFAILURE =73,
+  PFCPENTITYINCONGESTION =74,
+  NORESOURCESAVAILABLE =75,
+  SERVICENOTSUPPORTED =76,
+  SYSTEMFAILURE =77,
 };
 
-typedef struct metric_ie_t {
-	pfcp_ie_header_t header;
-	uint8_t metric;
-} metric_ie_t;
+struct src_intfc_intfc_valType_t {
+  uint8_t zero :1;
+  uint8_t one :1;
+  uint8_t two :1;
+  uint8_t three :1;
+  uint8_t fourto15 :1;
+} src_intfc_intfc_valType_t;
 
-
-typedef struct timer_ie_t {
-	pfcp_ie_header_t header;
-	uint8_t timer_unit :3;
-	uint8_t timer_value :5;
-} timer_ie_t;
-
-
-enum timer_information_element {
-	TIMER_INFORMATIONLEMENT_VALUE_IS_INCREMENTED_IN_MULTIPLES_OF_2_SECONDS =0,
-	TIMER_INFORMATIONLEMENT_VALUE_IS_INCREMENTED_IN_MULTIPLES_OF_1_MINUTE =1,
-	TIMER_INFORMATIONLEMENT_VALUE_IS_INCREMENTED_IN_MULTIPLES_OF_10_MINUTES =2,
-	TIMER_INFORMATIONLEMENT_VALUE_IS_INCREMENTED_IN_MULTIPLES_OF_1_HOUR =3,
-	TIMER_INFORMATIONLEMENT_VALUE_IS_INCREMENTED_IN_MULTIPLES_OF_10_HOURS =4,
-	TIMER_INFORMATIONLEMENT_VALUE_INDICATES_THAT_THE_TIMER_IS_INFINITE =7,
+enum redir_addr_type_type {
+  IPV4ADDRESS =0,
+  IPV6ADDRESS =1,
+  URL =2,
+  SIPURI =3,
 };
 
-typedef struct oci_flags_ie_t {
-	pfcp_ie_header_t header;
-	uint8_t spare :7;
-	uint8_t aoci :1;
-} oci_flags_ie_t;
+struct dst_intfc_intfc_valType_t {
+  uint8_t zero :1;
+  uint8_t one :1;
+  uint8_t two :1;
+  uint8_t three :1;
+  uint8_t four :1;
+  uint8_t fiveto15 :1;
+} dst_intfc_intfc_valType_t;
 
+struct up_func_featType_t {
+  uint8_t bucp :1;
+  uint8_t ddnd :1;
+  uint8_t dlbd :1;
+  uint8_t trst :1;
+  uint8_t ftup :1;
+  uint8_t pfdm :1;
+  uint8_t heeu :1;
+  uint8_t treu :1;
+  uint8_t empu :1;
+  uint8_t pdiu :1;
+  uint8_t udbc :1;
+  uint8_t quoac :1;
+  uint8_t trace :1;
+  uint8_t frrt :1;
+} up_func_featType_t;
 
-typedef struct load_control_information_ie_t {
-	pfcp_ie_header_t header;
-	sequence_number_ie_t load_control_sequence_number;
-	metric_ie_t load_metric;
-} load_control_information_ie_t;
-
-typedef struct overload_control_information_ie_t {
-	pfcp_ie_header_t header;
-	sequence_number_ie_t overload_control_sequence_number;
-	metric_ie_t overload_reduction_metric;
-	timer_ie_t period_of_validity;
-	oci_flags_ie_t overload_control_information_flags;
-} overload_control_information_ie_t;
-
-typedef struct remove_bar_ie_t {
-	pfcp_ie_header_t header;
-	bar_id_ie_t bar_id;
-} remove_bar_ie_t;
-
-typedef struct traffic_endpoint_id_ie_t {
-	pfcp_ie_header_t header;
-	uint8_t traffic_endpoint_id_value;
-} traffic_endpoint_id_ie_t;
-
-typedef struct remove_traffic_endpoint_ie_t {
-	pfcp_ie_header_t header;
-	traffic_endpoint_id_ie_t traffic_endpoint_id;
-} remove_traffic_endpoint_ie_t;
-
-typedef struct f_teid_ie_t {
-	pfcp_ie_header_t header;
-	uint8_t spare :4;
-	uint8_t chid :1;
-	uint8_t ch :1;
-	uint8_t v6 :1;
-	uint8_t v4 :1;
-	uint32_t teid;
-	uint32_t ipv4_address;
-	uint64_t ipv6_address;
-	uint8_t choose_id;
-} f_teid_ie_t;
-
-typedef struct network_instance_ie_t {
-	pfcp_ie_header_t header;
-	uint8_t network_instance[NETWORK_INSTANCE_LEN];
-} network_instance_ie_t;
-
-typedef struct ue_ip_address_ie_t {
-	pfcp_ie_header_t header;
-	uint8_t spare :4;
-	uint8_t ipv6d :1;
-	uint8_t sd :1;
-	uint8_t v4 :1;
-	uint8_t v6 :1;
-	uint32_t ipv4_address;
-	uint64_t ipv6_address;
-	uint8_t ipv6_prefix_delegation_bits;
-} ue_ip_address_ie_t;
-
-typedef struct ethernet_pdu_session_information_ie_t {
-	pfcp_ie_header_t header;
-	uint8_t spare :7;
-	uint8_t ethi :1;
-} ethernet_pdu_session_information_ie_t;
-
-typedef struct framed_routing_ie_t {
-	pfcp_ie_header_t header;
-	uint8_t framed_routing[FRAMED_ROUTING_LEN];
-} framed_routing_ie_t;
-
-
-typedef struct qer_id_ie_t {
-	pfcp_ie_header_t header;
-	uint32_t qer_id_value;
-} qer_id_ie_t;
-
-typedef struct qer_correlation_id_ie_t {
-	pfcp_ie_header_t header;
-	uint32_t qer_correlation_id_value;
-} qer_correlation_id_ie_t;
-
-
-typedef struct gate_status_ie_t {
-	pfcp_ie_header_t header;
-	uint8_t spare :4;
-	uint8_t ul_gate :2;
-	uint8_t dl_gate :2;
-} gate_status_ie_t;
-
-
-enum ul_gate {
-	UL_GATE_OPEN =0,
-	UL_GATE_CLOSED =1,
+enum node_id_type_type {
+  NODE_ID_TYPE_TYPE_IPV4ADDRESS =0,
+  NODE_ID_TYPE_TYPE_IPV6ADDRESS =1,
+  FQDN =2,
 };
 
-enum dl_gate {
-	DL_GATE_OPEN =0,
-	DL_GATE_CLOSED =1,
+struct outer_hdr_creation_descType_t {
+  uint8_t gtpu_udp_ipv4 :1;
+  uint8_t gtpu_udp_ipv6 :1;
+  uint8_t udp_ipv4 :1;
+  uint8_t udp_ipv6 :1;
+  uint8_t ipv4 :1;
+  uint8_t ipv6 :1;
+  uint8_t ctag :1;
+  uint8_t stag :1;
+} outer_hdr_creation_descType_t;
+
+struct cp_func_featType_t {
+  uint8_t load :1;
+  uint8_t ovrl :1;
+} cp_func_featType_t;
+
+enum flow_direction_type {
+  UNSPECIFIED =0,
+  DOWNLINK =1,
+  UPLINK =2,
+  BIDIRECTIONAL =3,
 };
 
-typedef struct mbr_ie_t {
-	pfcp_ie_header_t header;
-	uint64_t ul_mbr;
-	uint64_t dl_mbr;
-} mbr_ie_t;
-
-typedef struct gbr_ie_t {
-	pfcp_ie_header_t header;
-	uint64_t ul_gbr;
-	uint64_t dl_gbr;
-} gbr_ie_t;
-
-
-typedef struct packet_rate_ie_t {
-	pfcp_ie_header_t header;
-	uint8_t spare :6;
-	uint8_t dlpr :1;
-	uint8_t ulpr :1;
-	uint8_t spare2 :5;
-	uint8_t uplink_time_unit :3;
-	uint16_t maximum_uplink_packet_rate;
-	uint8_t spare3 :5;
-	uint8_t downlink_time_unit :3;
-	uint16_t maximum_downlink_packet_rate;
-} packet_rate_ie_t;
-
-enum uplinkdownlink_time_unit {
-	UPLINKDOWNLINK_TIME_UNIT_MINUTE =0,
-	UPLINKDOWNLINK_TIME_UNIT_6_MINUTES =1,
-	UPLINKDOWNLINK_TIME_UNIT_HOUR =2,
-	UPLINKDOWNLINK_TIME_UNIT_DAY =3,
-	UPLINKDOWNLINK_TIME_UNIT_WEEK =4,
+enum outer_hdr_removal_desc_type {
+  GTPU_UDP_IPV4 =0,
+  GTPU_UDP_IPV6 =1,
+  UDP_IPV4 =2,
+  UDP_IPV6 =3,
+  IPV4 =4,
+  IPV6 =5,
+  GTPU_UDP_IP =6,
+  VLANSTAG =7,
+  STAGANDCTAG =8,
 };
 
-typedef struct dl_flow_level_marking_ie_t {
-	pfcp_ie_header_t header;
-	uint8_t spare :6;
-	uint8_t sci :1;
-	uint8_t ttc :1;
-	uint16_t tostraffic_class;
-	uint16_t service_class_indicator;
-} dl_flow_level_marking_ie_t;
-
-typedef struct rqi_ie_t {
-	pfcp_ie_header_t header;
-	uint8_t spare :7;
-	uint8_t rqi :1;
-} rqi_ie_t;
-
-typedef struct qfi_ie_t {
-	pfcp_ie_header_t header;
-	uint8_t spare :2;
-	uint8_t qfi_value :6;
-} qfi_ie_t;
-
-
-
-typedef struct pfcpsmreq_flags_ie_t {
-	pfcp_ie_header_t header;
-	uint8_t spare :1;
-	uint8_t spare2 :1;
-	uint8_t spare3 :1;
-	uint8_t spare4 :1;
-	uint8_t spare5 :1;
-	uint8_t qaurr :1;
-	uint8_t sndem :1;
-	uint8_t drobu :1;
-} pfcpsmreq_flags_ie_t;
-
-typedef struct query_urr_reference_ie_t {
-	pfcp_ie_header_t header;
-	uint32_t query_urr_reference_value;
-} query_urr_reference_ie_t;
-
-typedef struct update_qer_ie_t {
-	pfcp_ie_header_t header;
-	qer_id_ie_t qer_id;
-	qer_correlation_id_ie_t qer_correlation_id;
-	gate_status_ie_t gate_status;
-	mbr_ie_t maximum_bitrate;
-	gbr_ie_t guaranteed_bitrate;
-	packet_rate_ie_t packet_rate;
-	dl_flow_level_marking_ie_t dl_flow_level_marking;
-	qfi_ie_t qos_flow_identifier;
-	rqi_ie_t reflective_qos;
-} update_qer_ie_t;
-
-typedef struct update_bar_ie_t {
-	pfcp_ie_header_t header;
-	bar_id_ie_t bar_id;
-	downlink_data_notification_delay_ie_t downlink_data_notification_delay;
-	suggested_buffering_packets_count_ie_t suggested_buffering_packets_count;
-} update_bar_ie_t;
-
-typedef struct update_traffic_endpoint_ie_t {
-	pfcp_ie_header_t header;
-	traffic_endpoint_id_ie_t traffic_endpoint_id;
-	f_teid_ie_t local_fteid;
-	network_instance_ie_t network_instance;
-	ue_ip_address_ie_t ue_ip_address;
-	framed_routing_ie_t framedrouting;
-} update_traffic_endpoint_ie_t;
-
-typedef struct create_traffic_endpoint_ie_t {
-	pfcp_ie_header_t header;
-	traffic_endpoint_id_ie_t traffic_endpoint_id;
-	f_teid_ie_t local_fteid;
-	network_instance_ie_t network_instance;
-	ue_ip_address_ie_t ue_ip_address;
-	ethernet_pdu_session_information_ie_t ethernet_pdu_session_information;
-	framed_routing_ie_t framedrouting;
-} create_traffic_endpoint_ie_t;
-
-
-typedef struct pdr_id_ie_t {
-	pfcp_ie_header_t header;
-	uint16_t rule_id;
-} pdr_id_ie_t;
-
-typedef struct additional_usage_reports_information_ie_t {
-	pfcp_ie_header_t header;
-	uint16_t auri :1;
-	uint16_t number_of_additional_usage_reports_value :15;
-} additional_usage_reports_information_ie_t;
-
-typedef struct created_traffic_endpoint_ie_t {
-	pfcp_ie_header_t header;
-	traffic_endpoint_id_ie_t traffic_endpoint_id;
-	f_teid_ie_t local_fteid;
-} created_traffic_endpoint_ie_t;
-
-typedef struct created_pdr_ie_t {
-	pfcp_ie_header_t header;
-	pdr_id_ie_t pdr_id;
-	f_teid_ie_t local_fteid;
-} created_pdr_ie_t;
-
-typedef struct pfcp_association_release_request_ie_t {
-	pfcp_ie_header_t header;
-	uint8_t spare :7;
-	uint8_t sarr :1;
-} pfcp_association_release_request_ie_t;
-
-typedef struct graceful_release_period_ie_t {
-	pfcp_ie_header_t header;
-	uint8_t timer_unit :3;
-	uint8_t timer_value :5;
-} graceful_release_period_ie_t;
-
-enum graceful_release_period_information_element {
-	GRACEFUL_RELEASE_PERIOD_INFORMATIONLEMENT_VALUE_IS_INCREMENTED_IN_MULTIPLES_OF_2_SECONDS =0,
-	GRACEFUL_RELEASE_PERIOD_INFORMATIONLEMENT_VALUE_IS_INCREMENTED_IN_MULTIPLES_OF_1_MINUTE =1,
-	GRACEFUL_RELEASE_PERIOD_INFORMATIONLEMENT_VALUE_IS_INCREMENTED_IN_MULTIPLES_OF_10_MINUTES =2,
-	GRACEFUL_RELEASE_PERIOD_INFORMATIONLEMENT_VALUE_IS_INCREMENTED_IN_MULTIPLES_OF_1_HOUR =3,
-	GRACEFUL_RELEASE_PERIOD_INFORMATIONLEMENT_VALUE_IS_INCREMENTED_IN_MULTIPLES_OF_10_HOURS =4,
-	GRACEFUL_RELEASE_PERIOD_INFORMATIONLEMENT_VALUE_INDICATES_THAT_THE_TIMER_IS_INFINITE =7,
+enum header_type_type {
+  HTTP =0,
+  HEADER_TYPE_TYPE_HTTP =0,
 };
 
-
-typedef struct remote_gtp_u_peer_ie_t {
-        pfcp_ie_header_t header;
-        uint8_t spare :6;
-        uint8_t v4 :1;
-        uint8_t v6 :1;
-        uint32_t ipv4_address;
-        uint64_t ipv6_address;
-} remote_gtp_u_peer_ie_t;
-
-typedef struct node_report_type_ie_t {
-	pfcp_ie_header_t header;
-	uint8_t spare :7;
-	uint8_t upfr :1;
-} node_report_type_ie_t;
-
-typedef struct user_plane_path_failure_report_ie_t {
-        pfcp_ie_header_t header;
-        remote_gtp_u_peer_ie_t remote_gtpu_peer;
-} user_plane_path_failure_report_ie_t;
-
-
-
-typedef struct volume_measurement_ie_t {
-    	pfcp_ie_header_t header;
-    	uint8_t spare :5;
-   	uint8_t dlvol :1;
-    	uint8_t ulvol :1;
-    	uint8_t tovol :1;
-    	uint64_t total_volume;
-    	uint64_t uplink_volume;
-    	uint64_t downlink_volume;
-} volume_measurement_ie_t;
-
-typedef struct duration_measurement_ie_t {
-    	pfcp_ie_header_t header;
-    	uint32_t duration_value;
-} duration_measurement_ie_t;
-
-typedef struct urr_id_ie_t {
-    	pfcp_ie_header_t header;
-    	uint32_t urr_id_value;
-} urr_id_ie_t;
-
-typedef struct ur_seqn_ie_t {
-    	pfcp_ie_header_t header;
-    	uint32_t ur_seqn;
-} ur_seqn_ie_t;
-
-typedef struct usage_report_trigger_ie_t {
-    	pfcp_ie_header_t header;
-    	uint8_t immer :1;
-    	uint8_t droth :1;
-    	uint8_t stopt :1;
-    	uint8_t start :1;
-    	uint8_t quhti :1;
-    	uint8_t timth :1;
-    	uint8_t volth :1;
-    	uint8_t perio :1;
-    	uint8_t eveth :1;
-    	uint8_t macar :1;
-    	uint8_t envcl :1;
-    	uint8_t monit :1;
-    	uint8_t termr :1;
-	uint8_t liusa :1;
-	uint8_t timqu :1;
-    	uint8_t volqu :1;
-} usage_report_trigger_ie_t;
-
-
-
-typedef struct start_time_ie_t {
-    	pfcp_ie_header_t header;
-    	uint32_t start_time;
-} start_time_ie_t;
-
-typedef struct end_time_ie_t {
-    	pfcp_ie_header_t header;
-    	uint32_t end_time;
-} end_time_ie_t;
-
-typedef struct time_of_first_packet_ie_t {
-    	pfcp_ie_header_t header;
-    	uint32_t time_of_first_packet;
-} time_of_first_packet_ie_t;
-
-typedef struct time_of_last_packet_ie_t {
-    	pfcp_ie_header_t header;
-    	uint32_t time_of_last_packet;
-} time_of_last_packet_ie_t;
-
-typedef struct usage_information_ie_t {
-    	pfcp_ie_header_t header;
-    	uint8_t spare :5;
-    	uint8_t ube :1;
-    	uint8_t uae :1;
-    	uint8_t aft :1;
-    	uint8_t bef :1;
-} usage_information_ie_t;
-
-typedef struct mac_addresses_detected_ie_t {
-    	pfcp_ie_header_t header;
-    	uint8_t number_of_mac_addresses;
-    	uint64_t mac_address_value_1[MAC_ADDRESS_VALUE_1_LEN];
-} mac_addresses_detected_ie_t;
-
-typedef struct mac_addresses_removed_ie_t {
-    	pfcp_ie_header_t header;
-    	uint8_t number_of_mac_addresses;
-    	uint64_t mac_address_value_1[MAC_ADDRESS_VALUE_1_LEN];
-} mac_addresses_removed_ie_t;
-
-
-typedef struct application_id_ie_t {
-    	pfcp_ie_header_t header;
-    	uint8_t application_identifier[APPLICATION_IDENTIFIER_LEN];
-} application_id_ie_t;
-
-typedef struct application_instance_id_ie_t {
-    	pfcp_ie_header_t header;
-    	uint8_t application_instance_identifier[APPLICATION_INSTANCE_IDENTIFIER_LEN];
-} application_instance_id_ie_t;
-
-typedef struct flow_information_ie_t {
-        pfcp_ie_header_t header;
-        uint8_t spare :5;
-        uint8_t flow_direction :3;
-        uint16_t length_of_flow_description;
-        uint8_t flow_description[FLOW_DESCRIPTION_LEN];
-} flow_information_ie_t;
-
-
-typedef struct ethernet_traffic_information_ie_t {
-    	pfcp_ie_header_t header;
-    	mac_addresses_detected_ie_t mac_addresses_detected;
-   	mac_addresses_removed_ie_t mac_addresses_removed;
-} ethernet_traffic_information_ie_t;
-
-typedef struct application_detection_information_ie_t {
-    	pfcp_ie_header_t header;
-    	application_id_ie_t application_id;
-    	application_instance_id_ie_t application_instance_id;
-    	flow_information_ie_t flow_information;
-} application_detection_information_ie_t;
-
-
-typedef struct report_type_ie_t {
-    pfcp_ie_header_t header;
-    uint8_t spare :4;
-    uint8_t upir :1;
-    uint8_t erir :1;
-    uint8_t usar :1;
-    uint8_t dldr :1;
-} report_type_ie_t;
-
-
-typedef struct session_report_usage_report_ie_t {
-    pfcp_ie_header_t header;
-    urr_id_ie_t urr_id;
-    ur_seqn_ie_t urseqn;
-    usage_report_trigger_ie_t usage_report_trigger;
-    start_time_ie_t start_time;
-    end_time_ie_t end_time;
-    volume_measurement_ie_t volume_measurement;
-    duration_measurement_ie_t duration_measurement;
-    application_detection_information_ie_t application_detection_information;
-    ue_ip_address_ie_t ue_ip_address;
-    network_instance_ie_t network_instance;
-    time_of_first_packet_ie_t time_of_first_packet;
-    time_of_last_packet_ie_t time_of_last_packet;
-    usage_information_ie_t usage_information;
-    query_urr_reference_ie_t query_urr_reference;
-    ethernet_traffic_information_ie_t ethernet_traffic_information;
-} session_report_usage_report_ie_t;
-
-typedef struct downlink_data_service_information_ie_t {
-    pfcp_ie_header_t header;
-    uint8_t spare2 :6;
-    uint8_t qfii :1;
-    uint8_t ppi :1;
-    uint8_t spare3 :2;
-    uint8_t paging_policy_indication_value :6;
-    uint8_t spare4 :2;
-} downlink_data_service_information_ie_t;
-
-typedef struct dl_buffering_suggested_packet_count_ie_t {
-    pfcp_ie_header_t header;
-    uint8_t packet_count_value[PACKET_COUNT_VALUE_LEN];
-} dl_buffering_suggested_packet_count_ie_t;
-
-
-
-typedef struct downlink_data_report_ie_t {
-    pfcp_ie_header_t header;
-    downlink_data_service_information_ie_t downlink_data_service_information;
-} downlink_data_report_ie_t;
-
-
-typedef struct error_indication_report_ie_t {
-    pfcp_ie_header_t header;
-    f_teid_ie_t remote_fteid;
-} error_indication_report_ie_t;
-
-
-typedef struct dl_buffering_duration_ie_t {
-    pfcp_ie_header_t header;
-    uint8_t timer_unit :3;
-    uint8_t timer_value :5;
-} dl_buffering_duration_ie_t;
-
-
-typedef struct session_report_response_update_bar_ie_t {
-    pfcp_ie_header_t header;
-    bar_id_ie_t bar_id;
-    downlink_data_notification_delay_ie_t downlink_data_notification_delay;
-    dl_buffering_duration_ie_t dl_buffering_duration;
-    dl_buffering_suggested_packet_count_ie_t dl_buffering_suggested_packet_count;
-    suggested_buffering_packets_count_ie_t suggested_buffering_packets_count;
-} session_report_response_update_bar_ie_t;
-
-typedef struct pfcpsrrsp_flags_ie_t {
-    pfcp_ie_header_t header;
-    uint8_t spare :1;
-    uint8_t spare2 :1;
-    uint8_t spare3 :1;
-    uint8_t spare4 :1;
-    uint8_t spare5 :1;
-    uint8_t spare6 :1;
-    uint8_t spare7 :1;
-    uint8_t drobu :1;
-} pfcpsrrsp_flags_ie_t;
-
-typedef struct precedence_ie_t {
-	pfcp_ie_header_t header;
-	uint32_t precedence_value;
-} precedence_ie_t;
-
-typedef struct source_interface_ie_t {
-	pfcp_ie_header_t header;
-	uint8_t spare :4;
-	uint8_t interface_value :4;
-} source_interface_ie_t;
-
-enum source_interface_value { 
-	SOURCE_INTERFACE_VALUE_ACCESS =0,
-	SOURCE_INTERFACE_VALUE_CORE =1,
-	SOURCE_INTERFACE_VALUE_SGI_LAN_N6_LAN =2,
-	SOURCE_INTERFACE_VALUE_CP_FUNCTION =3,
+enum base_time_int_type_type {
+  CTP =0,
+  DTP =1,
 };
 
-typedef struct pdi_ie_t {
-	pfcp_ie_header_t header;
-	source_interface_ie_t source_interface;
-	f_teid_ie_t local_fteid;
-	network_instance_ie_t network_instance;
-	ue_ip_address_ie_t ue_ip_address;
-	traffic_endpoint_id_ie_t traffic_endpoint_id;
-	application_id_ie_t application_id;
-	ethernet_pdu_session_information_ie_t ethernet_pdu_session_information;
-	framed_routing_ie_t framedrouting;
-} pdi_ie_t;
-
-typedef struct outer_header_removal_ie_t {
-	pfcp_ie_header_t header;
-	uint8_t outer_header_removal_description;
-} outer_header_removal_ie_t;
-
-enum outer_header_removal_description { 
-	OUTER_HEADER_REMOVAL_DESCRIPTION_GTP_U_UDP_IPV4 =0,
-	OUTER_HEADER_REMOVAL_DESCRIPTION_GTP_U_UDP_IPV6 =1,
-	OUTER_HEADER_REMOVAL_DESCRIPTION_UDP_IPV4 =2,
-	OUTER_HEADER_REMOVAL_DESCRIPTION_UDP_IPV6 =3,
-};
-
-typedef struct far_id_ie_t {
-	pfcp_ie_header_t header;
-	uint32_t far_id_value;
-} far_id_ie_t;
-
-typedef struct activate_predefined_rules_ie_t {
-	pfcp_ie_header_t header;
-	uint8_t predefined_rules_name[PREDEFINED_RULES_NAME_LEN];
-} activate_predefined_rules_ie_t;
-
-typedef struct create_pdr_ie_t {
-	pfcp_ie_header_t header;
-	pdr_id_ie_t pdr_id;
-	precedence_ie_t precedence;
-	pdi_ie_t pdi;
-	outer_header_removal_ie_t outer_header_removal;
-	far_id_ie_t far_id;
-	urr_id_ie_t urr_id;
-	qer_id_ie_t qer_id;	
-	activate_predefined_rules_ie_t activate_predefined_rules;
-} create_pdr_ie_t;
-
-typedef struct user_plane_ip_resource_information_ie_t {
-	pfcp_ie_header_t header;
-	uint8_t spare :1;
-	uint8_t assosi :1;
-	uint8_t assoni :1;
-	uint8_t teidri :3;
-	uint8_t v6 :1;
-	uint8_t v4 :1;
-	uint8_t teid_range;
-	uint32_t ipv4_address;
-	uint64_t ipv6_address;
-	uint8_t network_instance;
-	uint8_t spare2 :4;
-	uint8_t source_interface :4;
-} user_plane_ip_resource_information_ie_t;
 #pragma pack()
-
 #endif

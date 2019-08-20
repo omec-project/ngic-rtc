@@ -15,30 +15,15 @@
  */
 
 #include "ue.h"
-#include "interface.h"
 #include "cp.h"
+#include "interface.h"
 
-#include <rte_debug.h>
-#include <rte_branch_prediction.h>
-#include <rte_errno.h>
-#include <rte_lcore.h>
-#include <rte_malloc.h>
-
-#include <errno.h>
-#include <stddef.h>
-#include <assert.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <arpa/inet.h>
-#include <string.h>
 
 struct rte_hash *ue_context_by_imsi_hash;
 struct rte_hash *ue_context_by_fteid_hash;
 
 static struct in_addr ip_pool_ip;
 static struct in_addr ip_pool_mask;
-
-extern struct pfcp_config_t pfcp_config;
 
 apn apn_list[MAX_NB_DPN];
 
@@ -96,6 +81,7 @@ create_ue_hash(void)
 				rte_hash_params.name,
 		    rte_strerror(rte_errno), rte_errno);
 	}
+
 	rte_hash_params.name = "bearer_by_fteid_hash";
 	rte_hash_params.key_len = sizeof(uint32_t);
 	ue_context_by_fteid_hash = rte_hash_create(&rte_hash_params);
@@ -355,7 +341,6 @@ create_ue_context(uint8_t *imsi_val, uint16_t imsi_len,
 	return 0;
 }
 
-
 apn *
 get_apn(char *apn_label, uint16_t apn_length)
 {
@@ -379,7 +364,6 @@ get_apn(char *apn_label, uint16_t apn_length)
 	apn_list[i].apn_idx = i;
 	return apn_list+i;
 }
-
 
 uint32_t
 acquire_ip(struct in_addr *ipv4)

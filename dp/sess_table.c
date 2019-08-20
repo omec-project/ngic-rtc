@@ -1039,14 +1039,15 @@ dp_session_modify(struct dp_id dp_id,
 	} else {
 		switch (data->sess_state) {
 		case IDLE:
-			data->sess_state = CONNECTED;
+			{
+				data->sess_state = CONNECTED;
+			}
 		break;
 
 		case IN_PROGRESS:
 			{
-/** Resolved queued pkts by dl core and enqueue pkts into notification ring */
+/**VS: Resolved queued pkts by dl core and enqueue pkts into notification ring */
 #ifdef NGCORE_SHRINK
-#ifdef DP_DDN
 			{
 				struct rte_mbuf *buf_pkt =
 					rte_ctrlmbuf_alloc(notify_msg_pool);
@@ -1057,7 +1058,6 @@ dp_session_modify(struct dp_id dp_id,
 				rte_ring_enqueue(notify_ring,
 					buf_pkt);
 			}
-#endif /* DP_DDN */
 #else
 			//GCC_Security flag
 			struct ue_session_info *ue_data = NULL;
@@ -1092,7 +1092,6 @@ dp_session_modify(struct dp_id dp_id,
 		}
 	}
 
-#ifdef PFCP_COMM
 	entry->ul_s1_info.sgw_teid = data->ul_s1_info.sgw_teid; /*S1u TEID*/
 	entry->ul_s1_info.sgw_addr.u.ipv4_addr = data->ul_s1_info.sgw_addr.u.ipv4_addr;
 	if (app.spgw_cfg == SGWU) {
@@ -1106,7 +1105,6 @@ dp_session_modify(struct dp_id dp_id,
 				RTE_LOG_DP(DEBUG, DP, "Update UL hash fail\n");
 		}
 	}
-#endif
 
 #ifdef USE_REST
 	if (entry->dl_s1_info.enb_addr.u.ipv4_addr != 0 ) {
@@ -1481,7 +1479,6 @@ dp_session_delete(struct dp_id dp_id,
 		} while (ret);
 
 #ifdef NGCORE_SHRINK
-#ifdef DP_DDN
 
 		if (rte_ring_enqueue(dl_ring_container, ring) ==
 				ENOBUFS) {
@@ -1490,7 +1487,6 @@ dp_session_delete(struct dp_id dp_id,
 			rte_ring_free(ring);
 		}
 
-#endif	/* DP_DDN */
 #else
 
 		if (rte_ring_enqueue(wk_params->dl_ring_container, ring) ==
@@ -1713,7 +1709,6 @@ cb_session_delete(struct msgbuf *msg_payload)
 			msg_payload->msg_union.sess_entry);
 }
 
-#ifdef DP_DDN
 /**
  *  Call back to parse msg to handle downlink data notification ack.
  *
@@ -1729,7 +1724,6 @@ cb_ddn_ack(struct msgbuf *msg_payload)
 	return send_ddn_ack(msg_payload->dp_id,
 			msg_payload->msg_union.dl_ddn);
 }
-#endif	/* DP_DDN */
 
 /**
  * Initialization of Session Table Callback functions.
@@ -1746,9 +1740,7 @@ app_sess_tbl_init(void)
 	/* Export CDR to file */
 	iface_ipc_register_msg_cb(MSG_EXP_CDR, cb_ue_cdr_flush);
 
-#ifdef DP_DDN
-	/* register DDN ACK messgae handler */
+	/* VS: Register DDN ACK messgae handler */
 	iface_ipc_register_msg_cb(MSG_DDN_ACK, cb_ddn_ack);
-#endif /* DP_DDN */
 }
 

@@ -34,14 +34,18 @@ APP = ngic_controlplane
 # all source are stored in SRCS-y
 
 SRCS-y := main.c
-SRCS-y += gtpv2c.c
-SRCS-y += gtpv2c_set_ie.c
-SRCS-y += debug_str.c
 SRCS-y += ue.c
+SRCS-y += cp.c
+SRCS-y += gtpv2c.c
+SRCS-y += cp_init.c
 SRCS-y += cp_stats.c
-SRCS-y += packet_filters.c
 SRCS-y += cp_config.c
-SRCS-y += pfcp.c
+SRCS-y += debug_str.c
+SRCS-y += gtpv2c_set_ie.c
+SRCS-y += packet_filters.c
+SRCS-y += cp_app.c
+SRCS-y += ipc_api.c
+
 
 SRCS-y += gtpv2c_messages/bearer_resource_cmd.o
 SRCS-y += gtpv2c_messages/create_bearer.o
@@ -55,6 +59,7 @@ SRCS-y += gtpv2c_messages/modify_bearer.o
 SRCS-y += gtpv2c_messages/downlink_data_notification.o
 SRCS-y += gtpv2c_messages/release_access_bearer.o
 SRCS-y += $(SRCDIR)/../pfcp_messages/pfcp_association.o
+SRCS-y += $(SRCDIR)/../pfcp_messages/pfcp_req_resp.o
 SRCS-y += $(SRCDIR)/../pfcp_messages/pfcp_session.o
 SRCS-y += $(SRCDIR)/../pfcp_messages/pfcp_set_ie.o
 SRCS-y += $(SRCDIR)/../pfcp_messages/pfcp_util.o
@@ -107,24 +112,12 @@ LDLIBS += -lpcap
 
 # ngic-cp application options CFLAGS
 # #############################################################
-#validate both SDN_ODL_BUILD and ZMQ_COMM flag are not defined
-ifneq (,$(findstring SDN_ODL_BUILD, $(CFLAGS)))
-ifneq (,$(findstring ZMQ_COMM, $(CFLAGS)))
-$(error "Both "SDN_ODL_BUILD" and "ZMQ_COMM" flags are defined. Exiting..")
-endif
-endif
 
 #For SDN NB interface enable SDN_ODL_BUILD OR SDN_ONOS_BUILD not both
 ifneq (,$(findstring SDN_ODL_BUILD, $(CFLAGS)))
 	SRCS-y += nb.c
 	LDLIBS += -ljson-c
 	LDLIBS += -lcurl
-endif
-
-ifneq (,$(findstring ZMQ_COMM, $(CFLAGS)))
-	SRCS-y += cp_sync.c
-	SRCS-y += $(SRCDIR)/../interface/zmq/zmq_push_pull.o
-	LDFLAGS += -L/usr/local/lib -lzmq
 endif
 
 # OSS-UTIL
@@ -181,12 +174,12 @@ endif
 # Comment below line to read UPF ip from cp.cfg instead of DNS query.
 CFLAGS += -DUSE_DNS_QUERY
 
-ifneq (,$(findstring USE_DNS_QUERY, $(CFLAGS)))
+#ifneq (,$(findstring USE_DNS_QUERY, $(CFLAGS)))
 	LIBDNSCLIENT_ROOT = $(SRCDIR)/../oss_adapter/c3po_oss/oss-util
 	CFLAGS += -I$(LIBDNSCLIENT_ROOT)/include
 	LDLIBS += $(LIBDNSCLIENT_ROOT)/lib/liboss-util.a -lstdc++ -lpistache
 	LDLIBS += -L$(LIBDNSCLIENT_ROOT)/modules/c-ares -lcares
-endif
+#endif
 
 # ngic-cp application security check CFLAGS
 ###############################################################

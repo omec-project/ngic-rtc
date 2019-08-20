@@ -1,24 +1,24 @@
-/*
- * Copyright (c) 2019 Sprint
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+/*Copyright (c) 2019 Sprint
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*      http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+
 
 #include "../include/pfcp_ies_encoder.h"
 
 #include "../include/enc_dec_bits.h"
 
-
+#include "../include/pfcp_cond_encoder.h"
 
 /**
  * Encodes pfcp ie header to buffer.
@@ -30,12 +30,13 @@
  *   number of encoded bytes.
  */
 int encode_pfcp_ie_header_t(pfcp_ie_header_t *value,
-	uint8_t *buf)
+		uint8_t *buf)
 {
 	uint16_t encoded = 0;
+
 	encoded += encode_bits(value->type, 16, buf + (encoded/8), encoded % CHAR_SIZE);
 	encoded += encode_bits(value->len, 16, buf + (encoded/8), encoded % CHAR_SIZE);
-	//return encoded/CHAR_SIZE;
+	/*return encoded/CHAR_SIZE;*/
 	return encoded;
 }
 
@@ -52,19 +53,11 @@ int encode_pfcp_header_t(pfcp_header_t *value,
 	uint8_t *buf)
 {
 	uint16_t encoded = 0;
-//	encoded += encode_bits(value->s, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-//	encoded += encode_bits(value->mp, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-//	encoded += encode_bits(value->spare, 3, buf + (encoded/8), encoded % CHAR_SIZE);
-//	encoded += encode_bits(value->version, 3, buf + (encoded/8), encoded % CHAR_SIZE);
 
 	encoded += encode_bits(value->version, 3, buf + (encoded/8), encoded % CHAR_SIZE);
 	encoded += encode_bits(value->spare, 3, buf + (encoded/8), encoded % CHAR_SIZE);
 	encoded += encode_bits(value->mp, 1, buf + (encoded/8), encoded % CHAR_SIZE);
 	encoded += encode_bits(value->s, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-
-
-
-
 	encoded += encode_bits(value->message_type, 8, buf + (encoded/8), encoded % CHAR_SIZE);
 	encoded += encode_bits(value->message_len, 16, buf + (encoded/8), encoded % CHAR_SIZE);
 
@@ -81,582 +74,67 @@ int encode_pfcp_header_t(pfcp_header_t *value,
 	return encoded/CHAR_SIZE;
 }
 
+
 /**
- * Encodes node id ie to buffer.
- * @param value
- *     node id ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_node_id_ie_t(node_id_ie_t *value,
-	uint8_t *buf)
+* Encodes pfcp_end_time_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_end_time_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_end_time_ie_t(pfcp_end_time_ie_t *value,
+    uint8_t *buf)
 {
-	uint16_t encoded = 0;
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->spare, 4, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->node_id_type, 4, buf + (encoded/8), encoded % CHAR_SIZE);
-	memcpy(buf + (encoded/8), &value->node_id_value, value->node_id_value_len);
-	encoded +=  value->node_id_value_len * CHAR_SIZE;
-	return encoded/CHAR_SIZE;
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->end_time, 32, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
 }
 
-/**
- * Encodes recoveryime stamp ie to buffer.
- * @param value
- *     recoveryime stamp ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_recovery_time_stamp_ie_t(recovery_time_stamp_ie_t *value,
-	uint8_t *buf)
-{
-	uint16_t encoded = 0;
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->recovery_time_stamp_value, 32, buf + (encoded/8), encoded % CHAR_SIZE);
-	return encoded/CHAR_SIZE;
-}
 
 /**
- * Encodes up function features ie to buffer.
- * @param value
- *     up function features ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_up_function_features_ie_t(up_function_features_ie_t *value,
-	uint8_t *buf)
-{
-	uint16_t encoded = 0;
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->supported_features, 16, buf + (encoded/CHAR_SIZE), encoded % CHAR_SIZE);
-
-	return encoded/CHAR_SIZE;
-}
-
-/**
- * Encodes cp function features ie to buffer.
- * @param value
- *     cp function features ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_cp_function_features_ie_t(cp_function_features_ie_t *value,
-	uint8_t *buf)
-{
-	uint16_t encoded = 0;
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->supported_features, 8, buf + (encoded/8), encoded % CHAR_SIZE);
-	return encoded/CHAR_SIZE;
-}
-
-/**
- * Encodes cause ie to buffer.
- * @param value
- *     cause ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_pfcp_cause_ie_t(pfcp_cause_ie_t *value,
-	uint8_t *buf)
-{
-	uint16_t encoded = 0;
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->cause_value, 8, buf + (encoded/8), encoded % CHAR_SIZE);
-	return encoded/CHAR_SIZE;
-}
-
-/**
- * Encodes f seid ie to buffer.
- * @param value
- *     f seid ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_f_seid_ie_t(f_seid_ie_t *value,
-	uint8_t *buf)
-{
-	uint16_t encoded = 0;
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->spare, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->spare2, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->spare3, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->spare4, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->spare5, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->spare6, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->v4, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->v6, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->seid, 64, buf + (encoded/8), encoded % CHAR_SIZE);
-	if(value->v4 == 1){
-		memcpy(buf + (encoded/8), &value->ipv4_address, 4);
-		encoded +=  4 * CHAR_SIZE;
-	}
-	else {
-		memcpy(buf + (encoded/8), &value->ipv6_address, 16);
-		encoded +=  16 * CHAR_SIZE;
-	}
-	return encoded/CHAR_SIZE;
-}
-
-/**
- * Encodes bar id ie to buffer.
- * @param value
- *     bar id ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_bar_id_ie_t(bar_id_ie_t *value,
-	uint8_t *buf)
-{
-	uint16_t encoded = 0;
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->bar_id_value, 8, buf + (encoded/8), encoded % CHAR_SIZE);
-	return encoded;
-}
-
-/**
- * Encodes downlink data notification delay ie to buffer.
- * @param value
- *     downlink data notification delay ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_downlink_data_notification_delay_ie_t(downlink_data_notification_delay_ie_t *value,
-	uint8_t *buf)
-{
-	uint16_t encoded = 0;
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->delay_value_in_integer_multiples_of_50_millisecs_or_zero, 8,
-			buf + (encoded/8), encoded % CHAR_SIZE);
-	return encoded ;
-}
-
-/**
- * Encodes suggested buffering packets count ie to buffer.
- * @param value
- *     suggested buffering packets count ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_suggested_buffering_packets_count_ie_t(suggested_buffering_packets_count_ie_t *value,
-	uint8_t *buf)
-{
-	uint16_t encoded = 0;
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->packet_count_value, 8, buf + (encoded/8), encoded % CHAR_SIZE);
-	return encoded;
-}
-
-/**
- * Encodes create bar to buffer.
- * @param c_bar
- *     create bar
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_create_bar_ie_t(create_bar_ie_t *value,
-	uint8_t *buf)
-{
-	uint16_t encoded = 0;
-
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-
-	if(value->bar_id.header.len)
-	encoded += encode_bar_id_ie_t(&value->bar_id, buf + (encoded/CHAR_SIZE));
-
-	if(value->downlink_data_notification_delay.header.len)
-	encoded += encode_downlink_data_notification_delay_ie_t(&value->downlink_data_notification_delay,
-			buf +(encoded/CHAR_SIZE));
-
-	if(value->suggested_buffering_packets_count.header.len)
-	encoded += encode_suggested_buffering_packets_count_ie_t(&(value->suggested_buffering_packets_count),
-			buf + (encoded/CHAR_SIZE));
-
-	return encoded/CHAR_SIZE;
-}
-
-/**
- * Encodes far id to buffer.
- * @param value
- *     far id
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_far_id_ie_t(far_id_ie_t *value,
-	uint8_t *buf)
-{
-	uint16_t encoded = 0;
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->far_id_value, 32, buf + (encoded/8), encoded % CHAR_SIZE);
-	return encoded;
-}
-
-/**
- * Encodes precedence to buffer.
- * @param value
- *     precedence
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_precedence_ie_t(precedence_ie_t *value,
-	uint8_t *buf)
-{
-	uint16_t encoded = 0;
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->precedence_value, 32, buf + (encoded/8), encoded % CHAR_SIZE);
-	return encoded;
-}
-
-/**
- * Encodes source interface to buffer.
- * @param value
- *     source interface
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_source_interface_ie_t(source_interface_ie_t *value,
-	uint8_t *buf)
-{
-	uint16_t encoded = 0;
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->spare, 4, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->interface_value, 4, buf + (encoded/8), encoded % CHAR_SIZE);
-	return encoded;
-}
-/**
- * Encodes pdi ie to buffer.
- * @param value
- *     pdi ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_pdi_ie_t(pdi_ie_t *value,
-	uint8_t *buf)
-{
-	uint16_t encoded = 0;
-
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-
-	if (value->source_interface.header.len)
-		encoded += encode_source_interface_ie_t(&(value->source_interface), buf + (encoded/CHAR_SIZE));
-
-	if (value->local_fteid.header.len)
-		encoded += encode_f_teid_ie_t(&(value->local_fteid), buf + (encoded/CHAR_SIZE));
-
-	if (value->network_instance.header.len)
-		encoded += encode_network_instance_ie_t(&(value->network_instance), buf + (encoded/CHAR_SIZE));
-
-	if (value->ue_ip_address.header.len)
-		encoded += encode_ue_ip_address_ie_t(&(value->ue_ip_address), buf + (encoded/CHAR_SIZE));
-
-	if (value->traffic_endpoint_id.header.len)
-		encoded += encode_traffic_endpoint_id_ie_t(&(value->traffic_endpoint_id), buf + (encoded/CHAR_SIZE));
-
-	if (value->application_id.header.len)
-		encoded += encode_application_id_ie_t(&(value->application_id), buf + (encoded/CHAR_SIZE));
-
-	if (value->ethernet_pdu_session_information.header.len)
-		encoded += encode_ethernet_pdu_session_information_ie_t(&(value->ethernet_pdu_session_information), buf + (encoded/CHAR_SIZE));
-
-	if (value->framedrouting.header.len)
-		encoded += encode_framed_routing_ie_t(&(value->framedrouting), buf + (encoded/CHAR_SIZE));
-
-	return encoded;
-}
-
-/**
- * Encodes outer header removal to buffer.
- * @param value
- *     outer header removal
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_outer_header_removal_ie_t(outer_header_removal_ie_t *value,
-	uint8_t *buf)
-{
-	uint16_t encoded = 0;
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->outer_header_removal_description, 8, buf + (encoded/8), encoded % CHAR_SIZE);
-	return encoded;
-}
-
-/**
- * Encodes activate predefined rules to buffer.
- * @param value
- *     activate predefined rules
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */					 
-int encode_activate_predefined_rules_ie_t(activate_predefined_rules_ie_t *value,
-	uint8_t *buf)
-{
-	uint16_t encoded = 0;
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	for(int i =0;i < 8 ;i++)
-	 encoded += encode_bits(value->predefined_rules_name[i], 8, buf + (encoded/8), encoded % CHAR_SIZE);
-	return encoded;
-}
-/**
- * Encodes create pdr ie to buffer.
- * @param value
- *     create pdr ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_create_pdr_ie_t(create_pdr_ie_t *value,
-	uint8_t *buf)
-{
-	uint16_t encoded = 0;
-
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-
-	if (value->pdr_id.header.len)
-		encoded += encode_pdr_id_ie_t(&(value->pdr_id), buf + (encoded/CHAR_SIZE));
-
-	if (value->precedence.header.len)
-		encoded += encode_precedence_ie_t(&(value->precedence), buf + (encoded/CHAR_SIZE));
-
-	if (value->pdi.header.len)
-		encoded += encode_pdi_ie_t(&(value->pdi), buf + (encoded/CHAR_SIZE));
-
-	if (value->outer_header_removal.header.len)
-		encoded += encode_outer_header_removal_ie_t(&(value->outer_header_removal), buf + (encoded/CHAR_SIZE));
-
-	if (value->far_id.header.len)
-		encoded += encode_far_id_ie_t(&(value->far_id), buf + (encoded/CHAR_SIZE));
-
-	if (value->urr_id.header.len)
-		encoded += encode_urr_id_ie_t(&(value->urr_id), buf + (encoded/CHAR_SIZE));
-
-	if (value->qer_id.header.len)
-		encoded += encode_qer_id_ie_t(&(value->qer_id), buf + (encoded/CHAR_SIZE));
-
-	if (value->activate_predefined_rules.header.len)
-		encoded += encode_activate_predefined_rules_ie_t(&(value->activate_predefined_rules), buf + (encoded/CHAR_SIZE));
-
-	return encoded/CHAR_SIZE;
-}
-
-/**
- * Encodes fq csid ie to buffer.
- * @param value
- *     fq csid ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_fq_csid_ie_t(fq_csid_ie_t *value,
-	uint8_t *buf)
-{
-	uint16_t encoded = 0;
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->fq_csid_node_id_type, 4, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->number_of_csids, 4, buf + (encoded/8), encoded % CHAR_SIZE);
-	if(value->fq_csid_node_id_type == 0){
-		memcpy(buf + (encoded/8), &value->node_address.ipv4_address, 4);
-		encoded +=  4 * CHAR_SIZE;
-	}
-	//encoded += encode_bits(value->node_address, 8, buf + (encoded/8), encoded % CHAR_SIZE);
-	//memcpy(buf + (encoded/CHAR_SIZE), &value->pdn_connection_set_identifier, PDN_CONNECTION_SET_IDENTIFIER_LEN);
-	for(int i =0;i < value->number_of_csids ;i++)
-		encoded += encode_bits(value->pdn_connection_set_identifier[i], 16, buf + (encoded/8), encoded % CHAR_SIZE);
-#if 0
-	memcpy(buf + (encoded/CHAR_SIZE), &value->pdn_connection_set_identifier, 2 * (value->number_of_csids));
-	encoded +=  2 * (value->number_of_csids) * CHAR_SIZE;
-#endif
-	//encoded +=  PDN_CONNECTION_SET_IDENTIFIER_LEN * CHAR_SIZE;
-	return encoded/CHAR_SIZE;
-}
-
-/**
- * Encodes user plane inactivityimer ie to buffer.
- * @param value
- *     user plane inactivityimer ie
- * @param buf
- *   buffer to store encoded values
- * @return
- *   number of encoded bytes
- */
-int encode_user_plane_inactivity_timer_ie_t(user_plane_inactivity_timer_ie_t *value,
-	uint8_t *buf)
-{
-	uint16_t encoded = 0;
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->user_plane_inactivity_timer, 32, buf + (encoded/8), encoded % CHAR_SIZE);
-	return encoded/CHAR_SIZE;
-}
-
-/**
- * Encodes user id ie to buffer.
- * @param value
- *     user id ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_user_id_ie_t(user_id_ie_t *value,
+* Encodes pfcp_trnspt_lvl_marking_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_trnspt_lvl_marking_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_trnspt_lvl_marking_ie_t(pfcp_trnspt_lvl_marking_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t encoded = 0;
 	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->spare, 4, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->naif, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->msisdnf, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->imeif, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->imsif, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-	if(value->imsif == 1){
-		encoded += encode_bits(value->length_of_imsi, 8, buf + (encoded/8), encoded % CHAR_SIZE);
-		memcpy(buf + (encoded/CHAR_SIZE), &value->imsi, value->length_of_imsi);
-		encoded +=  value->length_of_imsi * CHAR_SIZE;
-	}
-	if(value->imeif == 1){
-		encoded += encode_bits(value->length_of_imei, 8, buf + (encoded/8), encoded % CHAR_SIZE);
-		memcpy(buf + (encoded/CHAR_SIZE), &value->imei, value->length_of_imei);
-		encoded +=  value->length_of_imei * CHAR_SIZE;
-	}
-	if(value->msisdnf == 1){
-		encoded += encode_bits(value->length_of_msisdn, 8, buf + (encoded/8), encoded % CHAR_SIZE);
-		memcpy(buf + (encoded/CHAR_SIZE), &value->msisdn, value->length_of_msisdn);
-		encoded +=  value->length_of_msisdn * CHAR_SIZE;
-	}
-
-	if(value->naif == 1){
-		encoded += encode_bits(value->length_of_nai, 8, buf + (encoded/8), encoded % CHAR_SIZE);
-		memcpy(buf + (encoded/CHAR_SIZE), &value->nai, value->length_of_nai);
-		encoded +=  value->length_of_nai * CHAR_SIZE;
-	}
-	return encoded/CHAR_SIZE;
-}
-
-/**
- * Encodes trace information ie to buffer.
- * @param value
- *     trace information ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_trace_information_ie_t(trace_information_ie_t *value,
-	uint8_t *buf)
-{
-	uint16_t encoded = 0;
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->mcc_digit_2, 4, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->mcc_digit_1, 4, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->mnc_digit_3, 4, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->mcc_digit_3, 4, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->mnc_digit_1, 4, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->mnc_digit_2, 4, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->trace_id, 24, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->spare, 8, buf + (encoded/8), encoded % CHAR_SIZE);
-
-	encoded += encode_bits(value->length_of_triggering_events, 8, buf + (encoded/8), encoded % CHAR_SIZE);
-	memcpy(buf + (encoded/CHAR_SIZE), &value->triggering_events, value->length_of_triggering_events);
-	encoded +=  value->length_of_triggering_events * CHAR_SIZE;
-
-	encoded += encode_bits(value->session_trace_depth, 8, buf + (encoded/8), encoded % CHAR_SIZE);
-
-	encoded += encode_bits(value->length_of_list_of_interfaces, 8, buf + (encoded/8), encoded % CHAR_SIZE);
-	memcpy(buf + (encoded/CHAR_SIZE), &value->list_of_interfaces,value->length_of_list_of_interfaces );
-	encoded +=  value->length_of_list_of_interfaces * CHAR_SIZE;
-
-	encoded += encode_bits(value->length_of_ip_address_of_trace_collection_entity, 8, buf + (encoded/8), encoded % CHAR_SIZE);
-	memcpy(buf + (encoded/CHAR_SIZE), &value->ip_address_of_trace_collection_entity,4* (value->length_of_ip_address_of_trace_collection_entity));
-	encoded += 4* (value->length_of_ip_address_of_trace_collection_entity) * CHAR_SIZE;
+	encoded += encode_bits(value->tostraffic_cls, 16, buf + (encoded/8), encoded % CHAR_SIZE);
 
 	return encoded/CHAR_SIZE;
 }
 
-/**
- * Encodes pdnype ie to buffer.
- * @param value
- *     pdnype ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_pdn_type_ie_t(pfcp_pdn_type_ie_t *value,
-	uint8_t *buf)
-{
-	uint16_t encoded = 0;
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->spare, 5, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->pdn_type, 3, buf + (encoded/8), encoded % CHAR_SIZE);
-	return encoded/CHAR_SIZE;
-}
 
 /**
- * Encodes offending ie ie to buffer.
- * @param value
- *     offending ie ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_offending_ie_ie_t(offending_ie_ie_t *value,
+* Encodes pfcp_failed_rule_id_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_failed_rule_id_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_failed_rule_id_ie_t(pfcp_failed_rule_id_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t encoded = 0;
 	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->type_of_the_offending_ie, 16, buf + (encoded/8), encoded % CHAR_SIZE);
-	return encoded/CHAR_SIZE;
-}
-
-
-/**
- * Encodes failed rule id ie to buffer.
- * @param value
- *     failed rule id ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_failed_rule_id_ie_t(failed_rule_id_ie_t *value,
-		uint8_t *buf)
-{
-	uint16_t encoded = 0;
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->spare, 3, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->failed_rule_id_spare, 3, buf + (encoded/8), encoded % CHAR_SIZE);
 	encoded += encode_bits(value->rule_id_type, 5, buf + (encoded/8), encoded % CHAR_SIZE);
+	//   encoded += encode_bits(value->rule_id_value, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+
+	/* TODO: Revisit this for change in yang */
+
 	if(value->rule_id_type == RULE_ID_TYPE_PDR) {
 		memcpy(buf + (encoded/CHAR_SIZE), &value->rule_id_value, 2);
 		encoded +=  2* CHAR_SIZE;
@@ -673,1600 +151,2599 @@ int encode_failed_rule_id_ie_t(failed_rule_id_ie_t *value,
 		memcpy(buf + (encoded/CHAR_SIZE), &value->rule_id_value, 4);
 		encoded +=  4* CHAR_SIZE;
 	}//FAR is by default 3gpp 29.244 15.03 (8.2.80)
-
 	return encoded/CHAR_SIZE;
 }
 
 
 /**
- * Encodes load control information to buffer.
- *   @param lc_inf
- * load control information
- *   @param buf
- * buffer to store encoded values.
- *   @return
+* Encodes pfcp_sbsqnt_vol_quota_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_sbsqnt_vol_quota_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_sbsqnt_vol_quota_ie_t(pfcp_sbsqnt_vol_quota_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->sbsqnt_vol_quota_spare, 5, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->dlvol, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->ulvol, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->tovol, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    ENCODE_TOTAL_VOLUME_COND_5(value, 64, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+    ENCODE_UPLINK_VOLUME_COND_5(value, 64, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+    ENCODE_DOWNLINK_VOLUME_COND_5(value, 64, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_eth_fltr_id_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_eth_fltr_id_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_eth_fltr_id_ie_t(pfcp_eth_fltr_id_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->eth_fltr_id_val, 32, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_mac_addrs_rmvd_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_mac_addrs_rmvd_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_mac_addrs_rmvd_ie_t(pfcp_mac_addrs_rmvd_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->nbr_of_mac_addrs, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+    memcpy(buf + (encoded/8), &value->mac_addr_val, MAC_ADDR_VAL_LEN);
+    encoded += MAC_ADDR_VAL_LEN * CHAR_SIZE;
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_linked_urr_id_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_linked_urr_id_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_linked_urr_id_ie_t(pfcp_linked_urr_id_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->lnkd_urr_id_val, 32, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_evnt_time_stmp_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_evnt_time_stmp_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_evnt_time_stmp_ie_t(pfcp_evnt_time_stmp_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->evnt_time_stmp, 32, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+ * Encodes pfcp_mac_addrs_detctd_ie_t to buffer.
+ * @param buf
+ *   buffer to store encoded values.
+ * @param value
+	pfcp_mac_addrs_detctd_ie_t
+ * @return
  *  number of encoded bytes.
- **/
-int encode_load_control_information_ie_t(load_control_information_ie_t *value,
-		uint8_t *buf)
-{
-	uint16_t encoded = 0;
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	if (value->load_control_sequence_number.header.len)
-		encoded += encode_sequence_number_ie_t(&(value->load_control_sequence_number),buf+(encoded/CHAR_SIZE));
-	if (value->load_metric.header.len)
-		encoded += encode_metric_ie_t(&(value->load_metric), buf+(encoded/CHAR_SIZE));
-
-	return encoded/CHAR_SIZE;
-}
-#if 0
-int encode_load_control_information_ie_t(load_control_information_ie_t *lc_inf,
-		uint8_t *msg)
-{
-	uint16_t enc_len = 0;
-
-	enc_len += encode_pfcp_ie_header_t(&lc_inf->header, msg);
-
-	if (lc_inf->load_control_sequence_number.header.len)
-		enc_len += encode_sequence_number_ie_t(&(lc_inf->load_control_sequence_number), msg);
-
-	if (lc_inf->load_metric.header.len)
-		enc_len += encode_metric_ie_t(&(lc_inf->load_metric), msg);
-
-	return enc_len;
-}
-#endif
-/**
- * Encodes overload control information to buffer.
- * @param oc_inf
- *     overload control information
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
  */
-#if 0
-int encode_overload_control_information_ie_t(overload_control_information_ie_t *oc_inf,
-		uint8_t *msg)
-{
-	uint16_t enc_len = 0;
-
-	enc_len += encode_pfcp_ie_header_t(&oc_inf->header, msg);
-
-	if (oc_inf->overload_control_sequence_number.header.len)
-		enc_len += encode_sequence_number_ie_t(&(oc_inf->overload_control_sequence_number), msg);
-
-	if (oc_inf->overload_reduction_metric.header.len)
-		enc_len += encode_metric_ie_t(&(oc_inf->overload_reduction_metric), msg);
-
-	if (oc_inf->period_of_validity.header.len)
-		enc_len += encode_timer_ie_t(&(oc_inf->period_of_validity), msg);
-	if (oc_inf->overload_control_information_flags.header.len)
-		enc_len += encode_oci_flags_ie_t(&(oc_inf->overload_control_information_flags), msg);
-
-	return enc_len;
-}
-#endif
-int encode_overload_control_information_ie_t(overload_control_information_ie_t *value,
+int encode_pfcp_mac_addrs_detctd_ie_t(pfcp_mac_addrs_detctd_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t encoded = 0;
 	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	if (value->overload_control_sequence_number.header.len)
-		encoded += encode_sequence_number_ie_t(&(value->overload_control_sequence_number),buf+(encoded/CHAR_SIZE));
-	if (value->overload_reduction_metric.header.len)
-		encoded += encode_metric_ie_t(&(value->overload_reduction_metric), buf+(encoded/CHAR_SIZE));
-	if (value->period_of_validity.header.len)
-		encoded += encode_timer_ie_t(&(value->period_of_validity), buf+(encoded/CHAR_SIZE));
-	if (value->overload_control_information_flags.header.len)
-		encoded += encode_oci_flags_ie_t(&(value->overload_control_information_flags), buf+(encoded/CHAR_SIZE));
+	encoded += encode_bits(value->nbr_of_mac_addrs, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+	memcpy(buf + (encoded/8), &value->mac_addr_val, MAC_ADDR_VAL_LEN);
+	encoded += MAC_ADDR_VAL_LEN * CHAR_SIZE;
 
-	return encoded/CHAR_SIZE;
-}
-
-/**
- * Encodes sequence number ie to buffer.
- * @param value
- *     sequence number ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_sequence_number_ie_t(sequence_number_ie_t *value,
-		uint8_t *buf)
-{
-	uint16_t encoded = 0;
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->sequence_number, 32, buf + (encoded/8), encoded % CHAR_SIZE);
-	return encoded;
-}
-
-
-/**
- * Encodes metric ie to buffer.
- * @param value
- *     metric ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_metric_ie_t(metric_ie_t *value,
-		uint8_t *buf)
-{
-	uint16_t encoded = 0;
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->metric, 8, buf + (encoded/8), encoded % CHAR_SIZE);
-	return encoded;
-}
-
-
-/**
- * Encodes timer ie to buffer.
- * @param value
- *     timer ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_timer_ie_t(timer_ie_t *value,
-		uint8_t *buf)
-{
-	uint16_t encoded = 0;
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->timer_unit, 3, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->timer_value, 5, buf + (encoded/8), encoded % CHAR_SIZE);
-	//return encoded/CHAR_SIZE;
-	return encoded;
-}
-/**
- * Encodes oci flags ie to buffer.
- * @param value
- *     oci flags ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_oci_flags_ie_t(oci_flags_ie_t *value,
-		uint8_t *buf)
-{
-	uint16_t encoded = 0;
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->spare, 7, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->aoci, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-	return encoded;
-}
-
-
-
-/**
- * Encodes cause ie to buffer.
- * @param value
- *     cause ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_cause_ie_t(pfcp_cause_ie_t *value,
-		uint8_t *buf)
-{
-	uint16_t encoded = 0;
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->cause_value, 8, buf + (encoded/8), encoded % CHAR_SIZE);
 	return encoded/CHAR_SIZE;
 }
 
 
 /**
- * Encodes remove bar to buffer.
- * @param r_bar
- *     remove bar
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_remove_bar_ie_t(remove_bar_ie_t *value,
+* Encodes pfcp_node_id_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+	pfcp_node_id_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_node_id_ie_t(pfcp_node_id_ie_t *value,
 		uint8_t *buf)
 {
-
 	uint16_t encoded = 0;
 	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	if(value->bar_id.header.len)
-	encoded += encode_bar_id_ie_t(&value->bar_id, buf + (encoded/CHAR_SIZE));
+	encoded += encode_bits(value->node_id_spare, 4, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->node_id_type, 4, buf + (encoded/8), encoded % CHAR_SIZE);
+
+	/* TODO: Revisit this for change in yang */
+
+	ENCODE_NODE_ID_VALUE_COND_1(value, 8, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
 
 	return encoded/CHAR_SIZE;
 }
 
+
 /**
- * Encodes removeraffic endpoint to buffer.
- * @param rt_end
- *     removeraffic endpoint
+ * Encodes pfcp_bar_id_ie_t to buffer.
  * @param buf
  *   buffer to store encoded values.
+ * @param value
+	pfcp_bar_id_ie_t
  * @return
  *   number of encoded bytes.
  */
-int encode_remove_traffic_endpoint_ie_t(remove_traffic_endpoint_ie_t *value,
+int encode_pfcp_bar_id_ie_t(pfcp_bar_id_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t encoded = 0;
 	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	if (value->traffic_endpoint_id.header.len)
-		encoded += encode_traffic_endpoint_id_ie_t(&(value->traffic_endpoint_id), buf + (encoded/CHAR_SIZE));
+	encoded += encode_bits(value->bar_id_value, 8, buf + (encoded/8), encoded % CHAR_SIZE);
 
-	return encoded/CHAR_SIZE;
-}
-
-/**
- * Encodes traffic endpoint id ie to buffer.
- * @param value
- *     traffic endpoint id ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_traffic_endpoint_id_ie_t(traffic_endpoint_id_ie_t *value,
-	uint8_t *buf)
-{
-	uint16_t encoded = 0;
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->traffic_endpoint_id_value, 8, buf + (encoded/8), encoded % CHAR_SIZE);
 	return encoded;
 }
 
 
 /**
- * Encodes feid ie to buffer.
- * @param value
- *     feid ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_f_teid_ie_t(f_teid_ie_t *value,
-		uint8_t *buf)
+* Encodes pfcp_usage_info_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_usage_info_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_usage_info_ie_t(pfcp_usage_info_ie_t *value,
+    uint8_t *buf)
 {
-	uint16_t encoded = 0;
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->spare, 4, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->chid, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->ch, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->v6, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->v4, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->teid, 32, buf + (encoded/8), encoded % CHAR_SIZE);
-	if (value->v4 == 1){
-		memcpy(buf + (encoded/8), &value->ipv4_address, 4);
-		encoded +=  4 * CHAR_SIZE;
-	}else {
-		memcpy(buf + (encoded/8), &value->ipv6_address, 16);
-		encoded +=  16 * CHAR_SIZE;
-	}
-	if(value->chid == 1)
-		encoded += encode_bits(value->choose_id, 8, buf + (encoded/8), encoded % CHAR_SIZE);
-	return encoded;
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->usage_info_spare, 5, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->ube, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->uae, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->aft, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->bef, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
 }
 
 
 /**
- * Encodes network instance ie to buffer.
- * @param value
- *     network instance ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_network_instance_ie_t(network_instance_ie_t *value,
-		uint8_t *buf)
+* Encodes pfcp_dnlnk_data_svc_info_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_dnlnk_data_svc_info_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_dnlnk_data_svc_info_ie_t(pfcp_dnlnk_data_svc_info_ie_t *value,
+    uint8_t *buf)
 {
-	uint16_t encoded = 0;
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	memcpy(buf + (encoded/CHAR_SIZE), &value->network_instance, NETWORK_INSTANCE_LEN);
-	encoded +=  NETWORK_INSTANCE_LEN * CHAR_SIZE;
-	return encoded;
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->dnlnk_data_svc_info_spare, 6, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->qfii, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->ppi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->dnlnk_data_svc_info_spare2, 2, buf + (encoded/8), encoded % CHAR_SIZE);
+    //ENCODE_PAGING_PLCY_INDCTN_VAL_COND_1(value, 6, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+    encoded += encode_bits(value->paging_plcy_indctn_val, 6, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->dnlnk_data_svc_info_spare3, 2, buf + (encoded/8), encoded % CHAR_SIZE);
+    //ENCODE_QFI_COND_1(value, 6, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+    encoded += encode_bits(value->qfi, 6, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded;
 }
 
+
 /**
- * Encodes ue ip address ie to buffer.
- * @param value
- *     ue ip address ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_ue_ip_address_ie_t(ue_ip_address_ie_t *value,
+* Encodes pfcp_dur_meas_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_dur_meas_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_dur_meas_ie_t(pfcp_dur_meas_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->duration_value, 32, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_up_assn_rel_req_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_up_assn_rel_req_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_up_assn_rel_req_ie_t(pfcp_up_assn_rel_req_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->up_assn_rel_req_spare, 7, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->sarr, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_application_id_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_application_id_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_application_id_ie_t(pfcp_application_id_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+
+	/* TODO: Revisit this for change in yang */
+	memcpy(buf + (encoded/CHAR_SIZE), &value->app_ident, 8);
+	encoded +=  8  * CHAR_SIZE;
+
+//    encoded += encode_bits(value->app_ident, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+//
+/* TODO: Revisit this for change in yang */
+    return encoded;//CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_urseqn_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_urseqn_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_urseqn_ie_t(pfcp_urseqn_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->urseqn, 32, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_dl_flow_lvl_marking_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_dl_flow_lvl_marking_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_dl_flow_lvl_marking_ie_t(pfcp_dl_flow_lvl_marking_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->dl_flow_lvl_marking_spare, 6, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->sci, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->ttc, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    ENCODE_TOSTRAFFIC_CLS_COND_1(value, 16, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+    ENCODE_SVC_CLS_INDCTR_COND_1(value, 16, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+
+	/* TODO: Revisit this for change in yang */
+    return encoded;//CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_ue_ip_address_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_ue_ip_address_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_ue_ip_address_ie_t(pfcp_ue_ip_address_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t encoded = 0;
 	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->spare, 4, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->ue_ip_addr_spare, 4, buf + (encoded/8), encoded % CHAR_SIZE);
 	encoded += encode_bits(value->ipv6d, 1, buf + (encoded/8), encoded % CHAR_SIZE);
 	encoded += encode_bits(value->sd, 1, buf + (encoded/8), encoded % CHAR_SIZE);
 	encoded += encode_bits(value->v4, 1, buf + (encoded/8), encoded % CHAR_SIZE);
 	encoded += encode_bits(value->v6, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-	if(value->v4 == 1) {
-		memcpy(buf + (encoded/8), &value->ipv4_address, 4);
-		encoded +=  4 * CHAR_SIZE;
-		//encoded += encode_bits(value->ipv4_address, 32, buf + (encoded/8), encoded % CHAR_SIZE);
-	} else {
-		//encoded += encode_bits(value->ipv6_address, 64, buf + (encoded/8), encoded % CHAR_SIZE);
-		memcpy(buf + (encoded/8), &value->ipv6_address,16);
-		encoded +=  16 * CHAR_SIZE;
-		encoded += encode_bits(value->ipv6_prefix_delegation_bits, 8, buf + (encoded/8), encoded % CHAR_SIZE);
-	}
-	return encoded;
+	ENCODE_IPV4_ADDRESS_COND_6(value, 32, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+	ENCODE_IPV6_ADDRESS_COND_6(value, 8, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+	ENCODE_IPV6_PFX_DLGTN_BITS_COND_1(value, 8, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+
+	/* TODO: Revisit this for change in yang */
+	return encoded;//CHAR_SIZE;
 }
 
+
 /**
- * Encodes ethernet pdu session information ie to buffer.
- * @param value
- *     ethernet pdu session information ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_ethernet_pdu_session_information_ie_t(ethernet_pdu_session_information_ie_t *value,
+* Encodes pfcp_sbsqnt_evnt_quota_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_sbsqnt_evnt_quota_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_sbsqnt_evnt_quota_ie_t(pfcp_sbsqnt_evnt_quota_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->sbsqnt_evnt_quota, 32, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_gate_status_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_gate_status_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_gate_status_ie_t(pfcp_gate_status_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->gate_status_spare, 4, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->ul_gate, 2, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->dl_gate, 2, buf + (encoded/8), encoded % CHAR_SIZE);
+
+/* TODO: Revisit this for change in yang */
+    return encoded;//CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_suggstd_buf_pckts_cnt_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_suggstd_buf_pckts_cnt_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_suggstd_buf_pckts_cnt_ie_t(pfcp_suggstd_buf_pckts_cnt_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t encoded = 0;
 	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->ethi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->spare, 7, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->pckt_cnt_val, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+
 	return encoded;
 }
 
+
 /**
- * Encodes framed routing ie to buffer.
- * @param value
- *     framed routing ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_framed_routing_ie_t(framed_routing_ie_t *value,
+* Encodes pfcp_pfd_contents_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_pfd_contents_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_pfd_contents_ie_t(pfcp_pfd_contents_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->pfd_contents_spare, 4, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->pfd_contents_cp, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->dn, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->url, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->fd, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->pfd_contents_spare2, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+    ENCODE_LEN_OF_FLOW_DESC_COND_2(value, 16, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+    ENCODE_FLOW_DESC_COND_2(value, 8, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+    ENCODE_LENGTH_OF_URL_COND_1(value, 16, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+    ENCODE_URL2_COND_1(value, 8, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+    ENCODE_LEN_OF_DOMAIN_NM_COND_1(value, 16, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+    ENCODE_DOMAIN_NAME_COND_1(value, 8, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+    ENCODE_LEN_OF_CSTM_PFD_CNTNT_COND_1(value, 16, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+    ENCODE_CSTM_PFD_CNTNT_COND_1(value, 8, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_sequence_number_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_sequence_number_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_sequence_number_ie_t(pfcp_sequence_number_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->sequence_number, 32, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_packet_rate_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_packet_rate_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_packet_rate_ie_t(pfcp_packet_rate_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->pckt_rate_spare, 6, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->dlpr, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->ulpr, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->pckt_rate_spare2, 5, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->uplnk_time_unit, 3, buf + (encoded/8), encoded % CHAR_SIZE);
+    ENCODE_MAX_UPLNK_PCKT_RATE_COND_1(value, 16, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+    encoded += encode_bits(value->pckt_rate_spare3, 5, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->dnlnk_time_unit, 3, buf + (encoded/8), encoded % CHAR_SIZE);
+    ENCODE_MAX_DNLNK_PCKT_RATE_COND_1(value, 16, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+
+	/* TODO: Revisit this for change in yang */
+    return encoded;//CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_hdr_enrchmt_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_hdr_enrchmt_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_hdr_enrchmt_ie_t(pfcp_hdr_enrchmt_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t encoded = 0;
 	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	memcpy(buf + (encoded/CHAR_SIZE), &value->framed_routing, FRAMED_ROUTING_LEN);
-	encoded +=  FRAMED_ROUTING_LEN * CHAR_SIZE;
-	return encoded;
-}
-
-/**
- * Encodes createraffic endpoint to buffer.
- * @param value
- *     createraffic endpoint
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_create_traffic_endpoint_ie_t(create_traffic_endpoint_ie_t *value,
-		uint8_t *buf)
-{
-	uint16_t encoded = 0;
-
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-
-	if (value->traffic_endpoint_id.header.len)
-		encoded += encode_traffic_endpoint_id_ie_t(&(value->traffic_endpoint_id), buf + (encoded/CHAR_SIZE));
-
-	if (value->local_fteid.header.len)
-		encoded += encode_f_teid_ie_t(&(value->local_fteid), buf + (encoded/CHAR_SIZE));
-
-	if (value->network_instance.header.len)
-		encoded += encode_network_instance_ie_t(&(value->network_instance), buf + (encoded/CHAR_SIZE));
-
-	if (value->ue_ip_address.header.len)
-		encoded += encode_ue_ip_address_ie_t(&(value->ue_ip_address), buf + (encoded/CHAR_SIZE));
-
-	if (value->ethernet_pdu_session_information.header.len)
-		encoded += encode_ethernet_pdu_session_information_ie_t(&(value->ethernet_pdu_session_information), buf + (encoded/CHAR_SIZE));
-
-	if (value->framedrouting.header.len)
-		encoded += encode_framed_routing_ie_t(&(value->framedrouting), buf + (encoded/CHAR_SIZE));
+	encoded += encode_bits(value->hdr_enrchmt_spare, 3, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->header_type, 5, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->len_of_hdr_fld_nm, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->hdr_fld_nm, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->len_of_hdr_fld_val, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->hdr_fld_val, 8, buf + (encoded/8), encoded % CHAR_SIZE);
 
 	return encoded/CHAR_SIZE;
 }
 
 
 /**
- * Encodes qer id ie to buffer.
- * @param value
- *     qer id ie
+* Encodes pfcp_time_quota_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_time_quota_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_time_quota_ie_t(pfcp_time_quota_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->time_quota_val, 32, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_deact_predef_rules_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_deact_predef_rules_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_deact_predef_rules_ie_t(pfcp_deact_predef_rules_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->predef_rules_nm, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_apply_action_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_apply_action_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_apply_action_ie_t(pfcp_apply_action_ie_t *value,
+		uint8_t *buf)
+{
+	uint16_t encoded = 0;
+	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+	encoded += encode_bits(value->apply_act_spare, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->apply_act_spare2, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->apply_act_spare3, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->dupl, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->nocp, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->buff, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->forw, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->drop, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+
+	return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_node_rpt_type_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_node_rpt_type_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_node_rpt_type_ie_t(pfcp_node_rpt_type_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->node_rpt_type_spare, 7, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->upfr, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_fteid_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_fteid_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_fteid_ie_t(pfcp_fteid_ie_t *value,
+		uint8_t *buf)
+{
+	uint16_t encoded = 0;
+	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+	encoded += encode_bits(value->fteid_spare, 4, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->chid, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->ch, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->v6, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->v4, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	ENCODE_TEID_COND_2(value, 32, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+	ENCODE_IPV4_ADDRESS_COND_5(value, 32, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+	ENCODE_IPV6_ADDRESS_COND_5(value, 8, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+	ENCODE_CHOOSE_ID_COND_1(value, 8, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+
+	/* TODO: Revisit this for change in yang */
+	return encoded;//CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_meas_period_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_meas_period_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_meas_period_ie_t(pfcp_meas_period_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->meas_period, 32, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+ * Encodes pfcp_up_func_feat_ie_t to buffer.
  * @param buf
  *   buffer to store encoded values.
+ * @param value
+	pfcp_up_func_feat_ie_t
  * @return
  *   number of encoded bytes.
  */
-int encode_qer_id_ie_t(qer_id_ie_t *value,
+int encode_pfcp_up_func_feat_ie_t(pfcp_up_func_feat_ie_t *value,
+		uint8_t *buf)
+{
+	uint16_t encoded = 0;
+	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+	encoded += encode_bits(value->sup_feat, 16, buf + (encoded/8), encoded % CHAR_SIZE);
+
+	return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_inact_det_time_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_inact_det_time_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_inact_det_time_ie_t(pfcp_inact_det_time_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->inact_det_time, 32, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_pfcpsmreq_flags_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_pfcpsmreq_flags_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_pfcpsmreq_flags_ie_t(pfcp_pfcpsmreq_flags_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->pfcpsmreq_flgs_spare, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->pfcpsmreq_flgs_spare2, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->pfcpsmreq_flgs_spare3, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->pfcpsmreq_flgs_spare4, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->pfcpsmreq_flgs_spare5, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->qaurr, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->sndem, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->drobu, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_meas_mthd_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_meas_mthd_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_meas_mthd_ie_t(pfcp_meas_mthd_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->meas_mthd_spare, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->meas_mthd_spare2, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->meas_mthd_spare3, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->meas_mthd_spare4, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->meas_mthd_spare5, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->event, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->volum, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->durat, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_paging_plcy_indctr_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_paging_plcy_indctr_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_paging_plcy_indctr_ie_t(pfcp_paging_plcy_indctr_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->paging_plcy_indctr_spare, 5, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->ppi_value, 3, buf + (encoded/8), encoded % CHAR_SIZE);
+/* TODO: Revisit this for change in yang */
+    return encoded;//CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_framed_routing_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_framed_routing_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_framed_routing_ie_t(pfcp_framed_routing_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->framed_routing, 32, buf + (encoded/8), encoded % CHAR_SIZE);
+/* TODO: Revisit this for change in yang */
+    return encoded;//CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_time_quota_mech_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_time_quota_mech_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_time_quota_mech_ie_t(pfcp_time_quota_mech_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->time_quota_mech_spare, 6, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->btit, 2, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->base_time_int, 32, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_quota_hldng_time_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_quota_hldng_time_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_quota_hldng_time_ie_t(pfcp_quota_hldng_time_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->quota_hldng_time_val, 32, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_gbr_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_gbr_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_gbr_ie_t(pfcp_gbr_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->ul_gbr, 40, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->dl_gbr, 40, buf + (encoded/8), encoded % CHAR_SIZE);
+/* TODO: Revisit this for change in yang */
+    return encoded;//CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_traffic_endpt_id_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_traffic_endpt_id_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_traffic_endpt_id_ie_t(pfcp_traffic_endpt_id_ie_t *value,
+		uint8_t *buf)
+{
+	uint16_t encoded = 0;
+	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+	encoded += encode_bits(value->traffic_endpt_id_val, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+/* TODO: Revisit this for change in yang */
+	return encoded;//CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_dl_buf_dur_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_dl_buf_dur_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_dl_buf_dur_ie_t(pfcp_dl_buf_dur_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->timer_unit, 3, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->timer_value, 5, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_volume_quota_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_volume_quota_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_volume_quota_ie_t(pfcp_volume_quota_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->vol_quota_spare, 5, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->dlvol, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->ulvol, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->tovol, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    ENCODE_TOTAL_VOLUME_COND_4(value, 64, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+    ENCODE_UPLINK_VOLUME_COND_4(value, 64, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+    ENCODE_DOWNLINK_VOLUME_COND_4(value, 64, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_event_quota_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_event_quota_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_event_quota_ie_t(pfcp_event_quota_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->sbsqnt_evnt_quota, 32, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_query_urr_ref_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_query_urr_ref_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_query_urr_ref_ie_t(pfcp_query_urr_ref_ie_t *value,
+		uint8_t *buf)
+{
+	uint16_t encoded = 0;
+	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+	encoded += encode_bits(value->query_urr_ref_val, 32, buf + (encoded/8), encoded % CHAR_SIZE);
+
+	return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_sbsqnt_time_quota_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_sbsqnt_time_quota_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_sbsqnt_time_quota_ie_t(pfcp_sbsqnt_time_quota_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->time_quota_val, 32, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_qer_corr_id_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_qer_corr_id_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_qer_corr_id_ie_t(pfcp_qer_corr_id_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->qer_corr_id_val, 32, buf + (encoded/8), encoded % CHAR_SIZE);
+
+	/* TODO: Revisit this for change in yang */
+    return encoded;//CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_vol_meas_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_vol_meas_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_vol_meas_ie_t(pfcp_vol_meas_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->vol_meas_spare, 5, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->dlvol, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->ulvol, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->tovol, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    ENCODE_TOTAL_VOLUME_COND_3(value, 64, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+    ENCODE_UPLINK_VOLUME_COND_3(value, 64, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+    ENCODE_DOWNLINK_VOLUME_COND_3(value, 64, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_far_id_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_far_id_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_far_id_ie_t(pfcp_far_id_ie_t *value,
+		uint8_t *buf)
+{
+	uint16_t encoded = 0;
+	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+	encoded += encode_bits(value->far_id_value, 32, buf + (encoded/8), encoded % CHAR_SIZE);
+
+	/* TODO: Revisit this for change in yang */
+	return encoded;
+}
+
+
+/**
+* Encodes pfcp_proxying_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_proxying_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_proxying_ie_t(pfcp_proxying_ie_t *value,
+		uint8_t *buf)
+{
+	uint16_t encoded = 0;
+	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+	encoded += encode_bits(value->proxying_spare, 6, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->ins, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->arp, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+
+	return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_rptng_triggers_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_rptng_triggers_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_rptng_triggers_ie_t(pfcp_rptng_triggers_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->liusa, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->droth, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->stopt, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->start, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->quhti, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->timth, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->volth, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->perio, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->rptng_triggers_spare, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->rptng_triggers_spare2, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->evequ, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->eveth, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->macar, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->envcl, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->timqu, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->volqu, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_qer_id_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_qer_id_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_qer_id_ie_t(pfcp_qer_id_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t encoded = 0;
 	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
 	encoded += encode_bits(value->qer_id_value, 32, buf + (encoded/8), encoded % CHAR_SIZE);
+/* TODO: Revisit this for change in yang */
 	return encoded;
 }
 
 
 /**
- * Encodes qer correlation id ie to buffer.
- * @param value
- *     qer correlation id ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_qer_correlation_id_ie_t(qer_correlation_id_ie_t *value,
-		uint8_t *buf)
+* Encodes pfcp_monitoring_time_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_monitoring_time_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_monitoring_time_ie_t(pfcp_monitoring_time_ie_t *value,
+    uint8_t *buf)
 {
-	uint16_t encoded = 0;
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->qer_correlation_id_value, 32, buf + (encoded/8), encoded % CHAR_SIZE);
-	return encoded;
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->monitoring_time, 32, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
 }
+
 
 /**
- * Encodes gate status ie to buffer.
- * @param value
- *     gate status ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_gate_status_ie_t(gate_status_ie_t *value,
-		uint8_t *buf)
+* Encodes pfcp_flow_info_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_flow_info_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_flow_info_ie_t(pfcp_flow_info_ie_t *value,
+    uint8_t *buf)
 {
-	uint16_t encoded = 0;
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->spare, 4, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->ul_gate, 2, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->dl_gate, 2, buf + (encoded/8), encoded % CHAR_SIZE);
-	return encoded;
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->flow_info_spare, 5, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->flow_direction, 3, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->len_of_flow_desc, 16, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->flow_desc, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
 }
 
-int
-encode_mbr_bits(uint64_t *val, uint8_t *buf)
-{
-	uint8_t tmp[MBR_BUF_SIZE];
-	tmp[0] = (*val >> 32) & 0xff;
-	tmp[1] = (*val >> 24) & 0xff;
-	tmp[2] = (*val >> 16) & 0xff;
-	tmp[3] = (*val >> 8) & 0Xff;
-	tmp[4] = (*val & 0Xff);
 
-	memcpy(buf, tmp, MBR_BUF_SIZE);
-
-	return MBR_BUF_SIZE * CHAR_SIZE;
-}
 /**
- * Encodes mbr ie to buffer.
- * @param value
- *     mbr ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_mbr_ie_t(mbr_ie_t *value,
+* Encodes pfcp_precedence_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_precedence_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_precedence_ie_t(pfcp_precedence_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t encoded = 0;
 	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	//encoded += encode_bits(value->ul_mbr, 64, buf + (encoded/8), encoded % CHAR_SIZE);
-	//encoded += encode_bits(value->dl_mbr, 64, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_mbr_bits(&value->ul_mbr, buf + (encoded/8));
-	encoded += encode_mbr_bits(&value->dl_mbr, buf + (encoded/8));
-	return encoded;
-}
- 
-/**
- * Encodes gbr ie to buffer.
- * @param value
- *     gbr ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_gbr_ie_t(gbr_ie_t *value,
-		uint8_t *buf)
-{
-	uint16_t encoded = 0;
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	//encoded += encode_bits(value->ul_gbr, 64, buf + (encoded/8), encoded % CHAR_SIZE);
-	//encoded += encode_bits(value->dl_gbr, 64, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_mbr_bits(&value->ul_gbr, buf + (encoded/8));
-	encoded += encode_mbr_bits(&value->dl_gbr, buf + (encoded/8));
+	encoded += encode_bits(value->prcdnc_val, 32, buf + (encoded/8), encoded % CHAR_SIZE);
+
+/* TODO: Revisit this for change in yang */
 	return encoded;
 }
 
 
 /**
- * Encodes packet rate ie to buffer.
- * @param value
- *     packet rate ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_packet_rate_ie_t(packet_rate_ie_t *value,
-		uint8_t *buf)
+* Encodes pfcp_metric_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_metric_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_metric_ie_t(pfcp_metric_ie_t *value,
+    uint8_t *buf)
 {
-	uint16_t encoded = 0;
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->spare, 6, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->dlpr, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->ulpr, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->spare2, 5, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->uplink_time_unit, 3, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->maximum_uplink_packet_rate, 16, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->spare3, 5, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->downlink_time_unit, 3, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->maximum_downlink_packet_rate, 16, buf + (encoded/8), encoded % CHAR_SIZE);
-	return encoded;
-}
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->metric, 8, buf + (encoded/8), encoded % CHAR_SIZE);
 
-/**
- * Encodes dl flow level marking ie to buffer.
- * @param value
- *     dl flow level marking ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_dl_flow_level_marking_ie_t(dl_flow_level_marking_ie_t *value,
-		uint8_t *buf)
-{
-	uint16_t encoded = 0;
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->spare, 6, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->sci, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->ttc, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->tostraffic_class, 16, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->service_class_indicator, 16, buf + (encoded/8), encoded % CHAR_SIZE);
-	return encoded;
+    return encoded/CHAR_SIZE;
 }
 
 
 /**
- * Encodes qfi ie to buffer.
- * @param value
- *     qfi ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_qfi_ie_t(qfi_ie_t *value,
-		uint8_t *buf)
+* Encodes pfcp_multiplier_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_multiplier_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_multiplier_ie_t(pfcp_multiplier_ie_t *value,
+    uint8_t *buf)
 {
-	uint16_t encoded = 0;
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->spare, 2, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->qfi_value, 6, buf + (encoded/8), encoded % CHAR_SIZE);
-	return encoded;
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->value_digits, 64, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->exponent, 32, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
 }
 
 
 /**
- * Encodes rqi ie to buffer.
- * @param value
- *     rqi ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_rqi_ie_t(rqi_ie_t *value,
-		uint8_t *buf)
+* Encodes pfcp_cause_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_cause_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_cause_ie_t(pfcp_cause_ie_t *value,
+    uint8_t *buf)
 {
-	uint16_t encoded = 0;
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->rqi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->spare, 7, buf + (encoded/8), encoded % CHAR_SIZE);
-	return encoded;
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->cause_value, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
 }
 
 
 /**
- * Encodes update qer to buffer.
- * @param value
- *     update qer
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_update_qer_ie_t(update_qer_ie_t *value,
-		uint8_t *buf)
+* Encodes pfcp_offending_ie_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_offending_ie_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_offending_ie_ie_t(pfcp_offending_ie_ie_t *value,
+    uint8_t *buf)
 {
-	uint16_t encoded = 0;
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->type_of_the_offending_ie, 16, buf + (encoded/8), encoded % CHAR_SIZE);
 
-	if (value->qer_id.header.len)
-		encoded += encode_qer_id_ie_t(&(value->qer_id), buf + (encoded/CHAR_SIZE));
-
-	if (value->qer_correlation_id.header.len)
-		encoded += encode_qer_correlation_id_ie_t(&(value->qer_correlation_id), buf + (encoded/CHAR_SIZE));
-
-	if (value->gate_status.header.len)
-		encoded += encode_gate_status_ie_t(&(value->gate_status), buf + (encoded/CHAR_SIZE));
-
-	if (value->maximum_bitrate.header.len)
-		encoded += encode_mbr_ie_t(&(value->maximum_bitrate), buf + (encoded/CHAR_SIZE));
-
-	if (value->guaranteed_bitrate.header.len)
-		encoded += encode_gbr_ie_t(&(value->guaranteed_bitrate), buf + (encoded/CHAR_SIZE));
-
-	if (value->packet_rate.header.len)
-		encoded += encode_packet_rate_ie_t(&(value->packet_rate), buf + (encoded/CHAR_SIZE));
-
-	if (value->dl_flow_level_marking.header.len)
-		encoded += encode_dl_flow_level_marking_ie_t(&(value->dl_flow_level_marking), buf + (encoded/CHAR_SIZE));
-
-	if (value->qos_flow_identifier.header.len)
-		encoded += encode_qfi_ie_t(&(value->qos_flow_identifier), buf + (encoded/CHAR_SIZE));
-
-	if (value->reflective_qos.header.len)
-		encoded += encode_rqi_ie_t(&(value->reflective_qos), buf + (encoded/CHAR_SIZE));
-
-	return encoded/CHAR_SIZE;
+    return encoded/CHAR_SIZE;
 }
+
+
 /**
- * Encodes update bar to buffer.
- * @param value
- *     update bar
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_update_bar_ie_t(update_bar_ie_t *value,
+* Encodes pfcp_ntwk_inst_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_ntwk_inst_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_ntwk_inst_ie_t(pfcp_ntwk_inst_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t encoded = 0;
-
 	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+	/* TODO: Revisit this for change in yang */
+	//encoded += encode_bits(value->ntwk_inst, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+	memcpy(buf + (encoded/CHAR_SIZE), &value->ntwk_inst, 8);
+	encoded +=  8 * CHAR_SIZE;
 
-	if (value->bar_id.header.len)
-		encoded += encode_bar_id_ie_t(&(value->bar_id), buf + (encoded/CHAR_SIZE));
+	return encoded;//CHAR_SIZE;
+}
 
-	if (value->downlink_data_notification_delay.header.len)
-		encoded += encode_downlink_data_notification_delay_ie_t(&(value->downlink_data_notification_delay), buf + (encoded/CHAR_SIZE));
 
-	if (value->suggested_buffering_packets_count.header.len)
-		encoded += encode_suggested_buffering_packets_count_ie_t(&(value->suggested_buffering_packets_count), buf + (encoded/CHAR_SIZE));
+/**
+* Encodes pfcp_redir_info_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_redir_info_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_redir_info_ie_t(pfcp_redir_info_ie_t *value,
+		uint8_t *buf)
+{
+	uint16_t encoded = 0;
+	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+	encoded += encode_bits(value->redir_info_spare, 4, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->redir_addr_type, 4, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->redir_svr_addr_len, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->redir_svr_addr, 8, buf + (encoded/8), encoded % CHAR_SIZE);
 
 	return encoded/CHAR_SIZE;
 }
 
 
 /**
- * Encodes updateraffic endpoint to buffer.
- * @param value
- *     updateraffic endpoint
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_update_traffic_endpoint_ie_t(update_traffic_endpoint_ie_t *value,
+* Encodes pfcp_event_threshold_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_event_threshold_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_event_threshold_ie_t(pfcp_event_threshold_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->event_threshold, 32, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_app_inst_id_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_app_inst_id_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_app_inst_id_ie_t(pfcp_app_inst_id_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->app_inst_ident, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_drpd_dl_traffic_thresh_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_drpd_dl_traffic_thresh_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_drpd_dl_traffic_thresh_ie_t(pfcp_drpd_dl_traffic_thresh_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->drpd_dl_traffic_thresh_spare, 6, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->dlby, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->dlpa, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    ENCODE_DNLNK_PCKTS_COND_1(value, 64, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+    ENCODE_NBR_OF_BYTES_OF_DNLNK_DATA_COND_1(value, 64, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_frmd_ipv6_rte_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_frmd_ipv6_rte_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_frmd_ipv6_rte_ie_t(pfcp_frmd_ipv6_rte_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->frmd_ipv6_rte, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_user_plane_inact_timer_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_user_plane_inact_timer_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_user_plane_inact_timer_ie_t(pfcp_user_plane_inact_timer_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t encoded = 0;
-
 	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-
-	if (value->traffic_endpoint_id.header.len)
-		encoded += encode_traffic_endpoint_id_ie_t(&(value->traffic_endpoint_id), buf + (encoded/CHAR_SIZE));
-
-	if (value->local_fteid.header.len)
-		encoded += encode_f_teid_ie_t(&(value->local_fteid), buf + (encoded/CHAR_SIZE));
-
-	if (value->network_instance.header.len)
-		encoded += encode_network_instance_ie_t(&(value->network_instance), buf + (encoded/CHAR_SIZE));
-
-	if (value->ue_ip_address.header.len)
-		encoded += encode_ue_ip_address_ie_t(&(value->ue_ip_address), buf + (encoded/CHAR_SIZE));
-
-	if (value->framedrouting.header.len)
-		encoded += encode_framed_routing_ie_t(&(value->framedrouting), buf + (encoded/CHAR_SIZE));
+	encoded += encode_bits(value->user_plane_inact_timer, 32, buf + (encoded/8), encoded % CHAR_SIZE);
 
 	return encoded/CHAR_SIZE;
 }
 
 
 /**
- * Encodes query urr reference ie to buffer.
- * @param value
- *     query urr reference ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_query_urr_reference_ie_t(query_urr_reference_ie_t *value,
+* Encodes pfcp_sbsqnt_vol_thresh_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_sbsqnt_vol_thresh_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_sbsqnt_vol_thresh_ie_t(pfcp_sbsqnt_vol_thresh_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->sbsqnt_vol_thresh_spare, 5, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->dlvol, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->ulvol, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->tovol, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    ENCODE_TOTAL_VOLUME_COND_2(value, 64, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+    ENCODE_UPLINK_VOLUME_COND_2(value, 64, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+    ENCODE_DOWNLINK_VOLUME_COND_2(value, 64, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_outer_hdr_removal_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_outer_hdr_removal_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_outer_hdr_removal_ie_t(pfcp_outer_hdr_removal_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t encoded = 0;
 	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->query_urr_reference_value, 32, buf + (encoded/8), encoded % CHAR_SIZE);
-	return encoded/CHAR_SIZE;
+	encoded += encode_bits(value->outer_hdr_removal_desc, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+/* TODO: Revisit this for change in yang */
+	//encoded += encode_bits(value->gtpu_ext_hdr_del, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+/* TODO: Revisit this for change in yang */
+	return encoded;///CHAR_SIZE;
 }
 
+
 /**
- * Encodes pfcpsmreq flags ie to buffer.
- * @param value
- *     pfcpsmreq flags ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_pfcpsmreq_flags_ie_t(pfcpsmreq_flags_ie_t *value,
+* Encodes pfcp_user_id_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_user_id_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_user_id_ie_t(pfcp_user_id_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t encoded = 0;
 	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->drobu, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->sndem, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->qaurr, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->spare5, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->spare4, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->spare3, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->spare2, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->spare, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->user_id_spare, 4, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->naif, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->msisdnf, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->imeif, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->imsif, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	ENCODE_LENGTH_OF_IMSI_COND_1(value, 8, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+	ENCODE_IMSI_COND_1(value, 8, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+	ENCODE_LENGTH_OF_IMEI_COND_1(value, 8, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+	ENCODE_IMEI_COND_1(value, 8, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+	ENCODE_LEN_OF_MSISDN_COND_1(value, 8, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+	ENCODE_MSISDN_COND_1(value, 8, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+	ENCODE_LENGTH_OF_NAI_COND_1(value, 8, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+	ENCODE_NAI_COND_1(value, 8, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+
 	return encoded/CHAR_SIZE;
 }
 
+
 /**
- * Encodes pdr id ie to buffer.
- * @param value
- *     pdr id ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_pdr_id_ie_t(pdr_id_ie_t *value,
+* Encodes pfcp_dst_intfc_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_dst_intfc_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_dst_intfc_ie_t(pfcp_dst_intfc_ie_t *value,
+		uint8_t *buf)
+{
+	uint16_t encoded = 0;
+	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+	encoded += encode_bits(value->dst_intfc_spare, 4, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->interface_value, 4, buf + (encoded/8), encoded % CHAR_SIZE);
+
+	return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_ethertype_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_ethertype_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_ethertype_ie_t(pfcp_ethertype_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->ethertype, 16, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_pdr_id_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_pdr_id_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_pdr_id_ie_t(pfcp_pdr_id_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t encoded = 0;
 	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
 	encoded += encode_bits(value->rule_id, 16, buf + (encoded/8), encoded % CHAR_SIZE);
+
+	/* TODO: Revisit this for change in yang */
 	return encoded;
 }
 
+
 /**
- * Encodes created pdr to buffer.
- * @param value
- *     created pdr
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_created_pdr_ie_t(created_pdr_ie_t *value,
+* Encodes pfcp_frwdng_plcy_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_frwdng_plcy_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_frwdng_plcy_ie_t(pfcp_frwdng_plcy_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t encoded = 0;
-
 	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-
-	if (value->pdr_id.header.len)
-		encoded += encode_pdr_id_ie_t(&(value->pdr_id), buf + (encoded/CHAR_SIZE));
-
-	if (value->local_fteid.header.len)
-		encoded += encode_f_teid_ie_t(&(value->local_fteid), buf + (encoded/CHAR_SIZE));
+	encoded += encode_bits(value->frwdng_plcy_ident_len, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->frwdng_plcy_ident, 8, buf + (encoded/8), encoded % CHAR_SIZE);
 
 	return encoded/CHAR_SIZE;
 }
 
 
 /**
- * Encodes additional usage reports information ie to buffer.
- * @param value
- *     additional usage reports information ie
+* Encodes pfcp_sbsqnt_evnt_thresh_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_sbsqnt_evnt_thresh_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_sbsqnt_evnt_thresh_ie_t(pfcp_sbsqnt_evnt_thresh_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->sbsqnt_evnt_thresh, 32, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_eth_pdu_sess_info_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_eth_pdu_sess_info_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_eth_pdu_sess_info_ie_t(pfcp_eth_pdu_sess_info_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->eth_pdu_sess_info_spare, 7, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->ethi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+
+	/* TODO: Revisit this for change in yang */
+    return encoded;//CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_ctag_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_ctag_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_ctag_ie_t(pfcp_ctag_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->ctag_spare, 5, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->ctag_vid, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->ctag_dei, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->ctag_pcp, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->cvid_value, 4, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->ctag_dei_flag, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->ctag_pcp_value, 3, buf + (encoded/8), encoded % CHAR_SIZE);
+    ENCODE_CVID_VALUE2_COND_1(value, 8, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_dl_buf_suggstd_pckt_cnt_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_dl_buf_suggstd_pckt_cnt_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_dl_buf_suggstd_pckt_cnt_ie_t(pfcp_dl_buf_suggstd_pckt_cnt_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->pckt_cnt_val, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+ * Encodes pfcp_user_plane_ip_rsrc_info_ie_t to buffer.
  * @param buf
  *   buffer to store encoded values.
+ * @param value
+ pfcp_user_plane_ip_rsrc_info_ie_t
  * @return
  *   number of encoded bytes.
  */
-int encode_additional_usage_reports_information_ie_t(additional_usage_reports_information_ie_t *value,
+int encode_pfcp_user_plane_ip_rsrc_info_ie_t(pfcp_user_plane_ip_rsrc_info_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t encoded = 0;
 	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->auri, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->number_of_additional_usage_reports_value, 15, buf + (encoded/8), encoded % CHAR_SIZE);
-	return encoded/CHAR_SIZE;
-}
-
-/**
- * Encodes createdraffic endpoint to buffer.
- * @param value
- *     createdraffic endpoint
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_created_traffic_endpoint_ie_t(created_traffic_endpoint_ie_t *value,
-		uint8_t *buf)
-{
-	uint16_t encoded = 0;
-
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-
-	if (value->traffic_endpoint_id.header.len)
-		encoded += encode_traffic_endpoint_id_ie_t(&(value->traffic_endpoint_id), buf + (encoded/CHAR_SIZE));
-
-	if (value->local_fteid.header.len)
-		encoded += encode_f_teid_ie_t(&(value->local_fteid), buf + (encoded/CHAR_SIZE));
-
-	return encoded/CHAR_SIZE;
-}
-
-
-/**
- * Encodes pfcp association release request ie to buffer.
- * @param value
- *     pfcp association release request ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_pfcp_association_release_request_ie_t(pfcp_association_release_request_ie_t *value,
-		uint8_t *buf)
-{
-	uint16_t encoded = 0;
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->spare, 7, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->sarr, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-	return encoded/CHAR_SIZE;
-}
-
-
-/**
- * Encodes graceful release period ie to buffer.
- * @param value
- *     graceful release period ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_graceful_release_period_ie_t(graceful_release_period_ie_t *value,
-		uint8_t *buf)
-{
-	uint16_t encoded = 0;
-	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->timer_unit, 3, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->timer_value, 5, buf + (encoded/8), encoded % CHAR_SIZE);
-	return encoded/CHAR_SIZE;
-}
-
-/**
- * Encodes node reportype ie to buffer.
- * @param value
- *     node reportype ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_node_report_type_ie_t(node_report_type_ie_t *value,
-        uint8_t *buf)
-{
-        uint16_t encoded = 0;
-        encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-        encoded += encode_bits(value->spare, 7, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->upfr, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-        return encoded/CHAR_SIZE;
-}
-
-/**
- * Encodes remote gtp u peer ie to buffer.
- * @param value
- *     remote gtp u peer ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_remote_gtpu_peer_ie_t(remote_gtp_u_peer_ie_t *value,
-        uint8_t *buf)
-{
-        uint16_t encoded = 0;
-        encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-        encoded += encode_bits(value->spare, 6, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->v4, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->v6, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->ipv4_address, 32, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->ipv6_address, 128, buf + (encoded/8), encoded % CHAR_SIZE);
-        return encoded;
-}
-
-
-/**
- * Encodes user plane path failure report to buffer.
- * @param uppf_rep
- *     user plane path failure report
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_user_plane_path_failure_report_ie_t(user_plane_path_failure_report_ie_t *value,
-        uint8_t *buf)
-{
-	uint16_t encoded = 0;
-        encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	if (value->remote_gtpu_peer.header.len)	
-		encoded += encode_remote_gtpu_peer_ie_t(&(value->remote_gtpu_peer),buf+(encoded/CHAR_SIZE));
-        return encoded/CHAR_SIZE;
-}
-/**
- * Encodes reportype ie to buffer.
- * @param value
- *     reportype ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_report_type_ie_t(report_type_ie_t *value,
-        uint8_t *buf)
-{
-        uint16_t encoded = 0;
-        encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-        encoded += encode_bits(value->spare, 4, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->upir, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->erir, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->usar, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->dldr, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-        return encoded/CHAR_SIZE;
-}
-
-/**
- * Encodes downlink data service information ie to buffer.
- * @param value
- *     downlink data service information ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_downlink_data_service_information_ie_t(downlink_data_service_information_ie_t *value,
-        uint8_t *buf)
-{
-        uint16_t encoded = 0;
-        encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-        encoded += encode_bits(value->spare2, 6, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->qfii, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->ppi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->spare3, 2, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->paging_policy_indication_value, 6, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->spare4, 2, buf + (encoded/8), encoded % CHAR_SIZE);
-        return encoded;
-}
-
-/**
- * Encodes downlink data report to buffer.
- * @param dd_rep
- *     downlink data report
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_downlink_data_report_ie_t(downlink_data_report_ie_t *value,
-        uint8_t *buf)
-{
-        uint16_t encoded = 0;
-
-        encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-
-        if (value->downlink_data_service_information.header.len)
-                encoded += encode_downlink_data_service_information_ie_t(&(value->downlink_data_service_information), buf + (encoded/CHAR_SIZE));
-
-        return encoded/CHAR_SIZE;
-}
-
-/**
- * Encodes urr id ie to buffer.
- * @param value
- *     urr id ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_urr_id_ie_t(urr_id_ie_t *value,
-        uint8_t *buf)
-{
-        uint16_t encoded = 0;
-        encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-        encoded += encode_bits(value->urr_id_value, 32, buf + (encoded/8), encoded % CHAR_SIZE);
-        return encoded;
-}
-
-/**
- * Encodes ur seqn ie to buffer.
- * @param value
- *     ur seqn ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_ur_seqn_ie_t(ur_seqn_ie_t *value,
-        uint8_t *buf)
-{
-        uint16_t encoded = 0;
-        encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-        encoded += encode_bits(value->ur_seqn, 32, buf + (encoded/8), encoded % CHAR_SIZE);
-        return encoded;
-}
-
-/**
- * Encodes usage reportrigger ie to buffer.
- * @param value
- *     usage reportrigger ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_usage_report_trigger_ie_t(usage_report_trigger_ie_t *value,
-        uint8_t *buf)
-{
-        uint16_t encoded = 0;
-        encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-        encoded += encode_bits(value->immer, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->droth, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->stopt, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->start, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->quhti, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->timth, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->volth, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->perio, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->eveth, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->macar, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->envcl, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->monit, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->termr, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->liusa, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->timqu, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->volqu, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-        return encoded;
-}
-
-/**
- * Encodes startime ie to buffer.
- * @param value
- *     startime ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_start_time_ie_t(start_time_ie_t *value,
-        uint8_t *buf)
-{
-        uint16_t encoded = 0;
-        encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-        encoded += encode_bits(value->start_time, 32, buf + (encoded/8), encoded % CHAR_SIZE);
-        return encoded;
-}
-
-/**
- * Encodes endime ie to buffer.
- * @param value
- *     endime ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_end_time_ie_t(end_time_ie_t *value,
-        uint8_t *buf)
-{
-        uint16_t encoded = 0;
-        encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-        encoded += encode_bits(value->end_time, 32, buf + (encoded/8), encoded % CHAR_SIZE);
-        return encoded;
-}
-
-
-/**
- * Encodes volume measurement ie to buffer.
- * @param value
- *     volume measurement ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_volume_measurement_ie_t(volume_measurement_ie_t *value,
-        uint8_t *buf)
-{
-        uint16_t encoded = 0;
-        encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-        encoded += encode_bits(value->spare, 5, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->dlvol, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->ulvol, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->tovol, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->total_volume, 64, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->uplink_volume, 64, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->downlink_volume, 64, buf + (encoded/8), encoded % CHAR_SIZE);
-        return encoded;
-}
-
-
-/**
- * Encodes duration measurement ie to buffer.
- * @param value
- *     duration measurement ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_duration_measurement_ie_t(duration_measurement_ie_t *value,
-        uint8_t *buf)
-{
-        uint16_t encoded = 0;
-        encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-        encoded += encode_bits(value->duration_value, 32, buf + (encoded/8), encoded % CHAR_SIZE);
-        return encoded;
-}
-
-/**
- * Encodes application id ie to buffer.
- * @param value
- *     application id ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_application_id_ie_t(application_id_ie_t *value,
-        uint8_t *buf)
-{
-        uint16_t encoded = 0;
-        encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-        memcpy(buf + (encoded/CHAR_SIZE), &value->application_identifier, APPLICATION_IDENTIFIER_LEN);
-        encoded +=  APPLICATION_IDENTIFIER_LEN * CHAR_SIZE;
-        return encoded;
-}
-
-/**
- * Encodes application instance id ie to buffer.
- * @param value
- *     application instance id ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_application_instance_id_ie_t(application_instance_id_ie_t *value,
-        uint8_t *buf)
-{
-        uint16_t encoded = 0;
-        encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-        memcpy(buf + (encoded/CHAR_SIZE), &value->application_instance_identifier, APPLICATION_INSTANCE_IDENTIFIER_LEN);
-        encoded +=  APPLICATION_INSTANCE_IDENTIFIER_LEN * CHAR_SIZE;
-        return encoded;
-}
-
-
-/**
- * Encodes flow information ie to buffer.
- * @param value
- *     flow information ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_flow_information_ie_t(flow_information_ie_t *value,
-        uint8_t *buf)
-{
-        uint16_t encoded = 0;
-        encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-        encoded += encode_bits(value->spare, 5, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->flow_direction, 3, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->length_of_flow_description, 16, buf + (encoded/8), encoded % CHAR_SIZE);
-        memcpy(buf + (encoded/CHAR_SIZE), &value->flow_description, FLOW_DESCRIPTION_LEN);
-        encoded +=  FLOW_DESCRIPTION_LEN * CHAR_SIZE;
-        return encoded;
-}
-
-/**
- * Encodes application detection information to buffer.
- * @param ad_inf
- *     application detection information
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_application_detection_information_ie_t(application_detection_information_ie_t *value,
-        uint8_t *buf)
-{
-        uint16_t encoded = 0;
-
-        encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-
-        if (value->application_id.header.len)
-                encoded += encode_application_id_ie_t(&(value->application_id),buf + (encoded/CHAR_SIZE));
-
-        if (value->application_instance_id.header.len)
-                encoded += encode_application_instance_id_ie_t(&(value->application_instance_id), buf + (encoded/CHAR_SIZE));
-
-        if (value->flow_information.header.len)
-                encoded += encode_flow_information_ie_t(&(value->flow_information), buf + (encoded/CHAR_SIZE));
-        return encoded;
-}
-/**
- * Encodes time of first packet ie to buffer.
- * @param value
- *     time of first packet ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_time_of_first_packet_ie_t(time_of_first_packet_ie_t *value,
-        uint8_t *buf)
-{
-        uint16_t encoded = 0;
-        encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-        encoded += encode_bits(value->time_of_first_packet, 32, buf + (encoded/8), encoded % CHAR_SIZE);
-        return encoded;
-}
-
-
-/**
- * Encodes time of last packet ie to buffer.
- * @param value
- *     time of last packet ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_time_of_last_packet_ie_t(time_of_last_packet_ie_t *value,
-        uint8_t *buf)
-{
-        uint16_t encoded = 0;
-        encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-        encoded += encode_bits(value->time_of_last_packet, 32, buf + (encoded/8), encoded % CHAR_SIZE);
-        return encoded;
-}
-
-
-/**
- * Encodes usage information ie to buffer.
- * @param value
- *     usage information ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_usage_information_ie_t(usage_information_ie_t *value,
-        uint8_t *buf)
-{
-        uint16_t encoded = 0;
-        encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-        encoded += encode_bits(value->spare, 5, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->ube, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->uae, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->aft, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->bef, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-        return encoded;
-}
-/**
- * Encodes mac addresses detected ie to buffer.
- * @param value
- *     mac addresses detected ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_mac_addresses_detected_ie_t(mac_addresses_detected_ie_t *value,
-        uint8_t *buf)
-{
-        uint16_t encoded = 0;
-        encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-        encoded += encode_bits(value->number_of_mac_addresses, 8, buf + (encoded/8), encoded % CHAR_SIZE);
-        memcpy(buf + (encoded/CHAR_SIZE), &value->mac_address_value_1, MAC_ADDRESS_VALUE_1_LEN);
-        encoded +=  MAC_ADDRESS_VALUE_1_LEN * CHAR_SIZE;
-        return encoded;
-}
-
-/**
- * Encodes mac addresses removed ie to buffer.
- * @param value
- *     mac addresses removed ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_mac_addresses_removed_ie_t(mac_addresses_removed_ie_t *value,
-        uint8_t *buf)
-{
-        uint16_t encoded = 0;
-        encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-        encoded += encode_bits(value->number_of_mac_addresses, 8, buf + (encoded/8), encoded % CHAR_SIZE);
-        memcpy(buf + (encoded/CHAR_SIZE), &value->mac_address_value_1, MAC_ADDRESS_VALUE_1_LEN);
-        encoded +=  MAC_ADDRESS_VALUE_1_LEN * CHAR_SIZE;
-        return encoded;
-}
-
-/**
- * Encodes ethernetraffic information to buffer.
- * @param et_inf
- *     ethernetraffic information
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_ethernet_traffic_information_ie_t(ethernet_traffic_information_ie_t *value,
-        uint8_t *buf)
-{
-        uint16_t encoded = 0;
-        encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-
-        if (value->mac_addresses_detected.header.len)
-                encoded += encode_mac_addresses_detected_ie_t(&(value->mac_addresses_detected), buf + (encoded/CHAR_SIZE));
-
-        if (value->mac_addresses_removed.header.len)
-                encoded += encode_mac_addresses_removed_ie_t(&(value->mac_addresses_removed), buf + (encoded/CHAR_SIZE));
-
-        return encoded;
-}
-
-/**
- * Encodes session report usage report to buffer.
- * @param value
- *     session report usage report
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_session_report_usage_report_ie_t(session_report_usage_report_ie_t *value,
-        uint8_t *buf)
-{
-        uint16_t encoded = 0;
-
-        encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-
-        if (value->urr_id.header.len)
-                encoded += encode_urr_id_ie_t(&(value->urr_id), buf + (encoded/CHAR_SIZE));
-
-        if (value->urseqn.header.len)
-                encoded += encode_ur_seqn_ie_t(&(value->urseqn), buf + (encoded/CHAR_SIZE));
-
-        if (value->usage_report_trigger.header.len)
-                encoded += encode_usage_report_trigger_ie_t(&(value->usage_report_trigger), buf + (encoded/CHAR_SIZE));
-
-        if (value->start_time.header.len)
-                encoded += encode_start_time_ie_t(&(value->start_time), buf + (encoded/CHAR_SIZE));
-				
-	if (value->end_time.header.len)
-                encoded += encode_end_time_ie_t(&(value->end_time), buf + (encoded/CHAR_SIZE));
-
-        if (value->volume_measurement.header.len)
-                encoded += encode_volume_measurement_ie_t(&(value->volume_measurement), buf + (encoded/CHAR_SIZE));
-
-        if (value->duration_measurement.header.len)
-                encoded += encode_duration_measurement_ie_t(&(value->duration_measurement), buf + (encoded/CHAR_SIZE));
-
-        if (value->application_detection_information.header.len)
-                encoded += encode_application_detection_information_ie_t(&(value->application_detection_information), buf + (encoded/CHAR_SIZE));
-
-        if (value->ue_ip_address.header.len)
-                encoded += encode_ue_ip_address_ie_t(&(value->ue_ip_address), buf + (encoded/CHAR_SIZE));
-
-        if (value->network_instance.header.len)
-                encoded += encode_network_instance_ie_t(&(value->network_instance), buf + (encoded/CHAR_SIZE));
-
-        if (value->time_of_first_packet.header.len)
-                encoded += encode_time_of_first_packet_ie_t(&(value->time_of_first_packet), buf + (encoded/CHAR_SIZE));
-
-        if (value->time_of_last_packet.header.len)
-                encoded += encode_time_of_last_packet_ie_t(&(value->time_of_last_packet), buf + (encoded/CHAR_SIZE));
-
-        if (value->usage_information.header.len)
-                encoded += encode_usage_information_ie_t(&(value->usage_information), buf + (encoded/CHAR_SIZE));
-				
-	if (value->query_urr_reference.header.len)
-                encoded += encode_query_urr_reference_ie_t(&(value->query_urr_reference), buf + (encoded/CHAR_SIZE));
-
-        if (value->ethernet_traffic_information.header.len)
-                encoded += encode_ethernet_traffic_information_ie_t(&(value->ethernet_traffic_information), buf + (encoded/CHAR_SIZE));
-        return encoded/CHAR_SIZE;
-}
-
-
-/**
- * Encodes error indication report to buffer.
- * @param ei_rep
- *     error indication report
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_error_indication_report_ie_t(error_indication_report_ie_t *value,
-        uint8_t *buf)
-{
-        uint16_t encoded = 0;
-
-        encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-
-        if (value->remote_fteid.header.len)
-                encoded += encode_f_teid_ie_t(&(value->remote_fteid),buf + (encoded/CHAR_SIZE));
-
-        return encoded/CHAR_SIZE;
-}
-
-/**
- * Encodes pfcpsrrsp flags ie to buffer.
- * @param value
- *     pfcpsrrsp flags ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_pfcpsrrsp_flags_ie_t(pfcpsrrsp_flags_ie_t *value,
-        uint8_t *buf)
-{
-        uint16_t encoded = 0;
-        encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-        encoded += encode_bits(value->spare, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->spare2, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->spare3, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->spare4, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->spare5, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->spare6, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->spare7, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->drobu, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-        return encoded/CHAR_SIZE;
-}
-
-/**
- * Encodes dl buffering suggested packet count ie to buffer.
- * @param value
- *     dl buffering suggested packet count ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_dl_buffering_suggested_packet_count_ie_t(dl_buffering_suggested_packet_count_ie_t *value,
-        uint8_t *buf)
-{
-        uint16_t encoded = 0;
-        encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-        memcpy(buf + (encoded/CHAR_SIZE), &value->packet_count_value, PACKET_COUNT_VALUE_LEN);
-        encoded +=  PACKET_COUNT_VALUE_LEN * CHAR_SIZE;
-        return encoded;
-}
-
-/**
- * Encodes dl buffering duration ie to buffer.
- * @param value
- *     dl buffering duration ie
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_dl_buffering_duration_ie_t(dl_buffering_duration_ie_t *value,
-        uint8_t *buf)
-{
-        uint16_t encoded = 0;
-        encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-        encoded += encode_bits(value->timer_unit, 3, buf + (encoded/8), encoded % CHAR_SIZE);
-        encoded += encode_bits(value->timer_value, 5, buf + (encoded/8), encoded % CHAR_SIZE);
-        return encoded;
-}
-
-/**
- * Encodes session report response update bar to buffer.
- * @param value
- *     session report response update bar
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_session_report_response_update_bar_ie_t(session_report_response_update_bar_ie_t *value,
-        uint8_t *buf)
-{
-        uint16_t encoded = 0;
-
-        encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-
-        if (value->bar_id.header.len)
-                encoded += encode_bar_id_ie_t(&(value->bar_id), buf + (encoded/CHAR_SIZE));
-
-        if (value->downlink_data_notification_delay.header.len)
-                encoded += encode_downlink_data_notification_delay_ie_t(&(value->downlink_data_notification_delay), buf + (encoded/CHAR_SIZE));
-
-        if (value->dl_buffering_duration.header.len)
-                encoded += encode_dl_buffering_duration_ie_t(&(value->dl_buffering_duration), buf + (encoded/CHAR_SIZE));
-
-        if (value->dl_buffering_suggested_packet_count.header.len)
-                encoded += encode_dl_buffering_suggested_packet_count_ie_t(&(value->dl_buffering_suggested_packet_count), buf + (encoded/CHAR_SIZE)); 
-				
-        if (value->suggested_buffering_packets_count.header.len)
-                encoded += encode_suggested_buffering_packets_count_ie_t(&(value->suggested_buffering_packets_count), buf + (encoded/CHAR_SIZE));
-
-        return encoded/CHAR_SIZE;
-}
-
-/**
- * Encodes user plane ip resource information to buffer.
- * @param value
- *     user plane ip resource information
- * @param buf
- *   buffer to store encoded values.
- * @return
- *   number of encoded bytes.
- */
-int encode_user_plane_ip_resource_information_ie_t(user_plane_ip_resource_information_ie_t *value,
-	uint8_t *buf)
-{
-	uint16_t encoded = 0;
-        encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-	encoded += encode_bits(value->spare, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->user_plane_ip_rsrc_info_spare, 1, buf + (encoded/8), encoded % CHAR_SIZE);
 	encoded += encode_bits(value->assosi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
 	encoded += encode_bits(value->assoni, 1, buf + (encoded/8), encoded % CHAR_SIZE);
 	encoded += encode_bits(value->teidri, 3, buf + (encoded/8), encoded % CHAR_SIZE);
 	encoded += encode_bits(value->v6, 1, buf + (encoded/8), encoded % CHAR_SIZE);
 	encoded += encode_bits(value->v4, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-	if(value->teidri != 0)
+	/* TODO: Revisit this for change in yang */
+	if(value->teid_range != 0)
 		encoded += encode_bits(value->teid_range, 8, buf + (encoded/8), encoded % CHAR_SIZE);
-	if(value->v4 == 1){
-		memcpy(buf + (encoded/8), &value->ipv4_address, 4);
-		encoded +=  4 * CHAR_SIZE;
-	}
-	else {
-		memcpy(buf + (encoded/8), &value->ipv6_address, 16);
-		encoded +=  16 * CHAR_SIZE;
-	}
-	if(value->assoni == 1)
-		encoded += encode_bits(value->network_instance, 8, buf + (encoded/8), encoded % CHAR_SIZE);
 
-	encoded += encode_bits(value->spare2, 4, buf + (encoded/8), encoded % CHAR_SIZE);
-	if(value->assosi == 1)
-		encoded += encode_bits(value->source_interface, 4, buf + (encoded/8), encoded % CHAR_SIZE);
+	ENCODE_IPV4_ADDRESS_COND_4(value, 32, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+	ENCODE_IPV6_ADDRESS_COND_4(value, 8, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+	ENCODE_NTWK_INST_COND_1(value, 8, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+	encoded += encode_bits(value->user_plane_ip_rsrc_info_spare2, 4, buf + (encoded/8), encoded % CHAR_SIZE);
+	ENCODE_SRC_INTFC_COND_1(value, 4, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+
 	return encoded/CHAR_SIZE;
 }
+
+
+/**
+ * Encodes pfcp_pdn_type_ie_t to buffer.
+ * @param buf
+ *   buffer to store encoded values.
+ * @param value
+	 pfcp_pdn_type_ie_t
+ * @return
+ *   number of encoded bytes.
+ */
+int encode_pfcp_pdn_type_ie_t(pfcp_pdn_type_ie_t *value,
+		uint8_t *buf)
+{
+	uint16_t encoded = 0;
+	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+	encoded += encode_bits(value->pdn_type_spare, 5, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->pdn_type, 3, buf + (encoded/8), encoded % CHAR_SIZE);
+
+	return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_sbsqnt_time_thresh_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_sbsqnt_time_thresh_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_sbsqnt_time_thresh_ie_t(pfcp_sbsqnt_time_thresh_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->sbsqnt_time_thresh, 32, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_actvt_predef_rules_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_actvt_predef_rules_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_actvt_predef_rules_ie_t(pfcp_actvt_predef_rules_ie_t *value,
+		uint8_t *buf)
+{
+	uint16_t encoded = 0;
+	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+//	encoded += encode_bits(value->predef_rules_nm, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+
+	/* TODO: Revisit this for change in yang */
+	for(int i =0;i < 8 ;i++)
+			 encoded += encode_bits(value->predef_rules_nm[i], 8, buf + (encoded/8), encoded % CHAR_SIZE);
+
+
+	return encoded;
+}
+
+
+/**
+* Encodes pfcp_time_of_frst_pckt_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_time_of_frst_pckt_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_time_of_frst_pckt_ie_t(pfcp_time_of_frst_pckt_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->time_of_frst_pckt, 32, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+ * Encodes pfcp_cp_func_feat_ie_t to buffer.
+ * @param buf
+ *   buffer to store encoded values.
+ * @param value
+	 pfcp_cp_func_feat_ie_t
+ * @return
+ *   number of encoded bytes.
+ */
+int encode_pfcp_cp_func_feat_ie_t(pfcp_cp_func_feat_ie_t *value,
+		uint8_t *buf)
+{
+	uint16_t encoded = 0;
+	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+	encoded += encode_bits(value->sup_feat, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+
+	return encoded/CHAR_SIZE;
+}
+
+
+/**
+ * Encodes pfcp_rcvry_time_stmp_ie_t to buffer.
+ * @param buf
+ *   buffer to store encoded values.
+ * @param value
+	 pfcp_rcvry_time_stmp_ie_t
+ * @return
+ *   number of encoded bytes.
+ */
+int encode_pfcp_rcvry_time_stmp_ie_t(pfcp_rcvry_time_stmp_ie_t *value,
+		uint8_t *buf)
+{
+	uint16_t encoded = 0;
+	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+	encoded += encode_bits(value->rcvry_time_stmp_val, 32, buf + (encoded/8), encoded % CHAR_SIZE);
+
+	return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_report_type_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_report_type_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_report_type_ie_t(pfcp_report_type_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->rpt_type_spare, 4, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->upir, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->erir, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->usar, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->dldr, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_framed_route_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_framed_route_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_framed_route_ie_t(pfcp_framed_route_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->framed_route, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_usage_rpt_trig_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_usage_rpt_trig_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_usage_rpt_trig_ie_t(pfcp_usage_rpt_trig_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->immer, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->droth, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->stopt, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->start, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->quhti, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->timth, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->volth, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->perio, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->eveth, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->macar, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->envcl, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->monit, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->termr, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->liusa, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->timqu, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->volqu, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->usage_rpt_trig_spare, 7, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->evequ, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_trc_info_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_trc_info_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_trc_info_ie_t(pfcp_trc_info_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->mcc_digit_2, 4, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->mcc_digit_1, 4, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->mnc_digit_3, 4, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->mcc_digit_3, 4, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->mnc_digit_2, 4, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->mnc_digit_1, 4, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->trace_id, 24, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->len_of_trigrng_evnts, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->trigrng_evnts, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->sess_trc_depth, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->len_of_list_of_intfcs, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->list_of_intfcs, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->len_of_ip_addr_of_trc_coll_ent, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->ip_addr_of_trc_coll_ent, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_start_time_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_start_time_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_start_time_ie_t(pfcp_start_time_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->start_time, 32, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_src_intfc_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_src_intfc_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_src_intfc_ie_t(pfcp_src_intfc_ie_t *value,
+		uint8_t *buf)
+{
+	uint16_t encoded = 0;
+	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+	encoded += encode_bits(value->src_intfc_spare, 4, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->interface_value, 4, buf + (encoded/8), encoded % CHAR_SIZE);
+
+	/* TODO: Revisit this for change in yang */
+	return encoded;//CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_urr_id_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_urr_id_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_urr_id_ie_t(pfcp_urr_id_ie_t *value,
+		uint8_t *buf)
+{
+	uint16_t encoded = 0;
+	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+	encoded += encode_bits(value->urr_id_value, 32, buf + (encoded/8), encoded % CHAR_SIZE);
+
+	/* TODO: Revisit this for change in yang */
+	return encoded;
+}
+
+
+/**
+* Encodes pfcp_sdf_filter_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_sdf_filter_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_sdf_filter_ie_t(pfcp_sdf_filter_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->sdf_fltr_spare, 3, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->bid, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->fl, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->spi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->ttc, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->fd, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->sdf_fltr_spare2, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+    ENCODE_LEN_OF_FLOW_DESC_COND_1(value, 16, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+    ENCODE_FLOW_DESC_COND_1(value, 8, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+    ENCODE_TOS_TRAFFIC_CLS_COND_1(value, 16, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+    ENCODE_SECUR_PARM_IDX_COND_1(value, 32, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+    ENCODE_FLOW_LABEL_COND_1(value, 24, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+    ENCODE_SDF_FILTER_ID_COND_1(value, 32, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_add_usage_rpts_info_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_add_usage_rpts_info_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_add_usage_rpts_info_ie_t(pfcp_add_usage_rpts_info_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->auri, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->nbr_of_add_usage_rpts_val, 7, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->nbr_of_add_usage_rpts_value2, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_pfcpsrrsp_flags_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_pfcpsrrsp_flags_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_pfcpsrrsp_flags_ie_t(pfcp_pfcpsrrsp_flags_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->pfcpsrrsp_flgs_spare, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->pfcpsrrsp_flgs_spare2, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->pfcpsrrsp_flgs_spare3, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->pfcpsrrsp_flgs_spare4, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->pfcpsrrsp_flgs_spare5, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->pfcpsrrsp_flgs_spare6, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->pfcpsrrsp_flgs_spare7, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->drobu, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_timer_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_timer_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_timer_ie_t(pfcp_timer_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->timer_unit, 3, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->timer_value, 5, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_mac_address_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_mac_address_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_mac_address_ie_t(pfcp_mac_address_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->spare, 5, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->udes, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->usou, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->dest, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->sour, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    ENCODE_SRC_MAC_ADDR_VAL_COND_1(value, 48, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+    ENCODE_DST_MAC_ADDR_VAL_COND_1(value, 48, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+    ENCODE_UPR_SRC_MAC_ADDR_VAL_COND_1(value, 48, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+    ENCODE_UPR_DST_MAC_ADDR_VAL_COND_1(value, 48, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_outer_hdr_creation_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_outer_hdr_creation_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_outer_hdr_creation_ie_t(pfcp_outer_hdr_creation_ie_t *value,
+		uint8_t *buf)
+{
+	uint16_t encoded = 0;
+	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+	ENCODE_OUTER_HDR_CREATION_DESC_COND_1(value, 16, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+	ENCODE_TEID_COND_1(value, 32, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+	ENCODE_IPV4_ADDRESS_COND_3(value, 32, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+	ENCODE_IPV6_ADDRESS_COND_3(value, 8, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+	ENCODE_PORT_NUMBER_COND_1(value, 16, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+	ENCODE_CTAG_COND_1(value, 24, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+	ENCODE_STAG_COND_1(value, 24, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+
+	return encoded/CHAR_SIZE;
+}
+
+
+/**
+ * Encodes pfcp_fqcsid_ie_t to buffer.
+ * @param buf
+ *   buffer to store encoded values.
+ * @param value
+ pfcp_fqcsid_ie_t
+ * @return
+ *   number of encoded bytes.
+ */
+int encode_pfcp_fqcsid_ie_t(pfcp_fqcsid_ie_t *value,
+		uint8_t *buf)
+{
+	uint16_t encoded = 0;
+	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+	encoded += encode_bits(value->fqcsid_node_id_type, 4, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->number_of_csids, 4, buf + (encoded/8), encoded % CHAR_SIZE);
+
+	/*TODO: Revisit this for change in yang */
+	ENCODE_NODE_ADDRESS_COND_1(value, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+
+	//TODO: Revisit this for change in yang
+
+	for(int i =0; i < value->number_of_csids ;i++)
+		encoded += encode_bits(value-> pdn_conn_set_ident[i], 16, buf + (encoded/8), encoded % CHAR_SIZE);
+
+	//ENCODE_PDN_CONN_SET_IDENT_COND(value, 16, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+
+	return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_time_of_lst_pckt_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_time_of_lst_pckt_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_time_of_lst_pckt_ie_t(pfcp_time_of_lst_pckt_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->time_of_lst_pckt, 32, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_rqi_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_rqi_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_rqi_ie_t(pfcp_rqi_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->rqi_spare, 7, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->rqi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+/* TODO: Revisit this for change in yang */
+    return encoded;//CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_vol_thresh_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_vol_thresh_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_vol_thresh_ie_t(pfcp_vol_thresh_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->vol_thresh_spare, 5, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->dlvol, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->ulvol, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->tovol, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    ENCODE_TOTAL_VOLUME_COND_1(value, 64, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+    ENCODE_UPLINK_VOLUME_COND_1(value, 64, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+    ENCODE_DOWNLINK_VOLUME_COND_1(value, 64, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_graceful_rel_period_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_graceful_rel_period_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_graceful_rel_period_ie_t(pfcp_graceful_rel_period_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->timer_unit, 3, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->timer_value, 5, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_qfi_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_qfi_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_qfi_ie_t(pfcp_qfi_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->qfi_spare, 2, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->qfi_value, 6, buf + (encoded/8), encoded % CHAR_SIZE);
+/* TODO: Revisit this for change in yang */
+    return encoded; //CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_agg_urr_id_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_agg_urr_id_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_agg_urr_id_ie_t(pfcp_agg_urr_id_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->urr_id_value, 32, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_mbr_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_mbr_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_mbr_ie_t(pfcp_mbr_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->ul_mbr, 40, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->dl_mbr, 40, buf + (encoded/8), encoded % CHAR_SIZE);
+/* TODO: Revisit this for change in yang */
+    return encoded;//CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_dnlnk_data_notif_delay_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_dnlnk_data_notif_delay_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_dnlnk_data_notif_delay_ie_t(pfcp_dnlnk_data_notif_delay_ie_t *value,
+		uint8_t *buf)
+{
+	uint16_t encoded = 0;
+	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+	encoded += encode_bits(value->delay_val_in_integer_multiples_of_50_millisecs_or_zero, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+
+	return encoded;
+}
+
+
+/**
+* Encodes pfcp_avgng_wnd_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_avgng_wnd_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_avgng_wnd_ie_t(pfcp_avgng_wnd_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->avgng_wnd, 32, buf + (encoded/8), encoded % CHAR_SIZE);
+/* TODO: Revisit this for change in yang */
+    return encoded;//CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_oci_flags_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_oci_flags_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_oci_flags_ie_t(pfcp_oci_flags_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->oci_flags_spare, 7, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->aoci, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_time_threshold_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_time_threshold_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_time_threshold_ie_t(pfcp_time_threshold_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->time_threshold, 32, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+ * Encodes pfcp_fseid_ie_t to buffer.
+ * @param buf
+ *   buffer to store encoded values.
+ * @param value
+	pfcp_fseid_ie_t
+ * @return
+ *   number of encoded bytes.
+ */
+int encode_pfcp_fseid_ie_t(pfcp_fseid_ie_t *value,
+		uint8_t *buf)
+{
+	uint16_t encoded = 0;
+	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+
+	encoded += encode_bits(value->fseid_spare, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->fseid_spare2, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->fseid_spare3, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->fseid_spare4, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->fseid_spare5, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->fseid_spare6, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->v4, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->v6, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->seid, 64, buf + (encoded/8), encoded % CHAR_SIZE);
+	ENCODE_IPV4_ADDRESS_COND_2(value, 32, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+	ENCODE_IPV6_ADDRESS_COND_2(value, 8, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+
+	return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_stag_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_stag_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_stag_ie_t(pfcp_stag_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->stag_spare, 5, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->stag_vid, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->stag_dei, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->stag_pcp, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->svid_value, 4, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->stag_dei_flag, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->stag_pcp_value, 3, buf + (encoded/8), encoded % CHAR_SIZE);
+    ENCODE_SVID_VALUE2_COND_1(value, 8, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_eth_inact_timer_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_eth_inact_timer_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_eth_inact_timer_ie_t(pfcp_eth_inact_timer_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->eth_inact_timer, 32, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_meas_info_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_meas_info_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_meas_info_ie_t(pfcp_meas_info_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->meas_info_spare, 4, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->istm, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->radi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->inam, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->mbqe, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_eth_fltr_props_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_eth_fltr_props_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_eth_fltr_props_ie_t(pfcp_eth_fltr_props_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->eth_fltr_props_spare, 7, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->bide, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+
+    return encoded/CHAR_SIZE;
+}
+
+
+/**
+* Encodes pfcp_rmt_gtpu_peer_ie_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    pfcp_rmt_gtpu_peer_ie_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_pfcp_rmt_gtpu_peer_ie_t(pfcp_rmt_gtpu_peer_ie_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+    encoded += encode_bits(value->rmt_gtpu_peer_spare, 6, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->v4, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->v6, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+    ENCODE_IPV4_ADDRESS_COND_1(value, 32, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+    ENCODE_IPV6_ADDRESS_COND_1(value, 8, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+
+    return encoded/CHAR_SIZE;
+}
+

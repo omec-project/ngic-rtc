@@ -446,6 +446,8 @@ encode_ftied_ie_t(fteid_ie_t *val, gtpv2c_buffer_t *buf)
 	enc_len += encode_common_type((uint8_t *)val + enc_len,
 			buf, val->header.len);
 
+	val->teid_gre = ntohl(val->teid_gre);
+
 	if (val->v4 == 1 && val->v6 == 1) {
 		val->ip.ipv4.s_addr = ntohl(val->ip.ipv4.s_addr);
 		/* TODO: Covert ipv6 to network order */
@@ -751,9 +753,9 @@ encode_bearer_context_to_be_created_ie_t(
 
 	enc_len += encode_ie_header_t(&val->header, buf);
 	enc_len += encode_eps_bearer_id_ie_t(&(val->ebi), buf);
-	if (val->s11u_mme_fteid.header.len)
-		enc_len += encode_ftied_ie_t(&(val->s11u_mme_fteid), buf);
 	enc_len += encode_bearer_qos_ie_t(&(val->bearer_qos), buf);
+	if (val->s5s8_sgwu_fteid.header.len)
+		enc_len += encode_ftied_ie_t(&(val->s5s8_sgwu_fteid), buf);
 	return enc_len;
 }
 

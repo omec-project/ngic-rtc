@@ -165,20 +165,20 @@ gtpu_encap(struct dp_session_info **sess_info, struct rte_mbuf **pkts,
 			continue;
 		}
 
-/** Check downlink bearer is ACTIVE or IDLE */
-#ifdef DP_DDN
-		if (si->sess_state != CONNECTED) {
+/** VS: Check downlink bearer is ACTIVE or IDLE */
+		if (app.spgw_cfg == SAEGWU){
+			if (si->sess_state != CONNECTED) {
 #ifdef NGCORE_SHRINK
 #ifdef STATS
-			--epc_app.dl_params[SGI_PORT_ID].pkts_in;
-			++epc_app.dl_params[SGI_PORT_ID].ddn;
+				--epc_app.dl_params[SGI_PORT_ID].pkts_in;
+				++epc_app.dl_params[SGI_PORT_ID].ddn_buf_pkts;
 #endif /* STATS */
 #endif /* NGCORE_SHRINK */
-			RESET_BIT(*pkts_mask, i);
-			SET_BIT(*pkts_queue_mask, i);
-			continue;
+				RESET_BIT(*pkts_mask, i);
+				SET_BIT(*pkts_queue_mask, i);
+				continue;
+			}
 		}
-#endif /* DP_DDN */
 
 		if (!si->dl_s1_info.enb_teid) {
 #ifdef NGCORE_SHRINK
@@ -346,7 +346,7 @@ adc_ue_info_get(struct rte_mbuf **pkts, uint32_t n, uint32_t *res,
 void
 dl_sess_info_get(struct rte_mbuf **pkts, uint32_t n,
 		uint64_t *pkts_mask, struct dp_sdf_per_bearer_info **sess_info,
-		struct dp_session_info **si)
+		struct dp_session_info **si, uint64_t *pkts_queue_mask)
 {
 	uint32_t j;
 	struct dl_bm_key key[MAX_BURST_SZ];
@@ -440,6 +440,18 @@ dl_sess_info_get(struct rte_mbuf **pkts, uint32_t n,
 			si[j] = NULL;
 		} else {
 			si[j] = sess_info[j]->bear_sess_info;
+
+			/** VS: Check downlink bearer is ACTIVE or IDLE */
+			if (app.spgw_cfg == SGWU) {
+				if (si[j]->sess_state != CONNECTED) {
+#ifdef STATS
+					--epc_app.dl_params[SGI_PORT_ID].pkts_in;
+					++epc_app.dl_params[SGI_PORT_ID].ddn_buf_pkts;
+#endif /* STATS */
+					RESET_BIT(*pkts_mask, j);
+					SET_BIT(*pkts_queue_mask, j);
+				}
+			}
 		}
 	}
 }

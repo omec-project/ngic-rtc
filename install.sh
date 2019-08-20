@@ -27,15 +27,17 @@ echo "--------------------------------------------------------------------------
 HUGEPGSZ=`cat /proc/meminfo  | grep Hugepagesize | cut -d : -f 2 | tr -d ' '`
 MODPROBE="/sbin/modprobe"
 INSMOD="/sbin/insmod"
+THIRD_PARTY_SW_PATH="third_party"
 DPDK_DOWNLOAD="https://fast.dpdk.org/rel/dpdk-18.02.tar.gz"
-DPDK_DIR=$NGIC_DIR/dpdk
+DPDK_DIR=$NGIC_DIR/$THIRD_PARTY_SW_PATH/dpdk
 LINUX_SGX_SDK="https://github.com/intel/linux-sgx.git"
 LINUX_SGX_SDK_BRANCH_TAG="sgx_1.9"
+FREEDIAMETER="https://github.com/omec-project/freediameter.git"
+FREEDIAMETER_BRANCH="master"
 CP_NUMA_NODE=0
 DP_NUMA_NODE=0
 
-
-OSS_UTIL_GIT_LINK="http://10.155.205.206/C3PO-NGIC/oss-util.git"
+OSS_UTIL_GIT_LINK="http://gsgit.gslab.com/Sprint-Repos/oss-util.git"
 OSS_UTIL_DIR="oss_adapter/c3po_oss/"
 
 #
@@ -134,6 +136,10 @@ step_2()
 	TEXT[5]="Download and install oss-util for DNS and cli"
     FUNC[5]="install_oss_util"
 	fi
+	if [ "$SERVICE" -ne 2 ] ; then
+	TEXT[6]="Download FreeDiameter"
+	FUNC[6]="download_freediameter"
+	fi
 }
 
 get_agreement_download()
@@ -151,7 +157,8 @@ get_agreement_download()
 	echo "8.  hyperscan"
 	echo "9.  curl"
 	echo "10. openssl-dev"
-	echo "11. and other library dependencies"
+	echo "11. freediameter"
+	echo "12. and other library dependencies"
 	while true; do
 		read -p "We need download above mentioned package. Press (y/n) to continue? " yn
 		case $yn in
@@ -180,9 +187,7 @@ install_libs()
 	sudo apt-get update
 	sudo apt-get -y install curl build-essential linux-headers-$(uname -r) \
 		git unzip libpcap0.8-dev gcc libjson0-dev make libc6 libc6-dev \
-		g++-multilib libzmq3-dev libcurl4-openssl-dev libssl-dev python-pip
-
-	pip install zmq
+		g++-multilib libcurl4-openssl-dev libssl-dev python-pip
 
 	touch .download
 }
@@ -201,11 +206,15 @@ download_dpdk_zip()
 		echo "Failed to download dpdk submodule."
 		return
 	fi
+	
+        tar -xzvf "${DPDK_DOWNLOAD##*/}"
+	if [ ! -d $THIRD_PARTY_SW_PATH ]; then 
+	     mkdir $THIRD_PARTY_SW_PATH
+        fi
 
-	tar -xzvf "${DPDK_DOWNLOAD##*/}"
-	rm -rf "$NGIC_DIR"/dpdk/
+	rm -rf "$NGIC_DIR/$THIRD_PARTY_SW_PATH"/dpdk/
 	rm -f "${DPDK_DOWNLOAD##*/}"
-	mv "$NGIC_DIR"/dpdk-*/ "$NGIC_DIR"/dpdk
+	mv "$NGIC_DIR"/dpdk-*/ "$NGIC_DIR/$THIRD_PARTY_SW_PATH"/dpdk
 
 	echo ""
 	echo "Applying AVX not supported patch for resolved dpdk-18.02 i40e driver issue.."
@@ -475,6 +484,10 @@ download_hyperscan()
 	fi
 	echo "Downloading HS and dependent libraries"
 	sudo apt-get install cmake ragel
+	if [ ! -d $THIRD_PARTY_SW_PATH ]; then 
+	     mkdir $THIRD_PARTY_SW_PATH
+        fi
+        cd $THIRD_PARTY_SW_PATH
 	wget https://github.com/01org/hyperscan/archive/v4.1.0.tar.gz
 	tar -xvf v4.1.0.tar.gz
 	pushd hyperscan-4.1.0
@@ -484,11 +497,26 @@ download_hyperscan()
 	export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PWD/lib
 	popd
 	export HYPERSCANDIR=$PWD
-	echo "export HYPERSCANDIR=$PWD" >> ../setenv.sh
+	echo "export HYPERSCANDIR=$PWD" >> ../../setenv.sh
 	popd
 }
 
 
+download_freediameter()
+{
+	echo "Download FreeDiameter from OMEC....."
+	if [ ! -d $THIRD_PARTY_SW_PATH ]; then 
+	     mkdir $THIRD_PARTY_SW_PATH
+        fi
+        pushd $THIRD_PARTY_SW_PATH
+	git clone --branch $FREEDIAMETER_BRANCH $FREEDIAMETER
+	if [ $? -ne 0 ] ; then
+	                echo "Failed to clone FreeDiameter, please check the errors."
+	                return
+	fi
+        popd
+
+}
 download_linux_sgx()
 {
 	echo "Download Linux SGX SDK....."
@@ -497,6 +525,36 @@ download_linux_sgx()
 	                echo "Failed to clone Linux SGX SDK, please check the errors."
 	                return
 	fi
+}
+
+build_fd_lib()
+{
+	pushd $NGIC_DIR/$THIRD_PARTY_SW_PATH/freediameter
+	if [ ! -e "build" ]; then
+		mkdir build
+	fi
+	pushd build
+	cmake ../
+	make || { echo -e "\nFD: Make lib failed\n"; }
+	make install || { echo -e "\nFD: Make install failed\n"; }
+
+	libfdproto="/usr/local/lib/libfdproto.so"
+	libfdcore="/usr/local/lib/libfdcore.so"
+
+	if [ ! -e "$libfdproto" ] && ! [ -e "$libfdcore" ]; then
+		echo "LibFdproto and LibfdCore.so does not exist at /usr/local/lib"
+		return
+	fi
+	popd
+	popd
+}
+
+build_gxapp()
+{
+	pushd $NGIC_DIR/cp/gx_app
+	make clean
+	make || { echo -e "\nGxApp: Make GxApp failed\n"; }
+	popd
 }
 
 build_pfcp_lib()
@@ -525,13 +583,21 @@ install_oss_util()
 {
    pushd $NGIC_DIR/$OSS_UTIL_DIR
    git clone $OSS_UTIL_GIT_LINK
+   mv oss_util_gslab oss-util
    pushd oss-util
    ./install.sh
    popd
    popd
 }
 
+build_fd_gxapp()
+{
+	echo "Building FreeDiameter ..."
+	build_fd_lib
 
+	echo "Building GxAPP ..."
+	build_gxapp
+}
 
 build_ngic()
 {
@@ -559,6 +625,8 @@ build_ngic()
 		echo "Building CP..."
 		make clean-cp
 		make build-cp || { echo -e "\nCP: Make failed\n"; }
+
+		build_fd_gxapp
 	fi
 	popd
 }

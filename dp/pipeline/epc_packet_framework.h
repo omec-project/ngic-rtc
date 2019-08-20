@@ -209,6 +209,8 @@ struct epc_dl_params {
 	/** Holds number of packets sent out after downlink processing */
 	uint32_t pkts_out;
 	/** Holds number of packets queued for until DDN ACK not received */
+	uint32_t ddn_buf_pkts;
+	/** Holds number of ddn request sends */
 	uint32_t ddn;
 } __rte_cache_aligned;
 typedef int (*epc_dl_handler) (struct rte_pipeline*, struct rte_mbuf **pkts,

@@ -20,3 +20,5 @@ hyperscan*
 services.cfg
 v4.1.*
 linux-sgx
+tags
+cscope.out

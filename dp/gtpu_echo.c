@@ -47,16 +47,11 @@ static void reset_req_pkt_as_resp(struct rte_mbuf *echo_pkt) {
  * Return: void
  */
 static int set_recovery(struct rte_mbuf *echo_pkt) {
-	struct ipv4_hdr *ip_hdr = get_mtoip(echo_pkt);
 	struct gtpu_hdr *gtpu_hdr = get_mtogtpu(echo_pkt);
 	gtpu_recovery_ie *recovery_ie = NULL;
-	if (echo_pkt->pkt_len - (ETHER_HDR_LEN +(ip_hdr->total_length))) {
-		recovery_ie = (gtpu_recovery_ie*)((char*)gtpu_hdr+
-				GTPU_HDR_SIZE + ntohs(gtpu_hdr->msglen));
-	} else if ((echo_pkt->pkt_len - (ETHER_HDR_LEN +(ip_hdr->total_length))) == 0) {
-		recovery_ie = (gtpu_recovery_ie *)rte_pktmbuf_append(echo_pkt,
-				(sizeof(gtpu_recovery_ie)));
-	}
+
+	recovery_ie = (gtpu_recovery_ie *)rte_pktmbuf_append(echo_pkt,
+			(sizeof(gtpu_recovery_ie)));
 
 	if (recovery_ie == NULL) {
 		RTE_LOG_DP(ERR, DP, "Couldn't append %lu bytes to mbuf",

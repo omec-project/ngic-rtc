@@ -18,19 +18,22 @@
 #define PFCP_UTIL_H
 
 #include <sys/sysinfo.h>
-#include <linux/kernel.h>
-#include <stdbool.h>
-#include <sys/time.h>
+#include <stdint.h>
+#include <arpa/inet.h>
+
+#ifdef CP_BUILD
+#include "req_resp.h"
+#endif /* CP_BUILD */
 
 extern uint32_t start_time;
 extern struct rte_hash *node_id_hash;
 extern struct rte_hash *heartbeat_recovery_hash;
 
-#if defined(PFCP_COMM) && defined(CP_BUILD)
+#ifdef CP_BUILD
 int
-get_upf_list(create_session_request_t *csr,
-		struct in_addr *p_upf_list, char *sgwu_fqdn);
-#endif
+get_upf_list(create_session_request_t *csr);
+
+#endif /* CP_BUILD */
 
 int
 pfcp_recv(void *msg_payload, uint32_t size,

@@ -50,7 +50,6 @@ extern int ul_ignore_cnt;
 #endif /* TIMER_STATS */
 #endif
 
-#ifdef DP_DDN
 #ifdef NGCORE_SHRINK
 
 int
@@ -106,14 +105,28 @@ notification_handler(struct rte_pipeline *p,
 			pkt_mask = (1 << ret) - 1;
 			for (i = 0; i < ret; ++i)
 				sess_info[i] = data;
-			gtpu_encap(&sess_info[0], (struct rte_mbuf **)pkts, ret,
-					&pkt_mask, &pkts_queue_mask);
+
+			if(app.spgw_cfg == SAEGWU) {
+			    gtpu_encap(&sess_info[0], (struct rte_mbuf **)pkts, ret,
+			            &pkt_mask, &pkts_queue_mask);
+			} else {
+			    /* Get downlink session info */
+			    dl_sess_info_get((struct rte_mbuf **)pkts, ret, &pkt_mask,
+					&sdf_info[0], &sess_info[0], &pkts_queue_mask);
+			}
+
 			if (pkts_queue_mask != 0)
-				RTE_LOG_DP(ERR, DP, "Something is wrong!!, the "
-						"session still doesnt hv "
-						"enb teid\n");
+			    RTE_LOG_DP(ERR, DP, "Something is wrong!!, the "
+			            "session still doesnt hv "
+			            "enb teid\n");
+
+			if(app.spgw_cfg == SGWU){
+			    update_enb_info(pkts, num, &pkt_mask, &sdf_info[0]);
+			}
+
 			update_nexthop_info((struct rte_mbuf **)pkts, num,
-					&pkt_mask, app.s1u_port, &sdf_info[0]);
+			        &pkt_mask, app.s1u_port, &sdf_info[0]);
+
 
 #ifndef NGCORE_SHRINK
 			for (i = 0; i < ret; ++i)
@@ -125,7 +138,7 @@ notification_handler(struct rte_pipeline *p,
 
 #ifdef STATS
 			epc_app.dl_params[SGI_PORT_ID].pkts_in += ret;
-			epc_app.dl_params[SGI_PORT_ID].ddn -= ret;
+			epc_app.dl_params[SGI_PORT_ID].ddn_buf_pkts -= ret;
 #endif /* STATS */
 			while (ret) {
 				uint16_t pkt_cnt = PKT_BURST_SZ;
@@ -160,7 +173,6 @@ notification_handler(struct rte_pipeline *p,
 
 	return 0;
 }
-#endif /* DP_DDN*/
 
 void
 filter_ul_traffic(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
@@ -419,16 +431,25 @@ s1u_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
 
 int
 sgw_s5_s8_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts,
-		uint32_t n,	int wk_index)
+		uint32_t n, int wk_index)
 {
 	struct dp_sdf_per_bearer_info *sdf_info[MAX_BURST_SZ] = {NULL};
 	struct dp_session_info *si[MAX_BURST_SZ] = {NULL};
 
 	uint64_t pkts_mask;
+	uint64_t pkts_queue_mask = 0;
+
 	pkts_mask = (~0LLU) >> (64 - n);
 
 	/* Get downlink session info */
-	dl_sess_info_get(pkts, n, &pkts_mask, &sdf_info[0], &si[0]);
+	dl_sess_info_get(pkts, n, &pkts_mask, &sdf_info[0], &si[0],
+			&pkts_queue_mask);
+
+	/* En-queue DL pkts */
+	if (pkts_queue_mask) {
+		rte_pipeline_ah_packet_hijack(p, pkts_queue_mask);
+		enqueue_dl_pkts(&sdf_info[0], pkts, pkts_queue_mask);
+	}
 
 	update_enb_info(pkts, n, &pkts_mask, &sdf_info[0]);
 
@@ -480,6 +501,7 @@ filter_dl_traffic(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
 	struct pcc_id_precedence adc_info_dl[MAX_BURST_SZ];
 
 	uint64_t pkts_mask = (~0LLU) >> (64 - n);
+	uint64_t pkts_queue_mask = 0;
 
 #ifdef TIMER_STATS
 #ifdef AUTO_ANALYSIS
@@ -581,7 +603,7 @@ filter_dl_traffic(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
 #endif /* AUTO_ANALYSIS */
 
 	TIMER_GET_CURRENT_TP(_init_time);
-	dl_sess_info_get(pkts, n, &pkts_mask, &sdf_info[0], &si[0]);
+	dl_sess_info_get(pkts, n, &pkts_mask, &sdf_info[0], &si[0], &pkts_queue_mask);
 #ifndef AUTO_ANALYSIS
 	dl_stat_info.dl_sess_hash_delta = TIMER_GET_ELAPSED_NS(_init_time);
 #else
@@ -616,7 +638,7 @@ filter_dl_traffic(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
 	pcc_gating(&sdf_info_dl[0], &adc_info_dl[0], n, &pkts_mask,
 			&pcc_rule_id[0]);
 
-	dl_sess_info_get(pkts, n, &pkts_mask, &sdf_info[0], &si[0]);
+	dl_sess_info_get(pkts, n, &pkts_mask, &sdf_info[0], &si[0], &pkts_queue_mask);
 
 #endif /* TIMER_STATS */
 	/*update_sdf_cdr(&adc_ue_info[0], &sdf_info[0], pkts, n,
@@ -700,9 +722,7 @@ sgi_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
 			if (pkts_queue_mask) {
 				rte_pipeline_ah_packet_hijack(p, pkts_queue_mask);
 #ifdef NGCORE_SHRINK
-#ifdef DP_DDN
 				enqueue_dl_pkts(&sdf_info[0], pkts, pkts_queue_mask);
-#endif	/* DP_DDN */
 #else
 				enqueue_dl_pkts(&sdf_info[0], pkts, pkts_queue_mask, wk_index);
 

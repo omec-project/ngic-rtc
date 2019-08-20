@@ -70,20 +70,6 @@ struct cb_args_table {
 	uint32_t max_elements;	/* rule id */
 };
 
-#ifdef ZMQ_COMM
-/*
- * Response Message Structure
- */
-struct resp_msgbuf {
-	long mtype;
-	uint64_t op_id;
-	uint64_t sess_id;
-	struct dp_id dp_id;
-};
-
-struct resp_msgbuf r_buf;
-#endif /* ZMQ_COMM */
-
 /*
  * Message Structure
  */
@@ -102,9 +88,7 @@ struct msgbuf {
 #ifdef CP_BUILD
 		struct downlink_data_notification dl_ddn;	/** Downlink data notification info */
 #else
-#ifdef DP_DDN
 		struct downlink_data_notification_ack_t dl_ddn; /** Downlink data notification info */
-#endif  /* DP_DDN */
 #endif  /* CP_BUILD */
 	} msg_union;
 };
@@ -168,7 +152,20 @@ int iface_remove_que(enum cp_dp_comm id);
  *  None
  */
 
-	int simu_cp(__rte_unused void *ptr);
+int
+simu_cp(__rte_unused void *ptr);
+
+/**
+ * @brief callback to handle downlink data notification messages from the
+ * data plane
+ * @param msg_payload
+ * message payload received by control plane from the data plane
+ * @return
+ * 0 inicates success, error otherwise
+ */
+int
+cb_ddn(struct msgbuf *msg_payload);
+
 #else
 	int simu_cp(void);
 #endif /* CP_BUILD */

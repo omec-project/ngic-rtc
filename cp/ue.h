@@ -31,13 +31,11 @@
 #include <arpa/inet.h>
 
 #include <rte_malloc.h>
-#include <rte_lcore.h>
 #include <rte_jhash.h>
-#include <rte_hash.h>
 
 #include "gtpv2c_ie.h"
-#include "packet_filters.h"
 #include "interface.h"
+#include "packet_filters.h"
 
 #define SDF_FILTER_TABLE "sdf_filter_table"
 #define ADC_TABLE "adc_rule_table"
@@ -57,6 +55,8 @@
 #define MAX_FILTERS_PER_UE           (16)
 
 #define MAX_NETCAP_LEN               (64)
+
+#define MAX_APN_LEN               (64)
 
 #define GET_UE_IP(ue_index) \
 		(((ip_pool_ip.s_addr | (~ip_pool_mask.s_addr)) \
@@ -85,6 +85,8 @@ typedef struct ue_context_t {
 	struct in_addr s11_sgw_gtpc_ipv4;
 	uint32_t s11_mme_gtpc_teid;
 	struct in_addr s11_mme_gtpc_ipv4;
+
+	struct in_addr upf_ipv4;
 
 	uint64_t seid;
 

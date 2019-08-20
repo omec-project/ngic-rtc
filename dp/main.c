@@ -98,11 +98,6 @@ int main(int argc, char **argv)
 	/* Initialize DP PORTS and membufs */
 	dp_port_init();
 
-#ifdef DP_DDN
-	/* Init Downlink data notification ring, container and mempool  */
-	dp_ddn_init();
-#endif
-
 	switch (app.spgw_cfg) {
 		case SGWU:
 			/**
@@ -188,6 +183,9 @@ int main(int argc, char **argv)
 	iface_module_constructor();
 	dp_table_init();
 
+	/* VS: Init Downlink data notification ring, container and mempool  */
+	dp_ddn_init();
+
 #ifdef USE_REST
 
 	/* VS: Set current component start/up time */
@@ -195,32 +193,6 @@ int main(int argc, char **argv)
 
 	/* VS: Create thread for handling for sending echo req to its peer node */
 	rest_thread_init();
-
-	//if ((app.spgw_cfg == SGWU) || (app.spgw_cfg == SAEGWU)) {
-	//	if (app.spgw_cfg == SGWU) {
-	//		/* VS: Added default entry for PGWU */
-	//		if ((add_node_conn_entry(app.s5s8_pgwu_ip, 0, SGI_PORT_ID)) != 0) {
-	//			RTE_LOG_DP(ERR, DP, "Failed to add connection entry for PGWU");
-	//		}
-	//	}
-
-	//	/* VS: Added default entry for SGWC */
-	//	//if ((add_node_conn_entry((uint32_t)pfcp_config.sgwc_pfcp_ip[0].s_addr, 0, SX_PORT_ID)) != 0) {
-	//	//	RTE_LOG_DP(ERR, DP, "Failed to add connection entry for SGWC");
-	//	//}
-
-	//} else if (app.spgw_cfg == PGWU) {
-	//	/* VS: Added default entry for PGWU */
-	//	if ((add_node_conn_entry(app.s5s8_sgwu_ip, 0, S1U_PORT_ID)) != 0) {
-	//		RTE_LOG_DP(ERR, DP, "Failed to add connection entry for SGWU");
-	//	}
-
-	//	/* VS: Added default entry for PGWC */
-	//	//if ((add_node_conn_entry((uint32_t)pfcp_config.pgwc_pfcp_ip[0].s_addr, SX_PORT_ID)) != 0) {
-	//	//	RTE_LOG_DP(ERR, DP, "Failed to add connection entry for PGWC");
-	//	//}
-
-	//}
 
 #endif  /* USE_REST */
 

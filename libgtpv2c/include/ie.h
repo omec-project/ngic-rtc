@@ -422,7 +422,7 @@ typedef struct bearer_context_to_be_created_ie_t {
 	ie_header_t header;
 	eps_bearer_id_ie_t ebi;
 	bearer_qos_ie_t bearer_qos;
-	fteid_ie_t s11u_mme_fteid;
+	fteid_ie_t s5s8_sgwu_fteid;
 } bearer_context_to_be_created_ie_t;
 
 /**

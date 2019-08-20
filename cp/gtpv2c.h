@@ -28,9 +28,9 @@
  *
  */
 
-#include "gtpv2c_ie.h"
-#include "ue.h"
 #include "cp.h"
+#include "ue.h"
+#include "gtpv2c_ie.h"
 
 #include <stddef.h>
 #include <arpa/inet.h>
@@ -343,38 +343,6 @@ dump_pcap(uint16_t payload_length, uint8_t *tx_buf);
 #endif /* CP_BUILD */
 
 /**
- * Helper function to set the gtp header for a gtpv2c message.
- * @param gtpv2c_tx
- *   buffer used to contain gtp message for transmission
- * @param type
- *   gtp type according to 2gpp 29.274 table 6.1-1
- * @param has_teid
- *   boolean to indicate if the message requires the TEID field within the
- *   gtp header
- * @param seq
- *   sequence number as described by clause 7.6 3gpp 29.274
- */
-/**void
- *set_gtpv2c_header(gtpv2c_header *gtpv2c_tx, uint8_t type,
- *     uint8_t has_teid, uint32_t seq);
- */
-/**
- * Helper function to set the gtp header for a gtpv2c message with the
- * TEID field.
- * @param gtpv2c_tx
- *   buffer used to contain gtp message for transmission
- * @param type
- *   gtp type according to 2gpp 29.274 table 6.1-1
- * @param teid
- *   GTP teid, or TEID-C, to be populated in the GTP header
- * @param seq
- *   sequence number as described by clause 7.6 3gpp 29.274
- */
-/**void
- *set_gtpv2c_teid_header(gtpv2c_header *gtpv2c_tx, uint8_t type,
- *    uint32_t teid, uint32_t seq);
- */
-/**
  * Helper function to set the gtp header for a gtp echo message.
  * @param gtpv2c_tx
  *   buffer used to contain gtp message for transmission
@@ -478,7 +446,7 @@ set_create_session_response(gtpv2c_header *gtpv2c_tx,
  */
 int
 process_pgwc_s5s8_create_session_request(gtpv2c_header *gtpv2c_rx,
-		gtpv2c_header *gtpv2c_tx);
+		gtpv2c_header *gtpv2c_tx, struct in_addr *upf_ipv4);
 
 /**
  * Handles the generation of sgwc s5s8 create session request messages
