@@ -14,7 +14,7 @@ build:
     script:
         - echo "Git clone OSS util packages"
         - ssh-keyscan $GIT_IP >> ~/.ssh/known_hosts
-        - cd $CI_PROJECT_DIR/oss_adapter/c3po_oss/  && git clone git@$GIT_IP:Sprint-Repos/oss-util.git -b delivery_1.4
+        - cd $CI_PROJECT_DIR/oss_adapter/c3po_oss/  && git clone git@$GIT_IP:C3PO-NGIC/oss-util.git -b delivery_1.4
         - sudo chown gitlab-runner:gitlab-runner -R $CI_PROJECT_DIR/oss_adapter/c3po_oss
         - cd $CI_PROJECT_DIR && chmod +x install_builddeps.sh && sudo ./install_builddeps.sh
         - cd $CI_PROJECT_DIR && source setenv.sh && cd cp && make
