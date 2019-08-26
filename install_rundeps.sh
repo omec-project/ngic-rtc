@@ -14,6 +14,7 @@ install_run_cp_deps() {
 install_run_dp_deps() {
 	$SUDO apt-get update && $SUDO apt-get -y install \
 		libhyperscan4 \
+		libmnl0 \
 		libnuma1 \
 		libssl1.1
 }

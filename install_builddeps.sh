@@ -20,6 +20,7 @@ install_pkg_deps() {
 		libnuma-dev \
 		libpcap0.8-dev \
 		libssl-dev \
+                libmnl-dev \
 		libzmq3-dev \
 		wget
 }
