@@ -119,8 +119,8 @@ int main(int argc, char **argv)
 
 			/*SGi port handler*/
 			register_worker(sgi_pkt_handler, app.sgi_port);
-			break;
 #endif	/* NGCORE_SHRINK */
+			break;
 
 		case SPGWU:
 			/**

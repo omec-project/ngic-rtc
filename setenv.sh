@@ -14,5 +14,3 @@ if [[ -d "$HYPERSCAN_DIR" ]]; then
   export HYPERSCANDIR=$HYPERSCAN_DIR
 fi
 
-export HYPERSCANDIR=/home/ngic-rtc-tmopl/hyperscan-4.1.0
-#export HYPERSCANDIR=/home/dp-crash-sgx-fix/ngic-rtc-tmopl/hyperscan-4.1.0
