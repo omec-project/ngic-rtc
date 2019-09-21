@@ -32,6 +32,7 @@ CPUS=${CPUS:-''}
 DPDK_VER=${DPDK_VER:-'18.02.2'}
 export RTE_SDK=${RTE_SDK:-$DEPS_DIR/dpdk}
 export RTE_TARGET=${RTE_TARGET:-'x86_64-native-linuxapp-gcc'}
+export RTE_MACHINE=${RTE_MACHINE:-'native'}
 install_dpdk() {
 	[ -d $RTE_SDK ] && echo "DPDK already exists at $RTE_SDK" && return
 
@@ -41,7 +42,7 @@ install_dpdk() {
 	cd ${RTE_SDK}
 	sed -ri 's,(IGB_UIO=).*,\1n,' config/common_linuxapp
 	sed -ri 's,(KNI_KMOD=).*,\1n,' config/common_linuxapp
-	make -j $CPUS install T=${RTE_TARGET}
+	make -j $CPUS install T=${RTE_TARGET} RTE_MACHINE=${RTE_MACHINE}
 	echo "Installed DPDK at $RTE_SDK"
 }
 
