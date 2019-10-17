@@ -58,9 +58,10 @@
 
 #define MAX_APN_LEN               (64)
 
+
 #define GET_UE_IP(ue_index) \
-		(((ip_pool_ip.s_addr | (~ip_pool_mask.s_addr)) \
-				- htonl(ue_index)) - 0x01000000)
+			(((pfcp_config.ip_pool_ip.s_addr | (~pfcp_config.ip_pool_mask.s_addr)) \
+			  - htonl(ue_index)) - 0x01000000)
 
 struct eps_bearer_t;
 struct pdn_connection_t;
@@ -88,6 +89,7 @@ typedef struct ue_context_t {
 
 	struct in_addr upf_ipv4;
 
+	uint8_t state;
 	uint64_t seid;
 
 	uint16_t bearer_bitmap;
@@ -217,7 +219,7 @@ create_ue_hash(void);
  */
 int
 create_ue_context(uint8_t *imsi_val, uint16_t imsi_len,
-		uint8_t ebi, ue_context **context);
+		uint8_t ebi, ue_context **context, apn *apn_requested);
 
 
 /**

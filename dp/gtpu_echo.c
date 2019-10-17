@@ -46,12 +46,24 @@ static void reset_req_pkt_as_resp(struct rte_mbuf *echo_pkt) {
  * @ Output param: none
  * Return: void
  */
-static int set_recovery(struct rte_mbuf *echo_pkt) {
+static int set_recovery(struct rte_mbuf *echo_pkt, uint8_t port_id) {
+	struct ipv4_hdr *ip_hdr = get_mtoip(echo_pkt);
 	struct gtpu_hdr *gtpu_hdr = get_mtogtpu(echo_pkt);
 	gtpu_recovery_ie *recovery_ie = NULL;
 
-	recovery_ie = (gtpu_recovery_ie *)rte_pktmbuf_append(echo_pkt,
-			(sizeof(gtpu_recovery_ie)));
+	if (((app.spgw_cfg == SGWU) || (app.spgw_cfg == SAEGWU)) &&
+			(port_id == S1U_PORT_ID)) {
+		if (echo_pkt->pkt_len - (ETHER_HDR_LEN +(ip_hdr->total_length))) {
+			recovery_ie = (gtpu_recovery_ie*)((char*)gtpu_hdr+
+					GTPU_HDR_SIZE + ntohs(gtpu_hdr->msglen));
+		} else if ((echo_pkt->pkt_len - (ETHER_HDR_LEN +(ip_hdr->total_length))) == 0) {
+			recovery_ie = (gtpu_recovery_ie *)rte_pktmbuf_append(echo_pkt,
+					(sizeof(gtpu_recovery_ie)));
+		}
+	} else {
+		recovery_ie = (gtpu_recovery_ie *)rte_pktmbuf_append(echo_pkt,
+				(sizeof(gtpu_recovery_ie)));
+	}
 
 	if (recovery_ie == NULL) {
 		RTE_LOG_DP(ERR, DP, "Couldn't append %lu bytes to mbuf",
@@ -87,9 +99,9 @@ static void set_checksum(struct rte_mbuf *echo_pkt) {
  * @ Output param: none
  * Return: void
  */
-void process_echo_request(struct rte_mbuf *echo_pkt) {
+void process_echo_request(struct rte_mbuf *echo_pkt, uint8_t port_id) {
 	int ret;
-	ret = set_recovery(echo_pkt);
+	ret = set_recovery(echo_pkt, port_id);
 	if (ret < 0) {
 		fprintf(stderr, "Failed to create echo response..\n");
 		return;

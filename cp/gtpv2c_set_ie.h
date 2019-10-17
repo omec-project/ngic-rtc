@@ -428,4 +428,19 @@ create_bearer_context_ie(gtpv2c_header *header,
 void
 set_fqdn_ie(gtpv2c_header *header, char *fqdn);
 
+/**
+ * from parameters, populates gtpv2c message 'release access bearer
+ * response' and populates required information elements as defined by
+ * clause 7.2.22 3gpp 29.274
+ * @param gtpv2c_tx
+ *   transmission buffer to contain 'release access bearer request' message
+ * @param sequence
+ *   sequence number as described by clause 7.6 3gpp 29.274
+ * @param context
+ *   UE Context data structure pertaining to the bearer to be modified
+ */
+/* TODO: Remove #if 0 before rollup */
+void
+set_release_access_bearer_response(gtpv2c_header *gtpv2c_tx,
+		uint32_t sequence, uint32_t s11_mme_gtpc_teid);
 #endif /* GTPV2C_SET_IE_H */

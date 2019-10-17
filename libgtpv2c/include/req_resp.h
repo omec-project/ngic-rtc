@@ -79,6 +79,7 @@ typedef struct delete_session_request_t {
 	gtpv2c_header_t header;
 	eps_bearer_id_ie_t linked_ebi;
 	indication_ie_t indication_flags;
+	uli_ie_t uli;
 } delete_session_request_t;
 
 typedef struct delete_session_response_t {

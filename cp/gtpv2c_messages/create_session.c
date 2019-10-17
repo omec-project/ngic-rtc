@@ -24,7 +24,11 @@
 #include "../cp_dp_api/vepc_cp_dp_api.h"
 #include "../pfcp_messages/pfcp_set_ie.h"
 
-#define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
+#ifdef C3PO_OSS
+#include "cp_config.h"
+#endif /* C3PO_OSS */
+
+#include "cp_stats.h"
 
 extern pfcp_config_t pfcp_config;
 
@@ -41,7 +45,7 @@ set_create_session_response(gtpv2c_header *gtpv2c_tx,
 
 	if ((ret = upf_context_entry_lookup(context->upf_ipv4.s_addr,
 			&upf_ctx)) < 0) {
-		RTE_LOG_DP(ERR, CP, "%s : Error: %d \n", __func__, ret);
+		clLog(s11logger, eCLSeverityCritical,  "%s : Error: %d \n", __func__, ret);
 		return;
 	}
 
@@ -192,7 +196,7 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 
 	/* set s11_sgw_gtpc_teid= key->ue_context_by_fteid_hash */
 	ret = create_ue_context(csr.imsi.imsi, csr.imsi.header.len,
-			csr.bearer_context.ebi.eps_bearer_id, &context);
+			csr.bearer_context.ebi.eps_bearer_id, &context, apn_requested);
 	if (ret)
 		return ret;
 
@@ -268,7 +272,8 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 			gen_sgwc_s5s8_create_session_request(gtpv2c_rx,
 				gtpv2c_s5s8_tx, csr.header.teid.has_teid.seq,
 				pdn, bearer, sgwu_fqdn);
-		RTE_LOG_DP(DEBUG, CP, "NGIC- create_session.c::"
+
+		 clLog(s5s8logger, eCLSeverityDebug, "NGIC- create_session.c::"
 				"\n\tprocess_create_session_request::case= %d;"
 				"\n\tprocess_sgwc_s5s8_cs_req_cnt= %u;"
 				"\n\tgen_create_s5s8_session_request= %d\n",
@@ -281,7 +286,7 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 			gtpv2c_s11_tx, csr.header.teid.has_teid.seq,
 			context, pdn, bearer);
 
-	RTE_LOG_DP(DEBUG, CP, "NGIC- create_session.c::"
+	clLog(s11logger, eCLSeverityDebug, "NGIC- create_session.c::"
 			"\n\tprocess_create_session_request::case= %d;"
 			"\n\tprocess_spgwc_s11_cs_res_cnt= %u;"
 			"\n\tset_create_session_response::done...\n",

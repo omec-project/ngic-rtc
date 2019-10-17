@@ -35,7 +35,6 @@
 #include "meter.h"
 #include "util.h"
 #include "acl_dp.h"
-#include "gtpv2c.h"
 #include "gtpv2c_ie.h"
 #include "interface.h"
 #include "dp_ipc_api.h"
@@ -50,6 +49,8 @@
 
 #ifndef CP_BUILD
 #include "cdr.h"
+#else
+#include "gtpv2c.h"
 #endif
 
 #ifdef SGX_CDR
@@ -96,9 +97,6 @@ extern struct ipc_node *basenode;
 extern struct rte_hash *heartbeat_recovery_hash;
 
 struct rte_hash *node_id_hash;
-
-uint8_t tx_buf[MAX_GTPV2C_UDP_LEN];
-uint8_t tx_s5s8_buf[MAX_GTPV2C_UDP_LEN];
 
 #define htonll(x) ((1==htonl(1)) ? (x) : ((uint64_t)htonl((x) & 0xFFFFFFFF) << 32) | htonl((x) >> 32))
 #define ntohll(x) ((1==ntohl(1)) ? (x) : ((uint64_t)ntohl((x) & 0xFFFFFFFF) << 32) | ntohl((x) >> 32))

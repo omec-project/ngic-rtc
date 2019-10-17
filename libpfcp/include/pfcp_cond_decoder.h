@@ -298,11 +298,17 @@
 
 /* Inside pfcp_outer_hdr_creation_ie_t */
 #define DECODE_OUTER_HDR_CREATION_DESC_COND_1(buf, total_decoded, bit_count, decoded, value) \
-    /* To check */
+{\
+	value->outer_hdr_creation_desc += decode_bits(buf, total_decoded, bit_count, &decoded); \
+}
 
 /* Inside pfcp_outer_hdr_creation_ie_t */
 #define DECODE_TEID_COND_1(buf, total_decoded, bit_count, decoded, value) \
-    /* To check */
+	if (value->outer_hdr_creation_desc) \
+{ \
+	memcpy(&value->teid, buf + (total_decoded/CHAR_SIZE), 4); \
+	total_decoded += 4 * CHAR_SIZE; \
+}
 
 /* Inside pfcp_user_plane_ip_rsrc_info_ie_t */
 #define DECODE_IPV4_ADDRESS_COND_4(buf, total_decoded, bit_count, decoded, value) \
@@ -333,8 +339,13 @@
     /* To check */
 
 /* Inside pfcp_outer_hdr_creation_ie_t */
+//if (value->outer_hdr_creation_desc)
 #define DECODE_IPV4_ADDRESS_COND_3(buf, total_decoded, bit_count, decoded, value) \
-    /* To check */
+if (1) \
+{ \
+	memcpy(&value->ipv4_address, buf + (total_decoded/CHAR_SIZE), 4); \
+	total_decoded += 4 * CHAR_SIZE; \
+}
 
 /* Inside pfcp_outer_hdr_creation_ie_t */
 #define DECODE_IPV6_ADDRESS_COND_3(buf, total_decoded, bit_count, decoded, value) \

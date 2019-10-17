@@ -303,18 +303,20 @@
 
 /* Inside pfcp_outer_hdr_creation_ie_t */
 #define ENCODE_OUTER_HDR_CREATION_DESC_COND_1(value, bit_count, destination, offset, encoded) \
-	/* To check */
-/* if (value->) \
 { \
-	encoded += encode_bits(value->, bit_count, destination, offset); \
-}*/
+	encoded += encode_bits(value->outer_hdr_creation_desc, bit_count, destination, offset); \
+}
 
 /* Inside pfcp_outer_hdr_creation_ie_t */
 #define ENCODE_TEID_COND_1(value, bit_count, destination, offset, encoded) \
+	if (value->outer_hdr_creation_desc)\
+{ \
+	encoded += encode_bits(value->teid, bit_count, destination, offset); \
+}
 	/* To check */
 /* if (value->) \
 { \
-	encoded += encode_bits(value->, bit_count, destination, offset); \
+	encoded += encode_bits(value->teid, bit_count, destination, offset); \
 }*/
 
 /* Inside pfcp_user_plane_ip_rsrc_info_ie_t */
@@ -358,6 +360,10 @@
 
 /* Inside pfcp_outer_hdr_creation_ie_t */
 #define ENCODE_IPV4_ADDRESS_COND_3(value, bit_count, destination, offset, encoded) \
+	if (1)\
+{ \
+	encoded += encode_bits(value->ipv4_address, bit_count, destination, offset); \
+}
 	/* To check */
 /* if (value->) \
 { \

@@ -23,11 +23,11 @@
 
 #ifdef C3PO_OSS
 #include "cp_stats.h"
+#include"cp_config.h"
 #endif
 
 #include "../restoration/restoration_timer.h"
 
-#define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
 
 char filename[256] = "../config/cp_rstCnt.txt";
 
@@ -93,7 +93,7 @@ uint8_t update_rstCnt(void)
 	rstCnt = tmp;
 	fprintf(fp, "%d\n", ++rstCnt);
 
-	RTE_LOG_DP(DEBUG, CP, "Updated restart counter Value of rstcnt=%u\n", rstCnt);
+	clLog(clSystemLog, eCLSeverityDebug, "Updated restart counter Value of rstcnt=%u\n", rstCnt);
 	fclose(fp);
 
 	return rstCnt;
@@ -114,8 +114,7 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 	dest_addr.sin_addr.s_addr = md->dstIP;
 	dest_addr.sin_port = htons(GTPC_UDP_PORT);
 
-
-	RTE_LOG_DP(DEBUG, CP, "%s - %s:%s:%u.%s (%dms) has expired\n", getPrintableTime(),
+	clLog(clSystemLog, eCLSeverityDebug, "%s - %s:%s:%u.%s (%dms) has expired\n", getPrintableTime(),
 		md->name, inet_ntoa(*(struct in_addr *)&md->dstIP), md->portId,
 		ti == &md->pt ? "Periodic_Timer" :
 		ti == &md->tt ? "Transmit_Timer" : "unknown",
@@ -127,33 +126,34 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 		/* Stop periodic timer for specific Peer Node */
 		stopTimer( &md->pt );
 		/* Deinit transmit timer for specific Peer Node */
-		//deinitTimer( &md->tt );
+		deinitTimer( &md->tt );
 		/* Deinit transmit timer for specific Peer Node */
-		//deinitTimer( &md->pt );
+		deinitTimer( &md->pt );
 
-		RTE_LOG_DP(DEBUG, CP, "Stopped Periodic/transmit timer, peer node %s is not reachable\n",
+		clLog(clSystemLog, eCLSeverityDebug, "Stopped Periodic/transmit timer, peer node %s is not reachable\n",
 				inet_ntoa(*(struct in_addr *)&md->dstIP));
 
 		if (md->portId == S11_SGW_PORT_ID)
 		{
-			RTE_LOG_DP(DEBUG, CP, "MME status : Inactive\n");
+			clLog(s11logger, eCLSeverityDebug, "MME status : Inactive\n");
 			cp_stats.mme_status = 0;
 		}
 
 		if (md->portId == SX_PORT_ID)
 		{
-			RTE_LOG_DP(DEBUG, CP, " SGWU/SPGWU/PGWU status : Inactive\n");
+			clLog(sxlogger, eCLSeverityDebug, " SGWU/SPGWU/PGWU status : Inactive\n");
+
 			cp_stats.sgwu_status = 0;
 			cp_stats.pgwu_status = 0;
 		}
 		if (md->portId == S5S8_SGWC_PORT_ID)
 		{
-			RTE_LOG_DP(DEBUG, CP, "PGWC status : Inactive\n");
+			clLog(s5s8logger, eCLSeverityDebug, "PGWC status : Inactive\n");
 			cp_stats.pgwc_status = 0;
 		}
 		if (md->portId == S5S8_PGWC_PORT_ID)
 		{
-			RTE_LOG_DP(DEBUG, CP, "SGWC status : Inactive\n");
+			clLog(s5s8logger, eCLSeverityDebug, "SGWC status : Inactive\n");
 			cp_stats.sgwc_status = 0;
 		}
 		/*if (md->portId == S11_SGW_PORT_ID)
@@ -269,7 +269,9 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 
 	if (ti == &md->pt) {
 		if ( startTimer( &md->tt ) < 0)
-			RTE_LOG_DP(ERR, CP, "Transmit Timer failed to start..\n");
+		{
+			clLog(clSystemLog, eCLSeverityCritical, "Transmit Timer failed to start..\n");
+		}
 
 		/* Stop periodic timer for specific Peer Node */
 		stopTimer( &md->pt );
@@ -286,7 +288,8 @@ uint8_t add_node_conn_entry(uint32_t dstIp, uint8_t portId)
 				&dstIp, (void **)&conn_data);
 
 	if ( ret < 0) {
-		RTE_LOG_DP(DEBUG, CP, " Add entry in conn table :%s\n",
+
+		clLog(clSystemLog, eCLSeverityDebug, " Add entry in conn table :%s\n",
 					inet_ntoa(*((struct in_addr *)&dstIp)));
 
 		/* No conn entry for dstIp
@@ -308,7 +311,7 @@ uint8_t add_node_conn_entry(uint32_t dstIp, uint8_t portId)
 		/* Add peer node entry in connection hash table */
 		if ((rte_hash_add_key_data(conn_hash_handle,
 				&dstIp, conn_data)) < 0 ) {
-			RTE_LOG_DP(ERR, CP, "Failed to add entry in hash table");
+			clLog(clSystemLog, eCLSeverityCritical, "Failed to add entry in hash table");
 		}
 
 		if ( !initpeerData( conn_data, "PEER_NODE", (pfcp_config.periodic_timer * 1000),
@@ -322,22 +325,24 @@ uint8_t add_node_conn_entry(uint32_t dstIp, uint8_t portId)
 		 *pfcp_config.periodic_timer, pfcp_config.transmit_timer, pfcp_config.transmit_cnt);
 		 */
 
-		if ( startTimer( &conn_data->pt ) < 0)
-			RTE_LOG_DP(ERR, CP, "Periodic Timer failed to start...\n");
-
+		if ( startTimer( &conn_data->pt ) < 0) {
+			clLog(clSystemLog, eCLSeverityCritical, "Periodic Timer failed to start...\n");
+			}
 		conn_cnt++;
 
 	} else {
 		/* TODO: peer node entry already exit in conn table */
-		RTE_LOG_DP(DEBUG, CP, "Conn entry already exit in conn table :%s\n",
+
+		clLog(clSystemLog, eCLSeverityDebug, "Conn entry already exit in conn table :%s\n",
 					inet_ntoa(*((struct in_addr *)&dstIp)));
 		if ( startTimer( &conn_data->pt ) < 0)
-			RTE_LOG_DP(ERR, CP, "Periodic Timer failed to start...\n");
-
+		{
+			clLog(clSystemLog, eCLSeverityCritical, "Periodic Timer failed to start...\n");
+		}
 		//conn_cnt++;
 	}
 
-	RTE_LOG_DP(DEBUG, CP, "Current Active Conn Cnt:%u\n", conn_cnt);
+	clLog(clSystemLog, eCLSeverityDebug, "Current Active Conn Cnt:%u\n", conn_cnt);
 	return 0;
 }
 
@@ -375,7 +380,7 @@ void rest_thread_init(void)
 
 	if (!gst_init())
 	{
-		RTE_LOG_DP(ERR, CP, "%s - gstimer_init() failed!!\n", getPrintableTime() );
+		clLog(clSystemLog, eCLSeverityDebug, "%s - gstimer_init() failed!!\n", getPrintableTime() );
 	}
 	return;
 }

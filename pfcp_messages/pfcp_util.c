@@ -18,13 +18,19 @@
 #include "pfcp_set_ie.h"
 #include "pfcp_messages.h"
 
+#ifdef C3PO_OSS
+#include "cp_stats.h"
+#endif /* C3PO_OSS */
+
+#ifdef CP_BUILD
+#include "cp_config.h"
+#endif /* CP_BUILD */
+
 #if defined(CP_BUILD) && defined(USE_DNS_QUERY)
 #include "cdnshelper.h"
 
 #define FAILED_ENB_FILE "logs/failed_enb_queries.log"
 #endif
-
-#define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
 
 #define QUERY_RESULT_COUNT 16
 
@@ -118,7 +124,7 @@ add_dns_result_upflist_entry(dns_query_result_t *res,
 }
 
 static int
-record_fialed_enbid(char *enbid)
+record_failed_enbid(char *enbid)
 {
 	FILE *fp = fopen(FAILED_ENB_FILE, "a");
 
@@ -164,8 +170,6 @@ get_upf_list(create_session_request_t *csr)
 	apn *apn_requested = get_apn((char *)csr->apn.apn, csr->apn.header.len);
 
 	if (!apn_requested) {
-		fprintf(stderr, "Could not get SGW-U list using DNS"
-				"query. APN missing in CSR.\n");
 		return 0;
 	}
 
@@ -194,7 +198,7 @@ get_upf_list(create_session_request_t *csr)
 
 		if (!sgwu_count) {
 
-			record_fialed_enbid(enodeb);
+			record_failed_enbid(enodeb);
 			deinit_node_selector(sgwupf_node_sel);
 
 			/* Query DNS based on lb and hb of tac */
@@ -365,7 +369,9 @@ uptime(void)
 	struct sysinfo s_info;
 	int error = sysinfo(&s_info);
 	if(error != 0) {
-		RTE_LOG_DP(DEBUG, CP, "Error in uptime\n");
+#ifdef CP_BUILD
+		clLog(clSystemLog, eCLSeverityDebug, "Error in uptime\n");
+#endif /* CP_BUILD */
 	}
 	return s_info.uptime;
 }

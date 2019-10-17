@@ -19,13 +19,19 @@
 #include "gtpv2c_messages.h"
 #include "../cp_dp_api/vepc_cp_dp_api.h"
 #include "gtpv2c_set_ie.h"
+#include "sm_struct.h"
 
-#define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
+#ifdef C3PO_OSS
+#include "cp_config.h"
+#include "cp_stats.h"
+#endif /* C3PO_OSS */
+
+pfcp_config_t pfcp_config;
 
 int
 delete_context(delete_session_request_t *ds_req,
-			ue_context **_context);
-
+			ue_context **_context, uint32_t *s5s8_pgw_gtpc_teid,
+			uint32_t *s5s8_pgw_gtpc_ipv4);
 
 /**
  * Handles the removal of data structures internal to the control plane
@@ -42,7 +48,8 @@ delete_context(delete_session_request_t *ds_req,
  */
 int
 delete_context(delete_session_request_t *ds_req,
-			ue_context **_context)
+			ue_context **_context, uint32_t *s5s8_pgw_gtpc_teid,
+			uint32_t *s5s8_pgw_gtpc_ipv4)
 {
 	int ret;
 	int i;
@@ -97,6 +104,15 @@ delete_context(delete_session_request_t *ds_req,
 		return GTPV2C_CAUSE_MANDATORY_IE_INCORRECT;
 	}
 
+	if (pfcp_config.cp_type == SGWC) {
+		/*VS: Fill teid and ip address */
+		*s5s8_pgw_gtpc_teid = htonl(pdn->s5s8_pgw_gtpc_teid);
+		*s5s8_pgw_gtpc_ipv4 = htonl(pdn->s5s8_pgw_gtpc_ipv4.s_addr);
+
+		clLog(s5s8logger, eCLSeverityDebug, "s5s8_pgw_gtpc_teid:%u, s5s8_pgw_gtpc_ipv4:%u\n",
+				*s5s8_pgw_gtpc_teid, *s5s8_pgw_gtpc_ipv4);
+	}
+
 	for (i = 0; i < MAX_BEARERS; ++i) {
 		if (pdn->eps_bearers[i] == NULL)
 			continue;
@@ -117,8 +133,8 @@ delete_context(delete_session_request_t *ds_req,
 			si.sess_id = SESS_ID(
 					context->s11_sgw_gtpc_teid,
 					si.bearer_id);
-			struct dp_id dp_id = { .id = DPN_ID };
-			session_delete(dp_id, si);
+			//struct dp_id dp_id = { .id = DPN_ID };
+			//session_delete(dp_id, si);
 
 			rte_free(pdn->eps_bearers[i]);
 			pdn->eps_bearers[i] = NULL;
@@ -141,8 +157,10 @@ int
 process_delete_session_request(gtpv2c_header *gtpv2c_rx,
 		gtpv2c_header *gtpv2c_s11_tx, gtpv2c_header *gtpv2c_s5s8_tx)
 {
-	ue_context *context = NULL;
 	int ret;
+	ue_context *context = NULL;
+	uint32_t s5s8_pgw_gtpc_teid = 0;
+	uint32_t s5s8_pgw_gtpc_ipv4 = 0;
 	delete_session_request_t ds_req = {0};
 
 	decode_delete_session_request_t((uint8_t *) gtpv2c_rx, &ds_req);
@@ -191,7 +209,9 @@ process_delete_session_request(gtpv2c_header *gtpv2c_rx,
 
 	gtpv2c_s11_tx->teid_u.has_teid.seq = gtpv2c_rx->teid_u.has_teid.seq;
 
-	ret = delete_context(&ds_req, &context);
+	/* Lookup and get context of delete request */
+	ret = delete_context(&ds_req, &context, &s5s8_pgw_gtpc_teid,
+			&s5s8_pgw_gtpc_ipv4);
 	if (ret)
 		return ret;
 

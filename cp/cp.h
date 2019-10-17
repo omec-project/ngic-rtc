@@ -19,7 +19,7 @@
 
 #include <pcap.h>
 #include <ue.h>
-
+#include <byteswap.h>
 #include <rte_version.h>
 #include <stdbool.h>
 #include <rte_ether.h>
@@ -62,6 +62,7 @@
 #define ACK       1
 #define RESPONSE  2
 
+
 typedef long long int _timer_t;
 
 #define GET_CURRENT_TS(now)                                             \
@@ -81,6 +82,10 @@ typedef long long int _timer_t;
 #define DNSCACHE_INTERVAL 4000
 #define DNS_PORT 53
 
+/**
+ * Control-Plane rte logs.
+ */
+#define RTE_LOGTYPE_CP  RTE_LOGTYPE_USER1
 /**
  * @file
  *
@@ -125,7 +130,6 @@ extern uint64_t entries;
  */
 struct cp_params {
 	unsigned stats_core_id;
-	unsigned nb_core_id;
 #ifdef SIMU_CP
 	unsigned simu_core_id;
 #endif
@@ -134,7 +138,7 @@ struct cp_params {
 /**
  * Structure to downlink data notification ack information struct.
  */
-struct downlink_data_notification {
+typedef struct downlink_data_notification {
 	ue_context *context;
 
 	gtpv2c_ie *cause_ie;
@@ -146,7 +150,7 @@ struct downlink_data_notification {
 	/* */
 	uint16_t dl_buff_cnt;
 	uint8_t dl_buff_duration;
-};
+}downlink_data_notification_t;
 
 extern pcap_dumper_t *pcap_dumper;
 extern pcap_t *pcap_reader;
@@ -178,14 +182,6 @@ ddn_by_session_id(uint64_t session_id);
  */
 void
 initialize_tables_on_dp(void);
-
-/**
- * Central working function of the control plane. Reads message from s11/pcap,
- * calls appropriate function to handle message, writes response
- * message (if any) to s11/pcap
- */
-void
-control_plane(void);
 
 #ifdef CP_BUILD
 /**

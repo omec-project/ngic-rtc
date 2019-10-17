@@ -795,7 +795,10 @@ copy_session_info(struct dp_session_info *dst,
 		struct session_info *src)
 {
 	int i;
-	dst->ue_addr = src->ue_addr;
+	/*No ue_addr in case of MBR*/
+	if(src->ue_addr.u.ipv4_addr){
+		dst->ue_addr = src->ue_addr;
+	}
 	dst->ul_s1_info = src->ul_s1_info;
 	dst->dl_s1_info = src->dl_s1_info;
 	dst->num_ul_pcc_rules = src->num_ul_pcc_rules;
@@ -1502,6 +1505,12 @@ dp_session_delete(struct dp_id dp_id,
 	/* VS: Delete session id from connection table */
 	if (data->dl_s1_info.enb_addr.u.ipv4_addr != 0)
 		dp_flush_session(ntohl(data->dl_s1_info.enb_addr.u.ipv4_addr),
+						entry->sess_id);
+	if (data->dl_s1_info.s5s8_sgwu_addr.u.ipv4_addr != 0)
+		dp_flush_session(ntohl(data->dl_s1_info.s5s8_sgwu_addr.u.ipv4_addr),
+						entry->sess_id);
+	if (data->ul_s1_info.s5s8_pgwu_addr.u.ipv4_addr != 0)
+		dp_flush_session(ntohl(data->ul_s1_info.s5s8_pgwu_addr.u.ipv4_addr),
 						entry->sess_id);
 #endif /* USE_REST */
 

@@ -1608,9 +1608,9 @@ int decode_pfcp_ntwk_inst_ie_t(uint8_t *buf,
     total_decoded += decode_pfcp_ie_header_t(buf + (total_decoded/CHAR_SIZE), &value->header);
     /* uint16_t decoded = 0; */
 	/* TODO: Revisit this for change in yang */
-	memcpy(&value->ntwk_inst, buf + (total_decoded/CHAR_SIZE), 8);
+	memcpy(&value->ntwk_inst, buf + (total_decoded/CHAR_SIZE), 32);
     //value->ntwk_inst = decode_bits(buf, total_decoded, 8, &decoded);
-    total_decoded += 8*CHAR_SIZE;//decoded;
+    total_decoded += 32*CHAR_SIZE;//decoded;
     return total_decoded/CHAR_SIZE;
 }
 
@@ -2624,9 +2624,9 @@ int decode_pfcp_outer_hdr_creation_ie_t(uint8_t *buf,
     uint16_t total_decoded = 0;
     total_decoded += decode_pfcp_ie_header_t(buf + (total_decoded/CHAR_SIZE), &value->header);
     uint16_t decoded = 0;
-    DECODE_OUTER_HDR_CREATION_DESC_COND_1(buf, total_decoded, 16, decoded, value);
+	value->outer_hdr_creation_desc = decode_bits(buf, total_decoded, 16, &decoded);
     total_decoded += decoded;
-    DECODE_TEID_COND_1(buf, total_decoded, 32, decoded, value);
+	value->teid = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
     DECODE_IPV4_ADDRESS_COND_3(buf, total_decoded, 32, decoded, value);
     total_decoded += decoded;

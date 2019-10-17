@@ -20,7 +20,7 @@
 #include <stdint.h>
 #include <time.h>
 #include <rte_common.h>
-
+#define LAST_TIMER_SIZE 80
 /**
  * @file
  *
@@ -84,8 +84,6 @@ struct cp_stats_t {
 	int spgwc_status;
 	int spgwu_status;
 
-
-
 	uint64_t time;
 	clock_t  execution_time;
 	clock_t  reset_time;
@@ -104,10 +102,6 @@ struct cp_stats_t {
 	uint64_t tx;
 	uint64_t rx_last;
 	uint64_t tx_last;
-
-        //const char *create_session_time;
-	//const char *delete_session_time;
-
 
 	uint64_t number_of_ues;
 	uint64_t number_of_connected_ues;
@@ -138,6 +132,45 @@ struct cp_stats_t {
 	uint64_t association_setup_resp_acc_rcvd;
 	uint64_t association_setup_resp_rej_rcvd;
 
+	char create_session_time[LAST_TIMER_SIZE];
+	char modify_bearer_time[LAST_TIMER_SIZE];
+	char delete_session_time[LAST_TIMER_SIZE];
+	char number_of_ues_time[LAST_TIMER_SIZE];
+	char rel_access_bearer_time[LAST_TIMER_SIZE];
+	char ddn_time[LAST_TIMER_SIZE];
+	char ddn_ack_time[LAST_TIMER_SIZE];
+	char number_of_connected_ues_time[LAST_TIMER_SIZE];
+	char number_of_suspended_ues_time[LAST_TIMER_SIZE];
+	char sgw_nbr_of_pdn_connections_time[LAST_TIMER_SIZE];
+	char sgw_nbr_of_bearers_time[LAST_TIMER_SIZE];
+	char sgw_nbr_of_active_bearers_time[LAST_TIMER_SIZE];
+	char sgw_nbr_of_idle_bearers_time[LAST_TIMER_SIZE];
+	char sm_create_session_req_sent_time[LAST_TIMER_SIZE];
+	char sm_create_session_req_rcvd_time[LAST_TIMER_SIZE];
+	char create_session_resp_acc_rcvd_time[LAST_TIMER_SIZE];
+	char create_session_resp_rej_rcvd_time[LAST_TIMER_SIZE];
+	char sm_delete_session_req_sent_time[LAST_TIMER_SIZE];
+	char sm_delete_session_req_rcvd_time[LAST_TIMER_SIZE];
+	char sm_delete_session_resp_acc_rcvd_time[LAST_TIMER_SIZE];
+	char sm_delete_session_resp_rej_rcvd_time[LAST_TIMER_SIZE];
+
+	char session_establishment_req_sent_time[LAST_TIMER_SIZE];
+	char session_establishment_resp_acc_rcvd_time[LAST_TIMER_SIZE];
+	char session_establishment_resp_rej_rcvd_time[LAST_TIMER_SIZE];
+	char session_modification_req_sent_time[LAST_TIMER_SIZE];
+	char session_modification_resp_acc_rcvd_time[LAST_TIMER_SIZE];
+	char session_modification_resp_rej_rcvd_time[LAST_TIMER_SIZE];
+	char session_deletion_req_sent_time[LAST_TIMER_SIZE];
+	char session_deletion_resp_acc_rcvd_time[LAST_TIMER_SIZE];
+	char session_deletion_resp_rej_rcvd_time[LAST_TIMER_SIZE];
+	char association_setup_req_sent_time[LAST_TIMER_SIZE];
+	char association_setup_resp_acc_rcvd_time[LAST_TIMER_SIZE];
+	char association_setup_resp_rej_rcvd_time[LAST_TIMER_SIZE];
+
+	char s11_peer_timestamp[LAST_TIMER_SIZE];
+	char s5s8_peer_timestamp[LAST_TIMER_SIZE];
+	char sx_peer_timestamp[LAST_TIMER_SIZE];
+
 #ifdef SDN_ODL_BUILD
 	uint64_t nb_sent;
 	uint64_t nb_ok;
@@ -146,6 +179,12 @@ struct cp_stats_t {
 };
 
 extern struct cp_stats_t cp_stats;
+
+extern int s11logger;
+extern int s5s8logger;
+extern int sxlogger;
+extern int apilogger;
+extern int epclogger;
 
 /**
  * Prints control plane signaling message statistics

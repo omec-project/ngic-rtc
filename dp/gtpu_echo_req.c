@@ -60,7 +60,7 @@ static void set_checksum(struct rte_mbuf *echo_pkt) {
 static __inline__ void encap_gtpu_hdr(struct rte_mbuf *m, uint16_t gtpu_seqnb)
 {
 	uint32_t teid = 0;
-	uint16_t len = rte_pktmbuf_data_len(m)- (ETH_HDR_LEN + IPV4_HDR_LEN + UDP_HDR_LEN);
+	uint16_t len = rte_pktmbuf_data_len(m) - (ETH_HDR_LEN + IPV4_HDR_LEN + UDP_HDR_LEN);
 
 	len -= GTPU_HDR_LEN;
 

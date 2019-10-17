@@ -755,7 +755,7 @@ int encode_pfcp_apply_action_ie_t(pfcp_apply_action_ie_t *value,
 	encoded += encode_bits(value->forw, 1, buf + (encoded/8), encoded % CHAR_SIZE);
 	encoded += encode_bits(value->drop, 1, buf + (encoded/8), encoded % CHAR_SIZE);
 
-	return encoded/CHAR_SIZE;
+	return encoded;
 }
 
 
@@ -1460,8 +1460,8 @@ int encode_pfcp_ntwk_inst_ie_t(pfcp_ntwk_inst_ie_t *value,
 	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
 	/* TODO: Revisit this for change in yang */
 	//encoded += encode_bits(value->ntwk_inst, 8, buf + (encoded/8), encoded % CHAR_SIZE);
-	memcpy(buf + (encoded/CHAR_SIZE), &value->ntwk_inst, 8);
-	encoded +=  8 * CHAR_SIZE;
+	memcpy(buf + (encoded/CHAR_SIZE), &value->ntwk_inst, 32);
+	encoded +=  32 * CHAR_SIZE;
 
 	return encoded;//CHAR_SIZE;
 }
@@ -1691,7 +1691,7 @@ int encode_pfcp_dst_intfc_ie_t(pfcp_dst_intfc_ie_t *value,
 	encoded += encode_bits(value->dst_intfc_spare, 4, buf + (encoded/8), encoded % CHAR_SIZE);
 	encoded += encode_bits(value->interface_value, 4, buf + (encoded/8), encoded % CHAR_SIZE);
 
-	return encoded/CHAR_SIZE;
+	return encoded;
 }
 
 
@@ -2335,7 +2335,7 @@ int encode_pfcp_outer_hdr_creation_ie_t(pfcp_outer_hdr_creation_ie_t *value,
 	ENCODE_CTAG_COND_1(value, 24, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
 	ENCODE_STAG_COND_1(value, 24, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
 
-	return encoded/CHAR_SIZE;
+	return encoded;
 }
 
 

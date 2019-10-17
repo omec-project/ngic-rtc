@@ -68,6 +68,7 @@ SRCS-y := main.c\
 	$(SRCDIR)/../pfcp_messages/pfcp_session.o\
 	$(SRCDIR)/../pfcp_messages/pfcp_set_ie.o\
 	$(SRCDIR)/../pfcp_messages/pfcp_util.o\
+	$(SRCDIR)/../pfcp_messages/pfcp_init.o\
 
 CFLAGS += -I$(SRCDIR)/
 CFLAGS += -I$(SRCDIR)/../interface
@@ -162,7 +163,7 @@ CFLAGS += -O3
 CFLAGS += -DPERF_TEST
 
 #un-comment below line to generate pcap on east-west interfaces
-#CFLAGS += -DPCAP_GEN
+CFLAGS += -DPCAP_GEN
 
 # Un-comment below line to read fake cp config.
 #CFLAGS += -DSIMU_CP

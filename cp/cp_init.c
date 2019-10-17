@@ -27,6 +27,10 @@
 #include "pfcp_session.h"
 #include "pfcp_association.h"
 
+#ifdef C3PO_OSS
+#include"cp_config.h"
+#endif /* C3PO_OSS */
+
 #ifdef USE_DNS_QUERY
 #include "cdnshelper.h"
 #endif /* USE_DNS_QUERY */
@@ -70,6 +74,8 @@ struct sockaddr_in s5s8_sockaddr;
 uint8_t s11_rx_buf[MAX_GTPV2C_UDP_LEN];
 uint8_t s11_tx_buf[MAX_GTPV2C_UDP_LEN];
 uint8_t pfcp_tx_buf[MAX_GTPV2C_UDP_LEN];
+uint8_t msg_buf_t[MAX_GTPV2C_UDP_LEN];
+uint8_t tx_buf[MAX_GTPV2C_UDP_LEN];
 
 #ifdef USE_REST
 /* ECHO PKTS HANDLING */
@@ -124,6 +130,7 @@ stats_update(uint8_t msg_type)
 					break;
 				case GTP_RELEASE_ACCESS_BEARERS_REQ:
 					cp_stats.rel_access_bearer++;
+					get_current_time(cp_stats.rel_access_bearer_time);
 					break;
 				case GTP_BEARER_RESOURCE_CMD:
 					cp_stats.bearer_resource++;
@@ -134,6 +141,7 @@ stats_update(uint8_t msg_type)
 					return;
 				case GTP_DOWNLINK_DATA_NOTIFICATION_ACK:
 					cp_stats.ddn_ack++;
+					get_current_time(cp_stats.ddn_ack_time);
 					break;
 				case GTP_ECHO_REQ:
 					cp_stats.echo++;
@@ -223,8 +231,8 @@ gtpv2c_send(int gtpv2c_if_fd, uint8_t *gtpv2c_tx_buf,
 	} else {
 		bytes_tx = sendto(gtpv2c_if_fd, gtpv2c_tx_buf, gtpv2c_pyld_len, 0,
 			(struct sockaddr *) dest_addr, dest_addr_len);
-		RTE_LOG_DP(DEBUG, CP, "NGIC- main.c::gtpv2c_send()"
-			"\n\tgtpv2c_if_fd= %d\n", gtpv2c_if_fd);
+
+		clLog(clSystemLog, eCLSeverityDebug, "NGIC- main.c::gtpv2c_send()""\n\tgtpv2c_if_fd= %d\n", gtpv2c_if_fd);
 
 	if (bytes_tx != (int) gtpv2c_pyld_len) {
 			fprintf(stderr, "Transmitted Incomplete GTPv2c Message:"
@@ -239,7 +247,7 @@ static void
 set_dns_config(void)
 {
 	set_dnscache_refresh_params(pfcp_config.dns_cache.concurrent,
-			pfcp_config.dns_cache.percent, pfcp_config.dns_cache.sec * 1000);
+			pfcp_config.dns_cache.percent, pfcp_config.dns_cache.sec);
 
 	/* set OPS dns config */
 	for (uint32_t i = 0; i < pfcp_config.ops_dns.nameserver_cnt; i++)
@@ -284,8 +292,8 @@ init_pfcp(void)
 
 	ret = bind(pfcp_fd, (struct sockaddr *) &pfcp_sockaddr,
 			sizeof(struct sockaddr_in));
-	RTE_LOG_DP(INFO, CP, "NGIC- main.c::init_pfcp()"
-			"\n\tpfcp_fd = %d :: "
+
+	clLog(sxlogger, eCLSeverityInfo,  "NGIC- main.c::init_pfcp()" "\n\tpfcp_fd = %d :: "
 			"\n\tpfcp_ip = %s : pfcp_port = %d\n",
 			pfcp_fd, inet_ntoa(pfcp_config.pfcp_ip),
 			ntohs(pfcp_port));
@@ -323,6 +331,7 @@ init_s11(void)
 		return;
 
 	s11_fd = socket(AF_INET, SOCK_DGRAM, 0);
+	my_sock.sock_fd_s11 = s11_fd;
 
 	if (s11_fd < 0)
 		rte_panic("Socket call error : %s", strerror(errno));
@@ -335,7 +344,8 @@ init_s11(void)
 
 	ret = bind(s11_fd, (struct sockaddr *) &s11_sockaddr,
 			    sizeof(struct sockaddr_in));
-	RTE_LOG_DP(INFO, CP, "NGIC- main.c::init_s11()"
+
+	clLog(s11logger, eCLSeverityInfo, "NGIC- main.c::init_s11()"
 			"\n\ts11_fd= %d :: "
 			"\n\ts11_ip= %s : s11_port= %d\n",
 			s11_fd, inet_ntoa(pfcp_config.s11_ip), ntohs(s11_port));
@@ -363,6 +373,7 @@ init_s5s8(void)
 		return;
 
 	s5s8_fd = socket(AF_INET, SOCK_DGRAM, 0);
+	my_sock.sock_fd_s5s8 = s5s8_fd;
 
 	if (s5s8_fd < 0)
 		rte_panic("Socket call error : %s", strerror(errno));
@@ -375,7 +386,8 @@ init_s5s8(void)
 
 	ret = bind(s5s8_fd, (struct sockaddr *) &s5s8_sockaddr,
 			    sizeof(struct sockaddr_in));
-	RTE_LOG_DP(INFO, CP, "NGIC- main.c::init_s5s8_sgwc()"
+
+	clLog(s5s8logger, eCLSeverityInfo, "NGIC- main.c::init_s5s8_sgwc()"
 			"\n\ts5s8_fd= %d :: "
 			"\n\ts5s8_ip= %s : s5s8_port= %d\n",
 			s5s8_fd, inet_ntoa(pfcp_config.s5s8_ip),
