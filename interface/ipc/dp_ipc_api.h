@@ -21,10 +21,12 @@
  * This file contains macros, data structure definitions and function
  * prototypes of Interface message parsing.
  */
-#include "main.h"
 #include "interface.h"
 #ifdef CP_BUILD
 #include "cp.h"
+#include "main.h"
+#else
+#include "up_main.h"
 #endif  /* CP_BUILD */
 
 /* message types */
@@ -95,7 +97,7 @@ struct msgbuf {
 struct msgbuf sbuf;
 struct msgbuf rbuf;
 
-uint8_t pfcp_rx[512]; /* TODO: Decide size */
+uint8_t pfcp_rx[1024]; /* TODO: Decide size */
 
 /* IPC msg node */
 struct ipc_node {
@@ -109,6 +111,9 @@ struct ipc_node *basenode;
  *
  * This function is not thread safe and should only be called once by DP.
  */
+//int iface_process_ipc_msgs(void);
+
+
 void iface_process_ipc_msgs(void);
 
 /**

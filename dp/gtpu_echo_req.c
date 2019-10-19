@@ -57,7 +57,7 @@ static void set_checksum(struct rte_mbuf *echo_pkt) {
 	ipv4hdr->hdr_checksum = rte_ipv4_cksum(ipv4hdr);
 }
 
-static __inline__ void encap_gtpu_hdr(struct rte_mbuf *m, uint16_t gtpu_seqnb)
+static __inline__ void encap_gtpu_hdr(struct rte_mbuf *m, uint16_t gtpu_seqnb, uint8_t type)
 {
 	uint32_t teid = 0;
 	uint16_t len = rte_pktmbuf_data_len(m) - (ETH_HDR_LEN + IPV4_HDR_LEN + UDP_HDR_LEN);
@@ -68,7 +68,7 @@ static __inline__ void encap_gtpu_hdr(struct rte_mbuf *m, uint16_t gtpu_seqnb)
 		ETH_HDR_LEN + IPV4_HDR_LEN + UDP_HDR_LEN);
 
 	gtpu_hdr->version_flags = (GTPU_VERSION << 5) | (GTP_PROTOCOL_TYPE_GTP << 4) | (GTP_FLAG_SEQNB);
-	gtpu_hdr->msg_type = GTPU_ECHO_REQUEST;
+	gtpu_hdr->msg_type = type;
 	gtpu_hdr->teid = htonl(teid);
 	gtpu_hdr->seq_no = htons(gtpu_seqnb);
 	gtpu_hdr->tot_len = htons(len);
@@ -126,7 +126,7 @@ void build_echo_request(struct rte_mbuf *echo_pkt, peerData *entry, uint16_t gtp
 	echo_pkt->data_len = PKT_SIZE;
 
 
-	encap_gtpu_hdr(echo_pkt, gtpu_seqnb);
+	encap_gtpu_hdr(echo_pkt, gtpu_seqnb, GTPU_ECHO_REQUEST);
 	create_udp_hdr(echo_pkt, entry);
 	create_ipv4_hdr(echo_pkt, entry);
 	create_ether_hdr(echo_pkt, entry);
@@ -134,4 +134,36 @@ void build_echo_request(struct rte_mbuf *echo_pkt, peerData *entry, uint16_t gtp
 	/* Set outer IP and UDP checksum, after inner IP and UDP checksum is set.
 	 */
 	set_checksum(echo_pkt);
+}
+
+void build_endmarker_and_send(struct sess_info_endmark *edmk)
+{
+	static uint16_t seq = 0;
+	peerData entry;
+
+	entry.dstIP = edmk->dst_ip;
+	entry.srcIP = edmk->src_ip;
+
+	memcpy(&(entry.src_eth_addr), &(edmk->source_MAC), sizeof(struct ether_addr));
+	memcpy(&(entry.dst_eth_addr), &(edmk->destination_MAC), sizeof(struct ether_addr));
+
+	struct rte_mbuf *endmk_pkt = rte_pktmbuf_alloc(echo_mpool);
+	endmk_pkt->pkt_len = PKT_SIZE;
+	endmk_pkt->data_len = PKT_SIZE;
+
+	
+	encap_gtpu_hdr(endmk_pkt, ++seq, GTPU_END_MARKER_REQUEST);
+	create_udp_hdr(endmk_pkt, &entry);
+	create_ipv4_hdr(endmk_pkt, &entry);
+	create_ether_hdr(endmk_pkt, &entry);
+
+	set_checksum(endmk_pkt);
+
+
+	if (rte_ring_enqueue(shared_ring[S1U_PORT_ID], endmk_pkt) == -ENOBUFS) {
+		rte_pktmbuf_free(endmk_pkt);
+		RTE_LOG_DP(ERR, DP, "%s::Can't queue endmarker pkt- ring full..."
+				" Dropping pkt\n", __func__);
+
+	}
 }

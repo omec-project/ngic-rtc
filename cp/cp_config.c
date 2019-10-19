@@ -20,7 +20,9 @@
 #include <rte_cfgfile.h>
 
 #include "cp_config.h"
+#include "cp_stats.h"
 
+//#define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
 
 #define GLOBAL_ENTRIES			"GLOBAL"
 #define APN_ENTRIES				"APN_CONFIG"
@@ -31,6 +33,7 @@
 #define OPS_ENTRIES				"OPS"
 
 #define CP_TYPE					"CP_TYPE"
+#define CP_LOGGER				"CP_LOGGER"
 #define S11_IPS					"S11_IP"
 #define S11_PORTS				"S11_PORT"
 #define S5S8_IPS				"S5S8_IP"
@@ -50,6 +53,8 @@
 #define INT_SEC					"interval_seconds"
 #define FREQ_SEC				"frequency_seconds"
 #define FILENAME				"filename"
+#define QUERY_TIMEOUT           "query_timeout_ms"
+#define QUERY_TRIES             "query_tries"
 
 /* Restoration Parameters */
 #define TRANSMIT_TIMER			"TRANSMIT_TIMER"
@@ -59,6 +64,7 @@
 int s11logger;
 int s5s8logger;
 int sxlogger;
+int gxlogger;
 int apilogger;
 int epclogger;
 
@@ -205,7 +211,10 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 
 			fprintf(stderr, "CP: UPF_PFCP_PORT: %d\n",
 					pfcp_config->upf_pfcp_port);
-		}
+
+		 } else if (strncmp(CP_LOGGER, global_entries[i].name, strlen(CP_LOGGER)) == 0) {
+			 pfcp_config->cp_logger = (uint8_t)atoi(global_entries[i].value);
+		 }
 
 		/* Parse timer and counter values from cp.cfg */
 		if(strncmp(TRANSMIT_TIMER, global_entries[i].name, strlen(TRANSMIT_TIMER)) == 0)
@@ -235,11 +244,11 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 				sizeof(struct rte_cfgfile_entry) *
 				num_apn_entries,
 				RTE_CACHE_LINE_SIZE, rte_socket_id());
-	}
-
 	if (apn_entries == NULL)
 		rte_panic("Error configuring"
 				"apn entry of %s\n", STATIC_CP_FILE);
+	}
+
 
 	/* Fill the entries in APN list. */
 	rte_cfgfile_section_entries(file,
@@ -319,6 +328,14 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 						strlen(CONCURRENT)) == 0)
 			pfcp_config->dns_cache.sec =
 					(uint32_t)atoi(cache_entries[i].value);
+		if (strncmp(QUERY_TIMEOUT, cache_entries[i].name,
+		                strlen(QUERY_TIMEOUT)) == 0)
+		    pfcp_config->dns_cache.timeoutms =
+		            (long)atol(cache_entries[i].value);
+		if (strncmp(QUERY_TRIES, cache_entries[i].name,
+		                strlen(QUERY_TRIES)) == 0)
+		    pfcp_config->dns_cache.tries =
+		           (uint32_t)atoi(cache_entries[i].value);
 	}
 
 	rte_free(cache_entries);
@@ -397,7 +414,7 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 				ops_entries[i].name,
 				ops_entries[i].value);
 
-		if (strncmp(FREQ_SEC, app_entries[i].name,
+		if (strncmp(FREQ_SEC, ops_entries[i].name,
 						strlen(FREQ_SEC)) == 0)
 			pfcp_config->ops_dns.freq_sec =
 					(uint8_t)atoi(ops_entries[i].value);
@@ -411,7 +428,7 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 		if (strncmp(NAMESERVER, ops_entries[i].name,
 						strlen(NAMESERVER)) == 0) {
 			strncpy(pfcp_config->ops_dns.nameserver_ip[ops_nameserver_ip_idx],
-					app_entries[i].value,
+					ops_entries[i].value,
 					strlen(ops_entries[i].value));
 			ops_nameserver_ip_idx++;
 		}
@@ -423,7 +440,7 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 
 	/* Read IP_POOL_CONFIG seaction */
 	num_ip_pool_entries = rte_cfgfile_section_num_entries
-						(file, IP_POOL_ENTRIES);
+									(file, IP_POOL_ENTRIES);
 
 
 	if (num_ip_pool_entries > 0) {
@@ -432,11 +449,11 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 					num_ip_pool_entries,
 					RTE_CACHE_LINE_SIZE,
 					rte_socket_id());
-	}
-
 	if (ip_pool_entries == NULL)
 		rte_panic("Error configuring ip"
 				"pool entry of %s\n", STATIC_CP_FILE);
+	}
+
 
 
 	rte_cfgfile_section_entries(file, IP_POOL_ENTRIES,
@@ -471,30 +488,54 @@ parse_apn_args(char *temp, char *ptr[3])
 {
 
 	int i;
-	char *next = NULL, *prev = NULL;
-	char *delim_ptr;
+	char *first = temp;
+	char *next = NULL;
 
 	for (i = 0; i < 3; i++) {
 		ptr[i] = malloc(100);
 		memset(ptr[i], 0, 100);
 	}
 
-
 	for (i = 0; i < 3; i++) {
-		delim_ptr = strchr(temp, ',');
-		next = delim_ptr;
-		if (prev != NULL && next == prev + 1)
-			ptr[i] = NULL;
-		else if (next == NULL && *(prev + 1) == '\0')
-			ptr[i] = NULL;
-		else if (next == NULL)
-			strcpy(ptr[i], temp);
-		else
-			strncpy(ptr[i], temp, delim_ptr - temp);
 
-		if (delim_ptr != NULL)
-			temp = temp + (delim_ptr - temp) + 1;
-		prev = next;
+		if(first!=NULL)
+			next = strchr(first, ',');
+
+		if(first == NULL && next == NULL)
+		{
+			ptr[i] = NULL;
+			continue;
+		}
+
+		if(*(first) == '\0')  //string ends,fill remaining with NULL
+		{
+			ptr[i] = NULL;
+			continue;
+		}
+
+		if(next!= NULL)
+		{
+			if(next > first) //string is present
+			{
+				strncpy(ptr[i], first, next - first);
+
+			}
+			else if (next == first) //first place is comma
+			{
+				ptr[i] = NULL;
+			}
+			first = next + 1;
+		} else                //copy last string
+		{
+			if(first!=NULL)
+			{
+				strcpy(ptr[i],first);
+				first = NULL;
+			} else {
+				ptr[i] = NULL; //fill remaining ptr with NULL
+			}
+
+		}
 	}
 
 }
@@ -508,113 +549,31 @@ init_cli_module(pfcp_config_t *pfcp_config)
 	clSetOption(eCLOptStatFileName, "logs/cp_stat.log");
 	clSetOption(eCLOptAuditFileName, "logs/cp_sys.log");
 
-	clInit("sgwc");
+	clInit("sgwc", pfcp_config->cp_logger);
 
-        if (spgw_cfg == SGWC || spgw_cfg == SAEGWC)
-                s11logger = clAddLogger("s11");
+	if (spgw_cfg == SGWC || spgw_cfg == SAEGWC)
+		s11logger = clAddLogger("s11", pfcp_config->cp_logger);
 	if (spgw_cfg == SGWC || spgw_cfg == PGWC)
-		s5s8logger = clAddLogger("s5s8");
-	sxlogger = clAddLogger("sx");
-	apilogger = clAddLogger("api");
-	epclogger = clAddLogger("epc");
+		s5s8logger = clAddLogger("s5s8", pfcp_config->cp_logger);
+	if (spgw_cfg == SAEGWC || spgw_cfg == PGWC)
+		gxlogger = clAddLogger("Gx", pfcp_config->cp_logger);
+	sxlogger = clAddLogger("sx", pfcp_config->cp_logger);
+	apilogger = clAddLogger("api", pfcp_config->cp_logger);
+	epclogger = clAddLogger("epc", pfcp_config->cp_logger);
 
 	clAddRecentLogger("sgwc-001","cp",5);
 
 	clStart();
 
-	if (spgw_cfg == SGWC) {
-		csSetName("SGWC");
-		csInit(clGetStatsLogger(), get_stat_spgwc, get_stat_common, get_stat_health, get_time_stat, 2, 5000);
-		csInitLastactivity(get_lastactivity_time_sgwc);
-	} else if(spgw_cfg == PGWC) {
-	        csSetName("PGWC");
-		csInit(clGetStatsLogger(), get_stat_pgwc, get_stat_common, get_stat_health_pgwc, get_time_stat_pgwc, 2, 5000);
-		csInitLastactivity(get_lastactivity_time_pgwc);
-	} else {
-	        csSetName("SPGWC");
-		csInit(clGetStatsLogger(), get_stat_spgwc, get_stat_common, get_stat_health, get_time_stat, 2, 5000);
-		csInitLastactivity(get_lastactivity_time_sgwc);
-	}
+    csInit(clGetStatsLogger(), 5000);
 
-	if (spgw_cfg == SGWC || spgw_cfg == SAEGWC) {
-
-	int Interface1 = csAddInterface("S11", "gtpv2");
-
-	//int peer1 = csAddPeer(Interface1, "false", inet_ntoa(pfcp_config->s11_mme_ip));
-	int peer1 = csAddPeer(Interface1, "false", "not found");
-
-	csAddLastactivity(Interface1, peer1, "2019-01-01T01:03:05");
-
-	csAddHealth(Interface1, peer1, pfcp_config->transmit_timer, pfcp_config->transmit_cnt, 0);
-	csAddMessage(Interface1, peer1, "Create Session Request", "in");
-	csAddMessage(Interface1, peer1, "Modify Bearer Request", "in");
-	csAddMessage(Interface1, peer1, "Delete Session Request", "in");
+    csStart();
 
 
-	csAddMessage(Interface1, peer1, "Number Of UEs", "in");
-	csAddMessage(Interface1, peer1, "Release Access Bearers Request", "in");
-	csAddMessage(Interface1, peer1, "Downlink Data Notification Acknowledge", "in");
-	csAddMessage(Interface1, peer1, "Number Of PDN Connections", "in");
-	csAddMessage(Interface1, peer1, "Number Of Bearers", "in");
-	csAddMessage(Interface1, peer1, "Downlink Data Notification", "out");
-
-	}
-
-	int Interface2,peer2;
-
-	if (spgw_cfg == SAEGWC) {
-		Interface2 = csAddInterface("Sx", "PFCP");
-		//peer2 = csAddPeer(Interface2, "false", inet_ntoa(pfcp_config->pfcp_ip));
-		peer2 = csAddPeer(Interface2, "false", "not found");
-	  } else if (spgw_cfg == SGWC) {
-		Interface2 = csAddInterface("Sxa", "PFCP");
-		//peer2 = csAddPeer(Interface2, "false", inet_ntoa(pfcp_config->pfcp_ip));
-		peer2 = csAddPeer(Interface2, "false", "not found");
-	  } else {
-		Interface2 = csAddInterface("Sxb", "PFCP");
-		//peer2 = csAddPeer(Interface2, "false", inet_ntoa(pfcp_config->pfcp_ip));
-		peer2 = csAddPeer(Interface2, "false", "not found");
-	  }
-
-	csAddLastactivity(Interface2, peer2, "2019-01-01T01:03:05");
-	csAddHealth(Interface2, peer2, pfcp_config->transmit_timer, pfcp_config->transmit_cnt, 0);
-	csAddMessage(Interface2, peer2, "PFCP Session Establishment Request", "out");
-	csAddMessage(Interface2, peer2, "PFCP Session Establishment Response", "in");
-	csAddMessage(Interface2, peer2, "PFCP Session Deletion Request", "out");
-	csAddMessage(Interface2, peer2, "PFCP Session Deletion Response", "in");
-	csAddMessage(Interface2, peer2, "PFCP Association Setup Request", "out");
-	csAddMessage(Interface2, peer2, "PFCP Association Setup Response", "in");
-
-	if (spgw_cfg != PGWC)
-	{
-		csAddMessage(Interface2, peer2, "PFCP Session Modification Request", "out");
-		csAddMessage(Interface2, peer2, "PFCP Session Modification Response", "in");
-	}
-
-	if (spgw_cfg == SGWC){
-		int Interface3 = csAddInterface("S5-S8", "gtpv2");
-		//int peer3 = csAddPeer(Interface3, "false", inet_ntoa(pfcp_config->s5s8_ip));
-		int peer3 = csAddPeer(Interface3, "false", "not found");
-
-		csAddLastactivity(Interface3, peer3, "2019-01-01T01:03:05");
-		csAddHealth(Interface3, peer3, pfcp_config->transmit_timer, pfcp_config->transmit_cnt, 0);
-		csAddMessage(Interface3, peer3, "Create Session Request", "out");
-		csAddMessage(Interface3, peer3, "Create Session Response", "in");
-		csAddMessage(Interface3, peer3, "Delete Session Request", "out");
-		csAddMessage(Interface3, peer3, "Delete Session Response", "in");
-	} else if (spgw_cfg == PGWC ){
-		int Interface3 = csAddInterface("S5-S8", "gtpv2");
-		//int peer3 = csAddPeer(Interface3, "false", inet_ntoa(pfcp_config->s5s8_ip));
-		int peer3 = csAddPeer(Interface3, "false", "not found");
-
-		csAddLastactivity(Interface3, peer3, "2019-01-01T01:03:05");
-		csAddHealth(Interface3, peer3, pfcp_config->transmit_timer, pfcp_config->transmit_cnt, 0);
-		csAddMessage(Interface3, peer3, "Create Session Request", "in");
-		csAddMessage(Interface3, peer3, "Delete Session Request", "in");
-		csAddMessage(Interface3, peer3, "Number Of UEs", "in");
-	}
-
-	csStart();
+    /*CLI:New logic r1.5*/
+	cli_node.cp_type = pfcp_config->cp_type;
+	cli_node.upsecs = &cp_stats.time;
+	cli_init(&cli_node,&cnt_peer);
 
 	init_rest_methods(12997, 1);
 }

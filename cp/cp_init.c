@@ -130,7 +130,6 @@ stats_update(uint8_t msg_type)
 					break;
 				case GTP_RELEASE_ACCESS_BEARERS_REQ:
 					cp_stats.rel_access_bearer++;
-					get_current_time(cp_stats.rel_access_bearer_time);
 					break;
 				case GTP_BEARER_RESOURCE_CMD:
 					cp_stats.bearer_resource++;
@@ -141,7 +140,6 @@ stats_update(uint8_t msg_type)
 					return;
 				case GTP_DOWNLINK_DATA_NOTIFICATION_ACK:
 					cp_stats.ddn_ack++;
-					get_current_time(cp_stats.ddn_ack_time);
 					break;
 				case GTP_ECHO_REQ:
 					cp_stats.echo++;
@@ -249,10 +247,15 @@ set_dns_config(void)
 	set_dnscache_refresh_params(pfcp_config.dns_cache.concurrent,
 			pfcp_config.dns_cache.percent, pfcp_config.dns_cache.sec);
 
+	set_dns_retry_params(pfcp_config.dns_cache.timeoutms,
+			pfcp_config.dns_cache.tries);
+
 	/* set OPS dns config */
 	for (uint32_t i = 0; i < pfcp_config.ops_dns.nameserver_cnt; i++)
+	{
 		set_nameserver_config(pfcp_config.ops_dns.nameserver_ip[i],
 				DNS_PORT, DNS_PORT, NS_OPS);
+	}
 
 	apply_nameserver_config(NS_OPS);
 	init_save_dns_queries(NS_OPS, pfcp_config.ops_dns.filename,
@@ -475,6 +478,8 @@ init_cp(void)
 	create_ue_hash();
 
 	create_upf_context_hash();
+
+	create_gx_context_hash();
 
 	create_upf_by_ue_hash();
 

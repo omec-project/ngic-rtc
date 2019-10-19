@@ -18,21 +18,11 @@
 #include "ue.h"
 #include "../cp_dp_api/vepc_cp_dp_api.h"
 
-struct parse_create_bearer_rsp_t {
-	ue_context *context;
-	eps_bearer *ded_bearer;
-
-	gtpv2c_ie *cause_ie;
-	gtpv2c_ie *bearer_contexts_ie;
-	gtpv2c_ie *ebi_ie;
-	gtpv2c_ie *s1u_enb_gtpu_fteid_ie;
-	gtpv2c_ie *s1u_sgw_gtpu_fteid_ie;
-};
 extern uint32_t num_adc_rules;
 extern uint32_t adc_rule_id[];
 
 /**
- * parses gtpv2c message and populates parse_create_bearer_rsp structure
+ * parses gtpv2c message and populates parse_cb_rsp structure
  * @param gtpv2c_rx
  *   buffer containing create bearer response message
  * @param cbr
@@ -44,9 +34,10 @@ extern uint32_t adc_rule_id[];
  *   specified cause error value
  *   \- < 0 for all other errors
  */
+#if 0
 static int
-parse_create_bearer_rsp(gtpv2c_header *gtpv2c_rx,
-	struct parse_create_bearer_rsp_t *cbr)
+parse_cb_rsp(gtpv2c_header_t *gtpv2c_rx,
+	struct parse_cb_rsp_t *cbr)
 {
 	gtpv2c_ie *current_ie;
 	gtpv2c_ie *current_group_ie;
@@ -54,7 +45,7 @@ parse_create_bearer_rsp(gtpv2c_header *gtpv2c_rx,
 	gtpv2c_ie *limit_group_ie;
 
 	int ret = rte_hash_lookup_data(ue_context_by_fteid_hash,
-	    (const void *) &gtpv2c_rx->teid_u.has_teid.teid,
+	    (const void *) &gtpv2c_rx->teid.has_teid.teid,
 	    (void **) &cbr->context);
 
 	if (ret < 0 || !cbr->context)
@@ -72,30 +63,30 @@ parse_create_bearer_rsp(gtpv2c_header *gtpv2c_rx,
 	 * received message */
 	FOR_EACH_GTPV2C_IE(gtpv2c_rx, current_ie, limit_ie)
 	{
-		if (current_ie->type == IE_BEARER_CONTEXT &&
+		if (current_ie->type == GTP_IE_BEARER_CONTEXT &&
 				current_ie->instance == IE_INSTANCE_ZERO) {
 			cbr->bearer_contexts_ie = current_ie;
 			FOR_EACH_GROUPED_IE(
 					current_ie, current_group_ie,
 					limit_group_ie)
 			{
-				if (current_group_ie->type == IE_EBI &&
+				if (current_group_ie->type == GTP_IE_EPS_BEARER_ID &&
 						current_group_ie->instance ==
 							IE_INSTANCE_ZERO) {
 					cbr->ebi_ie = current_group_ie;
-				} else if (current_group_ie->type == IE_FTEID &&
+				} else if (current_group_ie->type == GTP_IE_FULLY_QUAL_TUNN_ENDPT_IDNT &&
 						current_group_ie->instance ==
 							IE_INSTANCE_ZERO) {
 					cbr->s1u_enb_gtpu_fteid_ie =
 							current_group_ie;
-				} else if (current_group_ie->type == IE_FTEID &&
+				} else if (current_group_ie->type == GTP_IE_FULLY_QUAL_TUNN_ENDPT_IDNT &&
 						current_group_ie->instance ==
 							IE_INSTANCE_ONE) {
 					cbr->s1u_sgw_gtpu_fteid_ie =
 							current_group_ie;
 				}
 			}
-		} else if (current_ie->type == IE_CAUSE &&
+		} else if (current_ie->type == GTP_IE_CAUSE &&
 				current_ie->instance == IE_INSTANCE_ZERO) {
 			cbr->cause_ie = current_ie;
 		}
@@ -119,35 +110,37 @@ parse_create_bearer_rsp(gtpv2c_header *gtpv2c_rx,
 
 	return 0;
 }
+#endif
 
 
+#if 0
 int
-process_create_bearer_response(gtpv2c_header *gtpv2c_rx)
+process_create_bearer_response(gtpv2c_header_t *gtpv2c_rx)
 {
-	struct parse_create_bearer_rsp_t create_bearer_rsp = {0};
+	struct parse_create_bearer_rsp_t cb_rsp = {0};
 	uint8_t i;
-	int ret = parse_create_bearer_rsp(gtpv2c_rx, &create_bearer_rsp);
+	int ret = parse_cb_rsp(gtpv2c_rx, &cb_rsp);
 
 	if (ret)
 		return ret;
 
-	uint8_t ebi_index = create_bearer_rsp.ded_bearer->eps_bearer_id - 5;
+	uint8_t ebi_index = cb_rsp.ded_bearer->eps_bearer_id - 5;
 
-	if (create_bearer_rsp.context->eps_bearers[ebi_index]) {
+	if (cb_rsp.context->eps_bearers[ebi_index]) {
 		/* TODO: Investigate correct behavior when new bearers are
 		 * created with an ID of existing bearer
 		 */
-		rte_free(create_bearer_rsp.context->eps_bearers[ebi_index]);
+		rte_free(cb_rsp.context->eps_bearers[ebi_index]);
 	}
 
-	create_bearer_rsp.context->eps_bearers[ebi_index] =
-	    create_bearer_rsp.ded_bearer;
-	create_bearer_rsp.context->bearer_bitmap |= (1 << ebi_index);
+	cb_rsp.context->eps_bearers[ebi_index] =
+	    cb_rsp.ded_bearer;
+	cb_rsp.context->bearer_bitmap |= (1 << ebi_index);
 
-	create_bearer_rsp.ded_bearer->pdn->eps_bearers[ebi_index] =
-	    create_bearer_rsp.ded_bearer;
-	create_bearer_rsp.context->eps_bearers[ebi_index] =
-	    create_bearer_rsp.ded_bearer;
+	cb_rsp.ded_bearer->pdn->eps_bearers[ebi_index] =
+	    cb_rsp.ded_bearer;
+	cb_rsp.context->eps_bearers[ebi_index] =
+	    cb_rsp.ded_bearer;
 
 	struct dp_id dp_id = { .id = DPN_ID };
 	/* using the s1u_sgw_gtpu_teid as unique identifier to the session */
@@ -156,32 +149,32 @@ process_create_bearer_response(gtpv2c_header *gtpv2c_rx)
 
 	session.ue_addr.iptype = IPTYPE_IPV4;
 	session.ue_addr.u.ipv4_addr =
-		htonl(create_bearer_rsp.ded_bearer->pdn->ipv4.s_addr);
+		htonl(cb_rsp.ded_bearer->pdn->ipv4.s_addr);
 	session.ul_s1_info.sgw_teid =
-		htonl(create_bearer_rsp.ded_bearer->s1u_sgw_gtpu_teid),
+		htonl(cb_rsp.ded_bearer->s1u_sgw_gtpu_teid),
 	session.ul_s1_info.sgw_addr.iptype = IPTYPE_IPV4;
 	session.ul_s1_info.sgw_addr.u.ipv4_addr =
-		htonl(create_bearer_rsp.ded_bearer->s1u_sgw_gtpu_ipv4.s_addr);
+		htonl(cb_rsp.ded_bearer->s1u_sgw_gtpu_ipv4.s_addr);
 	session.ul_s1_info.enb_addr.iptype = IPTYPE_IPV4;
 	session.ul_s1_info.enb_addr.u.ipv4_addr =
-		htonl(create_bearer_rsp.ded_bearer->s1u_enb_gtpu_ipv4.s_addr);
+		htonl(cb_rsp.ded_bearer->s1u_enb_gtpu_ipv4.s_addr);
 	session.dl_s1_info.enb_teid =
-		htonl(create_bearer_rsp.ded_bearer->s1u_enb_gtpu_teid);
+		htonl(cb_rsp.ded_bearer->s1u_enb_gtpu_teid);
 	session.dl_s1_info.enb_addr.iptype = IPTYPE_IPV4;
 	session.dl_s1_info.enb_addr.u.ipv4_addr =
-		htonl(create_bearer_rsp.ded_bearer->s1u_enb_gtpu_ipv4.s_addr);
+		htonl(cb_rsp.ded_bearer->s1u_enb_gtpu_ipv4.s_addr);
 	session.dl_s1_info.sgw_addr.iptype = IPTYPE_IPV4,
 	session.dl_s1_info.sgw_addr.u.ipv4_addr =
-		htonl(create_bearer_rsp.ded_bearer->s1u_sgw_gtpu_ipv4.s_addr),
+		htonl(cb_rsp.ded_bearer->s1u_sgw_gtpu_ipv4.s_addr),
 	session.ul_apn_mtr_idx = ulambr_idx;
 	session.dl_apn_mtr_idx = dlambr_idx;
 
-	for (i = 0; i < create_bearer_rsp.ded_bearer->num_packet_filters; ++i) {
+	for (i = 0; i < cb_rsp.ded_bearer->num_packet_filters; ++i) {
 		uint8_t packet_filter_direction = get_packet_filter_direction(
-		    create_bearer_rsp.ded_bearer->packet_filter_map[i]);
+		    cb_rsp.ded_bearer->packet_filter_map[i]);
 		if (packet_filter_direction & TFT_DIRECTION_DOWNLINK_ONLY) {
 			session.dl_pcc_rule_id[session.num_dl_pcc_rules++] =
-			    create_bearer_rsp.ded_bearer->packet_filter_map[i];
+			    cb_rsp.ded_bearer->packet_filter_map[i];
 		}
 		if (packet_filter_direction & TFT_DIRECTION_UPLINK_ONLY) {
 			session.ul_pcc_rule_id[session.num_ul_pcc_rules++] =
@@ -195,8 +188,8 @@ process_create_bearer_response(gtpv2c_header *gtpv2c_rx)
 	 * and sess_id is combination of ue addr and bearer id.
 	 * formula to set sess_id = (ue_ipv4_addr << 4) | bearer_id
 	 */
-	session.sess_id = SESS_ID(create_bearer_rsp.context->s11_sgw_gtpc_teid,
-				create_bearer_rsp.ded_bearer->eps_bearer_id);
+	session.sess_id = SESS_ID(cb_rsp.context->s11_sgw_gtpc_teid,
+				cb_rsp.ded_bearer->eps_bearer_id);
 
 	if (session_create(dp_id, session) < 0)
 		rte_exit(EXIT_FAILURE,"Bearer Session create fail !!!");
@@ -205,3 +198,4 @@ process_create_bearer_response(gtpv2c_header *gtpv2c_rx)
 		rte_exit(EXIT_FAILURE,"Bearer Session modify fail !!!");
 	return 0;
 }
+#endif

@@ -20,6 +20,8 @@
 
 #define DEFAULT_BEARER_QOS_PRIORITY (15)
 
+extern pfcp_config_t pfcp_config;
+
 /**
  * The structure to contain required information from a parsed Bearer Resource
  * Command message
@@ -38,14 +40,14 @@ struct parse_bearer_resource_command_t {
 };
 
 static int
-parse_bearer_resource_cmd(gtpv2c_header *gtpv2c_rx,
+parse_bearer_resource_cmd(gtpv2c_header_t *gtpv2c_rx,
 			  struct parse_bearer_resource_command_t *brc)
 {
 	gtpv2c_ie *current_ie;
 	gtpv2c_ie *limit_ie;
 
 	int ret = rte_hash_lookup_data(ue_context_by_fteid_hash,
-	    (const void *) &gtpv2c_rx->teid_u.has_teid.teid,
+	    (const void *) &gtpv2c_rx->teid.has_teid.teid,
 	    (void **) &brc->context);
 
 	if (ret < 0 || !brc->context)
@@ -54,16 +56,16 @@ parse_bearer_resource_cmd(gtpv2c_header *gtpv2c_rx,
 	/** @todo: fully verify mandatory fields within received message */
 	FOR_EACH_GTPV2C_IE(gtpv2c_rx, current_ie, limit_ie)
 	{
-		if (current_ie->type == IE_EBI &&
+		if (current_ie->type == GTP_IE_EPS_BEARER_ID &&
 				current_ie->instance == IE_INSTANCE_ZERO) {
 			brc->linked_eps_bearer_id = current_ie;
-		} else if (current_ie->type == IE_PROCEDURE_TRANSACTION_ID &&
+		} else if (current_ie->type == GTP_IE_PROC_TRANS_ID &&
 				current_ie->instance == IE_INSTANCE_ZERO) {
 			brc->procedure_transaction_id = current_ie;
-		} else if (current_ie->type == IE_FLOW_QOS &&
+		} else if (current_ie->type == GTP_IE_FLOW_QLTY_OF_SVC &&
 				current_ie->instance == IE_INSTANCE_ZERO) {
 			brc->flow_quality_of_service = current_ie;
-		} else if (current_ie->type == IE_TAD &&
+		} else if (current_ie->type == GTP_IE_TRAFFIC_AGG_DESC &&
 				current_ie->instance == IE_INSTANCE_ZERO) {
 			brc->tad = IE_TYPE_PTR_FROM_GTPV2C_IE(
 				traffic_aggregation_description, current_ie);
@@ -329,11 +331,11 @@ install_packet_filters(eps_bearer *ded_bearer,
 			/* TODO: Implement dynamic installation of packet
 			 * filters on DP  - remove continue*/
 			continue;
-			mbr = ded_bearer->qos.qos.ul_mbr;
+			mbr = ded_bearer->qos.ul_mbr;
 			/* Convert bit rate into Bytes as CIR stored in bytes */
 			pf.ul_mtr_idx = meter_profile_index_get(mbr);
 
-			mbr = ded_bearer->qos.qos.dl_mbr;
+			mbr = ded_bearer->qos.dl_mbr;
 			/* Convert bit rate into Bytes as CIR stored in bytes */
 			pf.dl_mtr_idx = meter_profile_index_get(mbr);
 
@@ -375,37 +377,123 @@ install_packet_filters(eps_bearer *ded_bearer,
  *   used in the corresponding bearer resource command'
  *
  */
-static void
-set_create_bearer_request(gtpv2c_header *gtpv2c_tx, uint32_t sequence,
-			  ue_context *context, eps_bearer *bearer,
-			  uint8_t lbi, uint8_t pti)
+void
+set_create_bearer_request(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
+	ue_context *context, eps_bearer *bearer, uint8_t lbi, uint8_t pti,
+	uint8_t eps_bearer_lvl_tft[], uint8_t tft_len)
 {
-	set_gtpv2c_teid_header(gtpv2c_tx, GTP_CREATE_BEARER_REQ,
+	uint8_t len = 0;
+	create_bearer_req_t cb_req = {0};
+
+	set_gtpv2c_teid_header((gtpv2c_header_t *) &cb_req, GTP_CREATE_BEARER_REQ,
 	    context->s11_mme_gtpc_teid, sequence);
 
-	set_pti_ie(gtpv2c_tx, IE_INSTANCE_ZERO, pti);
-	set_ebi_ie(gtpv2c_tx, IE_INSTANCE_ZERO, lbi);
-	{
-		gtpv2c_ie *bearer_context_group = create_bearer_context_ie(
-				gtpv2c_tx, IE_INSTANCE_ZERO);
-		add_grouped_ie_length(bearer_context_group,
-		    set_ebi_ie(gtpv2c_tx, IE_INSTANCE_ZERO, 0));
-		/* TODO: Here we would consider the flow_qos and the QoS
-		 * configured, and potentially probe the PCRF - Gx, in order to
-		 * give the proper QoS instead just give the UE the QoS it
-		 * requests */
-		add_grouped_ie_length(bearer_context_group,
-			set_bearer_qos_ie(gtpv2c_tx, IE_INSTANCE_ZERO, bearer));
-		add_grouped_ie_length(bearer_context_group,
-			set_bearer_tft_ie(gtpv2c_tx, IE_INSTANCE_ZERO, bearer));
-
-		/* TODO Need to handle in PFCP */
-		/* add_grouped_ie_length(bearer_context_group,
-			set_ipv4_fteid_ie(gtpv2c_tx,
-				GTPV2C_IFTYPE_S1U_SGW_GTPU,
-				IE_INSTANCE_ZERO,
-				s1u_sgw_ip, bearer->s1u_sgw_gtpu_teid)); */
+	if (pti) {
+		set_pti(&cb_req.pti, IE_INSTANCE_ZERO, pti);
 	}
+
+	if (lbi) {}
+	/* TODO: NC Need to remove hardcoded value instead use lbi linked bearer id which is default bearer id */
+	set_ebi(&cb_req.lbi, IE_INSTANCE_ZERO, 5);//lbi);
+
+	set_ie_header(&cb_req.bearer_contexts.header, GTP_IE_BEARER_CONTEXT,
+			IE_INSTANCE_ZERO, 0);
+
+	/* TODO: NC Need to remove hardcoded ebi use new dedicated bearer id as 0*/
+	set_ebi(&cb_req.bearer_contexts.eps_bearer_id, IE_INSTANCE_ZERO, 0);
+	cb_req.bearer_contexts.header.len += sizeof(uint8_t) + IE_HEADER_SIZE;
+
+	set_bearer_qos(&cb_req.bearer_contexts.bearer_lvl_qos,
+			IE_INSTANCE_ZERO, bearer);
+	cb_req.bearer_contexts.header.len += sizeof(gtp_bearer_qlty_of_svc_ie_t);
+
+	/* TODO TFT is pending */
+	if (SGWC == pfcp_config.cp_type) {
+		memset(cb_req.bearer_contexts.tft.eps_bearer_lvl_tft, 0, 257);
+		memcpy(cb_req.bearer_contexts.tft.eps_bearer_lvl_tft, eps_bearer_lvl_tft, 257);
+
+		set_ie_header(&cb_req.bearer_contexts.tft.header,
+			GTP_IE_EPS_BEARER_LVL_TRAFFIC_FLOW_TMPL, IE_INSTANCE_ZERO, tft_len);
+		len = tft_len + IE_HEADER_SIZE;
+	} else {
+		len = set_bearer_tft(&cb_req.bearer_contexts.tft, IE_INSTANCE_ZERO, bearer->dynamic_rules[bearer->num_dynamic_filters - 1]->num_flw_desc, bearer);
+	}
+
+	cb_req.bearer_contexts.header.len += len;//sizeof(gtp_eps_bearer_lvl_traffic_flow_tmpl_ie_t);
+
+	set_charging_id(&cb_req.bearer_contexts.charging_id,
+			IE_INSTANCE_ZERO, 1);//bearer->charging_id);
+	cb_req.bearer_contexts.header.len += sizeof(gtp_charging_id_ie_t);
+
+	if (PGWC == pfcp_config.cp_type) {
+		set_ipv4_fteid(&cb_req.bearer_contexts.s58_u_pgw_fteid,
+			GTPV2C_IFTYPE_S5S8_PGW_GTPU, IE_INSTANCE_ONE, bearer->s5s8_pgw_gtpu_ipv4,
+			bearer->s5s8_pgw_gtpu_teid);
+	} else {
+		set_ipv4_fteid(&cb_req.bearer_contexts.s1u_sgw_fteid,
+			GTPV2C_IFTYPE_S1U_SGW_GTPU, IE_INSTANCE_ZERO, bearer->s1u_sgw_gtpu_ipv4,
+			bearer->s1u_sgw_gtpu_teid);
+
+		if (SGWC == pfcp_config.cp_type) {
+			set_ipv4_fteid(&cb_req.bearer_contexts.s58_u_pgw_fteid,
+				GTPV2C_IFTYPE_S5S8_PGW_GTPU, IE_INSTANCE_ONE, bearer->s5s8_pgw_gtpu_ipv4,
+				bearer->s5s8_pgw_gtpu_teid);
+
+			cb_req.bearer_contexts.header.len += sizeof(struct fteid_ie_hdr_t) +
+				sizeof(struct in_addr) + IE_HEADER_SIZE;
+		}
+	}
+
+	cb_req.bearer_contexts.header.len += sizeof(struct fteid_ie_hdr_t) +
+		sizeof(struct in_addr) + IE_HEADER_SIZE;
+
+	uint16_t msg_len = 0;
+	msg_len = encode_create_bearer_req(&cb_req, (uint8_t *)gtpv2c_tx);
+	gtpv2c_tx->gtpc.message_len = htons(msg_len - 4);
+}
+
+void
+set_create_bearer_response(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
+		       ue_context *context, eps_bearer *bearer,
+			   uint8_t ebi, uint8_t pti)
+{
+	create_bearer_rsp_t cb_resp = {0};
+
+	/* TODO: NC Need to remove hard coded value */
+	set_gtpv2c_teid_header((gtpv2c_header_t *) &cb_resp, GTP_CREATE_BEARER_RSP,
+	   context->pdns[0]->s5s8_pgw_gtpc_teid , sequence);
+
+	set_cause_accepted(&cb_resp.cause, IE_INSTANCE_ZERO);
+
+	if (pti) {}
+
+	set_ie_header(&cb_resp.bearer_contexts.header, GTP_IE_BEARER_CONTEXT,
+			IE_INSTANCE_ZERO, 0);
+
+	/* TODO  Remove hardcoded ebi */
+	set_ebi(&cb_resp.bearer_contexts.eps_bearer_id, IE_INSTANCE_ZERO, ebi);
+	cb_resp.bearer_contexts.header.len += sizeof(uint8_t) + IE_HEADER_SIZE;
+
+	set_cause_accepted(&cb_resp.bearer_contexts.cause, IE_INSTANCE_ZERO);
+	cb_resp.bearer_contexts.header.len += sizeof(uint16_t) + IE_HEADER_SIZE;
+
+	set_ipv4_fteid(&cb_resp.bearer_contexts.s58_u_pgw_fteid,
+		GTPV2C_IFTYPE_S5S8_PGW_GTPU, IE_INSTANCE_ZERO, bearer->s5s8_pgw_gtpu_ipv4,
+		bearer->s5s8_pgw_gtpu_teid);
+
+	cb_resp.bearer_contexts.header.len += sizeof(struct fteid_ie_hdr_t) +
+		sizeof(struct in_addr) + IE_HEADER_SIZE;
+
+	set_ipv4_fteid(&cb_resp.bearer_contexts.s58_u_sgw_fteid,
+		GTPV2C_IFTYPE_S5S8_SGW_GTPU, IE_INSTANCE_TWO, bearer->s5s8_sgw_gtpu_ipv4,
+		bearer->s5s8_sgw_gtpu_teid);
+
+	cb_resp.bearer_contexts.header.len += sizeof(struct fteid_ie_hdr_t) +
+		sizeof(struct in_addr) + IE_HEADER_SIZE;
+
+	uint16_t msg_len = 0;
+	msg_len = encode_create_bearer_rsp(&cb_resp, (uint8_t *)gtpv2c_tx);
+	gtpv2c_tx->gtpc.message_len = htons(msg_len - 4);
 }
 
 /**
@@ -427,8 +515,8 @@ set_create_bearer_request(gtpv2c_header *gtpv2c_tx, uint32_t sequence,
  *   \- < 0 for all other errors
  */
 static int
-create_dedicated_bearer(gtpv2c_header *gtpv2c_rx,
-			gtpv2c_header *gtpv2c_tx,
+create_dedicated_bearer(gtpv2c_header_t *gtpv2c_rx,
+			gtpv2c_header_t *gtpv2c_tx,
 			struct parse_bearer_resource_command_t *brc)
 {
 	flow_qos_ie *fqos;
@@ -468,7 +556,19 @@ create_dedicated_bearer(gtpv2c_header *gtpv2c_rx,
 	/* TODO: Need to handle when providing dedicate beare feature */
 	/* ded_bearer->s1u_sgw_gtpu_ipv4 = s1u_sgw_ip; */
 	ded_bearer->pdn = brc->pdn;
-	memcpy(&ded_bearer->qos.qos, &fqos->qos, sizeof(qos_segment));
+	/* VS: Remove memcpy */
+	//memcpy(&ded_bearer->qos.qos, &fqos->qos, sizeof(qos_segment));
+	/**
+	 * IE specific data segment for Quality of Service (QoS).
+	 *
+	 * Definition used by bearer_qos_ie and flow_qos_ie.
+	 */
+	ded_bearer->qos.qci = fqos->qos.qci;
+	ded_bearer->qos.ul_mbr = fqos->qos.ul_mbr;
+	ded_bearer->qos.dl_mbr = fqos->qos.dl_mbr;
+	ded_bearer->qos.ul_gbr = fqos->qos.ul_gbr;
+	ded_bearer->qos.dl_gbr = fqos->qos.dl_gbr;
+
 	/* default values - to be considered later */
 	ded_bearer->qos.arp.preemption_capability =
 			BEARER_QOS_IE_PREMPTION_DISABLED;
@@ -476,12 +576,12 @@ create_dedicated_bearer(gtpv2c_header *gtpv2c_rx,
 			BEARER_QOS_IE_PREMPTION_ENABLED;
 	ded_bearer->qos.arp.priority_level = DEFAULT_BEARER_QOS_PRIORITY;
 
-	set_create_bearer_request(gtpv2c_tx, gtpv2c_rx->teid_u.has_teid.seq,
+	set_create_bearer_request(gtpv2c_tx, gtpv2c_rx->teid.has_teid.seq,
 	    brc->context, ded_bearer,
 	    IE_TYPE_PTR_FROM_GTPV2C_IE(eps_bearer_id_ie,
 			    brc->linked_eps_bearer_id)->ebi,
 	    *IE_TYPE_PTR_FROM_GTPV2C_IE(uint8_t,
-			    brc->procedure_transaction_id));
+			    brc->procedure_transaction_id), NULL, 0);
 
 	return 0;
 }
@@ -506,8 +606,8 @@ create_dedicated_bearer(gtpv2c_header *gtpv2c_rx,
  *   \- < 0 for all other errors
  */
 static int
-delete_packet_filter(gtpv2c_header *gtpv2c_rx,
-	gtpv2c_header *gtpv2c_tx, struct parse_bearer_resource_command_t *brc)
+delete_packet_filter(gtpv2c_header_t *gtpv2c_rx,
+	gtpv2c_header_t *gtpv2c_tx, struct parse_bearer_resource_command_t *brc)
 {
 
 	uint8_t filter_index;
@@ -535,7 +635,7 @@ delete_packet_filter(gtpv2c_header *gtpv2c_rx,
 		/* we delete this bearer */
 		set_gtpv2c_teid_header(gtpv2c_tx, GTP_DELETE_BEARER_REQ,
 			brc->context->s11_mme_gtpc_teid,
-			gtpv2c_rx->teid_u.has_teid.seq);
+			gtpv2c_rx->teid.has_teid.seq);
 
 		set_ebi_ie(gtpv2c_tx, IE_INSTANCE_ONE, b->eps_bearer_id);
 		set_pti_ie(gtpv2c_tx, IE_INSTANCE_ZERO,
@@ -550,8 +650,8 @@ delete_packet_filter(gtpv2c_header *gtpv2c_rx,
 
 
 int
-process_bearer_resource_command(gtpv2c_header *gtpv2c_rx,
-	gtpv2c_header *gtpv2c_tx)
+process_bearer_resource_command(gtpv2c_header_t *gtpv2c_rx,
+	gtpv2c_header_t *gtpv2c_tx)
 {
 	int ret;
 	struct parse_bearer_resource_command_t bearer_resource_command = {0};

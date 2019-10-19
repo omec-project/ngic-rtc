@@ -44,9 +44,9 @@
 #include <rte_kni.h>
 #include <rte_arp.h>
 
-#include "epc_packet_framework.h"
-#include "main.h"
 #include "gtpu.h"
+#include "up_main.h"
+#include "epc_packet_framework.h"
 
 #ifdef TIMER_STATS
 #include "perf_timer.h"

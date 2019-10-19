@@ -48,7 +48,7 @@
 #define GTPU_ECHO_REQUEST			(0x01)
 #define GTPU_ECHO_RESPONSE			(0x02)
 #define GTPU_HDR_SIZE				(8)
-
+#define GTPU_END_MARKER_REQUEST			(254)
 /* VS: TODO*/
 #define GTPU_HDR_LEN   8
 #define IPV4_HDR_LEN   20

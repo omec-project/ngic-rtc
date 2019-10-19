@@ -46,9 +46,9 @@
 #include <rte_arp.h>
 #include <unistd.h>
 
-#include "epc_packet_framework.h"
-#include "main.h"
 #include "gtpu.h"
+#include "up_main.h"
+#include "epc_packet_framework.h"
 
 #ifdef USE_REST
 #include "../restoration/restoration_timer.h"

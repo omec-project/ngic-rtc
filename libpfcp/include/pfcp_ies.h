@@ -240,7 +240,7 @@ typedef struct pfcp_sdf_filter_ie_t {
 	uint8_t fd :1;
 	uint8_t sdf_fltr_spare2;
 	uint16_t len_of_flow_desc;
-	uint8_t flow_desc;
+	uint8_t flow_desc[255];
 	uint16_t tos_traffic_cls;
 	uint32_t secur_parm_idx;
 	uint32_t flow_label :24;
@@ -611,7 +611,7 @@ typedef struct pfcp_pfd_contents_ie_t {
   uint16_t len_of_domain_nm;
   uint8_t domain_name;
   uint16_t len_of_cstm_pfd_cntnt;
-  uint8_t cstm_pfd_cntnt;
+  uint8_t  *cstm_pfd_cntnt;
 } pfcp_pfd_contents_ie_t;
 
 /**

@@ -1,7 +1,23 @@
+/*
+ * Copyright (c) 2019 Sprint
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include <stdint.h>
 #include "gx.h"
-#include "../../cp_app.h"
-#include "../../ipc_api.h"
+#include "cp_app.h"
+#include "ipc_api.h"
 
 extern int g_gx_client_sock;
 
@@ -33,7 +49,7 @@ add_fd_msg(union avp_value *val, struct dict_object * obj,
 }
 
 void
-prep_rar_for_cp(gx_req_msg *req, struct session *sess, struct msg *rqst)
+prep_rar_for_cp(gx_msg *req, struct session *sess, struct msg *rqst)
 {
 	struct avp *avp_ptr = NULL;
 	struct avp_hdr *avp_hdr = NULL;
@@ -41,7 +57,7 @@ prep_rar_for_cp(gx_req_msg *req, struct session *sess, struct msg *rqst)
 	int sess_id_len;
 	int ret = FD_REASON_OK;
 
-	req->hdr = GX_RAR_MSG;
+	req->msg_type = GX_RAR_MSG;
 	fd_sess_getsid(sess, &sess_id, (size_t*)&sess_id_len);
 	req->data.cp_rar.session_id.len = sess_id_len;
 	memcpy(&req->data.cp_rar.session_id.val, sess_id, sess_id_len);
@@ -212,48 +228,73 @@ enum disp_action * act
 {
 	int ret = FD_REASON_OK;
 	struct msg *rqst = *msg;
-	struct msg *ans = rqst;
-	GxRAR *rar = NULL;
-	size_t len = 0;
-	char buf[BUFFSIZE] = {0};
-	int rc;
-	gx_req_msg gx_req = {0};
-	gx_resp_msg *resp = NULL;
-	int bytes_recv = 0;
-	struct avp *avp_ptr = NULL;;
-	union avp_value val;
+	//struct msg *ans = rqst;
+	char *send_buf = NULL;
+	gx_msg *gx_req = NULL;
+	uint32_t buflen ;
+
+	/* stored the rqst pointer, required in RAA*/
+	//uint64_t *rqst_ptr = malloc(sizeof(uint64_t));
+	//memcpy(rqst_ptr, (uint64_t *)(*msg), sizeof(uint64_t));
+	printf("address msg %p \n", *msg);
 
 	*msg = NULL;
 #if 1
 	FD_DUMP_MESSAGE(rqst);
 #endif
 
-	prep_rar_for_cp(&gx_req, sess, rqst);
-	/* printf("ULBW [%u] DLBW[%u] \n", gx_req.data.cp_rar.default_qos_information.max_requested_bandwidth_ul,
-		gx_req.data.cp_rar.default_qos_information.max_requested_bandwidth_dl); */
+	//prep_rar_for_cp(&gx_req, sess, rqst);
+	 //printf("ULBW [%u] DLBW[%u] \n", gx_req.data.cp_rar.default_qos_information.max_requested_bandwidth_ul,
+	//	gx_req.data.cp_rar.default_qos_information.max_requested_bandwidth_dl); */
 
-	send_to_ipc_channel(g_gx_client_sock, (char *)&gx_req);
+	//send_to_ipc_channel(g_gx_client_sock, (char *)&gx_req);
 
 	/* allocate the rar message */
-	rar = (GxRAR*)malloc(sizeof(*rar));
+	gx_req = malloc( sizeof(gx_msg) );
+	if(gx_req == NULL)
+		printf("Memory Allocation fails for gx_req\n");
 
-	memset((void*)rar, 0, sizeof(*rar));
+	memset( gx_req, 0, sizeof(gx_req) );
 
-	ret = gx_rar_parse(rqst, rar);
+	gx_req->msg_type = GX_RAR_MSG;
+
+	ret = gx_rar_parse( rqst, &(gx_req->data.cp_rar) );
 	if (ret != FD_REASON_OK){
 		goto err;
 	}
 
-	/*
-	 *  TODO - Add request processing code
-	 */
+	/* Cal the length of buffer needed */
+	buflen = gx_rar_calc_length (&gx_req->data.cp_rar);
+
+	send_buf = malloc( buflen + sizeof(rqst));
+	if(send_buf == NULL)
+		printf("Memory Allocation fails for send_buf\n");
+
+	memset( send_buf, 0, buflen + sizeof(rqst));
+
+	/* encoding the rar header value to buffer */
+	memcpy( send_buf, &gx_req->msg_type, sizeof(gx_req->msg_type));
+
+	if ( gx_rar_pack( &(gx_req->data.cp_rar), (unsigned char *)(send_buf + sizeof(gx_req->msg_type)), buflen ) == 0 )
+		printf("RAR Packing failure \n");
+
+
+	memcpy((unsigned char *)(send_buf + sizeof(gx_req->msg_type) + buflen), &rqst, sizeof(rqst));
+	send_to_ipc_channel(g_gx_client_sock, send_buf, buflen + sizeof(gx_req->msg_type) + sizeof(rqst));
+
+    printf("===== SENT RAR FROM GXAPP TO PCEF and address===  \n");
+#if GX_DEBUG
+	FD_DUMP_MESSAGE(rqst);
+#endif
+
+#if 0
 	FDCHECK_MSG_NEW_ANSWER_FROM_REQ( fd_g_config->cnf_dict, ans, ret, goto err );
 	FDCHECK_MSG_ADD_ORIGIN( ans, ret, goto err );
 	FDCHECK_MSG_ADD_AVP_S32( gxDict.avp_result_code, ans, MSG_BRW_LAST_CHILD, 2001, ret, goto err );
 
 	bytes_recv = recv_from_ipc_channel(g_gx_client_sock, buf);
 	if(bytes_recv > 0){
-		resp = (gx_resp_msg *)buf;
+		resp = (gx_msg *)buf;
 		printf("session id [%s] ulBw [%d] dlBW[%d]\n",resp->data.cp_raa.session_id.val,
 				resp->data.cp_raa.default_qos_information.max_requested_bandwidth_ul,
 				resp->data.cp_raa.default_qos_information.max_requested_bandwidth_dl);
@@ -282,23 +323,23 @@ enum disp_action * act
 		val.os.len = sizeof(resp->data.cp_raa.default_qos_information);
 		add_fd_msg(&val, gxDict.avp_qos_class_identifier ,(struct msg**)&avp_ptr);
 	}
-
-#if 1
+#endif
+#if 0
 	FD_DUMP_MESSAGE(ans);
 #endif
-	FDCHECK_MSG_SEND( ans, NULL, NULL, ret, goto err );
+	//FDCHECK_MSG_SEND( ans, NULL, NULL, ret, goto err );
 
 	goto fini1;
 
 err:
 	printf("Error (%d) while processing RAR\n", ret);
-	free(rar);
+	free(gx_req);
 	goto fini2;
 
 fini1:
 
 fini2:
-	gx_rar_free(rar);
+	gx_rar_free(&(gx_req->data.cp_rar));
 	return ret;
 }
 

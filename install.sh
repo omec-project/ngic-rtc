@@ -19,7 +19,6 @@ SERVICE=3
 SGX_SERVICE=0
 SERVICE_NAME="Collocated CP and DP"
 source ./services.cfg
-source setenv.sh
 export NGIC_DIR=$PWD
 echo "------------------------------------------------------------------------------"
 echo " NGIC_DIR exported as $NGIC_DIR"
@@ -33,12 +32,12 @@ DPDK_DOWNLOAD="https://fast.dpdk.org/rel/dpdk-18.02.tar.gz"
 DPDK_DIR=$NGIC_DIR/$THIRD_PARTY_SW_PATH/dpdk
 LINUX_SGX_SDK="https://github.com/intel/linux-sgx.git"
 LINUX_SGX_SDK_BRANCH_TAG="sgx_1.9"
-FREEDIAMETER="https://github.com/omec-project/freediameter.git"
-FREEDIAMETER_BRANCH="master"
+FREEDIAMETER_DIR=$NGIC_DIR/$THIRD_PARTY_SW_PATH/
+FREEDIAMETER="http://gsgit.gslab.com/Sprint-Repos/freediameter.git"
 CP_NUMA_NODE=0
 DP_NUMA_NODE=0
 
-OSS_UTIL_GIT_LINK="http://gsgit.gslab.com/Sprint-Repos/oss-util.git"
+OSS_UTIL_GIT_LINK="http://gsgit.gslab.com/Sprint-Repos/oss-util_old.git"
 OSS_UTIL_DIR="oss_adapter/c3po_oss/"
 
 #
@@ -505,12 +504,12 @@ download_hyperscan()
 
 download_freediameter()
 {
-	echo "Download FreeDiameter from OMEC....."
-	if [ ! -d $THIRD_PARTY_SW_PATH ]; then
-	     mkdir $THIRD_PARTY_SW_PATH
+	echo "Download FreeDiameter from sprint-repos....."
+	if [ ! -d $FREEDIAMETER_DIR ]; then
+	     mkdir $FREEDIAMETER_DIR
         fi
-        pushd $THIRD_PARTY_SW_PATH
-	git clone --branch $FREEDIAMETER_BRANCH $FREEDIAMETER
+        pushd $FREEDIAMETER_DIR
+	git clone $FREEDIAMETER
 	if [ $? -ne 0 ] ; then
 	                echo "Failed to clone FreeDiameter, please check the errors."
 	                return
@@ -530,14 +529,22 @@ download_linux_sgx()
 
 build_fd_lib()
 {
-	pushd $NGIC_DIR/$THIRD_PARTY_SW_PATH/freediameter
+	pushd $FREEDIAMETER_DIR/freediameter
 	if [ ! -e "build" ]; then
 		mkdir build
 	fi
 	pushd build
 	cmake ../
-	make || { echo -e "\nFD: Make lib failed\n"; }
-	make install || { echo -e "\nFD: Make install failed\n"; }
+	make
+	if [ $? -ne 0 ] ; then
+		echo "Failed to build Freediameter, please check the errors."
+		return
+	fi
+	make install
+	if [ $? -ne 0 ] ; then
+		echo "Make install Failed in Freediameter, please check the errors."
+		return
+	fi
 
 	libfdproto="/usr/local/lib/libfdproto.so"
 	libfdcore="/usr/local/lib/libfdcore.so"
@@ -554,7 +561,11 @@ build_gxapp()
 {
 	pushd $NGIC_DIR/cp/gx_app
 	make clean
-	make || { echo -e "\nGxApp: Make GxApp failed\n"; }
+	make
+	if [ $? -ne 0 ] ; then
+		echo "Failed to build GxApp, please check the errors."
+		return
+	fi
 	popd
 }
 
@@ -562,7 +573,11 @@ build_pfcp_lib()
 {
 	pushd $NGIC_DIR/libpfcp
 	make clean
-	make || { echo -e "\nLibPfcp: Make lib failed\n"; }
+	make
+	if [ $? -ne 0 ] ; then
+		echo "Failed to build libpfcp, please check the errors."
+		return
+	fi
 	popd
 }
 
@@ -583,8 +598,8 @@ step_3()
 install_oss_util()
 {
    pushd $NGIC_DIR/$OSS_UTIL_DIR
-   git clone -b cli_dev $OSS_UTIL_GIT_LINK
-   mv oss_util_gslab oss-util
+   git clone -b oss_util_dev $OSS_UTIL_GIT_LINK
+   mv oss-util_old oss-util
    pushd oss-util
    ./install.sh
    popd
@@ -620,14 +635,20 @@ build_ngic()
 		echo "Building libgtpv2c..."
 		pushd $NGIC_DIR/libgtpv2c
 			make clean
-			make || { echo -e "\nlibgtpv2c: Make failed\n"; }
+			make
+			if [ $? -ne 0 ] ; then
+				echo "Failed to build libgtpv2, please check the errors."
+				return
+			fi
 		popd
+
+		echo "Building FD and GxApp..."
+		build_fd_gxapp
 
 		echo "Building CP..."
 		make clean-cp
-		make build-cp || { echo -e "\nCP: Make failed\n"; }
+		make -j 10 build-cp || { echo -e "\nCP: Make failed\n"; }
 
-		build_fd_gxapp
 	fi
 	popd
 }

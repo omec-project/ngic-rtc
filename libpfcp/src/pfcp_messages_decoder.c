@@ -176,7 +176,8 @@ int decode_pfcp_pfd_context_ie_t(uint8_t *buf,
       uint16_t buf_len = 0;
 
       count = decode_pfcp_ie_header_t(buf + count, &value->header);
-
+	  count /= CHAR_SIZE;
+	  buf_len = value->header.len;
       value->pfd_contents_count = 0;
 
       while (count < buf_len) {
@@ -2249,7 +2250,8 @@ int decode_pfcp_app_ids_pfds_ie_t(uint8_t *buf,
       uint16_t buf_len = 0;
 
       count = decode_pfcp_ie_header_t(buf + count, &value->header);
-
+      count /= CHAR_SIZE;
+	  buf_len = value->header.len;
       value->pfd_context_count = 0;
 
       while (count < buf_len) {
@@ -2317,7 +2319,9 @@ int decode_pfcp_create_qer_ie_t(uint8_t *buf,
       uint16_t buf_len = 0;
 
       count = decode_pfcp_ie_header_t(buf + count, &value->header);
+	  count = count/CHAR_SIZE;
 
+	  buf_len = value->header.len;
 
       while (count < buf_len) {
 

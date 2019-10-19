@@ -24,9 +24,20 @@ struct pcc_id_precedence {
 } __attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
 
 struct filter_pcc_data {
-	uint32_t entries;					/* number of elements in pcc_info */
+	uint32_t entries;			/* number of elements in pcc_info */
 	struct pcc_id_precedence *pcc_info;	/* pcc information */
 } __attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
+
+//struct pdr_id_precedence {
+//	uint8_t pdr_id;		/* pdr id */
+//	uint8_t precedence;	/* precedence */
+//	uint8_t gate_status;	/* gate status */
+//} __attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
+//
+//struct filter_sdf_data {
+//	uint32_t entries;			/* number of elements in pcc_info */
+//	struct pdr_id_precedence *pdr_info;	/* PDR information */
+//} __attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
 
 enum filter_pcc_type {
 	FILTER_SDF,		/* SDF filter type */

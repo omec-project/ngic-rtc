@@ -19,7 +19,7 @@
 #include <rte_debug.h>
 
 #include "packet_filters.h"
-#include "gtpv2c_messages.h"
+#include "gtp_messages.h"
 #include "gtpv2c_set_ie.h"
 #include "../cp_dp_api/vepc_cp_dp_api.h"
 #include "../pfcp_messages/pfcp_set_ie.h"
@@ -29,6 +29,7 @@
 #endif /* C3PO_OSS */
 
 #include "cp_stats.h"
+//#define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
 
 extern pfcp_config_t pfcp_config;
 
@@ -36,59 +37,63 @@ extern uint32_t num_adc_rules;
 extern uint32_t adc_rule_id[];
 
 void
-set_create_session_response(gtpv2c_header *gtpv2c_tx,
+set_create_session_response(gtpv2c_header_t *gtpv2c_tx,
 		uint32_t sequence, ue_context *context, pdn_connection *pdn,
 		eps_bearer *bearer)
 {
+	uint8_t ebi_index = 0;
 	int ret = 0;
+	struct in_addr ip = {0};
 	upf_context_t *upf_ctx = NULL;
+	create_sess_rsp_t cs_resp = {0};
 
-	if ((ret = upf_context_entry_lookup(context->upf_ipv4.s_addr,
+	if ((ret = upf_context_entry_lookup(pdn->upf_ipv4.s_addr,
 			&upf_ctx)) < 0) {
-		clLog(s11logger, eCLSeverityCritical,  "%s : Error: %d \n", __func__, ret);
+		clLog(s11logger, eCLSeverityCritical, "%s:Error:%d\n", __func__, ret);
 		return;
 	}
 
-	create_session_response_t cs_resp = {0};
-
-	set_gtpv2c_teid_header((gtpv2c_header *)&cs_resp.header,
+	set_gtpv2c_teid_header((gtpv2c_header_t *)&cs_resp.header,
 			GTP_CREATE_SESSION_RSP, context->s11_mme_gtpc_teid,
 			sequence);
 
 	set_cause_accepted(&cs_resp.cause, IE_INSTANCE_ZERO);
 
-	struct in_addr ip;
 	ip.s_addr = ntohl(pfcp_config.s11_ip.s_addr);
 
-	set_ipv4_fteid(&cs_resp.s11_ftied, GTPV2C_IFTYPE_S11S4_SGW_GTPC,
-			IE_INSTANCE_ZERO,
-			ip, context->s11_sgw_gtpc_teid);
+	if ((context->s11_sgw_gtpc_teid != 0) && (ip.s_addr != 0)) {
+		set_ipv4_fteid(&cs_resp.sender_fteid_ctl_plane,
+				GTPV2C_IFTYPE_S11S4_SGW_GTPC,
+				IE_INSTANCE_ZERO,
+				ip, context->s11_sgw_gtpc_teid);
+	}
 
-
-	if (pfcp_config.cp_type != SAEGWC) {
-		set_ipv4_fteid(&cs_resp.pgws5s8_pmip, GTPV2C_IFTYPE_S5S8_PGW_GTPC,
+	if ((pdn->s5s8_pgw_gtpc_teid != 0) && (pdn->s5s8_pgw_gtpc_ipv4.s_addr != 0)) {
+		set_ipv4_fteid(&cs_resp.pgw_s5s8_s2as2b_fteid_pmip_based_intfc_or_gtp_based_ctl_plane_intfc,
+				GTPV2C_IFTYPE_S5S8_PGW_GTPC,
 				IE_INSTANCE_ONE,
 				pdn->s5s8_pgw_gtpc_ipv4, pdn->s5s8_pgw_gtpc_teid);
 	}
 
+	pdn->ipv4.s_addr = htonl(pdn->ipv4.s_addr);
 	set_ipv4_paa(&cs_resp.paa, IE_INSTANCE_ZERO, pdn->ipv4);
 
 	set_apn_restriction(&cs_resp.apn_restriction, IE_INSTANCE_ZERO,
 			pdn->apn_restriction);
 	{
 
-		set_ie_header(&cs_resp.bearer_context.header, IE_BEARER_CONTEXT,
+		set_ie_header(&cs_resp.bearer_contexts_created.header, GTP_IE_BEARER_CONTEXT,
 				IE_INSTANCE_ZERO, 0);
 
 
-		set_ebi(&cs_resp.bearer_context.ebi, IE_INSTANCE_ZERO,
+		set_ebi(&cs_resp.bearer_contexts_created.eps_bearer_id, IE_INSTANCE_ZERO,
 				bearer->eps_bearer_id);
 
-		cs_resp.bearer_context.header.len += sizeof(uint8_t) + IE_HEADER_SIZE;
+		cs_resp.bearer_contexts_created.header.len += sizeof(uint8_t) + IE_HEADER_SIZE;
 
-		set_cause_accepted(&cs_resp.bearer_context.cause, IE_INSTANCE_ZERO);
+		set_cause_accepted(&cs_resp.bearer_contexts_created.cause, IE_INSTANCE_ZERO);
 
-		cs_resp.bearer_context.header.len += sizeof(struct cause_ie_hdr_t) + IE_HEADER_SIZE;
+		cs_resp.bearer_contexts_created.header.len += sizeof(struct cause_ie_hdr_t) + IE_HEADER_SIZE;
 
 		if (bearer->s11u_mme_gtpu_teid) {
 			printf("S11U Detect- set_create_session_response-"
@@ -114,34 +119,70 @@ set_create_session_response(gtpv2c_header *gtpv2c_tx,
 
 			ip.s_addr = upf_ctx->s1u_ip;
 
-		    set_ipv4_fteid(&cs_resp.bearer_context.s1u_sgw_ftied,
-			GTPV2C_IFTYPE_S1U_SGW_GTPU,
-				IE_INSTANCE_ZERO, ip,
-				(bearer->s1u_sgw_gtpu_teid));
-			cs_resp.bearer_context.header.len += sizeof(struct fteid_ie_hdr_t) +
-				sizeof(struct in_addr) + IE_HEADER_SIZE;
+			if ((bearer->s1u_sgw_gtpu_teid != 0) && (ip.s_addr != 0)) {
+				set_ipv4_fteid(&cs_resp.bearer_contexts_created.s1u_sgw_fteid,
+				GTPV2C_IFTYPE_S1U_SGW_GTPU,
+					IE_INSTANCE_ZERO, ip,
+					bearer->s1u_sgw_gtpu_teid);
+
+				cs_resp.bearer_contexts_created.header.len += sizeof(struct fteid_ie_hdr_t) +
+				/* Merge conflict
+					(bearer->s1u_sgw_gtpu_teid));
+				cs_resp.bearer_context.header.len += sizeof(struct fteid_ie_hdr_t) +
+				*/
+					sizeof(struct in_addr) + IE_HEADER_SIZE;
+			}
 		}
 
-		set_ipv4_fteid(&cs_resp.bearer_context.s5s8_pgw,
-				GTPV2C_IFTYPE_S5S8_PGW_GTPU,
-				IE_INSTANCE_TWO, bearer->s5s8_pgw_gtpu_ipv4,
-				htonl(bearer->s5s8_pgw_gtpu_teid));
+		if ((bearer->s5s8_pgw_gtpu_teid != 0) && (bearer->s5s8_pgw_gtpu_ipv4.s_addr != 0)) {
+			set_ipv4_fteid(&cs_resp.bearer_contexts_created.s5s8_u_pgw_fteid,
+					GTPV2C_IFTYPE_S5S8_PGW_GTPU,
+					IE_INSTANCE_TWO, bearer->s5s8_pgw_gtpu_ipv4,
+					bearer->s5s8_pgw_gtpu_teid);
 
-		cs_resp.bearer_context.header.len += sizeof(struct fteid_ie_hdr_t) +
-				sizeof(struct in_addr) + IE_HEADER_SIZE;
+			cs_resp.bearer_contexts_created.header.len += sizeof(struct fteid_ie_hdr_t) +
+					sizeof(struct in_addr) + IE_HEADER_SIZE;
+		}
+
+		ebi_index = bearer->eps_bearer_id - 5;
+		set_ie_header(&cs_resp.bearer_contexts_created.bearer_lvl_qos.header,
+				GTP_IE_BEARER_QLTY_OF_SVC, IE_INSTANCE_ZERO,
+				sizeof(gtp_bearer_qlty_of_svc_ie_t) - sizeof(ie_header_t));
+
+		cs_resp.bearer_contexts_created.bearer_lvl_qos.pvi =
+			context->eps_bearers[ebi_index]->qos.arp.preemption_vulnerability;
+		cs_resp.bearer_contexts_created.bearer_lvl_qos.spare2 = 0;
+		cs_resp.bearer_contexts_created.bearer_lvl_qos.pl =
+			context->eps_bearers[ebi_index]->qos.arp.priority_level;
+		cs_resp.bearer_contexts_created.bearer_lvl_qos.pci =
+			context->eps_bearers[ebi_index]->qos.arp.preemption_capability;
+		cs_resp.bearer_contexts_created.bearer_lvl_qos.spare3 = 0;
+		cs_resp.bearer_contexts_created.bearer_lvl_qos.qci =
+			context->eps_bearers[ebi_index]->qos.qci;
+		cs_resp.bearer_contexts_created.bearer_lvl_qos.max_bit_rate_uplnk =
+			context->eps_bearers[ebi_index]->qos.ul_mbr;
+		cs_resp.bearer_contexts_created.bearer_lvl_qos.max_bit_rate_dnlnk =
+			context->eps_bearers[ebi_index]->qos.dl_mbr;
+		cs_resp.bearer_contexts_created.bearer_lvl_qos.guarntd_bit_rate_uplnk =
+			context->eps_bearers[ebi_index]->qos.ul_gbr;
+		cs_resp.bearer_contexts_created.bearer_lvl_qos.guarntd_bit_rate_dnlnk =
+			context->eps_bearers[ebi_index]->qos.dl_gbr;
+
+		cs_resp.bearer_contexts_created.header.len +=
+			cs_resp.bearer_contexts_created.bearer_lvl_qos.header.len
+			+ sizeof(ie_header_t);
 	}
 
 	uint16_t msg_len = 0;
-	encode_create_session_response_t(&cs_resp, (uint8_t *)gtpv2c_tx,
-			&msg_len);
-	gtpv2c_tx->gtpc.length = htons(msg_len - 4);
+	msg_len = encode_create_sess_rsp(&cs_resp, (uint8_t *)gtpv2c_tx);
+	gtpv2c_tx->gtpc.message_len = htons(msg_len - 4);
 }
 
 int
-process_create_session_request(gtpv2c_header *gtpv2c_rx,
-		gtpv2c_header *gtpv2c_s11_tx, gtpv2c_header *gtpv2c_s5s8_tx)
+process_create_session_request(gtpv2c_header_t *gtpv2c_rx,
+		gtpv2c_header_t *gtpv2c_s11_tx, gtpv2c_header_t *gtpv2c_s5s8_tx)
 {
-	create_session_request_t csr = { 0 };
+	create_sess_req_t csr = { 0 };
 	ue_context *context = NULL;
 	pdn_connection *pdn = NULL;
 	eps_bearer *bearer = NULL;
@@ -150,36 +191,39 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 	static uint32_t process_sgwc_s5s8_cs_req_cnt;
 	static uint32_t process_spgwc_s11_cs_res_cnt;
 
-	ret = decode_create_session_request_t((uint8_t *) gtpv2c_rx,
+	ret = decode_create_sess_req((uint8_t *) gtpv2c_rx,
 			&csr);
 	if (!ret)
 		 return ret;
 
-	if (csr.indication.header.len &&
-			csr.indication.indication_value.uimsi) {
-		fprintf(stderr, "Unauthenticated IMSI Not Yet Implemented - "
-				"Dropping packet\n");
+	if (csr.indctn_flgs.header.len &&
+			csr.indctn_flgs.indication_uimsi) {
+		fprintf(stderr, "%s:%s:%d Unauthenticated IMSI Not Yet Implemented - "
+				"Dropping packet\n",
+			   __FILE__, __func__, __LINE__);
 		return -EPERM;
 	}
 
-	if (!csr.indication.header.len
-			|| !csr.apn_restriction.header.len
-			|| !csr.bearer_context.header.len
-			|| !csr.sender_ftied.header.len
-			|| !csr.s5s8pgw_pmip.header.len
+	if (!csr.indctn_flgs.header.len
+			|| !csr.max_apn_rstrct.header.len
+			|| !csr.bearer_contexts_to_be_created.header.len
+			|| !csr.sender_fteid_ctl_plane.header.len
+			|| !csr.pgw_s5s8_addr_ctl_plane_or_pmip.header.len
 			|| !csr.imsi.header.len
-			|| !csr.ambr.header.len
+			|| !csr.apn_ambr.header.len
 			|| !csr.pdn_type.header.len
-			|| !csr.bearer_context.bearer_qos.header.len
+			|| !csr.bearer_contexts_to_be_created.bearer_lvl_qos.header.len
 			|| !csr.msisdn.header.len
-			|| !(csr.pdn_type.pdn_type == PDN_IP_TYPE_IPV4) ) {
-		fprintf(stderr, "Mandatory IE missing. Dropping packet\n");
+			|| !(csr.pdn_type.pdn_type_pdn_type == PDN_IP_TYPE_IPV4) ) {
+		fprintf(stderr, "%s:%s:%d Mandatory IE missing. Dropping packet\n",
+			   __FILE__, __func__, __LINE__);
 		return -EPERM;
 	}
 
-	if (csr.pdn_type.pdn_type == PDN_IP_TYPE_IPV6 ||
-			csr.pdn_type.pdn_type == PDN_IP_TYPE_IPV4V6) {
-			fprintf(stderr, "IPv6 Not Yet Implemented - Dropping packet\n");
+	if (csr.pdn_type.pdn_type_pdn_type == PDN_IP_TYPE_IPV6 ||
+			csr.pdn_type.pdn_type_pdn_type == PDN_IP_TYPE_IPV4V6) {
+			fprintf(stderr, "%s:%s:%d IPv6 Not Yet Implemented - Dropping packet\n",
+			   __FILE__, __func__, __LINE__);
 			return GTPV2C_CAUSE_PREFERRED_PDN_TYPE_UNSUPPORTED;
 	}
 
@@ -188,48 +232,48 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 	if (!apn_requested)
 		return GTPV2C_CAUSE_MISSING_UNKNOWN_APN;
 
-	uint8_t ebi_index = csr.bearer_context.ebi.eps_bearer_id - 5;
+	uint8_t ebi_index = csr.bearer_contexts_to_be_created.eps_bearer_id.ebi_ebi - 5;
 
 	ret = acquire_ip(&ue_ip);
 	if (ret)
 		return GTPV2C_CAUSE_ALL_DYNAMIC_ADDRESSES_OCCUPIED;
 
 	/* set s11_sgw_gtpc_teid= key->ue_context_by_fteid_hash */
-	ret = create_ue_context(csr.imsi.imsi, csr.imsi.header.len,
-			csr.bearer_context.ebi.eps_bearer_id, &context, apn_requested);
+	ret = create_ue_context(&csr.imsi.imsi_number_digits, csr.imsi.header.len,
+			csr.bearer_contexts_to_be_created.eps_bearer_id.ebi_ebi, &context, apn_requested);
 	if (ret)
 		return ret;
 
 	if (csr.mei.header.len)
-		memcpy(&context->mei, csr.mei.mei, csr.mei.header.len);
+		memcpy(&context->mei, &csr.mei.mei, csr.mei.header.len);
 
-	memcpy(&context->msisdn, &csr.msisdn.msisdn, csr.msisdn.header.len);
+	memcpy(&context->msisdn, &csr.msisdn.msisdn_number_digits, csr.msisdn.header.len);
 
 	context->s11_sgw_gtpc_ipv4 = pfcp_config.s11_ip;
-	context->s11_mme_gtpc_teid = csr.sender_ftied.teid_gre;
+	context->s11_mme_gtpc_teid = csr.sender_fteid_ctl_plane.teid_gre_key;
 	context->s11_mme_gtpc_ipv4 = pfcp_config.s11_mme_ip;
 
-	pdn = context->pdns[ebi_index];
+	pdn = context->eps_bearers[ebi_index]->pdn;
 	{
 		pdn->apn_in_use = apn_requested;
-		pdn->apn_ambr.ambr_downlink = csr.ambr.apn_ambr_dl;
-		pdn->apn_ambr.ambr_uplink = csr.ambr.apn_ambr_ul;
-		pdn->apn_restriction = csr.apn_restriction.restriction_type;
+		pdn->apn_ambr.ambr_downlink = csr.apn_ambr.apn_ambr_dnlnk;
+		pdn->apn_ambr.ambr_uplink = csr.apn_ambr.apn_ambr_uplnk;
+		pdn->apn_restriction = csr.max_apn_rstrct.rstrct_type_val;
 		pdn->ipv4.s_addr = htonl(ue_ip.s_addr);
 
-		if (csr.pdn_type.pdn_type == PDN_TYPE_IPV4)
+		if (csr.pdn_type.pdn_type_pdn_type == PDN_TYPE_IPV4)
 			pdn->pdn_type.ipv4 = 1;
-		else if (csr.pdn_type.pdn_type == PDN_TYPE_IPV6)
+		else if (csr.pdn_type.pdn_type_pdn_type == PDN_TYPE_IPV6)
 			pdn->pdn_type.ipv6 = 1;
-		else if (csr.pdn_type.pdn_type == PDN_TYPE_IPV4_IPV6) {
+		else if (csr.pdn_type.pdn_type_pdn_type == PDN_TYPE_IPV4_IPV6) {
 			pdn->pdn_type.ipv4 = 1;
 			pdn->pdn_type.ipv6 = 1;
 		}
 
-		if (csr.charging_characteristics.header.len)
+		if (csr.chrgng_char.header.len)
 			memcpy(&pdn->charging_characteristics,
-					&csr.charging_characteristics.value,
-					sizeof(csr.charging_characteristics.value));
+					&csr.chrgng_char.chrgng_char_val,
+					sizeof(csr.chrgng_char.chrgng_char_val));
 
 		pdn->s5s8_sgw_gtpc_ipv4 = pfcp_config.s5s8_ip;
 		/* Note: s5s8_sgw_gtpc_teid =
@@ -239,7 +283,7 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 		/* Note: s5s8_pgw_gtpc_teid updated by
 		 * process_sgwc_s5s8_create_session_response (...)
 		 */
-		pdn->s5s8_pgw_gtpc_ipv4 = csr.s5s8pgw_pmip.ip.ipv4;
+		pdn->s5s8_pgw_gtpc_ipv4.s_addr = csr.pgw_s5s8_addr_ctl_plane_or_pmip.ipv4_address;
 	}
 
 	bearer = context->eps_bearers[ebi_index];
@@ -249,14 +293,14 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 		   }
 		   */
 
-		bearer->qos.qos.ul_mbr =
-			csr.bearer_context.bearer_qos.maximum_bit_rate_for_uplink;
-		bearer->qos.qos.dl_mbr =
-			csr.bearer_context.bearer_qos.maximum_bit_rate_for_downlink;
-		bearer->qos.qos.ul_gbr =
-			csr.bearer_context.bearer_qos.guaranteed_bit_rate_for_uplink;
-		bearer->qos.qos.dl_gbr =
-			csr.bearer_context.bearer_qos.guaranteed_bit_rate_for_downlink;
+		bearer->qos.ul_mbr =
+			csr.bearer_contexts_to_be_created.bearer_lvl_qos.max_bit_rate_uplnk;
+		bearer->qos.dl_mbr =
+			csr.bearer_contexts_to_be_created.bearer_lvl_qos.max_bit_rate_dnlnk;
+		bearer->qos.ul_gbr =
+			csr.bearer_contexts_to_be_created.bearer_lvl_qos.guarntd_bit_rate_uplnk;
+		bearer->qos.dl_gbr =
+			csr.bearer_contexts_to_be_created.bearer_lvl_qos.guarntd_bit_rate_dnlnk;
 
 		set_s1u_sgw_gtpu_teid(bearer, context);
 		/* Note: s5s8_sgw_gtpu_teid based s11_sgw_gtpc_teid

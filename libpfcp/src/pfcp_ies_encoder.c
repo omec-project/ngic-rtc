@@ -597,24 +597,27 @@ int encode_pfcp_suggstd_buf_pckts_cnt_ie_t(pfcp_suggstd_buf_pckts_cnt_ie_t *valu
 int encode_pfcp_pfd_contents_ie_t(pfcp_pfd_contents_ie_t *value,
     uint8_t *buf)
 {
-    uint16_t encoded = 0;
-    encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-    encoded += encode_bits(value->pfd_contents_spare, 4, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->pfd_contents_cp, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->dn, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->url, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->fd, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->pfd_contents_spare2, 8, buf + (encoded/8), encoded % CHAR_SIZE);
-    ENCODE_LEN_OF_FLOW_DESC_COND_2(value, 16, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
-    ENCODE_FLOW_DESC_COND_2(value, 8, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
-    ENCODE_LENGTH_OF_URL_COND_1(value, 16, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
-    ENCODE_URL2_COND_1(value, 8, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
-    ENCODE_LEN_OF_DOMAIN_NM_COND_1(value, 16, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
-    ENCODE_DOMAIN_NAME_COND_1(value, 8, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
-    ENCODE_LEN_OF_CSTM_PFD_CNTNT_COND_1(value, 16, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
-    ENCODE_CSTM_PFD_CNTNT_COND_1(value, 8, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+    	uint16_t encoded = 0;
+	encoded += encode_pfcp_ie_header_t(&value->header, buf + (encoded/8));
+	encoded += encode_bits(value->pfd_contents_spare, 4, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->pfd_contents_cp, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->dn, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->url, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->fd, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	//encoded += encode_bits(value->pfd_contents_spare2, 8, buf + (encoded/8), encoded % CHAR_SIZE);
 
-    return encoded/CHAR_SIZE;
+	ENCODE_LEN_OF_FLOW_DESC_COND_2(value, 16, buf+(encoded/8), encoded % CHAR_SIZE, encoded);
+	ENCODE_FLOW_DESC_COND_2(value, 8, buf+(encoded/8), encoded % CHAR_SIZE, encoded);
+
+	ENCODE_LENGTH_OF_URL_COND_1(value, 16, buf+(encoded/8), encoded % CHAR_SIZE, encoded);
+	ENCODE_URL2_COND_1(value, 8, buf+(encoded/8), encoded % CHAR_SIZE, encoded);
+
+	ENCODE_LEN_OF_DOMAIN_NM_COND_1(value, 16, buf+(encoded/8), encoded % CHAR_SIZE, encoded);
+	ENCODE_DOMAIN_NAME_COND_1(value, 8, buf+(encoded/8), encoded % CHAR_SIZE, encoded);
+
+	ENCODE_LEN_OF_CSTM_PFD_CNTNT_COND_1(value, 16, (buf+(encoded/8)), encoded % CHAR_SIZE, encoded);
+
+	return encoded;
 }
 
 
@@ -1867,7 +1870,7 @@ int encode_pfcp_user_plane_ip_rsrc_info_ie_t(pfcp_user_plane_ip_rsrc_info_ie_t *
 	encoded += encode_bits(value->v6, 1, buf + (encoded/8), encoded % CHAR_SIZE);
 	encoded += encode_bits(value->v4, 1, buf + (encoded/8), encoded % CHAR_SIZE);
 	/* TODO: Revisit this for change in yang */
-	if(value->teid_range != 0)
+	if(value->teidri != 0)
 		encoded += encode_bits(value->teid_range, 8, buf + (encoded/8), encoded % CHAR_SIZE);
 
 	ENCODE_IPV4_ADDRESS_COND_4(value, 32, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
@@ -2205,13 +2208,16 @@ int encode_pfcp_sdf_filter_ie_t(pfcp_sdf_filter_ie_t *value,
     encoded += encode_bits(value->fd, 1, buf + (encoded/8), encoded % CHAR_SIZE);
     encoded += encode_bits(value->sdf_fltr_spare2, 8, buf + (encoded/8), encoded % CHAR_SIZE);
     ENCODE_LEN_OF_FLOW_DESC_COND_1(value, 16, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
-    ENCODE_FLOW_DESC_COND_1(value, 8, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+	if (value->fd){
+		memcpy(buf + (encoded/CHAR_SIZE), value->flow_desc, value->len_of_flow_desc);
+		encoded +=  (value->len_of_flow_desc * CHAR_SIZE);
+	}
     ENCODE_TOS_TRAFFIC_CLS_COND_1(value, 16, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
     ENCODE_SECUR_PARM_IDX_COND_1(value, 32, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
     ENCODE_FLOW_LABEL_COND_1(value, 24, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
     ENCODE_SDF_FILTER_ID_COND_1(value, 32, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
 
-    return encoded/CHAR_SIZE;
+    return encoded;
 }
 
 
@@ -2330,11 +2336,12 @@ int encode_pfcp_outer_hdr_creation_ie_t(pfcp_outer_hdr_creation_ie_t *value,
 	ENCODE_OUTER_HDR_CREATION_DESC_COND_1(value, 16, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
 	ENCODE_TEID_COND_1(value, 32, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
 	ENCODE_IPV4_ADDRESS_COND_3(value, 32, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+#if 0
 	ENCODE_IPV6_ADDRESS_COND_3(value, 8, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
 	ENCODE_PORT_NUMBER_COND_1(value, 16, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
 	ENCODE_CTAG_COND_1(value, 24, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
 	ENCODE_STAG_COND_1(value, 24, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
-
+#endif
 	return encoded;
 }
 

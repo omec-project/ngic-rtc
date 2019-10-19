@@ -6,8 +6,7 @@ THIRD_PARTY_SW_PATH="third_party"
 OSS_UTIL_DIR="oss-util"
 C3PO_OSS_DIR="oss_adapter/c3po_oss"
 OSS_UTIL_GIT_LINK="http://gsgit.gslab.com/Sprint-Repos/oss-util.git"
-FREEDIAMETER="https://github.com/omec-project/freediameter.git"
-FREEDIAMETER_BRANCH="master"
+FREEDIAMETER="http://gsgit.gslab.com/Sprint-Repos/freediameter.git"
 
 SERVICES="$1"
 SUDO=''
@@ -92,12 +91,12 @@ download_freediameter()
 {
         cd $CUR_DIR
         [ -d $DEPS_DIR/freediameter ] && echo "FreeDiameter already exists at $DEPS_DIR/freediameter" && return
-        echo "Download FreeDiameter from OMEC....."
+        echo "Download FreeDiameter from sprint-repos....."
         if [ ! -d $THIRD_PARTY_SW_PATH ]; then
              mkdir $THIRD_PARTY_SW_PATH
         fi
         pushd $THIRD_PARTY_SW_PATH
-        git clone --branch $FREEDIAMETER_BRANCH $FREEDIAMETER
+        git clone $FREEDIAMETER
         if [ $? -ne 0 ] ; then
                         echo "Failed to clone FreeDiameter, please check the errors."
                         return

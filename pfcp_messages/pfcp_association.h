@@ -51,6 +51,9 @@ void
 fill_pfcp_heartbeat_resp(pfcp_hrtbeat_rsp_t *pfcp_heartbeat_resp);
 
 void
+fill_pfcp_pfd_mgmt_resp(pfcp_pfd_mgmt_rsp_t *pfd_resp, uint8_t cause_id, int offending_ie);
+
+void
 fill_pfcp_heartbeat_req(pfcp_hrtbeat_req_t *pfcp_heartbeat_req, uint32_t seq);
 
 void
@@ -61,7 +64,11 @@ uint8_t
 process_pfcp_ass_resp(msg_info *msg, struct sockaddr_in *peer_addr);
 
 int
-buffer_csr_request(create_session_request_t *csr,
-		upf_context_t *upf_context);
+buffer_csr_request(ue_context *context,
+		upf_context_t *upf_context, uint8_t ebi);
+
+int
+process_create_sess_request(uint32_t teid, uint8_t eps_bearer_id);
+
 #endif /* CP_BUILD */
 #endif /* PFCP_ASSOC_H */

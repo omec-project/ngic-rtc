@@ -26,7 +26,7 @@
 #include <rte_branch_prediction.h>
 #include <sys/time.h>
 
-#include "main.h"
+#include "up_main.h"
 #include "epc_arp.h"
 #include "pfcp_association.h"
 #include "pfcp_set_ie.h"
@@ -63,7 +63,7 @@ static char *echo_mpoolname = {
 int32_t conn_cnt = 0;
 static uint16_t gtpu_seqnb	= 0;
 static uint16_t gtpu_sgwu_seqnb	= 0;
-static uint16_t gtpu_sx_seqnb	= 0;
+static uint16_t gtpu_sx_seqnb	= 1;
 
 /**
  * Connection hash params.
@@ -220,8 +220,9 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 		RTE_LOG_DP(DEBUG, DP, "Send PFCP HeartBeat Request ..!!\n");
 		/* VS:TODO: Defined this part after merging sx heartbeat*/
 		//process_pfcp_heartbeat_req(md->dst_ip, up_time); /* TODO: Future Enhancement */
-		if (ti == &md->pt)
-			gtpu_sx_seqnb++;
+		if (ti == &md->pt){
+			gtpu_sx_seqnb = get_pfcp_sequence_number(PFCP_HEARTBEAT_REQUEST, gtpu_sx_seqnb);;
+		}
 		process_pfcp_heartbeat_req(&dest_addr, gtpu_sx_seqnb);
 
 		if (ti == &md->tt)
@@ -318,12 +319,12 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 
 
 void
-dp_flush_session(uint32_t ip_addr, uint32_t sess_id)
+dp_flush_session(uint32_t ip_addr, uint64_t sess_id)
 {
 	int ret = 0;
 	peerData *conn_data = NULL;
 
-	RTE_LOG_DP(DEBUG, DP, "Flush sess entry from connection table of ip:%s, sess_id:%u\n",
+	RTE_LOG_DP(DEBUG, DP, "Flush sess entry from connection table of ip:%s, sess_id:%lu\n",
 				inet_ntoa(*(struct in_addr *)&ip_addr), sess_id);
 
 	/* VS: TODO */
@@ -331,7 +332,7 @@ dp_flush_session(uint32_t ip_addr, uint32_t sess_id)
 				&ip_addr, (void **)&conn_data);
 
 	if ( ret < 0) {
-		RTE_LOG_DP(DEBUG, DP, " Entry not found for NODE :%s\n",
+		RTE_LOG_DP(DEBUG, DP, "Entry not found for NODE :%s\n",
 							inet_ntoa(*(struct in_addr *)&ip_addr));
 		return;
 
@@ -343,6 +344,8 @@ dp_flush_session(uint32_t ip_addr, uint32_t sess_id)
 					conn_data->sess_id[pos] = conn_data->sess_id[pos + 1];
 
 				conn_data->sess_cnt--;
+				RTE_LOG_DP(DEBUG, DP, "Session Deleted from connection table sid:%lu\n",
+						sess_id);
 			}
 		}
 	}
@@ -360,7 +363,8 @@ dp_flush_session(uint32_t ip_addr, uint32_t sess_id)
 		/* rte_free(conn_data); */
 		conn_data = NULL;
 
-		RTE_LOG_DP(DEBUG, DP, " Current Active Conn Cnt:%u\n", conn_cnt);
+		RTE_LOG_DP(DEBUG, DP, "Current Active Conn Cnt:%u\n", conn_cnt);
+		RTE_LOG_DP(DEBUG, DP, "Flushed the Timer Entry..!!\n");
 	}
 
 }
@@ -377,9 +381,9 @@ flush_eNB_session(peerData *data_t)
 		RTE_SET_USED(dp);
 		sess_info.sess_id = data_t->sess_id[cnt];
 
-		RTE_LOG_DP(DEBUG, DP, " %s: Sess ID's :%lu\n", __func__, sess_info.sess_id);
+		RTE_LOG_DP(DEBUG, DP, "%s: Sess ID's :%lu\n", __func__, sess_info.sess_id);
 
-		dp_session_delete(dp, &sess_info);
+		//dp_session_delete(dp, &sess_info);
 
 		/* TODO: VS send delete session request to peer control node  */
 		//fill_pfcp_sess_del_req();
@@ -415,8 +419,8 @@ uint8_t add_node_conn_entry(uint32_t dstIp, uint64_t sess_id, uint8_t portId)
 				&dstIp, (void **)&conn_data);
 
 	if ( ret < 0) {
-		RTE_LOG_DP(DEBUG, DP, " Add entry in conn table :%s\n",
-					inet_ntoa(*((struct in_addr *)&dstIp)));
+		RTE_LOG_DP(DEBUG, DP, "Add entry in conn table :%s, up_seid:%lu\n",
+					inet_ntoa(*((struct in_addr *)&dstIp)), sess_id);
 
 		/* No conn entry for dstIp
 		 * Add conn_data for dstIp at
@@ -495,7 +499,7 @@ uint8_t add_node_conn_entry(uint32_t dstIp, uint64_t sess_id, uint8_t portId)
 
 	} else {
 		/* VS: eNB entry already exit in conn table */
-		RTE_LOG_DP(DEBUG, DP, " Conn entry already exit in conn table :%s\n",
+		RTE_LOG_DP(DEBUG, DP, "Conn entry already exit in conn table :%s\n",
 					inet_ntoa(*((struct in_addr *)&dstIp)));
 
 		conn_data->sess_id[conn_data->sess_cnt] = sess_id;
@@ -507,7 +511,7 @@ uint8_t add_node_conn_entry(uint32_t dstIp, uint64_t sess_id, uint8_t portId)
 		}
 	}
 
-	RTE_LOG_DP(DEBUG, DP, " Current Active Conn Cnt:%u\n", conn_cnt);
+	RTE_LOG_DP(DEBUG, DP, "Current Active Conn Cnt:%u\n", conn_cnt);
 	return 0;
 
 

@@ -23,687 +23,295 @@
 #include "../../cp/gtpv2c.h"
 #include "../../cp/ue.h"
 
+#include "../../pfcp_messages/pfcp_set_ie.h"
 
-char last_timer_default [] = "1970-01-01T00:00:00";
+//////////////////////////////////////////////////////////////////////////////////
 
-const char *
-get_lastactivity_time_pgwc(int category_id, int value_id, int peer_id)
+extern pfcp_config_t pfcp_config;
+
+int s11MessageTypes [] = {
+    -1,-1,-1,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,2,5,6,3,4,9,10,
+    7,8,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+    -1,-1,-1,-1,13,14,15,16,17,18,19,20,21,22,-1,-1,-1,-1,-1,-1,
+    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,23,24,25,26,27,
+    28,29,30,31,32,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+    35,36,33,34,11,12,37,38,39,40,41,42,-1,-1,-1,-1,43,44,-1,45,
+    46,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,47,48
+};
+
+int s5s8MessageTypes [] = {
+    -1,-1,-1,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,2,5,6,3,4,9,10,
+    7,8,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+    -1,-1,-1,-1,13,14,15,16,17,18,-1,19,20,-1,-1,-1,-1,-1,-1,-1,
+    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,21,22,23,24,25,
+    26,27,28,29,30,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+    -1,-1,31,32,11,12,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+    33,34
+};
+
+int sxaMessageTypes [] = {
+    -1,0,1,-1,-1,2,3,4,5,6,7,8,9,10,11,12,-1,-1,-1,-1,
+    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,13,14,15,16,17,18,19,20
+};
+
+int sxbMessageTypes [] = {
+    -1,0,1,-1,-1,2,3,4,5,6,7,8,9,10,11,12,-1,-1,-1,-1,
+    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,13,14,15,16,17,18,19,20
+};
+
+int sxasxbMessageTypes [] = {
+    -1,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,-1,-1,-1,-1,
+    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,15,16,17,18,19,20,21,22
+};
+
+int update_cli_stats(uint32_t ip_addr, uint8_t msg_type,int dir,char *time_stamp)
 {
-	char *value= last_timer_default;
+	int ret = 0;
+	int index = -1;
 
-	switch(category_id) {
+	clLog(clSystemLog, eCLSeverityDebug, "Inside update_cli_stats\n");
+	clLog(clSystemLog, eCLSeverityDebug, "msg_type:%d\n",msg_type);
+	clLog(clSystemLog, eCLSeverityDebug, "dir:%d\n",dir);
+	clLog(clSystemLog, eCLSeverityDebug, "ip_addr is :%s\n",
+						inet_ntoa(*((struct in_addr *)&ip_addr)));
 
-		case sx_interface_pgwc:
-			switch(peer_id) {
-				case peer1_pgwc:
-					switch(value_id) {
+	index = get_peer_index(ip_addr);
 
-						case peer_lastactivity:
-							value = cp_stats.sx_peer_timestamp;
-							break;
-						default:
-							break;
-							}
-					break;
-				default:
-					break;
-				}
-				break;
-		case s5s8_interface_pgwc:
-			switch(value_id) {
-				case peer_lastactivity:
-					value = cp_stats.s5s8_peer_timestamp;
-					break;
-				default:
-					break;
-			}
-			break;
-		default:
-			break;
+	if(index == -1)
+	{
+		clLog(clSystemLog, eCLSeverityDebug,"peer not found\n");
+		return -1;
 	}
 
-	if (strlen(value) == 0)
-		value = last_timer_default;
-	return value;
+	if (msg_type == GTP_ECHO_REQ || msg_type == PFCP_HEARTBEAT_REQUEST)
+	{
+		__sync_add_and_fetch(&cli_node.peer[index]->hcrequest[dir], 1);
+	}
+	else if (msg_type == GTP_ECHO_RSP || msg_type == PFCP_HEARTBEAT_RESPONSE)
+	{
+		__sync_add_and_fetch(&cli_node.peer[index]->hcresponse[dir], 1);
+	}
+	else {
+
+	switch(cli_node.peer[index]->intfctype)
+	{
+		case itS11:
+					__sync_add_and_fetch(&cli_node.peer[index]->stats.s11[s11MessageTypes[msg_type]].cnt[dir], 1);
+					strcpy(cli_node.peer[index]->stats.s11[s11MessageTypes[msg_type]].ts, time_stamp);
+					break;
+		case itS5S8:
+					__sync_add_and_fetch(&cli_node.peer[index]->stats.s5s8[s5s8MessageTypes[msg_type]].cnt[dir], 1);
+					strcpy(cli_node.peer[index]->stats.s5s8[s5s8MessageTypes[msg_type]].ts, time_stamp);
+					break;
+		case itSxa:
+					__sync_add_and_fetch(&cli_node.peer[index]->stats.sxa[sxaMessageTypes[msg_type]].cnt[dir], 1);
+					strcpy(cli_node.peer[index]->stats.sxa[sxaMessageTypes[msg_type]].ts, time_stamp);
+					break;
+		case itSxb:
+					__sync_add_and_fetch(&cli_node.peer[index]->stats.sxb[sxbMessageTypes[msg_type]].cnt[dir], 1);
+					strcpy(cli_node.peer[index]->stats.sxb[sxbMessageTypes[msg_type]].ts, time_stamp);
+					break;
+		case itSxaSxb:
+					__sync_add_and_fetch(&cli_node.peer[index]->stats.sxasxb[sxasxbMessageTypes[msg_type]].cnt[dir], 1);
+					strcpy(cli_node.peer[index]->stats.sxasxb[sxasxbMessageTypes[msg_type]].ts, time_stamp);
+					break;
+		/*case itGx:
+					cli_node.peer[index]->stats.gx[gxMessageTypes[msg_type]].cnt[dir]++;
+					cli_node.peer[index]->stats.gx[gxMessageTypes[msg_type]].ts = time_stamp;
+					break;*/
+		default :
+					 clLog(clSystemLog, eCLSeverityCritical,"CLI:No such a interface");
+					 break;
+	}
+	}
+
+	return ret;
+
 }
 
-const char *
-get_lastactivity_time_sgwc(int category_id, int value_id, int peer_id)
+int get_peer_index(uint32_t ip_addr)
 {
-	char *value= last_timer_default;
+	int i;
 
-	switch (category_id)
+	for(i = 0; i < cnt_peer ; i++)
 	{
-	case s11_interface:
-		switch (peer_id)
+		if(cli_node.peer[i]!=NULL)
 		{
-		case peer1:
-			switch(value_id)
-			{
-			case peer_lastactivity:
-				value = cp_stats.s11_peer_timestamp;
-				break;
-			default:
-				break;
-			}
-			break;
-
-			default:
-				break;
+			if(cli_node.peer[i]->ipaddr.s_addr == ip_addr )
+				return i;
 		}
-		break;
-		case sx_interface:
-			switch(peer_id) {
-				case peer1:
-					switch(value_id) {
-						case peer_lastactivity:
-							value = cp_stats.sx_peer_timestamp;
-							break;
-						default:
-							break;
-						}
-						break;
-				default:
-					break;
-				}
-			break;
-		case s5s8_interface:
-			switch(value_id) {
-				case peer_lastactivity:
-					value = cp_stats.s5s8_peer_timestamp;
-					break;
-				default:
-					break;
-				}
-			break;
-	default:
-		break;
 	}
 
-	if (strlen(value) == 0)
-		value = last_timer_default;
-return value;
-
+	return -1;
 }
 
-
-int64_t
-get_stat_common(int value_id)
+int get_first_index(void)
 {
-	int64_t value = 0;
-	//_timer_t up_time;
-	switch(value_id) {
-		case active_session:
-			value = cp_stats.create_session - cp_stats.delete_session;
-			break;
-		case upsecs:
-			//up_time = TIMER_GET_ELAPSED_NS(st_time);
-			//value = (up_time/1000000000);
-			value = cp_stats.time;
-			break;
-		default:
-			break;
-	}
-	return value;
-}
+	int i;
 
-	int64_t
-get_stat_health_pgwc(int category_id, int value_id, int peer_id)
-{
-	int64_t value = 0;
-
-	switch(category_id)
+	for(i = 0; i < cnt_peer ; i++)
 	{
-		case sx_interface_pgwc:
-			switch(peer_id)
-			{
-				case peer1_pgwc:
-					switch(value_id)
-					{
-						case set_status:
-							value = 50;
-							value = cp_stats.pgwu_status;
-							break;
-						case set_timeouts:
-							value = 51;
-							value = cp_stats.nbr_of_pgwu_to_pgwc_timeouts;
-							break;
-						case set_req_sent:
-							value = 52;
-							value = cp_stats.nbr_of_pgwc_to_pgwu_echo_req_sent;
-							break;
-						case set_req_received:
-							value = 53;
-							value = cp_stats.nbr_of_pgwu_to_pgwc_echo_req_rcvd;
-							break;
-						case set_resp_sent:
-							value = 54;
-							value = cp_stats.nbr_of_pgwc_to_pgwu_echo_resp_sent;
-							break;
-						case set_resp_received:
-							value = 55;
-							value = cp_stats.nbr_of_pgwu_to_pgwc_echo_resp_rcvd;
-							break;
-						default:
-							break;
-					}
-					break;
-				default:
-					break;
-			}
-			break;
-		case s5s8_interface_pgwc:
-			switch(peer_id)
-			{
-				case peer1_pgwc:
-					switch(value_id)
-					{
-						case set_status:
-							value = cp_stats.sgwc_status;
-							break;
-						case set_timeouts:
-							value = 56;
-							value = cp_stats.nbr_of_sgwc_to_pgwc_timeouts;
-							break;
-						case set_req_sent:
-							value = 57;
-							value = cp_stats.nbr_of_pgwc_to_sgwc_echo_req_sent;
-							break;
-						case set_req_received:
-							value = 58;
-							value = cp_stats.nbr_of_sgwc_to_pgwc_echo_req_rcvd;
-							break;
-						case set_resp_sent:
-							value = 59;
-							value = cp_stats.nbr_of_pgwc_to_sgwc_echo_resp_sent;
-							break;
-						case set_resp_received:
-							value = 60;
-							value = cp_stats.nbr_of_sgwc_to_pgwc_echo_resp_rcvd;
-							break;
-						default:
-							break;
-					}
-					break;
-				default:
-					break;
-			}
-			break;
-
-		default:
-			break;
-	}
-
-	return value;
-}
-
-	int64_t
-get_stat_health(int category_id, int value_id, int peer_id)
-{
-	int64_t value = 0;
-
-	switch(category_id) {
-		case s11_interface:
-			switch(peer_id)
-			{
-				case 0 :
-					switch(value_id)
-					{
-						case set_status:
-							value = cp_stats.mme_status;
-							break;
-						case set_timeouts:
-							value = 103;
-							value = cp_stats.nbr_of_mme_to_sgwc_timeouts;
-							break;
-						case set_req_sent:
-							value = 104;
-							value = cp_stats.nbr_of_sgwc_to_mme_echo_req_sent;
-							break;
-						case set_req_received:
-							value = 105;
-							value = cp_stats.nbr_of_mme_to_sgwc_echo_req_rcvd;
-							break;
-						case set_resp_sent :
-							value = 106;
-							value = cp_stats.nbr_of_sgwc_to_mme_echo_resp_sent;
-							break;
-						case set_resp_received:
-							value = 107;
-							value = cp_stats.nbr_of_mme_to_sgwc_echo_resp_rcvd;
-							break;
-						default:
-							break;
-					}
-					break;
-				default :
-					break;
-
-			}
-			break;
-		case sx_interface :
-			switch(peer_id)
-			{
-				case 0:
-					switch(value_id)
-					{
-						case set_status:
-							value = cp_stats.sgwu_status;
-							break;
-						case set_timeouts:
-							value = cp_stats.nbr_of_sgwu_to_sgwc_timeouts;
-							break;
-						case set_req_sent:
-							value = cp_stats.nbr_of_sgwc_to_sgwu_echo_req_sent;
-							break;
-						case set_req_received:
-							value = cp_stats.nbr_of_sgwu_to_sgwc_echo_req_rcvd;
-							break;
-						case set_resp_sent :
-							value = cp_stats.nbr_of_sgwc_to_sgwu_echo_resp_sent;
-							break;
-						case set_resp_received:
-							value = cp_stats.nbr_of_sgwu_to_sgwc_echo_resp_rcvd;
-							break;
-						default:
-							break;
-					}
-					break;
-				default:
-					break;
-
-			}
-			break;
-		case s5s8_interface:
-			switch(peer_id)
-			{
-				case 0:
-					switch(value_id)
-					{
-						case set_status:
-							value = cp_stats.pgwc_status;
-							break;
-						case set_timeouts:
-							value = cp_stats.nbr_of_pgwc_to_sgwc_timeouts;
-							break;
-						case set_req_sent:
-							value = cp_stats.nbr_of_sgwc_to_pgwc_echo_req_sent;
-							break;
-						case set_req_received:
-							value = cp_stats.nbr_of_pgwc_to_sgwc_echo_req_rcvd;
-							break;
-						case set_resp_sent :
-							value = cp_stats.nbr_of_sgwc_to_pgwc_echo_resp_sent;
-							break;
-						case set_resp_received:
-							value = cp_stats.nbr_of_pgwc_to_sgwc_echo_resp_rcvd;
-							break;
-						default:
-							break;
-					}
-			}
-			break;
-
-		default:
-			break;
-	}
-	return value;
-}
-
-int64_t
-get_stat_spgwc(int category_id, int value_id, int peer_id)
-{
-	int64_t value = 0;
-	switch(category_id) {
-
-		case s11_interface:
-			switch(value_id) {
-
-				case create_session:
-					value = cp_stats.create_session;
-					break;
-				case modify_bearer:
-					value = cp_stats.modify_bearer;
-					break;
-				case delete_session:
-					value = cp_stats.delete_session;
-					break;
-				case number_of_ues:
-					value = cp_stats.create_session-cp_stats.delete_session;
-					break;
-				case release_access_bearer:
-					value = cp_stats.rel_access_bearer;
-					break;
-				case downlink_data_notification_ack:
-					value = cp_stats.ddn_ack;
-					break;
-				case sgw_nbr_of_pdn_connections:
-					value = cp_stats.create_session-cp_stats.delete_session;
-					break;
-				case sgw_nbr_of_bearers:
-					value = cp_stats.create_session - cp_stats.delete_session;
-					break;
-				case downlink_data_notification_req_send:
-					value = cp_stats.ddn;
-					break;
-				default:
-					break;
-				}
-				break;
-		case sx_interface:
-			switch(peer_id) {
-				case peer1:
-					switch(value_id) {
-						case session_establishment_req_sent:
-							value = cp_stats.session_establishment_req_sent;
-							break;
-						case session_establishment_resp_acc_rcvd:
-							value = cp_stats.session_establishment_resp_acc_rcvd;
-							break;
-						case session_deletion_req_sent:
-							value = cp_stats.session_deletion_req_sent;
-							break;
-						case session_deletion_resp_acc_rcvd:
-							value = cp_stats.session_deletion_resp_acc_rcvd;
-							break;
-						case association_setup_req_sent:
-							value = cp_stats.association_setup_req_sent;
-							break;
-						case association_setup_resp_acc_rcvd:
-							value = cp_stats.association_setup_resp_acc_rcvd;
-							break;
-						case session_modification_req_sent:
-							value = cp_stats.session_modification_req_sent;
-							break;
-						case session_modification_resp_acc_rcvd:
-							value = cp_stats.session_modification_resp_acc_rcvd;
-							break;
-						case downlink_data_notification:
-							value = cp_stats.ddn;
-							break;
-						default:
-							break;
-						}
-						break;
-				default:
-					break;
-				}
-			break;
-		case s5s8_interface:
-			switch(value_id) {
-				case sm_create_session_req_sent:
-					value = cp_stats.sm_create_session_req_sent;
-					break;
-				case sm_create_session_resp_acc_rcvd:
-					value = cp_stats.create_session_resp_acc_rcvd;
-					break;
-				case sm_delete_session_req_sent:
-					value = cp_stats.sm_delete_session_req_sent;
-					break;
-				case sm_delete_session_resp_acc_rcvd:
-					value = cp_stats.sm_delete_session_resp_acc_rcvd;
-				default:
-					break;
-				}
-			break;
-		default:
-			break;
-	}
-	return value;
-}
-
-
-///////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////
-
-int64_t
-get_stat_pgwc(int category_id, int value_id, int peer_id)
-{
-	int64_t value = 0;
-
-	switch(category_id) {
-
-		case sx_interface_pgwc:
-			switch(peer_id) {
-				case peer1_pgwc:
-					switch(value_id) {
-
-						case session_establishment_req_sent_pgwc:
-							value = cp_stats.session_establishment_req_sent;
-							break;
-						case session_establishment_resp_acc_rcvd_pgwc:
-							value = cp_stats.session_establishment_resp_acc_rcvd;
-							break;
-						case session_deletion_req_sent_pgwc:
-							value = cp_stats.session_deletion_req_sent;
-							break;
-						case session_deletion_resp_acc_rcvd_pgwc:
-							value = cp_stats.session_deletion_resp_acc_rcvd;
-							break;
-						case association_setup_req_sent_pgwc:
-							value = cp_stats.association_setup_req_sent;
-							break;
-						case association_setup_resp_acc_rcvd_pgwc:
-							value = cp_stats.association_setup_resp_acc_rcvd;
-							break;
-						default:
-							break;
-							}
-					break;
-				default:
-					break;
-				}
-				break;
-		case s5s8_interface_pgwc:
-			switch(value_id) {
-				case sm_create_session_req_rcvd_pgwc:
-					value = cp_stats.sm_create_session_req_rcvd;
-					break;
-				case sm_delete_session_req_rcvd_pgwc:
-					value = cp_stats.sm_delete_session_req_rcvd;
-					break;
-				case sm_s5s8_nbr_of_ues_pgwc:
-					value = cp_stats.sm_create_session_req_rcvd-cp_stats.sm_delete_session_req_rcvd;
-					break;
-
-				default:
-					break;
-			}
-			break;
-		default:
-			break;
-	}
-	return value;
-}
-
-
-
-
-const char *
-get_time_stat_pgwc(int category_id, int value_id, int peer_id)
-{
-	char *value= last_timer_default;
-
-	switch(category_id) {
-
-		case sx_interface_pgwc:
-			switch(peer_id) {
-				case peer1_pgwc:
-					switch(value_id) {
-
-						case session_establishment_req_sent_pgwc:
-							value = cp_stats.session_establishment_req_sent_time;
-							break;
-						case session_establishment_resp_acc_rcvd_pgwc:
-							value = cp_stats.session_establishment_resp_acc_rcvd_time;
-							break;
-						case session_deletion_req_sent_pgwc:
-							value = cp_stats.session_deletion_req_sent_time;
-							break;
-						case session_deletion_resp_acc_rcvd_pgwc:
-							value = cp_stats.session_deletion_resp_acc_rcvd_time;
-							break;
-						case association_setup_req_sent_pgwc:
-							value = cp_stats.association_setup_req_sent_time;
-							break;
-						case association_setup_resp_acc_rcvd_pgwc:
-							value = cp_stats.association_setup_resp_acc_rcvd_time;
-							break;
-						default:
-							break;
-							}
-					break;
-				default:
-					break;
-				}
-				break;
-		case s5s8_interface_pgwc:
-			switch(value_id) {
-				case sm_create_session_req_rcvd_pgwc:
-					value = cp_stats.sm_create_session_req_rcvd_time;
-					break;
-				case sm_delete_session_req_rcvd_pgwc:
-					value = cp_stats.sm_delete_session_req_rcvd_time;
-					break;
-				case sm_s5s8_nbr_of_ues_pgwc:
-					value = cp_stats.number_of_ues_time;
-					break;
-
-				default:
-					break;
-			}
-			break;
-		default:
-			break;
-	}
-	if (strlen(value) == 0)
-                value = last_timer_default;
-	return value;
-}
-
-const char *
-get_time_stat(int category_id, int value_id, int peer_id)
-{
-	char *value= last_timer_default;
-
-	switch (category_id)
-	{
-	case s11_interface:
-		switch (peer_id)
+		if(cli_node.peer[i] == NULL)
 		{
-		case peer1:
-			switch(value_id)
-			{
-			case create_session:
-				value = cp_stats.create_session_time;
-				break;
-			case modify_bearer:
-				value = cp_stats.modify_bearer_time;
-				break;
-			case delete_session:
-				value = cp_stats.delete_session_time;
-				break;
-			case number_of_ues:
-				value = cp_stats.number_of_ues_time;
-				break;
-			case release_access_bearer:
-				value = cp_stats.rel_access_bearer_time;
-				break;
-			case downlink_data_notification_ack:
-				value = cp_stats.ddn_ack_time;
-				break;
-			case sgw_nbr_of_pdn_connections:
-				value = cp_stats.number_of_ues_time;
-				break;
-			case sgw_nbr_of_bearers:
-				value = cp_stats.number_of_ues_time;
-				break;
-			case downlink_data_notification_req_send:
-				value = cp_stats.ddn_time;
-				break;
-			default:
-				break;
-			}
-			break;
-
-			default:
-				break;
+				return i;
 		}
-		break;
-		case sx_interface:
-			switch(peer_id) {
-				case peer1:
-					switch(value_id) {
-						case session_establishment_req_sent:
-							value = cp_stats.session_establishment_req_sent_time;
-							break;
-						case session_establishment_resp_acc_rcvd:
-							value = cp_stats.session_establishment_resp_acc_rcvd_time;
-							break;
-						case session_deletion_req_sent:
-							value = cp_stats.session_deletion_req_sent_time;
-							break;
-						case session_deletion_resp_acc_rcvd:
-							value = cp_stats.session_deletion_resp_acc_rcvd_time;
-							break;
-						case association_setup_req_sent:
-							value = cp_stats.association_setup_req_sent_time;
-							break;
-						case association_setup_resp_acc_rcvd:
-							value = cp_stats.association_setup_resp_acc_rcvd_time;
-							break;
-						case session_modification_req_sent:
-							value = cp_stats.session_modification_req_sent_time;
-							break;
-						case session_modification_resp_acc_rcvd:
-							value = cp_stats.session_modification_resp_acc_rcvd_time;
-							break;
-						default:
-							break;
-						}
-						break;
-				default:
-					break;
-				}
-			break;
-		case s5s8_interface:
-			switch(value_id) {
-				case sm_create_session_req_sent:
-					value = cp_stats.sm_create_session_req_sent_time;
-					break;
-				case sm_create_session_resp_acc_rcvd:
-					value = cp_stats.create_session_resp_acc_rcvd_time;
-					break;
-				case sm_delete_session_req_sent:
-					value = cp_stats.sm_delete_session_req_sent_time;
-					break;
-				case sm_delete_session_resp_acc_rcvd:
-					value = cp_stats.sm_delete_session_resp_acc_rcvd_time;
-					break;
-				default:
-					break;
-				}
-			break;
-	default:
-		break;
 	}
-
-	if (strlen(value) == 0)
-		value = last_timer_default;
-return value;
-
+	return i;
 }
 
 
 
 
+void add_cli_peer(uint32_t ip_addr,EInterfaceType it)
+{
+	int index = -1;
+	SPeer temp_peer;
+
+	clLog(clSystemLog, eCLSeverityDebug,
+			"CLI:Request rcvd for ip addr:%s\n",
+			inet_ntoa(*((struct in_addr *)&ip_addr)));
+
+	/*Check peer is allready added or not*/
+	index = get_peer_index(ip_addr);
+
+	if (index == -1)  /*peer is not added yet*/
+	{
+		index = get_first_index(); /*find the postn*/
+		cli_node.peer[index] = calloc(1,sizeof(temp_peer));
+
+		//Initialization
+		cli_node.peer[index]->ipaddr = (*(struct in_addr *)&ip_addr);
+		cli_node.peer[index]->intfctype = it;
+		cli_node.peer[index]->status = FALSE;
+		cli_node.peer[index]->response_timeout = pfcp_config.transmit_timer;
+		cli_node.peer[index]->maxtimeout = pfcp_config.transmit_cnt + 1;
+		cli_node.peer[index]->timeouts = 0;
+
+		clLog(clSystemLog, eCLSeverityDebug,
+						"Interface type is : %d\n",it);
+		clLog(clSystemLog, eCLSeverityDebug,
+						"Added peer with ip addr : %s\n\n",
+						inet_ntoa(cli_node.peer[index]->ipaddr));
+
+		nbr_of_peer++; /*peer count incremented*/
+
+		if (index == cnt_peer)
+			cnt_peer++;
+
+	}
+	else {
+		clLog(clSystemLog, eCLSeverityDebug,"CLI:peer allready exist\n");
+	}
+
+}
+
+int update_peer_timeouts(uint32_t ip_addr,uint8_t val)
+{
+
+	int ret = -1;
+	int index = -1;
+
+	index = get_peer_index(ip_addr);
+
+	if (index == -1)
+	{
+		clLog(clSystemLog, eCLSeverityDebug,
+				"peer :%s doesn't exist\n ",
+				inet_ntoa(*((struct in_addr *)&ip_addr)));
+		return ret;
+	}
+
+	cli_node.peer[index]->timeouts = val;
+
+	return 0;
+
+}
+
+int update_peer_status(uint32_t ip_addr,bool val)
+{
+
+	int ret = -1;
+	int index = -1;
+
+	index = get_peer_index(ip_addr);
+
+	if (index == -1)
+	{
+		clLog(clSystemLog, eCLSeverityDebug,
+				"peer :%s doesn't exist\n ",
+				inet_ntoa(*((struct in_addr *)&ip_addr)));
+		return ret;
+	}
+
+	cli_node.peer[index]->status = val;
+
+	return 0;
+
+}
 
 
+int delete_cli_peer(uint32_t ip_addr)
+{
+	int ret = -1;
+	int index = -1;
+
+	index = get_peer_index(ip_addr);
+
+	if (index == -1)
+	{
+		clLog(clSystemLog, eCLSeverityDebug,
+				"peer :%s doesn't exist\n ",
+				inet_ntoa(*((struct in_addr *)&ip_addr)));
+		return ret;
+	}
+
+	free(cli_node.peer[index]);
+	cli_node.peer[index] = NULL;
+
+	nbr_of_peer--; /*decrement peer count*/
+
+	return 0;
+
+}
 
 
+int update_last_activity(uint32_t ip_addr, char *time_stamp)
+{
+	int index = -1;
 
+	index = get_peer_index(ip_addr);
 
+	if(index == -1)
+	{
+		clLog(clSystemLog, eCLSeverityDebug,"peer not found\n");
+		return -1;
+	}
 
+	strcpy(cli_node.peer[index]->lastactivity, time_stamp);
+
+	return 0;
+}
+
+int update_sys_stat(int index, int operation)
+{
+	if(operation)
+		__sync_add_and_fetch(&cli_node.stats[index],1);
+	else
+		__sync_add_and_fetch(&cli_node.stats[index],-1);
+
+	return 0;
+}
 
 
 ///////////////////////////////////////////////////////////////////////////////////
@@ -787,7 +395,23 @@ post_stat_frequency(const char *request_body, char **response_body)
 
 	return csUpdateInterval(request_body, response_body);
 }
+	static int
+get_stat_logging(const char *request_body, char **response_body)
+{
+	clLog(clSystemLog, eCLSeverityInfo, "get_stat_logging() body=[%s]",
+			request_body);
 
+	return csGetStatLogging(response_body);
+}
+
+static int
+post_stat_logging(const char *request_body, char **response_body)
+{
+	clLog(clSystemLog, eCLSeverityInfo, "post_stat_logging() body=[%s]",
+			request_body);
+
+	return csUpdateStatLogging(request_body, response_body);
+}
 	static int
 get_stat_live(const char *request_body, char **response_body)
 {
@@ -797,1023 +421,18 @@ get_stat_live(const char *request_body, char **response_body)
 	return csGetLive(response_body);
 }
 
-
-/////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////
-
 	static int
-post_s11_mme_ip(const char *request_body,char **response_body)
+get_stat_live_all(const char *request_body, char **response_body)
 {
-
-	int ret;
-	char s11_mme_ip[1024];
-	char temp[512]={0};
-
-	const char *path = "../config/cp_config.cfg";
-	const char *param = "S11_MME_IP";
-	const char *effect="after restart";
-
-
-	clLog(clSystemLog, eCLSeverityInfo, "post_s11_mme_ip() body=[%s]",
+	clLog(clSystemLog, eCLSeverityInfo, "get_stat_live_all() body=[%s]",
 			request_body);
 
-	ret = parse_config_param(param,request_body,response_body,s11_mme_ip);
-
-	if(ret!=0)
-		return 400;
-
-	ret=change_config_file(path, param, s11_mme_ip);
-
-	if(ret!=0)
-		return 400;
-
-	construct_json(param,s11_mme_ip,effect,temp);
-	*response_body=strdup((const char *)temp);
-
-	return 200;
+	return csGetLiveAll(response_body);
 }
 
+/////////////////////////////////////////////////////////////////////////////////
 
-	static int
-post_s11_sgw_ip(const char *request_body,char **response_body)
-{
-	int ret;
-	char s11_sgw_ip[1024];
-	char temp[512]={0};
-
-	const char *path = "../config/cp_config.cfg";
-	const char *param = "S11_SGW_IP";
-	const char *effect="after restart";
-
-
-	clLog(clSystemLog, eCLSeverityInfo, "post_s11_sgw_ip() body=[%s]",
-			request_body);
-
-	ret = parse_config_param(param,request_body,response_body,s11_sgw_ip);
-
-	if(ret!=0)
-		return 400;
-
-	ret=change_config_file(path, param, s11_sgw_ip);
-
-	if(ret!=0)
-		return 400;
-
-	construct_json(param,s11_sgw_ip,effect,temp);
-	*response_body=strdup((const char *)temp);
-
-	return 200;
-
-}
-
-	static int
-post_s1u_sgw_ip(const char *request_body,char **response_body)
-{
-	int ret;
-	char s1u_sgw_ip[1024];
-	char temp[512]={0};
-
-	const char *path = "../config/cp_config.cfg";
-	const char *param = "S1U_SGW_IP";
-	const char *effect="after restart";
-
-
-	clLog(clSystemLog, eCLSeverityInfo, "post_s1u_sgw_ip() body=[%s]",
-			request_body);
-
-	ret = parse_config_param(param,request_body,response_body,s1u_sgw_ip);
-
-	if(ret!=0)
-		return 400;
-
-	ret=change_config_file(path, param, s1u_sgw_ip);
-
-	if(ret!=0)
-		return 400;
-
-	construct_json(param,s1u_sgw_ip,effect,temp);
-	*response_body=strdup((const char *)temp);
-
-	return 200;
-}
-
-
-	static int
-post_s5s8_sgwu_ip(const char *request_body,char **response_body)
-{
-	int ret;
-	char s5s8_sgwu_ip[1024];
-	char temp[512]={0};
-
-	const char *path = "../config/cp_config.cfg";
-	const char *param = "S5S8_SGWU_IP";
-	const char *effect="after restart";
-
-
-	clLog(clSystemLog, eCLSeverityInfo, "post_s5s8_sgwu_ip() body=[%s]",
-			request_body);
-
-	ret = parse_config_param(param,request_body,response_body,s5s8_sgwu_ip);
-
-	if(ret!=0)
-		return 400;
-
-	ret=change_config_file(path, param, s5s8_sgwu_ip);
-
-	if(ret!=0)
-		return 400;
-
-	construct_json(param,s5s8_sgwu_ip,effect,temp);
-	*response_body=strdup((const char *)temp);
-
-	return 200;
-
-}
-
-
-	static int
-post_s5s8_sgwc_ip(const char *request_body,char **response_body)
-{
-	int ret;
-	char s5s8_sgwc_ip[1024];
-	char temp[512]={0};
-
-	const char *path = "../config/cp_config.cfg";
-	const char *param = "S5S8_SGWC_IP";
-	const char *effect="after restart";
-
-
-	clLog(clSystemLog, eCLSeverityInfo, "post_s5s8_sgwc_ip() body=[%s]",
-			request_body);
-
-	ret = parse_config_param(param,request_body,response_body,s5s8_sgwc_ip);
-
-	if(ret!=0)
-		return 400;
-
-	ret=change_config_file(path, param, s5s8_sgwc_ip);
-
-	if(ret!=0)
-		return 400;
-
-	construct_json(param,s5s8_sgwc_ip,effect,temp);
-	*response_body=strdup((const char *)temp);
-
-	return 200;
-
-}
-
-	static int
-post_s5s8_pgwc_ip(const char *request_body,char **response_body)
-{
-	int ret;
-	char s5s8_pgwc_ip[1024];
-	char temp[512]={0};
-
-	const char *path = "../config/cp_config.cfg";
-	const char *param = "S5S8_PGWC_IP";
-	const char *effect="after restart";
-
-
-	clLog(clSystemLog, eCLSeverityInfo, "post_s5s8_pgwc_ip() body=[%s]",
-			request_body);
-
-	ret = parse_config_param(param,request_body,response_body,s5s8_pgwc_ip);
-
-	if(ret!=0)
-		return 400;
-
-	ret=change_config_file(path, param, s5s8_pgwc_ip);
-
-	if(ret!=0)
-		return 400;
-
-	construct_json(param,s5s8_pgwc_ip,effect,temp);
-	*response_body=strdup((const char *)temp);
-
-	return 200;
-
-}
-
-
-	static int
-post_s5s8_pgwu_ip(const char *request_body,char **response_body)
-{
-	int ret;
-	char s5s8_pgwu_ip[1024];
-	char temp[512]={0};
-
-	const char *path = "../config/cp_config.cfg";
-	const char *param = "S5S8_PGWU_IP";
-	const char *effect="after restart";
-
-
-	clLog(clSystemLog, eCLSeverityInfo, "post_s5s8_pgwu_ip() body=[%s]",
-			request_body);
-
-	ret = parse_config_param(param,request_body,response_body,s5s8_pgwu_ip);
-
-	if(ret!=0)
-		return 400;
-
-	ret=change_config_file(path, param, s5s8_pgwu_ip);
-
-	if(ret!=0)
-		return 400;
-
-	construct_json(param,s5s8_pgwu_ip,effect,temp);
-	*response_body=strdup((const char *)temp);
-
-	return 200;
-
-}
-
-	static int
-post_dp_comm_ip(const char *request_body,char **response_body)
-{
-	int ret;
-	char dp_comm_ip[1024];
-	char temp[512]={0};
-
-	const char *path = "../config/interface.cfg";
-	const char *param = "dp_comm_ip";
-	const char *effect="after restart";
-
-
-	clLog(clSystemLog, eCLSeverityInfo, "post_dp_comm_ip() body=[%s]",
-			request_body);
-
-	ret = parse_config_param(param,request_body,response_body,dp_comm_ip);
-
-	if(ret!=0)
-		return 400;
-
-	ret=change_config_file(path, param, dp_comm_ip);
-
-	if(ret!=0)
-		return 400;
-
-	construct_json(param,dp_comm_ip,effect,temp);
-	*response_body=strdup((const char *)temp);
-
-	return 200;
-
-}
-
-
-	static int
-post_dp_comm_port(const char *request_body,char **response_body)
-{
-	int ret;
-	char dp_comm_port[1024];
-	char temp[512]={0};
-
-	const char *path = "../config/interface.cfg";
-	const char *param = "dp_comm_port";
-	const char *effect="after restart";
-
-
-	clLog(clSystemLog, eCLSeverityInfo, "post_dp_comm_port() body=[%s]",
-			request_body);
-
-	ret = parse_config_param(param,request_body,response_body,dp_comm_port);
-
-	if(ret!=0)
-		return 400;
-
-	ret=change_config_file(path, param, dp_comm_port);
-
-	if(ret!=0)
-		return 400;
-
-	construct_json(param,dp_comm_port,effect,temp);
-	*response_body=strdup((const char *)temp);
-
-	return 200;
-
-}
-
-	static int
-post_cp_comm_ip(const char *request_body,char **response_body)
-{
-	int ret;
-	char cp_comm_ip[1024];
-	char temp[512]={0};
-
-	const char *path = "../config/interface.cfg";
-	const char *param = "cp_comm_ip";
-	const char *effect="after restart";
-
-
-	clLog(clSystemLog, eCLSeverityInfo, "post_cp_comm_ip() body=[%s]",
-			request_body);
-
-	ret = parse_config_param(param,request_body,response_body,cp_comm_ip);
-
-	if(ret!=0)
-		return 400;
-
-	ret=change_config_file(path, param, cp_comm_ip);
-
-	if(ret!=0)
-		return 400;
-
-	construct_json(param,cp_comm_ip,effect,temp);
-	*response_body=strdup((const char *)temp);
-
-	return 200;
-
-}
-
-	static int
-post_cp_comm_port(const char *request_body,char **response_body)
-{
-	int ret;
-	char cp_comm_port[1024];
-	char temp[512]={0};
-
-	const char *path = "../config/interface.cfg";
-	const char *param = "cp_comm_port";
-	const char *effect="after restart";
-
-
-	clLog(clSystemLog, eCLSeverityInfo, "post_cp_comm_port() body=[%s]",
-			request_body);
-
-	ret = parse_config_param(param,request_body,response_body,cp_comm_port);
-
-	if(ret!=0)
-		return 400;
-
-	ret=change_config_file(path, param, cp_comm_port);
-
-	if(ret!=0)
-		return 400;
-
-	construct_json(param,cp_comm_port,effect,temp);
-	*response_body=strdup((const char *)temp);
-
-	return 200;
-
-}
-
-
-	static int
-post_cp_apn(const char *request_body,char **response_body)
-{
-
-	int ret;
-	char cp_apn[1024]={0};
-	char value[1024]={0};
-
-	const char *path = "../config/cp_config.cfg";
-	const char *param = "APN";
-	const char *effect="after restart";
-
-
-	clLog(clSystemLog, eCLSeverityInfo, "post_cp_apn() body=[%s]",
-			request_body);
-
-	ret=parse_config_param(param,request_body,response_body,cp_apn);
-
-	if(ret!=0)
-		return 400;
-
-	ret=read_config_file(path,param,value);
-
-	if(ret!=0)
-		return 400;
-
-
-	strcat(value,",");
-	strcat(value,cp_apn);
-
-	ret=change_config_file(path, param, value);
-
-
-	if(ret!=0)
-		return 400;
-
-	set_apn_name(&apn_list[apnidx++],cp_apn);
-
-	display_apn_list();
-
-	memset(value,0,1024);
-
-	construct_json(param,cp_apn,effect,value);
-	*response_body=strdup((const char *)value);
-
-	return 200;
-}
-
-
-	static int
-get_cp_apn(const char *request_body, char **response_body)
-{
-
-	int ret;
-	char value[1024]={0};
-	const char *param="APN";
-	const char *path="../config/cp_config.cfg";
-
-	ret=read_config_file(path,param,value);
-
-	if(ret!=0)
-		return 400;
-
-
-	char buf2[256] = "{\"APN\": \"";
-
-	clLog(clSystemLog, eCLSeverityInfo, "GET apn() body=[%s]",
-			request_body);
-
-	strcat(buf2, value);
-	strcat(buf2, "\"}\n");
-	*response_body = strdup((const char *)buf2);
-
-	return REST_SUCESSS;
-
-}
-
-	static int
-delete_cp_apn(const char *request_body, char **response_body)   //delete from running code.
-{
-
-	int ret;
-	char cp_apn[1024];
-	char temp[512]={0};
-
-	const char *param="APN";
-	const char *path="../config/cp_config.cfg";
-	const char *effect="now";
-
-
-	clLog(clSystemLog, eCLSeverityInfo, "delete_cp_apn() body=[%s]",
-			request_body);
-
-	ret = parse_config_param(param,request_body,response_body, cp_apn);
-
-	if(ret!=0)
-		return 400;
-
-	printf("before deleting list\n");
-	display_apn_list();
-
-
-	ret=delete_apn(cp_apn);   //delete from running code.
-	apnidx--;
-
-	if(ret!=0)
-		return 400;
-
-	printf("after deleting list\n");
-	display_apn_list();
-
-	delete_cfg_cp_apn(path,param,cp_apn);    //delete from cfg file.
-
-	construct_json(param,cp_apn,effect,temp);
-	*response_body=strdup((const char *)temp);
-
-	return 200;
-
-}
-
-
-
-	static int
-get_dp_comm_ip(const char *request_body, char **response_body)
-{
-
-	const char *value;
-	const char *param="dp_comm_ip";
-	const char *path="../config/interface.cfg";
-
-	value=dpdk_cfg_read_config_file(path,param);
-
-	char buf2[256] = "{\"dp_comm__ip\": \"";
-
-	clLog(clSystemLog, eCLSeverityInfo, "GET dp_comm_ip() body=[%s]",
-			request_body);
-
-	strcat(buf2, value);
-	strcat(buf2, "\"}\n");
-	*response_body = strdup((const char *)buf2);
-
-	return REST_SUCESSS;
-
-}
-
-	static int
-get_dp_comm_port(const char *request_body, char **response_body)
-{
-
-	const char *value;
-	const char *param="dp_comm_port";
-	const char *path="../config/interface.cfg";
-
-	value=dpdk_cfg_read_config_file(path,param);
-
-	char buf2[256] = "{\"dp_comm_port\": \"";
-
-	clLog(clSystemLog, eCLSeverityInfo, "GET dp_comm_port() body=[%s]",
-			request_body);
-
-	strcat(buf2, value);
-	strcat(buf2, "\"}\n");
-	*response_body = strdup((const char *)buf2);
-
-	return REST_SUCESSS;
-
-}
-
-	static int
-get_cp_comm_port(const char *request_body, char **response_body)
-{
-
-	const char *value;
-	const char *param="cp_comm_port";
-	const char *path="../config/interface.cfg";
-
-	value=dpdk_cfg_read_config_file(path,param);
-
-	char buf2[256] = "{\"cp_comm_port\": \"";
-
-	clLog(clSystemLog, eCLSeverityInfo, "GET cp_comm_port() body=[%s]",
-			request_body);
-
-	strcat(buf2, value);
-	strcat(buf2, "\"}\n");
-	*response_body = strdup((const char *)buf2);
-
-	return REST_SUCESSS;
-
-}
-
-	static int
-get_cp_comm_ip(const char *request_body, char **response_body)
-{
-
-	const char *value;
-	const char *param="cp_comm_ip";
-	const char *path="../config/interface.cfg";
-
-	value=dpdk_cfg_read_config_file(path,param);
-
-	char buf2[256] = "{\"cp_comm__ip\": \"";
-
-	clLog(clSystemLog, eCLSeverityInfo, "GET cp_comm_ip() body=[%s]",
-			request_body);
-
-	strcat(buf2, value);
-	strcat(buf2, "\"}\n");
-	*response_body = strdup((const char *)buf2);
-
-	return REST_SUCESSS;
-
-}
-
-	static int
-get_s11_mme_ip(const char *request_body, char **response_body)
-{
-	int ret;
-	char value[1024]={0};
-	const char *param="S11_MME_IP";
-	const char *path="../config/cp_config.cfg";
-
-	ret=read_config_file(path,param,value);
-
-	if(ret!=0)
-		return 400;
-
-
-	char buf2[256] = "{\"S11_MME_IP\": \"";
-
-	clLog(clSystemLog, eCLSeverityInfo, "GET s11_mme_ip() body=[%s]",
-			request_body);
-
-	strcat(buf2, value);
-	strcat(buf2, "\"}\n");
-	*response_body = strdup((const char *)buf2);
-
-	return REST_SUCESSS;
-
-}
-
-	static int
-get_s11_sgw_ip(const char *request_body, char **response_body)
-{
-	int ret;
-	char value[1024]={0};
-	const char *param="S11_SGW_IP";
-	const char *path="../config/cp_config.cfg";
-
-	ret=read_config_file(path,param,value);
-
-	if(ret!=0)
-		return 400;
-
-
-	char buf2[256] = "{\"S11_SGW_IP\": \"";
-
-	clLog(clSystemLog, eCLSeverityInfo, "GET s11_sgw_ip() body=[%s]",
-			request_body);
-
-	strcat(buf2, value);
-	strcat(buf2, "\"}\n");
-	*response_body = strdup((const char *)buf2);
-
-	return REST_SUCESSS;
-}
-
-	static int
-get_s1u_sgw_ip(const char *request_body, char **response_body)
-{
-	int ret;
-	char value[1024]={0};
-	const char *param="S1U_SGW_IP";
-	const char *path="../config/cp_config.cfg";
-
-	ret=read_config_file(path,param,value);
-
-	if(ret!=0)
-		return 400;
-
-
-	char buf2[256] = "{\"S1U_SGW_IP\": \"";
-
-	clLog(clSystemLog, eCLSeverityInfo, "GET s1u_sgw_ip() body=[%s]",
-			request_body);
-
-	strcat(buf2, value);
-	strcat(buf2, "\"}\n");
-	*response_body = strdup((const char *)buf2);
-
-	return REST_SUCESSS;
-
-
-}
-
-	static int
-get_s5s8_sgwu_ip(const char *request_body, char **response_body)
-{
-	int ret;
-	char value[1024]={0};
-	const char *param="S5S8_SGWU_IP";
-	const char *path="../config/cp_config.cfg";
-
-	ret=read_config_file(path,param,value);
-
-	if(ret!=0)
-		return 400;
-
-
-	char buf2[256] = "{\"S5S8_SGWU_IP\": \"";
-
-	clLog(clSystemLog, eCLSeverityInfo, "GET s5s8_sgwu_ip() body=[%s]",
-			request_body);
-
-	strcat(buf2, value);
-	strcat(buf2, "\"}\n");
-	*response_body = strdup((const char *)buf2);
-
-	return REST_SUCESSS;
-
-}
-
-	static int
-get_s5s8_sgwc_ip(const char *request_body, char **response_body)
-{
-	int ret;
-	char value[1024]={0};
-	const char *param="S5S8_SGWC_IP";
-	const char *path="../config/cp_config.cfg";
-
-	ret=read_config_file(path,param,value);
-
-	if(ret!=0)
-		return 400;
-
-
-	char buf2[256] = "{\"S5S8_SGWC_IP\": \"";
-
-	clLog(clSystemLog, eCLSeverityInfo, "GET s5s8_sgwc_ip() body=[%s]",
-			request_body);
-
-	strcat(buf2, value);
-	strcat(buf2, "\"}\n");
-	*response_body = strdup((const char *)buf2);
-
-	return REST_SUCESSS;
-
-}
-
-	static int
-get_s5s8_pgwc_ip(const char *request_body, char **response_body)
-{
-	int ret;
-	char value[1024]={0};
-	const char *param="S5S8_PGWC_IP";
-	const char *path="../config/cp_config.cfg";
-
-	ret=read_config_file(path,param,value);
-
-	if(ret!=0)
-		return 400;
-
-
-	char buf2[256] = "{\"S5S8_PGWC_IP\": \"";
-
-	clLog(clSystemLog, eCLSeverityInfo, "GET s5s8_pgwc_ip() body=[%s]",
-			request_body);
-
-	strcat(buf2, value);
-	strcat(buf2, "\"}\n");
-	*response_body = strdup((const char *)buf2);
-
-	return REST_SUCESSS;
-
-
-}
-
-	static int
-get_s5s8_pgwu_ip(const char *request_body, char **response_body)
-{
-	int ret;
-	char value[1024]={0};
-	const char *param="S5S8_PGWU_IP";
-	const char *path="../config/cp_config.cfg";
-
-	ret=read_config_file(path,param,value);
-
-	if(ret!=0)
-		return 400;
-
-
-	char buf2[256] = "{\"S5S8_PGWU_IP\": \"";
-
-	clLog(clSystemLog, eCLSeverityInfo, "GET s5s8_pgwu_ip() body=[%s]",
-			request_body);
-
-	strcat(buf2, value);
-	strcat(buf2, "\"}\n");
-	*response_body = strdup((const char *)buf2);
-
-	return REST_SUCESSS;
-
-}
-/////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////
-
-
-void display_apn_list(void)
-{
-	int i;
-	//for(i=0; i<apnidx; i++)
-	for(i=0; i<MAX_NB_DPN; i++)
-	{
-		//if(apn_list[i].apn_name_label==NULL)
-		//continue;
-		//printf("apn : %s\n",apn_list[i].apn_name_label);
-		printf("apn : %s\n",(apn_list+i)->apn_name_label);
-	}
-}
-
-
-
-int delete_apn(char *apn_label)
-{
-	int index,i;
-	apn temp;
-	apn *temp1;
-	set_apn_name(&temp,apn_label);
-
-	temp1=get_apn(temp.apn_name_label,temp.apn_name_length);
-
-	if(temp1==NULL)    //apn does not exist.
-		return -1;
-
-	index=temp1->apn_idx;
-	//printf("index :%d\n",index);
-
-	rte_free(temp.apn_name_label);            //free temporary memory.
-
-	for(i=index; i < apnidx-1; i++)           //shift all below apn.
-	{
-		apn_list[i].apn_name_label=apn_list[i+1].apn_name_label;
-		apn_list[i].apn_name_length=apn_list[i+1].apn_name_length;
-		apn_list[i].apn_idx=apn_list[i+1].apn_idx;
-	}
-
-	while(i<MAX_NB_DPN)                             //as this apn value is copied above
-	{                                               //make this apn NULL.
-		apn_list[i].apn_name_label=NULL;
-		apn_list[i].apn_name_length=0;
-		apn_list[i].apn_idx=0;
-		i++;
-	}
-
-	return 0;
-
-}
-
-
-int delete_cfg_cp_apn(const char *path, const char *param, const char *value)
-{
-
-	char buffer[256];
-	char *ptr;
-	const char *new = "temp.cfg";
-
-	FILE *file=fopen(path,"r+");
-
-	if(file==NULL){
-		printf("error while opening %s file\n",path);
-		return 1;
-	}
-
-	FILE *file_1=fopen("temp.cfg","w");
-	if(file==NULL){
-		printf("error while creating\n");
-		return 1;
-	}
-
-	while(fgets(buffer,sizeof(buffer),file)!=NULL)
-	{
-		if((ptr=strstr(buffer,param))!=NULL && buffer[0]!='#')
-		{
-			int ret;
-			char *s_ptr=NULL;
-			char buffer2[100]={0};
-			char *ptr1=buffer+4;
-			char r_buff[100]="APN=";
-
-			strncpy(buffer2,ptr1,(strlen(ptr1)-1));
-			char *parse_ptr=strtok(buffer2,",");
-
-			while(parse_ptr!=NULL)
-			{
-				ret=strcmp(parse_ptr,value);    //skip this apn.
-				if(ret==0)
-				{
-					parse_ptr = strtok(NULL,",");
-					continue;
-				}
-				strcat(r_buff,parse_ptr);
-				strcat(r_buff,",");
-				parse_ptr = strtok(NULL,",");
-
-			}
-			s_ptr=r_buff+(strlen(r_buff)-1);
-			*s_ptr='\0';
-			strcat(r_buff,"\n");
-			if(buffer[0]!=';')                    //skip comment character.
-			{
-				fputs(r_buff,file_1);
-				continue;
-			}
-		}
-		fputs(buffer,file_1);
-	}
-	fclose(file);
-	fclose(file_1);
-
-	if((remove(path))!=0)
-		printf("delete ERROR\n");
-
-	rename(new,path);
-
-	return 0;
-}
-
-
-const char *dpdk_cfg_read_config_file(const char *path,const char *param)
-{
-	const char *value;
-
-	struct rte_cfgfile *file = rte_cfgfile_load(path,0);
-
-	if (file == NULL)
-		rte_exit(EXIT_FAILURE, "Cannot load configuration profile %s\n",path);
-
-	value=rte_cfgfile_get_entry(file,"0",param);
-	if(value==NULL)
-	{
-		printf("NOT FOUND");
-		return NULL;
-	}
-
-	rte_cfgfile_close(file);
-	return value;
-
-}
-
-int read_config_file(const char *path,const char *param, char *buff)
-{
-
-	struct rte_cfgfile_parameters comment;
-	comment.comment_character='#';
-	const char *value;
-
-	struct rte_cfgfile *file = rte_cfgfile_load_with_params(path,1,&comment);
-
-	if (file == NULL)
-		rte_exit(EXIT_FAILURE, "Cannot load configuration profile %s\n",path);
-
-	value=rte_cfgfile_get_entry(file,"GLOBAL",param);
-	if(value==NULL)
-	{
-		printf("NOT FOUND");
-		return -1;
-	}
-
-	rte_cfgfile_close(file);
-	strcpy(buff,value);
-	return 0;
-
-}
-
-int change_config_file(const char *path, const char *param, const char *value)
-{
-
-	char buffer[256], temp[256];
-	char *ptr;
-	const char *new = "temp.cfg";
-
-	strcpy(temp, param);
-	strcat(temp, "=");
-	strcat(temp, value);
-	strcat(temp, "\n");
-
-	FILE *file=fopen(path,"r+");
-
-	if(file==NULL){
-		printf("error while opening %s file\n",path);
-		return 1;
-	}
-
-	FILE *file_1=fopen("temp.cfg","w");
-	if(file==NULL){
-		printf("error while creating\n");
-		return 1;
-	}
-
-	while(fgets(buffer,sizeof(buffer),file)!=NULL)
-	{
-		if((ptr=strstr(buffer,param))!=NULL && buffer[0]!='#' && buffer[0]!=';')
-		{
-			//if(buffer[0]!=';')                    //skip comment character.
-			//{
-			fputs(temp,file_1);
-			continue;
-			//}
-		}
-		fputs(buffer,file_1);
-	}
-	fclose(file);
-	fclose(file_1);
-
-	if((remove(path))!=0)
-		printf("delete ERROR\n");
-
-	rename(new,path);
-
-	return 0;
-}
-
-
-/*void get_current_file_size(size_t len)
-  {
-
-  struct stat st;
-  stat("logs/cp_stat.log",&st);
-  size_t size = st.st_size;
-  size_t max_size = (1*5000);
-//printf("current json size is %lu \n",len);
-//printf("current file size is : %lu \n",size);
-static int flag=0;
-static clock_t reset_time;
-//reset_time = clock()-cp_stats.execution_time;
-if (flag==0)
-reset_time = cp_stats.execution_time ;
-
-if( len > max_size-size )         //reset log will be take place
-{
-//reset_time+ = cp_stats.reset_time;
-reset_time = clock();
-flag=1;
-}
-
-
-//current_time = clock();
-//reset_time = current_time-cp_stats.execution_time;
-cp_stats.reset_time = clock()-reset_time;
-
-//cp_stats.reset_time = ((clock()-reset_time)/CLOCKS_PER_SEC);
-//printf("reset time is %lu",cp_stats.reset_time);
-
-}*/
-
-	void
+void
 init_rest_methods(int port_no, size_t thread_count)
 {
 	crInit(clGetAuditLogger(), port_no, thread_count);
@@ -1830,38 +449,12 @@ init_rest_methods(int port_no, size_t thread_count)
 
 	crRegisterStaticHandler(eCRCommandGet, "/statfreq", get_stat_frequency);
 	crRegisterStaticHandler(eCRCommandPost, "/statfreq", post_stat_frequency);
+
+	crRegisterStaticHandler(eCRCommandGet, "/statlogging", get_stat_logging);
+	crRegisterStaticHandler(eCRCommandPost, "/statlogging", post_stat_logging);
+
 	crRegisterStaticHandler(eCRCommandGet, "/statlive", get_stat_live);
-
-	/*Commands related with configuration */
-
-	crRegisterStaticHandler(eCRCommandGet, "/dp_comm_ip", get_dp_comm_ip);
-	crRegisterStaticHandler(eCRCommandPost, "/dp_comm_ip", post_dp_comm_ip);
-	crRegisterStaticHandler(eCRCommandGet, "/dp_comm_port", get_dp_comm_port);
-	crRegisterStaticHandler(eCRCommandPost, "/dp_comm_port", post_dp_comm_port);
-
-	crRegisterStaticHandler(eCRCommandGet, "/cp_comm_ip", get_cp_comm_ip);
-	crRegisterStaticHandler(eCRCommandPost, "/cp_comm_ip", post_cp_comm_ip);
-	crRegisterStaticHandler(eCRCommandGet, "/cp_comm_port", get_cp_comm_port);
-	crRegisterStaticHandler(eCRCommandPost, "/cp_comm_port", post_cp_comm_port);
-	crRegisterStaticHandler(eCRCommandGet, "/cp_apn", get_cp_apn);
-	crRegisterStaticHandler(eCRCommandPost, "/cp_apn", post_cp_apn);
-	crRegisterStaticHandler(eCRCommandDelete, "/cp_apn", delete_cp_apn);
-
-	crRegisterStaticHandler(eCRCommandGet, "/s11_mme_ip", get_s11_mme_ip);
-	crRegisterStaticHandler(eCRCommandGet, "/s11_sgw_ip", get_s11_sgw_ip);
-	crRegisterStaticHandler(eCRCommandGet, "/s1u_sgw_ip", get_s1u_sgw_ip);
-	crRegisterStaticHandler(eCRCommandGet, "/s5s8_sgwu_ip", get_s5s8_sgwu_ip);
-	crRegisterStaticHandler(eCRCommandGet, "/s5s8_sgwc_ip", get_s5s8_sgwc_ip);
-	crRegisterStaticHandler(eCRCommandGet, "/s5s8_pgwc_ip", get_s5s8_pgwc_ip);
-	crRegisterStaticHandler(eCRCommandGet, "/s5s8_pgwu_ip", get_s5s8_pgwu_ip);
-
-	crRegisterStaticHandler(eCRCommandPost, "/s11_mme_ip", post_s11_mme_ip);
-	crRegisterStaticHandler(eCRCommandPost, "/s11_sgw_ip", post_s11_sgw_ip);
-	crRegisterStaticHandler(eCRCommandPost, "/s1u_sgw_ip", post_s1u_sgw_ip);
-	crRegisterStaticHandler(eCRCommandPost, "/s5s8_sgwu_ip", post_s5s8_sgwu_ip);
-	crRegisterStaticHandler(eCRCommandPost, "/s5s8_sgwc_ip", post_s5s8_sgwc_ip);
-	crRegisterStaticHandler(eCRCommandPost, "/s5s8_pgwc_ip", post_s5s8_pgwc_ip);
-	crRegisterStaticHandler(eCRCommandPost, "/s5s8_pgwu_ip", post_s5s8_pgwu_ip);
+	crRegisterStaticHandler(eCRCommandGet, "/statliveall", get_stat_live_all);
 
 	crStart();
 

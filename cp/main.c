@@ -20,14 +20,16 @@
 #include <rte_cfgfile.h>
 
 #include "cp.h"
+#include "main.h"
+#include "cp_app.h"
 #include "cp_stats.h"
+#include "pfcp_util.h"
+#include "sm_struct.h"
 #include "cp_config.h"
 #include "debug_str.h"
 #include "dp_ipc_api.h"
 #include "pfcp_set_ie.h"
-#include "pfcp_util.h"
-#include "cp_app.h"
-#include "sm_struct.h"
+#include "../pfcp_messages/pfcp.h"
 
 
 #ifdef USE_REST
@@ -46,6 +48,8 @@
 
 #define REQ_ARGS           (LOG_LEVEL_SET)
 
+//#define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
+
 uint32_t start_time;
 extern pfcp_config_t pfcp_config;
 
@@ -63,6 +67,12 @@ int apnidx = 0;
 clock_t cp_stats_execution_time;
 _timer_t st_time;
 
+/*CLI :new logic definations*/
+cli_node_t cli_node = {0};
+SPeer *peer[MAX_PEER] = {NULL};
+int cnt_peer = 0;
+int nbr_of_peer = 0;
+
 /**
  * Setting/enable CP RTE LOG_LEVEL.
  */
@@ -74,7 +84,7 @@ set_log_level(uint8_t log_level)
  *  max value of RTE_LOG_INFO for enable DEBUG logs (dpdk-16.11.4
  *  and dpdk-18.02).
  */
-	if (log_level == DEBUG)
+	if (log_level == NGIC_DEBUG)
 		rte_log_set_level(RTE_LOGTYPE_CP, RTE_LOG_DEBUG);
 	else if (log_level == NOTICE)
 		rte_log_set_global_level(RTE_LOG_NOTICE);
@@ -243,6 +253,8 @@ main(int argc, char **argv)
 {
 	int ret;
 
+	//set_signal_mask();
+
 	start_time = current_ntp_timestamp();
 
 #ifdef USE_REST
@@ -278,7 +290,12 @@ main(int argc, char **argv)
 	/* TODO: Need to Re-arrange the hash initialize */
 	create_heartbeat_hash_table();
 	create_associated_upf_hash();
-	start_cp_app();
+
+	/* Make a connection between control-plane and gx_app */
+#ifdef GX_BUILD
+	if(pfcp_config.cp_type != SGWC)
+		start_cp_app();
+#endif
 
 #ifdef SYNC_STATS
 	stats_init();
@@ -305,8 +322,23 @@ main(int argc, char **argv)
 
 #endif  /* USE_REST */
 
+	init_pfcp_tables();
 	init_sm_hash();
 
+	/* VS: TODO: Need to remove this part when integrate the CCR changes */
+	/* TEST LOGIC FOR CCR SESSION ID*/
+	/*uint32_t call_id = 0;
+	uint32_t test_id = 0;
+	char str[MAX_LEN] = {0};
+	while(1) {
+		call_id = generate_call_id();
+		gen_sess_id_for_ccr(str, call_id);
+		printf("VS: sess_id:%s, Call_Id:%u\n", str, call_id);
+		test_id = retrieve_call_id(str);
+		printf("VS: Call_Id:%u\n", test_id);
+		sleep(2);
+
+	}*/
 	control_plane();
 
 	/* TODO: Move this call in appropriate place */

@@ -21,27 +21,30 @@
 #include "sm_hand.h"
 #include "sm_struct.h"
 #include "pfcp_messages.h"
-#include "gtpv2c_messages.h"
+#include "gtp_messages.h"
 #ifdef USE_DNS_QUERY
-#include "req_resp.h"
 #include "pfcp_set_ie.h"
 #endif /* USE_DNS_QUERY */
 
 uint8_t
-gtpv2c_pcnd_check(gtpv2c_header *gtpv2c_rx, int bytes_rx);
+gtpv2c_pcnd_check(gtpv2c_header_t *gtpv2c_rx, int bytes_rx);
 
 uint8_t
-gtpc_pcnd_check(gtpv2c_header *gtpv2c_rx, msg_info *msg, int bytes_rx);
+gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx);
 
 uint8_t
-gtpc_s5s8_pcnd_check(gtpv2c_header *gtpv2c_rx, msg_info *msg, int bytes_rx);
+gtpc_s5s8_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx);
 
 uint8_t
 pfcp_pcnd_check(uint8_t *pfcp_rx, msg_info *msg, int bytes_rx);
 
+uint8_t
+gx_pcnd_check(gx_msg *gx_rx, msg_info *msg);
+
 #ifdef USE_DNS_QUERY
 int
-get_upf_ip(create_session_request_t *csr, upfs_dnsres_t **_entry,
-		uint32_t *upf_ip);
+get_upf_ip(ue_context *ctxt, upfs_dnsres_t **_entry,
+		uint32_t **upf_ip);
+
 #endif /* USE_DNS_QUERY */
 #endif

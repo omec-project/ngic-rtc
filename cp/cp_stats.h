@@ -21,6 +21,7 @@
 #include <time.h>
 #include <rte_common.h>
 #define LAST_TIMER_SIZE 80
+#define __file__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 /**
  * @file
  *
@@ -31,58 +32,6 @@
  * @brief counters used to display statistics on the control plane
  */
 struct cp_stats_t {
-
-	// MME --> SGWC
-	uint64_t nbr_of_mme_to_sgwc_echo_req_rcvd;  // request  : received
-	uint64_t nbr_of_mme_to_sgwc_echo_resp_rcvd; // response : received
-
-	uint64_t nbr_of_sgwc_to_mme_echo_req_sent;  // request  : sent
-	uint64_t nbr_of_sgwc_to_mme_echo_resp_sent; // response : sent
-
-	// PGWC --> SGWC
-	uint64_t nbr_of_pgwc_to_sgwc_echo_req_rcvd;
-	uint64_t nbr_of_pgwc_to_sgwc_echo_resp_rcvd;
-
-	uint64_t nbr_of_sgwc_to_pgwc_echo_req_sent;
-	uint64_t nbr_of_sgwc_to_pgwc_echo_resp_sent;
-
-	// SGWU --> SGWC
-	uint64_t nbr_of_sgwu_to_sgwc_echo_req_rcvd;
-	uint64_t nbr_of_sgwu_to_sgwc_echo_resp_rcvd;
-
-	uint64_t nbr_of_sgwc_to_sgwu_echo_req_sent;
-	uint64_t nbr_of_sgwc_to_sgwu_echo_resp_sent;
-
-	// SGWC --> PGWC
-	uint64_t nbr_of_sgwc_to_pgwc_echo_req_rcvd;
-	uint64_t nbr_of_sgwc_to_pgwc_echo_resp_rcvd;
-
-	uint64_t nbr_of_pgwc_to_sgwc_echo_req_sent;
-	uint64_t nbr_of_pgwc_to_sgwc_echo_resp_sent;
-
-	// PGWU --> PGWC
-	uint64_t nbr_of_pgwu_to_pgwc_echo_req_rcvd;
-	uint64_t nbr_of_pgwu_to_pgwc_echo_resp_rcvd;
-
-	uint64_t nbr_of_pgwc_to_pgwu_echo_req_sent;
-	uint64_t nbr_of_pgwc_to_pgwu_echo_resp_sent;
-
-	uint64_t nbr_of_timeouts;
-
-	uint64_t nbr_of_mme_to_sgwc_timeouts;
-	uint64_t nbr_of_sgwu_to_sgwc_timeouts;
-	uint64_t nbr_of_pgwc_to_sgwc_timeouts;
-
-	uint64_t nbr_of_sgwc_to_pgwc_timeouts;
-	uint64_t nbr_of_pgwu_to_pgwc_timeouts;
-
-	int mme_status;
-	int sgwc_status;
-	int pgwc_status;
-	int sgwu_status;
-	int pgwu_status;
-	int spgwc_status;
-	int spgwu_status;
 
 	uint64_t time;
 	clock_t  execution_time;
@@ -103,73 +52,7 @@ struct cp_stats_t {
 	uint64_t rx_last;
 	uint64_t tx_last;
 
-	uint64_t number_of_ues;
-	uint64_t number_of_connected_ues;
-	uint64_t number_of_suspended_ues;
-	uint64_t sgw_nbr_of_pdn_connections;
-	uint64_t sgw_nbr_of_bearers;
-	uint64_t sgw_nbr_of_active_bearers;
-	uint64_t sgw_nbr_of_idle_bearers;
-	uint64_t sm_create_session_req_sent;
-	uint64_t sm_create_session_req_rcvd;
-	uint64_t create_session_resp_acc_rcvd;
-	uint64_t create_session_resp_rej_rcvd;
-	uint64_t sm_delete_session_req_sent;
-	uint64_t sm_delete_session_req_rcvd;
-	uint64_t sm_delete_session_resp_acc_rcvd;
-	uint64_t sm_delete_session_resp_rej_rcvd;
-
-    uint64_t session_establishment_req_sent;
-	uint64_t session_establishment_resp_acc_rcvd;
-	uint64_t session_establishment_resp_rej_rcvd;
-	uint64_t session_modification_req_sent;
-	uint64_t session_modification_resp_acc_rcvd;
-	uint64_t session_modification_resp_rej_rcvd;
-	uint64_t session_deletion_req_sent;
-	uint64_t session_deletion_resp_acc_rcvd;
-	uint64_t session_deletion_resp_rej_rcvd;
-	uint64_t association_setup_req_sent;
-	uint64_t association_setup_resp_acc_rcvd;
-	uint64_t association_setup_resp_rej_rcvd;
-
-	char create_session_time[LAST_TIMER_SIZE];
-	char modify_bearer_time[LAST_TIMER_SIZE];
-	char delete_session_time[LAST_TIMER_SIZE];
-	char number_of_ues_time[LAST_TIMER_SIZE];
-	char rel_access_bearer_time[LAST_TIMER_SIZE];
-	char ddn_time[LAST_TIMER_SIZE];
-	char ddn_ack_time[LAST_TIMER_SIZE];
-	char number_of_connected_ues_time[LAST_TIMER_SIZE];
-	char number_of_suspended_ues_time[LAST_TIMER_SIZE];
-	char sgw_nbr_of_pdn_connections_time[LAST_TIMER_SIZE];
-	char sgw_nbr_of_bearers_time[LAST_TIMER_SIZE];
-	char sgw_nbr_of_active_bearers_time[LAST_TIMER_SIZE];
-	char sgw_nbr_of_idle_bearers_time[LAST_TIMER_SIZE];
-	char sm_create_session_req_sent_time[LAST_TIMER_SIZE];
-	char sm_create_session_req_rcvd_time[LAST_TIMER_SIZE];
-	char create_session_resp_acc_rcvd_time[LAST_TIMER_SIZE];
-	char create_session_resp_rej_rcvd_time[LAST_TIMER_SIZE];
-	char sm_delete_session_req_sent_time[LAST_TIMER_SIZE];
-	char sm_delete_session_req_rcvd_time[LAST_TIMER_SIZE];
-	char sm_delete_session_resp_acc_rcvd_time[LAST_TIMER_SIZE];
-	char sm_delete_session_resp_rej_rcvd_time[LAST_TIMER_SIZE];
-
-	char session_establishment_req_sent_time[LAST_TIMER_SIZE];
-	char session_establishment_resp_acc_rcvd_time[LAST_TIMER_SIZE];
-	char session_establishment_resp_rej_rcvd_time[LAST_TIMER_SIZE];
-	char session_modification_req_sent_time[LAST_TIMER_SIZE];
-	char session_modification_resp_acc_rcvd_time[LAST_TIMER_SIZE];
-	char session_modification_resp_rej_rcvd_time[LAST_TIMER_SIZE];
-	char session_deletion_req_sent_time[LAST_TIMER_SIZE];
-	char session_deletion_resp_acc_rcvd_time[LAST_TIMER_SIZE];
-	char session_deletion_resp_rej_rcvd_time[LAST_TIMER_SIZE];
-	char association_setup_req_sent_time[LAST_TIMER_SIZE];
-	char association_setup_resp_acc_rcvd_time[LAST_TIMER_SIZE];
-	char association_setup_resp_rej_rcvd_time[LAST_TIMER_SIZE];
-
-	char s11_peer_timestamp[LAST_TIMER_SIZE];
-	char s5s8_peer_timestamp[LAST_TIMER_SIZE];
-	char sx_peer_timestamp[LAST_TIMER_SIZE];
+	char stat_timestamp[LAST_TIMER_SIZE];
 
 #ifdef SDN_ODL_BUILD
 	uint64_t nb_sent;
@@ -183,6 +66,7 @@ extern struct cp_stats_t cp_stats;
 extern int s11logger;
 extern int s5s8logger;
 extern int sxlogger;
+extern int gxlogger;
 extern int apilogger;
 extern int epclogger;
 

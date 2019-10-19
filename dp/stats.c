@@ -41,12 +41,12 @@
 #include <cmdline_socket.h>
 #include <cmdline.h>
 
-#include "main.h"
+#include "up_main.h"
 #include "stats.h"
 #include "epc_packet_framework.h"
 #include "interface.h"
-#include "meter.h"
-#include "acl_dp.h"
+//#include "meter.h"
+//#include "acl_dp.h"
 #include "commands.h"
 
 struct ul_pkt_struct {

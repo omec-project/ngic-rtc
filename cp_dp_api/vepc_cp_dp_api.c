@@ -29,22 +29,28 @@
 #include <rte_cfgfile.h>
 #include <rte_byteorder.h>
 
-#include "nb.h"
-#include "interface.h"
-#include "main.h"
-#include "util.h"
-#include "acl_dp.h"
-#include "meter.h"
-#include "vepc_cp_dp_api.h"
-#include "cp.h"
 
+#include "util.h"
 #include "pfcp_util.h"
+#include "interface.h"
+#include "pfcp_set_ie.h"
+#include "vepc_cp_dp_api.h"
+#include "pfcp_messages_encoder.h"
+
 
 #ifdef CP_BUILD
+#include "cp.h"
+#include "nb.h"
+#include "main.h"
+#include "cp_stats.h"
 #include "cp_config.h"
+#include "sm_struct.h"
+
+//TODO:Remove it
+#include "cdr.h"
+#include "meter.h"
 #endif /* CP_BUILD */
 
-#include "cp_stats.h"
 /******************** IPC msgs **********************/
 #ifdef CP_BUILD
 extern int pfcp_fd;
@@ -139,13 +145,34 @@ static int
 send_dp_msg(struct dp_id dp_id, struct msgbuf *msg_payload)
 {
 	RTE_SET_USED(dp_id);
-	if (pfcp_send(pfcp_fd, (void *)msg_payload, sizeof(struct msgbuf), &upf_pfcp_sockaddr) < 0 ){
+	pfcp_pfd_mgmt_req_t pfd_mgmt_req;
+	memset(&pfd_mgmt_req, 0, sizeof(pfcp_pfd_mgmt_req_t));
+	/* Fill pfd contents costum ie as rule  string */
+	set_pfd_contents(&pfd_mgmt_req.app_ids_pfds[0].pfd_context[0].pfd_contents[0], msg_payload);
+	/*Fill pfd request */
+	fill_pfcp_pfd_mgmt_req(&pfd_mgmt_req, 0);
+
+	uint8_t pfd_msg[512]={0};
+	uint16_t  pfd_msg_len=encode_pfcp_pfd_mgmt_req_t(&pfd_mgmt_req, pfd_msg);
+
+	pfcp_header_t *header=(pfcp_header_t *) pfd_msg;
+	header->message_len = htons(pfd_msg_len - 4);
+
+	if (pfcp_send(pfcp_fd, (char *)pfd_msg, pfd_msg_len, &upf_pfcp_sockaddr) < 0 ){
 		printf("Error sending: %i\n",errno);
+		free(pfd_mgmt_req.app_ids_pfds[0].pfd_context[0].pfd_contents[0].cstm_pfd_cntnt);
 		return -1;
 	}
+	else {
+		get_current_time(cp_stats.stat_timestamp);
+		update_cli_stats(upf_pfcp_sockaddr.sin_addr.s_addr,
+								PFCP_PFD_MGMT_REQ,
+								REQ,cp_stats.stat_timestamp);
+	}
+	free(pfd_mgmt_req.app_ids_pfds[0].pfd_context[0].pfd_contents[0].cstm_pfd_cntnt);
 	return 0;
 }
-#endif /* CP_BUILD*/
+//#endif /* CP_BUILD*/
 /******************** SDF Pkt filter **********************/
 int
 sdf_filter_table_create(struct dp_id dp_id, uint32_t max_elements)
@@ -529,3 +556,4 @@ ue_cdr_flush(struct dp_id dp_id, struct msg_ue_cdr ue_cdr)
 	return dp_ue_cdr_flush(dp_id, &ue_cdr);
 #endif
 }
+#endif /* CP_BUILD*/
