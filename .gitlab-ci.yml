@@ -1,18 +1,16 @@
 variables:
     LOCAL_ARTIFACT_DIR: "/home/gitlab-runner/artifacts/"
     GIT_IP: "10.155.205.206"
-    NGIC_BRANCH: "delivery_1.5"
     OSS_UTIL_BRANCH: "delivery_1.5"
     FDM_BRANCH: "delivery_1.5"
 
 stages:
     - build
-    - build_image
 
 build:
     stage: build
     only:
-        - $NGIC_BRANCH
+        - delivery_1.5
     before_script:
         - echo -e "*************************************\n\tNGIC Build Started\n*************************************"
     script:
