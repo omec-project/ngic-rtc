@@ -56,6 +56,11 @@ enum source_interface_value {
 	SOURCE_INTERFACE_VALUE_CP_FUNCTION =3,
 };
 
+enum destination_interface_value {
+	DESTINATION_INTERFACE_VALUE_CORE =0,
+	DESTINATION_INTERFACE_VALUE_ACCESS =1,
+};
+
 enum fq_csid_node_id_type{
 	IPV4_GLOBAL_UNICAST =0,
 	IPV6_GLOBAL_UNICAST =1,

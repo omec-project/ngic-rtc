@@ -168,6 +168,11 @@ typedef struct gtpv2c_header {
 	} teid_u;
 } gtpv2c_header;
 
+typedef struct parse_release_access_bearer_request_t {
+	gtpv2c_header_t header;
+	ue_context *context;
+	uint32_t seq;
+} rel_acc_ber_req;
 
 #pragma pack()
 
@@ -311,6 +316,7 @@ extern in_port_t s11_port;
 extern struct sockaddr_in s11_sgw_sockaddr;
 extern uint8_t s11_rx_buf[MAX_GTPV2C_UDP_LEN];
 extern uint8_t s11_tx_buf[MAX_GTPV2C_UDP_LEN];
+extern uint8_t tx_buf[MAX_GTPV2C_UDP_LEN];
 
 #ifdef USE_REST
 //VS: ECHO BUFFERS
@@ -333,6 +339,58 @@ extern struct in_addr s5s8_sgwu_ip;
 extern struct in_addr s5s8_pgwu_ip;
 
 #ifdef CP_BUILD
+
+/* SGWC S5S8 handlers:
+ * static int parse_sgwc_s5s8_create_session_response(...)
+ * int gen_sgwc_s5s8_create_session_request(...)
+ * int process_sgwc_s5s8_create_session_response(...)
+ *
+ */
+
+/** Table 7.2.1-1: Information Elements in a Create Session Response -
+ *  incomplete list */
+typedef struct parse_sgwc_s5s8_create_session_response_t {
+	uint8_t *bearer_context_to_be_created_ebi;
+	fteid_ie *pgw_s5s8_gtpc_fteid;
+	gtpv2c_ie *pdn_addr_alloc_ie;
+	gtpv2c_ie *apn_restriction_ie;
+	gtpv2c_ie *bearer_qos_ie;
+	gtpv2c_ie *bearer_tft_ie;
+	gtpv2c_ie *s5s8_pgw_gtpu_fteid;
+}sgwc_s5s8_create_session_response_t;
+
+/**
+ * parses gtpv2c message and populates parse_sgwc_s5s8_create_session_response_t structure
+ * @param gtpv2c_rx
+ *   buffer containing create bearer response message
+ * @param csr
+ *   data structure to contain required information elements from create
+ *   create session response message
+ * @return
+ *   \- 0 if successful
+ *   \- > 0 if error occurs during packet filter parsing corresponds to 3gpp
+ *   specified cause error value
+ *   \- < 0 for all other errors
+ */
+
+int
+parse_sgwc_s5s8_create_session_response(gtpv2c_header *gtpv2c_rx,
+		sgwc_s5s8_create_session_response_t *csr);
+
+/**
+ * Handles processing of sgwc s5s8 create session response messages
+ *
+ * @param gtpv2c_rx
+ *   gtpc2c message reception  buffer containing the response message
+ * @return
+ *   \- 0 if successful
+ *   \- > 0 if error occurs during packet filter parsing corresponds to 3gpp
+ *   specified cause error value
+ *   \- < 0 for all other errors
+ */
+int
+process_sgwc_s5s8_create_session_response(gtpv2c_header *gtpv2c_rx);
+
 /**
  * @brief
  * Writes packet at @tx_buf of length @payload_length to pcap file specified
@@ -446,7 +504,7 @@ set_create_session_response(gtpv2c_header *gtpv2c_tx,
  */
 int
 process_pgwc_s5s8_create_session_request(gtpv2c_header *gtpv2c_rx,
-		gtpv2c_header *gtpv2c_tx, struct in_addr *upf_ipv4);
+		struct in_addr *upf_ipv4);
 
 /**
  * Handles the generation of sgwc s5s8 create session request messages
@@ -476,23 +534,6 @@ gen_sgwc_s5s8_create_session_request(gtpv2c_header *gtpv2c_s11_rx,
 		gtpv2c_header *gtpv2c_s5s8_tx,
 		uint32_t sequence, pdn_connection *pdn,
 		eps_bearer *bearer, char *sgwu_fqdn);
-
-/**
- * Handles processing of sgwc s5s8 create session response messages
- *
- * @param gtpv2c_rx
- *   gtpc2c message reception  buffer containing the response message
- * @param gtpv2c_tx
- *   gtpc2c message transmission buffer to contain response message
- * @return
- *   \- 0 if successful
- *   \- > 0 if error occurs during packet filter parsing corresponds to 3gpp
- *   specified cause error value
- *   \- < 0 for all other errors
- */
-int
-process_sgwc_s5s8_create_session_response(gtpv2c_header *gtpv2c_rx,
-		gtpv2c_header *gtpv2c_tx);
 
 /**
  * Handles the processing of delete bearer response messages received by the
@@ -534,8 +575,6 @@ process_delete_session_request(gtpv2c_header *gtpv2c_rx,
  *
  * @param gtpv2c_rx
  *   gtpv2c message buffer containing delete session request message
- * @param gtpv2c_tx
- *   gtpv2c message buffer to contain delete session response message
  * @return
  *   \- 0 if successful
  *   \- > 0 if error occurs during packet filter parsing corresponds to 3gpp
@@ -543,8 +582,7 @@ process_delete_session_request(gtpv2c_header *gtpv2c_rx,
  *   \- < 0 for all other errors
  */
 int
-process_pgwc_s5s8_delete_session_request(gtpv2c_header *gtpv2c_rx,
-	gtpv2c_header *gtpv2c_tx);
+process_pgwc_s5s8_delete_session_request(gtpv2c_header *gtpv2c_rx);
 
 /**
  * Handles the generation of sgwc s5s8 delete session request messages
@@ -635,17 +673,14 @@ process_modify_bearer_request(gtpv2c_header *gtpv2c_rx,
  *   \- < 0 for all other errors
  */
 int
-process_release_access_bearer_request(gtpv2c_header *gtpv2c_rx,
-		gtpv2c_header *gtpv2c_tx);
-
+process_release_access_bearer_request(rel_acc_ber_req *rel_acc_ber_req_t);
 
 /**
  * Processes a Downlink Data Notification Acknowledgement message
  * (29.274 Section 7.2.11.2).  Populates the delay value @delay
  *
- * @param gtpv2c_rx
- *   gtpv2c message buffer containing the Downlink Data Notification
- *   Acknowledgement to parse
+ * @param downlink_data_notification_t
+ *   Containing the Downlink Data Notification Acknowledgement
  * @param delay
  *   \- 0 if no delay IE present
  *   \- > 0 The delay value to be parsed and set as specified in 29.274
@@ -657,7 +692,7 @@ process_release_access_bearer_request(gtpv2c_header *gtpv2c_rx,
  *   \- < 0 for all other errors
  */
 int
-process_ddn_ack(gtpv2c_header *gtpv2c_rx, uint8_t *delay);
+process_ddn_ack(downlink_data_notification_t ddn_ack, uint8_t *delay);
 
 /**
  * Creates a Downlink Data Notification message
@@ -680,6 +715,41 @@ int
 create_downlink_data_notification(ue_context *context, uint8_t eps_bearer_id,
 		uint32_t sequence, gtpv2c_header *gtpv2c_tx);
 
+
+/**
+ * parses gtpv2c message and populates downlink_data_notification_ack_t
+ *   structure
+ * @param gtpv2c_rx
+ *   buffer containing received downlink data notification ack message
+ * @param ddn_ack
+ *   structure to contain parsed information from message
+ * @return
+ *   \- 0 if successful
+ *   \- > 0 if error occurs during packet filter parsing corresponds to 3gpp
+ *   specified cause error value
+ *   \- < 0 for all other errors
+ */
+int
+parse_downlink_data_notification_ack(gtpv2c_header *gtpv2c_rx,
+			downlink_data_notification_t *ddn_ack);
+
+
+/**
+ * parses gtpv2c message and populates parse_release_access_bearer_request_t
+ *   structure
+ * @param gtpv2c_rx
+ *   buffer containing received release access bearer request message
+ * @param release_access_bearer_request
+ *   structure to contain parsed information from message
+ * @return
+ *   \- 0 if successful
+ *   \- > 0 if error occurs during packet filter parsing corresponds to 3gpp
+ *   specified cause error value
+ *   \- < 0 for all other errors
+ */
+int
+parse_release_access_bearer_request(gtpv2c_header *gtpv2c_rx,
+		rel_acc_ber_req *rel_acc_ber_req_t);
 /**
  * @brief
  * Utility to send or dump gtpv2c messages
@@ -691,4 +761,5 @@ gtpv2c_send(int gtpv2c_if_id, uint8_t *gtpv2c_tx_buf,
 
 void
 build_gtpv2_echo_request(gtpv2c_header *echo_pkt, uint16_t gtpu_seqnb);
+
 #endif /* GTPV2C_H */

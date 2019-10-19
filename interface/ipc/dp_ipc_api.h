@@ -109,7 +109,7 @@ struct ipc_node *basenode;
  *
  * This function is not thread safe and should only be called once by DP.
  */
-int iface_process_ipc_msgs(void);
+void iface_process_ipc_msgs(void);
 
 /**
  * @brief Function to Inilialize memory for IPC msg.
@@ -134,6 +134,11 @@ iface_ipc_register_msg_cb(int msg_id,
 		int (*msg_cb)(struct msgbuf *msg_payload));
 
 
+//#ifdef DP_BUILD
+int
+udp_recv(void *msg_payload, uint32_t size,
+			struct sockaddr_in *peer_addr);
+
 /**
  * @brief Functino to Process IPC msgs.
  *
@@ -142,6 +147,8 @@ iface_ipc_register_msg_cb(int msg_id,
  * 0 on success, -1 on failure
  */
 int iface_remove_que(enum cp_dp_comm id);
+void msg_handler_s11(void);
+void msg_handler_s5s8(void);
 
 #ifdef CP_BUILD
 /**

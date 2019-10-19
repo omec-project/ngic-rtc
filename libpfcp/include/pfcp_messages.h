@@ -91,6 +91,8 @@
 #define IE_ERR_INDCTN_RPT (99)
 #define PFCP_SESS_RPT_RSP (57)
 #define IE_UPD_BAR_SESS_RPT_RSP (12)
+#define IE_APPLY_ACTION_ID (44)
+#define IE_DEST_INTRFACE_ID (42)
 
 /* TODO: Revisit this for change in yang */
 #pragma pack(1)

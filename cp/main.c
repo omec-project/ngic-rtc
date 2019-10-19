@@ -27,6 +27,7 @@
 #include "pfcp_set_ie.h"
 #include "pfcp_util.h"
 #include "cp_app.h"
+#include "sm_struct.h"
 
 
 #ifdef USE_REST
@@ -45,8 +46,6 @@
 
 #define REQ_ARGS           (LOG_LEVEL_SET)
 
-#define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
-
 uint32_t start_time;
 extern pfcp_config_t pfcp_config;
 
@@ -62,6 +61,7 @@ extern struct cp_stats_t cp_stats;
 
 int apnidx = 0;
 clock_t cp_stats_execution_time;
+_timer_t st_time;
 
 /**
  * Setting/enable CP RTE LOG_LEVEL.
@@ -81,6 +81,22 @@ set_log_level(uint8_t log_level)
 	else rte_log_set_global_level(RTE_LOG_INFO);
 
 }
+
+/* This function is used to set signal mask
+ * for main thread.This maks will be inherited
+ * by all other threads as default */
+
+/*static void
+set_signal_mask(void)
+{
+	sigset_t mask;
+	sigset_t orig_mask;
+
+	sigemptyset(&mask);
+	sigaddset(&mask,(SIGRTMIN + 1));
+
+	sigprocmask(SIG_BLOCK, &mask, &orig_mask);
+}*/
 
 /**
  * Parses c-string containing dotted decimal ipv4 and stores the
@@ -172,8 +188,9 @@ parse_arg(int argc, char **argv)
  * @return
  * never returns
  */
+
 static int
-listener(__rte_unused void *arg)
+control_plane(void)
 {
 	iface_init_ipc_node();
 
@@ -185,6 +202,7 @@ listener(__rte_unused void *arg)
 
 	return 0;
 }
+
 #endif /* SDN_ODL_BUILD */
 
 /**
@@ -193,15 +211,6 @@ listener(__rte_unused void *arg)
 static void
 init_cp_params(void) {
 	unsigned last_lcore = rte_get_master_lcore();
-
-#ifndef SDN_ODL_BUILD
-	cp_params.nb_core_id = rte_get_next_lcore(last_lcore, 1, 0);
-
-	if (cp_params.nb_core_id == RTE_MAX_LCORE)
-		rte_panic("Insufficient cores in coremask to "
-				"spawn nb thread\n");
-	last_lcore = cp_params.nb_core_id;
-#endif
 
 	cp_params.stats_core_id = rte_get_next_lcore(last_lcore, 1, 0);
 	if (cp_params.stats_core_id == RTE_MAX_LCORE)
@@ -243,8 +252,7 @@ main(int argc, char **argv)
 	/* VS: Increment the restart counter value after starting control plane */
 	rstCnt = update_rstCnt();
 
-	cp_stats_execution_time = clock();
-
+	TIMER_GET_CURRENT_TP(st_time);
 	printf("CP: Control-Plane rstCnt: %u\n", rstCnt);
 	recovery_time_into_file(start_time);
 
@@ -288,9 +296,7 @@ main(int argc, char **argv)
 #ifdef SDN_ODL_BUILD
 	init_nb();
 	server();
-#else
-	if (cp_params.nb_core_id != RTE_MAX_LCORE)
-		rte_eal_remote_launch(listener, NULL, cp_params.nb_core_id);
+#endif
 
 #ifdef USE_REST
 
@@ -299,9 +305,9 @@ main(int argc, char **argv)
 
 #endif  /* USE_REST */
 
-	while (1)
-		control_plane();
-#endif
+	init_sm_hash();
+
+	control_plane();
 
 	/* TODO: Move this call in appropriate place */
 	/* clear_heartbeat_hash_table(); */

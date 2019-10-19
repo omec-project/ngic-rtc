@@ -224,7 +224,7 @@ Description -Network Instance
 typedef struct pfcp_ntwk_inst_ie_t {
   pfcp_ie_header_t header;
 /* TODO: Revisit this for change in yang */
-  uint8_t ntwk_inst[8];
+  uint8_t ntwk_inst[32];
 } pfcp_ntwk_inst_ie_t;
 
 /**

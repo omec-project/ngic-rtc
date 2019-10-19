@@ -1069,8 +1069,8 @@ void dp_table_init(void)
 			sizeof(uint32_t));
 
 #ifdef PCAP_GEN
-	printf("\n\npcap files will be overwritten. Press ENTER to continue...\n");
-	getchar();
+	//printf("\n\npcap files will be overwritten. Press ENTER to continue...\n");
+	//getchar();
 
 	char east_file[PCAP_FILENAME_LEN] = {0};
 	char west_file[PCAP_FILENAME_LEN] = {0};

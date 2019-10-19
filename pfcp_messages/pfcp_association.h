@@ -20,8 +20,8 @@
 #include "pfcp_messages.h"
 
 #ifdef CP_BUILD
-#define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
-#endif
+#include "sm_struct.h"
+#endif /* CP_BUILD */
 
 void
 fill_pfcp_association_update_resp(pfcp_assn_upd_rsp_t *pfcp_asso_update_resp);
@@ -56,4 +56,12 @@ fill_pfcp_heartbeat_req(pfcp_hrtbeat_req_t *pfcp_heartbeat_req, uint32_t seq);
 void
 fill_pfcp_sess_report_resp(pfcp_sess_rpt_rsp_t *pfcp_sess_rep_resp, uint32_t seq);
 
+#ifdef CP_BUILD
+uint8_t
+process_pfcp_ass_resp(msg_info *msg, struct sockaddr_in *peer_addr);
+
+int
+buffer_csr_request(create_session_request_t *csr,
+		upf_context_t *upf_context);
+#endif /* CP_BUILD */
 #endif /* PFCP_ASSOC_H */

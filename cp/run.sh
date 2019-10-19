@@ -28,7 +28,7 @@ NUMA0_MEMORY=$MEMORY
 NUMA1_MEMORY=0
 
 #Set corelist here
-CORELIST="0-3"
+CORELIST="0-1"
 
 NOW=$(date +"%Y-%m-%d_%H-%M")
 FILE="logs/cp_$NOW.log"

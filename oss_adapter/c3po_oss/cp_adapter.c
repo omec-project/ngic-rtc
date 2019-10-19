@@ -23,28 +23,123 @@
 #include "../../cp/gtpv2c.h"
 #include "../../cp/ue.h"
 
-//struct cp_stats_t cp_stats;
 
-//extern struct in_addr dp_comm_ip;
-//extern struct in_addr cp_comm_ip;
+char last_timer_default [] = "1970-01-01T00:00:00";
 
-//extern uint16_t dp_comm_port;
-//extern uint16_t cp_comm_port;
+const char *
+get_lastactivity_time_pgwc(int category_id, int value_id, int peer_id)
+{
+	char *value= last_timer_default;
+
+	switch(category_id) {
+
+		case sx_interface_pgwc:
+			switch(peer_id) {
+				case peer1_pgwc:
+					switch(value_id) {
+
+						case peer_lastactivity:
+							value = cp_stats.sx_peer_timestamp;
+							break;
+						default:
+							break;
+							}
+					break;
+				default:
+					break;
+				}
+				break;
+		case s5s8_interface_pgwc:
+			switch(value_id) {
+				case peer_lastactivity:
+					value = cp_stats.s5s8_peer_timestamp;
+					break;
+				default:
+					break;
+			}
+			break;
+		default:
+			break;
+	}
+
+	if (strlen(value) == 0)
+		value = last_timer_default;
+	return value;
+}
+
+const char *
+get_lastactivity_time_sgwc(int category_id, int value_id, int peer_id)
+{
+	char *value= last_timer_default;
+
+	switch (category_id)
+	{
+	case s11_interface:
+		switch (peer_id)
+		{
+		case peer1:
+			switch(value_id)
+			{
+			case peer_lastactivity:
+				value = cp_stats.s11_peer_timestamp;
+				break;
+			default:
+				break;
+			}
+			break;
+
+			default:
+				break;
+		}
+		break;
+		case sx_interface:
+			switch(peer_id) {
+				case peer1:
+					switch(value_id) {
+						case peer_lastactivity:
+							value = cp_stats.sx_peer_timestamp;
+							break;
+						default:
+							break;
+						}
+						break;
+				default:
+					break;
+				}
+			break;
+		case s5s8_interface:
+			switch(value_id) {
+				case peer_lastactivity:
+					value = cp_stats.s5s8_peer_timestamp;
+					break;
+				default:
+					break;
+				}
+			break;
+	default:
+		break;
+	}
+
+	if (strlen(value) == 0)
+		value = last_timer_default;
+return value;
+
+}
+
 
 int64_t
 get_stat_common(int value_id)
 {
 	int64_t value = 0;
-	clock_t t;
+	//_timer_t up_time;
 	switch(value_id) {
 		case active_session:
 			value = cp_stats.create_session - cp_stats.delete_session;
 			break;
 		case upsecs:
-			t = clock() - cp_stats.execution_time;
-			double time_taken = ((double)t)/CLOCKS_PER_SEC;
-			value = ceil(time_taken);
-			value = (int)time_taken;
+			//up_time = TIMER_GET_ELAPSED_NS(st_time);
+			//value = (up_time/1000000000);
+			value = cp_stats.time;
 			break;
 		default:
 			break;
@@ -138,33 +233,15 @@ get_stat_health_pgwc(int category_id, int value_id, int peer_id)
 		default:
 			break;
 	}
+
 	return value;
 }
-
-/*int64_t
-get_peer_status(int category_id, int value_id, int peer_id)
-{
-	int64_t value = 0;
-
-	switch(category_id)
-	{
-		case s11_interface:
-			break;
-		case sx_interface:
-			break;
-
-	}
-
-}*/
-
-
 
 	int64_t
 get_stat_health(int category_id, int value_id, int peer_id)
 {
 	int64_t value = 0;
-	//peer_id = 4;
-	//value = peer_id - 4;
+
 	switch(category_id) {
 		case s11_interface:
 			switch(peer_id)
@@ -214,23 +291,18 @@ get_stat_health(int category_id, int value_id, int peer_id)
 							value = cp_stats.sgwu_status;
 							break;
 						case set_timeouts:
-							//value = 789;
 							value = cp_stats.nbr_of_sgwu_to_sgwc_timeouts;
 							break;
 						case set_req_sent:
-							value = 104;
 							value = cp_stats.nbr_of_sgwc_to_sgwu_echo_req_sent;
 							break;
 						case set_req_received:
-							value = 105;
 							value = cp_stats.nbr_of_sgwu_to_sgwc_echo_req_rcvd;
 							break;
 						case set_resp_sent :
-							value = 106;
 							value = cp_stats.nbr_of_sgwc_to_sgwu_echo_resp_sent;
 							break;
 						case set_resp_received:
-							value = 107;
 							value = cp_stats.nbr_of_sgwu_to_sgwc_echo_resp_rcvd;
 							break;
 						default:
@@ -252,23 +324,18 @@ get_stat_health(int category_id, int value_id, int peer_id)
 							value = cp_stats.pgwc_status;
 							break;
 						case set_timeouts:
-							//value = 789;
 							value = cp_stats.nbr_of_pgwc_to_sgwc_timeouts;
 							break;
 						case set_req_sent:
-							value = 104;
 							value = cp_stats.nbr_of_sgwc_to_pgwc_echo_req_sent;
 							break;
 						case set_req_received:
-							value = 105;
 							value = cp_stats.nbr_of_pgwc_to_sgwc_echo_req_rcvd;
 							break;
 						case set_resp_sent :
-							value = 106;
 							value = cp_stats.nbr_of_sgwc_to_pgwc_echo_resp_sent;
 							break;
 						case set_resp_received:
-							value = 107;
 							value = cp_stats.nbr_of_pgwc_to_sgwc_echo_resp_rcvd;
 							break;
 						default:
@@ -283,59 +350,15 @@ get_stat_health(int category_id, int value_id, int peer_id)
 	return value;
 }
 
-	int64_t
+int64_t
 get_stat_spgwc(int category_id, int value_id, int peer_id)
 {
 	int64_t value = 0;
-	//clock_t t;
-	//size_t len ;
 	switch(category_id) {
-		/*
-		   case common_stat:
-		   switch(value_id) {
-		   case active_session:
-		   value = cp_stats.create_session - cp_stats.delete_session;
-		   break;
-		   case upsecs:
-		   t = clock() - cp_stats.execution_time;
-		   double time_taken = ((double)t)/CLOCKS_PER_SEC;
-		   value = ceil(time_taken);
-		   value = (int)time_taken;
-		//printf("upsec is %lu\n",value);
-		break;
-		case resetsecs:
-		len = 965;
-		get_current_file_size(len);
-		t = cp_stats.reset_time;
-		time_taken = ((double)t)/CLOCKS_PER_SEC;
-		value = ceil(time_taken);
-		value = (int)time_taken;
-		//printf("reset time is %lu\n",value);
 
-
-		break;
-		default:
-		break;
-		}
-		break;*/
 		case s11_interface:
 			switch(value_id) {
 
-				/*case set_timeouts:
-				  value = 13;
-				  break;
-				  case set_req_sent:
-				  value = cp_stats.number_of_sgwc_health_req++;
-				  break;
-				  case set_req_received:
-				  value = cp_stats.number_of_mme_resp_to_sgwc_health_req++;
-				  break;
-				  case set_resp_sent:
-				  value = cp_stats.number_of_mme_health_req;
-				  break;
-				  case set_resp_received:
-				  value = cp_stats.number_of_sgwc_resp_to_mme_health_req;
-				  break;*/
 				case create_session:
 					value = cp_stats.create_session;
 					break;
@@ -346,25 +369,15 @@ get_stat_spgwc(int category_id, int value_id, int peer_id)
 					value = cp_stats.delete_session;
 					break;
 				case number_of_ues:
-					//value = cp_stats.number_of_ues;
 					value = cp_stats.create_session-cp_stats.delete_session;
 					break;
 				case release_access_bearer:
 					value = cp_stats.rel_access_bearer;
 					break;
-					/*case number_of_connected_ues:
-					//value = cp_stats.number_of_connected_ues;
-					value = cp_stats.create_session-cp_stats.delete_session;
-					break;*/
-				/*case number_of_suspended_ues:
-					//value = cp_stats.rel_access_bearer;
-					value = cp_stats.create_session-cp_stats.delete_session;
-					break;*/
 				case downlink_data_notification_ack:
 					value = cp_stats.ddn_ack;
 					break;
 				case sgw_nbr_of_pdn_connections:
-					//value = cp_stats.number_of_ues;
 					value = cp_stats.create_session-cp_stats.delete_session;
 					break;
 				case sgw_nbr_of_bearers:
@@ -373,14 +386,6 @@ get_stat_spgwc(int category_id, int value_id, int peer_id)
 				case downlink_data_notification_req_send:
 					value = cp_stats.ddn;
 					break;
-				/*case sgw_nbr_of_active_bearers:
-					//value = cp_stats.create_session - cp_stats.rel_access_bearer - cp_stats.delete_session;
-					value = cp_stats.create_session-cp_stats.delete_session;
-					break;
-				case sgw_nbr_of_idle_bearers:
-					//value = cp_stats.rel_access_bearer;
-					value = cp_stats.create_session-cp_stats.delete_session;
-					break;*/
 				default:
 					break;
 				}
@@ -389,44 +394,17 @@ get_stat_spgwc(int category_id, int value_id, int peer_id)
 			switch(peer_id) {
 				case peer1:
 					switch(value_id) {
-						/*case set_resp_timeout:
-							value = 18;
-							break;
-						case set_max_timeouts:
-							value = 19;
-							break;
-						case set_timeouts:
-							value = 20;
-							break;
-						case set_req_sent:
-							value = 21;
-							break;
-						case set_req_received:
-							value = 22;
-							break;
-						case set_resp_sent:
-							value = 23;
-							break;
-						case set_resp_received:
-							value = 24;
-							break;*/
 						case session_establishment_req_sent:
 							value = cp_stats.session_establishment_req_sent;
 							break;
 						case session_establishment_resp_acc_rcvd:
 							value = cp_stats.session_establishment_resp_acc_rcvd;
 							break;
-						case session_establishment_resp_rej_rcvd:
-							value = cp_stats.session_establishment_resp_rej_rcvd;
-						        break;
 						case session_deletion_req_sent:
 							value = cp_stats.session_deletion_req_sent;
 							break;
 						case session_deletion_resp_acc_rcvd:
 							value = cp_stats.session_deletion_resp_acc_rcvd;
-							break;
-						case session_deletion_resp_rej_rcvd:
-							value = cp_stats.session_deletion_resp_rej_rcvd;
 							break;
 						case association_setup_req_sent:
 							value = cp_stats.association_setup_req_sent;
@@ -434,17 +412,11 @@ get_stat_spgwc(int category_id, int value_id, int peer_id)
 						case association_setup_resp_acc_rcvd:
 							value = cp_stats.association_setup_resp_acc_rcvd;
 							break;
-						case association_setup_resp_rej_rcvd:
-							value = cp_stats.association_setup_resp_rej_rcvd;
-							break;
 						case session_modification_req_sent:
 							value = cp_stats.session_modification_req_sent;
 							break;
 						case session_modification_resp_acc_rcvd:
 							value = cp_stats.session_modification_resp_acc_rcvd;
-							break;
-						case session_modification_resp_rej_rcvd:
-							value = cp_stats.session_modification_resp_rej_rcvd;
 							break;
 						case downlink_data_notification:
 							value = cp_stats.ddn;
@@ -459,58 +431,17 @@ get_stat_spgwc(int category_id, int value_id, int peer_id)
 			break;
 		case s5s8_interface:
 			switch(value_id) {
-				/*case set_resp_timeout:
-					value = 18;
-					break;
-				case set_max_timeouts:
-					value = 19;
-					break;
-				case set_timeouts:
-					value = 20;
-					break;
-				case set_req_sent:
-					value = 21;
-					break;
-				case set_req_received:
-					value = 22;
-					break;
-				case set_resp_sent:
-					value = 23;
-					break;
-				case set_resp_received:
-					value = 24;
-					break;*/
 				case sm_create_session_req_sent:
 					value = cp_stats.sm_create_session_req_sent;
 					break;
 				case sm_create_session_resp_acc_rcvd:
 					value = cp_stats.create_session_resp_acc_rcvd;
 					break;
-				case sm_create_session_resp_rej_rcvd:
-					value = cp_stats.create_session_resp_rej_rcvd;
-					break;
 				case sm_delete_session_req_sent:
 					value = cp_stats.sm_delete_session_req_sent;
 					break;
 				case sm_delete_session_resp_acc_rcvd:
 					value = cp_stats.sm_delete_session_resp_acc_rcvd;
-					break;
-				case sm_delete_session_resp_rej_rcvd:
-					value = cp_stats.sm_delete_session_resp_rej_rcvd;
-					break;
-				/*case sm_create_session_req_rcvd:
-					value = cp_stats.sm_create_session_req_rcvd;
-					value = 31;
-					break;
-				case sm_delete_session_req_rcvd:
-					value = cp_stats.sm_delete_session_req_rcvd;
-					value = 32;
-					break;
-				case sm_s5s8_nbr_of_ues:
-					value = cp_stats.create_session-cp_stats.delete_session;
-					value = 33;
-					break;*/
-
 				default:
 					break;
 				}
@@ -529,101 +460,31 @@ int64_t
 get_stat_pgwc(int category_id, int value_id, int peer_id)
 {
 	int64_t value = 0;
-	//clock_t t;
-	//size_t len ;
+
 	switch(category_id) {
-	/*
-		case common_stat_pgwc:
-			switch(value_id) {
-				case active_session_pgwc:
-					value = cp_stats.create_session - cp_stats.delete_session;
-					break;
-				case upsecs_pgwc:
-					t = clock() - cp_stats.execution_time;
-					double time_taken = ((double)t)/CLOCKS_PER_SEC;
-					value = ceil(time_taken);
-					value = (int)time_taken;
-					//printf("upsec is %lu\n",value);
-					break;
-					case resetsecs:
-					  len = 965;
-					  get_current_file_size(len);
-					  t = cp_stats.reset_time;
-					  time_taken = ((double)t)/CLOCKS_PER_SEC;
-					  value = ceil(time_taken);
-					  value = (int)time_taken;
-					//printf("reset time is %lu\n",value);
 
-
-					break;
-				default:
-					break;
-			}
-			break;
-	*/
 		case sx_interface_pgwc:
 			switch(peer_id) {
 				case peer1_pgwc:
 					switch(value_id) {
-						/*case set_resp_timeout_pgwc:
-							value = 18;
-							break;
-						case set_max_timeouts_pgwc:
-							value = 19;
-							break;
-						case set_timeouts_pgwc:
-							value = 20;
-							break;
-						case set_req_sent_pgwc:
-							value = 21;
-							break;
-						case set_req_received_pgwc:
-							value = 22;
-							break;
-						case set_resp_sent_pgwc:
-							value = 23;
-							break;
-						case set_resp_received_pgwc:
-							value = 24;
-							break;*/
+
 						case session_establishment_req_sent_pgwc:
 							value = cp_stats.session_establishment_req_sent;
 							break;
 						case session_establishment_resp_acc_rcvd_pgwc:
 							value = cp_stats.session_establishment_resp_acc_rcvd;
 							break;
-						case session_establishment_resp_rej_rcvd_pgwc:
-							value = cp_stats.session_establishment_resp_rej_rcvd;
-						        break;
-						/*case session_modification_req_sent_pgwc:
-							value = cp_stats.session_modification_req_sent;
-							value = 224;
-							break;
-						case session_modification_resp_acc_rcvd_pgwc:
-							value = cp_stats.session_modification_resp_acc_rcvd;
-							value = 225;
-							break;
-						case session_modification_resp_rej_rcvd_pgwc:
-							value = cp_stats.session_modification_resp_rej_rcvd;
-							value = 226;
-							break;*/
 						case session_deletion_req_sent_pgwc:
 							value = cp_stats.session_deletion_req_sent;
 							break;
 						case session_deletion_resp_acc_rcvd_pgwc:
 							value = cp_stats.session_deletion_resp_acc_rcvd;
 							break;
-						case session_deletion_resp_rej_rcvd_pgwc:
-							value = cp_stats.session_deletion_resp_rej_rcvd;
-							break;
 						case association_setup_req_sent_pgwc:
 							value = cp_stats.association_setup_req_sent;
 							break;
 						case association_setup_resp_acc_rcvd_pgwc:
 							value = cp_stats.association_setup_resp_acc_rcvd;
-							break;
-						case association_setup_resp_rej_rcvd_pgwc:
-							value = cp_stats.association_setup_resp_rej_rcvd;
 							break;
 						default:
 							break;
@@ -654,49 +515,184 @@ get_stat_pgwc(int category_id, int value_id, int peer_id)
 	}
 	return value;
 }
-/*const char *
-  get_time_stat(int category_id, int value_id, int peer_id)
-  {
-
-//category_id = interface_id
-//peer_id = peer_id
-//value_id = message_id
-
-const char *value=NULL;
 
 
-switch (category_id)
+
+
+const char *
+get_time_stat_pgwc(int category_id, int value_id, int peer_id)
 {
-case 0:
+	char *value= last_timer_default;
 
-switch (peer_id)
+	switch(category_id) {
+
+		case sx_interface_pgwc:
+			switch(peer_id) {
+				case peer1_pgwc:
+					switch(value_id) {
+
+						case session_establishment_req_sent_pgwc:
+							value = cp_stats.session_establishment_req_sent_time;
+							break;
+						case session_establishment_resp_acc_rcvd_pgwc:
+							value = cp_stats.session_establishment_resp_acc_rcvd_time;
+							break;
+						case session_deletion_req_sent_pgwc:
+							value = cp_stats.session_deletion_req_sent_time;
+							break;
+						case session_deletion_resp_acc_rcvd_pgwc:
+							value = cp_stats.session_deletion_resp_acc_rcvd_time;
+							break;
+						case association_setup_req_sent_pgwc:
+							value = cp_stats.association_setup_req_sent_time;
+							break;
+						case association_setup_resp_acc_rcvd_pgwc:
+							value = cp_stats.association_setup_resp_acc_rcvd_time;
+							break;
+						default:
+							break;
+							}
+					break;
+				default:
+					break;
+				}
+				break;
+		case s5s8_interface_pgwc:
+			switch(value_id) {
+				case sm_create_session_req_rcvd_pgwc:
+					value = cp_stats.sm_create_session_req_rcvd_time;
+					break;
+				case sm_delete_session_req_rcvd_pgwc:
+					value = cp_stats.sm_delete_session_req_rcvd_time;
+					break;
+				case sm_s5s8_nbr_of_ues_pgwc:
+					value = cp_stats.number_of_ues_time;
+					break;
+
+				default:
+					break;
+			}
+			break;
+		default:
+			break;
+	}
+	if (strlen(value) == 0)
+                value = last_timer_default;
+	return value;
+}
+
+const char *
+get_time_stat(int category_id, int value_id, int peer_id)
 {
-case 0:
-switch(value_id)
-{
-case create_session:
-value = cp_stats.create_session_time;
-break;
-case delete_session:
-value = cp_stats.delete_session_time;
-break;
-default:
-break;
-}
-default :
-break;
-}
-break;
-default:
-break;
+	char *value= last_timer_default;
 
-}
+	switch (category_id)
+	{
+	case s11_interface:
+		switch (peer_id)
+		{
+		case peer1:
+			switch(value_id)
+			{
+			case create_session:
+				value = cp_stats.create_session_time;
+				break;
+			case modify_bearer:
+				value = cp_stats.modify_bearer_time;
+				break;
+			case delete_session:
+				value = cp_stats.delete_session_time;
+				break;
+			case number_of_ues:
+				value = cp_stats.number_of_ues_time;
+				break;
+			case release_access_bearer:
+				value = cp_stats.rel_access_bearer_time;
+				break;
+			case downlink_data_notification_ack:
+				value = cp_stats.ddn_ack_time;
+				break;
+			case sgw_nbr_of_pdn_connections:
+				value = cp_stats.number_of_ues_time;
+				break;
+			case sgw_nbr_of_bearers:
+				value = cp_stats.number_of_ues_time;
+				break;
+			case downlink_data_notification_req_send:
+				value = cp_stats.ddn_time;
+				break;
+			default:
+				break;
+			}
+			break;
 
+			default:
+				break;
+		}
+		break;
+		case sx_interface:
+			switch(peer_id) {
+				case peer1:
+					switch(value_id) {
+						case session_establishment_req_sent:
+							value = cp_stats.session_establishment_req_sent_time;
+							break;
+						case session_establishment_resp_acc_rcvd:
+							value = cp_stats.session_establishment_resp_acc_rcvd_time;
+							break;
+						case session_deletion_req_sent:
+							value = cp_stats.session_deletion_req_sent_time;
+							break;
+						case session_deletion_resp_acc_rcvd:
+							value = cp_stats.session_deletion_resp_acc_rcvd_time;
+							break;
+						case association_setup_req_sent:
+							value = cp_stats.association_setup_req_sent_time;
+							break;
+						case association_setup_resp_acc_rcvd:
+							value = cp_stats.association_setup_resp_acc_rcvd_time;
+							break;
+						case session_modification_req_sent:
+							value = cp_stats.session_modification_req_sent_time;
+							break;
+						case session_modification_resp_acc_rcvd:
+							value = cp_stats.session_modification_resp_acc_rcvd_time;
+							break;
+						default:
+							break;
+						}
+						break;
+				default:
+					break;
+				}
+			break;
+		case s5s8_interface:
+			switch(value_id) {
+				case sm_create_session_req_sent:
+					value = cp_stats.sm_create_session_req_sent_time;
+					break;
+				case sm_create_session_resp_acc_rcvd:
+					value = cp_stats.create_session_resp_acc_rcvd_time;
+					break;
+				case sm_delete_session_req_sent:
+					value = cp_stats.sm_delete_session_req_sent_time;
+					break;
+				case sm_delete_session_resp_acc_rcvd:
+					value = cp_stats.sm_delete_session_resp_acc_rcvd_time;
+					break;
+				default:
+					break;
+				}
+			break;
+	default:
+		break;
+	}
+
+	if (strlen(value) == 0)
+		value = last_timer_default;
 return value;
 
-}*/
-
-
+}
 
 
 

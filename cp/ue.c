@@ -19,6 +19,8 @@
 #include "interface.h"
 
 
+extern pfcp_config_t pfcp_config;
+
 struct rte_hash *ue_context_by_imsi_hash;
 struct rte_hash *ue_context_by_fteid_hash;
 
@@ -190,7 +192,7 @@ print_ue_context_by(struct rte_hash *h, ue_context *context)
 
 int
 create_ue_context(uint8_t *imsi_val, uint16_t imsi_len,
-		uint8_t ebi, ue_context **context)
+		uint8_t ebi, ue_context **context, apn *apn_requested)
 {
 	int ret;
 	int i;
@@ -225,6 +227,17 @@ create_ue_context(uint8_t *imsi_val, uint16_t imsi_len,
 			rte_free((*context));
 			return GTPV2C_CAUSE_SYSTEM_FAILURE;
 		}
+	} else {
+		/* VS: TODO: Need to think on this, flush entry when received DSR*/
+		RTE_SET_USED(apn_requested);
+		/*if ((strncmp(apn_requested->apn_name_label,
+					(((*context)->pdns[ebi - 5])->apn_in_use)->apn_name_label,
+					sizeof(apn_requested->apn_name_length))) == 0) {
+			fprintf(stderr,
+				"%s- Discarding re-transmitted csr received for IMSI:%lu \n",
+				__func__, imsi);
+			return -1;
+		}*/
 	}
 
 	if ((spgw_cfg == SGWC) || (spgw_cfg == SAEGWC)) {
@@ -354,10 +367,9 @@ get_apn(char *apn_label, uint16_t apn_length)
 	        }
 	}
 	if(i >= MAX_NB_DPN)     {
-		fprintf(stderr,
-		"Received create session"
-		"request with incorrect"
-		"apn_label :%s", apn_label);
+		fprintf(stderr,"APN \"%s\" received in create session "
+				"request doesn't match with the list of apn in "
+				"CP configuaration file\n", apn_label);
 		return NULL;
 	}
 

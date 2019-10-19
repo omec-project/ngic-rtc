@@ -40,6 +40,11 @@
 
 #include "pfcp_util.h"
 
+#ifdef CP_BUILD
+#include "cp_config.h"
+#endif /* CP_BUILD */
+
+#include "cp_stats.h"
 /******************** IPC msgs **********************/
 #ifdef CP_BUILD
 extern int pfcp_fd;
@@ -115,7 +120,7 @@ build_dp_msg(enum dp_msg_type mtype, struct dp_id dp_id,
 				*(struct downlink_data_notification *)param;
 		break;
 	default:
-		RTE_LOG_DP(ERR, API, "build_dp_msg: Invalid msg type\n");
+		clLog(apilogger, eCLSeverityCritical, "build_dp_msg: Invalid msg type\n");
 		return -1;
 	}
 	return 0;

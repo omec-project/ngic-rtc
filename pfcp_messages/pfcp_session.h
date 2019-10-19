@@ -17,11 +17,12 @@
 #ifndef PFCP_SESSION_H
 #define PFCP_SESSION_H
 
-#include "gtpv2c.h"
 #include "pfcp_messages.h"
 
 #ifdef CP_BUILD
+#include "gtpv2c.h"
 #include "req_resp.h"
+#include "sm_struct.h"
 #include "gtpv2c_ie.h"
 #include "pfcp_set_ie.h"
 #include "gtpv2c_set_ie.h"
@@ -45,7 +46,9 @@ stats_update(uint8_t msg_type);
 
 void
 fill_pfcp_session_est_resp(pfcp_sess_estab_rsp_t
-				*pfcp_sess_est_resp, uint8_t cause, int offend);
+				*pfcp_sess_est_resp, uint8_t cause, int offend,
+				struct in_addr dp_comm_ip,
+				struct pfcp_sess_estab_req_t *pfcp_session_request);
 void
 fill_pfcp_sess_set_del_resp(pfcp_sess_set_del_rsp_t *pfcp_sess_set_del_resp);
 
@@ -54,8 +57,8 @@ fill_pfcp_sess_del_resp(pfcp_sess_del_rsp_t
 			*pfcp_sess_del_resp, uint8_t cause, int offend);
 
 void
-fill_pfcp_session_modify_resp(pfcp_sess_mod_rsp_t
-			*pfcp_sess_modify_resp, uint8_t cause, int offend);
+fill_pfcp_session_modify_resp(pfcp_sess_mod_rsp_t *pfcp_sess_modify_resp,
+		pfcp_sess_mod_req_t *pfcp_session_mod_req, uint8_t cause, int offend);
 #ifdef CP_BUILD
 void
 fill_pfcp_sess_est_req( pfcp_sess_estab_req_t *pfcp_sess_est_req,
@@ -64,8 +67,17 @@ fill_pfcp_sess_est_req( pfcp_sess_estab_req_t *pfcp_sess_est_req,
 
 void
 fill_pfcp_sess_mod_req( pfcp_sess_mod_req_t *pfcp_sess_mod_req,
-		gtpv2c_header *header, ue_context *context, eps_bearer *bearer,
+		gtpv2c_header_t *header, ue_context *context, eps_bearer *bearer,
 		pdn_connection *pdn);
+
+uint8_t
+process_pfcp_sess_est_resp(uint64_t sess_id, gtpv2c_header *gtpv2c_tx);
+
+uint8_t
+process_pfcp_sess_mod_resp(uint64_t sess_id, gtpv2c_header *gtpv2c_tx);
+
+uint8_t
+process_pfcp_sess_del_resp(uint64_t sess_id, gtpv2c_header *gtpv2c_tx);
 #else
 void
 fill_pfcp_sess_est_req( pfcp_sess_estab_req_t *pfcp_sess_est_req);

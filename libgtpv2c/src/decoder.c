@@ -881,7 +881,7 @@ decode_bearer_context_modified_ie_t(uint8_t *buf,
  * @return
  *   number of decoded bytes.
  */
-static int
+int
 decode_gtpv2c_header_t(uint8_t *buf, gtpv2c_header_t *header)
 {
 	uint16_t count = 0;
@@ -1244,6 +1244,9 @@ decode_delete_session_request_t(uint8_t *msg,
 				ie_header->instance == IE_INSTANCE_ZERO) {
 			count += decode_indication_ie_t(msg + count,
 					&ds_req->indication_flags);
+		}else if (ie_header->type == IE_ULI &&
+				ie_header->instance == IE_INSTANCE_ZERO) {
+			count += decode_uli_ie_t(msg + count, &ds_req->uli);
 		} else {
 			count += sizeof(ie_header_t) + ntohs(ie_header->len);
 		}

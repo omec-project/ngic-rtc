@@ -28,6 +28,8 @@ typedef struct udp_sock_t {
 	struct sockaddr_in my_addr;
 	struct sockaddr_in other_addr;
 	int sock_fd;
+	int sock_fd_s11;
+	int sock_fd_s5s8;
 } udp_sock_t;
 
 /**

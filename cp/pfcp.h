@@ -17,6 +17,8 @@
 #ifndef PFCP_H
 #define PFCP_H
 
+struct rte_hash *pfcp_cntxt_hash;
+
 /**
  * @file
  *
@@ -44,5 +46,64 @@ extern struct sockaddr_in pfcp_sockaddr;
 
 extern in_port_t upf_pfcp_port;
 extern struct sockaddr_in upf_pfcp_sockaddr;
+
+/*
+ *   PFCP context information for PDR, QER, BAR and FAR.
+ */
+struct pfcp_cntxt {
+
+}__attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
+
+/* Create a pfcp context hash table to maintain the PDR, QER, FAR and BAR information.*/
+void
+init_pfcp_cntxt_hash(void);
+
+/*
+ * Add pfcp context information in the table.
+ */
+uint8_t
+add_pfcp_cntxt_entry(uint16_t rule_id, struct pfcp_cntxt *resp);
+
+/*
+ * Retrive pfcp context entry.
+ */
+uint8_t
+get_pfcp_cntxt_entry(uint16_t rule_id, struct pfcp_cntxt **resp);
+
+/*
+ * Delete context entry from pfcp context table.
+ */
+uint8_t
+del_pfcp_cntxt_entry(uint16_t rule_id);
+
+/*
+ * Generate the PDR ID [RULE ID]
+ */
+uint16_t
+generate_pdr_id(void);
+
+/*
+ * Generate the BAR ID
+ */
+uint8_t
+generate_bar_id(void);
+
+/*
+ * Generate the FAR ID
+ */
+uint32_t
+generate_far_id(void);
+
+/*
+ * Generate the FAR ID in case of mbr.
+ * This is placeholder function to ensure far id is same in csr and mbr
+ */
+uint32_t
+generate_far_id_mbr(void);
+/*
+ * Generate the QER ID
+ */
+uint32_t
+generate_qer_id(void);
 
 #endif /* PFCP_H */
