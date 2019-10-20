@@ -1763,6 +1763,9 @@ process_create_sess_req(create_sess_req_t *csr,
 	/* SGW Handover Storage */
 	if (csr->indctn_flgs.header.len != 0)
 	{
+		memcpy(&(pdn->ipv4.s_addr) ,&(csr->paa.pdn_addr_and_pfx), IPV4_SIZE);
+		/*TODO:ntohl is done as in csr response there is htonl*/
+		pdn->ipv4.s_addr = ntohl(pdn->ipv4.s_addr);
 		context->indication_flag.oi = csr->indctn_flgs.indication_oi;
 		pdn->s5s8_pgw_gtpc_teid = csr->pgw_s5s8_addr_ctl_plane_or_pmip.teid_gre_key;
 		bearer->s5s8_pgw_gtpu_ipv4.s_addr = csr->bearer_contexts_to_be_created.s5s8_u_pgw_fteid.ipv4_address;
