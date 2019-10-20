@@ -26,7 +26,7 @@ build:
 #        - cd $CI_PROJECT_DIR && chmod +x install_rundeps.sh && sudo ./install_rundeps.sh
         - cd $CI_PROJECT_DIR && sudo chown gitlab-runner:gitlab-runner -R *
     after_script:
-        - cd $CI_PROJECT_DIR && sudo tar -zcvf $LOCAL_ARTIFACT_DIR/ngic-prod-$TAG.tar.gz libgtpv2c/lib/libgtpv2c.so libpfcp/lib/libpfcp.so cp/build/ngic_controlplane dp/build/ngic_dataplane third_party/dpdk/usertools/ third_party/dpdk/x86_64-native-linuxapp-gcc/kmod/ config dp/run.sh  cp/run.sh cp/logs /usr/local/lib/lib* kni_ifcfg
+        - cd $CI_PROJECT_DIR && sudo tar -zcvf $LOCAL_ARTIFACT_DIR/ngic-prod-$TAG.tar.gz libgtpv2c/lib/libgtpv2c.so libpfcp/lib/libpfcp.so cp/build/ngic_controlplane dp/build/ngic_dataplane third_party/dpdk/usertools/ third_party/dpdk/x86_64-native-linuxapp-gcc/kmod/ config dp/run.sh  cp/run.sh cp/logs /usr/local/lib/lib* kni_ifcfg cp/gx_app
         - echo "Uploading artifact to nexus artifactory" 
         - cd $LOCAL_ARTIFACT_DIR && curl -v -F "asset1.filename=ngic-prod-$TAG.tar.gz" -F "directory=ngic_builds/$TAG" -F "asset1=@ngic-prod-$TAG.tar.gz" -u $NEXUS_USER:$NEXUS_PASS $NEXUS_URL/service/rest/v1/components?repository=raw-internal
         #- rm -rf $LOCAL_ARTIFACT_DIR/*

@@ -158,7 +158,7 @@ build_fd_gxapp()
 {
 	echo "Building FreeDiameter ..."
 	build_fd_lib
-
+        ldconfig 
 	echo "Building GxAPP ..."
 	build_gxapp
 }
