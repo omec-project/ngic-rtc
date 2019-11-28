@@ -19,6 +19,9 @@
 #include "interface.h"
 #include "udp/vepc_udp.h"
 #include "dp_ipc_api.h"
+#if defined(CP_BUILD) && defined(ZMQ_COMM) && defined(MULTI_UPFS)
+#include "zmq_push_pull.h"
+#endif
 
 void iface_ipc_register_msg_cb(int msg_id,
 				int (*msg_cb)(struct msgbuf *msg_payload))
@@ -50,12 +53,31 @@ int iface_remove_que(enum cp_dp_comm id)
 #ifdef ZMQ_COMM
 	if (id == COMM_ZMQ) {
 		int rc;
-
+#ifdef MULTI_UPFS
+		struct upf_context *upf;
+		int i = 1;
+		/* + 1 to account for the registration socket */
+		rc = zmq_poll(zmq_items, upf_count + 1, -1);
+		if (rc <= 0)
+			return rc;
+		/* register for new dps */
+		if (zmq_items[0].revents & ZMQ_POLLIN)
+			check_for_new_dps();
+		/* process remaining upfs */
+		TAILQ_FOREACH(upf, &upf_list, entries) {
+			if ((zmq_items[i].revents & ZMQ_POLLIN)) {
+				rc = comm_node[id].recv(upf, (void *)&r_buf, sizeof(struct resp_msgbuf));
+				process_resp_msg((void *)&r_buf);
+			}
+			i++;
+		}
+#else
 		rc = comm_node[id].recv((void *)&r_buf, sizeof(struct resp_msgbuf));
 
 		if (rc <= 0)
 			return rc;
 		process_resp_msg((void *)&r_buf);
+#endif /* MULTI_UPFS */
 	}
 #else
 	RTE_SET_USED(id);

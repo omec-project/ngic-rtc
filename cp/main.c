@@ -46,6 +46,10 @@
 
 #ifdef ZMQ_COMM
 #include "gtpv2c_set_ie.h"
+#ifdef MULTI_UPFS
+#include "interface.h"
+#include "zmq_push_pull.h"
+#endif /* MULTI_UPFS */
 #endif  /* ZMQ_COMM */
 
 #ifdef SDN_ODL_BUILD
@@ -455,6 +459,9 @@ init_cp(void)
 
 	iface_module_constructor();
 
+#if defined (ZMQ_COMM) && defined (MULTI_UPFS)
+	init_dp_sock();
+#endif
 	if (signal(SIGINT, sig_handler) == SIG_ERR)
 		rte_exit(EXIT_FAILURE, "Error:can't catch SIGINT\n");
 	if (signal(SIGSEGV, sig_handler) == SIG_ERR)
@@ -689,7 +696,7 @@ control_plane(void)
 				 ((spgw_cfg == SGWC) || (spgw_cfg == SPGWC)) &&
 				 (bytes_s11_rx > 0) &&
 				 (
-				  (s11_mme_sockaddr.sin_addr.s_addr != s11_mme_ip.s_addr) ||
+				  /*(s11_mme_sockaddr.sin_addr.s_addr != s11_mme_ip.s_addr) ||*/
 				  (gtpv2c_s11_rx->gtpc.version != GTP_VERSION_GTPV2C)
 				 )
 				) {

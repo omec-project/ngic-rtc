@@ -84,6 +84,9 @@ uint16_t cp_nb_port;
 struct in_addr zmq_cp_ip, zmq_dp_ip;
 uint16_t zmq_cp_pull_port, zmq_dp_pull_port;
 uint16_t zmq_cp_push_port, zmq_dp_push_port;
+struct in_addr cp_nb_ip;
+uint16_t cp_nb_port;
+#define MAX_TCP_PORT		65536
 #endif	/* ZMQ_COMM */
 
 #ifdef TIMER_STATS
@@ -94,6 +97,33 @@ extern void print_perf_statistics(void);
 
 extern struct ipc_node *basenode;
 
+#if defined (CP_BUILD) && defined (MULTI_UPFS)
+uint8_t upf_count = 0;
+
+/**
+ * Comm backend changes since we need to tell which upf context we need to send to
+ */
+void register_comm_msg_cb(enum cp_dp_comm id,
+			  int (*init)(void),
+			  int (*send)(struct upf_context *upf, void *msg_payload, uint32_t size),
+			  int (*recv)(struct upf_context *upf, void *msg_payload, uint32_t size),
+			  int (*destroy)(struct upf_context *upf))
+{
+	struct comm_node *node;
+	struct upf_context *upf;
+
+	node = &comm_node[id];
+	node->init = init;
+	node->send = send;
+	node->recv = recv;
+	node->destroy = destroy;
+	node->status = 0;
+
+	TAILQ_FOREACH(upf, &upf_list, entries) {
+		node->init();
+	}
+}
+#else
 void register_comm_msg_cb(enum cp_dp_comm id,
 			int (*init)(void),
 			int (*send)(void *msg_payload, uint32_t size),
@@ -108,8 +138,12 @@ void register_comm_msg_cb(enum cp_dp_comm id,
 	node->recv = recv;
 	node->destroy = destroy;
 	node->status = 0;
+#ifndef MULTI_UPFS
+	/* delay initialization till you get confirmation from cp */
 	node->init();
+#endif
 }
+#endif
 
 int set_comm_type(enum cp_dp_comm id)
 {
@@ -126,7 +160,17 @@ int set_comm_type(enum cp_dp_comm id)
 int unset_comm_type(enum cp_dp_comm id)
 {
 	if (comm_node[id].status) {
+#if defined (CP_BUILD) && defined (MULTI_UPFS)
+		/* delete all upf contexts */
+		struct upf_context *upf;
+		while ((upf = TAILQ_FIRST(&upf_list))) {
+			active_comm_msg->destroy(upf);
+			TAILQ_REMOVE(&upf_list, upf, entries);
+			free(upf);
+		}
+#else
 		active_comm_msg->destroy();
+#endif
 		comm_node[id].status = 0;
 	} else {
 		RTE_LOG_DP(ERR, DP,"Error: Cannot unset communication type\n");
@@ -157,7 +201,11 @@ int process_comm_msg(void *buf)
 				resp.dp_id.id = DPN_ID;
 				resp.mtype = DPN_RESPONSE;
 				resp.sess_id = rbuf->msg_union.sess_entry.sess_id;
+#if defined (CP_BUILD) && defined (MULTI_UPFS)
+				zmq_mbuf_push(TAILQ_FIRST(&upf_list), (void *)&resp, sizeof(resp));
+#else
 				zmq_mbuf_push((void *)&resp, sizeof(resp));
+#endif
 				break;
 			}
 			case MSG_SESS_MOD: {
@@ -165,7 +213,11 @@ int process_comm_msg(void *buf)
 				resp.dp_id.id = DPN_ID;
 				resp.mtype = DPN_RESPONSE;
 				resp.sess_id = rbuf->msg_union.sess_entry.sess_id;
+#if defined (CP_BUILD) && defined (MULTI_UPFS)
+				zmq_mbuf_push(TAILQ_FIRST(&upf_list), (void *)&resp, sizeof(resp));
+#else
 				zmq_mbuf_push((void *)&resp, sizeof(resp));
+#endif
 				break;
 			}
 			case MSG_SESS_DEL: {
@@ -173,7 +225,11 @@ int process_comm_msg(void *buf)
 				resp.dp_id.id = DPN_ID;
 				resp.mtype = DPN_RESPONSE;
 				resp.sess_id = rbuf->msg_union.sess_entry.sess_id;
+#if defined (CP_BUILD) && defined (MULTI_UPFS)
+				zmq_mbuf_push(TAILQ_FIRST(&upf_list), (void *)&resp, sizeof(resp));
+#else
 				zmq_mbuf_push((void *)&resp, sizeof(resp));
+#endif
 				break;
 			}
 		default:
@@ -188,6 +244,41 @@ int process_comm_msg(void *buf)
 }
 
 #ifdef ZMQ_COMM
+#if defined (DP_BUILD) && defined(MULTI_UPFS)
+void
+send_dp_credentials(void)
+{
+	static char addr_string[128] = {0};
+	void *context = zmq_ctx_new();
+	void *requester = zmq_socket(context, ZMQ_REQ);
+	snprintf(addr_string, sizeof(addr_string),
+		 "%s://%s:%u", "tcp", inet_ntoa(cp_nb_ip), cp_nb_port);
+	RTE_LOG_DP(INFO, API, "Iface: connecting to %s\n", addr_string);
+	if (zmq_connect(requester, addr_string) != 0) {
+		rte_exit(EXIT_FAILURE, "Iface: failed to connect to CP!\n");
+	}
+
+	RTE_LOG_DP(INFO, API, "Iface: sent join request. Waiting for response\n");
+
+	if (zmq_send(requester, (void *)&dp_comm_ip, sizeof(dp_comm_ip), 0) == -1) {
+		rte_exit(EXIT_FAILURE, "Iface: failed to send registration request to CP!\n");
+	}
+	if (zmq_recv(requester, &cp_comm_port, sizeof(cp_comm_port), 0) == -1) {
+		rte_exit(EXIT_FAILURE, "Iface: failed to recv registration ack from CP!\n");
+	}
+	RTE_LOG_DP(INFO, API, "Iface: Received ACK. I'm registered!\n");
+
+	/* setting up CP connection port */
+	snprintf(zmq_push_ifconnect, sizeof(zmq_push_ifconnect),
+		 "%s://%s:%u", "tcp", inet_ntoa(cp_comm_ip), cp_comm_port);
+	zmq_close(requester);
+	zmq_ctx_destroy(context);
+
+	/* initialize underlying ZMQ fabric */
+	comm_node[COMM_ZMQ].init();
+}
+#endif /* DP_BUILD && MULTI_UPFS */
+
 #ifdef CP_BUILD
 int process_resp_msg(void *buf)
 {
@@ -218,6 +309,163 @@ int process_resp_msg(void *buf)
 }
 #endif /* CP_BUILD */
 
+#if defined (CP_BUILD) && defined (MULTI_UPFS)
+void *dp_sock;
+void *dp_sock_context;
+void
+init_dp_sock(void)
+{
+	static char addr_string[128] = {0};
+	snprintf(addr_string, sizeof(addr_string),
+		 "%s://*:%u", "tcp", cp_nb_port);
+	dp_sock_context = zmq_ctx_new();
+	dp_sock = zmq_socket(dp_sock_context, ZMQ_REP);
+	int rc = zmq_bind(dp_sock, addr_string);
+	fprintf(stderr, "Binding to %s\n", addr_string);
+	if (rc != 0) {
+		rte_exit(EXIT_FAILURE, "zmq_bind() failed!\n");
+	}
+
+	/* 1st descriptor is for registration socket */
+	zmq_items[0].socket = dp_sock;
+	zmq_items[0].events = ZMQ_POLLIN;
+}
+
+void
+check_for_new_dps(void)
+{
+	struct in_addr a;
+	uint32_t addr;
+	memset(&addr, 0, sizeof(addr));
+	int n = zmq_recv(dp_sock, &addr, sizeof(addr), 0);
+	assert(n != -1);
+	a.s_addr = addr;
+	RTE_SET_USED(a);
+	uint8_t done = 0;
+
+	if (n > 0) {
+		struct upf_context *upc = rte_calloc(NULL, 1, sizeof(struct upf_context), 0);
+		if (upc != NULL) {
+#if ZMQ_DIRECT
+			/* register pull and push sockets */
+			snprintf(upc->zmq_pull_ifconnect, sizeof(upc->zmq_pull_ifconnect),
+				 "%s://%s:%u", "tcp", inet_ntoa(a), dp_comm_port);
+#else
+			/* register pull and push sockets */
+			snprintf(upc->zmq_pull_ifconnect, sizeof(upc->zmq_pull_ifconnect),
+				 "%s://%s:%u", "tcp", inet_ntoa(a), zmq_cp_pull_port);
+#endif
+			fprintf(stderr, "%s\n", upc->zmq_pull_ifconnect);
+#if ZMQ_DIRECT
+			snprintf(upc->zmq_push_ifconnect, sizeof(upc->zmq_push_ifconnect),
+				 "%s://%s:%u", "tcp", inet_ntoa(cp_comm_ip),
+				 (++cp_comm_port % MAX_TCP_PORT));
+#else
+			snprintf(upc->zmq_push_ifconnect, sizeof(upc->zmq_push_ifconnect),
+				 "%s://%s:%u", "tcp", inet_ntoa(a), zmq_cp_push_port);
+#endif
+			fprintf(stderr, "%s\n", upc->zmq_push_ifconnect);
+			upf_count++;
+			TAILQ_INSERT_HEAD(&upf_list, upc, entries);
+			/* Socket to talk to Client */
+			upc->zmqpull_sockctxt = zmq_ctx_new();
+			upc->zmqpull_sockcet = zmq_socket(upc->zmqpull_sockctxt, ZMQ_PULL);
+#if ZMQ_DIRECT
+			do {
+				fprintf(stderr, "ZMQ Server connect to:\t%s\t\t; device:\t%s\n",
+					upc->zmq_push_ifconnect, ZMQ_DEV_ID);
+				n = zmq_bind(upc->zmqpull_sockcet, upc->zmq_push_ifconnect);
+				if (n == 0)
+					done = 1;
+				else {
+					fprintf(stderr, "ZMQ Server connect to: \t%s failed. Trying %u\n",
+						upc->zmq_push_ifconnect, cp_comm_port);
+					snprintf(upc->zmq_push_ifconnect, sizeof(upc->zmq_push_ifconnect),
+						 "%s://%s:%u", "tcp", inet_ntoa(cp_comm_ip),
+						 (++cp_comm_port % MAX_TCP_PORT));
+				}
+			} while (done == 0);
+#else
+			fprintf(stderr, "ZMQ Server connect to:\t%s\t\t; device:\t%s\n",
+			       upc->zmq_pull_ifconnect, ZMQ_DEV_ID);
+			n = zmq_connect(upc->zmqpull_sockcet, upc->zmq_pull_ifconnect);
+			assert(n == 0);
+#endif
+			upc->zmqpush_sockctxt = zmq_ctx_new();
+			upc->zmqpush_sockcet = zmq_socket(upc->zmqpush_sockctxt, ZMQ_PUSH);
+#if ZMQ_DIRECT
+			fprintf(stderr, "ZMQ Client connect to:\t%s\t\t; device:\t%s\n",
+			       upc->zmq_pull_ifconnect, ZMQ_DEV_ID);
+			n = zmq_connect(upc->zmqpush_sockcet, upc->zmq_pull_ifconnect);
+			assert(n == 0);
+#else
+			fprintf(stderr, "ZMQ Client connect to:\t%s\t\t; device:\t%s\n",
+			       upc->zmq_push_ifconnect, ZMQ_DEV_ID);
+			n = zmq_connect(upc->zmqpush_sockcet, upc->zmq_push_ifconnect);
+			assert(n == 0);
+#endif
+			/* add the pull descriptor to poll list */
+			zmq_items[upf_count].socket = upc->zmqpull_sockcet;
+			zmq_items[upf_count].events = ZMQ_POLLIN;
+		} else {
+			rte_exit(EXIT_FAILURE, "Can't allocate memory for upc!\n");
+		}
+		assert(zmq_send(dp_sock, &cp_comm_port, (size_t)2, 0) != -1);
+		/* send packet filter to registered upf */
+		init_pkt_filter_for_dp();
+	}
+	/* re-initialize registration socket */
+	zmq_close(dp_sock);
+	zmq_ctx_destroy(dp_sock_context);
+	init_dp_sock();
+}
+
+/* Definitions change since we need to tell which upf contexts need to be used */
+static int
+zmq_cp_init_socket(void)
+{
+	/*
+	 * zmqpull/zmqpush init
+	 */
+	zmq_pull_create();
+	return zmq_push_create();
+}
+
+static int
+zmq_cp_send_socket(struct upf_context *upf, void *zmqmsgbuf, uint32_t zmqmsgbufsz)
+{
+	/*
+	 * zmqpush send
+	 */
+	return zmq_mbuf_push(upf, zmqmsgbuf, zmqmsgbufsz);
+}
+
+static int
+zmq_cp_recv_socket(struct upf_context *upf, void *buf, uint32_t zmqmsgbufsz)
+{
+	/*
+	 * zmqpull recv
+	 */
+	int zmqmsglen = zmq_mbuf_pull(upf, buf, zmqmsgbufsz);
+
+	if (zmqmsglen > 0) {
+		RTE_LOG_DP(DEBUG, DP,
+			   "Rcvd zmqmsglen= %d:\t zmqmsgbufsz= %u\n",
+			   zmqmsglen, zmqmsgbufsz);
+	}
+	return zmqmsglen;
+}
+
+static int
+zmq_cp_destroy(struct upf_context *upf)
+{
+	/*
+	 * zmqpush/zmqpull destroy
+	 */
+	zmq_push_pull_destroy(upf);
+	return 0;
+}
+#else /* MULTI_UPFS */
 static int
 zmq_init_socket(void)
 {
@@ -262,7 +510,7 @@ zmq_destroy(void)
 	zmq_push_pull_destroy();
 	return 0;
 }
-
+#endif /* CP_BUILD && MULTI_UPFS */
 #else  /* ZMQ_COMM */
 
 static int
@@ -1024,6 +1272,19 @@ static void read_interface_config(void)
 	const char *zmq_proto = "tcp";
 
 #if ZMQ_DIRECT
+#if defined (CP_BUILD) && defined (MULTI_UPFS)
+	/* init the upf list */
+	TAILQ_INIT(&upf_list);
+	RTE_SET_USED(zmq_proto);
+	SET_CONFIG_IP(cp_nb_ip, file, "0", file_entry);
+	SET_CONFIG_PORT(cp_nb_port, file, "0", file_entry);
+#elif defined (MULTI_UPFS)
+	RTE_SET_USED(zmq_proto);
+	SET_CONFIG_IP(cp_nb_ip, file, "0", file_entry);
+	SET_CONFIG_PORT(cp_nb_port, file, "0", file_entry);
+	SET_CONFIG_IP(zmq_dp_ip, file, "0", file_entry);
+	SET_CONFIG_IP(zmq_cp_ip, file, "0", file_entry);
+#endif
 	snprintf(zmq_pull_ifconnect, sizeof(zmq_pull_ifconnect),
 		"%s://%s:%u", zmq_proto, inet_ntoa(dp_comm_ip), dp_comm_port);
 
@@ -1035,11 +1296,19 @@ static void read_interface_config(void)
 	SET_CONFIG_PORT(zmq_cp_push_port, file, "0", file_entry);
 	SET_CONFIG_PORT(zmq_cp_pull_port, file, "0", file_entry);
 
+#ifdef MULTI_UPFS
+	/* init the upf list */
+	RTE_SET_USED(zmq_proto);
+	TAILQ_INIT(&upf_list);
+	SET_CONFIG_IP(cp_nb_ip, file, "0", file_entry);
+	SET_CONFIG_PORT(cp_nb_port, file, "0", file_entry);
+#else
 	snprintf(zmq_pull_ifconnect, sizeof(zmq_pull_ifconnect),
 		"%s://%s:%u", zmq_proto, inet_ntoa(zmq_cp_ip), zmq_cp_pull_port);
 
 	snprintf(zmq_push_ifconnect, sizeof(zmq_push_ifconnect),
 		"%s://%s:%u", zmq_proto, inet_ntoa(zmq_cp_ip), zmq_cp_push_port);
+#endif
 #else
 	SET_CONFIG_IP(zmq_dp_ip, file, "0", file_entry);
 	SET_CONFIG_PORT(zmq_dp_pull_port, file, "0", file_entry);
@@ -1050,6 +1319,10 @@ static void read_interface_config(void)
 
 	snprintf(zmq_push_ifconnect, sizeof(zmq_push_ifconnect),
 		"%s://%s:%u", zmq_proto, inet_ntoa(zmq_dp_ip), zmq_dp_push_port);
+#ifdef MULTI_UPFS
+	SET_CONFIG_IP(cp_nb_ip, file, "0", file_entry);
+	SET_CONFIG_PORT(cp_nb_port, file, "0", file_entry);
+#endif
 #endif
 
 #endif  /* ZMQ_DIRECT */
@@ -1124,12 +1397,14 @@ void iface_module_constructor(void)
 	snprintf(command, sizeof(command),
 			        "%s %s%s%s%u%s", "timeout 1 bash -c", "'cat < /dev/null > /dev/tcp/", inet_ntoa(zmq_dp_ip), "/", zmq_dp_push_port, "' > /dev/null 2>&1");
 #endif
+#ifndef ZMQ_DIRECT
 	if((system(command)) > 0) {
 		rte_exit(EXIT_FAILURE, "ZMQ Streamer not running, Please start ZMQ Streamer service...\n");
 	} else {
 		printf("ZMQ Streamer running... CUPS connectivity opened....\n");
 	}
-#endif
+#endif /* ZMQ_DIRECT */
+#endif /* ZMQ_COMM */
 
 #ifdef CP_BUILD
 	printf("IFACE: CP Initialization\n");
@@ -1142,12 +1417,19 @@ void iface_module_constructor(void)
 	set_comm_type(COMM_SOCKET);
 #else
 #ifdef ZMQ_COMM
+#ifdef MULTI_UPFS
+	register_comm_msg_cb(COMM_ZMQ,
+			zmq_cp_init_socket,
+			zmq_cp_send_socket,
+			zmq_cp_recv_socket,
+			zmq_cp_destroy);
+#else
 	register_comm_msg_cb(COMM_ZMQ,
 			zmq_init_socket,
 			zmq_send_socket,
 			zmq_recv_socket,
 			zmq_destroy);
-
+#endif
 	set_comm_type(COMM_ZMQ);
 #else   /* ZMQ_COMM */
 	register_comm_msg_cb(COMM_SOCKET,

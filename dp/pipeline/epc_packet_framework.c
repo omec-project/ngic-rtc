@@ -112,6 +112,9 @@ static void epc_iface_core(__rte_unused void *args)
 		RTE_LOG_DP(INFO, API, "\n ZMQ read thread created successfully\n");
 #endif  /* DP:(SDN_ODL_BUILD */
 
+#if defined (DP_BUILD) && defined (ZMQ_COMM) && defined (MULTI_UPFS)
+	send_dp_credentials();
+#endif /* (DP_BUILD) && (ZMQ_COMM) */
 	/*
 	 * Poll message que. Populate hash table from que.
 	 */

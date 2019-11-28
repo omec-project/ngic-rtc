@@ -189,11 +189,23 @@ process_delete_req(struct simu_params *param)
 
 				sess.sess_id = SESS_ID(sess.ue_addr.u.ipv4_addr, param->default_bearer);
 
+#if defined (CP_BUILD) && defined (MULTI_UPFS)
+				/* Logic needs to be updated to decide where the message should exactly go */
+				struct dp_id dp_id = { .id = DPN_ID };
+				//struct upf_context *upf;
+				//int i = 0;
+				//TAILQ_FOREACH(upf, &upf_list, entries) {
+				//	dp_id.id = i;
+				if (session_delete(dp_id, sess) < 0)
+					rte_exit(EXIT_FAILURE,"Bearer Session create fail !!!");
+				//	i++;
+				//}
+#else
 				struct dp_id dp_id = { .id = DPN_ID };
 
 				if (session_delete(dp_id, sess) < 0)
 					rte_exit(EXIT_FAILURE,"Bearer Session create fail !!!");
-
+#endif
 				cp_stats.delete_session++;
 				++count;
 			}
@@ -276,12 +288,32 @@ process_cs_mb_req(struct simu_params *param)
 
 				sess.sess_id = SESS_ID(sess.ue_addr.u.ipv4_addr, param->default_bearer);
 
+#if defined (CP_BUILD) && defined (MULTI_UPFS)
+				/* Logic needs to be updated to decide where the message should exactly go */
+				struct dp_id dp_id = { .id = DPN_ID };
+				//struct upf_context *upf;
+				//int i = 0;
+				//TAILQ_FOREACH(upf, &upf_list, entries) {
+				//	dp_id.id = i;
+				if (session_create(dp_id, sess) < 0)
+					rte_exit(EXIT_FAILURE,"Bearer Session create fail !!!");
+				/* Modify the session */
+				sess.dl_s1_info.enb_teid = ntohl(enb_teid);
+				sess.dl_s1_info.enb_addr.iptype = IPTYPE_IPV4;
+				sess.dl_s1_info.enb_addr.u.ipv4_addr = param->enb_ip + enb_ip_idx;
+
+				sess.num_adc_rules = num_adc_rules;
+
+				for (uint32_t i = 0; i < num_adc_rules; i++)
+					sess.adc_rule_id[i] = adc_rule_id[i];
+
+				if (session_modify(dp_id, sess) < 0)
+					rte_exit(EXIT_FAILURE,"Bearer Session modify fail !!!");
+#else
 				struct dp_id dp_id = { .id = DPN_ID };
 
 				if (session_create(dp_id, sess) < 0)
 					rte_exit(EXIT_FAILURE,"Bearer Session create fail !!!");
-
-				cp_stats.create_session++;
 
 				/* Modify the session */
 				sess.dl_s1_info.enb_teid = ntohl(enb_teid);
@@ -295,7 +327,8 @@ process_cs_mb_req(struct simu_params *param)
 
 				if (session_modify(dp_id, sess) < 0)
 					rte_exit(EXIT_FAILURE,"Bearer Session modify fail !!!");
-
+#endif /* MULTI_UPFS */
+				cp_stats.create_session++;
 				++count;
 				cp_stats.modify_bearer++;
 			}

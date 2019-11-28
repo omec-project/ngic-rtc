@@ -37,6 +37,33 @@ extern uint16_t cp_nb_port;
 #endif
 
 #ifdef ZMQ_COMM
+#if defined (CP_BUILD) && defined (MULTI_UPFS)
+#include <sys/queue.h>
+typedef struct upf_context {
+	char zmq_pull_ifconnect[128];
+	char zmq_push_ifconnect[128];
+	void *zmqpull_sockctxt;
+	void *zmqpull_sockcet;
+	void *zmqpush_sockctxt;
+	void *zmqpush_sockcet;
+
+	TAILQ_ENTRY(upf_context) entries;
+} upf_context;
+extern uint8_t upf_count;
+extern struct in_addr dp_comm_ip;
+extern struct in_addr cp_comm_ip;
+extern uint16_t dp_comm_port;
+extern uint16_t cp_comm_port;
+extern struct in_addr cp_nb_ip;
+extern uint16_t cp_nb_port;
+TAILQ_HEAD(, upf_context) upf_list;
+void check_for_new_dps(void);
+void init_dp_sock(void);
+#define MAX_UPFS               5
+#elif defined (MULTI_UPFS) /* CP_BUILD && MULTI_UPFS */
+extern struct in_addr cp_nb_ip;
+extern uint16_t cp_nb_port;
+#endif /* MULTI_UPFS */
 char zmq_pull_ifconnect[128];
 char zmq_push_ifconnect[128];
 
@@ -57,6 +84,15 @@ enum cp_dp_comm {
 /**
  * CP DP Communication message structure.
  */
+#if defined (CP_BUILD) && defined (MULTI_UPFS)
+struct comm_node {
+	int status;                                     /*set if initialized*/
+	int (*init)(void);                              /*init function*/
+	int (*send)(struct upf_context *upf, void *msg_payload, uint32_t size);    /*send function*/
+	int (*recv)(struct upf_context *upf, void *msg_payload, uint32_t size);    /*receive function*/
+	int (*destroy)(struct upf_context *upf);                   /*uninit and free function*/
+};
+#else
 struct comm_node {
 	int status;					/*set if initialized*/
 	int (*init)(void);				/*init function*/
@@ -64,6 +100,7 @@ struct comm_node {
 	int (*recv)(void *msg_payload, uint32_t size);	/*receive function*/
 	int (*destroy)(void);			/*uninit and free function*/
 };
+#endif /* MULTI_UPFS */
 struct comm_node comm_node[COMM_END];
 struct comm_node *active_comm_msg;
 
@@ -83,12 +120,26 @@ struct comm_node *active_comm_msg;
  * @return
  *	None
  */
+#if defined (CP_BUILD) && defined (MULTI_UPFS)
+void register_comm_msg_cb(enum cp_dp_comm id,
+			  int (*init)(void),
+			  int (*send)(struct upf_context *upf, void *msg_payload, uint32_t size),
+			  int (*recv)(struct upf_context *upf, void *msg_payload, uint32_t size),
+			  int (*destroy)(struct upf_context *upf));
+#else
 void register_comm_msg_cb(enum cp_dp_comm id,
 		int (*init)(void),
 		int (*send)(void *msg_payload, uint32_t size),
 		int (*recv)(void *msg_payload, uint32_t size),
 		int (*destroy)(void));
-
+#endif
+#if defined (DP_BUILD) && defined (ZMQ_COMM) && defined (MULTI_UPFS)
+/**
+ * Register DP to a central CP NF
+ */
+void
+send_dp_credentials(void);
+#endif
 /**
  * Set CP DP Communication type.
  * @param id

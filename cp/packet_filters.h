@@ -119,4 +119,11 @@ init_packet_filters(void);
 void parse_adc_rules(void);
 
 int meter_profile_index_get(uint64_t cir);
+
+#if defined(CP_BUILD) && defined(MULTI_UPFS)
+/**
+ * Send packet filters and rules to each registered UPF
+ */
+void init_pkt_filter_for_dp(void);
+#endif
 #endif

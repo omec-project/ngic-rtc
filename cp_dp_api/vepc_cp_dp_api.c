@@ -129,10 +129,18 @@ static int
 send_dp_msg(struct dp_id dp_id, struct msgbuf *msg_payload)
 {
 	RTE_SET_USED(dp_id);
+#if defined (CP_BUILD) && defined (MULTI_UPFS)
+	/* since we are inserting new dps on head, TAILQ_FIRST should be fine. Logic will be revised on future updates */
+	if (active_comm_msg->send(TAILQ_FIRST(&upf_list), (void *)msg_payload, sizeof(struct msgbuf)) < 0) {
+		perror("msgsnd");
+		return -1;
+	}
+#else
 	if (active_comm_msg->send((void *)msg_payload, sizeof(struct msgbuf)) < 0) {
 		perror("msgsnd");
 		return -1;
 	}
+#endif
 	return 0;
 }
 #endif /* CP_BUILD*/

@@ -12,6 +12,7 @@ RTE_TARGET ?= x86_64-native-linuxapp-gcc
 
 include $(RTE_SDK)/mk/rte.vars.mk
 include $(dir $(realpath $(firstword $(MAKEFILE_LIST))))/*.mk
+include $(dir $(realpath $(firstword $(MAKEFILE_LIST))))/../interface/*.mk
 
 LIBGTPV2C_ROOT = $(SRCDIR)/../libgtpv2c
 

@@ -220,11 +220,11 @@ case ZMQ push/pull model is used.
 |push_port  pull_port        port           |  HTTP-POST    cp_nb_server_ip:port |         |
 +---v----------^-----------v-----^----------|------v-^----------------v----------+         |
     v          ^           v     ^          |      v ^                v                    |
-+---v----------^--+        v     ^          |      v ^ HTTP/SSE       v HTTP      <NorthBound Interface>
-|   v  ZMQ     ^   |       v     ^          |      v ^                v                    |
-|   v streamer ^   |       v     ^          | +----v-^----------------v-----------------+  |
-|   v          ^   |       v     ^          | | fpc_ip:port    fpc_ip:fpc_topology_port |  |
-+---v----------^---+       v     ^          | |                                         |  |
+    v          ^           v     ^          |      v ^ HTTP/SSE       v HTTP      <NorthBound Interface>
+    v          ^           v     ^          |      v ^                v                    |
+    v          ^           v     ^          | +----v-^----------------v-----------------+  |
+    v          ^           v     ^          | | fpc_ip:port    fpc_ip:fpc_topology_port |  |
+    v          ^           v     ^          | |                                         |  |
     v          ^           v     ^          | |               FPC - ODL                 |  |
     v          ^           v     ^          | +----v----------------------^-------------+  |
     v          ^           v     ^          |      v                      ^                |
@@ -241,7 +241,7 @@ case ZMQ push/pull model is used.
     v          ^           v     ^          |      ^                      v                |
 +---v----------^-----------v-----^----------------------------------------v------+         |
 |pull_port  push_port       port            |                COMM_ZMQ            |         |
-|      zmq_cp_ip          dp_comm_ip        +----------------------------------------------+
+|      zmq_dp_ip          dp_comm_ip        +----------------------------------------------+
 |                                    DP                                          |
 +--------------------------------------------------------------------------------+
 ```
@@ -287,13 +287,14 @@ the ZMQ FORWARDER device.
     request the (DPN) topology from the FPC ODL plugin.
 
 - `cp_nb_ip` & `cp_nb_port`: the ip:port of the CP component to communication
-    along the NorthBound interface with with FPC ODL plugin.
+    along the NorthBound interface with with FPC ODL plugin. These variables are
+    now also used by dps to register dynamically with CP.
 
-- `zmq_cp_ip`, `zmq_cp_push_port` & `zmq_cp_pull_port`: the ip:port's on which zmq streamer
-    listens and CP connects to this IP for push/pull requests.
+- `zmq_cp_ip`, `zmq_cp_push_port` & `zmq_cp_pull_port`: the ip:port's on which CP
+   connects to this IP for push/pull requests.
 
-- `zmq_dp_ip`, `zmq_dp_push_port` & `zmq_dp_pull_port`: the ip:port's on which zmq streamer
-    listens and DP connects to this IP for push/pull requests.
+- `zmq_dp_ip`, `zmq_dp_push_port` & `zmq_dp_pull_port`: the ip:port's on which DP
+   connects to this IP for push/pull requests.
 
 Additional information on the northbound interfaces and their uses can be found
 in the [CP_README.MD](docs/CP_README.MD)
@@ -556,17 +557,14 @@ a. Setup 10G ports for VNF to run:
     OR
     Use `$RTE_SDK/usertools/dpdk-setup.sh` for binding the ports.
 
-b. If ZMQ_COMM flag is enabled, start ZMQ Streamer before running DP and CP
 
-  If ZMQ_COMM flag is enabled, then we need to start the ZMQ streamer before
-  running DP & CP. This can be done via the following script run. NOTE: The
-  script needs to be started either on CP or DP or any other systems and update
-  interface.cfg accordingly. No need to start on both CP and DP.
+b. Update cp_config.cfg with required parameters.Then start cp in the following way.
 
 ```shell
-cd dev_scripts
-./start-ZMQ_Streamer.sh
+cd cp
+./run.sh
 ```
+
 
 c. Add the mac addresses of port0 and port1 in config/dp_config.cfg to run ngic_dataplane.
 
@@ -584,21 +582,8 @@ cd kni_ifcfg
 ./kni-SGIdevcfg.sh
 ```
 
-e. Update cp_config.cfg with required parameters.Then start cp in the following way.
 
-```shell
-cd cp
-./run.sh
-```
-Note: In case ZMQ_COMM CFLAGS enabled, make sure you run follwing command after
-cp and dp is stopped. This command will stop ZMQ streamer.
-
-```shell
-cd  dev_scripts
-./stop-ZMQ_Streamer.sh
-```
-
-f. Then start the traffic generator and MME if applicable.
+e. Then start the traffic generator and MME if applicable.
 
 You can now run ngic without kni support using the following guidelines:
 
