@@ -266,11 +266,11 @@ enum disp_action * act
 	/* Cal the length of buffer needed */
 	buflen = gx_rar_calc_length (&gx_req->data.cp_rar);
 
-	send_buf = malloc( buflen + sizeof(rqst));
+	send_buf = malloc(sizeof(gx_req->msg_type) + buflen + sizeof(rqst));
 	if(send_buf == NULL)
 		printf("Memory Allocation fails for send_buf\n");
 
-	memset( send_buf, 0, buflen + sizeof(rqst));
+	memset(send_buf, 0, (sizeof(gx_req->msg_type) + buflen + sizeof(rqst)));
 
 	/* encoding the rar header value to buffer */
 	memcpy( send_buf, &gx_req->msg_type, sizeof(gx_req->msg_type));
@@ -281,6 +281,9 @@ enum disp_action * act
 
 	memcpy((unsigned char *)(send_buf + sizeof(gx_req->msg_type) + buflen), &rqst, sizeof(rqst));
 	send_to_ipc_channel(g_gx_client_sock, send_buf, buflen + sizeof(gx_req->msg_type) + sizeof(rqst));
+
+	/* Free the memory sender buffer */
+	free(send_buf);
 
     printf("===== SENT RAR FROM GXAPP TO PCEF and address===  \n");
 #if GX_DEBUG
