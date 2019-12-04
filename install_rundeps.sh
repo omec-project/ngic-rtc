@@ -8,7 +8,8 @@ SUDO=''
 install_run_cp_deps() {
 	$SUDO apt-get update && $SUDO apt-get -y install \
 		libnuma1 \
-		libpcap0.8
+		libpcap0.8 \
+		libzmq5
 }
 
 install_run_dp_deps() {
@@ -16,7 +17,8 @@ install_run_dp_deps() {
 		libhyperscan4 \
 		libmnl0 \
 		libnuma1 \
-		libssl1.1
+		libssl1.1 \
+		libzmq5
 }
 
 install_run_utils() {
