@@ -273,5 +273,9 @@ export_stats_report(struct sync_stats stats_info);
 void
 close_stats(void);
 #endif   /* SYNC_STATS */
+
+void config_change_cbk(char *config_file, uint32_t flags);
+void register_config_updates(void);
+
 /* ================================================================================= */
 #endif

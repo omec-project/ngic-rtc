@@ -28,6 +28,8 @@ SRCS-y += debug_str.c
 SRCS-y += ue.c
 SRCS-y += cp_stats.c
 SRCS-y += packet_filters.c
+SRCS-y += monitor_config.c
+SRCS-y += cp_config.c
 
 SRCS-y += gtpv2c_messages/bearer_resource_cmd.c
 SRCS-y += gtpv2c_messages/create_bearer.c
