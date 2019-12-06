@@ -98,6 +98,7 @@ extern void print_perf_statistics(void);
 extern struct ipc_node *basenode;
 
 #if defined (CP_BUILD) && defined (MULTI_UPFS)
+/* current running count of registered UPFs */
 uint8_t upf_count = 0;
 
 /**
@@ -202,7 +203,8 @@ int process_comm_msg(void *buf)
 				resp.mtype = DPN_RESPONSE;
 				resp.sess_id = rbuf->msg_union.sess_entry.sess_id;
 #if defined (CP_BUILD) && defined (MULTI_UPFS)
-				zmq_mbuf_push(TAILQ_FIRST(&upf_list), (void *)&resp, sizeof(resp));
+				if (!TAILQ_EMPTY(&upf_list))
+					zmq_mbuf_push(TAILQ_FIRST(&upf_list), (void *)&resp, sizeof(resp));
 #else
 				zmq_mbuf_push((void *)&resp, sizeof(resp));
 #endif
@@ -214,7 +216,8 @@ int process_comm_msg(void *buf)
 				resp.mtype = DPN_RESPONSE;
 				resp.sess_id = rbuf->msg_union.sess_entry.sess_id;
 #if defined (CP_BUILD) && defined (MULTI_UPFS)
-				zmq_mbuf_push(TAILQ_FIRST(&upf_list), (void *)&resp, sizeof(resp));
+				if (!TAILQ_EMPTY(&upf_list))
+					zmq_mbuf_push(TAILQ_FIRST(&upf_list), (void *)&resp, sizeof(resp));
 #else
 				zmq_mbuf_push((void *)&resp, sizeof(resp));
 #endif
@@ -226,7 +229,8 @@ int process_comm_msg(void *buf)
 				resp.mtype = DPN_RESPONSE;
 				resp.sess_id = rbuf->msg_union.sess_entry.sess_id;
 #if defined (CP_BUILD) && defined (MULTI_UPFS)
-				zmq_mbuf_push(TAILQ_FIRST(&upf_list), (void *)&resp, sizeof(resp));
+				if (!TAILQ_EMPTY(&upf_list))
+					zmq_mbuf_push(TAILQ_FIRST(&upf_list), (void *)&resp, sizeof(resp));
 #else
 				zmq_mbuf_push((void *)&resp, sizeof(resp));
 #endif
@@ -245,24 +249,31 @@ int process_comm_msg(void *buf)
 
 #ifdef ZMQ_COMM
 #if defined (DP_BUILD) && defined(MULTI_UPFS)
+/**
+ * Registers a newly spawned DP to the CP
+ */
 void
 send_dp_credentials(void)
 {
 	static char addr_string[128] = {0};
+	/* setting up ZMQ-based sockets */
 	void *context = zmq_ctx_new();
 	void *requester = zmq_socket(context, ZMQ_REQ);
 	snprintf(addr_string, sizeof(addr_string),
 		 "%s://%s:%u", "tcp", inet_ntoa(cp_nb_ip), cp_nb_port);
 	RTE_LOG_DP(INFO, API, "Iface: connecting to %s\n", addr_string);
+	/* connect */
 	if (zmq_connect(requester, addr_string) != 0) {
 		rte_exit(EXIT_FAILURE, "Iface: failed to connect to CP!\n");
 	}
 
 	RTE_LOG_DP(INFO, API, "Iface: sent join request. Waiting for response\n");
 
+	/* send request */
 	if (zmq_send(requester, (void *)&dp_comm_ip, sizeof(dp_comm_ip), 0) == -1) {
 		rte_exit(EXIT_FAILURE, "Iface: failed to send registration request to CP!\n");
 	}
+	/* get response */
 	if (zmq_recv(requester, &cp_comm_port, sizeof(cp_comm_port), 0) == -1) {
 		rte_exit(EXIT_FAILURE, "Iface: failed to recv registration ack from CP!\n");
 	}
@@ -310,6 +321,7 @@ int process_resp_msg(void *buf)
 #endif /* CP_BUILD */
 
 #if defined (CP_BUILD) && defined (MULTI_UPFS)
+/* this sock is used to listen for new DPs who want to register */
 void *dp_sock;
 void *dp_sock_context;
 void
@@ -319,7 +331,9 @@ init_dp_sock(void)
 	snprintf(addr_string, sizeof(addr_string),
 		 "%s://*:%u", "tcp", cp_nb_port);
 	dp_sock_context = zmq_ctx_new();
+	/* create socket */
 	dp_sock = zmq_socket(dp_sock_context, ZMQ_REP);
+	/* bind to cp_nb_port */
 	int rc = zmq_bind(dp_sock, addr_string);
 	fprintf(stderr, "Binding to %s\n", addr_string);
 	if (rc != 0) {
@@ -331,18 +345,23 @@ init_dp_sock(void)
 	zmq_items[0].events = ZMQ_POLLIN;
 }
 
+/**
+ * Called right after zmq_poll if an event is obsered on descriptor `0`
+ */
 void
 check_for_new_dps(void)
 {
 	struct in_addr a;
 	uint32_t addr;
 	memset(&addr, 0, sizeof(addr));
+	/* receive request */
 	int n = zmq_recv(dp_sock, &addr, sizeof(addr), 0);
 	assert(n != -1);
 	a.s_addr = addr;
 	RTE_SET_USED(a);
 	uint8_t done = 0;
 
+	/* verify */
 	if (n > 0) {
 		struct upf_context *upc = rte_calloc(NULL, 1, sizeof(struct upf_context), 0);
 		if (upc != NULL) {

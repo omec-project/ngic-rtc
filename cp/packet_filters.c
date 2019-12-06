@@ -53,6 +53,7 @@ packet_filter *packet_filters[SDF_FILTER_TABLE_SIZE] = {
 };
 
 #if defined(CP_BUILD) && defined(MULTI_UPFS)
+/* logic to store ADC table also added, since each DP can be registered dynamically now */
 struct adc_rules *adc_table[MAX_ADC_RULES] = {
 		[0] = NULL, /* index = 0 is invalid */
 };
@@ -783,6 +784,7 @@ parse_adc_rules(void)
 		adc_rule_id[rule_id - 1] = rule_id;
 		tmp_adc.rule_id = rule_id++;
 #ifdef MULTI_UPFS
+		/* store ADC rules also now */
 		RTE_SET_USED(dp_id);
 		struct adc_rules *adc = rte_zmalloc_socket(NULL, sizeof(struct adc_rules),
 							   RTE_CACHE_LINE_SIZE, rte_socket_id());

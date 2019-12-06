@@ -7,6 +7,7 @@
 #include "zmq_push_pull.h"
 
 #if defined (CP_BUILD) && defined (MULTI_UPFS)
+/* assuming that we can only monitor MAX_UPFS number of UPFs at the moment */
 zmq_pollitem_t zmq_items[MAX_UPFS] = {0};
 
 int zmq_pull_create(void)

@@ -20,6 +20,7 @@
 #include "udp/vepc_udp.h"
 #include "dp_ipc_api.h"
 #if defined(CP_BUILD) && defined(ZMQ_COMM) && defined(MULTI_UPFS)
+/* Header file inserted for zmq_poll logistics */
 #include "zmq_push_pull.h"
 #endif
 
@@ -63,7 +64,7 @@ int iface_remove_que(enum cp_dp_comm id)
 		/* register for new dps */
 		if (zmq_items[0].revents & ZMQ_POLLIN)
 			check_for_new_dps();
-		/* process remaining upfs */
+		/* process remaining upfs; iterate through all upfs fds and process msgs  */
 		TAILQ_FOREACH(upf, &upf_list, entries) {
 			if ((zmq_items[i].revents & ZMQ_POLLIN)) {
 				rc = comm_node[id].recv(upf, (void *)&r_buf, sizeof(struct resp_msgbuf));

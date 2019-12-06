@@ -38,7 +38,12 @@ extern uint16_t cp_nb_port;
 
 #ifdef ZMQ_COMM
 #if defined (CP_BUILD) && defined (MULTI_UPFS)
+/* for TAILQ */
 #include <sys/queue.h>
+/**
+ * Used to hold registered UPF context.
+ * Also becomes a part of the TAILQ list node
+ */
 typedef struct upf_context {
 	char zmq_pull_ifconnect[128];
 	char zmq_push_ifconnect[128];
@@ -49,6 +54,7 @@ typedef struct upf_context {
 
 	TAILQ_ENTRY(upf_context) entries;
 } upf_context;
+/* running upf count */
 extern uint8_t upf_count;
 extern struct in_addr dp_comm_ip;
 extern struct in_addr cp_comm_ip;
@@ -56,10 +62,21 @@ extern uint16_t dp_comm_port;
 extern uint16_t cp_comm_port;
 extern struct in_addr cp_nb_ip;
 extern uint16_t cp_nb_port;
+/* head of the dp list */
 TAILQ_HEAD(, upf_context) upf_list;
+/**
+ * @brief
+ * Used by CP to check for new DP registration requests
+ * @return
+ */
 void check_for_new_dps(void);
+/**
+ * @brief
+ * Used by CP to intialize the CP northbound port (for registration)
+ * @return
+ */
 void init_dp_sock(void);
-#define MAX_UPFS               5
+#define MAX_UPFS               16
 #elif defined (MULTI_UPFS) /* CP_BUILD && MULTI_UPFS */
 extern struct in_addr cp_nb_ip;
 extern uint16_t cp_nb_port;
