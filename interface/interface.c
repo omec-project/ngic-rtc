@@ -256,6 +256,7 @@ void
 send_dp_credentials(void)
 {
 	static char addr_string[128] = {0};
+	uint64_t msg_bundle = 0;
 	/* setting up ZMQ-based sockets */
 	void *context = zmq_ctx_new();
 	void *requester = zmq_socket(context, ZMQ_REQ);
@@ -269,8 +270,13 @@ send_dp_credentials(void)
 
 	RTE_LOG_DP(INFO, API, "Iface: sent join request. Waiting for response\n");
 
+	/* build message */
+	/* Put DP's IP in the first 32 B; Put S1U's IP address to the last 32 B */
+	msg_bundle = (((uint64_t)dp_comm_ip.s_addr) << (sizeof(dp_comm_ip) * CHAR_BIT));
+	msg_bundle = (msg_bundle) | app.s1u_ip;
+
 	/* send request */
-	if (zmq_send(requester, (void *)&dp_comm_ip, sizeof(dp_comm_ip), 0) == -1) {
+	if (zmq_send(requester, (void *)&msg_bundle, sizeof(msg_bundle), 0) == -1) {
 		rte_exit(EXIT_FAILURE, "Iface: failed to send registration request to CP!\n");
 	}
 	/* get response */
@@ -353,11 +359,16 @@ check_for_new_dps(void)
 {
 	struct in_addr a;
 	uint32_t addr;
+	uint64_t msg_bundle;
 	memset(&addr, 0, sizeof(addr));
+	msg_bundle = 0;
 	/* receive request */
-	int n = zmq_recv(dp_sock, &addr, sizeof(addr), 0);
+	int n = zmq_recv(dp_sock, &msg_bundle, sizeof(msg_bundle), 0);
 	assert(n != -1);
+	/* DP's IP in the first 32 B; S1U's IP address to the last 32 B */
+	addr = (uint32_t)(msg_bundle >> (sizeof(addr) * CHAR_BIT));
 	a.s_addr = addr;
+	s1u_sgw_ip.s_addr = (msg_bundle & 0xFFFFFFFF);
 	RTE_SET_USED(a);
 	uint8_t done = 0;
 

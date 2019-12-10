@@ -62,6 +62,7 @@ extern uint16_t dp_comm_port;
 extern uint16_t cp_comm_port;
 extern struct in_addr cp_nb_ip;
 extern uint16_t cp_nb_port;
+extern struct in_addr s1u_sgw_ip;
 /* head of the dp list */
 TAILQ_HEAD(, upf_context) upf_list;
 /**
