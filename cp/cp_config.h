@@ -11,6 +11,9 @@
 #include <stdint.h>
 #include <sys/queue.h>
 
+#define CP_CONFIG_ETC_PATH "/etc/cp/config/app_config.cfg"
+#define CP_CONFIG_OPT_PATH "/opt/cp/config/app_config.cfg"
+
 extern struct app_config *appl_config; 
 
 struct mcc_mnc_key 
@@ -27,7 +30,6 @@ struct mcc_mnc_key
 struct dp_key
 {
     struct mcc_mnc_key mcc_mnc;
-    struct in_addr enb_addrs[2];
     uint16_t tac;
 };
 

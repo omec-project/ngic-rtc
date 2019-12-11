@@ -80,6 +80,8 @@ typedef struct ue_context_t {
 	/* temporary bearer to be used during resource bearer cmd -
 	 * create/deletee bearer req - rsp */
 	struct eps_bearer_t *ded_bearer;
+
+	/* dpId tells which DP is holding the data bearers for this user context */ 
 	uint64_t	dpId;
 
 } ue_context;

@@ -483,8 +483,11 @@ init_cp(void)
 #endif
 
 	appl_config = (struct app_config *) calloc(1, sizeof(struct app_config));
+
+	/* Parse initial configuration file */
 	init_spgwc_dynamic_config(appl_config); 
 
+	/* Lets register config change hook */
 	register_config_updates();
 
 	create_ue_hash();
