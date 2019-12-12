@@ -30,7 +30,7 @@
 #endif /* USE_REST */
 
 #if defined(CP_BUILD)
-#include "gtpv2c_messages.h"
+#include "../libgtpv2c/include/gtp_messages.h"
 #endif
 
 #ifndef PERF_TEST
@@ -81,6 +81,8 @@ typedef long long int _timer_t;
 #define DNSCACHE_PERCENTAGE 70
 #define DNSCACHE_INTERVAL 4000
 #define DNS_PORT 53
+
+#define __file__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 
 /**
  * Control-Plane rte logs.
@@ -184,6 +186,19 @@ void
 initialize_tables_on_dp(void);
 
 #ifdef CP_BUILD
+
+void
+set_create_bearer_request(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
+			  ue_context *context, eps_bearer *bearer,
+			  uint8_t lbi, uint8_t pti, uint8_t eps_bearer_lvl_tft[],
+			  uint8_t tft_len);
+
+void
+set_create_bearer_response(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
+			  ue_context *context, eps_bearer *bearer,
+			  uint8_t lbi, uint8_t pti);
+
+
 /**
  * @brief To Downlink data notification ack of user.
  * @param dp_id
@@ -292,6 +307,9 @@ typedef struct dns_cache_params_t {
 	uint32_t concurrent;
 	uint32_t sec;
 	uint8_t percent;
+
+	unsigned long timeoutms;
+	uint32_t tries;
 } dns_cache_params_t;
 
 typedef struct dns_config_t {
@@ -325,6 +343,9 @@ typedef struct pfcp_config_t {
 	uint8_t transmit_cnt;
 	int transmit_timer;
 	int periodic_timer;
+
+	/* logger parameter */
+	uint8_t cp_logger;
 
 	/* APN */
 	uint32_t num_apn;

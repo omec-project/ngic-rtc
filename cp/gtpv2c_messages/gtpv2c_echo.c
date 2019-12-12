@@ -18,19 +18,19 @@
 
 
 int
-process_echo_request(gtpv2c_header *gtpv2c_rx, gtpv2c_header *gtpv2c_tx)
+process_echo_request(gtpv2c_header_t *gtpv2c_rx, gtpv2c_header_t *gtpv2c_tx)
 {
-	/* Due to the union & structure alignments in the gtpv2c_header, the
+	/* Due to the union & structure alignments in the gtpv2c_header_t, the
 	 * sequence number would always be present in the has_teid.seq memory
 	 */
-	if (gtpv2c_rx->gtpc.teidFlg)
+	if (gtpv2c_rx->gtpc.teid_flag)
 		set_gtpv2c_echo(gtpv2c_tx,
-				gtpv2c_rx->gtpc.teidFlg, GTP_ECHO_RSP,
-				gtpv2c_rx->teid_u.has_teid.teid,
-				gtpv2c_rx->teid_u.has_teid.seq);
+				gtpv2c_rx->gtpc.teid_flag, GTP_ECHO_RSP,
+				gtpv2c_rx->teid.has_teid.teid,
+				gtpv2c_rx->teid.has_teid.seq);
 	else
 		set_gtpv2c_echo(gtpv2c_tx,
-				gtpv2c_rx->gtpc.teidFlg, GTP_ECHO_RSP,
-				0, gtpv2c_rx->teid_u.no_teid.seq);
+				gtpv2c_rx->gtpc.teid_flag, GTP_ECHO_RSP,
+				0, gtpv2c_rx->teid.no_teid.seq);
 	return 0;
 }

@@ -18,7 +18,7 @@ ROOT=.
 
 CC := gcc
 
-TARGET_DIR := $(ROOT)/
+TARGET_DIR := $(ROOT)
 
 SRCDIR := $(ROOT)/src
 TARGET := gx_app
@@ -36,11 +36,13 @@ CFLAGS +=  -fPIC
 
 ifeq ($(DEBUG),1)
 	CFLAGS += -g3
+#un-comment below line to remove all Debug logs for testing.
+	CFLAGS += -DGX_DEBUG
 else
 	CFLAGS += -O3
 endif
 
-INCS := -I$(ROOT)/include -I$(ROOT)/../
+INCS := -I$(ROOT)/include -I$(ROOT)/../ -I$(ROOT)/../../pfcp_messages/
 LIB_PATH :=/usr/local/lib
 LIBS := -lfdproto -lfdcore
 

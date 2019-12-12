@@ -40,11 +40,11 @@ eNB_DEC=`echo $eNB_IP | tr . '\n' | awk '{t = t*256 + $1} END{print t}'`
 
 if [ "$SPGW_CFG" -eq "01" ]; then
     SGWU_DEV=`echo $S5S8_SGWU_IP | tr . '\n' | awk '{t = t*256 + $1} END{print t}'`
-    #SGWU_SUBMASK="$(($SGWU_DEV & $SUBMASK))"
+#    SGWU_SUBMASK="$(($SGWU_DEV & $SUBMASK))"
 elif [ "$SPGW_CFG" -eq "02" ];
 then
     PGWU_DEV=`echo $S5S8_SGWU_IP | tr . '\n' | awk '{t = t*256 + $1} END{print t}'`
-    #PGWU_SUBMASK="$(($PGWU_DEV & $SUBMASK))"
+#    PGWU_SUBMASK="$(($PGWU_DEV & $SUBMASK))"
 else
 	echo "Error: Set appropriate data-plane type.."
 	exit

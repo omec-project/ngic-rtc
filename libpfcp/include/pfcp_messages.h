@@ -93,6 +93,7 @@
 #define IE_UPD_BAR_SESS_RPT_RSP (12)
 #define IE_APPLY_ACTION_ID (44)
 #define IE_DEST_INTRFACE_ID (42)
+#define IE_PFCPSM_ID (49)
 
 /* TODO: Revisit this for change in yang */
 #pragma pack(1)

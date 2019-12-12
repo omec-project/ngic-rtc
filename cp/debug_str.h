@@ -54,4 +54,15 @@ cause_str(enum cause_value cause);
 const char *
 gtp_type_str(uint8_t type);
 
+/**
+ * Returns Gx message type string from type code value as defined by 3gpp TS
+ * 29.212. Messages supported by this function may be incomplete.
+ *
+ * @param type
+ *   Gx message type value as specified by seaction 5.6 in 3gpp TS 29.212.
+ * @return
+ *   String describing Gx message type.
+ */
+const char *
+gx_type_str(uint8_t type);
 #endif /* DEBUG_STR_H */

@@ -20,28 +20,62 @@
 
 
 extern pfcp_config_t pfcp_config;
-
 struct rte_hash *ue_context_by_imsi_hash;
 struct rte_hash *ue_context_by_fteid_hash;
+struct rte_hash *pdn_by_fteid_hash;
 
 static struct in_addr ip_pool_ip;
 static struct in_addr ip_pool_mask;
 
 apn apn_list[MAX_NB_DPN];
 
+/* base value and offset for seid generation */
 const uint32_t s11_sgw_gtpc_base_teid = 0xC0FFEE;
 static uint32_t s11_sgw_gtpc_teid_offset;
 const uint32_t s5s8_pgw_gtpc_base_teid = 0xD0FFEE;
 static uint32_t s5s8_pgw_gtpc_teid_offset;
 
+/* base value and offset for teid generation */
+static uint32_t sgw_gtpc_base_teid = 0xC0FFEE;
+static uint32_t sgw_gtpc_teid_offset;
+static uint32_t pgw_gtpc_base_teid = 0xD0FFEE;
+static uint32_t pgw_gtpc_teid_offset;
+static uint8_t teid_range = 0xf0;
+static uint32_t sgw_gtpu_base_teid = 0xf0000001;
+static uint32_t pgw_gtpu_base_teid = 0x00000001;
+/*TODO : Decide how to diffrentiate between sgw and pgw teids*/
+
 uint32_t base_s1u_sgw_gtpu_teid = 0xf0000000;
+
+void
+set_base_teid(uint8_t val){
+
+	/* set cp teid_range value */
+	teid_range = val;
+
+	/* set base teid value */
+	/* teid will start from index 1 instead of index 0*/
+	if(pfcp_config.cp_type == SGWC || pfcp_config.cp_type == SAEGWC){
+		sgw_gtpc_base_teid = (teid_range << 24);
+		sgw_gtpc_base_teid++;
+	}else if(pfcp_config.cp_type == PGWC){
+		pgw_gtpc_base_teid = (teid_range << 24);
+		pgw_gtpc_base_teid++;
+	}
+	return;
+}
 
 void
 set_s1u_sgw_gtpu_teid(eps_bearer *bearer, ue_context *context)
 {
 	uint8_t index = __builtin_ffs(~(context->teid_bitmap)) - 1;
-	bearer->s1u_sgw_gtpu_teid = (context->s11_sgw_gtpc_teid & 0x00ffffff)
-	    | ((0xf0 + index) << 24);
+	if ((spgw_cfg == SGWC) || (spgw_cfg == SAEGWC)) {
+		sgw_gtpu_base_teid = sgw_gtpc_base_teid + sgw_gtpc_teid_offset;
+		++sgw_gtpc_teid_offset;
+	}
+
+	bearer->s1u_sgw_gtpu_teid = (sgw_gtpu_base_teid & 0x00ffffff)
+		| ((teid_range + index) << 24);
 	context->teid_bitmap |= (0x01 << index);
 }
 
@@ -52,8 +86,20 @@ set_s5s8_sgw_gtpu_teid(eps_bearer *bearer, ue_context *context)
 	/* Note: s5s8_sgw_gtpu_teid based s11_sgw_gtpc_teid
 	 * Computation same as s1u_sgw_gtpu_teid
 	 */
-	bearer->s5s8_sgw_gtpu_teid = (context->s11_sgw_gtpc_teid & 0x00ffffff)
-	    | ((0xf0 + index) << 24);
+	bearer->s5s8_sgw_gtpu_teid = (sgw_gtpu_base_teid & 0x00ffffff)
+	    | ((teid_range + index) << 24);
+	context->teid_bitmap |= (0x01 << index);
+}
+
+void
+set_s5s8_pgw_gtpu_teid(eps_bearer *bearer, ue_context *context){
+	uint8_t index = __builtin_ffs(~(context->teid_bitmap)) - 1;
+	if (spgw_cfg == PGWC){
+		pgw_gtpu_base_teid = pgw_gtpc_base_teid + pgw_gtpc_teid_offset;
+		++pgw_gtpc_teid_offset;
+	}
+	bearer->s5s8_pgw_gtpu_teid = (pgw_gtpu_base_teid & 0x00ffffff)
+		| ((teid_range + index) << 24);
 	context->teid_bitmap |= (0x01 << index);
 }
 
@@ -63,6 +109,18 @@ set_s5s8_pgw_gtpc_teid(pdn_connection *pdn)
 	pdn->s5s8_pgw_gtpc_teid = s5s8_pgw_gtpc_base_teid
 		+ s5s8_pgw_gtpc_teid_offset;
 	++s5s8_pgw_gtpc_teid_offset;
+}
+
+void
+set_s5s8_pgw_gtpu_teid_using_pdn(eps_bearer *bearer, pdn_connection *pdn)
+{
+	uint8_t index = __builtin_ffs(~(pdn->context->teid_bitmap)) - 1;
+	/* Note: s5s8_sgw_gtpu_teid based s11_sgw_gtpc_teid
+	 * Computation same as s1u_sgw_gtpu_teid
+	 */
+	bearer->s5s8_pgw_gtpu_teid = (pdn->s5s8_pgw_gtpc_teid & 0x00ffffff)
+	    | ((0xf0 + index) << 24);
+	pdn->context->teid_bitmap |= (0x01 << index);
 }
 
 void
@@ -92,6 +150,16 @@ create_ue_hash(void)
 				rte_hash_params.name,
 		    rte_strerror(rte_errno), rte_errno);
 	}
+
+	rte_hash_params.name = "pdn_by_fteid_hash";
+	rte_hash_params.key_len = sizeof(uint32_t);
+	pdn_by_fteid_hash = rte_hash_create(&rte_hash_params);
+	if (!pdn_by_fteid_hash) {
+		rte_panic("%s hash create failed: %s (%u)\n.",
+				rte_hash_params.name,
+		    rte_strerror(rte_errno), rte_errno);
+	}
+
 }
 
 
@@ -191,7 +259,7 @@ print_ue_context_by(struct rte_hash *h, ue_context *context)
 
 
 int
-create_ue_context(uint8_t *imsi_val, uint16_t imsi_len,
+create_ue_context(uint64_t *imsi_val, uint16_t imsi_len,
 		uint8_t ebi, ue_context **context, apn *apn_requested)
 {
 	int ret;
@@ -274,9 +342,7 @@ create_ue_context(uint8_t *imsi_val, uint16_t imsi_len,
 		return GTPV2C_CAUSE_SYSTEM_FAILURE;
 	}
 
-
 	ebi_index = ebi - 5;
-	pdn = (*context)->pdns[ebi_index];
 	bearer = (*context)->eps_bearers[ebi_index];
 
 	if (bearer) {
@@ -311,6 +377,7 @@ create_ue_context(uint8_t *imsi_val, uint16_t imsi_len,
 						__LINE__);
 				return GTPV2C_CAUSE_SYSTEM_FAILURE;
 			}
+			pdn->num_bearer++;
 			(*context)->pdns[ebi_index] = pdn;
 			(*context)->num_pdns++;
 			pdn->eps_bearers[ebi_index] = bearer;
@@ -338,6 +405,7 @@ create_ue_context(uint8_t *imsi_val, uint16_t imsi_len,
 					__LINE__);
 			return GTPV2C_CAUSE_SYSTEM_FAILURE;
 		}
+		pdn->num_bearer++;
 		(*context)->eps_bearers[ebi_index] = bearer;
 		(*context)->pdns[ebi_index] = pdn;
 		(*context)->bearer_bitmap |= (1 << ebi_index);
@@ -351,6 +419,35 @@ create_ue_context(uint8_t *imsi_val, uint16_t imsi_len,
 
 	bearer->pdn = pdn;
 	bearer->eps_bearer_id = ebi;
+
+	pdn = (*context)->pdns[ebi_index];
+	bearer = (*context)->eps_bearers[ebi_index];
+
+	ret = rte_hash_add_key_data(pdn_by_fteid_hash,
+	    (const void *) &(*context)->s11_sgw_gtpc_teid,
+	    (void *) pdn);
+
+	//printf("PDN SEID(%lu)\n", pdn->seid);
+	if (ret < 0) {
+		fprintf(stderr,
+			"%s - Error on pdn_by_fteid_hash add\n",
+			strerror(ret));
+		rte_hash_del_key(pdn_by_fteid_hash,
+		    (const void *) &(*context)->s11_sgw_gtpc_teid);
+		if (ret < 0) {
+			/* If we get here something bad happened. The
+			 * context that was added to
+			 * ue_context_by_imsi_hash above was not able
+			 * to be removed.
+			 */
+			rte_panic("%s - Error on "
+				"pdn_by_fteid_hash del\n",
+				strerror(ret));
+		}
+		rte_free((*context));
+		return GTPV2C_CAUSE_SYSTEM_FAILURE;
+	}
+
 	return 0;
 }
 
@@ -358,7 +455,6 @@ apn *
 get_apn(char *apn_label, uint16_t apn_length)
 {
 	int i;
-
 	for (i = 0; i < MAX_NB_DPN; i++)   {
 		if ((apn_length == apn_list[i].apn_name_length)
 			&& !memcmp(apn_label, apn_list[i].apn_name_label,
@@ -366,11 +462,34 @@ get_apn(char *apn_label, uint16_t apn_length)
 			break;
 	        }
 	}
-	if(i >= MAX_NB_DPN)     {
-		fprintf(stderr,"APN \"%s\" received in create session "
-				"request doesn't match with the list of apn in "
-				"CP configuaration file\n", apn_label);
-		return NULL;
+	if(i >= MAX_NB_DPN) {
+		/* when apn name of csr are not found in cp.cfg file */
+		/* BP : TODO : free apn_reruested and apn_name_label memory */
+		apn *apn_requested = rte_zmalloc_socket(NULL, sizeof(apn),
+				RTE_CACHE_LINE_SIZE, rte_socket_id());
+		if (apn_requested == NULL) {
+			rte_panic("Failure to allocate apn_requested buffer: "
+					"%s (%s:%d)\n",
+					rte_strerror(rte_errno),
+					__FILE__,
+					__LINE__);
+			return NULL;
+		}
+
+		apn_requested->apn_name_label = rte_zmalloc_socket(NULL, apn_length,
+				RTE_CACHE_LINE_SIZE, rte_socket_id());
+
+		if (apn_requested->apn_name_label == NULL) {
+			rte_panic("Failure to allocate apn_name_label buffer: "
+					"%s (%s:%d)\n",
+					rte_strerror(rte_errno),
+					__FILE__,
+					__LINE__);
+			return NULL;
+		}
+		strncpy(apn_requested->apn_name_label, apn_label, apn_length);
+		apn_requested->apn_name_length = apn_length;
+		return apn_requested;
 	}
 
 	apn_list[i].apn_idx = i;

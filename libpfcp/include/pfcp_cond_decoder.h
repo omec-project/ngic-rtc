@@ -65,6 +65,7 @@
     if (value->fd) \
     { \
         value->len_of_flow_desc += decode_bits(buf, total_decoded, bit_count, &decoded); \
+        total_decoded += decoded;\
     }
 
 /* Inside pfcp_pfd_contents_ie_t */
@@ -79,6 +80,7 @@
     if (value->ttc) \
     { \
         value->tos_traffic_cls += decode_bits(buf, total_decoded, bit_count, &decoded); \
+        total_decoded += decoded; \
     }
 
 /* Inside pfcp_sdf_filter_ie_t */
@@ -86,6 +88,7 @@
     if (value->spi) \
     { \
         value->secur_parm_idx += decode_bits(buf, total_decoded, bit_count, &decoded); \
+        total_decoded += decoded;\
     }
 
 /* Inside pfcp_sdf_filter_ie_t */
@@ -93,6 +96,7 @@
     if (value->fl) \
     { \
         value->flow_label += decode_bits(buf, total_decoded, bit_count, &decoded); \
+        total_decoded += decoded;\
     }
 
 /* Inside pfcp_sdf_filter_ie_t */
@@ -100,6 +104,7 @@
     if (value->bid) \
     { \
         value->sdf_filter_id += decode_bits(buf, total_decoded, bit_count, &decoded); \
+        total_decoded += decoded;\
     }
 
 /* Inside pfcp_sbsqnt_vol_thresh_ie_t */
@@ -217,6 +222,10 @@
 	if (value->pfd_contents_cp) \
 { \
 	value->len_of_cstm_pfd_cntnt += decode_bits(buf, total_decoded, bit_count, &decoded); \
+	total_decoded += decoded;\
+	value->cstm_pfd_cntnt = malloc(value->len_of_cstm_pfd_cntnt); \
+	memcpy(value->cstm_pfd_cntnt, buf +(total_decoded/CHAR_SIZE), value->len_of_cstm_pfd_cntnt); \
+	total_decoded += value->len_of_cstm_pfd_cntnt * CHAR_SIZE; \
 }
 
 /* Inside pfcp_pfd_contents_ie_t */
@@ -343,8 +352,8 @@
 #define DECODE_IPV4_ADDRESS_COND_3(buf, total_decoded, bit_count, decoded, value) \
 if (1) \
 { \
-	memcpy(&value->ipv4_address, buf + (total_decoded/CHAR_SIZE), 4); \
-	total_decoded += 4 * CHAR_SIZE; \
+	value->ipv4_address = decode_bits(buf, total_decoded, bit_count, &decoded); \
+	total_decoded += decoded; \
 }
 
 /* Inside pfcp_outer_hdr_creation_ie_t */
@@ -365,6 +374,7 @@ if (1) \
     if (value->ulpr) \
     { \
         value->max_uplnk_pckt_rate += decode_bits(buf, total_decoded, bit_count, &decoded); \
+		total_decoded += decoded; \
     }
 
 /* Inside pfcp_packet_rate_ie_t */
@@ -372,6 +382,7 @@ if (1) \
     if (value->dlpr) \
     { \
         value->max_dnlnk_pckt_rate += decode_bits(buf, total_decoded, bit_count, &decoded); \
+		total_decoded += decoded; \
     }
 
 /* Inside pfcp_dl_flow_lvl_marking_ie_t */
@@ -379,6 +390,7 @@ if (1) \
     if (value->ttc) \
     { \
         value->tostraffic_cls += decode_bits(buf, total_decoded, bit_count, &decoded); \
+		total_decoded += decoded; \
     }
 
 /* Inside pfcp_dl_flow_lvl_marking_ie_t */
@@ -386,6 +398,7 @@ if (1) \
     if (value->sci) \
     { \
         value->svc_cls_indctr += decode_bits(buf, total_decoded, bit_count, &decoded); \
+		total_decoded += decoded; \
     }
 
 /* TODO: Revisit this for change in yang */

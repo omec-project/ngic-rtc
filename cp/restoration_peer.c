@@ -23,11 +23,14 @@
 
 #ifdef C3PO_OSS
 #include "cp_stats.h"
-#include"cp_config.h"
+#include "cp_config.h"
+#include "cp_adapter.h"
+#include "sm_struct.h"
 #endif
 
 #include "../restoration/restoration_timer.h"
 
+//#define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
 
 char filename[256] = "../config/cp_rstCnt.txt";
 
@@ -46,7 +49,7 @@ int32_t conn_cnt = 0;
 static uint16_t gtpu_mme_seqnb	= 0;
 static uint16_t gtpu_sgwc_seqnb	= 0;
 static uint16_t gtpu_pgwc_seqnb	= 0;
-static uint16_t gtpu_sx_seqnb	= 0;
+static uint16_t gtpu_sx_seqnb	= 1;
 
 /**
  * Connection hash params.
@@ -133,44 +136,38 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 		clLog(clSystemLog, eCLSeverityDebug, "Stopped Periodic/transmit timer, peer node %s is not reachable\n",
 				inet_ntoa(*(struct in_addr *)&md->dstIP));
 
+		update_peer_status(md->dstIP,FALSE); //cli
+		delete_cli_peer(md->dstIP);
+
 		if (md->portId == S11_SGW_PORT_ID)
 		{
 			clLog(s11logger, eCLSeverityDebug, "MME status : Inactive\n");
-			cp_stats.mme_status = 0;
 		}
 
 		if (md->portId == SX_PORT_ID)
 		{
 			clLog(sxlogger, eCLSeverityDebug, " SGWU/SPGWU/PGWU status : Inactive\n");
-
-			cp_stats.sgwu_status = 0;
-			cp_stats.pgwu_status = 0;
 		}
 		if (md->portId == S5S8_SGWC_PORT_ID)
 		{
 			clLog(s5s8logger, eCLSeverityDebug, "PGWC status : Inactive\n");
-			cp_stats.pgwc_status = 0;
 		}
 		if (md->portId == S5S8_PGWC_PORT_ID)
 		{
 			clLog(s5s8logger, eCLSeverityDebug, "SGWC status : Inactive\n");
-			cp_stats.sgwc_status = 0;
 		}
-		/*if (md->portId == S11_SGW_PORT_ID)
-		 * {
-		 * RTE_LOG_DP(DEBUG, CP, "MME status : Inactive\n");
-		 * cp_stats.mme_status = 1;
-		 * }*/
 
 		/* TODO: Flush sessions */
 		if (md->portId == SX_PORT_ID)
 			delete_entry_heartbeat_hash(&dest_addr);
 
+		del_entry_from_hash(md->dstIP);
+
 		return;
 	}
 
 	bzero(&echo_tx_buf, sizeof(echo_tx_buf));
-	gtpv2c_header *gtpv2c_tx = (gtpv2c_header *) echo_tx_buf;
+	gtpv2c_header_t *gtpv2c_tx = (gtpv2c_header_t *) echo_tx_buf;
 
 	if (md->portId == S11_SGW_PORT_ID) {
 		if (ti == &md->pt)
@@ -186,7 +183,7 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 		build_gtpv2_echo_request(gtpv2c_tx, gtpu_pgwc_seqnb);
 	}
 
-	payload_length = ntohs(gtpv2c_tx->gtpc.length)
+	payload_length = ntohs(gtpv2c_tx->gtpc.message_len)
 			+ sizeof(gtpv2c_tx->gtpc);
 
 	if (md->portId == S11_SGW_PORT_ID) {
@@ -194,12 +191,10 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 		               (struct sockaddr *) &dest_addr,
 		               s11_mme_sockaddr_len);
 
-		cp_stats.nbr_of_sgwc_to_mme_echo_req_sent++;
-
 		if (ti == &md->tt)
 		{
 			(md->itr_cnt)++;
-			cp_stats.nbr_of_mme_to_sgwc_timeouts++;
+
 		}
 
 	} else if (md->portId == S5S8_SGWC_PORT_ID) {
@@ -208,12 +203,9 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 		                (struct sockaddr *) &dest_addr,
 		                s5s8_sockaddr_len);
 
-		cp_stats.nbr_of_sgwc_to_pgwc_echo_req_sent++;
-
 		if (ti == &md->tt)
 		{
 			(md->itr_cnt)++;
-			cp_stats.nbr_of_pgwc_to_sgwc_timeouts++;
 		}
 
 	} else if (md->portId == S5S8_PGWC_PORT_ID) {
@@ -221,12 +213,9 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 		                (struct sockaddr *) &dest_addr,
 		                s5s8_sockaddr_len);
 
-		cp_stats.nbr_of_pgwc_to_sgwc_echo_req_sent++;
-
 		if (ti == &md->tt)
 		{
 			(md->itr_cnt)++;
-			cp_stats.nbr_of_sgwc_to_pgwc_timeouts++;
 		}
 
 	} else if (md->portId == SX_PORT_ID) {
@@ -235,35 +224,35 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 
 		dest_addr.sin_port = htons(pfcp_config.pfcp_port);
 		//dest_addr.sin_port = htons(8805);
-		if ((pfcp_config.cp_type == SGWC) || (pfcp_config.cp_type == SAEGWC))
-		{
-			cp_stats.nbr_of_sgwc_to_sgwu_echo_req_sent++;
-		}
-		else if (pfcp_config.cp_type == PGWC)
-		{
-			cp_stats.nbr_of_pgwc_to_pgwu_echo_req_sent++;
-		}
 
-		if (ti == &md->pt)
-			gtpu_sx_seqnb++;
-
+		if (ti == &md->pt){
+			gtpu_sx_seqnb = get_pfcp_sequence_number(PFCP_HEARTBEAT_REQUEST, gtpu_sx_seqnb);;
+		}
 
 		process_pfcp_heartbeat_req(&dest_addr, gtpu_sx_seqnb);
 
 		if (ti == &md->tt)
 		{
 			(md->itr_cnt)++;
-			if ((pfcp_config.cp_type == SGWC) || (pfcp_config.cp_type == SAEGWC))
-			{
-				cp_stats.nbr_of_sgwu_to_sgwc_timeouts++;
-			}
-			else if (pfcp_config.cp_type == PGWC)
-			{
-				cp_stats.nbr_of_pgwu_to_pgwc_timeouts++;
-			}
 
 		}
 
+	}
+
+	/*CLI:update echo/hbt req sent count*/
+	get_current_time(cp_stats.stat_timestamp);
+	if (md->portId != SX_PORT_ID)
+	{
+		update_cli_stats(md->dstIP,GTP_ECHO_REQ,SENT,
+				cp_stats.stat_timestamp);
+	} else {
+		update_cli_stats(md->dstIP,PFCP_HEARTBEAT_REQUEST,
+						SENT,cp_stats.stat_timestamp);
+	}
+
+	if(ti == &md->tt)
+	{
+		update_peer_timeouts(md->dstIP,md->itr_cnt); //cli
 	}
 
 
@@ -320,6 +309,7 @@ uint8_t add_node_conn_entry(uint32_t dstIp, uint8_t portId)
 		   printf( "%s - initialization of %s failed\n", getPrintableTime(), conn_data->name );
 		   return -1;
 		}
+
 
 		/* printf("Timers PERIODIC:%d, TRANSMIT:%d, COUNT:%u\n",
 		 *pfcp_config.periodic_timer, pfcp_config.transmit_timer, pfcp_config.transmit_cnt);

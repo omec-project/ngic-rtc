@@ -1,8 +1,28 @@
+/*
+ * Copyright (c) 2019 Sprint
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #ifndef __GX_H__
 #define __GX_H__
 
 #include "fd.h"
 #include "gx_struct.h"
+#include <stdio.h>
+#include <string.h>
+
+#define CONNECTPEER  "ConnectPeer"
 
 typedef struct gxDict {
     struct dict_object * vndETSI;
@@ -47,6 +67,7 @@ typedef struct gxDict {
     struct dict_object * avp_oc_report_type;
     struct dict_object * avp_experimental_result;
     struct dict_object * avp_cc_request_type;
+    struct dict_object * avp_service_context_id;
     struct dict_object * avp_secondary_event_charging_function_name;
     struct dict_object * avp_pcscf_restoration_indication;
     struct dict_object * avp_tdf_ip_address;
@@ -339,6 +360,7 @@ typedef struct gxDict {
     struct dict_avp_data davp_oc_report_type;
     struct dict_avp_data davp_experimental_result;
     struct dict_avp_data davp_cc_request_type;
+    struct dict_avp_data davp_service_context_id;
     struct dict_avp_data davp_secondary_event_charging_function_name;
     struct dict_avp_data davp_pcscf_restoration_indication;
     struct dict_avp_data davp_tdf_ip_address;
@@ -629,5 +651,23 @@ extern int gx_raa_free (GxRAA *raa);
 extern int gx_cca_free (GxCCA *cca);
 extern int gx_ccr_free (GxCCR *ccr);
 
+extern uint32_t gx_rar_calc_length (GxRAR *rar);
+extern uint32_t gx_raa_calc_length (GxRAA *raa);
+extern uint32_t gx_cca_calc_length (GxCCA *cca);
+extern uint32_t gx_ccr_calc_length (GxCCR *ccr);
 
+extern int gx_rar_pack (GxRAR *rar, unsigned char *buf, uint32_t buflen);
+extern int gx_raa_pack (GxRAA *raa, unsigned char *buf, uint32_t buflen);
+extern int gx_cca_pack (GxCCA *cca, unsigned char *buf, uint32_t buflen);
+extern int gx_ccr_pack (GxCCR *ccr, unsigned char *buf, uint32_t buflen);
+
+extern int gx_rar_unpack (unsigned char *buf, GxRAR *rar);
+extern int gx_raa_unpack (unsigned char *buf, GxRAA *raa);
+extern int gx_cca_unpack (unsigned char *buf, GxCCA *cca);
+extern int gx_ccr_unpack (unsigned char *buf, GxCCR *ccr);
+
+int gx_send_raa(void *data);
+
+int recv_msg_handler( int sock );
+int unixsock(void);
 #endif /* __GX_H__ */

@@ -17,6 +17,7 @@
 #include "ue.h"
 #include "pfcp.h"
 #include "cp_stats.h"
+#include "cp_config.h"
 #include "sm_struct.h"
 #include "pfcp_util.h"
 #include "pfcp_session.h"
@@ -43,13 +44,13 @@ extern int pfcp_fd;
  *   \- < 0 for all other errors
  */
 int
-parse_release_access_bearer_request(gtpv2c_header *gtpv2c_rx,
+parse_release_access_bearer_request(gtpv2c_header_t *gtpv2c_rx,
 		rel_acc_ber_req *rel_acc_ber_req_t)
 {
 	/* VS: Remove this part at integration of libgtpv2 lib*/
 	rel_acc_ber_req_t->header = *(gtpv2c_header_t *)gtpv2c_rx;
 
-	uint32_t teid = ntohl(gtpv2c_rx->teid_u.has_teid.teid);
+	uint32_t teid = ntohl(gtpv2c_rx->teid.has_teid.teid);
 
 	int ret = rte_hash_lookup_data(ue_context_by_fteid_hash,
 	    (const void *) &teid,
@@ -59,12 +60,12 @@ parse_release_access_bearer_request(gtpv2c_header *gtpv2c_rx,
 		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 
 	if(gtpv2c_rx != NULL) {
-		if(gtpv2c_rx->gtpc.teidFlg == 1) {
+		if(gtpv2c_rx->gtpc.teid_flag == 1) {
 			rel_acc_ber_req_t->seq =
-				gtpv2c_rx->teid_u.has_teid.seq;
+				gtpv2c_rx->teid.has_teid.seq;
 		} else {
 			rel_acc_ber_req_t->seq =
-				gtpv2c_rx->teid_u.no_teid.seq;
+				gtpv2c_rx->teid.no_teid.seq;
 		}
 	}
 
@@ -84,7 +85,7 @@ parse_release_access_bearer_request(gtpv2c_header *gtpv2c_rx,
  */
 /* TODO: Remove #if 0 before rollup */
 void
-set_release_access_bearer_response(gtpv2c_header *gtpv2c_tx,
+set_release_access_bearer_response(gtpv2c_header_t *gtpv2c_tx,
 		uint32_t sequence, uint32_t s11_mme_gtpc_teid)
 {
 	set_gtpv2c_teid_header(gtpv2c_tx, GTP_RELEASE_ACCESS_BEARERS_RSP,
@@ -95,9 +96,8 @@ set_release_access_bearer_response(gtpv2c_header *gtpv2c_tx,
 }
 
 int
-process_release_access_bearer_request(rel_acc_ber_req *rel_acc_ber_req_t)
+process_release_access_bearer_request(rel_acc_ber_req *rel_acc_ber_req_t, uint8_t proc)
 {
-	int ret = 0;
 	uint8_t ebi_index = 0;
 	eps_bearer *bearer  = NULL;
 	pdn_connection *pdn =  NULL;
@@ -121,35 +121,50 @@ process_release_access_bearer_request(rel_acc_ber_req *rel_acc_ber_req_t)
 
 		pdn = bearer->pdn;
 
-		rel_acc_ber_req_t->context->seid =
+		rel_acc_ber_req_t->context->pdns[ebi_index]->seid =
 			SESS_ID((rel_acc_ber_req_t->context)->s11_sgw_gtpc_teid, bearer->eps_bearer_id);
 
-		fill_pfcp_sess_mod_req(&pfcp_sess_mod_req, &rel_acc_ber_req_t->header,
-				rel_acc_ber_req_t->context, bearer, pdn);
-
+		pfcp_update_far_ie_t update_far[MAX_LIST_SIZE];
 		pfcp_sess_mod_req.update_far_count = 1;
+		for(int itr=0; itr < pfcp_sess_mod_req.update_far_count; itr++ ){
+			update_far[itr].upd_frwdng_parms.outer_hdr_creation.teid =
+				bearer->s1u_enb_gtpu_teid;
+			update_far[itr].upd_frwdng_parms.outer_hdr_creation.ipv4_address =
+				bearer->s1u_enb_gtpu_ipv4.s_addr;
+			update_far[itr].upd_frwdng_parms.dst_intfc.interface_value =
+				GTPV2C_IFTYPE_S1U_ENODEB_GTPU;
+			update_far[pfcp_sess_mod_req.update_far_count].apply_action.forw = PRESENT;
+		}
+
+		fill_pfcp_sess_mod_req(&pfcp_sess_mod_req, &rel_acc_ber_req_t->header,
+				 bearer, pdn, update_far, 0);
+
 		if(pfcp_sess_mod_req.update_far_count) {
-			pfcp_sess_mod_req.update_far[0].apply_action.forw = 0;
-			pfcp_sess_mod_req.update_far[0].apply_action.buff = PRESENT;
-			if (pfcp_sess_mod_req.update_far[0].apply_action.buff == PRESENT) {
-				pfcp_sess_mod_req.update_far[0].apply_action.nocp = PRESENT;
-				pfcp_sess_mod_req.update_far[0].upd_frwdng_parms.outer_hdr_creation.teid = 0;
+			for(int itr=0; itr < pfcp_sess_mod_req.update_far_count; itr++ ){
+				pfcp_sess_mod_req.update_far[itr].apply_action.forw = 0;
+				pfcp_sess_mod_req.update_far[itr].apply_action.buff = PRESENT;
+				if (pfcp_sess_mod_req.update_far[itr].apply_action.buff == PRESENT) {
+					pfcp_sess_mod_req.update_far[itr].apply_action.nocp = PRESENT;
+					pfcp_sess_mod_req.update_far[itr].upd_frwdng_parms.outer_hdr_creation.teid = 0;
+				}
 			}
 		}
 
 
-		if (get_sess_entry((rel_acc_ber_req_t->context)->seid, &resp) != 0) {
-			fprintf(stderr, "Failed to add response in entry in SM_HASH\n");
+		if (get_sess_entry((rel_acc_ber_req_t->context)->pdns[ebi_index]->seid, &resp) != 0) {
+			fprintf(stderr, "%s %s %d Failed to add response in entry in SM_HASH\n",__file__,
+					__func__, __LINE__);
 			return -1;
 		}
 
-		/* Store s11 struture data into sm_hash for sending delete response back to s11 */
-		resp->s11_mme_gtpc_teid = (rel_acc_ber_req_t->context)->s11_mme_gtpc_teid;
-		resp->s11_mme_gtpc_ipv4 = (rel_acc_ber_req_t->context)->s11_mme_gtpc_ipv4;
-		resp->s11_sgw_gtpc_teid = (rel_acc_ber_req_t->context)->s11_sgw_gtpc_teid;
-		resp->sequence = rel_acc_ber_req_t->header.teid.has_teid.seq;
+		/* Update the Sequence number */
+		(rel_acc_ber_req_t->context)->sequence =
+			rel_acc_ber_req_t->header.teid.has_teid.seq;
+
+		/* Store s11 struture data into sm_hash for sending response back to s11 */
 		resp->msg_type = GTP_RELEASE_ACCESS_BEARERS_REQ;
-		resp->state = SESS_MOD_REQ_SNT_STATE;
+		resp->state = PFCP_SESS_MOD_REQ_SNT_STATE;
+		resp->proc = proc;
 
 		uint8_t pfcp_msg[size]={0};
 		int encoded = encode_pfcp_sess_mod_req_t(&pfcp_sess_mod_req, pfcp_msg);
@@ -160,15 +175,16 @@ process_release_access_bearer_request(rel_acc_ber_req *rel_acc_ber_req_t)
 		if ( pfcp_send(pfcp_fd, pfcp_msg, encoded, &upf_pfcp_sockaddr) < 0 )
 			printf("Error sending: %i\n",errno);
 		else {
-			cp_stats.session_modification_req_sent++;
-			get_current_time(cp_stats.session_modification_req_sent_time);
+
+			get_current_time(cp_stats.stat_timestamp);
+			update_cli_stats((uint32_t)upf_pfcp_sockaddr.sin_addr.s_addr,
+							pfcp_sess_mod_req.header.message_type,REQ,
+							cp_stats.stat_timestamp);
+
 		}
+
 		/* Update UE State */
-		ret = update_ue_state(resp->s11_sgw_gtpc_teid,
-				SESS_MOD_REQ_SNT_STATE);
-		if (ret < 0) {
-			fprintf(stderr, "%s:Failed to update UE State.\n", __func__);
-		}
+		(rel_acc_ber_req_t->context)->state = PFCP_SESS_MOD_REQ_SNT_STATE;
 	}
 	return 0;
 }

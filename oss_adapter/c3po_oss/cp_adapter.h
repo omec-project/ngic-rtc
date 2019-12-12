@@ -4,148 +4,6 @@
 #define REST_SUCESSS  200
 #define REST_FAIL     400
 
-
-/*
- * Define type of Control Plane response common Statatics Cases(CP)
- */
-enum cli_response_common_stat {
-	active_session = 0,
-	upsecs = 1,
-	resetsecs = 2,
-};
-
-/*
- * Define type of Control Plane health Switch Cases(CP)
- */
-enum cp_health_stat {
-	set_status = 0,
-	set_timeouts = 1,
-	set_req_sent = 2,
-	set_req_received = 3,
-	set_resp_sent = 4,
-	set_resp_received = 5,
-};
-
-/*
- * Define type of Control Plane s11 Statatics Cases(CP)
- */
-enum cp_stat_s11 {
-	create_session = 0,
-	modify_bearer = 1,
-	delete_session = 2,
-	number_of_ues = 3,
-	release_access_bearer = 4,
-	downlink_data_notification_ack = 5,
-	sgw_nbr_of_pdn_connections = 6,
-	sgw_nbr_of_bearers = 7,
-	downlink_data_notification_req_send = 8,
-
-};
-
-/*
- * Define type of Control Plane s5s8 Statatics Cases(CP)
- */
-
-enum cp_stat_sx {
-
-	session_establishment_req_sent = 0,
-	session_establishment_resp_acc_rcvd = 1,
-	session_deletion_req_sent = 2,
-	session_deletion_resp_acc_rcvd = 3,
-	association_setup_req_sent = 4,
-	association_setup_resp_acc_rcvd = 5,
-	session_modification_req_sent = 6,
-	session_modification_resp_acc_rcvd = 7,
-	downlink_data_notification = 8,
-
-};
-
-enum cp_stat_s5s8 {
-	sm_create_session_req_sent = 0,
-	sm_create_session_resp_acc_rcvd = 1,
-	sm_delete_session_req_sent = 2,
-	sm_delete_session_resp_acc_rcvd = 3,
-};
-
-/////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////
-
-enum cp_stat_sx_pgwc {
-
-	session_establishment_req_sent_pgwc = 0,
-	session_establishment_resp_acc_rcvd_pgwc = 1,
-	session_deletion_req_sent_pgwc = 2,
-	session_deletion_resp_acc_rcvd_pgwc = 3,
-	association_setup_req_sent_pgwc = 4,
-	association_setup_resp_acc_rcvd_pgwc = 5,
-
-
-};
-
-enum cp_stat_s5s8_pgwc {
-	sm_create_session_req_rcvd_pgwc = 0,
-	sm_delete_session_req_rcvd_pgwc = 1,
-	sm_s5s8_nbr_of_ues_pgwc = 2,
-};
-/*
- * Define type of Control Plane catagories Cases(CP)
- */
-enum cli_response_catagory_case_spgwc {
-	s11_interface = 0,
-	sx_interface = 1,
-	s5s8_interface = 2,
-};
-
-enum cli_response_catagory_case_pgwc {
-	sx_interface_pgwc = 0,
-	s5s8_interface_pgwc = 1,
-};
-
-
-
-///////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-
-/*
- * Define type of Control Plane sx interface peer list(CP)
- */
-enum sx_peer_list {
-	peer1 = 0,
-	peer2 = 1,
-	peer3 = 2,
-};
-
-enum sx_peer_list_pgwc {
-	peer1_pgwc = 0,
-	peer2_pgwc = 1,
-	peer3_pgwc = 2,
-};
-
-enum lastactivity_of_peer {
-	peer_lastactivity = 0,
-};
-
-/**
- * @brief retrive the statstics of element
- * identifier
- * @param category_id - table identifier
- * @param value_id - element identifier in table
- * @param peer_id - peer identifier in table
- * @return
- * @value of the element.
- */
-
-int64_t get_stat_spgwc(int category_id, int value_id, int peer_id);
-int64_t get_stat_pgwc(int category_id, int value_id, int peer_id);
-int64_t get_stat_common(int value_id);
-int64_t get_stat_health(int category_id, int value_id, int peer_id);
-int64_t get_stat_health_pgwc(int category_id, int value_id, int peer_id);
-const char * get_time_stat(int category_id, int value_id, int peer_id);
-const char * get_time_stat_pgwc(int category_id, int value_id, int peer_id);
-
-const char * get_lastactivity_time_sgwc(int category_id, int value_id, int peer_id);
-const char * get_lastactivity_time_pgwc(int category_id, int value_id, int peer_id);
-
 /**
  * @brief initiates the rest service
  * @param port_no  - Rest service port number
@@ -153,19 +11,6 @@ const char * get_lastactivity_time_pgwc(int category_id, int value_id, int peer_
  * @return void
  */
 void init_rest_methods(int port_no, size_t thread_count);
-
-int change_config_file(const char *path,const char *param,const char *value);
-
-
-void display_apn_list(void);
-int delete_apn(char *apn_label);
-int delete_cfg_cp_apn(const char *path, const char *param, const char *value);
-int read_config_file(const char *path,const char *param,char *buff);
-
-const char *dpdk_cfg_read_config_file(const char *path,const char *param);
-
-#endif
-
 
 typedef long long int _timer_t;
 
@@ -188,3 +33,148 @@ typedef long long int _timer_t;
  })
 
 extern _timer_t st_time;
+
+
+/////////////////////////////////////////////////////////////////////////////////////////
+
+#define MAX_PEER 10
+#define S11_MSG_TYPE_LEN 49
+#define S5S8_MSG_TYPE_LEN 35
+#define SXA_MSG_TYPE_LEN 21
+#define SXB_MSG_TYPE_LEN 21
+#define SXASXB_MSG_TYPE_LEN 23
+#define GX_MSG_TYPE_LEN 6
+#define SYSTEM_MSG_TYPE_LEN 4
+
+#define GTP_CREATE_SESSION_REQ                               (32)
+#define GTP_CREATE_SESSION_RSP                               (33)
+#define GTP_MODIFY_BEARER_REQ                                (34)
+#define GTP_MODIFY_BEARER_RSP                                (35)
+#define GTP_DELETE_SESSION_REQ                               (36)
+#define GTP_DELETE_SESSION_RSP                               (37)
+#define GTP_CREATE_BEARER_REQ                                (95)
+#define GTP_CREATE_BEARER_RSP                                (96)
+
+
+typedef enum {
+	REQ = 0,
+	ACC = 0,
+	REJ = 1,
+	SENT = 0,
+	RCVD = 1,
+} Dir;
+
+
+
+typedef enum {
+	itS11,
+	itS5S8,
+	itSxa,
+	itSxb,
+	itSxaSxb,
+	itGx
+} EInterfaceType;
+
+typedef enum {
+	dIn,
+	dOut,
+	dRespSend,
+	dRespRcvd,
+	dBoth,
+	dNone
+} EDirection;
+
+typedef enum {
+	DECREMENT,
+	INCREMENT,
+} Operation;
+
+typedef enum {
+	number_of_active_session,
+	number_of_users,
+	number_of_bearers,
+	number_of_pdn_connections,
+} SystemStats;
+
+typedef struct {
+	int msgtype;
+	const char *msgname;
+	EDirection dir;
+} MessageType;
+
+typedef struct {
+	int cnt[2];
+	//time_t ts;
+	char ts[80];
+} Statistic;
+
+#define SENT 0
+#define RCVD 1
+#define FALSE 0
+#define TRUE 1
+
+typedef struct {
+	struct in_addr ipaddr;
+	EInterfaceType intfctype;
+
+	bool status;
+	int response_timeout;  //TRANSMIT TIMER
+	uint8_t maxtimeout;    //TRANSMIT COUNT in cp.cfg
+	uint8_t timeouts;
+
+	char lastactivity[80];
+
+	int hcrequest[2];
+	int hcresponse[2];
+	union {
+		Statistic s11[51];
+		Statistic s5s8[37];
+		Statistic sxa[21];
+		Statistic sxb[21];
+		Statistic sxasxb[23];
+		Statistic gx[23];
+	} stats;
+} SPeer;
+
+/*
+ * 0 --> active sessions
+ * 1 --> Nbr-of-ues
+ * 2 --> Nbr-of-pdn-conn
+ * & so on.
+ */
+
+
+typedef struct {
+	uint8_t cp_type;
+	uint64_t *upsecs;
+	uint64_t *resetsecs;
+	//uint64_t upsecs;
+	uint64_t stats[5];
+	SPeer *peer[MAX_PEER];
+
+}cli_node_t;
+
+extern cli_node_t cli_node;
+
+
+
+//extern SPeer *peer[MAX_PEER];
+extern int cnt_peer;  /*last index of array*/
+extern int nbr_of_peer; /*total nbr of peer count*/
+
+
+int update_cli_stats(uint32_t ip_addr, uint8_t mgs_type,int dir,char *time_stamp);
+int get_peer_index(uint32_t ip_addr);
+void add_cli_peer(uint32_t ip_addr,EInterfaceType it);
+int update_peer_status(uint32_t ip_addr,bool val);
+int update_peer_timeouts(uint32_t ip_addr,uint8_t val);
+int delete_cli_peer(uint32_t ip_addr);
+int get_first_index(void);
+int update_last_activity(uint32_t ip_addr, char *time_stamp);
+int update_sys_stat(int index, int operation);
+
+/*NK:*/
+extern MessageType s11MessageDefs[2];
+extern int s11MessageTypes[220];
+
+#endif

@@ -23,6 +23,8 @@
  * prototypes to describe CP DP APIs.
  */
 #include <time.h>
+#include "pfcp_ies.h"
+#include <rte_ether.h>
 /**
  * IPv6 address length
  */
@@ -68,11 +70,11 @@
 /**
  * Gate closed
  */
-#define CLOSE 0
+#define CLOSE 1
 /**
  * Gate opened
  */
-#define OPEN 1
+#define OPEN 0
 
 /**
  * Maximum rating groups per bearer session.
@@ -87,7 +89,7 @@
 /**
  * get UE session id
  */
-#define UE_SESS_ID(x) (x>>4)
+#define UE_SESS_ID(x) ((x & 0xffffffff) >> 4)
 
 /**
  * get bearer id
@@ -117,6 +119,18 @@ enum iptype {
 enum rule_type {
 	RULE_STRING = 0,
 	FIVE_TUPLE,
+};
+
+/**
+ * Packet action  field.
+ */
+enum sess_pkt_action {
+	ACTION_NONE = 0,
+	ACTION_DROP,
+	ACTION_FORWARD,
+	ACTION_BUFFER,
+	ACTION_NOTIFY_CP,
+	ACTION_DUPLICATE,
 };
 
 /**
@@ -203,7 +217,7 @@ enum selector_type {
 	DOMAIN_NAME = 0,		/* Domain name. */
 	DOMAIN_IP_ADDR,			/* Domain IP address */
 	DOMAIN_IP_ADDR_PREFIX,	/* Domain IP prefix */
-	NONE
+	DOMAIN_NONE
 };
 
 /**
@@ -291,6 +305,7 @@ enum sess_direction {
  */
 struct ul_s1_info {
 	uint32_t sgw_teid;		/* SGW teid*/
+	uint32_t s5s8_pgw_teid; 	/* PGW teid */
 	struct ip_addr enb_addr;	/* eNodeB address*/
 	struct ip_addr sgw_addr;	/* Serving Gateway address*/
 	struct ip_addr s5s8_pgwu_addr;	/* S5S8_PGWU address*/
@@ -411,12 +426,14 @@ struct session_info {
 	uint64_t sess_id;						/* session id of this bearer
 									 * last 4 bits of sess_id
 									 * maps to bearer id*/
+	uint64_t cp_sess_id;
 	uint32_t service_id;						/* Type of service given
 									 * given to this session like
 									 * Internet, Management, CIPA etc
 									 */
 	uint32_t ul_apn_mtr_idx;		/* UL APN meter profile index*/
 	uint32_t dl_apn_mtr_idx;		/* DL APN meter profile index*/
+	enum sess_pkt_action action;
 } __attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
 
 
@@ -454,6 +471,21 @@ struct msg_ue_cdr {
 
 #ifdef DP_BUILD
 /**
+ * SDF Packet filter configuration structure.
+ */
+struct sdf_pkt_filter {
+	uint32_t precedence;				/* Precedence */
+	union {
+		char rule_str[MAX_LEN];		/* string of rule, please refer
+						 * cp/main.c for example
+						 * TODO: rule should be in struct five_tuple_rule*/
+		struct five_tuple_rule rule_5tp;	/* 5 Tuple rule.
+							 * This field is currently not used*/
+	} u;
+	enum rule_type sel_rule_type;
+} __attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
+
+/**
  * Structure to downlink data notification ack information struct.
  */
 struct downlink_data_notification_ack_t {
@@ -466,6 +498,23 @@ struct downlink_data_notification_ack_t {
 	uint64_t dl_buff_cnt;
 	uint64_t dl_buff_duration;
 };
+/*
+ * Structure to store information
+ * for sending End Marker
+ */
+
+struct sess_info_endmark {
+	uint32_t dst_ip;
+	uint32_t src_ip;
+	uint8_t dst_port;
+	uint8_t src_port;
+	struct ether_addr source_MAC;
+	struct ether_addr destination_MAC;
+}__attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
+
+void
+build_endmarker_and_send(struct sess_info_endmark *edmk);
+
 #endif 	/* DP_BUILD */
 
 #define MAX_NB_DPN	8  /* Note: MAX_NB_DPN <= 8 */
@@ -738,6 +787,8 @@ session_modify(struct dp_id dp_id, struct session_info session);
 int
 send_ddn_ack(struct dp_id dp_id,
 		struct downlink_data_notification_ack_t ddn_ack);
+
+
 #endif 	/* DP_BUILD */
 
 /**

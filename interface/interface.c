@@ -32,12 +32,14 @@
 #include <rte_jhash.h>
 #include <rte_cfgfile.h>
 
-#include "meter.h"
 #include "util.h"
-#include "acl_dp.h"
-#include "gtpv2c_ie.h"
 #include "interface.h"
 #include "dp_ipc_api.h"
+
+
+//#include "acl_dp.h"
+//#include "meter.h"
+//#include "gtpv2c_ie.h"
 
 #ifdef SDN_ODL_BUILD
 #include "zmqsub.h"
@@ -48,10 +50,11 @@
 #endif
 
 #ifndef CP_BUILD
-#include "cdr.h"
+#include "up_acl.h"
 #else
 #include "gtpv2c.h"
-#endif
+#include "ipc_api.h"
+#endif /* CP_BULID */
 
 #ifdef SGX_CDR
 	#define DEALERIN_IP "dealer_in_ip"
@@ -63,6 +66,11 @@
 	#define DP_PKEY_PATH "dp_pkey_path"
 #endif /* SGX_CDR */
 
+#ifdef CP_BUILD
+#ifdef GX_BUILD
+extern int gx_app_sock;
+#endif /* GX_BUILD */
+#endif /* CP_BUILD */
 
 /*
  * UDP Setup
@@ -1001,6 +1009,10 @@ void sig_handler(int signo)
 #endif
 
 #ifdef CP_BUILD
+#ifdef GX_BUILD
+			if (gx_app_sock > 0)
+				close_ipc_channel(gx_app_sock);
+#endif /* GX_BUILD */
 #ifdef SYNC_STATS
 			retrive_stats_entry();
 			close_stats();
@@ -1013,7 +1025,6 @@ void sig_handler(int signo)
 
 #ifndef CP_BUILD
 			close(route_sock);
-			cdr_close();
 #endif
 #ifdef TIMER_STATS
 #ifdef AUTO_ANALYSIS

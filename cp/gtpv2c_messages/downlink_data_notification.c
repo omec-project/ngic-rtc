@@ -86,7 +86,7 @@ int
 ddn_by_session_id(uint64_t session_id)
 {
 	uint8_t tx_buf[MAX_GTPV2C_UDP_LEN] = { 0 };
-	gtpv2c_header *gtpv2c_tx = (gtpv2c_header *) tx_buf;
+	gtpv2c_header_t *gtpv2c_tx = (gtpv2c_header_t *) tx_buf;
 	uint32_t sgw_s11_gtpc_teid = UE_SESS_ID(session_id);
 	ue_context *context = NULL;
 	static uint32_t ddn_sequence = 1;
@@ -117,7 +117,7 @@ ddn_by_session_id(uint64_t session_id)
 	};
 
 
-	uint16_t payload_length = ntohs(gtpv2c_tx->gtpc.length)
+	uint16_t payload_length = ntohs(gtpv2c_tx->gtpc.message_len)
 			+ sizeof(gtpv2c_tx->gtpc);
 
 	if (pcap_dumper) {
@@ -135,7 +135,12 @@ ddn_by_session_id(uint64_t session_id)
 	}
 	ddn_sequence += 2;
 	++cp_stats.ddn;
-	get_current_time(cp_stats.ddn_time);
+
+	get_current_time(cp_stats.stat_timestamp);
+
+	update_cli_stats(mme_s11_sockaddr_in.sin_addr.s_addr,
+					gtpv2c_tx->gtpc.message_type,SENT,
+					cp_stats.stat_timestamp);
 
 	return 0;
 }
@@ -154,14 +159,14 @@ ddn_by_session_id(uint64_t session_id)
  *   \- < 0 for all other errors
  */
 int
-parse_downlink_data_notification_ack(gtpv2c_header *gtpv2c_rx,
+parse_downlink_data_notification_ack(gtpv2c_header_t *gtpv2c_rx,
 			downlink_data_notification_t *ddn_ack)
 {
 
 	gtpv2c_ie *current_ie;
 	gtpv2c_ie *limit_ie;
 
-	uint32_t teid = ntohl(gtpv2c_rx->teid_u.has_teid.teid);
+	uint32_t teid = ntohl(gtpv2c_rx->teid.has_teid.teid);
 	int ret = rte_hash_lookup_data(ue_context_by_fteid_hash,
 	    (const void *) &teid,
 	    (void **) &ddn_ack->context);
@@ -174,10 +179,10 @@ parse_downlink_data_notification_ack(gtpv2c_header *gtpv2c_rx,
 	 * message */
 	FOR_EACH_GTPV2C_IE(gtpv2c_rx, current_ie, limit_ie)
 	{
-		if (current_ie->type == IE_CAUSE &&
+		if (current_ie->type == GTP_IE_CAUSE &&
 				current_ie->instance == IE_INSTANCE_ZERO) {
 			ddn_ack->cause_ie = current_ie;
-		} else if (current_ie->type == IE_DELAY_VALUE &&
+		} else if (current_ie->type == GTP_IE_DELAY_VALUE &&
 				current_ie->instance == IE_INSTANCE_ZERO) {
 			ddn_ack->delay =
 					&IE_TYPE_PTR_FROM_GTPV2C_IE(delay_ie,
@@ -212,7 +217,7 @@ parse_downlink_data_notification_ack(gtpv2c_header *gtpv2c_rx,
  *
  */
 static void
-set_downlink_data_notification(gtpv2c_header *gtpv2c_tx,
+set_downlink_data_notification(gtpv2c_header_t *gtpv2c_tx,
 		uint32_t sequence, ue_context *context, eps_bearer *bearer)
 {
 	set_gtpv2c_teid_header(gtpv2c_tx, GTP_DOWNLINK_DATA_NOTIFICATION,
@@ -224,7 +229,7 @@ set_downlink_data_notification(gtpv2c_header *gtpv2c_tx,
 
 int
 create_downlink_data_notification(ue_context *context, uint8_t eps_bearer_id,
-		uint32_t sequence, gtpv2c_header *gtpv2c_tx)
+		uint32_t sequence, gtpv2c_header_t *gtpv2c_tx)
 {
 	struct eps_bearer_t *bearer = context->eps_bearers[eps_bearer_id - 5];
 	if (bearer == NULL)
@@ -242,9 +247,10 @@ process_ddn_ack(downlink_data_notification_t ddn_ack, uint8_t *delay)
 	struct resp_info *resp = NULL;
 
 	/* Lookup entry in hash table on the basis of session id*/
-	if (get_sess_entry((ddn_ack.context)->seid, &resp) != 0){
+	uint64_t ebi_index = 0;   /*ToDo : Need to revisit this.*/
+	if (get_sess_entry((ddn_ack.context)->pdns[ebi_index]->seid, &resp) != 0){
 		fprintf(stderr, "NO Session Entry Found for sess ID:%lu\n",
-				(ddn_ack.context)->seid);
+				(ddn_ack.context)->pdns[ebi_index]->seid);
 		return -1;
 	}
 

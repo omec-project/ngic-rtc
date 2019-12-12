@@ -59,14 +59,13 @@
 #include "net/route.h"
 
 
-#include "epc_arp.h"
-#include "epc_packet_framework.h"
 #include "util.h"
-#include "cdr.h"
-#include "main.h"
-#include "stats.h"
 #include "gtpu.h"
 #include "ipv4.h"
+#include "stats.h"
+#include "up_main.h"
+#include "epc_arp.h"
+#include "epc_packet_framework.h"
 
 #ifdef use_rest
 #include "../rest_timer/gstimer.h"
@@ -155,6 +154,8 @@ struct kni_port_params *kni_port_params_array[RTE_MAX_ETHPORTS];
 #define ARP_CACHE       "/proc/net/arp"
 #define ARP_BUFFER_LEN  1024
 #define ARP_DELIM       " "
+
+#define BUFFER_SIZE 4096
 
 /* VS: buffers */
 char ipAddr[128];

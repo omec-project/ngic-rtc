@@ -46,9 +46,9 @@
 #include <rte_arp.h>
 #include <unistd.h>
 
-#include "epc_packet_framework.h"
-#include "main.h"
 #include "gtpu.h"
+#include "up_main.h"
+#include "epc_packet_framework.h"
 
 #ifdef USE_REST
 #include "../restoration/restoration_timer.h"
@@ -115,8 +115,8 @@ static inline void epc_ul_set_port_id(struct rte_mbuf *m)
 	if (unlikely(
 		     (m->ol_flags & PKT_RX_IP_CKSUM_MASK) == PKT_RX_IP_CKSUM_BAD ||
 		     (m->ol_flags & PKT_RX_L4_CKSUM_MASK) == PKT_RX_L4_CKSUM_BAD)) {
-		RTE_LOG_DP(ERR, DP, "UL Bad checksum: %lu\n", m->ol_flags);
-		ipv4_packet = 0;
+		//RTE_LOG_DP(ERR, DP, "UL Bad checksum: %lu\n", m->ol_flags);
+		//ipv4_packet = 0;
 	}
 	*port_id_offset = 1;
 

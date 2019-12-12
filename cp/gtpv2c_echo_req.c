@@ -17,7 +17,7 @@
 #include "ipv4.h"
 #include "gtpv2c.h"
 #include "util.h"
-#include "gtpv2c_messages.h"
+#include "gtp_messages.h"
 #include "gtpv2c_set_ie.h"
 
 
@@ -55,14 +55,14 @@ typedef struct gtpu_recovery_ie_t {
 } gtpu_recovery_ie;
 
 static void
-set_recovery_ie_t(recovery_ie_t *recovery, uint8_t type, uint16_t length,
+set_recovery_ie_t(gtp_recovery_ie_t *recovery, uint8_t type, uint16_t length,
 					uint8_t instance)
 {
 	recovery->header.type = type;
 	recovery->header.len = length;
 	recovery->header.instance = instance;
 
-	recovery->restart_counter = rstCnt;
+	recovery->recovery = rstCnt;
 
 }
 /* Brief: Function to build GTP-U echo request
@@ -71,19 +71,18 @@ set_recovery_ie_t(recovery_ie_t *recovery, uint8_t type, uint16_t length,
  * Return: void
  */
 void
-build_gtpv2_echo_request(gtpv2c_header *echo_pkt, uint16_t gtpu_seqnb)
+build_gtpv2_echo_request(gtpv2c_header_t *echo_pkt, uint16_t gtpu_seqnb)
 {
 	echo_request_t echo_req = {0};
 
-	set_gtpv2c_teid_header((gtpv2c_header *)&echo_req.header,
+	set_gtpv2c_teid_header((gtpv2c_header_t *)&echo_req.header,
 			GTP_ECHO_REQ, 0, gtpu_seqnb);
 
-	set_recovery_ie_t((recovery_ie_t *)&echo_req.recovery, IE_RECOVERY,
+	set_recovery_ie_t((gtp_recovery_ie_t *)&echo_req.recovery, GTP_IE_RECOVERY,
 						sizeof(uint8_t), IE_INSTANCE_ZERO);
 
 	uint16_t msg_len = 0;
-	encode_echo_request_t(&echo_req, (uint8_t *)echo_pkt,
-			&msg_len);
+	msg_len = encode_echo_request(&echo_req, (uint8_t *)echo_pkt);
 
-	echo_pkt->gtpc.length = htons(msg_len - 4);
+	echo_pkt->gtpc.message_len = htons(msg_len - 4);
 }

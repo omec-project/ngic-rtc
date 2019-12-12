@@ -57,8 +57,8 @@ enum source_interface_value {
 };
 
 enum destination_interface_value {
-	DESTINATION_INTERFACE_VALUE_CORE =0,
-	DESTINATION_INTERFACE_VALUE_ACCESS =1,
+	DESTINATION_INTERFACE_VALUE_ACCESS =0,
+	DESTINATION_INTERFACE_VALUE_CORE =1,
 };
 
 enum fq_csid_node_id_type{

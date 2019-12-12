@@ -29,20 +29,25 @@
 #include <rte_errno.h>
 #include <errno.h>
 
-#include "../cp/cp.h"
 #include "interface.h"
-#include "udp/vepc_udp.h"
 #include "dp_ipc_api.h"
+#include "udp/vepc_udp.h"
 #include "../../pfcp_messages/pfcp_util.h"
 
 #ifdef CP_BUILD
+#include "../cp/cp.h"
 #include "../cp/cp_app.h"
 #include "../cp/cp_stats.h"
 #include "../cp/cp_config.h"
 #include "../cp/state_machine/sm_struct.h"
-extern int g_cp_sock;
+
+#ifdef GX_BUILD
+extern int gx_app_sock;
+#endif /* GX_BUILD */
+
 #endif /* CP_BUILD */
 
+//extern int errno;
 
 void iface_ipc_register_msg_cb(int msg_id,
 				int (*msg_cb)(struct msgbuf *msg_payload))
@@ -123,40 +128,40 @@ int iface_remove_que(enum cp_dp_comm id)
  * @brief Function to Poll message que.
  *
  */
-
-
 void iface_process_ipc_msgs(void)
 {
-	int n, rv;
-	fd_set readfds;
-	struct timeval tv;
-	struct sockaddr_in peer_addr;
+	int n = 0, rv = 0;
+	fd_set readfds = {0};
+	struct timeval tv = {0};
+	struct sockaddr_in peer_addr = {0};
 
-	/* Clear the set ahead of time */
 	FD_ZERO(&readfds);
 
-	/* Setting Descriptors */
+	/* Add PFCP_FD in the set */
 	FD_SET(my_sock.sock_fd, &readfds);
 
 #ifdef CP_BUILD
 
 	int max = 0;
 
-	/* add s11 fd*/
+	/* Add S11_FD in the set */
 	if ((spgw_cfg  == SGWC) || (spgw_cfg == SAEGWC)) {
 		FD_SET(my_sock.sock_fd_s11, &readfds);
 	}
 
-	/*add s5s8 fd*/
+	/* Add S5S8_FD in the set */
 	if (spgw_cfg != SAEGWC) {
 		FD_SET(my_sock.sock_fd_s5s8, &readfds);
 	}
 
-	/*add gx fd*/
-	if ((spgw_cfg == PGWC)) {
-		FD_SET(g_cp_sock, &readfds);
+#ifdef GX_BUILD
+	/* Add GX_FD in the set */
+	if ((spgw_cfg == PGWC ) || (spgw_cfg == SAEGWC)) {
+		FD_SET(gx_app_sock, &readfds);
 	}
+#endif /* GX_BUILD */
 
+	/* Set the MAX FD's stored into the set */
 	if (spgw_cfg == SGWC) {
 		max = (my_sock.sock_fd > my_sock.sock_fd_s11 ?
 				my_sock.sock_fd : my_sock.sock_fd_s11);
@@ -165,12 +170,16 @@ void iface_process_ipc_msgs(void)
 	if (spgw_cfg == SAEGWC) {
 		max = (my_sock.sock_fd > my_sock.sock_fd_s11 ?
 				my_sock.sock_fd : my_sock.sock_fd_s11);
+#ifdef GX_BUILD
+		max = (gx_app_sock > max ? gx_app_sock : max);
+#endif /* GX_BUILD */
 	}
 	if (spgw_cfg == PGWC) {
 		max = (my_sock.sock_fd > my_sock.sock_fd_s5s8 ?
 				my_sock.sock_fd : my_sock.sock_fd_s5s8);
-		max = (g_cp_sock > max ? g_cp_sock : max);
-
+#ifdef GX_BUILD
+		max = (gx_app_sock > max ? gx_app_sock : max);
+#endif /* GX_BUILD */
 	}
 
 	n = max + 1;
@@ -210,10 +219,13 @@ void iface_process_ipc_msgs(void)
 			}
 		}
 
-		if ((spgw_cfg == PGWC)) {
-			if (FD_ISSET(g_cp_sock, &readfds))
-					msg_handler(g_cp_sock);
+#ifdef GX_BUILD
+		if ((spgw_cfg == PGWC) || (spgw_cfg == SAEGWC)) {
+			if (FD_ISSET(gx_app_sock, &readfds)) {
+					msg_handler_gx();
+			}
 		}
+#endif  /* GX_BUILD */
 #endif
 
 	}

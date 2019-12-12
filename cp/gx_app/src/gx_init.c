@@ -1,3 +1,19 @@
+/*
+ * Copyright (c) 2019 Sprint
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include <stdio.h>
 #include <string.h>
 
@@ -31,10 +47,10 @@ int gxInit(void)
     FDCHECK_FCT_DICT(DICT_APPLICATION, APPLICATION_BY_ID, &app_gx, gxDict.appGX, rval, goto err);
 
 
-	FDCHECK_FCT_DICT_GETVAL(gxDict.appGX, &gxDict.davp_appGX, rval, goto err);
-	FDCHECK_FCT_DICT_GETVAL(gxDict.vnd3GPP, &gxDict.davp_vnd3GPP, rval, goto err);
-	FDCHECK_FCT_DICT_GETVAL(gxDict.vnd3GPP2, &gxDict.davp_vnd3GPP2, rval, goto err);
-	FDCHECK_FCT_DICT_GETVAL(gxDict.vndETSI, &gxDict.davp_vndETSI, rval, goto err);
+	//FDCHECK_FCT_DICT_GETVAL(gxDict.appGX, &gxDict.davp_appGX, rval, goto err);
+	//FDCHECK_FCT_DICT_GETVAL(gxDict.vnd3GPP, &gxDict.davp_vnd3GPP, rval, goto err);
+	//FDCHECK_FCT_DICT_GETVAL(gxDict.vnd3GPP2, &gxDict.davp_vnd3GPP2, rval, goto err);
+	//FDCHECK_FCT_DICT_GETVAL(gxDict.vndETSI, &gxDict.davp_vndETSI, rval, goto err);
 
     /* lookup commands */
     FDCHECK_FCT_DICT(DICT_COMMAND, CMD_BY_NAME, "Re-Auth-Request", gxDict.cmdRAR, rval, goto err);
@@ -68,6 +84,7 @@ int gxInit(void)
     FDCHECK_FCT_DICT(DICT_AVP, AVP_BY_NAME_ALL_VENDORS, "RAI", gxDict.avp_rai, rval, goto err);
     FDCHECK_FCT_DICT(DICT_AVP, AVP_BY_NAME, "OC-Report-Type", gxDict.avp_oc_report_type, rval, goto err);
     FDCHECK_FCT_DICT(DICT_AVP, AVP_BY_NAME, "Experimental-Result", gxDict.avp_experimental_result, rval, goto err);
+    FDCHECK_FCT_DICT(DICT_AVP, AVP_BY_NAME, "Service-Context-Id", gxDict.avp_service_context_id, rval, goto err);
     FDCHECK_FCT_DICT(DICT_AVP, AVP_BY_NAME, "CC-Request-Type", gxDict.avp_cc_request_type, rval, goto err);
     FDCHECK_FCT_DICT(DICT_AVP, AVP_BY_NAME_ALL_VENDORS, "Secondary-Event-Charging-Function-Name", gxDict.avp_secondary_event_charging_function_name, rval, goto err);
     FDCHECK_FCT_DICT(DICT_AVP, AVP_BY_NAME_ALL_VENDORS, "PCSCF-Restoration-Indication", gxDict.avp_pcscf_restoration_indication, rval, goto err);
@@ -361,6 +378,7 @@ int gxInit(void)
     FDCHECK_FCT_DICT_GETVAL(gxDict.avp_oc_report_type, &gxDict.davp_oc_report_type, rval, goto err);
     FDCHECK_FCT_DICT_GETVAL(gxDict.avp_experimental_result, &gxDict.davp_experimental_result, rval, goto err);
     FDCHECK_FCT_DICT_GETVAL(gxDict.avp_cc_request_type, &gxDict.davp_cc_request_type, rval, goto err);
+    FDCHECK_FCT_DICT_GETVAL(gxDict.avp_service_context_id, &gxDict.davp_service_context_id, rval, goto err);
     FDCHECK_FCT_DICT_GETVAL(gxDict.avp_secondary_event_charging_function_name, &gxDict.davp_secondary_event_charging_function_name, rval, goto err);
     FDCHECK_FCT_DICT_GETVAL(gxDict.avp_pcscf_restoration_indication, &gxDict.davp_pcscf_restoration_indication, rval, goto err);
     FDCHECK_FCT_DICT_GETVAL(gxDict.avp_tdf_ip_address, &gxDict.davp_tdf_ip_address, rval, goto err);
@@ -643,9 +661,10 @@ int gxRegister(void)
     data.app = gxDict.appGX;
 
     FDCHECK_FCT_REGISTER_CALLBACK( gx_rar_cb, gxDict.cmdRAR, rval, goto err);
-    FDCHECK_FCT_REGISTER_CALLBACK( gx_raa_cb, gxDict.cmdRAA, rval, goto err);
+    /* FDCHECK_FCT_REGISTER_CALLBACK( gx_raa_cb, gxDict.cmdRAA, rval, goto err); */
+
     FDCHECK_FCT_REGISTER_CALLBACK( gx_cca_cb, gxDict.cmdCCA, rval, goto err);
-    FDCHECK_FCT_REGISTER_CALLBACK( gx_ccr_cb, gxDict.cmdCCR, rval, goto err);
+    /* FDCHECK_FCT_REGISTER_CALLBACK( gx_ccr_cb, gxDict.cmdCCR, rval, goto err); */
 
     /* Register application support */
     FDCHECK_FCT_REGISTER_APPLICATION( gxDict.appGX, gxDict.vnd3GPP, rval, goto err);

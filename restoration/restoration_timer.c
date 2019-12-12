@@ -29,10 +29,17 @@
 #include <arpa/inet.h>
 
 #include "restoration_timer.h"
+
+#ifdef CP_BUILD
 #include "main.h"
 #ifdef C3PO_OSS
 #include "cp_stats.h"
+#include "cp_adapter.h"
 #endif
+#else
+#include "up_main.h"
+#endif
+
 char hbt_filename[256] = "../config/hrtbeat_recov_time.txt";
 
 static pthread_t _gstimer_thread;
@@ -282,23 +289,7 @@ uint8_t process_response(uint32_t dstIp)
 	} else {
 		conn_data->itr_cnt = 0;
 #ifdef CP_BUILD
-		if (conn_data->portId == SX_PORT_ID)
-		{
-			cp_stats.nbr_of_sgwu_to_sgwc_timeouts = 0; //cli timeouts.
-			cp_stats.nbr_of_pgwu_to_pgwc_timeouts = 0; //cli timeouts.
-		}
-		if (conn_data->portId == S11_SGW_PORT_ID)
-		{
-			cp_stats.nbr_of_mme_to_sgwc_timeouts = 0;
-		}
-		if (conn_data->portId == S5S8_SGWC_PORT_ID)
-		{
-			cp_stats.nbr_of_pgwc_to_sgwc_timeouts = 0;
-		}
-		if (conn_data->portId == S5S8_PGWC_PORT_ID)
-		{
-			cp_stats.nbr_of_sgwc_to_pgwc_timeouts = 0;
-		}
+			update_peer_timeouts(conn_data->dstIP,0); //cli
 
 #endif /*CP_BUILD*/
 

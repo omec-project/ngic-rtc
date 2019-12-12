@@ -41,7 +41,7 @@ uint8_t s5s8_rx_buf[MAX_GTPV2C_UDP_LEN];
 uint8_t s5s8_tx_buf[MAX_GTPV2C_UDP_LEN];
 
 gtpv2c_ie *
-get_first_ie(gtpv2c_header *gtpv2c_h)
+get_first_ie(gtpv2c_header_t *gtpv2c_h)
 {
 	if (gtpv2c_h) {
 		gtpv2c_ie *first_ie = IE_BEGIN(gtpv2c_h);
@@ -64,44 +64,44 @@ get_next_ie(gtpv2c_ie *gtpv2c_ie_ptr, gtpv2c_ie *limit)
 }
 
 void
-set_gtpv2c_header(gtpv2c_header *gtpv2c_tx,
-				uint8_t teidFlg, uint8_t type,
+set_gtpv2c_header(gtpv2c_header_t *gtpv2c_tx,
+				uint8_t teid_flag, uint8_t type,
 				uint32_t has_teid, uint32_t seq)
 {
 	gtpv2c_tx->gtpc.version = GTP_VERSION_GTPV2C;
 	gtpv2c_tx->gtpc.piggyback = 0;
-	gtpv2c_tx->gtpc.type = type;
+	gtpv2c_tx->gtpc.message_type = type;
 	gtpv2c_tx->gtpc.spare = 0;
-	gtpv2c_tx->gtpc.teidFlg = teidFlg;
+	gtpv2c_tx->gtpc.teid_flag = teid_flag;
 
-
-	if (teidFlg) {
-	   gtpv2c_tx->teid_u.has_teid.teid = has_teid;
-	   gtpv2c_tx->teid_u.has_teid.seq = seq;
+	if (teid_flag) {
+	   gtpv2c_tx->teid.has_teid.teid = has_teid;
+	   gtpv2c_tx->teid.has_teid.seq = seq;
 	} else {
-	   gtpv2c_tx->teid_u.no_teid.seq  = seq;
+	   gtpv2c_tx->teid.no_teid.seq  = seq;
 	}
-	gtpv2c_tx->gtpc.length = teidFlg ?
-			htons(sizeof(gtpv2c_tx->teid_u.has_teid)) :
-			htons(sizeof(gtpv2c_tx->teid_u.no_teid));
+
+	gtpv2c_tx->gtpc.message_len = teid_flag ?
+			htons(sizeof(gtpv2c_tx->teid.has_teid)) :
+			htons(sizeof(gtpv2c_tx->teid.no_teid));
 }
 
 
 void
-set_gtpv2c_teid_header(gtpv2c_header *gtpv2c_tx, uint8_t type,
+set_gtpv2c_teid_header(gtpv2c_header_t *gtpv2c_tx, uint8_t type,
 	uint32_t teid, uint32_t seq)
 {
-	/* Default set teidFlg = 1 */
+	/* Default set teid_flag = 1 */
 	set_gtpv2c_header(gtpv2c_tx, 1, type, teid, seq);
 }
 
 
 void
-set_gtpv2c_echo(gtpv2c_header *gtpv2c_tx,
-			uint8_t teidFlg, uint8_t type,
+set_gtpv2c_echo(gtpv2c_header_t *gtpv2c_tx,
+			uint8_t teid_flag, uint8_t type,
 			uint32_t teid, uint32_t seq)
 {
-	set_gtpv2c_header(gtpv2c_tx, teidFlg, type, teid, seq);
+	set_gtpv2c_header(gtpv2c_tx, teid_flag, type, teid, seq);
 	set_recovery_ie(gtpv2c_tx, IE_INSTANCE_ZERO);
 }
 
