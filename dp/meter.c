@@ -116,9 +116,10 @@ FLOW_METER *app_flows;
 FLOW_METER *ambr_flows;
 
 /**
- * Function to set color.
- * @return
- *	None
+ * @brief  : Function to set color.
+ * @param  : pkt_data, packet data
+ * @param  : color
+ * @return : Returns nothing
  */
 static inline void
 app_set_pkt_color(uint8_t *pkt_data, enum policer_action color)
@@ -127,16 +128,11 @@ app_set_pkt_color(uint8_t *pkt_data, enum policer_action color)
 }
 
 /**
- * Process the packet to get action
- *
- * @param pkt
- *	mbuf pointer
- * @param time
- * @param m
- *	srtcm context
- *
- * @return
- *	int - action to be performed on the packet
+ * @brief  : Process the packet to get action
+ * @param  : m, srtcm context
+ * @param  : pkt, mbuf pointer
+ * @param  : time
+ * @return : action to be performed on the packet
  */
 static int
 app_pkt_handle(struct rte_meter_srtcm *m, struct rte_mbuf *pkt,
@@ -165,14 +161,11 @@ app_pkt_handle(struct rte_meter_srtcm *m, struct rte_mbuf *pkt,
 
 /******************************************************************************/
 /**
- * Create meter param table.
- * @param table_name
- *	table name
- * @param max_entries
- *	max entries in table.
- *
- * @return
- *	None
+ * @brief  : Create meter param table.
+ * @param  : mtr_tbl, table
+ * @param  : table_name, table name
+ * @param  : max_entries, max entries in table.
+ * @return : Returns nothing
  */
 static void
 mtr_table_create(struct mtr_table *mtr_tbl,
@@ -187,38 +180,28 @@ mtr_table_create(struct mtr_table *mtr_tbl,
 			RTE_CACHE_LINE_SIZE);
 	if (mtr_tbl->params == NULL)
 		rte_panic("Meter table memory alloc fail");
-	RTE_LOG_DP(INFO, DP, "Meter table: %s created\n", mtr_tbl->name);
+	clLog(clSystemLog, eCLSeverityInfo, "Meter table: %s created\n", mtr_tbl->name);
 }
 
 /**
- * Destroy meter table.
- *
- * @param mtr_tbl
- *	meter table.
- *
- * @return
- *	None
+ * @brief  : Destroy meter table.
+ * @param  : mtr_tbl, table
+ * @return : Returns nothing
  */
 static void
 mtr_table_destroy(struct mtr_table *mtr_tbl)
 {
 	rte_free(mtr_tbl->params);
-	RTE_LOG_DP(INFO, DP, "Meter table: %s destroyed\n", mtr_tbl->name);
+	clLog(clSystemLog, eCLSeverityInfo, "Meter table: %s destroyed\n", mtr_tbl->name);
 	memset(mtr_tbl, 0, sizeof(struct mtr_table));
 }
 
 /**
- * Add entry in meter param table.
- *
- * @param mtr_tbl
- *	meter table.
- * @param mtr_profile_index
- *	meter profile index
- * @param mtr_param
- *	meter parameters.
- *
- * @return
- *	None
+ * @brief  : Add entry in meter param table.
+ * @param  : mtr_tbl, table
+ * @param  : mtr_profile_index, meter profile index
+ * @param  : mtr_param, meter parameters.
+ * @return : Returns nothing
  */
 static void
 mtr_add_entry(struct mtr_table *mtr_tbl,
@@ -227,11 +210,11 @@ mtr_add_entry(struct mtr_table *mtr_tbl,
 	struct rte_meter_srtcm_params *app_srtcm_params;
 
 	if (mtr_tbl->num_entries == mtr_tbl->max_entries) {
-		printf("MTR: Max entries reached\n");
+		clLog(clSystemLog, eCLSeverityDebug,"MTR: Max entries reached\n");
 		return;
 	}
 	if (mtr_profile_index >= mtr_tbl->max_entries) {
-		printf("MTR: profile id greater than max entries\n");
+		clLog(clSystemLog, eCLSeverityDebug,"MTR: profile id greater than max entries\n");
 		return;
 	}
 
@@ -240,22 +223,17 @@ mtr_add_entry(struct mtr_table *mtr_tbl,
 	app_srtcm_params->cbs = mtr_param->cbs;
 	app_srtcm_params->ebs = mtr_param->ebs;
 	mtr_tbl->num_entries++;
-	RTE_LOG_DP(INFO, DP, "MTR_PROFILE ADD: index %d cir:%lu,"
+	clLog(clSystemLog, eCLSeverityInfo, "MTR_PROFILE ADD: index %d cir:%lu,"
 			" cbs:%lu, ebs:%lu\n",
 			mtr_profile_index, app_srtcm_params->cir,
 			app_srtcm_params->cbs, app_srtcm_params->ebs);
 }
 
 /**
- * Delete entry from meter table.
- *
- * @param mtr_tbl
- *	meter table.
- * @param mtr_profile_index
- *	meter profile index
- *
- * @return
- *	None
+ * @brief  : Delete entry from meter table.
+ * @param  : mtr_tbl, table
+ * @param  : mtr_profile_index, meter profile index
+ * @return : Returns nothing
  */
 static void
 mtr_del_entry(struct mtr_table *mtr_tbl, uint16_t mtr_profile_index)
@@ -263,7 +241,7 @@ mtr_del_entry(struct mtr_table *mtr_tbl, uint16_t mtr_profile_index)
 	struct rte_meter_srtcm_params *app_srtcm_params;
 
 	if (mtr_profile_index >= mtr_tbl->max_entries) {
-		printf("MTR: profile id greater than max entries\n");
+		clLog(clSystemLog, eCLSeverityDebug,"MTR: profile id greater than max entries\n");
 		return;
 	}
 
@@ -291,7 +269,7 @@ mtr_cfg_entry(int msg_id, struct rte_meter_srtcm *msg_payload)
 
 	rte_meter_srtcm_config(m, &mtr_tbl->params[msg_id]);
 
-	RTE_LOG_DP(DEBUG, DP, "Configuring MTR index %d\n", msg_id);
+	clLog(clSystemLog, eCLSeverityDebug, "Configuring MTR index %d\n", msg_id);
 	if ((m)->cir_period == 0)
 		rte_exit(EXIT_FAILURE, "Meter config fail. cir_period is 0!!");
 	return 0;
@@ -323,7 +301,7 @@ sdf_mtr_process_pkt(struct dp_sdf_per_bearer_info **sdf_info,
 
 		current_time = rte_rdtsc();
 		if (m->cir_period == 0) {
-			RTE_LOG_DP(DEBUG, DP, "SDF: Either MTR not found or"
+			clLog(clSystemLog, eCLSeverityDebug, "SDF: Either MTR not found or"
 				" MTR not configured!!!\n");
 			continue;
 		}
@@ -338,6 +316,12 @@ sdf_mtr_process_pkt(struct dp_sdf_per_bearer_info **sdf_info,
 	return 0;
 }
 
+/**
+ * @brief  : Checks if gbr profile is present in qos or not
+ * @param  : qos, qos information
+ * @param  : flow, data flow type
+ * @return : True if gbr present, false otherwise
+ */
 static inline enum boolean
 is_qci_gbr(struct qos_info *qos, uint32_t flow)
 {
@@ -378,14 +362,14 @@ apn_mtr_process_pkt(struct dp_sdf_per_bearer_info **sdf_info, uint32_t flow,
 		if (flow == UL_FLOW) {
 			m = &ue->ul_apn_mtr_obj;
 			mtr_drops = &ue->ul_apn_mtr_drops;
-			RTE_LOG_DP(DEBUG, DP, "APN MTR UL LKUP: apn_mtr_id:%u, "
+			clLog(clSystemLog, eCLSeverityDebug, "APN MTR UL LKUP: apn_mtr_id:%u, "
 					"apn_mtr_obj:0x%"PRIx64"\n",
 					ue->ul_apn_mtr_idx,
 					(uint64_t)&ue->ul_apn_mtr_obj);
 		} else {
 			m = &ue->dl_apn_mtr_obj;
 			mtr_drops = &ue->dl_apn_mtr_drops;
-			RTE_LOG_DP(DEBUG, DP, "APN MTR DL LKUP: apn_mtr_id:%u, "
+			clLog(clSystemLog, eCLSeverityDebug, "APN MTR DL LKUP: apn_mtr_id:%u, "
 					"apn_mtr_obj:0x%"PRIx64"\n",
 					ue->dl_apn_mtr_idx,
 					(uint64_t)&ue->dl_apn_mtr_obj);
@@ -393,7 +377,7 @@ apn_mtr_process_pkt(struct dp_sdf_per_bearer_info **sdf_info, uint32_t flow,
 
 		current_time = rte_rdtsc();
 		if (m->cir_period == 0) {
-			RTE_LOG_DP(DEBUG, DP, "APN: Either MTR not found or"
+			clLog(clSystemLog, eCLSeverityDebug, "APN: Either MTR not found or"
 				" MTR not configured!!!\n");
 			continue;
 		}
@@ -412,7 +396,7 @@ int
 dp_meter_profile_table_create(struct dp_id dp_id, uint32_t max_elements)
 {
 	if (mtr_profile_tbl.max_entries) {
-		RTE_LOG_DP(INFO, DP, "Meter Profile table: \"%s\" exist\n",
+		clLog(clSystemLog, eCLSeverityInfo, "Meter Profile table: \"%s\" exist\n",
 					dp_id.name);
 		return 0;
 	}
@@ -446,13 +430,9 @@ dp_meter_profile_entry_delete(struct dp_id dp_id, struct mtr_entry *entry)
 
 /******************** Call back functions **********************/
 /**
- *  Call back to parse msg to create meter rules table
- *
- * @param msg_payload
- *	payload from CP
- * @return
- *	- 0 Success.
- *	- -1 Failure.
+ * @brief  : Call back to parse msg to create meter rules table
+ * @param  : msg_payload, payload from CP
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 static int
 cb_meter_profile_table_create(struct msgbuf *msg_payload)
@@ -462,13 +442,9 @@ cb_meter_profile_table_create(struct msgbuf *msg_payload)
 }
 
 /**
- *  Call back to parse msg to delete table
- *
- * @param msg_payload
- *	payload from CP
- * @return
- *	- 0 Success.
- *	- -1 Failure.
+ * @brief  : Call back to parse msg to delete table
+ * @param  : msg_payload, payload from CP
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 static int
 cb_meter_profile_table_delete(struct msgbuf *msg_payload)
@@ -476,15 +452,6 @@ cb_meter_profile_table_delete(struct msgbuf *msg_payload)
 	return meter_profile_table_delete(msg_payload->dp_id);
 }
 
-/**
- *  Call back to parse msg to add meter rules
- *
- * @param msg_payload
- *	payload from CP
- * @return
- *	- 0 Success.
- *	- -1 Failure.
- */
 //ToDO; Remove for access this function in interface.c(PFCP)
 //static
 int cb_meter_profile_entry_add(struct msgbuf *msg_payload)
@@ -494,13 +461,9 @@ int cb_meter_profile_entry_add(struct msgbuf *msg_payload)
 }
 
 /**
- * Delete meter rules.
- *
- * @param msg_payload
- *	payload from CP
- * @return
- *	- 0 Success.
- *	- -1 Failure.
+ * @brief  : Delete meter rules.
+ * @param  : msg_payload, payload from CP
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 static int
 cb_meter_profile_entry_delete(struct msgbuf *msg_payload)

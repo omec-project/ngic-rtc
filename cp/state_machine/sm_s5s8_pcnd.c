@@ -20,10 +20,7 @@
 #include "debug_str.h"
 #include "pfcp_util.h"
 #include "gtpv2c_error_rsp.h"
-
-#ifdef C3PO_OSS
 #include "cp_config.h"
-#endif /* C3PO_OSS */
 
 #ifdef USE_REST
 #include "main.h"
@@ -37,7 +34,7 @@ gtpc_s5s8_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx)
 {
 	int ret = 0;
 	ue_context *context = NULL;
-
+	int ebi_index = 0;
 	msg->msg_type = gtpv2c_rx->gtpc.message_type;
 
 	switch(msg->msg_type) {
@@ -101,7 +98,7 @@ gtpc_s5s8_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx)
 
 			/*cli_logic --> when CSR received from SGWC add it as a peer*/
 			add_node_conn_entry(ntohl(msg->gtpc_msg.csr.sender_fteid_ctl_plane.ipv4_address),
-								S5S8_PGWC_PORT_ID);
+								S5S8_SGWC_PORT_ID);
 
 			clLog(s5s8logger, eCLSeverityDebug, "%s: Callback called for"
 					"Msg_Type:%s[%u], Teid:%u, "
@@ -132,8 +129,8 @@ gtpc_s5s8_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx)
 				return -1;
 			}
 
-			msg->state = context->state;
-			msg->proc = context->proc;
+			msg->state = context->pdns[ebi_index]->state;
+			msg->proc = context->pdns[ebi_index]->proc;
 
 			/*Set the appropriate event type.*/
 			msg->event = CS_RESP_RCVD_EVNT;
@@ -160,7 +157,7 @@ gtpc_s5s8_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx)
 			msg->proc = get_procedure(msg);
 			if (DETACH_PROC == msg->proc) {
 				if (update_ue_proc(gtpv2c_rx->teid.has_teid.teid,
-							msg->proc) != 0) {
+							msg->proc ,ebi_index) != 0) {
 					return -1;
 				}
 
@@ -170,7 +167,7 @@ gtpc_s5s8_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx)
 					return -1;
 				}
 
-				msg->state = context->state;
+				msg->state = context->pdns[ebi_index]->state;
 			}
 
 			/*Set the appropriate event type.*/
@@ -199,8 +196,8 @@ gtpc_s5s8_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx)
 				return -1;
 			}
 
-			msg->state = context->state;
-			msg->proc = context->proc;
+			msg->state = context->pdns[ebi_index]->state;
+			msg->proc = context->pdns[ebi_index]->proc;
 
 			/*Set the appropriate event type.*/
 			msg->event = DS_RESP_RCVD_EVNT;
@@ -228,7 +225,7 @@ gtpc_s5s8_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx)
 
 			msg->proc = get_procedure(msg);
 			if (update_ue_proc(gtpv2c_rx->teid.has_teid.teid,
-							msg->proc) != 0) {
+							msg->proc, ebi_index) != 0) {
 					return -1;
 			}
 			gtpv2c_rx->teid.has_teid.teid = ntohl(gtpv2c_rx->teid.has_teid.teid);//0xd0ffee;
@@ -237,8 +234,8 @@ gtpc_s5s8_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx)
 				if(get_ue_context(gtpv2c_rx->teid.has_teid.teid, &context) != 0) {
 					return -1;
 				}
-				msg->state = context->state;
-	       // msg->proc = context->proc;
+				msg->state = context->pdns[ebi_index]->state;
+	       // msg->proc = context->pdns[ebi_index]->proc;
 			}
 
 	        msg->event = MB_REQ_RCVD_EVNT;
@@ -259,8 +256,8 @@ gtpc_s5s8_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx)
 			                 return -1;
 			}
 
-			msg->state = context->state;
-			msg->proc = context->proc;
+			msg->state = context->pdns[ebi_index]->state;
+			msg->proc = context->pdns[ebi_index]->proc;
 			msg->event = MB_RESP_RCVD_EVNT;
 
 		break;
@@ -277,13 +274,13 @@ gtpc_s5s8_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx)
 			     msg->state = SGWC_NONE_STATE;
 #endif /* GX_BUILD */
 			} else {
-				msg->state = context->state;
-				msg->proc = context->proc;
+				msg->state = context->pdns[ebi_index]->state;
+				msg->proc = context->pdns[ebi_index]->proc;
 			}
 
 			msg->event = NONE_EVNT;
 
-			fprintf(stderr, "%s::process_msgs-"
+			clLog(clSystemLog, eCLSeverityCritical, "%s::process_msgs-"
 					"\n\tcase: SAEGWC::spgw_cfg= %d;"
 					"\n\tReceived unprocessed GTPv2c Message Type: "
 					"%s (%u 0x%x)... Discarding\n", __func__,

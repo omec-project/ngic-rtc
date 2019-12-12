@@ -47,6 +47,7 @@
 #include "gtpu.h"
 #include "up_main.h"
 #include "epc_packet_framework.h"
+#include "clogger.h"
 
 #ifdef TIMER_STATS
 #include "perf_timer.h"
@@ -62,6 +63,12 @@ extern pcap_dumper_t *pcap_dumper_east;
 uint32_t dl_nkni_pkts = 0;
 
 #ifdef USE_REST
+/**
+ * @brief  : Perform lookup for src ip, and set activity flag if connection
+ *           is active for downlink
+ * @param  : srcIp, Ip address
+ * @return : Returns nothing
+ */
 static inline void check_activity(uint32_t srcIp)
 {
 	/* VS: TODO */
@@ -71,17 +78,22 @@ static inline void check_activity(uint32_t srcIp)
 	ret = rte_hash_lookup_data(conn_hash_handle,
 				&srcIp, (void **)&conn_data);
 	if ( ret < 0) {
-		RTE_LOG_DP(DEBUG, DP, "Entry not found for NODE :%s\n",
+		clLog(clSystemLog, eCLSeverityDebug, "Entry not found for NODE :%s\n",
 							inet_ntoa(*(struct in_addr *)&srcIp));
 		return;
 	} else {
-		RTE_LOG_DP(DEBUG, DP, "Recv pkts from NODE :%s\n",
+		clLog(clSystemLog, eCLSeverityDebug, "Recv pkts from NODE :%s\n",
 						inet_ntoa(*(struct in_addr *)&srcIp));
 		conn_data->activityFlag = 1;
 	}
 }
 #endif /* USE_REST */
 
+/**
+ * @brief  : set port id value for downlink
+ * @param  : m, rte mbuf pointer
+ * @return : Returns nothing
+ */
 static inline void epc_dl_set_port_id(struct rte_mbuf *m)
 {
 	uint8_t *m_data = rte_pktmbuf_mtod(m, uint8_t *);
@@ -103,7 +115,7 @@ static inline void epc_dl_set_port_id(struct rte_mbuf *m)
 			 	PKT_RX_IP_CKSUM_BAD ||
 		     (m->ol_flags & PKT_RX_L4_CKSUM_MASK)
 			 == PKT_RX_L4_CKSUM_BAD)) {
-		//RTE_LOG_DP(ERR, DP, "DL Bad checksum: %lu\n", m->ol_flags);
+		//clLog(clSystemLog, eCLSeverityCritical, "DL Bad checksum: %lu\n", m->ol_flags);
 		//ipv4_packet = 0;
 	}
 	*port_id_offset = 1;
@@ -112,7 +124,7 @@ static inline void epc_dl_set_port_id(struct rte_mbuf *m)
 	if (eh->ether_type == rte_cpu_to_be_16(ETHER_TYPE_ARP) ||
 			ipv4_hdr->next_proto_id == IPPROTO_ICMP)
 	{
-		RTE_LOG_DP(DEBUG, DP, "epc_dl.c:%s::"
+		clLog(clSystemLog, eCLSeverityDebug, "epc_dl.c:%s::"
 				"\n\t@SGI:eh->ether_type==ETHER_TYPE_ARP= 0x%X\n",
 				__func__, eh->ether_type);
 		dl_arp_pkt = 1;
@@ -122,7 +134,7 @@ static inline void epc_dl_set_port_id(struct rte_mbuf *m)
 	/* Flag pkt destined to SGI_IP for linux handling */
 	if (app.sgi_ip == ho_addr)
 	{
-		RTE_LOG_DP(DEBUG, DP, "epc_dl.c:%s::"
+		clLog(clSystemLog, eCLSeverityDebug, "epc_dl.c:%s::"
 				"\n\t@SGI:app.sgi_ip==ipv4_hdr->dst_addr= %s\n",
 				__func__,
 				inet_ntoa(*(struct in_addr *)&ho_addr));
@@ -132,7 +144,7 @@ static inline void epc_dl_set_port_id(struct rte_mbuf *m)
 	/* Flag MCAST pkt for linux handling */
 	if (IS_IPV4_MCAST(ho_addr))
 	{
-		RTE_LOG_DP(DEBUG, DP, "epc_dl.c:%s::"
+		clLog(clSystemLog, eCLSeverityDebug, "epc_dl.c:%s::"
 				"\n\t@SGI:IPV$_MCAST==ipv4_hdr->dst_addr= %s\n",
 				__func__,
 				inet_ntoa(*(struct in_addr *)&ho_addr));
@@ -142,7 +154,7 @@ static inline void epc_dl_set_port_id(struct rte_mbuf *m)
 	/* Flag BCAST pkt for linux handling */
 	if (app.sgi_bcast_addr == ho_addr)
 	{
-		RTE_LOG_DP(DEBUG, DP, "epc_dl.c:%s::"
+		clLog(clSystemLog, eCLSeverityDebug, "epc_dl.c:%s::"
 				"\n\t@SGI:app.sgi_bcast_addr==ipv4_hdr->dst_addr= %s\n",
 				__func__,
 				inet_ntoa(*(struct in_addr *)&ho_addr));
@@ -155,7 +167,7 @@ static inline void epc_dl_set_port_id(struct rte_mbuf *m)
 			(ipv4_packet &&
 			((ipv4_hdr->next_proto_id == IPPROTO_UDP) ||
 			(ipv4_hdr->next_proto_id == IPPROTO_TCP)))) {
-			RTE_LOG_DP(DEBUG, DP, "SGI packet\n");
+			clLog(clSystemLog, eCLSeverityDebug, "SGI packet\n");
 #ifdef USE_REST
 			if (app.spgw_cfg == SGWU) {
 				/* VS: TODO Set activity flag if data receive from peer node */
@@ -178,6 +190,14 @@ static inline void epc_dl_set_port_id(struct rte_mbuf *m)
 	} //GCC_Security flag
 }
 
+/**
+ * @brief  : Capture downlink packets
+ * @param  : p, rte pipeline pointer
+ * @param  : pkts, rte mbuf
+ * @param  : n, number of packets
+ * @param  : arg, unused parameter
+ * @return : Returns nothing
+ */
 static int epc_dl_port_in_ah(struct rte_pipeline *p,
 					struct rte_mbuf **pkts, uint32_t n,
 					void *arg)
@@ -228,6 +248,14 @@ static int epc_dl_port_in_ah(struct rte_pipeline *p,
 
 static epc_dl_handler epc_dl_worker_func[NUM_SPGW_PORTS];
 
+/**
+ * @brief  : Downlink packet handler
+ * @param  : p, rte pipeline pointer
+ * @param  : pkts, rte mbuf
+ * @param  : pkts_mask, packet mask
+ * @param  : arg, port number
+ * @return : Returns nothing
+ */
 static inline int epc_dl_port_out_ah(struct rte_pipeline *p, struct rte_mbuf **pkts,
 		uint64_t pkts_mask, void *arg)
 {
@@ -301,10 +329,10 @@ void epc_dl_init(struct epc_dl_params *param, int core, uint8_t in_port_id, uint
 	/* Input port configuration */
 	if (rte_eth_dev_socket_id(in_port_id)
 		!= (int)lcore_config[core].socket_id) {
-		RTE_LOG_DP(WARNING, DP,
+		clLog(clSystemLog, eCLSeverityMinor,
 			"location of the RX core for port=%d is not optimal\n",
 			in_port_id);
-		RTE_LOG_DP(WARNING, DP,
+		clLog(clSystemLog, eCLSeverityMinor,
 			"***** performance may be degradated !!!!! *******\n");
 	}
 
@@ -476,7 +504,7 @@ void epc_dl(void *args)
 				(void**)pkts, count, NULL);
 		int ret  = notification_handler(pkts, rx_cnt);
 		if (ret < 0)
-			printf("ERROR: notification handler failed..\n");
+			clLog(clSystemLog, eCLSeverityCritical,"ERROR: notification handler failed..\n");
 	}
 
 }

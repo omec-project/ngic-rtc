@@ -40,6 +40,9 @@ extern int ul_ignore_cnt;
 	}                                                                 \
 }
 
+/**
+ * @brief  : Maintains statistic
+ */
 struct per_op_statistics {
 	uint64_t duration;
 	uint32_t max_time;
@@ -48,7 +51,9 @@ struct per_op_statistics {
 	uint32_t min_burst_sz;
 };
 
-/* structure to hold stats of all the DL operations */
+/**
+ * @brief  : structure to hold stats of all the DL operations
+ */
 struct dl_performance_stats {
 	uint64_t no_of_bursts;
 	uint64_t cumm_pkt_cnt;
@@ -62,7 +67,9 @@ struct dl_performance_stats {
 };
 extern struct dl_performance_stats dl_perf_stats;
 
-/* structure to hold stats of all the UL operations */
+/**
+ * @brief  : structure to hold stats of all the UL operations
+ */
 struct ul_performance_stats {
 	uint64_t no_of_bursts;
 	uint64_t cumm_pkt_cnt;
@@ -98,7 +105,9 @@ typedef long long int _timer_t;
  })
 
 /*
- * Print number in coma seperated fashion
+ * @brief  : Prints and converts number in coma seperated fashion
+ * @param  : num, input
+ * @return : Returns converted string
  */
 char* format(uint64_t num);
 #endif

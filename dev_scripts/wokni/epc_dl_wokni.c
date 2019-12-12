@@ -75,7 +75,7 @@ static inline void epc_dl_set_port_id(struct rte_mbuf *m)
 			 	PKT_RX_IP_CKSUM_BAD ||
 		     (m->ol_flags & PKT_RX_L4_CKSUM_MASK)
 			 == PKT_RX_L4_CKSUM_BAD)) {
-		RTE_LOG_DP(ERR, DP, "DL Bad checksum: %lu\n", m->ol_flags);
+		clLog(clSystemLog, eCLSeverityCritical, "DL Bad checksum: %lu\n", m->ol_flags);
 		ipv4_packet = 0;
 	}
 
@@ -90,7 +90,7 @@ static inline void epc_dl_set_port_id(struct rte_mbuf *m)
 			(ipv4_packet &&
 			((ipv4_hdr->next_proto_id == IPPROTO_UDP) ||
 			(ipv4_hdr->next_proto_id == IPPROTO_TCP)))) {
-			RTE_LOG_DP(DEBUG, DP, "SGI packet\n");
+			clLog(clSystemLog, eCLSeverityDebug, "SGI packet\n");
 			*port_id_offset = 0;
 			dl_sgi_pkt = 1;
 			dl_arp_pkt = 0;
@@ -192,10 +192,10 @@ void epc_dl_init(struct epc_dl_params *param, int core, uint8_t in_port_id, uint
 	/* Input port configuration */
 	if (rte_eth_dev_socket_id(in_port_id)
 		!= (int)lcore_config[core].socket_id) {
-		RTE_LOG_DP(WARNING, DP,
+		clLog(clSystemLog, eCLSeverityMinor,
 			"location of the RX core for port=%d is not optimal\n",
 			in_port_id);
-		RTE_LOG_DP(WARNING, DP,
+		clLog(clSystemLog, eCLSeverityMinor,
 			"***** performance may be degradated !!!!! *******\n");
 	}
 

@@ -26,11 +26,12 @@
 #include "up_main.h"
 #include "pfcp_up_llist.h"
 #include "pfcp_up_struct.h"
+#include "clogger.h"
 
 #define NUM_OF_TABLES 7
 
 #define MAX_HASH_SIZE (1 << 15)
-#define MAX_PDN_HASH_SIZE (1 << 4)
+#define MAX_PDN_HASH_SIZE (1 << 8)
 
 #define SESS_CREATE 0
 #define SESS_MODIFY 1
@@ -46,15 +47,7 @@ extern struct rte_hash *pdr_by_id_hash;
 extern struct rte_hash *far_by_id_hash;
 extern struct rte_hash *qer_by_id_hash;
 extern struct rte_hash *urr_by_id_hash;
-/**
- * Add session entry in session info hash table.
- *
- * @param up_sess_id
- * key.
- * @param pfcp_session_t sess_cntxt
- * return 0 or 1.
- *
- */
+
 int8_t
 add_sess_info_entry(uint64_t up_sess_id, pfcp_session_t *sess_cntxt)
 {
@@ -70,7 +63,7 @@ add_sess_info_entry(uint64_t up_sess_id, pfcp_session_t *sess_cntxt)
 		tmp = rte_zmalloc("Session_Info", sizeof(pfcp_session_t),
 		        RTE_CACHE_LINE_SIZE);
 		if (tmp == NULL){
-		    RTE_LOG_DP(ERR, DP, "%s: Failed to allocate memory for session info\n", __func__);
+		    clLog(clSystemLog, eCLSeverityCritical, "%s: Failed to allocate memory for session info\n", __func__);
 		    return -1;
 		}
 
@@ -81,7 +74,7 @@ add_sess_info_entry(uint64_t up_sess_id, pfcp_session_t *sess_cntxt)
 		ret = rte_hash_add_key_data(sess_ctx_by_sessid_hash,
 						&up_sess_id, tmp);
 		if (ret) {
-			fprintf(stderr, "%s:%s:%d: Failed to add entry for UP_SESS_ID = %lu"
+			clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d: Failed to add entry for UP_SESS_ID = %lu"
 					"\n\tError= %s\n", __file__,
 					__func__, __LINE__, up_sess_id,
 					rte_strerror(abs(ret)));
@@ -94,19 +87,10 @@ add_sess_info_entry(uint64_t up_sess_id, pfcp_session_t *sess_cntxt)
 		memcpy(tmp, sess_cntxt, sizeof(pfcp_session_t));
 	}
 
-	RTE_LOG_DP(DEBUG, DP, "%s:%s:%d: Session entry added by UP_SESS_ID:%lu\n",
+	clLog(clSystemLog, eCLSeverityDebug, "%s:%s:%d: Session entry added by UP_SESS_ID:%lu\n",
 			__file__, __func__, __LINE__, up_sess_id);
 	return 0;
 }
-
-/**
- * Get UP Session entry from session hash table.
- *
- * @param UP SESS ID
- * key.
- * return pfcp_session_t sess_cntxt or NULL
- *
- */
 
 pfcp_session_t *
 get_sess_info_entry(uint64_t up_sess_id, uint8_t is_mod)
@@ -120,7 +104,7 @@ get_sess_info_entry(uint64_t up_sess_id, uint8_t is_mod)
 	if ( ret < 0) {
 		/* allocate memory only if request is from session establishment */
 		if (is_mod != SESS_CREATE) {
-			fprintf(stderr, "%s:%s:%d Entry not found for UP_SESS_ID: %lu...\n",
+			clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d Entry not found for UP_SESS_ID: %lu...\n",
 					__file__, __func__, __LINE__, up_sess_id);
 			return NULL;
 		}
@@ -129,7 +113,7 @@ get_sess_info_entry(uint64_t up_sess_id, uint8_t is_mod)
 		sess_cntxt = rte_zmalloc("Session_Info", sizeof(pfcp_session_t),
 		        RTE_CACHE_LINE_SIZE);
 		if (sess_cntxt == NULL){
-		    RTE_LOG_DP(ERR, DP, "%s: Failed to allocate memory for session info\n", __func__);
+		    clLog(clSystemLog, eCLSeverityCritical, "%s: Failed to allocate memory for session info\n", __func__);
 		    return NULL;
 		}
 
@@ -137,7 +121,7 @@ get_sess_info_entry(uint64_t up_sess_id, uint8_t is_mod)
 		ret = rte_hash_add_key_data(sess_ctx_by_sessid_hash,
 						&up_sess_id, sess_cntxt);
 		if (ret) {
-			fprintf(stderr, "%s:%s:%d: Failed to add entry for UP_SESS_ID = %lu"
+			clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d: Failed to add entry for UP_SESS_ID = %lu"
 					"\n\tError= %s\n", __file__,
 					__func__, __LINE__, up_sess_id,
 					rte_strerror(abs(ret)));
@@ -152,20 +136,12 @@ get_sess_info_entry(uint64_t up_sess_id, uint8_t is_mod)
 		sess_cntxt->up_seid = up_sess_id;
 	}
 
-	RTE_LOG_DP(DEBUG, DP, "%s:%s: UP_SESS_ID:%lu\n",
+	clLog(clSystemLog, eCLSeverityDebug, "%s:%s: UP_SESS_ID:%lu\n",
 			__file__, __func__, up_sess_id);
 	return sess_cntxt;
 
 }
 
-/**
- * Delete Session entry from Session hash table.
- *
- * @param UP SESS ID
- * key.
- * return 0 or 1.
- *
- */
 int8_t
 del_sess_info_entry(uint64_t up_sess_id)
 {
@@ -180,7 +156,7 @@ del_sess_info_entry(uint64_t up_sess_id)
 		ret = rte_hash_del_key(sess_ctx_by_sessid_hash, &up_sess_id);
 
 		if ( ret < 0) {
-			fprintf(stderr, "%s:%s:%d Entry not found for UP_SESS_ID:%lu...\n",
+			clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d Entry not found for UP_SESS_ID:%lu...\n",
 						__file__, __func__, __LINE__, up_sess_id);
 			return -1;
 		}
@@ -192,21 +168,12 @@ del_sess_info_entry(uint64_t up_sess_id)
 		sess_cntxt = NULL;
 	}
 
-	RTE_LOG_DP(DEBUG, DP, "%s: UP_SESS_ID:%lu\n",
+	clLog(clSystemLog, eCLSeverityDebug, "%s: UP_SESS_ID:%lu\n",
 			__func__, up_sess_id);
 
 	return 0;
 }
 
-/**
- * Add session data entry based on teid in session data hash table.
- *
- * @param teid
- * key.
- * @param pfcp_session_datat_t sess_cntxt
- * return 0 or 1.
- *
- */
 int8_t
 add_sess_by_teid_entry(uint32_t teid, pfcp_session_datat_t *sess_cntxt)
 {
@@ -222,7 +189,7 @@ add_sess_by_teid_entry(uint32_t teid, pfcp_session_datat_t *sess_cntxt)
 		tmp = rte_zmalloc("Session_Info", sizeof(pfcp_session_datat_t),
 		        RTE_CACHE_LINE_SIZE);
 		if (tmp == NULL){
-		    RTE_LOG_DP(ERR, DP, "%s:Failed to allocate memory for session info\n", __func__);
+		    clLog(clSystemLog, eCLSeverityCritical, "%s:Failed to allocate memory for session info\n", __func__);
 		    return -1;
 		}
 
@@ -233,7 +200,7 @@ add_sess_by_teid_entry(uint32_t teid, pfcp_session_datat_t *sess_cntxt)
 		ret = rte_hash_add_key_data(sess_by_teid_hash,
 						&teid, tmp);
 		if (ret) {
-			fprintf(stderr, "%s:%s:%d: Failed to add entry for TEID = %u"
+			clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d: Failed to add entry for TEID = %u"
 					"\n\tError= %s\n", __file__,
 					__func__, __LINE__, teid,
 					rte_strerror(abs(ret)));
@@ -247,19 +214,10 @@ add_sess_by_teid_entry(uint32_t teid, pfcp_session_datat_t *sess_cntxt)
 		memcpy(tmp, sess_cntxt, sizeof(pfcp_session_datat_t));
 	}
 
-	RTE_LOG_DP(DEBUG, DP, "%s:%s:%d: Session entry added by TEID:%u\n",
+	clLog(clSystemLog, eCLSeverityDebug, "%s:%s:%d: Session entry added by TEID:%u\n",
 			__file__, __func__, __LINE__, teid);
 	return 0;
 }
-
-/**
- * Get Session entry by teid from session hash table.
- *
- * @param teid
- * key.
- * return pfcp_session_datat_t sess_cntxt or NULL
- *
- */
 
 pfcp_session_datat_t *
 get_sess_by_teid_entry(uint32_t teid, pfcp_session_datat_t **head, uint8_t is_mod)
@@ -272,7 +230,7 @@ get_sess_by_teid_entry(uint32_t teid, pfcp_session_datat_t **head, uint8_t is_mo
 
 	if ( ret < 0) {
 		if (is_mod != SESS_CREATE) {
-			fprintf(stderr, FORMAT"Entry not found for TEID: %u...\n",
+			clLog(clSystemLog, eCLSeverityCritical, FORMAT"Entry not found for TEID: %u...\n",
 					ERR_MSG, teid);
 			return NULL;
 		}
@@ -281,7 +239,7 @@ get_sess_by_teid_entry(uint32_t teid, pfcp_session_datat_t **head, uint8_t is_mo
 		sess_cntxt = rte_zmalloc("Sess_data_Info", sizeof(pfcp_session_datat_t),
 		        RTE_CACHE_LINE_SIZE);
 		if (sess_cntxt == NULL){
-		    RTE_LOG_DP(ERR, DP, "%s: Failed to allocate memory for session data info\n", __func__);
+		    clLog(clSystemLog, eCLSeverityCritical, "%s: Failed to allocate memory for session data info\n", __func__);
 		    return NULL;
 		}
 
@@ -289,7 +247,7 @@ get_sess_by_teid_entry(uint32_t teid, pfcp_session_datat_t **head, uint8_t is_mo
 		ret = rte_hash_add_key_data(sess_by_teid_hash,
 						&teid, sess_cntxt);
 		if (ret) {
-			fprintf(stderr, "%s:%s:%d: Failed to add entry for TEID = %u"
+			clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d: Failed to add entry for TEID = %u"
 					"\n\tError= %s\n", __file__,
 					__func__, __LINE__, ntohl(teid),
 					rte_strerror(abs(ret)));
@@ -302,7 +260,7 @@ get_sess_by_teid_entry(uint32_t teid, pfcp_session_datat_t **head, uint8_t is_mo
 
 		/* Function to add a node in Sesions Data Linked List. */
 		if (insert_sess_data_node(*head, sess_cntxt)) {
-			fprintf(stderr, FORMAT"Failed to add node entry in LL for TEID = %u"
+			clLog(clSystemLog, eCLSeverityCritical, FORMAT"Failed to add node entry in LL for TEID = %u"
 					"\n\tError= %s\n", ERR_MSG,
 					teid, rte_strerror(abs(ret)));
 		}
@@ -311,20 +269,12 @@ get_sess_by_teid_entry(uint32_t teid, pfcp_session_datat_t **head, uint8_t is_mo
 			*head = sess_cntxt;
 	}
 
-	RTE_LOG_DP(DEBUG, DP, "%s:%s: TEID:%u\n",
+	clLog(clSystemLog, eCLSeverityDebug, "%s:%s: TEID:%u\n",
 			__file__, __func__, teid);
 	return sess_cntxt;
 
 }
 
-/**
- * Delete Session entry by teid from Session hash table.
- *
- * @param teid
- * key.
- * return 0 or 1.
- *
- */
 int8_t
 del_sess_by_teid_entry(uint32_t teid)
 {
@@ -339,7 +289,7 @@ del_sess_by_teid_entry(uint32_t teid)
 		ret = rte_hash_del_key(sess_by_teid_hash, &teid);
 
 		if ( ret < 0) {
-			fprintf(stderr, "%s:%s:%d Entry not found for TEID:%u...\n",
+			clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d Entry not found for TEID:%u...\n",
 						__file__, __func__, __LINE__, ntohl(teid));
 			return -1;
 		}
@@ -351,21 +301,12 @@ del_sess_by_teid_entry(uint32_t teid)
 	//	sess_cntxt = NULL;
 	//}
 
-	RTE_LOG_DP(DEBUG, DP, "%s: TEID:%u\n",
+	clLog(clSystemLog, eCLSeverityDebug, "%s: TEID:%u\n",
 			__func__, ntohl(teid));
 
 	return 0;
 }
 
-/**
- * Add session data entry based on UE IP in session data hash table.
- *
- * @param UE_IP
- * key.
- * @param pfcp_session_datat_t sess_cntxt
- * return 0 or 1.
- *
- */
 int8_t
 add_sess_by_ueip_entry(uint32_t ue_ip, pfcp_session_datat_t **sess_cntxt)
 {
@@ -384,7 +325,7 @@ add_sess_by_ueip_entry(uint32_t ue_ip, pfcp_session_datat_t **sess_cntxt)
 		ret = rte_hash_add_key_data(sess_by_ueip_hash,
 						&ue_ip, *sess_cntxt);
 		if (ret) {
-			fprintf(stderr, FORMAT"Failed to add entry for UE_IP = "IPV4_ADDR""
+			clLog(clSystemLog, eCLSeverityCritical, FORMAT"Failed to add entry for UE_IP = "IPV4_ADDR""
 					"\n\tError= %s\n", ERR_MSG,
 					IPV4_ADDR_HOST_FORMAT(ue_ip),
 					rte_strerror(abs(ret)));
@@ -398,10 +339,10 @@ add_sess_by_ueip_entry(uint32_t ue_ip, pfcp_session_datat_t **sess_cntxt)
 		memcpy(tmp, *sess_cntxt, sizeof(pfcp_session_datat_t));
 	}
 
-	RTE_LOG_DP(DEBUG, DP, FORMAT"Session entry added by UE_IP:"IPV4_ADDR"\n",
+	clLog(clSystemLog, eCLSeverityDebug, FORMAT"Session entry added by UE_IP:"IPV4_ADDR"\n",
 			ERR_MSG, IPV4_ADDR_HOST_FORMAT(ue_ip));
 
-	RTE_LOG_DP(DEBUG, DP, "%s: TEID:%u, Dst_Ipv4_addr:"IPV4_ADDR", Dst_Itf_type:%u\n",
+	clLog(clSystemLog, eCLSeverityDebug, "%s: TEID:%u, Dst_Ipv4_addr:"IPV4_ADDR", Dst_Itf_type:%u\n",
 			__func__,
 			(sess_cntxt[0]->pdrs)->far->frwdng_parms.outer_hdr_creation.teid,
 			IPV4_ADDR_HOST_FORMAT((sess_cntxt[0]->pdrs)->far->frwdng_parms.outer_hdr_creation.ipv4_address),
@@ -409,14 +350,6 @@ add_sess_by_ueip_entry(uint32_t ue_ip, pfcp_session_datat_t **sess_cntxt)
 	return 0;
 }
 
-/**
- * Get Session entry by UE_IP from session hash table.
- *
- * @param UE_IP
- * key.
- * return pfcp_session_t sess_cntxt or NULL
- *
- */
 pfcp_session_datat_t *
 get_sess_by_ueip_entry(uint32_t ue_ip, pfcp_session_datat_t **head, uint8_t is_mod)
 {
@@ -428,7 +361,7 @@ get_sess_by_ueip_entry(uint32_t ue_ip, pfcp_session_datat_t **head, uint8_t is_m
 
 	if ( ret < 0) {
 		if (is_mod != SESS_CREATE) {
-			fprintf(stderr, FORMAT"Entry not found for UE_IP:"IPV4_ADDR"...\n",
+			clLog(clSystemLog, eCLSeverityCritical, FORMAT"Entry not found for UE_IP:"IPV4_ADDR"...\n",
 					ERR_MSG, IPV4_ADDR_HOST_FORMAT(ue_ip));
 			return NULL;
 		}
@@ -437,7 +370,7 @@ get_sess_by_ueip_entry(uint32_t ue_ip, pfcp_session_datat_t **head, uint8_t is_m
 		sess_cntxt = rte_zmalloc("Sess_data_Info", sizeof(pfcp_session_datat_t),
 		        RTE_CACHE_LINE_SIZE);
 		if (sess_cntxt == NULL){
-		    RTE_LOG_DP(ERR, DP, "%s: Failed to allocate memory for session data info\n", __func__);
+		    clLog(clSystemLog, eCLSeverityCritical, "%s: Failed to allocate memory for session data info\n", __func__);
 		    return NULL;
 		}
 
@@ -445,7 +378,7 @@ get_sess_by_ueip_entry(uint32_t ue_ip, pfcp_session_datat_t **head, uint8_t is_m
 		ret = rte_hash_add_key_data(sess_by_ueip_hash,
 						&ue_ip, sess_cntxt);
 		if (ret) {
-			fprintf(stderr, FORMAT"Failed to add entry for UE_IP = "IPV4_ADDR""
+			clLog(clSystemLog, eCLSeverityCritical, FORMAT"Failed to add entry for UE_IP = "IPV4_ADDR""
 					"\n\tError= %s\n", ERR_MSG,
 					IPV4_ADDR_HOST_FORMAT(ue_ip),
 					rte_strerror(abs(ret)));
@@ -458,7 +391,7 @@ get_sess_by_ueip_entry(uint32_t ue_ip, pfcp_session_datat_t **head, uint8_t is_m
 
 		/* Function to add a node in Sesions Data Linked List. */
 		if (insert_sess_data_node(*head, sess_cntxt)) {
-			fprintf(stderr, FORMAT"Failed to add node entry in LL for UE_IP = "IPV4_ADDR""
+			clLog(clSystemLog, eCLSeverityCritical, FORMAT"Failed to add node entry in LL for UE_IP = "IPV4_ADDR""
 					"\n\tError= %s\n", ERR_MSG,
 					IPV4_ADDR_HOST_FORMAT(ue_ip),
 					rte_strerror(abs(ret)));
@@ -468,20 +401,12 @@ get_sess_by_ueip_entry(uint32_t ue_ip, pfcp_session_datat_t **head, uint8_t is_m
 			*head = sess_cntxt;
 	}
 
-	RTE_LOG_DP(DEBUG, DP, "%s: UE_IP: "IPV4_ADDR"\n",
+	clLog(clSystemLog, eCLSeverityDebug, "%s: UE_IP: "IPV4_ADDR"\n",
 			__func__, IPV4_ADDR_HOST_FORMAT(ue_ip));
 	return sess_cntxt;
 
 }
 
-/**
- * Delete Session entry by UE_IP from Session hash table.
- *
- * @param UE_IP
- * key.
- * return 0 or 1.
- *
- */
 int8_t
 del_sess_by_ueip_entry(uint32_t ue_ip)
 {
@@ -496,28 +421,19 @@ del_sess_by_ueip_entry(uint32_t ue_ip)
 		ret = rte_hash_del_key(sess_by_ueip_hash, &ue_ip);
 
 		if ( ret < 0) {
-			fprintf(stderr, FORMAT"Entry not found for UE_IP:"IPV4_ADDR"...\n",
+			clLog(clSystemLog, eCLSeverityCritical, FORMAT"Entry not found for UE_IP:"IPV4_ADDR"...\n",
 						__file__, __func__, __LINE__,
 						IPV4_ADDR_HOST_FORMAT(ue_ip));
 			return -1;
 		}
 	}
 
-	RTE_LOG_DP(DEBUG, DP, "%s: UE_IP:"IPV4_ADDR"\n",
+	clLog(clSystemLog, eCLSeverityDebug, "%s: UE_IP:"IPV4_ADDR"\n",
 			__func__, IPV4_ADDR_HOST_FORMAT(ue_ip));
 
 	return 0;
 }
 
-/**
- * Add PDR entry in PDR hash table.
- *
- * @param rule_id/PDR_ID
- * key.
- * @param pdr_info_t pdr
- * return 0 or 1.
- *
- */
 int8_t
 add_pdr_info_entry(uint16_t rule_id, pdr_info_t *pdr)
 {
@@ -533,7 +449,7 @@ add_pdr_info_entry(uint16_t rule_id, pdr_info_t *pdr)
 		tmp = rte_zmalloc("Session_Info", sizeof(pdr_info_t),
 		        RTE_CACHE_LINE_SIZE);
 		if (tmp == NULL){
-		    RTE_LOG_DP(ERR, DP, "Failed to allocate memory for PDR info\n");
+		    clLog(clSystemLog, eCLSeverityCritical, "Failed to allocate memory for PDR info\n");
 		    return -1;
 		}
 
@@ -544,7 +460,7 @@ add_pdr_info_entry(uint16_t rule_id, pdr_info_t *pdr)
 		ret = rte_hash_add_key_data(pdr_by_id_hash,
 						&rule_id, tmp);
 		if (ret) {
-			fprintf(stderr, "%s:%s:%d Failed to add entry for PDR_ID = %u"
+			clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d Failed to add entry for PDR_ID = %u"
 					"\n\tError= %s\n", __file__,
 					__func__, __LINE__, rule_id,
 					rte_strerror(abs(ret)));
@@ -558,19 +474,11 @@ add_pdr_info_entry(uint16_t rule_id, pdr_info_t *pdr)
 		memcpy(tmp, pdr, sizeof(pdr_info_t));
 	}
 
-	RTE_LOG_DP(DEBUG, DP, "%s: PDR entry add for PDR_ID:%u\n",
+	clLog(clSystemLog, eCLSeverityDebug, "%s: PDR entry add for PDR_ID:%u\n",
 			__func__, rule_id);
 	return 0;
 }
 
-/**
- * Get PDR entry from PDR hash table.
- *
- * @param PDR ID
- * key.
- * return pdr_info_t pdr or NULL
- *
- */
 pdr_info_t *
 get_pdr_info_entry(uint16_t rule_id, pdr_info_t **head)
 {
@@ -585,7 +493,7 @@ get_pdr_info_entry(uint16_t rule_id, pdr_info_t **head)
 		pdr = rte_zmalloc("Session_Info", sizeof(pdr_info_t),
 		        RTE_CACHE_LINE_SIZE);
 		if (pdr == NULL){
-		    RTE_LOG_DP(ERR, DP, "Failed to allocate memory for PDR info\n");
+		    clLog(clSystemLog, eCLSeverityCritical, "Failed to allocate memory for PDR info\n");
 		    return NULL;
 		}
 
@@ -593,7 +501,7 @@ get_pdr_info_entry(uint16_t rule_id, pdr_info_t **head)
 		ret = rte_hash_add_key_data(pdr_by_id_hash,
 						&rule_id, pdr);
 		if (ret) {
-			fprintf(stderr, "%s:%s:%d Failed to add entry for PDR_ID = %u"
+			clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d Failed to add entry for PDR_ID = %u"
 					"\n\tError= %s\n", __file__,
 					__func__, __LINE__, rule_id,
 					rte_strerror(abs(ret)));
@@ -608,7 +516,7 @@ get_pdr_info_entry(uint16_t rule_id, pdr_info_t **head)
 
 		/* Function to add a node in PDR data Linked List. */
 		if (insert_pdr_node(*head, pdr)) {
-			fprintf(stderr, FORMAT"Failed to add node entry in LL for PDR_ID = %u"
+			clLog(clSystemLog, eCLSeverityCritical, FORMAT"Failed to add node entry in LL for PDR_ID = %u"
 					"\n\tError= %s\n", ERR_MSG,
 					rule_id, rte_strerror(abs(ret)));
 		}
@@ -616,20 +524,12 @@ get_pdr_info_entry(uint16_t rule_id, pdr_info_t **head)
 			*head = pdr;
 	}
 
-	RTE_LOG_DP(DEBUG, DP, "%s: PDR_ID:%u\n",
+	clLog(clSystemLog, eCLSeverityDebug, "%s: PDR_ID:%u\n",
 			__func__, rule_id);
 	return pdr;
 
 }
 
-/**
- * Delete PDR entry from PDR hash table.
- *
- * @param PDR ID
- * key.
- * return 0 or 1.
- *
- */
 int8_t
 del_pdr_info_entry(uint16_t rule_id)
 {
@@ -644,7 +544,7 @@ del_pdr_info_entry(uint16_t rule_id)
 		ret = rte_hash_del_key(pdr_by_id_hash, &rule_id);
 
 		if ( ret < 0) {
-			fprintf(stderr, "%s:%s:%d Entry not found for PDR_ID:%u...\n",
+			clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d Entry not found for PDR_ID:%u...\n",
 						__file__, __func__, __LINE__, rule_id);
 			return -1;
 		}
@@ -656,21 +556,12 @@ del_pdr_info_entry(uint16_t rule_id)
 	//	pdr = NULL;
 	//}
 
-	RTE_LOG_DP(DEBUG, DP, "%s: PDR_ID:%u\n",
+	clLog(clSystemLog, eCLSeverityDebug, "%s: PDR_ID:%u\n",
 			__func__, rule_id);
 
 	return 0;
 }
 
-/**
- * Add FAR entry in FAR hash table.
- *
- * @param FAR_ID
- * key.
- * @param far_info_t far
- * return 0 or 1.
- *
- */
 int8_t
 add_far_info_entry(uint16_t far_id, far_info_t **far)
 {
@@ -686,7 +577,7 @@ add_far_info_entry(uint16_t far_id, far_info_t **far)
 		*far = rte_zmalloc("FAR", sizeof(far_info_t),
 		        RTE_CACHE_LINE_SIZE);
 		if (*far == NULL){
-		    RTE_LOG_DP(ERR, DP, "Failed to allocate memory for FAR info\n");
+		    clLog(clSystemLog, eCLSeverityCritical, "Failed to allocate memory for FAR info\n");
 		    return -1;
 		}
 
@@ -694,7 +585,7 @@ add_far_info_entry(uint16_t far_id, far_info_t **far)
 		ret = rte_hash_add_key_data(far_by_id_hash,
 						&far_id, *far);
 		if (ret) {
-			fprintf(stderr, "%s:%s:%d Failed to add entry for FAR_ID = %u"
+			clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d Failed to add entry for FAR_ID = %u"
 					"\n\tError= %s\n", __file__,
 					__func__, __LINE__, far_id,
 					rte_strerror(abs(ret)));
@@ -708,19 +599,11 @@ add_far_info_entry(uint16_t far_id, far_info_t **far)
 		memcpy(tmp, *far, sizeof(far_info_t));
 	}
 
-	RTE_LOG_DP(DEBUG, DP, "%s: FAR entry added by FAR_ID:%u\n",
+	clLog(clSystemLog, eCLSeverityDebug, "%s: FAR entry added by FAR_ID:%u\n",
 			__func__, far_id);
 	return 0;
 }
 
-/**
- * Get FAR entry from FAR hash table.
- *
- * @param FAR ID
- * key.
- * return far_info_t pdr or NULL
- *
- */
 far_info_t *
 get_far_info_entry(uint16_t far_id)
 {
@@ -730,12 +613,12 @@ get_far_info_entry(uint16_t far_id)
 	ret = rte_hash_lookup_data(far_by_id_hash,
 				&far_id, (void **)&far);
 	if ( ret < 0) {
-		fprintf(stderr, "DP:"FORMAT"Entry not found for FAR_ID:%u...\n",
+		clLog(clSystemLog, eCLSeverityCritical, "DP:"FORMAT"Entry not found for FAR_ID:%u...\n",
 				ERR_MSG, far_id);
 		return NULL;
 	}
 
-	RTE_LOG_DP(DEBUG, DP, "%s: FAR_ID:%u, TEID:%u, Dst_Ipv4_addr:"IPV4_ADDR", Dst_Itf_type:%u\n",
+	clLog(clSystemLog, eCLSeverityDebug, "%s: FAR_ID:%u, TEID:%u, Dst_Ipv4_addr:"IPV4_ADDR", Dst_Itf_type:%u\n",
 			__func__, far_id, far->frwdng_parms.outer_hdr_creation.teid,
 			IPV4_ADDR_HOST_FORMAT(far->frwdng_parms.outer_hdr_creation.ipv4_address),
 			far->frwdng_parms.dst_intfc.interface_value);
@@ -743,14 +626,6 @@ get_far_info_entry(uint16_t far_id)
 
 }
 
-/**
- * Delete FAR entry from FAR hash table.
- *
- * @param FAR ID
- * key.
- * return 0 or 1.
- *
- */
 int8_t
 del_far_info_entry(uint16_t far_id)
 {
@@ -765,27 +640,18 @@ del_far_info_entry(uint16_t far_id)
 		ret = rte_hash_del_key(far_by_id_hash, &far_id);
 
 		if ( ret < 0) {
-			fprintf(stderr, "DP:"FORMAT"Entry not found for FAR_ID:%u...\n",
+			clLog(clSystemLog, eCLSeverityCritical, "DP:"FORMAT"Entry not found for FAR_ID:%u...\n",
 						ERR_MSG, far_id);
 			return -1;
 		}
 	}
 
-	RTE_LOG_DP(DEBUG, DP, "%s: FAR_ID:%u\n",
+	clLog(clSystemLog, eCLSeverityDebug, "%s: FAR_ID:%u\n",
 			__func__, far_id);
 
 	return 0;
 }
 
-/**
- * Add QER entry in QER hash table.
- *
- * @param qer_id
- * key.
- * @param qer_info_t context
- * return 0 or 1.
- *
- */
 int8_t
 add_qer_info_entry(uint32_t qer_id, qer_info_t **head)
 {
@@ -801,7 +667,7 @@ add_qer_info_entry(uint32_t qer_id, qer_info_t **head)
 		qer = rte_zmalloc("QER", sizeof(qer_info_t),
 		        RTE_CACHE_LINE_SIZE);
 		if (qer == NULL){
-		    RTE_LOG_DP(ERR, DP, "Failed to allocate memory for QER info\n");
+		    clLog(clSystemLog, eCLSeverityCritical, "Failed to allocate memory for QER info\n");
 		    return -1;
 		}
 
@@ -809,7 +675,7 @@ add_qer_info_entry(uint32_t qer_id, qer_info_t **head)
 		ret = rte_hash_add_key_data(qer_by_id_hash,
 						&qer_id, qer);
 		if (ret) {
-			fprintf(stderr, "%s:%s:%d Failed to add QER entry for QER_ID = %u"
+			clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d Failed to add QER entry for QER_ID = %u"
 					"\n\tError= %s\n", __file__,
 					__func__, __LINE__, qer_id,
 					rte_strerror(abs(ret)));
@@ -825,7 +691,7 @@ add_qer_info_entry(uint32_t qer_id, qer_info_t **head)
 
 		/* Function to add a node in PDR data Linked List. */
 		if (insert_qer_node(*head, qer)) {
-			fprintf(stderr, FORMAT"Failed to add node entry in LL for QER_ID = %u"
+			clLog(clSystemLog, eCLSeverityCritical, FORMAT"Failed to add node entry in LL for QER_ID = %u"
 					"\n\tError= %s\n", ERR_MSG,
 					qer_id, rte_strerror(abs(ret)));
 		}
@@ -838,19 +704,11 @@ add_qer_info_entry(uint32_t qer_id, qer_info_t **head)
 		}
 	}
 
-	RTE_LOG_DP(DEBUG, DP, "%s: QER entry add for QER_ID:%u\n",
+	clLog(clSystemLog, eCLSeverityDebug, "%s: QER entry add for QER_ID:%u\n",
 			__func__, qer_id);
 	return 0;
 }
 
-/**
- * Get QER entry from QER hash table.
- *
- * @param QER ID
- * key.
- * return qer_info_t cntxt or NULL
- *
- */
 qer_info_t *
 get_qer_info_entry(uint32_t qer_id, qer_info_t **head)
 {
@@ -866,7 +724,7 @@ get_qer_info_entry(uint32_t qer_id, qer_info_t **head)
 		qer = rte_zmalloc("Session_Info", sizeof(qer_info_t),
 		        RTE_CACHE_LINE_SIZE);
 		if (qer == NULL){
-		    RTE_LOG_DP(ERR, DP, "Failed to allocate memory for QER info\n");
+		    clLog(clSystemLog, eCLSeverityCritical, "Failed to allocate memory for QER info\n");
 		    return NULL;
 		}
 
@@ -874,7 +732,7 @@ get_qer_info_entry(uint32_t qer_id, qer_info_t **head)
 		ret = rte_hash_add_key_data(qer_by_id_hash,
 						&qer_id, qer);
 		if (ret) {
-			fprintf(stderr, "%s:%s:%d Failed to add entry for QER_ID = %u"
+			clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d Failed to add entry for QER_ID = %u"
 					"\n\tError= %s\n", __file__,
 					__func__, __LINE__, qer_id,
 					rte_strerror(abs(ret)));
@@ -889,7 +747,7 @@ get_qer_info_entry(uint32_t qer_id, qer_info_t **head)
 
 		/* Function to add a node in PDR data Linked List. */
 		if (insert_qer_node(*head, qer)) {
-			fprintf(stderr, FORMAT"Failed to add node entry in LL for QER_ID = %u"
+			clLog(clSystemLog, eCLSeverityCritical, FORMAT"Failed to add node entry in LL for QER_ID = %u"
 					"\n\tError= %s\n", ERR_MSG,
 					qer_id, rte_strerror(abs(ret)));
 		}
@@ -897,20 +755,12 @@ get_qer_info_entry(uint32_t qer_id, qer_info_t **head)
 			*head = qer;
 	}
 
-	RTE_LOG_DP(DEBUG, DP, "%s: QER_ID:%u\n",
+	clLog(clSystemLog, eCLSeverityDebug, "%s: QER_ID:%u\n",
 			__func__, qer_id);
 	return qer;
 
 }
 
-/**
- * Delete QER entry from QER hash table.
- *
- * @param QER ID
- * key.
- * return 0 or 1.
- *
- */
 int8_t
 del_qer_info_entry(uint32_t qer_id)
 {
@@ -925,27 +775,18 @@ del_qer_info_entry(uint32_t qer_id)
 		ret = rte_hash_del_key(qer_by_id_hash, &qer_id);
 
 		if ( ret < 0) {
-			fprintf(stderr, "%s:%s:%d Entry not found for QER_ID:%u...\n",
+			clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d Entry not found for QER_ID:%u...\n",
 						__file__, __func__, __LINE__, qer_id);
 			return -1;
 		}
 	}
 
-	RTE_LOG_DP(DEBUG, DP, "%s: QER_ID:%u\n",
+	clLog(clSystemLog, eCLSeverityDebug, "%s: QER_ID:%u\n",
 			__func__, qer_id);
 
 	return 0;
 }
 
-/**
- * Add URR entry in URR hash table.
- *
- * @param urr_id
- * key.
- * @param urr_info_t context
- * return 0 or 1.
- *
- */
 int8_t
 add_urr_info_entry(uint32_t urr_id, urr_info_t **urr)
 {
@@ -961,7 +802,7 @@ add_urr_info_entry(uint32_t urr_id, urr_info_t **urr)
 		*urr = rte_zmalloc("URR", sizeof(urr_info_t),
 		        RTE_CACHE_LINE_SIZE);
 		if (*urr == NULL){
-		    RTE_LOG_DP(ERR, DP, "Failed to allocate memory for URR info\n");
+		    clLog(clSystemLog, eCLSeverityCritical, "Failed to allocate memory for URR info\n");
 		    return -1;
 		}
 
@@ -970,7 +811,7 @@ add_urr_info_entry(uint32_t urr_id, urr_info_t **urr)
 		ret = rte_hash_add_key_data(urr_by_id_hash,
 						&urr_id, *urr);
 		if (ret) {
-			fprintf(stderr, "%s:%s:%d Failed to add URR entry for URR_ID = %u"
+			clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d Failed to add URR entry for URR_ID = %u"
 					"\n\tError= %s\n", __file__,
 					__func__, __LINE__, urr_id,
 					rte_strerror(abs(ret)));
@@ -984,19 +825,11 @@ add_urr_info_entry(uint32_t urr_id, urr_info_t **urr)
 		memcpy(tmp, *urr, sizeof(urr_info_t));
 	}
 
-	RTE_LOG_DP(DEBUG, DP, "%s: URR entry add for URR_ID:%u\n",
+	clLog(clSystemLog, eCLSeverityDebug, "%s: URR entry add for URR_ID:%u\n",
 			__func__, urr_id);
 	return 0;
 }
 
-/**
- * Get URR entry from urr hash table.
- *
- * @param URR ID
- * key.
- * return urr_info_t cntxt or NULL
- *
- */
 urr_info_t *
 get_urr_info_entry(uint32_t urr_id)
 {
@@ -1008,25 +841,17 @@ get_urr_info_entry(uint32_t urr_id)
 				&urr_id, (void **)&urr);
 
 	if ( ret < 0) {
-		fprintf(stderr, "%s:%s:%d Entry not found for URR_ID:%u...\n",
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d Entry not found for URR_ID:%u...\n",
 				__file__, __func__, __LINE__, urr_id);
 		return NULL;
 	}
 
-	RTE_LOG_DP(DEBUG, DP, "%s: URR_ID:%u\n",
+	clLog(clSystemLog, eCLSeverityDebug, "%s: URR_ID:%u\n",
 			__func__, urr_id);
 	return urr;
 
 }
 
-/**
- * Delete URR entry from URR hash table.
- *
- * @param URR ID
- * key.
- * return 0 or 1.
- *
- */
 int8_t
 del_urr_info_entry(uint32_t urr_id)
 {
@@ -1041,22 +866,18 @@ del_urr_info_entry(uint32_t urr_id)
 		ret = rte_hash_del_key(urr_by_id_hash, &urr_id);
 
 		if ( ret < 0) {
-			fprintf(stderr, "%s:%s:%d Entry not found for URR_ID:%u...\n",
+			clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d Entry not found for URR_ID:%u...\n",
 						__file__, __func__, __LINE__, urr_id);
 			return -1;
 		}
 	}
 
-	RTE_LOG_DP(DEBUG, DP, "%s: URR_ID:%u\n",
+	clLog(clSystemLog, eCLSeverityDebug, "%s: URR_ID:%u\n",
 			__func__, urr_id);
 
 	return 0;
 }
 
-/**
- * @brief Initializes the pfcp context hash table used to account for
- * PDR, QER, BAR and FAR rules information tables and Session tables based on sessid, teid and UE_IP.
- */
 void
 init_up_hash_tables(void)
 {
@@ -1164,7 +985,7 @@ init_up_hash_tables(void)
 		}
 	}
 
-	fprintf(stderr, "Session, Session Data, PDR, QER, URR, BAR and FAR "
+	printf("Session, Session Data, PDR, QER, URR, BAR and FAR "
 			"hash table created successfully \n");
 }
 

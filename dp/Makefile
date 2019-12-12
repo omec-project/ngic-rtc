@@ -20,6 +20,7 @@ MAKEFLAGS += -j
 
 # Default target, can be overriden by command line or environment
 RTE_TARGET ?= x86_64-native-linuxapp-gcc
+OSS_UTIL_ROOT = $(NG_CORE)/oss_adapter/c3po_oss/oss-util
 
 include $(RTE_SDK)/mk/rte.vars.mk
 include $(NG_CORE)/config/ng-core_cfg.mk
@@ -63,6 +64,8 @@ SRCS-y := up_main.c\
 	$(SRCDIR)/../pfcp_messages/pfcp_up_sess_rsp.o\
 	#$(SRCDIR)/../pfcp_messages/pfcp_session.o\
 
+SRCS-y += $(SRCDIR)/../oss_adapter/c3po_oss/gw_adapter.o
+CFLAGS += -I$(SRCDIR)/../oss_adapter/c3po_oss
 
 CFLAGS += -I$(SRCDIR)/
 CFLAGS += -I$(SRCDIR)/pipeline
@@ -76,6 +79,7 @@ CFLAGS += -I$(SRCDIR)/../lib/libsponsdn
 CFLAGS += -I$(SRCDIR)/../pfcp_messages
 CFLAGS += -I$(RTE_SDK)/lib/librte_acl/
 CFLAGS += -I$(LIBPFCP_ROOT)/include
+CFLAGS +=  -I$(OSS_UTIL_ROOT)/include
 
 # Mandatory CFLAGS, LDFLAGS- DO NOT MODIFY
 # #############################################################
@@ -85,8 +89,13 @@ CFLAGS += -DLDB_DP	# should be included for dataplane.
 
 CFLAGS += -DDP_BUILD
 
-#CFLAGS += -Werror
-#CFLAGS += -Wunused-variable
+LIBDNSCLIENT_ROOT = $(SRCDIR)/../oss_adapter/c3po_oss/oss-util
+CFLAGS += -I$(LIBDNSCLIENT_ROOT)/include
+LDLIBS += $(LIBDNSCLIENT_ROOT)/lib/liboss-util.a -lstdc++ -lpistache
+LDLIBS += -L$(LIBDNSCLIENT_ROOT)/modules/c-ares -lcares
+
+CFLAGS += -Werror
+CFLAGS += -Wunused-variable
 
 # un-comment below line to Expose declaration of tdestroy()#
 CFLAGS_config.o := -D_GNU_SOURCE
@@ -199,7 +208,7 @@ CFLAGS += -DSTATS
 #CFLAGS += -DHYPERSCAN_DPI
 
 # Un-comment below line to enable ACL table creation and add default rule entry.
-#CFLAGS += -DDEFAULT_ACL_TABLE
+CFLAGS += -DDEFAULT_ACL_TABLE
 
 # Un-comment below line to enable add default rule entry in acl table .
 #CFLAGS += -DDEFAULT_ACL_RULE_ADD
@@ -215,6 +224,17 @@ ifneq (,$(findstring USE_REST, $(CFLAGS)))
 	SRCS-y += $(SRCDIR)/../restoration/restoration_timer.o
 	SRCS-y += restoration_peer.c
 	SRCS-y += gtpu_echo_req.c
+endif
+
+#un-comment below line to enable FQ-CSID support in the control-plane
+CFLAGS += -DUSE_CSID
+
+ifneq (,$(findstring USE_CSID, $(CFLAGS)))
+	#VS:Support partial failure FQ-CSID m/c
+	SRCS-y += $(SRCDIR)/../pfcp_messages/csid_init.o
+	SRCS-y += $(SRCDIR)/../pfcp_messages/csid_api.o
+	SRCS-y += $(SRCDIR)/../pfcp_messages/csid_peer_init.o
+	SRCS-y += $(SRCDIR)/../pfcp_messages/csid_up_cleanup.o
 endif
 
 # ngic-dp  CFLAGS to be deprecated

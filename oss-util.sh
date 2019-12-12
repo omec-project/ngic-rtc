@@ -71,6 +71,8 @@ init_submodules()
 {
   git submodule init
   git submodule update
+
+  #build_freeDiameter
   build_c_ares
   build_cpp_driver
   build_pistache
@@ -80,6 +82,20 @@ init_submodules()
  
   sudo ldconfig
     
+}
+
+build_freeDiameter()
+{
+  pushd modules/freeDiameter
+  rm -rf build
+  mkdir -p build
+  cd build
+  cmake ..
+  awk '{if (/^DISABLE_SCTP/) gsub(/OFF/, "ON"); print}' CMakeCache.txt > tmp && mv tmp CMakeCache.txt
+  make
+  sudo make install
+  popd
+  
 }
 
 build_c_ares()

@@ -45,6 +45,12 @@ int fdstart()
 	return FD_REASON_OK;
 }
 
+/**
+ * @brief  : Parse fd configuration
+ * @param  : filename , config file name
+ * @param  : peer_name , peer node name
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 static int
 parse_fd_config(const char *filename, char *peer_name)
 {

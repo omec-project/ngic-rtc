@@ -726,44 +726,47 @@ int decode_gtp_create_sess_request_bearer_ctxt_to_be_created_ie(uint8_t *buf,
 *   number of decoded bytes.
 */
 int decode_del_bearer_cmd(uint8_t *buf,
-      del_bearer_cmd_t *value)
+		del_bearer_cmd_t *value)
 {
-      uint16_t count = 0;
-      uint16_t buf_len = 0;
+	uint16_t count = 0;
+	uint16_t buf_len = 0;
 
-    count += decode_gtpv2c_header_t(buf + count, &value->header);
-    if (value->header.gtpc.teid_flag)
-      buf_len = value->header.gtpc.message_len - 8;
-      else
-      buf_len = value->header.gtpc.message_len - 4;
-      buf = buf + count;
-      count = 0;
-            while (count < buf_len) {
+	value->bearer_count = 0;
 
-          ie_header_t *ie_header = (ie_header_t *) (buf + count);
+	count += decode_gtpv2c_header_t(buf + count, &value->header);
+	if (value->header.gtpc.teid_flag)
+		buf_len = value->header.gtpc.message_len - 8;
+	else
+		buf_len = value->header.gtpc.message_len - 4;
 
-          if (ie_header->type == GTP_IE_BEARER_CONTEXT && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_bearer_context_ie(buf + count, &value->bearer_contexts);
-      }  else if (ie_header->type == GTP_IE_USER_LOC_INFO && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_user_loc_info_ie(buf + count, &value->uli);
-      }  else if (ie_header->type == GTP_IE_ULI_TIMESTAMP && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_uli_timestamp_ie(buf + count, &value->uli_timestamp);
-      }  else if (ie_header->type == GTP_IE_UE_TIME_ZONE && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_ue_time_zone_ie(buf + count, &value->ue_time_zone);
-      }  else if (ie_header->type == GTP_IE_OVRLD_CTL_INFO && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_ovrld_ctl_info_ie(buf + count, &value->mmes4_sgsns_ovrld_ctl_info);
-      }  else if (ie_header->type == GTP_IE_OVRLD_CTL_INFO && ie_header->instance == GTP_IE_INSTANCE_ONE) {
-            count += decode_gtp_ovrld_ctl_info_ie(buf + count, &value->sgws_ovrld_ctl_info);
-      }  else if (ie_header->type == GTP_IE_FULLY_QUAL_TUNN_ENDPT_IDNT && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_fully_qual_tunn_endpt_idnt_ie(buf + count, &value->sender_fteid_ctl_plane);
-      }  else if (ie_header->type == GTP_IE_SECDRY_RAT_USAGE_DATA_RPT && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_secdry_rat_usage_data_rpt_ie(buf + count, &value->secdry_rat_usage_data_rpt);
-      }  else if (ie_header->type == GTP_IE_PRIV_EXT) {
-            count += decode_gtp_priv_ext_ie(buf + count, &value->priv_ext);
-      }  else
-            count += sizeof(ie_header_t) + ntohs(ie_header->len);
-      }
-      return count;
+	buf = buf + count;
+	count = 0;
+	while (count < buf_len) {
+
+		ie_header_t *ie_header = (ie_header_t *) (buf + count);
+
+		if (ie_header->type == GTP_IE_BEARER_CONTEXT && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_del_bearer_command_bearer_ctxt_ie(buf + count, &value->bearer_contexts[value->bearer_count++]);
+		}  else if (ie_header->type == GTP_IE_USER_LOC_INFO && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_user_loc_info_ie(buf + count, &value->uli);
+		}  else if (ie_header->type == GTP_IE_ULI_TIMESTAMP && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_uli_timestamp_ie(buf + count, &value->uli_timestamp);
+		}  else if (ie_header->type == GTP_IE_UE_TIME_ZONE && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_ue_time_zone_ie(buf + count, &value->ue_time_zone);
+		}  else if (ie_header->type == GTP_IE_OVRLD_CTL_INFO && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_ovrld_ctl_info_ie(buf + count, &value->mmes4_sgsns_ovrld_ctl_info);
+		}  else if (ie_header->type == GTP_IE_OVRLD_CTL_INFO && ie_header->instance == GTP_IE_INSTANCE_ONE) {
+			count += decode_gtp_ovrld_ctl_info_ie(buf + count, &value->sgws_ovrld_ctl_info);
+		}  else if (ie_header->type == GTP_IE_FULLY_QUAL_TUNN_ENDPT_IDNT && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_fully_qual_tunn_endpt_idnt_ie(buf + count, &value->sender_fteid_ctl_plane);
+		}  else if (ie_header->type == GTP_IE_SECDRY_RAT_USAGE_DATA_RPT && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_secdry_rat_usage_data_rpt_ie(buf + count, &value->secdry_rat_usage_data_rpt);
+		}  else if (ie_header->type == GTP_IE_PRIV_EXT) {
+			count += decode_gtp_priv_ext_ie(buf + count, &value->priv_ext);
+		}  else
+			count += sizeof(ie_header_t) + ntohs(ie_header->len);
+	}
+	return count;
 }
 /**
 * Decodes mod_bearer_cmd_t to buffer.
@@ -846,6 +849,8 @@ int decode_mod_bearer_req(uint8_t *buf,
 	}  else if (ie_header->type == GTP_IE_INDICATION && ie_header->instance == GTP_IE_INSTANCE_ZERO) {\
             count += decode_gtp_indication_ie(buf + count, &value->indctn_flgs);
 	*/
+	  }  else if (ie_header->type == GTP_IE_SELECTION_MODE && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+		   count += decode_gtp_selection_mode_ie(buf + count, &value->selection_mode);
       }  else if (ie_header->type == GTP_IE_FULLY_QUAL_TUNN_ENDPT_IDNT && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
             count += decode_gtp_fully_qual_tunn_endpt_idnt_ie(buf + count, &value->sender_fteid_ctl_plane);
       }  else if (ie_header->type == GTP_IE_AGG_MAX_BIT_RATE && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
@@ -3165,16 +3170,16 @@ int decode_gtp_ctxt_response__mmesgsn_ue_eps_pdn_connections_ie(uint8_t *buf,
       return count;
 }
 /**
-* Decodes gtp_del_bearer_command__bearer_ctxt_ie_t to buffer.
+* Decodes gtp_del_bearer_command_bearer_ctxt_ie_t to buffer.
 * @param buf
 *   buffer to store decoded values.
 * @param value
-    gtp_del_bearer_command__bearer_ctxt_ie_t
+    gtp_del_bearer_command_bearer_ctxt_ie_t
 * @return
 *   number of decoded bytes.
 */
-int decode_gtp_del_bearer_command__bearer_ctxt_ie(uint8_t *buf,
-      gtp_del_bearer_command__bearer_ctxt_ie_t *value)
+int decode_gtp_del_bearer_command_bearer_ctxt_ie(uint8_t *buf,
+		gtp_del_bearer_command_bearer_ctxt_ie_t *value)
 {
       uint16_t count = 0;
       uint16_t buf_len = 0;
@@ -3579,7 +3584,7 @@ int decode_upd_bearer_req(uint8_t *buf,
           ie_header_t *ie_header = (ie_header_t *) (buf + count);
 
           if (ie_header->type == GTP_IE_BEARER_CONTEXT && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_bearer_context_ie(buf + count, &value->bearer_contexts);
+            count += decode_gtp_upd_bearer_request__bearer_ctxt_ie(buf + count, &value->bearer_contexts[value->bearer_context_count++]);
       }  else if (ie_header->type == GTP_IE_PROC_TRANS_ID && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
             count += decode_gtp_proc_trans_id_ie(buf + count, &value->pti);
       }  else if (ie_header->type == GTP_IE_PROT_CFG_OPTS && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
@@ -3592,10 +3597,8 @@ int decode_upd_bearer_req(uint8_t *buf,
             count += decode_gtp_csg_info_rptng_act_ie(buf + count, &value->csg_info_rptng_act);
       }  else if (ie_header->type == GTP_IE_HENB_INFO_RPTNG && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
             count += decode_gtp_henb_info_rptng_ie(buf + count, &value->henb_info_rptng);
-      /*
-	}  else if (ie_header->type == GTP_IE_INDICATION && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+	    }  else if (ie_header->type == GTP_IE_INDICATION && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
             count += decode_gtp_indication_ie(buf + count, &value->indctn_flgs);
-	*/
       }  else if (ie_header->type == GTP_IE_FQCSID && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
             count += decode_gtp_fqcsid_ie(buf + count, &value->pgw_fqcsid);
       }  else if (ie_header->type == GTP_IE_FQCSID && ie_header->instance == GTP_IE_INSTANCE_ONE) {
@@ -3636,6 +3639,8 @@ int decode_del_bearer_rsp(uint8_t *buf,
       uint16_t count = 0;
       uint16_t buf_len = 0;
 
+    value->bearer_count = 0;
+
     count += decode_gtpv2c_header_t(buf + count, &value->header);
     if (value->header.gtpc.teid_flag)
       buf_len = value->header.gtpc.message_len - 8;
@@ -3652,7 +3657,7 @@ int decode_del_bearer_rsp(uint8_t *buf,
       }  else if (ie_header->type == GTP_IE_EPS_BEARER_ID && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
             count += decode_gtp_eps_bearer_id_ie(buf + count, &value->lbi);
       }  else if (ie_header->type == GTP_IE_BEARER_CONTEXT && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_bearer_context_ie(buf + count, &value->bearer_contexts);
+            count += decode_gtp_del_bearer_response_bearer_ctxt_ie(buf + count, &value->bearer_contexts[value->bearer_count++]);
       }  else if (ie_header->type == GTP_IE_RECOVERY && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
             count += decode_gtp_recovery_ie(buf + count, &value->recovery);
       }  else if (ie_header->type == GTP_IE_FQCSID && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
@@ -3924,7 +3929,7 @@ int decode_gtp_upd_bearer_response__bearer_ctxt_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return count + IE_HEADER_SIZE;
 }
 /**
 * Decodes gtp_create_bearer_response__bearer_ctxt_ie_t to buffer.
@@ -4062,7 +4067,7 @@ int decode_gtp_upd_bearer_request__bearer_ctxt_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return count + IE_HEADER_SIZE;
 }
 /**
 * Decodes upd_bearer_rsp_t to buffer.
@@ -4093,7 +4098,7 @@ int decode_upd_bearer_rsp(uint8_t *buf,
           if (ie_header->type == GTP_IE_CAUSE && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
             count += decode_gtp_cause_ie(buf + count, &value->cause);
       }  else if (ie_header->type == GTP_IE_BEARER_CONTEXT && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_bearer_context_ie(buf + count, &value->bearer_contexts);
+            count += decode_gtp_upd_bearer_response__bearer_ctxt_ie(buf + count, &value->bearer_contexts[value->bearer_context_count++]);
       }  else if (ie_header->type == GTP_IE_PROT_CFG_OPTS && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
             count += decode_gtp_prot_cfg_opts_ie(buf + count, &value->pco);
       }  else if (ie_header->type == GTP_IE_RECOVERY && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
@@ -4185,7 +4190,7 @@ int decode_gtp_mod_bearer_response_bearer_ctxt_modified_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return count + sizeof(ie_header_t);
 }
 /**
 * Decodes gtp_create_sess_response__load_ctl_info_ie_t to buffer.
@@ -4338,6 +4343,49 @@ int decode_gtp_mod_acc_bearers_response__bearer_ctxt_modified_ie(uint8_t *buf,
             count += decode_gtp_fully_qual_tunn_endpt_idnt_ie(buf + count, &value->s1u_sgw_fteid);
       }  else if (ie_header->type == GTP_IE_FULLY_QUAL_TUNN_ENDPT_IDNT && ie_header->instance == GTP_IE_INSTANCE_ONE) {
             count += decode_gtp_fully_qual_tunn_endpt_idnt_ie(buf + count, &value->s11_u_sgw_fteid);
+      }  else
+            count += sizeof(ie_header_t) + ntohs(ie_header->len);
+      }
+      return count;
+}
+/**
+* Decodes del_pdn_conn_set_req_t to buffer.
+* @param buf
+*   buffer to store decoded values.
+* @param value
+    del_pdn_conn_set_req_t
+* @return
+*   number of decoded bytes.
+*/
+int decode_del_pdn_conn_set_req(uint8_t *buf,
+      del_pdn_conn_set_req_t *value)
+{
+      uint16_t count = 0;
+      uint16_t buf_len = 0;
+
+    count += decode_gtpv2c_header_t(buf + count, &value->header);
+    if (value->header.gtpc.teid_flag)
+      buf_len = value->header.gtpc.message_len - 8;
+      else
+      buf_len = value->header.gtpc.message_len - 4;
+      buf = buf + count;
+      count = 0;
+            while (count < buf_len) {
+
+          ie_header_t *ie_header = (ie_header_t *) (buf + count);
+
+          if (ie_header->type == GTP_IE_FQCSID && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+            count += decode_gtp_fqcsid_ie(buf + count, &value->mme_fqcsid);
+      }  else if (ie_header->type == GTP_IE_FQCSID && ie_header->instance == GTP_IE_INSTANCE_ONE) {
+            count += decode_gtp_fqcsid_ie(buf + count, &value->sgw_fqcsid);
+      }  else if (ie_header->type == GTP_IE_FQCSID && ie_header->instance == GTP_IE_INSTANCE_TWO) {
+            count += decode_gtp_fqcsid_ie(buf + count, &value->pgw_fqcsid);
+      }  else if (ie_header->type == GTP_IE_FQCSID && ie_header->instance == GTP_IE_INSTANCE_THREE) {
+            count += decode_gtp_fqcsid_ie(buf + count, &value->epdg_fqcsid);
+      }  else if (ie_header->type == GTP_IE_FQCSID && ie_header->instance == GTP_IE_INSTANCE_FOUR) {
+            count += decode_gtp_fqcsid_ie(buf + count, &value->twan_fqcsid);
+      }  else if (ie_header->type == GTP_IE_PRIV_EXT) {
+            count += decode_gtp_priv_ext_ie(buf + count, &value->priv_ext);
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
@@ -5142,8 +5190,10 @@ int decode_del_bearer_req(uint8_t *buf,
 
           ie_header_t *ie_header = (ie_header_t *) (buf + count);
 
-          if (ie_header->type == GTP_IE_EPS_BEARER_ID && ie_header->instance == GTP_IE_INSTANCE_ONE) {
-            count += decode_gtp_eps_bearer_id_ie(buf + count, &value->eps_bearer_ids);
+      if (ie_header->type == GTP_IE_EPS_BEARER_ID && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+            count += decode_gtp_eps_bearer_id_ie(buf + count, &value->lbi);
+      }  else if (ie_header->type == GTP_IE_EPS_BEARER_ID && ie_header->instance == GTP_IE_INSTANCE_ONE) {
+            count += decode_gtp_eps_bearer_id_ie(buf + count, &value->eps_bearer_ids[value->bearer_count++]);
       }  else if (ie_header->type == GTP_IE_BEARER_CONTEXT && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
             count += decode_gtp_bearer_context_ie(buf + count, &value->failed_bearer_contexts);
       }  else if (ie_header->type == GTP_IE_PROC_TRANS_ID && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
@@ -5728,8 +5778,8 @@ int decode_rmt_ue_rpt_ack(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_gtp_del_bearer_response__bearer_ctxt_ie(uint8_t *buf,
-      gtp_del_bearer_response__bearer_ctxt_ie_t *value)
+int decode_gtp_del_bearer_response_bearer_ctxt_ie(uint8_t *buf,
+      gtp_del_bearer_response_bearer_ctxt_ie_t *value)
 {
       uint16_t count = 0;
       uint16_t buf_len = 0;
@@ -5755,7 +5805,7 @@ int decode_gtp_del_bearer_response__bearer_ctxt_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return (count + sizeof(ie_header_t));
 }
 /**
 * Decodes create_fwdng_tunn_req_t to buffer.

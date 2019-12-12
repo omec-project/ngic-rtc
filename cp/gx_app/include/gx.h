@@ -24,6 +24,29 @@
 
 #define CONNECTPEER  "ConnectPeer"
 
+
+#define ULI_EVENT_TRIGGER           13
+#define UE_TIMEZONE_EVT_TRIGGER     25
+#define ECGI_AND_TAI_PRESENT        17
+
+#define GX_UE_TIMEZONE_TYPE         0x17
+#define GX_ECGI_AND_TAI_TYPE        0x82
+#define GX_TAI_TYPE                 0x80
+#define GX_ECGI_TYPE                0x81
+#define GX_SAI_TYPE                 0x01
+#define GX_RAI_TYPE                 0x02
+#define GX_CGI_TYPE                 0x00
+
+
+enum diameter_error {
+    DIAMETER_UNKNOWN_SESSION_ID = 5002,
+    DIAMETER_ERROR_USER_UNKNOWN = 5030,
+    DIAMETER_UNABLE_TO_COMPLY =  5012
+};
+
+/**
+ * @brief  : Maintains gx dictionary information
+ */
 typedef struct gxDict {
     struct dict_object * vndETSI;
     struct dict_object * vnd3GPP2;

@@ -31,10 +31,12 @@
 #include "pfcp_session.h"
 #include "pfcp_messages.h"
 #include "pfcp_messages_encoder.h"
-
-#ifdef C3PO_OSS
 #include "cp_config.h"
-#endif /* C3PO_OSS */
+
+#ifdef CP_BUILD
+#include "cp_timer.h"
+#endif /* CP_BUILD */
+
 #ifdef USE_REST
 #include "main.h"
 #endif /* USE_REST */
@@ -53,8 +55,10 @@ extern struct sockaddr_in s5s8_recv_sockaddr;
  *
  */
 
-/** Table 7.2.1-1: Information Elements in a Create Session Request -
- *  incomplete list */
+/**
+ * @brief  : Table 7.2.1-1: Information Elements in a Create Session Request -
+ *           incomplete list
+ */
 struct parse_pgwc_s5s8_create_session_request_t {
 	uint8_t *bearer_context_to_be_created_ebi;
 	fteid_ie *s5s8_sgw_gtpc_fteid;
@@ -73,17 +77,16 @@ struct parse_pgwc_s5s8_create_session_request_t {
 };
 
 /**
- * parses gtpv2c message and populates parse_pgwc_s5s8_create_session_request_t structure
- * @param gtpv2c_rx
- *   buffer containing create bearer response message
- * @param csr
- *   data structure to contain required information elements from create
- *   create session response message
- * @return
- *   \- 0 if successful
- *   \- > 0 if error occurs during packet filter parsing corresponds to 3gpp
- *   specified cause error value
- *   \- < 0 for all other errors
+ * @brief  : parses gtpv2c message and populates parse_pgwc_s5s8_create_session_request_t structure
+ * @param  : gtpv2c_rx
+ *           buffer containing create bearer response message
+ * @param  : csr
+ *           data structure to contain required information elements from create
+ *           create session response message
+ * @return : - 0 if successful
+ *           - > 0 if error occurs during packet filter parsing corresponds to 3gpp
+ *             specified cause error value
+ *           - < 0 for all other errors
  */
 
 static int
@@ -171,30 +174,31 @@ parse_pgwc_s5s8_create_session_request(gtpv2c_header_t *gtpv2c_rx,
 		|| !csr->msisdn_ie
 		|| !IE_TYPE_PTR_FROM_GTPV2C_IE(pdn_type_ie,
 				csr->pdn_type_ie)->ipv4) {
-		fprintf(stderr, "%s:Dropping packet\n", __func__);
+		clLog(clSystemLog, eCLSeverityCritical, "%s:Dropping packet\n", __func__);
 		return GTPV2C_CAUSE_MANDATORY_IE_MISSING;
 	}
 	if (IE_TYPE_PTR_FROM_GTPV2C_IE(pdn_type_ie, csr->pdn_type_ie)->ipv6) {
-		fprintf(stderr, "IPv6 Not Yet Implemented - Dropping packet\n");
+		clLog(clSystemLog, eCLSeverityCritical, "IPv6 Not Yet Implemented - Dropping packet\n");
 		return GTPV2C_CAUSE_PREFERRED_PDN_TYPE_UNSUPPORTED;
 	}
 	return 0;
 }
 
 /**
- * from parameters, populates gtpv2c message 'create session response' and
- * populates required information elements as defined by
- * clause 7.2.2 3gpp 29.274
- * @param gtpv2c_tx
- *   transmission buffer to contain 'create session response' message
- * @param sequence
- *   sequence number as described by clause 7.6 3gpp 29.274
- * @param context
- *   UE Context data structure pertaining to the session to be created
- * @param pdn
- *   PDN Connection data structure pertaining to the session to be created
- * @param bearer
- *   Default EPS Bearer corresponding to the PDN Connection to be created
+ * @brief  : from parameters, populates gtpv2c message 'create session response' and
+ *           populates required information elements as defined by
+ *           clause 7.2.2 3gpp 29.274
+ * @param  : gtpv2c_tx
+ *           transmission buffer to contain 'create session response' message
+ * @param  : sequence
+ *           sequence number as described by clause 7.6 3gpp 29.274
+ * @param  : context
+ *           UE Context data structure pertaining to the session to be created
+ * @param  : pdn
+ *           PDN Connection data structure pertaining to the session to be created
+ * @param  : bearer
+ *           Default EPS Bearer corresponding to the PDN Connection to be created
+ * @return : returns nothing
  */
 void
 set_pgwc_s5s8_create_session_response(gtpv2c_header_t *gtpv2c_tx,
@@ -283,7 +287,8 @@ process_pgwc_s5s8_create_session_request(gtpv2c_header_t *gtpv2c_rx,
 			create_s5s8_session_request.imsi_ie);
 	ret = create_ue_context(imsi_val,
 			ntohs(create_s5s8_session_request.imsi_ie->length),
-			*create_s5s8_session_request.bearer_context_to_be_created_ebi, &context, apn_requested);
+			*create_s5s8_session_request.bearer_context_to_be_created_ebi, &context, apn_requested,
+			0);
 	if (ret)
 		return ret;
 
@@ -363,8 +368,8 @@ process_pgwc_s5s8_create_session_request(gtpv2c_header_t *gtpv2c_rx,
 	context->sequence = gtpv2c_rx->teid.has_teid.seq;
 
 	/* Update UE State */
-	context->state = PFCP_SESS_EST_REQ_SNT_STATE;
-	context->proc = proc;
+	pdn->state = PFCP_SESS_EST_REQ_SNT_STATE;
+	pdn->proc = proc;
 
 	/* VS: Allocate the memory for response
 	 */
@@ -406,7 +411,7 @@ process_pgwc_s5s8_create_session_request(gtpv2c_header_t *gtpv2c_rx,
 	context->seid = SESS_ID(pdn->s5s8_pgw_gtpc_teid, bearer->eps_bearer_id);
 	*/
 	sequence = get_pfcp_sequence_number(PFCP_SESSION_ESTABLISHMENT_REQUEST, sequence);
-	fill_pfcp_sess_est_req(&pfcp_sess_est_req, context, ebi_index, sequence);
+	fill_pfcp_sess_est_req(&pfcp_sess_est_req, context->pdns[ebi_index], sequence);
 
 	/*Filling sequence number */
 	//pfcp_sess_est_req.header.seid_seqno.has_seid.seq_no  = sequence;
@@ -442,16 +447,21 @@ process_pgwc_s5s8_create_session_request(gtpv2c_header_t *gtpv2c_rx,
 
 	/*Send the packet to PGWU*/
 	if (pfcp_send(pfcp_fd, pfcp_msg, encoded, &upf_pfcp_sockaddr) < 0) {
-		fprintf(stderr, "Error in sending CSR to PGW-U. err_no: %i\n", errno);
+		clLog(clSystemLog, eCLSeverityCritical, "Error in sending CSR to PGW-U. err_no: %i\n", errno);
 	} else {
-		get_current_time(cp_stats.stat_timestamp);
+
 		update_cli_stats((uint32_t)upf_pfcp_sockaddr.sin_addr.s_addr,
-				pfcp_sess_est_req.header.message_type,REQ,
-				cp_stats.stat_timestamp);
+				pfcp_sess_est_req.header.message_type,SENT,SX);
+
+
+#ifdef CP_BUILD
+		add_pfcp_if_timer_entry(pdn->s5s8_pgw_gtpc_teid,
+			&upf_pfcp_sockaddr, pfcp_msg, encoded, ebi_index);
+#endif /* CP_BUILD */
 	}
 
 	if (add_sess_entry(context->pdns[ebi_index]->seid, resp) != 0) {
-		fprintf(stderr, " %s %s %d Failed to add response in entry in SM_HASH\n",__file__,
+		clLog(clSystemLog, eCLSeverityCritical, " %s %s %d Failed to add response in entry in SM_HASH\n",__file__,
 				__func__, __LINE__);
 		return -1;
 	}
@@ -460,17 +470,16 @@ process_pgwc_s5s8_create_session_request(gtpv2c_header_t *gtpv2c_rx,
 }
 
 /**
- * parses gtpv2c message and populates parse_sgwc_s5s8_create_session_response_t structure
- * @param gtpv2c_rx
- *   buffer containing create bearer response message
- * @param csr
- *   data structure to contain required information elements from create
- *   create session response message
- * @return
- *   \- 0 if successful
- *   \- > 0 if error occurs during packet filter parsing corresponds to 3gpp
- *   specified cause error value
- *   \- < 0 for all other errors
+ * @brief  : parses gtpv2c message and populates parse_sgwc_s5s8_create_session_response_t structure
+ * @param  : gtpv2c_rx
+ *           buffer containing create bearer response message
+ * @param  : csr
+ *           data structure to contain required information elements from create
+ *           create session response message
+ * @return : - 0 if successful
+ *           - > 0 if error occurs during packet filter parsing corresponds to 3gpp
+ *             specified cause error value
+ *           - < 0 for all other errors
  */
 
 int
@@ -527,7 +536,7 @@ parse_sgwc_s5s8_create_session_response(gtpv2c_header_t *gtpv2c_rx,
 	if (!csr->apn_restriction_ie
 		|| !csr->bearer_context_to_be_created_ebi
 		|| !csr->pgw_s5s8_gtpc_fteid) {
-		fprintf(stderr, "Dropping packet\n");
+		clLog(clSystemLog, eCLSeverityCritical, "Dropping packet\n");
 		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 	}
 	return 0;
@@ -630,30 +639,27 @@ process_sgwc_s5s8_modify_bearer_response(mod_bearer_rsp_t *mb_rsp, gtpv2c_header
 	ue_context *context = NULL;
 	pdn_connection *pdn = NULL;
 	eps_bearer *bearer = NULL;
-	int ret;
+	int ret = 0;
 
 	uint8_t ebi_index =
 		mb_rsp->bearer_contexts_modified.eps_bearer_id.ebi_ebi - 5;
 
-
 	/* s11_sgw_gtpc_teid= s5s8_sgw_gtpc_teid =
 	 * key->ue_context_by_fteid_hash */
-	ret = rte_hash_lookup_data(ue_context_by_fteid_hash,
-			(const void *) &mb_rsp->header.teid.has_teid.teid,
-			(void **) &context);
 
-	if (ret < 0 || !context)
-		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+	 ret = get_ue_context_by_sgw_s5s8_teid(mb_rsp->header.teid.has_teid.teid, &context);
+	 if (ret < 0 || !context)
+	         return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 
-	pdn = context->pdns[ebi_index];
 	bearer = context->eps_bearers[ebi_index];
+	pdn = bearer->pdn;
 
 	set_create_session_response(
 			gtpv2c_s11_tx, mb_rsp->header.teid.has_teid.seq,
 			context, pdn, bearer);
 
-	 context->state =  CONNECTED_STATE;
-	 context->proc = INITIAL_PDN_ATTACH_PROC;
+	 pdn->state =  CONNECTED_STATE;
+	 pdn->proc = INITIAL_PDN_ATTACH_PROC;
 
 	return 0;
 }
@@ -819,7 +825,7 @@ process_sgwc_s5s8_modify_bearer_response(mod_bearer_rsp_t *mb_rsp, gtpv2c_header
 //
 //
 //	if (pfcp_send(pfcp_fd, pfcp_msg, encoded, &upf_pfcp_sockaddr) < 0)
-//		fprintf(stderr, "Error in sending MBR to SGW-U. err_no: %i\n", errno);
+//		clLog(clSystemLog, eCLSeverityCritical, "Error in sending MBR to SGW-U. err_no: %i\n", errno);
 //	else
 //	{
 //		cp_stats.session_modification_req_sent++;
@@ -830,7 +836,7 @@ process_sgwc_s5s8_modify_bearer_response(mod_bearer_rsp_t *mb_rsp, gtpv2c_header
 //
 //	/* Lookup Stored the session information. */
 //	if (get_sess_entry(context->pdns[ebi_index]->seid, &resp) != 0) {
-//		fprintf(stderr, "Failed to add response in entry in SM_HASH\n");
+//		clLog(clSystemLog, eCLSeverityCritical, "Failed to add response in entry in SM_HASH\n");
 //		return -1;
 //	}
 //
@@ -859,7 +865,7 @@ process_create_bearer_request(create_bearer_req_t *cbr)
 	struct resp_info *resp = NULL;
 	pfcp_sess_mod_req_t pfcp_sess_mod_req = {0};
 
-	ret = get_ue_context(cbr->header.teid.has_teid.teid, &context);
+	ret = get_ue_context_by_sgw_s5s8_teid(cbr->header.teid.has_teid.teid, &context);
 	if (ret) {
 		clLog(sxlogger, eCLSeverityCritical, "%s:%d Error: %d \n", __func__,
 				__LINE__, ret);
@@ -869,7 +875,7 @@ process_create_bearer_request(create_bearer_req_t *cbr)
 	bearer = rte_zmalloc_socket(NULL, sizeof(eps_bearer),
 			RTE_CACHE_LINE_SIZE, rte_socket_id());
 	if (bearer == NULL) {
-		fprintf(stderr, "Failure to allocate bearer "
+		clLog(clSystemLog, eCLSeverityCritical, "Failure to allocate bearer "
 				"structure: %s (%s:%d)\n",
 				rte_strerror(rte_errno),
 				__FILE__,
@@ -917,17 +923,23 @@ process_create_bearer_request(create_bearer_req_t *cbr)
 	header->message_len = htons(encoded - 4);
 
 	if (pfcp_send(pfcp_fd, pfcp_msg, encoded, &upf_pfcp_sockaddr) < 0)
-		fprintf(stderr, "Error in sending MBR to SGW-U. err_no: %i\n", errno);
+		clLog(clSystemLog, eCLSeverityCritical, "Error in sending MBR to SGW-U. err_no: %i\n", errno);
 	else
 	{
-		get_current_time(cp_stats.stat_timestamp);
+
+		update_cli_stats((uint32_t)upf_pfcp_sockaddr.sin_addr.s_addr,
+				pfcp_sess_mod_req.header.message_type,SENT,SX);
+#ifdef CP_BUILD
+		add_pfcp_if_timer_entry(context->s11_sgw_gtpc_teid,
+			&upf_pfcp_sockaddr, pfcp_msg, encoded, ebi_index);
+#endif /* CP_BUILD */
 	}
 
 	context->sequence = seq_no;
-	context->state = PFCP_SESS_MOD_REQ_SNT_STATE;
+	pdn->state = PFCP_SESS_MOD_REQ_SNT_STATE;
 
 	if (get_sess_entry(context->pdns[ebi_index]->seid, &resp) != 0) {
-		fprintf(stderr, "Failed to add response in entry in SM_HASH\n");
+		clLog(clSystemLog, eCLSeverityCritical, "Failed to add response in entry in SM_HASH\n");
 		return -1;
 	}
 
@@ -940,7 +952,203 @@ process_create_bearer_request(create_bearer_req_t *cbr)
 	resp->msg_type = GTP_CREATE_BEARER_REQ;
 	resp->state = PFCP_SESS_MOD_REQ_SNT_STATE;
 	resp->proc = DED_BER_ACTIVATION_PROC;
-	context->proc = DED_BER_ACTIVATION_PROC;
+	pdn->proc = DED_BER_ACTIVATION_PROC;
+
+	return 0;
+}
+
+
+int
+process_delete_bearer_request(del_bearer_req_t *db_req ,uint8_t is_del_bear_cmd)
+{
+	int ret;
+	uint8_t ebi_index;
+	uint8_t bearer_cntr = 0;
+	ue_context *context = NULL;
+	pdn_connection *pdn = NULL;
+	struct resp_info *resp = NULL;
+	uint8_t default_bearer_id = 0;
+	eps_bearer *bearers[MAX_BEARERS];
+	pfcp_sess_mod_req_t pfcp_sess_mod_req = {0};
+
+	ret = get_ue_context_by_sgw_s5s8_teid(db_req->header.teid.has_teid.teid, &context);
+	if (ret) {
+		clLog(sxlogger, eCLSeverityCritical, "%s:%d Error: %d \n", __func__,
+				__LINE__, ret);
+		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+	}
+
+	s11_mme_sockaddr.sin_addr.s_addr =
+		context->s11_mme_gtpc_ipv4.s_addr;
+
+	if (db_req->lbi.header.len != 0) {
+
+		default_bearer_id = db_req->lbi.ebi_ebi;
+		pdn = context->pdns[default_bearer_id - 5];
+
+		for (uint8_t iCnt = 0; iCnt < MAX_BEARERS; ++iCnt) {
+			if (NULL != pdn->eps_bearers[iCnt]) {
+				bearers[iCnt] = pdn->eps_bearers[iCnt];
+			}
+		}
+
+		bearer_cntr = pdn->num_bearer;
+	} else {
+		for (uint8_t iCnt = 0; iCnt < db_req->bearer_count; ++iCnt) {
+			ebi_index = db_req->eps_bearer_ids[iCnt].ebi_ebi;
+			bearers[iCnt] = context->eps_bearers[ebi_index - 5];
+		}
+
+		pdn = context->eps_bearers[ebi_index - 5]->pdn;
+		bearer_cntr = db_req->bearer_count;
+	}
+
+	if(is_del_bear_cmd)
+		fill_pfcp_sess_mod_req_pgw_del_cmd_update_far(&pfcp_sess_mod_req, pdn, bearers, bearer_cntr);
+	else
+		fill_pfcp_sess_mod_req_pgw_init_update_far(&pfcp_sess_mod_req, pdn, bearers, bearer_cntr);
+
+	uint8_t pfcp_msg[512]={0};
+	int encoded = encode_pfcp_sess_mod_req_t(&pfcp_sess_mod_req, pfcp_msg);
+	pfcp_header_t *header = (pfcp_header_t *) pfcp_msg;
+	header->message_len = htons(encoded - 4);
+
+	if (pfcp_send(pfcp_fd, pfcp_msg, encoded, &upf_pfcp_sockaddr) < 0) {
+		clLog(sxlogger, eCLSeverityCritical,
+			"%s : Error in sending MBR to SGW-U. err_no: %i\n",
+			__func__, errno);
+	} else {
+		update_cli_stats((uint32_t)upf_pfcp_sockaddr.sin_addr.s_addr,
+				pfcp_sess_mod_req.header.message_type, SENT, SX);
+#ifdef CP_BUILD
+		add_pfcp_if_timer_entry(context->s11_sgw_gtpc_teid,
+			&upf_pfcp_sockaddr, pfcp_msg, encoded, pdn->default_bearer_id - 5);
+#endif /* CP_BUILD */
+	}
+
+	context->sequence = db_req->header.teid.has_teid.seq;
+	pdn->state = PFCP_SESS_MOD_REQ_SNT_STATE;
+
+	if (get_sess_entry(pdn->seid, &resp) != 0) {
+		clLog(sxlogger, eCLSeverityCritical,
+			"%s : Failed to add response in entry in SM_HASH\n", __func__);
+		return -1;
+	}
+		if (db_req->lbi.header.len != 0) {
+			resp->linked_eps_bearer_id = db_req->lbi.ebi_ebi;
+			resp->bearer_count = 0;
+		} else {
+			resp->bearer_count = db_req->bearer_count;
+			for (uint8_t iCnt = 0; iCnt < db_req->bearer_count; ++iCnt) {
+				resp->eps_bearer_ids[iCnt] = db_req->eps_bearer_ids[iCnt].ebi_ebi;
+			}
+		}
+
+	if (is_del_bear_cmd == 0){
+		resp->msg_type = GTP_DELETE_BEARER_REQ;
+		resp->state = PFCP_SESS_MOD_REQ_SNT_STATE;
+		resp->proc = PDN_GW_INIT_BEARER_DEACTIVATION;
+		pdn->proc = PDN_GW_INIT_BEARER_DEACTIVATION;
+	}else {
+
+		resp->msg_type = GTP_DELETE_BEARER_REQ;
+		resp->state = PFCP_SESS_MOD_REQ_SNT_STATE;
+		resp->proc = MME_INI_DEDICATED_BEARER_DEACTIVATION_PROC;
+		pdn->proc = MME_INI_DEDICATED_BEARER_DEACTIVATION_PROC;
+
+	}
+	return 0;
+}
+
+int
+process_delete_bearer_resp(del_bearer_rsp_t *db_rsp, uint8_t is_del_bearer_cmd)
+{
+	int ret;
+	uint8_t ebi_index;
+	uint8_t bearer_cntr = 0;
+	ue_context *context = NULL;
+	pdn_connection *pdn = NULL;
+	struct resp_info *resp = NULL;
+	uint8_t default_bearer_id = 0;
+	eps_bearer *bearers[MAX_BEARERS];
+	pfcp_sess_mod_req_t pfcp_sess_mod_req = {0};
+
+	ret = get_ue_context(db_rsp->header.teid.has_teid.teid, &context);
+	if (ret) {
+		clLog(sxlogger, eCLSeverityCritical, "%s:%d Error: %d \n", __func__,
+				__LINE__, ret);
+		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+	}
+
+	s11_mme_sockaddr.sin_addr.s_addr =
+		context->s11_mme_gtpc_ipv4.s_addr;
+
+	if (db_rsp->lbi.header.len) {
+		default_bearer_id = db_rsp->lbi.ebi_ebi;
+		pdn = context->pdns[default_bearer_id];
+		bearers[default_bearer_id - 5] = context->eps_bearers[default_bearer_id - 5];
+		bearer_cntr = 1;
+	} else {
+		for (uint8_t iCnt = 0; iCnt < db_rsp->bearer_count; ++iCnt) {
+			ebi_index = db_rsp->bearer_contexts[iCnt].eps_bearer_id.ebi_ebi;
+			bearers[iCnt] = context->eps_bearers[ebi_index - 5];
+		}
+		pdn = context->eps_bearers[ebi_index - 5]->pdn;
+		bearer_cntr = db_rsp->bearer_count;
+
+	}
+
+	fill_pfcp_sess_mod_req_pgw_init_remove_pdr(&pfcp_sess_mod_req, pdn, bearers, bearer_cntr);
+
+	uint8_t pfcp_msg[512]={0};
+	int encoded = encode_pfcp_sess_mod_req_t(&pfcp_sess_mod_req, pfcp_msg);
+	pfcp_header_t *header = (pfcp_header_t *) pfcp_msg;
+	header->message_len = htons(encoded - 4);
+
+	if (pfcp_send(pfcp_fd, pfcp_msg, encoded, &upf_pfcp_sockaddr) < 0) {
+		clLog(sxlogger, eCLSeverityCritical,
+			"%s : Error in sending MBR to SGW-U. err_no: %i\n",
+			__func__, errno);
+	} else {
+		update_cli_stats((uint32_t)upf_pfcp_sockaddr.sin_addr.s_addr,
+				pfcp_sess_mod_req.header.message_type, SENT, SX);
+#ifdef CP_BUILD
+		add_pfcp_if_timer_entry(db_rsp->header.teid.has_teid.teid,
+			&upf_pfcp_sockaddr, pfcp_msg, encoded, pdn->default_bearer_id - 5);
+#endif /* CP_BUILD */
+	}
+
+	context->sequence = db_rsp->header.teid.has_teid.seq;
+	pdn->state = PFCP_SESS_MOD_REQ_SNT_STATE;
+
+	if (get_sess_entry(pdn->seid, &resp) != 0) {
+		clLog(sxlogger, eCLSeverityCritical,
+			"%s : Failed to add response in entry in SM_HASH\n",
+			__func__);
+		return -1;
+	}
+
+	if (db_rsp->lbi.header.len != 0) {
+		resp->linked_eps_bearer_id = db_rsp->lbi.ebi_ebi;
+		resp->bearer_count = 0;
+	} else {
+		resp->bearer_count = db_rsp->bearer_count;
+		for (uint8_t iCnt = 0; iCnt < db_rsp->bearer_count; ++iCnt) {
+			resp->eps_bearer_ids[iCnt] = db_rsp->bearer_contexts[iCnt].eps_bearer_id.ebi_ebi;
+		}
+	}
+	if(is_del_bearer_cmd == 0){
+		resp->msg_type = GTP_DELETE_BEARER_RSP;
+		resp->state = PFCP_SESS_MOD_REQ_SNT_STATE;
+		resp->proc = PDN_GW_INIT_BEARER_DEACTIVATION;
+		pdn->proc = PDN_GW_INIT_BEARER_DEACTIVATION;
+	}else{
+
+		resp->msg_type = GTP_DELETE_BEARER_RSP;
+		resp->state = PFCP_SESS_MOD_REQ_SNT_STATE;
+		resp->proc = MME_INI_DEDICATED_BEARER_DEACTIVATION_PROC;
+		pdn->proc = MME_INI_DEDICATED_BEARER_DEACTIVATION_PROC;
+	}
 
 	return 0;
 }

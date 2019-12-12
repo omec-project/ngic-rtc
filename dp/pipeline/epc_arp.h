@@ -49,7 +49,9 @@
  */
 #define ARPICMP_DEBUG 0
 
-/** Pipeline arguments */
+/**
+ * @brief  : Maintains pipeline arguments
+ */
 struct pipeline_arp_icmp_in_port_h_arg {
 	/** rte pipeline */
 	struct  pipeline_arp_icmp *p;
@@ -79,15 +81,18 @@ struct pipeline_arp_icmp_in_port_h_arg {
 (eth_addr).addr_bytes[5]
 
 
-/** IPv4 key for ARP table. */
+/**
+ * @brief : IPv4 key for ARP table.
+ */
 struct arp_ipv4_key {
 	/** ipv4 address */
 	uint32_t ip;
 };
 
 
-/** ARP table entry. */
-
+/**
+ * @brief  : ARP table entry.
+ */
 struct arp_entry_data {
 	/** ipv4 address */
 	uint32_t ip;
@@ -104,81 +109,59 @@ struct arp_entry_data {
 } __attribute__((packed));
 
 /**
- * Print ARP packet.
- *
- * @param pkt
- *	ARP packet.
- *
+ * @brief  : Print ARP packet.
+ * @param  : pkt, ARP packet.
+ * @return : Returns nothing
  */
 void print_pkt1(struct rte_mbuf *pkt);
 
 /**
- * Send ARP request.
- *
- * @param port_id
- *	port id.
- * @param ip
- *	ip address to resolve the mac.
- *
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : Send ARP request.
+ * @param  : port_id, port id.
+ * @param  : ip, ip address to resolve the mac.
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int send_arp_req(unsigned port_id, uint32_t ip);
 
 /**
- * Retrieve MAC address.
- *
- * @param ipaddr
- *	dst IP address.
- * @param phy_port
- *	port no.
- * @param hw_addr
- *	mac address.
- * @param nhip
- *	next hop ip.
- *
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : Retrieve MAC address.
+ * @param  : ipaddr, dst IP address.
+ * @param  : phy_port, port no.
+ * @param  : hw_addr, mac address.
+ * @param  : nhip, next hop ip.
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int arp_icmp_get_dest_mac_address(__rte_unused const uint32_t ipaddr,
 		const uint32_t phy_port,
 		struct ether_addr *hw_addr, uint32_t *nhip);
 
 /**
- * Retrieve ARP entry.
- *
- * @param arp_key
- *	key.
- * @param portid
- *	port id
- *
- * @return
- *	arp entry data if found.
- *	neg value if error.
+ * @brief  : Retrieve ARP entry.
+ * @param  : arp_key , key.
+ * @param  : portid, port id
+ * @return : arp entry data if found, negative  value if error.
  */
 struct arp_entry_data *retrieve_arp_entry(
 			const struct arp_ipv4_key arp_key,
 			uint8_t portid);
 
 /**
- * Queue unresolved arp pkts.
- *
- * @param arp_data
- *	arp entry data.
- * @param m
- *	packet pointer.
- * @param portid
- *	port.
- *
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : Queue unresolved arp uplink pkts.
+ * @param  : arp_data, arp entry data.
+ * @param  : m, packet pointer.
+ * @param  : portid, port.
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int arp_qunresolved_ulpkt(struct arp_entry_data *arp_data,
 				struct rte_mbuf *m, uint8_t portid);
 
+/**
+ * @brief  : Queue unresolved arp downlink pkts.
+ * @param  : arp_data, arp entry data.
+ * @param  : m, packet pointer.
+ * @param  : portid, port.
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 int arp_qunresolved_dlpkt(struct arp_entry_data *arp_data,
 				struct rte_mbuf *m, uint8_t portid);
 

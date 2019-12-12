@@ -25,23 +25,24 @@
 #include "gtpv2c_set_ie.h"
 #include "pfcp_messages_encoder.h"
 #include "../cp_dp_api/vepc_cp_dp_api.h"
-
+#ifdef CP_BUILD
+#include "cp_timer.h"
+#endif /* CP_BUILD */
 #define size sizeof(pfcp_sess_mod_req_t)
 
 extern int pfcp_fd;
 
 /**
- * parses gtpv2c message and populates parse_release_access_bearer_request_t
- *   structure
- * @param gtpv2c_rx
- *   buffer containing received release access bearer request message
- * @param release_access_bearer_request
- *   structure to contain parsed information from message
- * @return
- *   \- 0 if successful
- *   \- > 0 if error occurs during packet filter parsing corresponds to 3gpp
- *   specified cause error value
- *   \- < 0 for all other errors
+ * @brief  : parses gtpv2c message and populates parse_release_access_bearer_request_t
+ *           structure
+ * @param  : gtpv2c_rx
+ *           buffer containing received release access bearer request message
+ * @param  : release_access_bearer_request
+ *           structure to contain parsed information from message
+ * @return : - 0 if successful
+ *           - > 0 if error occurs during packet filter parsing corresponds to 3gpp
+ *             specified cause error value
+ *           - < 0 for all other errors
  */
 int
 parse_release_access_bearer_request(gtpv2c_header_t *gtpv2c_rx,
@@ -73,17 +74,17 @@ parse_release_access_bearer_request(gtpv2c_header_t *gtpv2c_rx,
 }
 
 /**
- * from parameters, populates gtpv2c message 'release access bearer
- * response' and populates required information elements as defined by
- * clause 7.2.22 3gpp 29.274
- * @param gtpv2c_tx
- *   transmission buffer to contain 'release access bearer request' message
- * @param sequence
- *   sequence number as described by clause 7.6 3gpp 29.274
- * @param context
- *   UE Context data structure pertaining to the bearer to be modified
+ * @brief  : from parameters, populates gtpv2c message 'release access bearer response'
+ *           and populates required information elements as defined by
+ *           clause 7.2.22 3gpp 29.274
+ * @param  : gtpv2c_tx
+ *           transmission buffer to contain 'release access bearer request' message
+ * @param  : sequence
+ *           sequence number as described by clause 7.6 3gpp 29.274
+ * @param  : context
+ *           UE Context data structure pertaining to the bearer to be modified
+ * @return : Returns nothing
  */
-/* TODO: Remove #if 0 before rollup */
 void
 set_release_access_bearer_response(gtpv2c_header_t *gtpv2c_tx,
 		uint32_t sequence, uint32_t s11_mme_gtpc_teid)
@@ -111,7 +112,7 @@ process_release_access_bearer_request(rel_acc_ber_req *rel_acc_ber_req_t, uint8_
 
 		bearer = (rel_acc_ber_req_t->context)->eps_bearers[ebi_index];
 		if (!bearer) {
-			fprintf(stderr,
+			clLog(clSystemLog, eCLSeverityCritical,
 					"Retrive Context for release access bearer is non-existent EBI - "
 					"Bitmap Inconsistency - Dropping packet\n");
 			return -EPERM;
@@ -152,7 +153,7 @@ process_release_access_bearer_request(rel_acc_ber_req *rel_acc_ber_req_t, uint8_
 
 
 		if (get_sess_entry((rel_acc_ber_req_t->context)->pdns[ebi_index]->seid, &resp) != 0) {
-			fprintf(stderr, "%s %s %d Failed to add response in entry in SM_HASH\n",__file__,
+			clLog(clSystemLog, eCLSeverityCritical, "%s %s %d Failed to add response in entry in SM_HASH\n",__file__,
 					__func__, __LINE__);
 			return -1;
 		}
@@ -173,18 +174,20 @@ process_release_access_bearer_request(rel_acc_ber_req *rel_acc_ber_req_t, uint8_
 		header->message_len = htons(encoded - 4);
 
 		if ( pfcp_send(pfcp_fd, pfcp_msg, encoded, &upf_pfcp_sockaddr) < 0 )
-			printf("Error sending: %i\n",errno);
+			clLog(sxlogger, eCLSeverityCritical,"Error sending: %i\n",errno);
 		else {
-
-			get_current_time(cp_stats.stat_timestamp);
 			update_cli_stats((uint32_t)upf_pfcp_sockaddr.sin_addr.s_addr,
-							pfcp_sess_mod_req.header.message_type,REQ,
-							cp_stats.stat_timestamp);
+							pfcp_sess_mod_req.header.message_type,SENT,SX);
 
+
+#ifdef CP_BUILD
+			add_pfcp_if_timer_entry((rel_acc_ber_req_t->context)->s11_sgw_gtpc_teid,
+			&upf_pfcp_sockaddr, pfcp_msg, encoded, ebi_index);
+#endif /* CP_BUILD */
 		}
 
 		/* Update UE State */
-		(rel_acc_ber_req_t->context)->state = PFCP_SESS_MOD_REQ_SNT_STATE;
+		pdn->state = PFCP_SESS_MOD_REQ_SNT_STATE;
 	}
 	return 0;
 }

@@ -27,29 +27,37 @@
 #include <rte_meter.h>
 
 struct msgbuf;
-  
-/**
- * config meter entry.
- *
- * @param msg_id
- *	message id.
- * @param msg_payload
- *	pointer to msg_payload
- *
- * @return
- *	- 0 on success
- *	- -1 on failure
- */
 
+/**
+ * @brief  : config meter entry.
+ * @param  : msg_id, message id.
+ * @param  : msg_payload, pointer to msg_payload
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 int
 mtr_cfg_entry(int msg_id, struct rte_meter_srtcm *msg_payload);
 
+/**
+ * @brief  : Call back to add adc rules entry
+ * @param  : msg_payload, payload from CP
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 int
 cb_adc_entry_add(struct msgbuf *msg_payload);
 
+/**
+ * @brief  : Call back to parse msg to add meter rules
+ * @param  : msg_payload, payload from CP
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 int
 cb_meter_profile_entry_add(struct msgbuf *msg_payload);
 
+/**
+ * @brief  : Call back to add pcc rules entry
+ * @param  : msg_payload, payload from CP
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 int
 cb_pcc_entry_add(struct msgbuf *msg_payload);
 

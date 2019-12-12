@@ -43,6 +43,9 @@
 #define FD_REASON_BROWSE_FIRST_FAIL     16
 #define FD_REASON_BROWSE_NEXT_FAIL      17
 
+/**
+ * @brief  : Maintains fd address details
+ */
 typedef struct fdAddress {
    uint16_t type;
    uint8_t address[16];

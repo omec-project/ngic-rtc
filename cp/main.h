@@ -25,8 +25,8 @@
 #include <rte_jhash.h>
 #include <rte_version.h>
 
-#include "vepc_cp_dp_api.h"
-#include "dp_ipc_api.h"
+//#include "vepc_cp_dp_api.h"
+//#include "dp_ipc_api.h"
 
 #ifdef USE_REST
 #include "../restoration/restoration_timer.h"
@@ -116,35 +116,63 @@
  */
 #define NB_ECHO_MBUF  1024
 
+#ifdef USE_CSID
+/* Configure the local csid */
+extern uint16_t local_csid;
+#endif /* USE_CSID */
+
 struct rte_mempool *echo_mpool;
 
 extern int32_t conn_cnt;
 
+/**
+ * @brief  : Initiatizes echo table and starts the timer thread
+ * @param  : No param
+ * @return : Returns nothing
+ */
 void rest_thread_init(void);
 
+/**
+ * @brief  : Adds node connection entry
+ * @param  : dstIp, node ip address
+ * @param  : portId, port number of node
+ * @return : Returns nothing
+ */
 uint8_t
 add_node_conn_entry(uint32_t dstIp, uint8_t portId);
 
+/**
+ * @brief  : Updates restart counter Value
+ * @param  : No param
+ * @return : Returns nothing
+ */
 uint8_t
 update_rstCnt(void);
 
+/**
+ * @brief  : flush enodeB session information
+ * @param  : data_t, peer node connection information
+ * @return : Returns nothing
+ */
 void
 flush_eNB_session(peerData *data_t);
 
+/**
+ * @brief  : Flush sess entry from connection table of given ip
+ * @param  : ip_addr, ip addr for which session entry is to be flushed
+ * @param  : sess_id, session id
+ * @return : Returns nothing
+ */
 void
 dp_flush_session(uint32_t ip_addr, uint32_t sess_id);
 #endif  /* USE_REST */
 
 #ifdef USE_REST
 /**
- * Function to initialize/create shared ring, ring_container and mem_pool to
- * inter-communication between DL and iface core.
- *
- * @param void
- *	void.
- *
- * @return
- *	None
+ * @brief  : Function to initialize/create shared ring, ring_container and mem_pool to
+ *           inter-communication between DL and iface core.
+ * @param  : No param
+ * @return : Returns nothing
  */
 void
 echo_table_init(void);

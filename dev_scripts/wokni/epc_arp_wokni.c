@@ -310,7 +310,7 @@ int arp_qunresolved_ulpkt(struct arp_entry_data *arp_data,
 	struct epc_meta_data *to_meta_data;
 
 	if (buf_pkt == NULL) {
-		RTE_LOG_DP(DEBUG, DP, "ARP:%s::"
+		clLog(clSystemLog, eCLSeverityDebug, "ARP:%s::"
 				"\n\tError rte_pktmbuf_clone... Dropping pkt"
 				"\n\tarp_data->ip= %s\n",
 				__func__,
@@ -331,14 +331,14 @@ int arp_qunresolved_ulpkt(struct arp_entry_data *arp_data,
 	ret = rte_ring_enqueue(arp_data->queue, buf_pkt);
 	if (ret == -ENOBUFS) {
 		rte_pktmbuf_free(buf_pkt);
-		RTE_LOG_DP(DEBUG, DP, "%s::"
+		clLog(clSystemLog, eCLSeverityDebug, "%s::"
 			"\n\tCan't queue pkt- ring full... Dropping pkt"
 			"\n\tarp_data->ip= %s\n",
 			__func__,
 			inet_ntoa(*(struct in_addr *) &arp_data->ip));
 	} else {
 		if (ARPICMP_DEBUG) {
-			RTE_LOG_DP(NOTICE, DP, "%s::"
+			clLog(clSystemLog, eCLSeverityMajor, "%s::"
 					"\n\tQueued pkt"
 					"\n\tarp_data->ip= %20s\n",
 					__func__,
@@ -359,7 +359,7 @@ int arp_qunresolved_dlpkt(struct arp_entry_data *arp_data,
 	struct epc_meta_data *to_meta_data;
 
 	if (buf_pkt == NULL) {
-		RTE_LOG_DP(DEBUG, DP, "ARP:%s::"
+		clLog(clSystemLog, eCLSeverityDebug, "ARP:%s::"
 				"\n\tError rte_pktmbuf_clone... Dropping pkt"
 				"\n\tarp_data->ip= %s\n",
 				__func__,
@@ -380,14 +380,14 @@ int arp_qunresolved_dlpkt(struct arp_entry_data *arp_data,
 	ret = rte_ring_enqueue(arp_data->queue, buf_pkt);
 	if (ret == -ENOBUFS) {
 		rte_pktmbuf_free(buf_pkt);
-		RTE_LOG_DP(DEBUG, DP, "%s::"
+		clLog(clSystemLog, eCLSeverityDebug, "%s::"
 			"\n\tCan't queue pkt- ring full... Dropping pkt"
 			"\n\tarp_data->ip= %s\n",
 			__func__,
 			inet_ntoa(*(struct in_addr *) &arp_data->ip));
 	} else {
 		if (ARPICMP_DEBUG) {
-			RTE_LOG_DP(NOTICE, DP, "%s::"
+			clLog(clSystemLog, eCLSeverityMajor, "%s::"
 					"\n\tQueued pkt"
 					"\n\tarp_data->ip= %20s\n",
 					__func__,

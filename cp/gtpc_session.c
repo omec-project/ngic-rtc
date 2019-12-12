@@ -1,6 +1,30 @@
+/*
+ * Copyright (c) 2019 Sprint
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include "gtpc_session.h"
 #include "gtpv2c_error_rsp.h"
+#include "cp_timer.h"
+#include "clogger.h"
+
 extern int pfcp_fd;
+extern int s5s8_fd;
+extern socklen_t s5s8_sockaddr_len;
+extern socklen_t s11_mme_sockaddr_len;
+extern struct sockaddr_in s5s8_recv_sockaddr;
+
 int
 fill_cs_request(create_sess_req_t *cs_req, struct ue_context_t *context,
 		uint8_t ebi_index)
@@ -291,7 +315,8 @@ fill_pgwc_create_session_response(create_sess_rsp_t *cs_resp,
 
 	/* TODO: Added Temp Fix for the UE IP*/
 	struct in_addr ipv4 = {0};
-	ipv4.s_addr = ntohl(context->pdns[ebi_index]->ipv4.s_addr);
+	context->pdns[ebi_index]->ipv4.s_addr = htonl(context->pdns[ebi_index]->ipv4.s_addr);
+	ipv4.s_addr = context->pdns[ebi_index]->ipv4.s_addr;
 	set_ipv4_paa(&cs_resp->paa, IE_INSTANCE_ZERO, ipv4);
 			//context->pdns[ebi_index]->ipv4);
 
@@ -492,16 +517,18 @@ process_sgwc_s5s8_create_sess_rsp(create_sess_rsp_t *cs_rsp)
 #ifdef USE_REST
 	/*CLI logic : add PGWC entry when CSResponse received*/
 	if ((add_node_conn_entry(ntohl(cs_rsp->pgw_s5s8_s2as2b_fteid_pmip_based_intfc_or_gtp_based_ctl_plane_intfc.ipv4_address),
-			S5S8_PGWC_PORT_ID)) != 0) {
+			S5S8_SGWC_PORT_ID)) != 0) {
 		clLog(clSystemLog, eCLSeverityDebug, "Fail to add connection entry for PGWC");
 	}
 #endif
 
 	uint8_t ebi_index = cs_rsp->bearer_contexts_created.eps_bearer_id.ebi_ebi - 5;
 
-	ret = rte_hash_lookup_data(ue_context_by_fteid_hash,
+	/*ret = rte_hash_lookup_data(ue_context_by_fteid_hash,
 			(const void *) &cs_rsp->header.teid.has_teid.teid,
-			(void **) &context);
+			(void **) &context);*/
+	ret = get_ue_context_by_sgw_s5s8_teid(cs_rsp->header.teid.has_teid.teid,
+						&context);
 
 	if (ret < 0 || !context)
 		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
@@ -571,6 +598,77 @@ process_sgwc_s5s8_create_sess_rsp(create_sess_rsp_t *cs_rsp)
 	fill_pfcp_sess_mod_req(&pfcp_sess_mod_req, NULL,
 			bearer, pdn, update_far, 0);
 
+#ifdef USE_CSID
+	fqcsid_t *tmp = NULL;
+	/* PGW FQ-CSID */
+	if (cs_rsp->pgw_fqcsid.header.len) {
+		/* Stored the PGW CSID by PGW Node address */
+		//tmp = get_peer_addr_csids_entry(ntohl(cs_rsp->pgw_fqcsid.node_address),
+		tmp = get_peer_addr_csids_entry(cs_rsp->pgw_fqcsid.node_address,
+				ADD);
+
+		if (tmp == NULL) {
+			clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
+					strerror(errno));
+			return -1;
+		}
+		tmp->node_addr = ntohl(cs_rsp->pgw_fqcsid.node_address);
+
+		for(uint8_t itr = 0; itr < cs_rsp->pgw_fqcsid.number_of_csids; itr++) {
+			uint8_t match = 0;
+			for (uint8_t itr1 = 0; itr1 < tmp->num_csid; itr1++) {
+				if (tmp->local_csid[itr1] == cs_rsp->pgw_fqcsid.pdn_csid[itr])
+					match = 1;
+			}
+
+			if (!match) {
+				tmp->local_csid[tmp->num_csid++] =
+					cs_rsp->pgw_fqcsid.pdn_csid[itr];
+			}
+		}
+		memcpy(context->pgw_fqcsid, tmp, sizeof(fqcsid_t));
+	} else {
+		tmp = get_peer_addr_csids_entry(pdn->s5s8_pgw_gtpc_ipv4.s_addr,
+				ADD);
+		if (tmp == NULL) {
+			clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
+					strerror(errno));
+			return -1;
+		}
+		tmp->node_addr = pdn->s5s8_pgw_gtpc_ipv4.s_addr;
+		memcpy(context->pgw_fqcsid, tmp, sizeof(fqcsid_t));
+	}
+
+	/* Link local CSID with PGW CSID */
+	if ((context->pgw_fqcsid)->num_csid) {
+		csid_t *tmp1 = NULL;
+		tmp1 = get_peer_csid_entry(
+				&(context->pgw_fqcsid)->local_csid[(context->pgw_fqcsid)->num_csid - 1],
+				S5S8_SGWC_PORT_ID);
+		if (tmp1 == NULL) {
+			clLog(apilogger, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
+					strerror(errno));
+			return -1;
+		}
+
+		/* Link local csid with MME CSID */
+		if (tmp1->local_csid == 0) {
+			tmp1->local_csid = (context->sgw_fqcsid)->local_csid[(context->sgw_fqcsid)->num_csid - 1];
+		} else if (tmp1->local_csid != local_csid){
+			/* TODO: handle condition like single MME CSID link with multiple local CSID  */
+		}
+
+		/* Update the Node Addr */
+		tmp1->node_addr = (context->sgw_fqcsid)->node_addr;
+	}
+
+	/* Set PGW FQ-CSID */
+	if ((context->pgw_fqcsid)->num_csid) {
+		set_fq_csid_t(&pfcp_sess_mod_req.pgw_c_fqcsid, context->pgw_fqcsid);
+	}
+
+#endif /* USE_CSID */
+
 	if(pfcp_sess_mod_req.create_pdr_count){
 		for(int itr = 0; itr < pfcp_sess_mod_req.create_pdr_count; itr++) {
 			pfcp_sess_mod_req.create_pdr[itr].pdi.ue_ip_address.ipv4_address =
@@ -587,21 +685,23 @@ process_sgwc_s5s8_create_sess_rsp(create_sess_rsp_t *cs_rsp)
 
 
 	if (pfcp_send(pfcp_fd, pfcp_msg, encoded, &upf_pfcp_sockaddr) < 0)
-		fprintf(stderr, "Error in sending MBR to SGW-U. err_no: %i\n", errno);
+		clLog(clSystemLog, eCLSeverityCritical, "Error in sending MBR to SGW-U. err_no: %i\n", errno);
 	else
 	{
-		get_current_time(cp_stats.stat_timestamp);
 		update_cli_stats((uint32_t)upf_pfcp_sockaddr.sin_addr.s_addr,
-				pfcp_sess_mod_req.header.message_type,REQ,
-				cp_stats.stat_timestamp);
+				pfcp_sess_mod_req.header.message_type,SENT,SX);
+#ifdef CP_BUILD
+		add_pfcp_if_timer_entry(context->s11_sgw_gtpc_teid,
+			&upf_pfcp_sockaddr, pfcp_msg, encoded, ebi_index);
+#endif /* CP_BUILD */
 	}
 
 	/* Update UE State */
-	context->state = PFCP_SESS_MOD_REQ_SNT_STATE;
+	pdn->state = PFCP_SESS_MOD_REQ_SNT_STATE;
 
 	/* Lookup Stored the session information. */
 	if (get_sess_entry(context->pdns[ebi_index]->seid, &resp) != 0) {
-		fprintf(stderr, "%s %s %d Failed to add response in entry in SM_HASH\n", __file__
+		clLog(clSystemLog, eCLSeverityCritical, "%s %s %d Failed to add response in entry in SM_HASH\n", __file__
 				,__func__, __LINE__);
 		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 	}
@@ -637,6 +737,7 @@ process_sgwc_create_bearer_rsp(create_bearer_rsp_t *cb_rsp)
 	ebi_index = cb_rsp->bearer_contexts.eps_bearer_id.ebi_ebi - 5;
 
 	bearer = context->eps_bearers[ebi_index];
+	bearer->eps_bearer_id = cb_rsp->bearer_contexts.eps_bearer_id.ebi_ebi;
 	if(bearer == NULL)
 	{
 		/* TODO:
@@ -682,17 +783,23 @@ process_sgwc_create_bearer_rsp(create_bearer_rsp_t *cb_rsp)
 
 
 	if (pfcp_send(pfcp_fd, pfcp_msg, encoded, &upf_pfcp_sockaddr) < 0)
-		fprintf(stderr, "Error in sending MBR to SGW-U. err_no: %i\n", errno);
+		clLog(clSystemLog, eCLSeverityCritical, "Error in sending MBR to SGW-U. err_no: %i\n", errno);
 	else
 	{
-		get_current_time(cp_stats.stat_timestamp);
+
+		update_cli_stats((uint32_t)upf_pfcp_sockaddr.sin_addr.s_addr,
+				pfcp_sess_mod_req.header.message_type,SENT,SX);
+#ifdef CP_BUILD
+		add_pfcp_if_timer_entry(cb_rsp->header.teid.has_teid.teid,
+			&upf_pfcp_sockaddr, pfcp_msg, encoded, ebi_index);
+#endif /* CP_BUILD */
 	}
 
 	context->sequence = seq_no;
-	context->state = PFCP_SESS_MOD_REQ_SNT_STATE;
+	bearer->pdn->state = PFCP_SESS_MOD_REQ_SNT_STATE;
 
 	if (get_sess_entry(bearer->pdn->seid, &resp) != 0) {
-		fprintf(stderr, "Failed to add response in entry in SM_HASH\n");
+		clLog(clSystemLog, eCLSeverityCritical, "Failed to add response in entry in SM_HASH\n");
 		return -1;
 	}
 
@@ -703,6 +810,13 @@ process_sgwc_create_bearer_rsp(create_bearer_rsp_t *cb_rsp)
 	return 0;
 }
 
+/**
+ * @brief  : Delete pgwc context
+ * @param  : ds_req, hold information from delete session request
+ * @param  : context, ue context data
+ * @param  : resp, response structure to be filled
+ * @return : Returns 0 in case of success , different error codes otherwise
+ */
 static int
 delete_pgwc_context(del_sess_req_t *ds_req, ue_context **_context,
 		struct gw_info *resp)
@@ -749,7 +863,7 @@ delete_pgwc_context(del_sess_req_t *ds_req, ue_context **_context,
 	if(!ebi) {
 		/* TODO: should be responding with response indicating error
 		 * 		 * in request */
-		fprintf(stderr, "Received delete session without ebi! - "
+		clLog(clSystemLog, eCLSeverityCritical, "Received delete session without ebi! - "
 				"dropping\n");
 		return -EPERM;
 	}
@@ -759,28 +873,28 @@ delete_pgwc_context(del_sess_req_t *ds_req, ue_context **_context,
 
 	uint8_t ebi_index = ebi - 5;
 	if (!(context->bearer_bitmap & (1 << ebi_index))) {
-		fprintf(stderr,
+		clLog(clSystemLog, eCLSeverityCritical,
 				"Received delete session on non-existent EBI - "
 				"Dropping packet\n");
-		/*fprintf(stderr, "ebi %u\n",
+		/*clLog(clSystemLog, eCLSeverityCritical, "ebi %u\n",
 		 * 		    *IE_TYPE_PTR_FROM_GTPV2C_IE(uint8_t, ebi_ei_to_be_removed));*/
-		fprintf(stderr, "ebi %u\n", ebi);
-		fprintf(stderr, "ebi_index %u\n", ebi_index);
-		fprintf(stderr, "bearer_bitmap %04x\n", context->bearer_bitmap);
-		fprintf(stderr, "mask %04x\n", (1 << ebi_index));
+		clLog(clSystemLog, eCLSeverityCritical, "ebi %u\n", ebi);
+		clLog(clSystemLog, eCLSeverityCritical, "ebi_index %u\n", ebi_index);
+		clLog(clSystemLog, eCLSeverityCritical, "bearer_bitmap %04x\n", context->bearer_bitmap);
+		clLog(clSystemLog, eCLSeverityCritical, "mask %04x\n", (1 << ebi_index));
 		return -EPERM;
 	}
 
 	pdn_connection *pdn = context->eps_bearers[ebi_index]->pdn;
 	resp->seid = context->pdns[ebi_index]->seid;  //NK:change for seid
 	if (!pdn) {
-		fprintf(stderr, "Received delete session on "
+		clLog(clSystemLog, eCLSeverityCritical, "Received delete session on "
 				"non-existent EBI\n");
 		return GTPV2C_CAUSE_MANDATORY_IE_INCORRECT;
 	}
 
 	if (pdn->default_bearer_id != ebi) {
-		fprintf(stderr,
+		clLog(clSystemLog, eCLSeverityCritical,
 				"Received delete session referencing incorrect "
 				"default bearer ebi");
 		return GTPV2C_CAUSE_MANDATORY_IE_INCORRECT;
@@ -810,7 +924,7 @@ delete_pgwc_context(del_sess_req_t *ds_req, ue_context **_context,
 
 	eps_bearer *bearer = context->eps_bearers[ebi_index];
 	if (!bearer) {
-		fprintf(stderr, "Received delete session on non-existent "
+		clLog(clSystemLog, eCLSeverityCritical, "Received delete session on non-existent "
 				"default EBI\n");
 		return GTPV2C_CAUSE_MANDATORY_IE_INCORRECT;
 	}
@@ -861,16 +975,10 @@ int
 delete_sgwc_context(uint32_t gtpv2c_teid, ue_context **_context, uint64_t *seid)
 {
 	int i;
-	int ret;
+	//int ret;
 	pdn_connection *pdn_ctxt;
-
-	/* Retrieve the UE context */
-	ret = get_pdn(gtpv2c_teid, &pdn_ctxt);
-	if (ret < 0) {
-		fprintf(stderr, "%s:%d Failed to get pdn for teid: %u\n",
-				__func__, __LINE__, gtpv2c_teid);
-	}
-
+	int ebi_index = UE_BEAR_ID(*seid) - 5;
+	pdn_ctxt = (*_context)->pdns[ebi_index];
 	for (i = 0; i < MAX_BEARERS; ++i) {
 		if (pdn_ctxt->eps_bearers[i]) {
 			eps_bearer *bearer = pdn_ctxt->eps_bearers[i];
@@ -900,7 +1008,7 @@ delete_sgwc_context(uint32_t gtpv2c_teid, ue_context **_context, uint64_t *seid)
 
 					if(get_rule_name_entry(key) >= 0) {
 						if (del_rule_name_entry(key) != 0) {
-							fprintf(stderr,
+							clLog(clSystemLog, eCLSeverityCritical,
 								"%s %s - Error on delete rule name entries\n",__file__,
 								strerror(ret));
 						}
@@ -911,6 +1019,7 @@ delete_sgwc_context(uint32_t gtpv2c_teid, ue_context **_context, uint64_t *seid)
 			rte_free(pdn_ctxt->eps_bearers[i]);
 			pdn_ctxt->eps_bearers[i] = NULL;
 			pdn_ctxt->context->eps_bearers[i] = NULL;
+			pdn_ctxt->context->pdns[i] = NULL;
 			pdn_ctxt->context->bearer_bitmap &= ~(1 << i);
 		}
 	}
@@ -918,8 +1027,9 @@ delete_sgwc_context(uint32_t gtpv2c_teid, ue_context **_context, uint64_t *seid)
 	--pdn_ctxt->context->num_pdns;
 	pdn_ctxt->context->teid_bitmap = 0;
 
-	*_context = pdn_ctxt->context;
+	//*_context = pdn_ctxt->context;
 	rte_free(pdn_ctxt);
+	RTE_SET_USED(gtpv2c_teid);
 	return 0;
 }
 
@@ -927,9 +1037,10 @@ int
 process_sgwc_s5s8_delete_session_request(del_sess_rsp_t *ds_resp)
 {
 	int ret = 0;
-	uint64_t cp_seid =0;
 	ue_context *context = NULL;
+	struct eps_bearer_t *bearer = NULL;
 	struct resp_info *resp = NULL;
+	int ebi_index = 0;
 
 	pfcp_sess_del_req_t pfcp_sess_del_req = {0};
 	fill_pfcp_sess_del_req(&pfcp_sess_del_req);
@@ -939,49 +1050,45 @@ process_sgwc_s5s8_delete_session_request(del_sess_rsp_t *ds_resp)
 	//	return ret;
 
 	/* Retrieve the UE context */
-	ret = get_ue_context(ds_resp->header.teid.has_teid.teid, &context);
+	ret = get_ue_context_by_sgw_s5s8_teid(ds_resp->header.teid.has_teid.teid, &context);
 	if (ret < 0) {
-		fprintf(stderr, "%s:%d Failed to get UE State for teid: %u\n",
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%d Failed to get UE State for teid: %u\n",
 				__func__, __LINE__,
 				ds_resp->header.teid.has_teid.teid);
 	}
-
-	for (int i = 0; i < MAX_BEARERS; ++i) {
-		if (context->pdns[i] == NULL) {
-			continue;
-		} else {
-			pfcp_sess_del_req.header.seid_seqno.has_seid.seid = context->pdns[i]->dp_seid;
-			cp_seid = context->pdns[i]->seid;
-			break;
-		}
-
-	}
-
+	ret = get_bearer_by_teid(ds_resp->header.teid.has_teid.teid, &bearer);
+	     if(ret < 0) {
+	               clLog(clSystemLog, eCLSeverityCritical, "%s:%d Entry not found for teid:%x...\n", __func__, __LINE__, ds_resp->header.teid.has_teid.teid);
+	               return -1;
+	       }
+	ebi_index = UE_BEAR_ID(bearer->pdn->seid) -5;
 	//pfcp_sess_del_req.header.seid_seqno.has_seid.seid =
 	//	SESS_ID(ds_resp->header.teid.has_teid.teid,ds_resp->lbi.ebi_ebi);
 
 	uint8_t pfcp_msg[512]={0};
 
+	pfcp_sess_del_req.header.seid_seqno.has_seid.seid = bearer->pdn->seid;
 	int encoded = encode_pfcp_sess_del_req_t(&pfcp_sess_del_req, pfcp_msg);
 	pfcp_header_t *header = (pfcp_header_t *) pfcp_msg;
 	header->message_len = htons(encoded - 4);
 
 	if (pfcp_send(pfcp_fd, pfcp_msg,encoded,
 				&upf_pfcp_sockaddr) < 0 )
-		printf("Error sending: %i\n",errno);
+		clLog(clSystemLog, eCLSeverityDebug,"Error sending: %i\n",errno);
 	else {
-
-		get_current_time(cp_stats.stat_timestamp);
 		update_cli_stats((uint32_t)upf_pfcp_sockaddr.sin_addr.s_addr,
-				pfcp_sess_del_req.header.message_type,REQ,
-				cp_stats.stat_timestamp);
+				pfcp_sess_del_req.header.message_type,SENT,SX);
+#ifdef CP_BUILD
+		add_pfcp_if_timer_entry(context->s11_sgw_gtpc_teid,
+			&upf_pfcp_sockaddr, pfcp_msg, encoded, ebi_index);
+#endif /* CP_BUILD */
 	}
 	/* Update UE State */
-	context->state = PFCP_SESS_DEL_REQ_SNT_STATE;
+	bearer->pdn->state = PFCP_SESS_DEL_REQ_SNT_STATE;
 
 	/* VS: Stored/Update the session information. */
-	if (get_sess_entry(cp_seid, &resp) != 0) {
-		fprintf(stderr, "%s %s %d Failed to get response entry in SM_HASH\n", __file__
+	if (get_sess_entry(bearer->pdn->seid, &resp) != 0) {
+		clLog(clSystemLog, eCLSeverityCritical, "%s %s %d Failed to get response entry in SM_HASH\n", __file__
 				,__func__, __LINE__);
 		return -1;
 	}
@@ -997,8 +1104,9 @@ process_pgwc_s5s8_delete_session_request(del_sess_req_t *ds_req)
 {
 	struct gw_info _resp = {0};
 	ue_context *context = NULL;
+	pdn_connection *pdn = NULL;
 	struct resp_info *resp = NULL;
-
+	int ebi_index = 0;
 	int ret = delete_pgwc_context(ds_req, &context, &_resp);
 
 	if (ret)
@@ -1008,6 +1116,7 @@ process_pgwc_s5s8_delete_session_request(del_sess_req_t *ds_req)
 	fill_pfcp_sess_del_req(&pfcp_sess_del_req);
 
 	pfcp_sess_del_req.header.seid_seqno.has_seid.seid = _resp.seid;
+	ebi_index =  UE_BEAR_ID(pfcp_sess_del_req.header.seid_seqno.has_seid.seid) -5 ;
 
 	uint8_t pfcp_msg[512]={0};
 
@@ -1016,15 +1125,22 @@ process_pgwc_s5s8_delete_session_request(del_sess_req_t *ds_req)
 	header->message_len = htons(encoded - 4);
 
 	if (pfcp_send(pfcp_fd, pfcp_msg,encoded,
-				&upf_pfcp_sockaddr) < 0 )
-		printf("Error sending: %i\n",errno);
+				&upf_pfcp_sockaddr) < 0 ) {
+		clLog(clSystemLog, eCLSeverityDebug,"Error sending: %i\n",errno);
+	}else {
+#ifdef CP_BUILD
+		add_pfcp_if_timer_entry(ds_req->header.teid.has_teid.teid,
+			&upf_pfcp_sockaddr, pfcp_msg, encoded,  _resp.eps_bearer_id - 5);
+#endif /* CP_BUILD */
+	}
 
 	/* Update UE State */
-	context->state = PFCP_SESS_DEL_REQ_SNT_STATE;
+	pdn = GET_PDN(context , ebi_index);
+	pdn->state = PFCP_SESS_DEL_REQ_SNT_STATE;
 
 	/* VS: Stored/Update the session information. */
 	if (get_sess_entry(_resp.seid, &resp) != 0) {
-		fprintf(stderr, "%s %s %d Failed to add response in entry in SM_HASH\n", __file__
+		clLog(clSystemLog, eCLSeverityCritical, "%s %s %d Failed to add response in entry in SM_HASH\n", __file__
 				,__func__, __LINE__);
 		return -1;
 	}
@@ -1067,13 +1183,13 @@ process_sgwc_s5s8_delete_session_response(del_sess_rsp_t *dsr, uint8_t *gtpv2c_t
 
 	/* Delete entry from session entry */
 	if (del_sess_entry(seid) != 0){
-		fprintf(stderr, "NO Session Entry Found for Key sess ID:%lu\n", seid);
+		clLog(clSystemLog, eCLSeverityCritical, "NO Session Entry Found for Key sess ID:%lu\n", seid);
 		return -1;
 	}
 
 	/* Delete UE context entry from UE Hash */
 	if (rte_hash_del_key(ue_context_by_imsi_hash, &context->imsi) < 0){
-	fprintf(stderr,
+	clLog(clSystemLog, eCLSeverityCritical,
 			"%s %s - Error on ue_context_by_fteid_hash deletion\n",__file__,
 			strerror(ret));
 	}
@@ -1112,6 +1228,7 @@ process_pgwc_create_bearer_rsp(create_bearer_rsp_t *cb_rsp)
 	ebi_index = cb_rsp->bearer_contexts.eps_bearer_id.ebi_ebi - 5;
 
 	bearer = context->eps_bearers[ebi_index];
+	bearer->eps_bearer_id = cb_rsp->bearer_contexts.eps_bearer_id.ebi_ebi;
 	if (NULL == bearer)
 	{
 		/* TODO: Invalid ebi index handling */
@@ -1152,17 +1269,23 @@ process_pgwc_create_bearer_rsp(create_bearer_rsp_t *cb_rsp)
 	header->message_len = htons(encoded - 4);
 
 	if (pfcp_send(pfcp_fd, pfcp_msg, encoded, &upf_pfcp_sockaddr) < 0)
-		fprintf(stderr, "Error in sending MBR to SGW-U. err_no: %i\n", errno);
+		clLog(clSystemLog, eCLSeverityCritical, "Error in sending MBR to SGW-U. err_no: %i\n", errno);
 	else
 	{
-		get_current_time(cp_stats.stat_timestamp);
+
+		update_cli_stats((uint32_t)upf_pfcp_sockaddr.sin_addr.s_addr,
+				pfcp_sess_mod_req.header.message_type,SENT,SX);
+#ifdef CP_BUILD
+		add_pfcp_if_timer_entry(cb_rsp->header.teid.has_teid.teid,
+			&upf_pfcp_sockaddr, pfcp_msg, encoded, ebi_index);
+#endif /* CP_BUILD */
 	}
 
 	context->sequence = seq_no;
-	context->state = PFCP_SESS_MOD_REQ_SNT_STATE;
+	bearer->pdn->state = PFCP_SESS_MOD_REQ_SNT_STATE;
 
 	if (get_sess_entry(context->pdns[0]->seid, &resp) != 0) {
-		fprintf(stderr, "Failed to add response in entry in SM_HASH\n");
+		clLog(clSystemLog, eCLSeverityCritical, "Failed to add response in entry in SM_HASH\n");
 		return -1;
 	}
 
@@ -1172,3 +1295,375 @@ process_pgwc_create_bearer_rsp(create_bearer_rsp_t *cb_rsp)
 
 	return 0;
 }
+
+int
+process_update_bearer_request(upd_bearer_req_t *ubr)
+{
+	int ret = 0;
+	upd_bearer_req_t ubr_req = {0};
+	uint8_t bearer_id = 0;
+	uint8_t ebi_index = 0;
+	struct resp_info *resp = NULL;
+	pdn_connection *pdn_cntxt = NULL;
+	uint16_t payload_length = 0;
+
+	ue_context *context = NULL;
+
+	bzero(&tx_buf, sizeof(tx_buf));
+	gtpv2c_header_t *gtpv2c_tx = (gtpv2c_header_t *)tx_buf;
+
+	/* for now taking 0th element bearer id bcz
+	 * a request will come from commom PGW for which PDN is same
+	 */
+	ebi_index = ubr->bearer_contexts[0].eps_bearer_id.ebi_ebi - 5;
+
+	ret = get_ue_context_by_sgw_s5s8_teid(ubr->header.teid.has_teid.teid, &context);
+	if (ret) {
+		clLog(sxlogger, eCLSeverityCritical, "%s:%d Error: %d \n", __func__,
+				__LINE__, ret);
+		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+	}
+
+	pdn_cntxt = context->eps_bearers[ebi_index]->pdn;
+
+	if (get_sess_entry(pdn_cntxt->seid, &resp) != 0){
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%d NO Session Entry Found for sess ID:%lu\n",
+				__func__, __LINE__, pdn_cntxt->seid);
+		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+	}
+	set_gtpv2c_teid_header((gtpv2c_header_t *) &ubr_req, GTP_UPDATE_BEARER_REQ,
+ 							 context->s11_mme_gtpc_teid, ubr->header.teid.has_teid.seq);
+
+	if(ubr->apn_ambr.header.len){
+		ubr_req.apn_ambr.apn_ambr_uplnk = ubr->apn_ambr.apn_ambr_uplnk;
+		ubr_req.apn_ambr.apn_ambr_dnlnk = ubr->apn_ambr.apn_ambr_dnlnk;
+		set_ie_header(&ubr_req.apn_ambr.header, GTP_IE_AGG_MAX_BIT_RATE, IE_INSTANCE_ZERO,
+																			sizeof(uint64_t));
+	}else{
+
+		return GTPV2C_CAUSE_MANDATORY_IE_MISSING;
+
+	}
+
+	if(!ubr->bearer_context_count)
+		return GTPV2C_CAUSE_MANDATORY_IE_MISSING;
+
+	if(ubr->indctn_flgs.header.len){
+		set_ie_header(&ubr_req.indctn_flgs.header, GTP_IE_INDICATION,
+								IE_INSTANCE_ZERO,
+    		                    sizeof(gtp_indication_ie_t)- sizeof(ie_header_t));
+		ubr_req.indctn_flgs.indication_retloc = 1;
+	}
+
+	ubr_req.bearer_context_count = ubr->bearer_context_count;
+	for(uint32_t i = 0; i < ubr->bearer_context_count; i++){
+
+		bearer_id = ubr->bearer_contexts[i].eps_bearer_id.ebi_ebi - 5;
+		resp->list_bearer_ids[resp->num_of_bearers++] = bearer_id + 5;
+		int len = 0;
+		set_ie_header(&ubr_req.bearer_contexts[i].header,
+									GTP_IE_BEARER_CONTEXT, IE_INSTANCE_ZERO, 0);
+		//If QoS update is required
+		/*if(ubr_req->bearer_contexts[i].bearer_lvl_qos.header.len){
+			ubr_req->bearer_contexts[i].bearer_lvl_qos = ubr.bearer_contexts[i].bearer_lvl_qos;
+			ubr_req.bearer_contexts[i].header.len += sizeof(gtp_bearer_qlty_of_svc_ie_t);
+		}*/
+
+		memset(ubr_req.bearer_contexts[i].tft.eps_bearer_lvl_tft, 0, 257);
+		memcpy(ubr_req.bearer_contexts[i].tft.eps_bearer_lvl_tft,
+					ubr->bearer_contexts[i].tft.eps_bearer_lvl_tft, 257);
+
+		uint8_t tft_len = ubr->bearer_contexts[i].tft.header.len;
+		set_ie_header(&ubr_req.bearer_contexts[i].tft.header,
+			GTP_IE_EPS_BEARER_LVL_TRAFFIC_FLOW_TMPL, IE_INSTANCE_ZERO, tft_len);
+		len = tft_len + IE_HEADER_SIZE;
+
+		ubr_req.bearer_contexts[i].header.len += len;
+
+		set_ebi(&ubr_req.bearer_contexts[i].eps_bearer_id,
+					IE_INSTANCE_ZERO, context->eps_bearers[bearer_id]->eps_bearer_id);
+		ubr_req.bearer_contexts[i].header.len += sizeof(uint8_t) + IE_HEADER_SIZE;
+
+	}
+
+	pdn_cntxt->proc = UPDATE_BEARER_PROC;
+	pdn_cntxt->state = UPDATE_BEARER_REQ_SNT_STATE;
+
+	resp->msg_type = GTP_UPDATE_BEARER_REQ;
+	resp->state =  UPDATE_BEARER_REQ_SNT_STATE;
+	resp->proc =  UPDATE_BEARER_PROC;
+	//Send ub_request to MME
+	uint16_t msg_len = 0;
+	msg_len = encode_upd_bearer_req(&ubr_req, (uint8_t *)gtpv2c_tx);
+	gtpv2c_tx->gtpc.message_len = htons(msg_len - 4);
+
+	payload_length = ntohs(gtpv2c_tx->gtpc.message_len) + sizeof(gtpv2c_tx->gtpc);
+
+
+	s11_mme_sockaddr.sin_addr.s_addr =
+				htonl(context->s11_mme_gtpc_ipv4.s_addr);
+
+	gtpv2c_send(s11_fd, tx_buf, payload_length,
+				(struct sockaddr *) &s11_mme_sockaddr, s11_mme_sockaddr_len);
+
+	return 0;
+}
+
+int
+process_s5s8_upd_bearer_response(upd_bearer_rsp_t *ub_rsp)
+{
+	int ret = 0;
+	uint8_t ebi_index = 0;
+	pdn_connection *pdn_cntxt = NULL;
+	ue_context *context = NULL;
+	uint32_t seq = 0;
+	struct resp_info *resp = NULL;
+	pfcp_sess_mod_req_t pfcp_sess_mod_req = {0};
+
+	ret = get_pdn(ub_rsp->header.teid.has_teid.teid, &pdn_cntxt);
+
+	if ( ret < 0) {
+		clLog(clSystemLog, eCLSeverityCritical,"%s:Entry not found for teid:%x...\n", __func__,
+										ub_rsp->header.teid.has_teid.teid);
+		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+	}
+
+	if (get_sess_entry(pdn_cntxt->seid, &resp) != 0){
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%d NO Session Entry Found for sess ID:%lu\n",
+										__func__, __LINE__, pdn_cntxt->seid);
+		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+	}
+
+	ret = get_ue_context(ub_rsp->header.teid.has_teid.teid, &context);
+	if (ret) {
+		clLog(sxlogger, eCLSeverityCritical, "%s:%d Error: %d \n", __func__,
+				__LINE__, ret);
+		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+	}
+
+	//Start filling sess_mod_req
+
+	seq = get_pfcp_sequence_number(PFCP_SESSION_MODIFICATION_REQUEST, seq);
+
+	set_pfcp_seid_header((pfcp_header_t *) &(pfcp_sess_mod_req.header),
+							PFCP_SESSION_MODIFICATION_REQUEST, HAS_SEID, seq);
+
+	pfcp_sess_mod_req.header.seid_seqno.has_seid.seid = pdn_cntxt->dp_seid;
+
+	//TODO modify this hard code to generic
+	char pAddr[INET_ADDRSTRLEN];
+	inet_ntop(AF_INET, &(pfcp_config.pfcp_ip), pAddr, INET_ADDRSTRLEN);
+	unsigned long node_value = inet_addr(pAddr);
+
+	set_fseid(&(pfcp_sess_mod_req.cp_fseid), pdn_cntxt->seid, node_value);
+
+	for(uint8_t i = 0; i < ub_rsp->bearer_context_count; i++){
+
+		ebi_index = ub_rsp->bearer_contexts[i].eps_bearer_id.ebi_ebi - 5;
+
+		fill_update_pdr(&pfcp_sess_mod_req, context->eps_bearers[ebi_index]);
+
+	}
+
+	uint8_t pfcp_msg[512] = {0};
+	int encoded = encode_pfcp_sess_mod_req_t(&pfcp_sess_mod_req, pfcp_msg);
+	pfcp_header_t *header = (pfcp_header_t *)pfcp_msg;
+	header->message_len = htons(encoded - 4);
+
+	if (pfcp_send(pfcp_fd, pfcp_msg, encoded, &upf_pfcp_sockaddr) < 0)
+		clLog(clSystemLog, eCLSeverityCritical, "Error in sending MBR to SGW-U. err_no: %i\n", errno);
+	else
+	{
+		update_cli_stats((uint32_t)upf_pfcp_sockaddr.sin_addr.s_addr,
+				pfcp_sess_mod_req.header.message_type,SENT,SX);
+#ifdef CP_BUILD
+		add_pfcp_if_timer_entry(ub_rsp->header.teid.has_teid.teid,
+			&upf_pfcp_sockaddr, pfcp_msg, encoded, ebi_index);
+#endif /* CP_BUILD */
+	}
+	/* Update UE State */
+	pdn_cntxt->state = PFCP_SESS_MOD_REQ_SNT_STATE;
+
+	/* Update UE Proc */
+	pdn_cntxt->proc = UPDATE_BEARER_PROC;
+
+	/* Set GX rar message */
+	resp->msg_type = GTP_UPDATE_BEARER_RSP;
+	resp->state =  PFCP_SESS_MOD_REQ_SNT_STATE;
+	resp->proc =  UPDATE_BEARER_PROC;
+
+	return 0;
+
+}
+
+int
+process_s11_upd_bearer_response(upd_bearer_rsp_t *ub_rsp)
+{
+	int ret = 0;
+	uint8_t bearer_id = 0;
+	upd_bearer_rsp_t ubr_rsp = {0};
+	struct resp_info *resp = NULL;
+	pdn_connection *pdn_cntxt = NULL;
+	ue_context *context = NULL;
+	uint16_t payload_length = 0;
+
+	bzero(&tx_buf, sizeof(tx_buf));
+	gtpv2c_header_t *gtpv2c_tx = (gtpv2c_header_t *)tx_buf;
+
+	ret = get_pdn(ub_rsp->header.teid.has_teid.teid, &pdn_cntxt);
+
+	if ( ret < 0) {
+		clLog(clSystemLog, eCLSeverityCritical,"%s:Entry not found for teid:%x...\n", __func__, ub_rsp->header.teid.has_teid.teid);
+		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+	}
+
+	if (get_sess_entry(pdn_cntxt->seid, &resp) != 0){
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%d NO Session Entry Found for sess ID:%lu\n",
+				__func__, __LINE__, pdn_cntxt->seid);
+		return -1;
+	}
+
+	ret = get_ue_context(ub_rsp->header.teid.has_teid.teid, &context);
+	if (ret) {
+		clLog(sxlogger, eCLSeverityCritical, "%s:%d Error: %d \n", __func__,
+				__LINE__, ret);
+		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+	}
+
+	if(ub_rsp->uli.header.len){
+		memcpy(&ubr_rsp.uli, &ub_rsp->uli, sizeof(gtp_user_loc_info_ie_t));
+	}
+
+	set_gtpv2c_teid_header((gtpv2c_header_t *) &ubr_rsp, GTP_UPDATE_BEARER_RSP,
+	    pdn_cntxt->s5s8_pgw_gtpc_teid, ub_rsp->header.teid.has_teid.seq);
+
+	set_cause_accepted(&ubr_rsp.cause, IE_INSTANCE_ZERO);
+
+	ubr_rsp.bearer_context_count = ub_rsp->bearer_context_count;
+	for(uint8_t i = 0; i < ub_rsp->bearer_context_count; i++){
+
+		bearer_id = ub_rsp->bearer_contexts[i].eps_bearer_id.ebi_ebi - 5;
+		resp->list_bearer_ids[resp->num_of_bearers++] = bearer_id + 5;
+		set_ie_header(&ubr_rsp.bearer_contexts[i].header, GTP_IE_BEARER_CONTEXT,
+			IE_INSTANCE_ZERO, 0);
+		/* TODO  Remove hardcoded ebi */
+		set_ebi(&ubr_rsp.bearer_contexts[i].eps_bearer_id, IE_INSTANCE_ZERO,
+									ub_rsp->bearer_contexts[i].eps_bearer_id.ebi_ebi);
+		ubr_rsp.bearer_contexts[i].header.len += sizeof(uint8_t) + IE_HEADER_SIZE;
+
+		set_cause_accepted(&ubr_rsp.bearer_contexts[i].cause, IE_INSTANCE_ZERO);
+		ubr_rsp.bearer_contexts[i].header.len += sizeof(uint16_t) + IE_HEADER_SIZE;
+
+	}
+
+	uint16_t msg_len = 0;
+	msg_len = encode_upd_bearer_rsp(&ubr_rsp, (uint8_t *)gtpv2c_tx);
+	gtpv2c_tx->gtpc.message_len = htons(msg_len - 4);
+	payload_length = ntohs(gtpv2c_tx->gtpc.message_len) + sizeof(gtpv2c_tx->gtpc);
+	//send S5S8 interface update bearer response.
+	gtpv2c_send(s5s8_fd, tx_buf, payload_length,
+   	      		(struct sockaddr *) &s5s8_recv_sockaddr,
+       			s5s8_sockaddr_len);
+
+	/* Update UE State */
+	pdn_cntxt->state = CONNECTED_STATE;
+
+	/* Update UE Proc */
+	pdn_cntxt->proc = UPDATE_BEARER_PROC;
+
+	/* Set GX rar message */
+	resp->msg_type = GTP_UPDATE_BEARER_RSP;
+	resp->state = CONNECTED_STATE;
+	resp->proc =  UPDATE_BEARER_PROC;
+	return 0;
+}
+void
+set_delete_bearer_command(del_bearer_cmd_t *del_bearer_cmd, pdn_connection *pdn, gtpv2c_header_t *gtpv2c_tx)
+{
+	del_bearer_cmd_t del_cmd = {0};
+	ue_context *context = NULL;
+	del_cmd.header.gtpc.message_len = 0;
+	get_ue_context(del_bearer_cmd->header.teid.has_teid.teid, &context);
+	pdn->context->sequence = del_bearer_cmd->header.teid.has_teid.seq;
+	set_gtpv2c_teid_header((gtpv2c_header_t *) &del_cmd, GTP_DELETE_BEARER_CMD,
+			pdn->s5s8_pgw_gtpc_teid, del_bearer_cmd->header.teid.has_teid.seq);
+
+	/*Below IE are Condition IE's*/
+
+	set_ipv4_fteid(&del_cmd.sender_fteid_ctl_plane, GTPV2C_IFTYPE_S5S8_SGW_GTPC,
+			IE_INSTANCE_ZERO, pdn->s5s8_sgw_gtpc_ipv4,
+			pdn->s5s8_sgw_gtpc_teid);
+
+	del_cmd.header.gtpc.message_len += del_bearer_cmd->sender_fteid_ctl_plane.header.len + sizeof(ie_header_t);
+
+	if(del_bearer_cmd->uli.header.len != 0) {
+		/*set uli*/
+		memcpy(&del_cmd.uli, &(del_bearer_cmd->uli), sizeof(gtp_user_loc_info_ie_t));
+		set_ie_header(&del_cmd.uli.header, GTP_IE_USER_LOC_INFO, IE_INSTANCE_ZERO, del_bearer_cmd->uli.header.len);
+		del_cmd.header.gtpc.message_len += del_bearer_cmd->uli.header.len + sizeof(ie_header_t);
+
+	}
+
+	if(del_bearer_cmd->uli_timestamp.header.len != 0) {
+		/*set uli timestamp*/
+		memcpy(&del_cmd.uli_timestamp, &(del_bearer_cmd->uli_timestamp), sizeof(gtp_uli_timestamp_ie_t));
+		set_ie_header(&del_cmd.uli_timestamp.header, GTP_IE_ULI_TIMESTAMP, IE_INSTANCE_ZERO,
+				del_bearer_cmd->uli_timestamp.header.len);
+		del_cmd.header.gtpc.message_len += del_bearer_cmd->uli_timestamp.header.len + sizeof(ie_header_t);
+	}
+
+	if(del_bearer_cmd->ue_time_zone.header.len != 0) {
+
+		memcpy(&del_cmd.ue_time_zone, &(del_bearer_cmd->ue_time_zone), sizeof(gtp_ue_time_zone_ie_t));
+		set_ie_header(&del_cmd.ue_time_zone.header, GTP_IE_UE_TIME_ZONE, IE_INSTANCE_ZERO, del_bearer_cmd->ue_time_zone.header.len);
+		del_cmd.header.gtpc.message_len += del_bearer_cmd->ue_time_zone.header.len + sizeof(ie_header_t);
+	}
+	if(del_bearer_cmd->mmes4_sgsns_ovrld_ctl_info.header.len != 0) {
+
+		memcpy(&del_cmd.mmes4_sgsns_ovrld_ctl_info, &(del_bearer_cmd->mmes4_sgsns_ovrld_ctl_info), sizeof(gtp_ovrld_ctl_info_ie_t));
+		set_ie_header(&del_cmd.mmes4_sgsns_ovrld_ctl_info.header, GTP_IE_OVRLD_CTL_INFO, IE_INSTANCE_ZERO,
+				del_bearer_cmd->mmes4_sgsns_ovrld_ctl_info.header.len);
+		del_cmd.header.gtpc.message_len += del_bearer_cmd->mmes4_sgsns_ovrld_ctl_info.header.len + sizeof(ie_header_t);
+	}
+
+	if(del_bearer_cmd->sgws_ovrld_ctl_info.header.len != 0) {
+
+		memcpy(&del_cmd.sgws_ovrld_ctl_info, &(del_bearer_cmd->sgws_ovrld_ctl_info), sizeof(gtp_ovrld_ctl_info_ie_t));
+		set_ie_header(&del_cmd.sgws_ovrld_ctl_info.header, GTP_IE_OVRLD_CTL_INFO, IE_INSTANCE_ZERO,
+				del_bearer_cmd->sgws_ovrld_ctl_info.header.len);
+		del_cmd.header.gtpc.message_len += del_bearer_cmd->sgws_ovrld_ctl_info.header.len + sizeof(ie_header_t);
+	}
+
+	if(del_bearer_cmd->secdry_rat_usage_data_rpt.header.len != 0) {
+
+		memcpy(&del_cmd.secdry_rat_usage_data_rpt, &(del_bearer_cmd->secdry_rat_usage_data_rpt), sizeof(gtp_secdry_rat_usage_data_rpt_ie_t));
+		set_ie_header(&del_cmd.secdry_rat_usage_data_rpt.header, GTP_IE_SECDRY_RAT_USAGE_DATA_RPT, IE_INSTANCE_ZERO,
+				del_bearer_cmd->secdry_rat_usage_data_rpt.header.len);
+
+		del_cmd.header.gtpc.message_len += del_bearer_cmd->secdry_rat_usage_data_rpt.header.len + sizeof(ie_header_t);
+	}
+
+	del_cmd.bearer_count = del_bearer_cmd->bearer_count;
+
+	for(uint8_t i= 0; i< del_bearer_cmd->bearer_count; i++) {
+
+		set_ie_header(&del_cmd.bearer_contexts[i].header, GTP_IE_BEARER_CONTEXT, IE_INSTANCE_ZERO,
+				0);
+
+		set_ebi(&del_cmd.bearer_contexts[i].eps_bearer_id,
+					IE_INSTANCE_ZERO,del_bearer_cmd->bearer_contexts[i].eps_bearer_id.ebi_ebi);
+
+		del_cmd.bearer_contexts[i].header.len +=
+	          sizeof(uint8_t) + IE_HEADER_SIZE;
+
+		del_cmd.header.gtpc.message_len += del_bearer_cmd->bearer_contexts[i].header.len
+					+ sizeof(ie_header_t);
+	}
+
+
+	uint16_t msg_len = 0;
+	msg_len = encode_del_bearer_cmd(&del_cmd, (uint8_t *)gtpv2c_tx);
+	gtpv2c_tx->gtpc.message_len = htons(msg_len - 4);
+
+}
+

@@ -61,7 +61,7 @@ install_dpdk() {
 
 	cd ${RTE_SDK}
 	cp $CUR_DIR/dpdk-18.02_common_linuxapp config/common_linuxapp
-	sed -ri 's,(KNI_KMOD=).*,\1n,' config/common_linuxapp
+#	sed -ri 's,(KNI_KMOD=).*,\1n,' config/common_linuxapp
 	make -j $CPUS install T=${RTE_TARGET}
 	echo "Installed DPDK at $RTE_SDK"
         
@@ -96,7 +96,7 @@ download_freediameter()
              mkdir $THIRD_PARTY_SW_PATH
         fi
         pushd $THIRD_PARTY_SW_PATH
-        git clone $FREEDIAMETER
+        git clone $FREEDIAMETER -b delivery_1.5
         if [ $? -ne 0 ] ; then
                         echo "Failed to clone FreeDiameter, please check the errors."
                         return
@@ -158,7 +158,8 @@ build_fd_gxapp()
 {
 	echo "Building FreeDiameter ..."
 	build_fd_lib
-        ldconfig 
+	ldconfig
+
 	echo "Building GxAPP ..."
 	build_gxapp
 }
@@ -174,8 +175,7 @@ install_oss_util()
      
         if [ ! -d $OSS_DIR ]; then
        	     echo "Cloning OSS-UTIL repo ...$OSS_UTIL_GIT_LINK"
-             git clone $OSS_UTIL_GIT_LINK
-#      	     mv oss_util_gslab oss-util     
+             git clone $OSS_UTIL_GIT_LINK -b delivery_1.6
         fi
 
         cp $CUR_DIR/oss-util.sh $OSS_DIR/
@@ -192,14 +192,15 @@ install_build_deps() {
        install_dpdk
        if [[ $SERVICES == "CP" ]] || [[ $SERVICES == "cp" ]]; then
 	    install_oss_util
-#	    download_freediameter
+	    download_freediameter
             build_libgtpcv2c 
             build_fd_gxapp
        elif [[ $SERVICES == "DP" ]] || [[ $SERVICES == "dp" ]]; then
+	    install_oss_util
             download_hyperscan  
        else
             download_hyperscan
-#            download_freediameter
+            download_freediameter
             install_oss_util
             build_libgtpcv2c 
             build_fd_gxapp

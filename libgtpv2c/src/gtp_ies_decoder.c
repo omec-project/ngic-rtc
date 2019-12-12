@@ -3612,10 +3612,14 @@ int decode_gtp_fqcsid_ie(uint8_t *buf,
     total_decoded += decoded;
     value->number_of_csids = decode_bits(buf, total_decoded, 4, &decoded);
     total_decoded += decoded;
-    value->node_id = decode_bits(buf, total_decoded, 8, &decoded);
+    value->node_address = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    memcpy(&value->pdn_csid, buf + (total_decoded/CHAR_SIZE), PDN_CSID_LEN);
-    total_decoded +=  PDN_CSID_LEN * CHAR_SIZE;
+    //memcpy(&value->pdn_csid, buf + (total_decoded/CHAR_SIZE), PDN_CSID_LEN);
+    //total_decoded +=  PDN_CSID_LEN * CHAR_SIZE;
+	for(int itr = 0; itr < value->number_of_csids; itr++) {
+		value->pdn_csid[itr] = decode_bits(buf, total_decoded, 16, &decoded);
+		total_decoded += decoded;
+	}
     return total_decoded/CHAR_SIZE;
 }
 

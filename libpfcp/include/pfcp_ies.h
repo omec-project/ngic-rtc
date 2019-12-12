@@ -670,7 +670,8 @@ typedef struct pfcp_fqcsid_ie_t {
 	uint8_t fqcsid_node_id_type :4;
 	uint8_t number_of_csids :4;
 	//TODO: Revisit this for change in yang
-	uint8_t node_address[IPV6_ADDRESS_LEN];
+	//uint8_t node_address[IPV6_ADDRESS_LEN];
+	uint32_t node_address;
 	uint16_t pdn_conn_set_ident[PDN_CONN_SET_IDENT_LEN];
 } pfcp_fqcsid_ie_t;
 

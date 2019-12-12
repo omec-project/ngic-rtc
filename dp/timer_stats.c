@@ -1,3 +1,19 @@
+/*
+ * Copyright (c) 2019 Sprint
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include <time.h>
 #include <string.h>
 #include <stdio.h>
@@ -27,6 +43,12 @@ struct ul_performance_stats ul_perf_stats;
 int dl_ignore_cnt = 0;
 int ul_ignore_cnt = 0;
 #endif /* AUTO_ANALYSIS */
+
+/**
+ * @brief  : Initialize timer stats log files
+ * @param  : op, type, uplink or downlink
+ * @return : Returns nothing
+ */
 static void stats_init(char *op)
 {
 	char timestamp[NAME_MAX];
@@ -42,7 +64,7 @@ static void stats_init(char *op)
 	snprintf(filename, PATH_MAX, "%stimer_stats_%s_%s.log",
 			STATS_PATH, op, timestamp);
 
-	printf("Logging timer stats into %s\n", filename);
+	clLog(clSystemLog, eCLSeverityDebug,"Logging timer stats into %s\n", filename);
 	if (!strcmp(op, "UL")) {
 		ul_timer_stats_file = fopen(filename, "w");
 		if (!ul_timer_stats_file)
@@ -101,6 +123,7 @@ ul_timer_stats(uint32_t n, struct ul_timer_stats *stat_info)
 
 	++ul_pkts_count;
 }
+
 void
 dl_timer_stats(uint32_t n, struct dl_timer_stats *stat_info)
 {
@@ -147,7 +170,14 @@ dl_timer_stats(uint32_t n, struct dl_timer_stats *stat_info)
 
 	++dl_pkts_count;
 }
+
 #ifdef AUTO_ANALYSIS
+/**
+ * @brief  : Convert number to format string
+ * @param  : str, output string
+ * @param  : num, input number
+ * @return : Returns nothing
+ */
 static char* SET_FORMAT(char *str, uint64_t num)  {
 	memset(str, '\0', 100);
 	int cnt = 0, coma_cntr = 0;
@@ -194,7 +224,7 @@ static char* SET_FORMAT(char *str, uint64_t num)  {
 	str;                                \
 })
 char* format(uint64_t num) {
-	printf("NUm is %lu\n", num);
+	clLog(clSystemLog, eCLSeverityDebug,"NUm is %lu\n", num);
 	memset(str, 100, '\0');
 	int i = 0, coma_cntr = 0;
 	while (num) {
@@ -213,10 +243,16 @@ char* format(uint64_t num) {
 		str[i] = str[len-i-1];
 		str[len-i-1] = tmp;
 	}
-	printf("str is %s\n", str);
+	clLog(clSystemLog, eCLSeverityDebug,"str is %s\n", str);
 	return str;
 }
 #endif
+
+/**
+ * @brief  : Print uplink performance statistics
+ * @param  : No param
+ * @return : Returns nothing
+ */
 static void print_ul_perf_statistics(void) {
 	stats_init("UL");
 	printf ("%70s", "\n\n********* Final UL performance statistics *********** \n");
@@ -279,7 +315,7 @@ static void print_ul_perf_statistics(void) {
 			fprintf (ul_timer_stats_file, "\nPORT IN-PORT OUT opertion\n");
 			break;
 		}
-    	printf("%10s%11s%15s%15s%21s%15s%21s\n","Bursts|", "Cum Pkt Cnt|",
+    	clLog(clSystemLog, eCLSeverityDebug,"%10s%11s%15s%15s%21s%15s%21s\n","Bursts|", "Cum Pkt Cnt|",
 			"Total Duration|", "max_pktsvctime|", "max_svctime_burst_sz|",
 			"min_pktsvctime|", "min_svctime_burst_sz");
     	fprintf(ul_timer_stats_file, "%s|%s|%s|%s|%s|%s|%s\n","Bursts", "Cum Pkt Cnt",
@@ -318,6 +354,12 @@ static void print_ul_perf_statistics(void) {
 		rte_panic("%s [%d] fflush(ul_timer_stats_file failed - %s (%d)\n",
 				__FILE__, __LINE__, strerror(errno), errno);
 }
+
+/**
+ * @brief  : Print downlink performance statistics
+ * @param  : No param
+ * @return : Returns nothing
+ */
 static void print_dl_perf_statistics(void) {
 	stats_init("DL");
 	printf ("%70s", "\n\n********* Final DL performance statistics *********** \n");
@@ -384,7 +426,7 @@ static void print_dl_perf_statistics(void) {
 			fprintf (dl_timer_stats_file, "\nPORT IN-PORT OUT operation\n");
 			break;
 		}
-    	printf("%10s%11s%15s%15s%21s%15s%21s\n","Bursts|", "Cum Pkt Cnt|",
+    	clLog(clSystemLog, eCLSeverityDebug,"%10s%11s%15s%15s%21s%15s%21s\n","Bursts|", "Cum Pkt Cnt|",
 			"Total Duration|", "max_pktsvctime|", "max_svctime_burst_sz|",
 			"min_pktsvctime|", "min_svctime_burst_sz");
     	fprintf(dl_timer_stats_file, "%s|%s|%s|%s|%s|%s|%s\n","Bursts", "Cum Pkt Cnt",
@@ -421,6 +463,7 @@ static void print_dl_perf_statistics(void) {
 		rte_panic("%s [%d] fflush(dl_timer_stats_file failed - %s (%d)\n",
 				__FILE__, __LINE__, strerror(errno), errno);
 }
+
 void print_perf_statistics(void) {
 	if (print_dl_perf_stats) {
 		print_dl_perf_statistics();

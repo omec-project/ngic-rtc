@@ -44,7 +44,7 @@ int decode_ie_header_t(uint8_t *buf,
 
 /**
 * Decodes echo_request_t to buffer.
-* @param value 
+* @param value
 *    echo_request_t
 * @param buf
 *   buffer to store decoded values.
@@ -56,7 +56,7 @@ int decode_echo_request(uint8_t *buf,
 
 /**
 * Decodes echo_response_t to buffer.
-* @param value 
+* @param value
 *    echo_response_t
 * @param buf
 *   buffer to store decoded values.
@@ -68,7 +68,7 @@ int decode_echo_response(uint8_t *buf,
 
 /**
 * Decodes create_sess_req_t to buffer.
-* @param value 
+* @param value
 *    create_sess_req_t
 * @param buf
 *   buffer to store decoded values.
@@ -80,7 +80,7 @@ int decode_create_sess_req(uint8_t *buf,
 
 /**
 * Decodes gtp_create_sess_request_bearer_ctxt_to_be_created_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_create_sess_request_bearer_ctxt_to_be_created_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -92,7 +92,7 @@ int decode_gtp_create_sess_request_bearer_ctxt_to_be_created_ie(uint8_t *buf,
 
 /**
 * Decodes gtp_create_sess_request_bearer_ctxt_to_be_removed_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_create_sess_request_bearer_ctxt_to_be_removed_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -104,7 +104,7 @@ int decode_gtp_create_sess_request_bearer_ctxt_to_be_removed_ie(uint8_t *buf,
 
 /**
 * Decodes gtp_create_sess_request__overload_ctl_info_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_create_sess_request__overload_ctl_info_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -116,7 +116,7 @@ int decode_gtp_create_sess_request__overload_ctl_info_ie(uint8_t *buf,
 
 /**
 * Decodes gtp_create_sess_request__remote_ue_ctxt_connected_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_create_sess_request__remote_ue_ctxt_connected_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -128,7 +128,7 @@ int decode_gtp_create_sess_request__remote_ue_ctxt_connected_ie(uint8_t *buf,
 
 /**
 * Decodes create_sess_rsp_t to buffer.
-* @param value 
+* @param value
 *    create_sess_rsp_t
 * @param buf
 *   buffer to store decoded values.
@@ -140,7 +140,7 @@ int decode_create_sess_rsp(uint8_t *buf,
 
 /**
 * Decodes gtp_create_sess_response_bearer_ctxt_created_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_create_sess_response_bearer_ctxt_created_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -152,7 +152,7 @@ int decode_gtp_create_sess_response_bearer_ctxt_created_ie(uint8_t *buf,
 
 /**
 * Decodes gtp_create_sess_response_bearer_ctxt_marked_removal_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_create_sess_response_bearer_ctxt_marked_removal_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -164,7 +164,7 @@ int decode_gtp_create_sess_response_bearer_ctxt_marked_removal_ie(uint8_t *buf,
 
 /**
 * Decodes gtp_create_sess_response__load_ctl_info_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_create_sess_response__load_ctl_info_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -176,7 +176,7 @@ int decode_gtp_create_sess_response__load_ctl_info_ie(uint8_t *buf,
 
 /**
 * Decodes gtp_create_sess_response__overload_ctl_info_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_create_sess_response__overload_ctl_info_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -188,7 +188,7 @@ int decode_gtp_create_sess_response__overload_ctl_info_ie(uint8_t *buf,
 
 /**
 * Decodes create_bearer_req_t to buffer.
-* @param value 
+* @param value
 *    create_bearer_req_t
 * @param buf
 *   buffer to store decoded values.
@@ -200,7 +200,7 @@ int decode_create_bearer_req(uint8_t *buf,
 
 /**
 * Decodes gtp_create_bearer_request__bearer_ctxt_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_create_bearer_request__bearer_ctxt_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -212,7 +212,7 @@ int decode_gtp_create_bearer_request_bearer_ctxt_ie(uint8_t *buf,
 
 /**
 * Decodes gtp_create_bearer_request__load_ctl_info_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_create_bearer_request__load_ctl_info_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -224,7 +224,7 @@ int decode_gtp_create_bearer_request__load_ctl_info_ie(uint8_t *buf,
 
 /**
 * Decodes gtp_create_bearer_request__overload_ctl_info_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_create_bearer_request__overload_ctl_info_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -236,7 +236,7 @@ int decode_gtp_create_bearer_request__overload_ctl_info_ie(uint8_t *buf,
 
 /**
 * Decodes create_bearer_rsp_t to buffer.
-* @param value 
+* @param value
 *    create_bearer_rsp_t
 * @param buf
 *   buffer to store decoded values.
@@ -248,7 +248,7 @@ int decode_create_bearer_rsp(uint8_t *buf,
 
 /**
 * Decodes gtp_create_bearer_response__bearer_ctxt_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_create_bearer_response__bearer_ctxt_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -260,7 +260,7 @@ int decode_gtp_create_bearer_response_bearer_ctxt_ie(uint8_t *buf,
 
 /**
 * Decodes gtp_create_bearer_response__overload_ctl_info_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_create_bearer_response__overload_ctl_info_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -272,7 +272,7 @@ int decode_gtp_create_bearer_response__overload_ctl_info_ie(uint8_t *buf,
 
 /**
 * Decodes bearer_rsrc_cmd_t to buffer.
-* @param value 
+* @param value
 *    bearer_rsrc_cmd_t
 * @param buf
 *   buffer to store decoded values.
@@ -284,7 +284,7 @@ int decode_bearer_rsrc_cmd(uint8_t *buf,
 
 /**
 * Decodes gtp_bearer_rsrc_command__overload_ctl_info_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_bearer_rsrc_command__overload_ctl_info_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -296,7 +296,7 @@ int decode_gtp_bearer_rsrc_command__overload_ctl_info_ie(uint8_t *buf,
 
 /**
 * Decodes bearer_rsrc_fail_indctn_t to buffer.
-* @param value 
+* @param value
 *    bearer_rsrc_fail_indctn_t
 * @param buf
 *   buffer to store decoded values.
@@ -308,7 +308,7 @@ int decode_bearer_rsrc_fail_indctn(uint8_t *buf,
 
 /**
 * Decodes gtp_bearer_rsrc_fail_indication__overload_ctl_info_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_bearer_rsrc_fail_indication__overload_ctl_info_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -320,7 +320,7 @@ int decode_gtp_bearer_rsrc_fail_indication__overload_ctl_info_ie(uint8_t *buf,
 
 /**
 * Decodes mod_bearer_req_t to buffer.
-* @param value 
+* @param value
 *    mod_bearer_req_t
 * @param buf
 *   buffer to store decoded values.
@@ -332,7 +332,7 @@ int decode_mod_bearer_req(uint8_t *buf,
 
 /**
 * Decodes gtp_mod_bearer_request_bearer_ctxt_to_be_modified_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_mod_bearer_request_bearer_ctxt_to_be_modified_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -344,7 +344,7 @@ int decode_gtp_mod_bearer_request_bearer_ctxt_to_be_modified_ie(uint8_t *buf,
 
 /**
 * Decodes gtp_mod_bearer_request_bearer_ctxt_to_be_removed_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_mod_bearer_request_bearer_ctxt_to_be_removed_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -356,7 +356,7 @@ int decode_gtp_mod_bearer_request_bearer_ctxt_to_be_removed_ie(uint8_t *buf,
 
 /**
 * Decodes gtp_mod_bearer_request_overload_ctl_info_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_mod_bearer_request_overload_ctl_info_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -368,7 +368,7 @@ int decode_gtp_mod_bearer_request_overload_ctl_info_ie(uint8_t *buf,
 
 /**
 * Decodes mod_bearer_rsp_t to buffer.
-* @param value 
+* @param value
 *    mod_bearer_rsp_t
 * @param buf
 *   buffer to store decoded values.
@@ -380,7 +380,7 @@ int decode_mod_bearer_rsp(uint8_t *buf,
 
 /**
 * Decodes gtp_mod_bearer_response_bearer_ctxt_modified_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_mod_bearer_response_bearer_ctxt_modified_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -392,7 +392,7 @@ int decode_gtp_mod_bearer_response_bearer_ctxt_modified_ie(uint8_t *buf,
 
 /**
 * Decodes gtp_mod_bearer_response_bearer_ctxt_marked_removal_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_mod_bearer_response_bearer_ctxt_marked_removal_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -404,7 +404,7 @@ int decode_gtp_mod_bearer_response_bearer_ctxt_marked_removal_ie(uint8_t *buf,
 
 /**
 * Decodes gtp_mod_bearer_response__load_ctl_info_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_mod_bearer_response__load_ctl_info_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -416,7 +416,7 @@ int decode_gtp_mod_bearer_response__load_ctl_info_ie(uint8_t *buf,
 
 /**
 * Decodes gtp_mod_bearer_response__overload_ctl_info_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_mod_bearer_response__overload_ctl_info_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -428,7 +428,7 @@ int decode_gtp_mod_bearer_response__overload_ctl_info_ie(uint8_t *buf,
 
 /**
 * Decodes del_sess_req_t to buffer.
-* @param value 
+* @param value
 *    del_sess_req_t
 * @param buf
 *   buffer to store decoded values.
@@ -440,7 +440,7 @@ int decode_del_sess_req(uint8_t *buf,
 
 /**
 * Decodes gtp_del_sess_request__overload_ctl_info_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_del_sess_request__overload_ctl_info_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -452,7 +452,7 @@ int decode_gtp_del_sess_request__overload_ctl_info_ie(uint8_t *buf,
 
 /**
 * Decodes del_bearer_req_t to buffer.
-* @param value 
+* @param value
 *    del_bearer_req_t
 * @param buf
 *   buffer to store decoded values.
@@ -464,7 +464,7 @@ int decode_del_bearer_req(uint8_t *buf,
 
 /**
 * Decodes gtp_del_bearer_request__bearer_ctxt_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_del_bearer_request__bearer_ctxt_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -476,7 +476,7 @@ int decode_gtp_del_bearer_request__bearer_ctxt_ie(uint8_t *buf,
 
 /**
 * Decodes gtp_del_bearer_request__load_ctl_info_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_del_bearer_request__load_ctl_info_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -488,7 +488,7 @@ int decode_gtp_del_bearer_request__load_ctl_info_ie(uint8_t *buf,
 
 /**
 * Decodes gtp_del_bearer_request__overload_ctl_info_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_del_bearer_request__overload_ctl_info_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -500,7 +500,7 @@ int decode_gtp_del_bearer_request__overload_ctl_info_ie(uint8_t *buf,
 
 /**
 * Decodes del_sess_rsp_t to buffer.
-* @param value 
+* @param value
 *    del_sess_rsp_t
 * @param buf
 *   buffer to store decoded values.
@@ -512,7 +512,7 @@ int decode_del_sess_rsp(uint8_t *buf,
 
 /**
 * Decodes gtp_del_sess_response__load_ctl_info_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_del_sess_response__load_ctl_info_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -524,7 +524,7 @@ int decode_gtp_del_sess_response__load_ctl_info_ie(uint8_t *buf,
 
 /**
 * Decodes gtp_del_sess_response__overload_ctl_info_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_del_sess_response__overload_ctl_info_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -536,7 +536,7 @@ int decode_gtp_del_sess_response__overload_ctl_info_ie(uint8_t *buf,
 
 /**
 * Decodes del_bearer_rsp_t to buffer.
-* @param value 
+* @param value
 *    del_bearer_rsp_t
 * @param buf
 *   buffer to store decoded values.
@@ -547,20 +547,20 @@ int decode_del_bearer_rsp(uint8_t *buf,
     del_bearer_rsp_t *value);
 
 /**
-* Decodes gtp_del_bearer_response__bearer_ctxt_ie_t to buffer.
-* @param value 
-*    gtp_del_bearer_response__bearer_ctxt_ie_t
+* Decodes gtp_del_bearer_response_bearer_ctxt_ie_t to buffer.
+* @param value
+*    gtp_del_bearer_response_bearer_ctxt_ie_t
 * @param buf
 *   buffer to store decoded values.
 * @return
 *   number of decoded bytes.
 */
 int decode_gtp_del_bearer_response__bearer_ctxt_ie(uint8_t *buf,
-    gtp_del_bearer_response__bearer_ctxt_ie_t *value);
+    gtp_del_bearer_response_bearer_ctxt_ie_t *value);
 
 /**
 * Decodes gtp_del_bearer_response__overload_ctl_info_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_del_bearer_response__overload_ctl_info_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -572,7 +572,7 @@ int decode_gtp_del_bearer_response__overload_ctl_info_ie(uint8_t *buf,
 
 /**
 * Decodes dnlnk_data_notif_t to buffer.
-* @param value 
+* @param value
 *    dnlnk_data_notif_t
 * @param buf
 *   buffer to store decoded values.
@@ -584,7 +584,7 @@ int decode_dnlnk_data_notif(uint8_t *buf,
 
 /**
 * Decodes gtp_dnlnk_data_notification__load_ctl_info_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_dnlnk_data_notification__load_ctl_info_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -596,7 +596,7 @@ int decode_gtp_dnlnk_data_notification__load_ctl_info_ie(uint8_t *buf,
 
 /**
 * Decodes gtp_dnlnk_data_notification__overload_ctl_info_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_dnlnk_data_notification__overload_ctl_info_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -608,7 +608,7 @@ int decode_gtp_dnlnk_data_notification__overload_ctl_info_ie(uint8_t *buf,
 
 /**
 * Decodes dnlnk_data_notif_ack_t to buffer.
-* @param value 
+* @param value
 *    dnlnk_data_notif_ack_t
 * @param buf
 *   buffer to store decoded values.
@@ -620,7 +620,7 @@ int decode_dnlnk_data_notif_ack(uint8_t *buf,
 
 /**
 * Decodes dnlnk_data_notif_fail_indctn_t to buffer.
-* @param value 
+* @param value
 *    dnlnk_data_notif_fail_indctn_t
 * @param buf
 *   buffer to store decoded values.
@@ -632,7 +632,7 @@ int decode_dnlnk_data_notif_fail_indctn(uint8_t *buf,
 
 /**
 * Decodes mod_bearer_cmd_t to buffer.
-* @param value 
+* @param value
 *    mod_bearer_cmd_t
 * @param buf
 *   buffer to store decoded values.
@@ -644,7 +644,7 @@ int decode_mod_bearer_cmd(uint8_t *buf,
 
 /**
 * Decodes gtp_mod_bearer_command__bearer_ctxt_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_mod_bearer_command__bearer_ctxt_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -656,7 +656,7 @@ int decode_gtp_mod_bearer_command__bearer_ctxt_ie(uint8_t *buf,
 
 /**
 * Decodes gtp_mod_bearer_command__overload_ctl_info_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_mod_bearer_command__overload_ctl_info_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -668,7 +668,7 @@ int decode_gtp_mod_bearer_command__overload_ctl_info_ie(uint8_t *buf,
 
 /**
 * Decodes mod_bearer_fail_indctn_t to buffer.
-* @param value 
+* @param value
 *    mod_bearer_fail_indctn_t
 * @param buf
 *   buffer to store decoded values.
@@ -680,7 +680,7 @@ int decode_mod_bearer_fail_indctn(uint8_t *buf,
 
 /**
 * Decodes gtp_mod_bearer_fail_indication__overload_ctl_info_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_mod_bearer_fail_indication__overload_ctl_info_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -692,7 +692,7 @@ int decode_gtp_mod_bearer_fail_indication__overload_ctl_info_ie(uint8_t *buf,
 
 /**
 * Decodes upd_bearer_req_t to buffer.
-* @param value 
+* @param value
 *    upd_bearer_req_t
 * @param buf
 *   buffer to store decoded values.
@@ -704,7 +704,7 @@ int decode_upd_bearer_req(uint8_t *buf,
 
 /**
 * Decodes gtp_upd_bearer_request__bearer_ctxt_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_upd_bearer_request__bearer_ctxt_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -716,7 +716,7 @@ int decode_gtp_upd_bearer_request__bearer_ctxt_ie(uint8_t *buf,
 
 /**
 * Decodes gtp_upd_bearer_request__load_ctl_info_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_upd_bearer_request__load_ctl_info_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -728,7 +728,7 @@ int decode_gtp_upd_bearer_request__load_ctl_info_ie(uint8_t *buf,
 
 /**
 * Decodes gtp_upd_bearer_request__overload_ctl_info_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_upd_bearer_request__overload_ctl_info_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -740,7 +740,7 @@ int decode_gtp_upd_bearer_request__overload_ctl_info_ie(uint8_t *buf,
 
 /**
 * Decodes upd_bearer_rsp_t to buffer.
-* @param value 
+* @param value
 *    upd_bearer_rsp_t
 * @param buf
 *   buffer to store decoded values.
@@ -752,7 +752,7 @@ int decode_upd_bearer_rsp(uint8_t *buf,
 
 /**
 * Decodes gtp_upd_bearer_response__bearer_ctxt_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_upd_bearer_response__bearer_ctxt_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -764,7 +764,7 @@ int decode_gtp_upd_bearer_response__bearer_ctxt_ie(uint8_t *buf,
 
 /**
 * Decodes gtp_upd_bearer_response__overload_ctl_info_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_upd_bearer_response__overload_ctl_info_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -776,7 +776,7 @@ int decode_gtp_upd_bearer_response__overload_ctl_info_ie(uint8_t *buf,
 
 /**
 * Decodes del_bearer_cmd_t to buffer.
-* @param value 
+* @param value
 *    del_bearer_cmd_t
 * @param buf
 *   buffer to store decoded values.
@@ -787,20 +787,20 @@ int decode_del_bearer_cmd(uint8_t *buf,
     del_bearer_cmd_t *value);
 
 /**
-* Decodes gtp_del_bearer_command__bearer_ctxt_ie_t to buffer.
-* @param value 
-*    gtp_del_bearer_command__bearer_ctxt_ie_t
+* Decodes gtp_del_bearer_command_bearer_ctxt_ie_t to buffer.
+* @param value
+*    gtp_del_bearer_command_bearer_ctxt_ie_t
 * @param buf
 *   buffer to store decoded values.
 * @return
 *   number of decoded bytes.
 */
-int decode_gtp_del_bearer_command__bearer_ctxt_ie(uint8_t *buf,
-    gtp_del_bearer_command__bearer_ctxt_ie_t *value);
+int decode_gtp_del_bearer_command_bearer_ctxt_ie(uint8_t *buf,
+    gtp_del_bearer_command_bearer_ctxt_ie_t *value);
 
 /**
 * Decodes gtp_del_bearer_command__overload_ctl_info_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_del_bearer_command__overload_ctl_info_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -812,7 +812,7 @@ int decode_gtp_del_bearer_command__overload_ctl_info_ie(uint8_t *buf,
 
 /**
 * Decodes del_bearer_fail_indctn_t to buffer.
-* @param value 
+* @param value
 *    del_bearer_fail_indctn_t
 * @param buf
 *   buffer to store decoded values.
@@ -824,7 +824,7 @@ int decode_del_bearer_fail_indctn(uint8_t *buf,
 
 /**
 * Decodes gtp_del_bearer_fail_indication__bearer_ctxt_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_del_bearer_fail_indication__bearer_ctxt_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -836,7 +836,7 @@ int decode_gtp_del_bearer_fail_indication__bearer_ctxt_ie(uint8_t *buf,
 
 /**
 * Decodes gtp_del_bearer_fail_indication__overload_ctl_info_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_del_bearer_fail_indication__overload_ctl_info_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -848,7 +848,7 @@ int decode_gtp_del_bearer_fail_indication__overload_ctl_info_ie(uint8_t *buf,
 
 /**
 * Decodes create_indir_data_fwdng_tunn_req_t to buffer.
-* @param value 
+* @param value
 *    create_indir_data_fwdng_tunn_req_t
 * @param buf
 *   buffer to store decoded values.
@@ -860,7 +860,7 @@ int decode_create_indir_data_fwdng_tunn_req(uint8_t *buf,
 
 /**
 * Decodes gtp_create_indir_data_fwdng_tunn_request__bearer_ctxt_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_create_indir_data_fwdng_tunn_request__bearer_ctxt_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -872,7 +872,7 @@ int decode_gtp_create_indir_data_fwdng_tunn_request__bearer_ctxt_ie(uint8_t *buf
 
 /**
 * Decodes create_indir_data_fwdng_tunn_rsp_t to buffer.
-* @param value 
+* @param value
 *    create_indir_data_fwdng_tunn_rsp_t
 * @param buf
 *   buffer to store decoded values.
@@ -884,7 +884,7 @@ int decode_create_indir_data_fwdng_tunn_rsp(uint8_t *buf,
 
 /**
 * Decodes gtp_create_indir_data_fwdng_tunn_response__bearer_ctxt_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_create_indir_data_fwdng_tunn_response__bearer_ctxt_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -896,7 +896,7 @@ int decode_gtp_create_indir_data_fwdng_tunn_response__bearer_ctxt_ie(uint8_t *bu
 
 /**
 * Decodes gtp_release_acc_bearers_response__load_ctl_info_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_release_acc_bearers_response__load_ctl_info_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -908,7 +908,7 @@ int decode_gtp_release_acc_bearers_response__load_ctl_info_ie(uint8_t *buf,
 
 /**
 * Decodes gtp_release_acc_bearers_response__overload_ctl_info_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_release_acc_bearers_response__overload_ctl_info_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -920,7 +920,7 @@ int decode_gtp_release_acc_bearers_response__overload_ctl_info_ie(uint8_t *buf,
 
 /**
 * Decodes stop_paging_indctn_t to buffer.
-* @param value 
+* @param value
 *    stop_paging_indctn_t
 * @param buf
 *   buffer to store decoded values.
@@ -932,7 +932,7 @@ int decode_stop_paging_indctn(uint8_t *buf,
 
 /**
 * Decodes mod_acc_bearers_req_t to buffer.
-* @param value 
+* @param value
 *    mod_acc_bearers_req_t
 * @param buf
 *   buffer to store decoded values.
@@ -944,7 +944,7 @@ int decode_mod_acc_bearers_req(uint8_t *buf,
 
 /**
 * Decodes gtp_mod_acc_bearers_request__bearer_ctxt_to_be_modified_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_mod_acc_bearers_request__bearer_ctxt_to_be_modified_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -956,7 +956,7 @@ int decode_gtp_mod_acc_bearers_request__bearer_ctxt_to_be_modified_ie(uint8_t *b
 
 /**
 * Decodes gtp_mod_acc_bearers_request__bearer_ctxt_to_be_removed_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_mod_acc_bearers_request__bearer_ctxt_to_be_removed_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -968,7 +968,7 @@ int decode_gtp_mod_acc_bearers_request__bearer_ctxt_to_be_removed_ie(uint8_t *bu
 
 /**
 * Decodes mod_acc_bearers_rsp_t to buffer.
-* @param value 
+* @param value
 *    mod_acc_bearers_rsp_t
 * @param buf
 *   buffer to store decoded values.
@@ -980,7 +980,7 @@ int decode_mod_acc_bearers_rsp(uint8_t *buf,
 
 /**
 * Decodes gtp_mod_acc_bearers_response__bearer_ctxt_modified_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_mod_acc_bearers_response__bearer_ctxt_modified_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -992,7 +992,7 @@ int decode_gtp_mod_acc_bearers_response__bearer_ctxt_modified_ie(uint8_t *buf,
 
 /**
 * Decodes gtp_mod_acc_bearers_response__bearer_ctxt_marked_removal_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_mod_acc_bearers_response__bearer_ctxt_marked_removal_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -1004,7 +1004,7 @@ int decode_gtp_mod_acc_bearers_response__bearer_ctxt_marked_removal_ie(uint8_t *
 
 /**
 * Decodes gtp_mod_acc_bearers_response__load_ctl_info_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_mod_acc_bearers_response__load_ctl_info_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -1016,7 +1016,7 @@ int decode_gtp_mod_acc_bearers_response__load_ctl_info_ie(uint8_t *buf,
 
 /**
 * Decodes gtp_mod_acc_bearers_response__overload_ctl_info_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_mod_acc_bearers_response__overload_ctl_info_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -1028,7 +1028,7 @@ int decode_gtp_mod_acc_bearers_response__overload_ctl_info_ie(uint8_t *buf,
 
 /**
 * Decodes rmt_ue_rpt_notif_t to buffer.
-* @param value 
+* @param value
 *    rmt_ue_rpt_notif_t
 * @param buf
 *   buffer to store decoded values.
@@ -1040,7 +1040,7 @@ int decode_rmt_ue_rpt_notif(uint8_t *buf,
 
 /**
 * Decodes gtp_rmt_ue_rpt_notification__remote_ue_ctxt_connected_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_rmt_ue_rpt_notification__remote_ue_ctxt_connected_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -1052,7 +1052,7 @@ int decode_gtp_rmt_ue_rpt_notification__remote_ue_ctxt_connected_ie(uint8_t *buf
 
 /**
 * Decodes gtp_rmt_ue_rpt_notification__remote_ue_ctxt_disconnected_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_rmt_ue_rpt_notification__remote_ue_ctxt_disconnected_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -1064,7 +1064,7 @@ int decode_gtp_rmt_ue_rpt_notification__remote_ue_ctxt_disconnected_ie(uint8_t *
 
 /**
 * Decodes rmt_ue_rpt_ack_t to buffer.
-* @param value 
+* @param value
 *    rmt_ue_rpt_ack_t
 * @param buf
 *   buffer to store decoded values.
@@ -1076,7 +1076,7 @@ int decode_rmt_ue_rpt_ack(uint8_t *buf,
 
 /**
 * Decodes fwd_reloc_req_t to buffer.
-* @param value 
+* @param value
 *    fwd_reloc_req_t
 * @param buf
 *   buffer to store decoded values.
@@ -1088,7 +1088,7 @@ int decode_fwd_reloc_req(uint8_t *buf,
 
 /**
 * Decodes gtp_fwd_reloc_request__mmesgsnamf_ue_eps_pdn_connections_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_fwd_reloc_request__mmesgsnamf_ue_eps_pdn_connections_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -1100,7 +1100,7 @@ int decode_gtp_fwd_reloc_request__mmesgsnamf_ue_eps_pdn_connections_ie(uint8_t *
 
 /**
 * Decodes gtp_fwd_reloc_request__bearer_ctxt_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_fwd_reloc_request__bearer_ctxt_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -1112,7 +1112,7 @@ int decode_gtp_fwd_reloc_request__bearer_ctxt_ie(uint8_t *buf,
 
 /**
 * Decodes gtp_fwd_reloc_request__remote_ue_ctxt_connected_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_fwd_reloc_request__remote_ue_ctxt_connected_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -1124,7 +1124,7 @@ int decode_gtp_fwd_reloc_request__remote_ue_ctxt_connected_ie(uint8_t *buf,
 
 /**
 * Decodes gtp_fwd_reloc_request__mme_ue_scef_pdn_connections_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_fwd_reloc_request__mme_ue_scef_pdn_connections_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -1136,7 +1136,7 @@ int decode_gtp_fwd_reloc_request__mme_ue_scef_pdn_connections_ie(uint8_t *buf,
 
 /**
 * Decodes fwd_reloc_rsp_t to buffer.
-* @param value 
+* @param value
 *    fwd_reloc_rsp_t
 * @param buf
 *   buffer to store decoded values.
@@ -1148,7 +1148,7 @@ int decode_fwd_reloc_rsp(uint8_t *buf,
 
 /**
 * Decodes fwd_reloc_cmplt_notif_t to buffer.
-* @param value 
+* @param value
 *    fwd_reloc_cmplt_notif_t
 * @param buf
 *   buffer to store decoded values.
@@ -1160,7 +1160,7 @@ int decode_fwd_reloc_cmplt_notif(uint8_t *buf,
 
 /**
 * Decodes fwd_reloc_cmplt_ack_t to buffer.
-* @param value 
+* @param value
 *    fwd_reloc_cmplt_ack_t
 * @param buf
 *   buffer to store decoded values.
@@ -1172,7 +1172,7 @@ int decode_fwd_reloc_cmplt_ack(uint8_t *buf,
 
 /**
 * Decodes context_request_t to buffer.
-* @param value 
+* @param value
 *    context_request_t
 * @param buf
 *   buffer to store decoded values.
@@ -1184,7 +1184,7 @@ int decode_context_request(uint8_t *buf,
 
 /**
 * Decodes ctxt_rsp_t to buffer.
-* @param value 
+* @param value
 *    ctxt_rsp_t
 * @param buf
 *   buffer to store decoded values.
@@ -1196,7 +1196,7 @@ int decode_ctxt_rsp(uint8_t *buf,
 
 /**
 * Decodes gtp_ctxt_response__mmesgsn_ue_eps_pdn_connections_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_ctxt_response__mmesgsn_ue_eps_pdn_connections_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -1208,7 +1208,7 @@ int decode_gtp_ctxt_response__mmesgsn_ue_eps_pdn_connections_ie(uint8_t *buf,
 
 /**
 * Decodes gtp_ctxt_response__bearer_ctxt_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_ctxt_response__bearer_ctxt_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -1220,7 +1220,7 @@ int decode_gtp_ctxt_response__bearer_ctxt_ie(uint8_t *buf,
 
 /**
 * Decodes gtp_ctxt_response__remote_ue_ctxt_connected_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_ctxt_response__remote_ue_ctxt_connected_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -1232,7 +1232,7 @@ int decode_gtp_ctxt_response__remote_ue_ctxt_connected_ie(uint8_t *buf,
 
 /**
 * Decodes gtp_ctxt_response__mmesgsn_ue_scef_pdn_connections_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_ctxt_response__mmesgsn_ue_scef_pdn_connections_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -1244,7 +1244,7 @@ int decode_gtp_ctxt_response__mmesgsn_ue_scef_pdn_connections_ie(uint8_t *buf,
 
 /**
 * Decodes ctxt_ack_t to buffer.
-* @param value 
+* @param value
 *    ctxt_ack_t
 * @param buf
 *   buffer to store decoded values.
@@ -1256,7 +1256,7 @@ int decode_ctxt_ack(uint8_t *buf,
 
 /**
 * Decodes gtp_ctxt_acknowledge__bearer_ctxt_ie_t to buffer.
-* @param value 
+* @param value
 *    gtp_ctxt_acknowledge__bearer_ctxt_ie_t
 * @param buf
 *   buffer to store decoded values.
@@ -1268,7 +1268,7 @@ int decode_gtp_ctxt_acknowledge__bearer_ctxt_ie(uint8_t *buf,
 
 /**
 * Decodes id_req_t to buffer.
-* @param value 
+* @param value
 *    id_req_t
 * @param buf
 *   buffer to store decoded values.
@@ -1280,7 +1280,7 @@ int decode_id_req(uint8_t *buf,
 
 /**
 * Decodes id_rsp_t to buffer.
-* @param value 
+* @param value
 *    id_rsp_t
 * @param buf
 *   buffer to store decoded values.
@@ -1292,7 +1292,7 @@ int decode_id_rsp(uint8_t *buf,
 
 /**
 * Decodes fwd_acc_ctxt_notif_t to buffer.
-* @param value 
+* @param value
 *    fwd_acc_ctxt_notif_t
 * @param buf
 *   buffer to store decoded values.
@@ -1304,7 +1304,7 @@ int decode_fwd_acc_ctxt_notif(uint8_t *buf,
 
 /**
 * Decodes fwd_acc_ctxt_ack_t to buffer.
-* @param value 
+* @param value
 *    fwd_acc_ctxt_ack_t
 * @param buf
 *   buffer to store decoded values.
@@ -1316,7 +1316,7 @@ int decode_fwd_acc_ctxt_ack(uint8_t *buf,
 
 /**
 * Decodes detach_notif_t to buffer.
-* @param value 
+* @param value
 *    detach_notif_t
 * @param buf
 *   buffer to store decoded values.
@@ -1328,7 +1328,7 @@ int decode_detach_notif(uint8_t *buf,
 
 /**
 * Decodes detach_ack_t to buffer.
-* @param value 
+* @param value
 *    detach_ack_t
 * @param buf
 *   buffer to store decoded values.
@@ -1340,7 +1340,7 @@ int decode_detach_ack(uint8_t *buf,
 
 /**
 * Decodes reloc_cncl_req_t to buffer.
-* @param value 
+* @param value
 *    reloc_cncl_req_t
 * @param buf
 *   buffer to store decoded values.
@@ -1352,7 +1352,7 @@ int decode_reloc_cncl_req(uint8_t *buf,
 
 /**
 * Decodes reloc_cncl_rsp_t to buffer.
-* @param value 
+* @param value
 *    reloc_cncl_rsp_t
 * @param buf
 *   buffer to store decoded values.
@@ -1364,7 +1364,7 @@ int decode_reloc_cncl_rsp(uint8_t *buf,
 
 /**
 * Decodes cfg_xfer_tunn_t to buffer.
-* @param value 
+* @param value
 *    cfg_xfer_tunn_t
 * @param buf
 *   buffer to store decoded values.
@@ -1376,7 +1376,7 @@ int decode_cfg_xfer_tunn(uint8_t *buf,
 
 /**
 * Decodes ran_info_rly_t to buffer.
-* @param value 
+* @param value
 *    ran_info_rly_t
 * @param buf
 *   buffer to store decoded values.
@@ -1388,7 +1388,7 @@ int decode_ran_info_rly(uint8_t *buf,
 
 /**
 * Decodes isr_status_indctn_t to buffer.
-* @param value 
+* @param value
 *    isr_status_indctn_t
 * @param buf
 *   buffer to store decoded values.
@@ -1400,7 +1400,7 @@ int decode_isr_status_indctn(uint8_t *buf,
 
 /**
 * Decodes ue_reg_qry_req_t to buffer.
-* @param value 
+* @param value
 *    ue_reg_qry_req_t
 * @param buf
 *   buffer to store decoded values.
@@ -1412,7 +1412,7 @@ int decode_ue_reg_qry_req(uint8_t *buf,
 
 /**
 * Decodes ue_reg_qry_rsp_t to buffer.
-* @param value 
+* @param value
 *    ue_reg_qry_rsp_t
 * @param buf
 *   buffer to store decoded values.
@@ -1424,7 +1424,7 @@ int decode_ue_reg_qry_rsp(uint8_t *buf,
 
 /**
 * Decodes alert_mme_ack_t to buffer.
-* @param value 
+* @param value
 *    alert_mme_ack_t
 * @param buf
 *   buffer to store decoded values.
@@ -1436,7 +1436,7 @@ int decode_alert_mme_ack(uint8_t *buf,
 
 /**
 * Decodes ue_actvty_ack_t to buffer.
-* @param value 
+* @param value
 *    ue_actvty_ack_t
 * @param buf
 *   buffer to store decoded values.
@@ -1448,7 +1448,7 @@ int decode_ue_actvty_ack(uint8_t *buf,
 
 /**
 * Decodes create_fwdng_tunn_req_t to buffer.
-* @param value 
+* @param value
 *    create_fwdng_tunn_req_t
 * @param buf
 *   buffer to store decoded values.
@@ -1460,7 +1460,7 @@ int decode_create_fwdng_tunn_req(uint8_t *buf,
 
 /**
 * Decodes create_fwdng_tunn_rsp_t to buffer.
-* @param value 
+* @param value
 *    create_fwdng_tunn_rsp_t
 * @param buf
 *   buffer to store decoded values.
@@ -1471,8 +1471,20 @@ int decode_create_fwdng_tunn_rsp(uint8_t *buf,
     create_fwdng_tunn_rsp_t *value);
 
 /**
+* Decodes del_pdn_conn_set_req_t to buffer.
+* @param value
+*    del_pdn_conn_set_req_t
+* @param buf
+*   buffer to store decoded values.
+* @return
+*   number of decoded bytes.
+*/
+int decode_del_pdn_conn_set_req(uint8_t *buf,
+    del_pdn_conn_set_req_t *value);
+
+/**
 * Decodes del_pdn_conn_set_rsp_t to buffer.
-* @param value 
+* @param value
 *    del_pdn_conn_set_rsp_t
 * @param buf
 *   buffer to store decoded values.
@@ -1484,7 +1496,7 @@ int decode_del_pdn_conn_set_rsp(uint8_t *buf,
 
 /**
 * Decodes upd_pdn_conn_set_req_t to buffer.
-* @param value 
+* @param value
 *    upd_pdn_conn_set_req_t
 * @param buf
 *   buffer to store decoded values.
@@ -1496,7 +1508,7 @@ int decode_upd_pdn_conn_set_req(uint8_t *buf,
 
 /**
 * Decodes upd_pdn_conn_set_rsp_t to buffer.
-* @param value 
+* @param value
 *    upd_pdn_conn_set_rsp_t
 * @param buf
 *   buffer to store decoded values.
@@ -1508,7 +1520,7 @@ int decode_upd_pdn_conn_set_rsp(uint8_t *buf,
 
 /**
 * Decodes pgw_rstrt_notif_t to buffer.
-* @param value 
+* @param value
 *    pgw_rstrt_notif_t
 * @param buf
 *   buffer to store decoded values.
@@ -1520,7 +1532,7 @@ int decode_pgw_rstrt_notif(uint8_t *buf,
 
 /**
 * Decodes pgw_rstrt_notif_ack_t to buffer.
-* @param value 
+* @param value
 *    pgw_rstrt_notif_ack_t
 * @param buf
 *   buffer to store decoded values.
@@ -1532,7 +1544,7 @@ int decode_pgw_rstrt_notif_ack(uint8_t *buf,
 
 /**
 * Decodes pgw_dnlnk_trigrng_notif_t to buffer.
-* @param value 
+* @param value
 *    pgw_dnlnk_trigrng_notif_t
 * @param buf
 *   buffer to store decoded values.
@@ -1544,7 +1556,7 @@ int decode_pgw_dnlnk_trigrng_notif(uint8_t *buf,
 
 /**
 * Decodes pgw_dnlnk_trigrng_ack_t to buffer.
-* @param value 
+* @param value
 *    pgw_dnlnk_trigrng_ack_t
 * @param buf
 *   buffer to store decoded values.
@@ -1556,7 +1568,7 @@ int decode_pgw_dnlnk_trigrng_ack(uint8_t *buf,
 
 /**
 * Decodes trc_sess_actvn_t to buffer.
-* @param value 
+* @param value
 *    trc_sess_actvn_t
 * @param buf
 *   buffer to store decoded values.
@@ -1568,7 +1580,7 @@ int decode_trc_sess_actvn(uint8_t *buf,
 
 /**
 * Decodes trc_sess_deact_t to buffer.
-* @param value 
+* @param value
 *    trc_sess_deact_t
 * @param buf
 *   buffer to store decoded values.
@@ -1580,7 +1592,7 @@ int decode_trc_sess_deact(uint8_t *buf,
 
 /**
 * Decodes mbms_sess_start_req_t to buffer.
-* @param value 
+* @param value
 *    mbms_sess_start_req_t
 * @param buf
 *   buffer to store decoded values.
@@ -1592,7 +1604,7 @@ int decode_mbms_sess_start_req(uint8_t *buf,
 
 /**
 * Decodes mbms_sess_start_rsp_t to buffer.
-* @param value 
+* @param value
 *    mbms_sess_start_rsp_t
 * @param buf
 *   buffer to store decoded values.
@@ -1604,7 +1616,7 @@ int decode_mbms_sess_start_rsp(uint8_t *buf,
 
 /**
 * Decodes mbms_sess_upd_req_t to buffer.
-* @param value 
+* @param value
 *    mbms_sess_upd_req_t
 * @param buf
 *   buffer to store decoded values.
@@ -1616,7 +1628,7 @@ int decode_mbms_sess_upd_req(uint8_t *buf,
 
 /**
 * Decodes mbms_sess_upd_rsp_t to buffer.
-* @param value 
+* @param value
 *    mbms_sess_upd_rsp_t
 * @param buf
 *   buffer to store decoded values.
@@ -1628,7 +1640,7 @@ int decode_mbms_sess_upd_rsp(uint8_t *buf,
 
 /**
 * Decodes mbms_sess_stop_req_t to buffer.
-* @param value 
+* @param value
 *    mbms_sess_stop_req_t
 * @param buf
 *   buffer to store decoded values.

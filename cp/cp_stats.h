@@ -29,7 +29,7 @@
  */
 
 /**
- * @brief counters used to display statistics on the control plane
+ * @brief  : counters used to display statistics on the control plane
  */
 struct cp_stats_t {
 
@@ -71,16 +71,17 @@ extern int apilogger;
 extern int epclogger;
 
 /**
- * Prints control plane signaling message statistics
- *
- * @return
- *   Never returns/value ignored
+ * @brief  : Prints control plane signaling message statistics
+ * @param  : Currently not being used
+ * @return : Never returns/value ignored
  */
 int
 do_stats(__rte_unused void *ptr);
 
 /**
- * @brief clears the control plane statistic counters
+ * @brief  : clears the control plane statistic counters
+ * @param  : No param
+ * @return : Returns nothing
  */
 void
 reset_cp_stats(void);

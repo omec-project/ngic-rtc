@@ -76,6 +76,9 @@
 #include "stats.h"
 
 /**********************************************************/
+/**
+ * @brief  : Maintains show command result
+ */
 struct cmd_show_result {
 	cmdline_fixed_string_t show;
 };
@@ -83,6 +86,13 @@ struct cmd_show_result {
 cmdline_parse_token_string_t cmd_show_show =
 TOKEN_STRING_INITIALIZER(struct cmd_show_result, show, "show");
 
+/**
+ * @brief  : Function to perform task to show statistics
+ * @param  : parsed_result, unused param
+ * @param  : cl, unused param
+ * @param  : data, unused param
+ * @return : Returns nothing
+ */
 static void cmd_show_stats(void *parsed_result,
 		struct cmdline *cl,
 		__attribute__((unused)) void *data)
@@ -114,6 +124,9 @@ cmdline_parse_inst_t cmd_obj_show_stats = {
 };
 
 /**********************************************************/
+/**
+ * @brief  : Maintains quit command result
+ */
 struct cmd_quit_result {
 	cmdline_fixed_string_t quit;
 };
@@ -121,6 +134,13 @@ struct cmd_quit_result {
 cmdline_parse_token_string_t cmd_quit_quit =
 TOKEN_STRING_INITIALIZER(struct cmd_quit_result, quit, "quit");
 
+/**
+ * @brief  : Implements quit command
+ * @param  : parsed_result, unused param
+ * @param  : cl, unused param
+ * @param  : data, unused param
+ * @return : Returns nothing
+ */
 static void cmd_quit_app(void *parsed_result,
 		struct cmdline *cl,
 		__attribute__((unused)) void *data)
@@ -143,6 +163,9 @@ cmdline_parse_inst_t cmd_obj_quit_app = {
 };
 
 /**********************************************************/
+/**
+ * @brief  : Maintains help command result
+ */
 struct cmd_help_result {
 	cmdline_fixed_string_t help;
 };
@@ -150,6 +173,13 @@ struct cmd_help_result {
 cmdline_parse_token_string_t cmd_help_help =
 TOKEN_STRING_INITIALIZER(struct cmd_help_result, help, "help");
 
+/**
+ * @brief  : Implements help command
+ * @param  : parsed_result, unused param
+ * @param  : cl, unused param
+ * @param  : data, unused param
+ * @return : Returns nothing
+ */
 static void cmd_help(__attribute__((unused)) void *parsed_result,
 		struct cmdline *cl,
 		__attribute__((unused)) void *data)

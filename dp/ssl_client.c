@@ -39,6 +39,9 @@
 
 const uint8_t ias_response_body_oid[] = OID(0x02);
 
+/**
+ * @brief  : Maintains attestation verification report data
+ */
 typedef struct {
 	uint8_t ias_report[2*1024];
 	uint32_t ias_report_len;
@@ -51,15 +54,10 @@ typedef struct {
 } attestation_verification_report_t;
 
 /**
- * Open socket connection
- * @param hostname
- *	remote host name or ip.
- * @param port
- *	remote host port.
- *
- * @return
- *	socket handle
- *	-1 - on failure
+ * @brief  : Open socket connection
+ * @param  : hostname, remote host name or ip.
+ * @param  : port, remote host port.
+ * @return : Retruns socket handle in case of success, -1 otherwise
  */
 int
 openconnection(const char *hostname, int port)
@@ -86,11 +84,9 @@ openconnection(const char *hostname, int port)
 
 
 /**
- * Initialize ssl context
- *
- * @return
- *	ssl context
- *	NULL - on failure
+ * @brief  : Initialize ssl context
+ * @param  : No param
+ * @return : Returns ssl context on success, NULL otherwise
  */
 SSL_CTX *
 InitCTX(void)
@@ -110,23 +106,14 @@ InitCTX(void)
 
 
 /**
- * Find the value of oid from certificate extension
- * @param ext
- *	certificate extension.
- * @param ext_len
- *	certificate extension length.
- * @param oid
- *	oid to search.
- * @param oid_len
- *	oid length.
- * @param val
- *	value of oid.
- * @param len
- *	value length.
- *
- * @return
- *	0 - on success
- *	-1 - on failure
+ * @brief  : Find the value of oid from certificate extension
+ * @param  : ext, certificate extension.
+ * @param  : ext_len, certificate extension length.
+ * @param  : oid, oid to search.
+ * @param  : oid_len, oid length.
+ * @param  : val, value of oid.
+ * @param  : len, value length.
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 static int
 find_oid(const unsigned char *ext, size_t ext_len,
@@ -149,6 +136,13 @@ find_oid(const unsigned char *ext, size_t ext_len,
 	return 0;
 }
 
+/**
+ * @brief  : EVP decode block
+ * @param  : out, output buffer
+ * @param  : in, input buffer
+ * @param  : in_len , input buffer length
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 static int
 EVP_DecodeBlock_wrapper(unsigned char *out,
 	const unsigned char *in, int in_len)
@@ -169,6 +163,15 @@ EVP_DecodeBlock_wrapper(unsigned char *out,
 	return ret;
 }
 
+/**
+ * @brief  : Get extension
+ * @param  : crt, certificate
+ * @param  : oid
+ * @param  : oid_len , oid buffer length
+ * @param  : data, output buffer
+ * @param  : data_len , output buffer length
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 static int
 get_extension(const X509 *crt, const unsigned char *oid,
 		int oid_len, const unsigned char **data,
@@ -209,6 +212,13 @@ get_extension(const X509 *crt, const unsigned char *oid,
 	return 0;
 }
 
+/**
+ * @brief  : Get quote from report
+ * @param  : report, report info
+ * @param  : report_len, report length
+ * @param  : quote, output structure
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 static int
 get_quote_from_report(const uint8_t *report,
 		const int report_len, sgx_quote_t *quote)
@@ -253,6 +263,16 @@ get_quote_from_report(const uint8_t *report,
 	return 0;
 }
 
+/**
+ * @brief  : Get and decode extension
+ * @param  : crt, certificate
+ * @param  : oid
+ * @param  : oid_len , oid buffer length
+ * @param  : data, output buffer
+ * @param  : data_max_len, data max size
+ * @param  : data_len , output buffer length
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 static int
 get_and_decode_ext(const X509 *crt, const unsigned char *oid,
 		int oid_len, unsigned char *data, int data_max_len,
@@ -276,6 +296,12 @@ get_and_decode_ext(const X509 *crt, const unsigned char *oid,
 	return 0;
 }
 
+/**
+ * @brief  : Extract x509 extension
+ * @param  : crt, certificate
+ * @param  : attn_report, attestation verification report info
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 static int
 extract_x509_extensions(const X509 *crt,
 		attestation_verification_report_t *attn_report)
@@ -293,19 +319,12 @@ extract_x509_extensions(const X509 *crt,
 }
 
 /**
- * Verifies SGX's parameter from certificate
- * @param crt
- *	certificate.
- * @param mrenclave
- *	mrenclave value read from file
- * @param mrsigner
- *	mrsigner value read from file
- * @param isvsvn
- *	isvsvn value read from file
- *
- * @return
- *	0 - on success
- *	-1 - on failure
+ * @brief  : Verifies SGX's parameter from certificate
+ * @param  : crt, certificate.
+ * @param  : mrenclave, mrenclave value read from file
+ * @param  : mrsigner, mrsigner value read from file
+ * @param  : isvsvn, isvsvn value read from file
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 static int
 verify_sgx_crt_info(X509 *crt, const char *mrenclave,
@@ -330,21 +349,21 @@ verify_sgx_crt_info(X509 *crt, const char *mrenclave,
 	sgx_report_body_t *body = &quote.report_body;
 
 #if 1
-	printf("Certificate's SGX information: \n");
-	printf("MRENCLAVE = ");
+	clLog(clSystemLog, eCLSeverityDebug,"Certificate's SGX information: \n");
+	clLog(clSystemLog, eCLSeverityDebug,"MRENCLAVE = ");
 
 	for (int i = 0; i < SGX_HASH_SIZE; ++i)
-		printf("%02x", body->mr_enclave.m[i]);
-	printf("\n");
+		clLog(clSystemLog, eCLSeverityDebug,"%02x", body->mr_enclave.m[i]);
+	clLog(clSystemLog, eCLSeverityDebug,"\n");
 
-	printf("MRSIGNER  = ");
+	clLog(clSystemLog, eCLSeverityDebug,"MRSIGNER  = ");
 	for (int i = 0; i < SGX_HASH_SIZE; ++i)
-		printf("%02x", body->mr_signer.m[i]);
-	printf("\n");
+		clLog(clSystemLog, eCLSeverityDebug,"%02x", body->mr_signer.m[i]);
+	clLog(clSystemLog, eCLSeverityDebug,"\n");
 
-	printf("ISVSVN  = ");
-	printf("%02x\n", body->isv_svn);
-	printf("\n");
+	clLog(clSystemLog, eCLSeverityDebug,"ISVSVN  = ");
+	clLog(clSystemLog, eCLSeverityDebug,"%02x\n", body->isv_svn);
+	clLog(clSystemLog, eCLSeverityDebug,"\n");
 #endif
 
 	char cert_mr_enclave[SGX_HASH_SIZE * 2 + 1] = {0,};
@@ -358,7 +377,7 @@ verify_sgx_crt_info(X509 *crt, const char *mrenclave,
 	if ((strncmp(cert_mr_enclave, mrenclave, SGX_HASH_SIZE * 2) != 0) ||
 			(strncmp(cert_mr_signer, mrsigner, SGX_HASH_SIZE * 2) != 0) ||
 			(body->isv_svn != atoi(isvsvn))) {
-			RTE_LOG_DP(ERR, DP, "Not a trusted DealerIn, Disconnecting\n");
+			clLog(clSystemLog, eCLSeverityCritical, "Not a trusted DealerIn, Disconnecting\n");
 			return -1;
 	}
 
@@ -367,19 +386,12 @@ verify_sgx_crt_info(X509 *crt, const char *mrenclave,
 
 
 /**
- * Verify SGX's parameter from certificate
- * @param ssl
- *	certificate.
- * @param mrenclave
- *	mrenclave value read from file
- * @param mrsigner
- *	mrsigner value read from file
- * @param isvsvn
- *	isvsvn value read from file
- *
- * @return
- *	0 - on success
- *	-1 - on failure
+ * @brief  : Verify SGX's parameter from certificate
+ * @param  : ssl, certificate.
+ * @param  : mrenclave, mrenclave value read from file
+ * @param  : mrsigner, mrsigner value read from file
+ * @param  : isvsvn, isvsvn value read from file
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 static int
 verify_cert(SSL *ssl, const char *mrenclave,
@@ -390,12 +402,12 @@ verify_cert(SSL *ssl, const char *mrenclave,
 	cert = SSL_get_peer_certificate(ssl);
 
 	if (cert == NULL) {
-		RTE_LOG_DP(ERR, DP, "DealerIn failed to produce certificate\n");
+		clLog(clSystemLog, eCLSeverityCritical, "DealerIn failed to produce certificate\n");
 		return -1;
 	}
 
 	if (mrenclave == NULL || mrsigner == NULL) {
-		RTE_LOG_DP(ERR, DP,
+		clLog(clSystemLog, eCLSeverityCritical,
 				"SGX certificate of DealerIn will be ignored\n");
 		X509_free(cert);
 		return 0;
@@ -403,12 +415,12 @@ verify_cert(SSL *ssl, const char *mrenclave,
 
 	if (verify_sgx_crt_info(cert, mrenclave,
 				mrsigner, isvsvn) == -1) {
-		RTE_LOG_DP(ERR, DP,
+		clLog(clSystemLog, eCLSeverityCritical,
 				"SGX certificate verification of DealerIn failed\n");
 		X509_free(cert);
 		return -1;
 	}
-	printf("Connected to trusted SGX Dealer\n");
+	clLog(clSystemLog, eCLSeverityDebug,"Connected to trusted SGX Dealer\n");
 
 	X509_free(cert);
 
@@ -470,18 +482,18 @@ sgx_cdr_channel_init(const char *hostname, const char *portnum,
 
 	if (SSL_CTX_use_certificate_file(ctx, client_cert_path,
 				SSL_FILETYPE_PEM) <= 0) {
-		RTE_LOG_DP(ERR, DP, "Error in loading ssl certificate\n");
+		clLog(clSystemLog, eCLSeverityCritical, "Error in loading ssl certificate\n");
 		return NULL;
 	}
 
 	if (SSL_CTX_use_PrivateKey_file(ctx, priv_key_path,
 				SSL_FILETYPE_PEM) <= 0) {
-		RTE_LOG_DP(ERR, DP, "Error in loading private key\n");
+		clLog(clSystemLog, eCLSeverityCritical, "Error in loading private key\n");
 		return NULL;
 	}
 
 	if (!SSL_CTX_check_private_key(ctx)) {
-		RTE_LOG_DP(ERR, DP, "Private key and Certificate do not match\n");
+		clLog(clSystemLog, eCLSeverityCritical, "Private key and Certificate do not match\n");
 		return NULL;
 	}
 
@@ -489,7 +501,7 @@ sgx_cdr_channel_init(const char *hostname, const char *portnum,
 	SSL_set_fd(sslhandle, server);
 
 	if (SSL_connect(sslhandle) == SSL_CONN_FAIL) {
-		RTE_LOG_DP(ERR, DP, "Connection to DealerIn failed.");
+		clLog(clSystemLog, eCLSeverityCritical, "Connection to DealerIn failed.");
 		return NULL;
 	}
 

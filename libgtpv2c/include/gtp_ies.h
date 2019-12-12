@@ -510,7 +510,9 @@ typedef struct gtp_eps_bearer_id_ie_t {
 
 typedef struct gtp_ip_address_ie_t {
   ie_header_t header;
-  uint8_t ipv4_ipv6_addr;
+  /* TODO: Need to check */
+  //uint8_t ipv4_ipv6_addr;
+  uint32_t ipv4_ipv6_addr;
 } gtp_ip_address_ie_t;
 
 typedef struct gtp_mbl_equip_idnty_ie_t {
@@ -1177,7 +1179,8 @@ typedef struct gtp_fqcsid_ie_t {
   ie_header_t header;
   uint8_t node_id_type :4;
   uint8_t number_of_csids :4;
-  uint8_t node_id;
+  /* VS: Need to validate */
+  uint32_t node_address;
   uint16_t pdn_csid[PDN_CSID_LEN];
 } gtp_fqcsid_ie_t;
 

@@ -48,7 +48,13 @@
 //#include "meter.h"
 //#include "acl_dp.h"
 #include "commands.h"
+#include "gw_adapter.h"
+#include "clogger.h"
 
+
+/**
+ * @brief  : Maintains uplink packet data
+ */
 struct ul_pkt_struct {
 	uint64_t IfPKTS;
 	uint64_t IfMisPKTS;
@@ -61,6 +67,9 @@ struct ul_pkt_struct {
 	uint64_t GTP_ECHO;
 };
 
+/**
+ * @brief  : Maintains downlink packet data
+ */
 struct dl_pkt_struct {
 	uint64_t IfPKTS;
 	uint64_t IfMisPKTS;
@@ -78,6 +87,7 @@ struct ul_pkt_struct ul_param = { 0 };
 struct dl_pkt_struct dl_param = { 0 };
 uint8_t cnt = 0;
 #ifdef STATS
+
 void
 print_headers(void)
 {
@@ -155,7 +165,7 @@ pip_istats(struct rte_pipeline *p, char *name, uint8_t port_id, struct rte_pipel
 	status = rte_pipeline_port_in_stats_read(p, port_id, istats, 0);
 #endif /* STATS_CLR*/
 	if (status != 0)
-		printf(" Stats read error\n");
+		clLog(clSystemLog, eCLSeverityCritical," Stats read error\n");
 
 }
 
@@ -213,7 +223,7 @@ pip_ostats(struct rte_pipeline *p, char *name, uint8_t port_id, struct rte_pipel
 
 	status = rte_pipeline_port_out_stats_read(p, port_id, ostats, 0);
 	if (status != 0)
-		printf(" Stats read error\n");
+		clLog(clSystemLog, eCLSeverityDebug," Stats read error\n");
 }
 
 void
@@ -259,26 +269,26 @@ nic_in_stats(void)
 	case SGWU:
 		ret = rte_eth_stats_get(app.s1u_port, &stats0);
 		if (ret != 0)
-			fprintf(stderr, "Packets are not read from s1u port\n");
+			clLog(clSystemLog, eCLSeverityCritical, "Packets are not read from s1u port\n");
 		ret = rte_eth_stats_get(app.s5s8_sgwu_port, &stats1);
 		if (ret != 0)
-			fprintf(stderr, "Packets are not read from S5S8 port\n");
+			clLog(clSystemLog, eCLSeverityCritical, "Packets are not read from S5S8 port\n");
 		break;
 	case PGWU:
 		ret = rte_eth_stats_get(app.s5s8_pgwu_port, &stats0);
 		if (ret != 0)
-			fprintf(stderr, "Packets are not read from S5S8 port\n");
+			clLog(clSystemLog, eCLSeverityCritical, "Packets are not read from S5S8 port\n");
 		ret = rte_eth_stats_get(app.sgi_port, &stats1);
 		if (ret != 0)
-			fprintf(stderr, "Packets are not read from sgi port\n");
+			clLog(clSystemLog, eCLSeverityCritical, "Packets are not read from sgi port\n");
 		break;
 	case SAEGWU:
 		ret = rte_eth_stats_get(app.s1u_port, &stats0);
 		if (ret != 0)
-			fprintf(stderr, "Packets are not read from s1u port\n");
+			clLog(clSystemLog, eCLSeverityCritical, "Packets are not read from s1u port\n");
 		ret = rte_eth_stats_get(app.sgi_port, &stats1);
 		if (ret != 0)
-			fprintf(stderr, "Packets are not read from sgi port\n");
+			clLog(clSystemLog, eCLSeverityCritical, "Packets are not read from sgi port\n");
 		break;
 	default:
 			rte_exit(EXIT_FAILURE, "Invalid DP type(SPGW_CFG).\n");
@@ -304,6 +314,12 @@ nic_in_stats(void)
 #endif /*STATS*/
 
 #ifndef CMDLINE_STATS
+/**
+ * @brief  : Timer callback
+ * @param  : time, timer value, unused param
+ * @param  : arg, unused param
+ * @return : Returns nothing
+ */
 static void timer_cb(__attribute__ ((unused))
 		struct rte_timer *tim, __attribute__ ((unused))void *arg)
 {
@@ -330,12 +346,16 @@ static void timer_cb(__attribute__ ((unused))
 	if ((counter++) == 500) {
 		/* rte_timer_stop(tim); */
 	}
+
+    	/* CLI counter */
+    	oss_reset_time++;
+
 }
 #endif
 
 
 #define TIMER_RESOLUTION_CYCLES 20000000ULL	/* around 10ms at 2 Ghz */
-#define TIMER_INTERVAL 10 /* sec */
+#define TIMER_INTERVAL 1 /* sec */
 
 #ifndef CMDLINE_STATS
 static struct rte_timer timer0;
