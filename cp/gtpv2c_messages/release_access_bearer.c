@@ -75,6 +75,7 @@ process_release_access_bearer_request(gtpv2c_header *gtpv2c_rx,
 	if (ret)
 		return ret;
 
+	dp_id.id = release_access_bearer_request.context->dpId; 
 	set_release_access_bearer_response(gtpv2c_tx,
 			gtpv2c_rx->teid_u.has_teid.seq,
 			release_access_bearer_request.context);
