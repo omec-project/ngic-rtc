@@ -90,6 +90,7 @@ process_modify_bearer_request(gtpv2c_header *gtpv2c_rx,
 	if (ret < 0 || !context)
 		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 
+	dp_id.id = context->dpId;
 	if (!mb_req.bearer_context.ebi.header.len
 			|| !mb_req.bearer_context.s1u_enodeb_ftied.header.len) {
 			fprintf(stderr, "Dropping packet\n");
@@ -179,6 +180,7 @@ process_modify_bearer_request(gtpv2c_header *gtpv2c_rx,
 			context->s11_sgw_gtpc_teid,
 			bearer->eps_bearer_id);
 
+	/* Fetch subscriber using teid and then find the dpId */
 	if (session_modify(dp_id, session) < 0)
 		rte_exit(EXIT_FAILURE, "Bearer Session modify fail !!!");
 	return 0;

@@ -136,7 +136,7 @@ process_create_bearer_response(gtpv2c_header *gtpv2c_rx)
 	create_bearer_rsp.context->eps_bearers[ebi_index] =
 	    create_bearer_rsp.ded_bearer;
 
-	struct dp_id dp_id = { .id = DPN_ID };
+	struct dp_id dp_id = { .id = create_bearer_rsp.context->dpId };
 	/* using the s1u_sgw_gtpu_teid as unique identifier to the session */
 	struct session_info session;
 	memset(&session, 0, sizeof(session));
@@ -185,6 +185,9 @@ process_create_bearer_response(gtpv2c_header *gtpv2c_rx)
 	session.sess_id = SESS_ID(create_bearer_rsp.context->s11_sgw_gtpc_teid,
 				create_bearer_rsp.ded_bearer->eps_bearer_id);
 
+	/* TODO : new bearer should be created on the same DP. Pull the dpId from user context and 
+	* then send the bearer create to the same dp id. 	
+	*/
 	if (session_create(dp_id, session) < 0)
 		rte_exit(EXIT_FAILURE,"Bearer Session create fail !!!");
 

@@ -10,6 +10,7 @@
 #include "gtpv2c_messages.h"
 #include "gtpv2c_set_ie.h"
 #include "../cp_dp_api/vepc_cp_dp_api.h"
+#include "cp_config.h"
 
 #define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
 
@@ -335,7 +336,22 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 						bearer->eps_bearer_id);
 
 	struct dp_id dp_id = { .id = DPN_ID };
+	/* Take MCC/MNC from the CSReq ULI 
+	 * Make subscriber key 
+	*/
+	struct dp_key dpkey = {0};
+    dpkey.tac = csr.uli.tai.tac;
+    memcpy((void *)(&dpkey.mcc_mnc), (void *)(&csr.uli.tai.mcc_mnc), 3);
 
+	/* TODO : need to do similar things for PGW only */
+    uint64_t id = select_dp_for_key(&dpkey); 
+	if(id > 0)
+	{
+		/* We want to attach subscriber to this DP */ 
+		dp_id.id  = id; 
+	}
+
+	context->dpId = dp_id.id; 	
 	if (session_create(dp_id, session) < 0)
 		rte_exit(EXIT_FAILURE,"Bearer Session create fail !!!");
 	if (bearer->s11u_mme_gtpu_teid) {

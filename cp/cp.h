@@ -273,5 +273,14 @@ export_stats_report(struct sync_stats stats_info);
 void
 close_stats(void);
 #endif   /* SYNC_STATS */
+
+/* Callback function which is received when config file is updated 
+ * may be through helm Charts or any other means. 
+ */
+void config_change_cbk(char *config_file, uint32_t flags);
+
+/* Register for the watcher for the config update */
+void register_config_updates(void);
+
 /* ================================================================================= */
 #endif

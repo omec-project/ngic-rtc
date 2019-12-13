@@ -43,6 +43,7 @@
 #include "dp_ipc_api.h"
 #include "cp.h"
 #include "cp_stats.h"
+#include "cp_config.h"
 
 #ifdef ZMQ_COMM
 #include "gtpv2c_set_ie.h"
@@ -91,6 +92,11 @@ int s11_fd = -1;
 int s11_pcap_fd = -1;
 int s5s8_sgwc_fd = -1;
 int s5s8_pgwc_fd = -1;
+
+/* We should move all the config inside this structure eventually 
+ * config is scattered all across the place as of now 
+ */
+struct app_config *appl_config=NULL; 
 
 pcap_dumper_t *pcap_dumper;
 pcap_t *pcap_reader;
@@ -271,6 +277,7 @@ parse_arg(int argc, char **argv)
 	}
 }
 
+/* TODO : we should get dp_id as argument */
 void
 initialize_tables_on_dp(void)
 {
@@ -474,6 +481,14 @@ init_cp(void)
 	init_packet_filters();
 	parse_adc_rules();
 #endif
+
+	appl_config = (struct app_config *) calloc(1, sizeof(struct app_config));
+
+	/* Parse initial configuration file */
+	init_spgwc_dynamic_config(appl_config); 
+
+	/* Lets register config change hook */
+	register_config_updates();
 
 	create_ue_hash();
 }
@@ -1417,6 +1432,7 @@ main(int argc, char **argv)
 
 	if (cp_params.stats_core_id != RTE_MAX_LCORE)
 		rte_eal_remote_launch(do_stats, NULL, cp_params.stats_core_id);
+
 
 #ifdef SIMU_CP
 	if (cp_params.simu_core_id != RTE_MAX_LCORE)
