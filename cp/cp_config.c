@@ -12,17 +12,23 @@
 #include "cp.h"
 #include "cp_config.h"
 #include <rte_cfgfile.h>
+#include <rte_log.h>
 
-		void 
+#ifndef RTE_LOGTYPE_CP
+#define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
+#endif
+
+void
 config_change_cbk(char *config_file, uint32_t flags)
 {
-	fprintf(stderr, "Received %s . File %s Flags %x \n", __FUNCTION__, config_file, flags);
+	RTE_LOG_DP(INFO, CP, "Received %s. File %s flags: %x\n",
+		   __FUNCTION__, config_file, flags);
 
 	/* Move the updated config to standard path */
-	char cmd[256]; 
-	sprintf(cmd, "cp %s %s",CP_CONFIG_ETC_PATH, CP_CONFIG_OPT_PATH);
+	static char cmd[256];
+	sprintf(cmd, "cp %s %s", CP_CONFIG_ETC_PATH, CP_CONFIG_OPT_PATH);
 	int ret = system(cmd);
-	fprintf(stderr,"system call return value %d", ret);
+	RTE_LOG_DP(INFO, CP, "system call return value: %d", ret);
 
 	/* We dont expect quick updates from configmap..One update per interval. Typically 
 	 * worst case 60 seconds for 1 config update. Updates are clubbed and dont come frequent 
@@ -33,6 +39,9 @@ config_change_cbk(char *config_file, uint32_t flags)
 	/* Lets first parse the current app_config.cfg file  */
 	struct app_config *new_cfg;
 	new_cfg = (struct app_config *) calloc(1, sizeof(struct app_config));
+	if (new_cfg == NULL) {
+		rte_exit(EXIT_FAILURE, "Failed to allocate memory for new_cfg!\n");
+	}
 
 	init_spgwc_dynamic_config(new_cfg);
 	/* Now compare whats changed and update our global application config */
@@ -54,12 +63,12 @@ config_change_cbk(char *config_file, uint32_t flags)
 	appl_config = new_cfg; 
 	struct dp_info *np; 
 	np = LIST_FIRST(&old_config->dpList);
-	while(np != NULL)
-	{
-			free(np);	
-			np = LIST_FIRST(&old_config->dpList);
+	while (np != NULL) {
+		LIST_REMOVE(np, dpentries);
+		free(np);
+		np = LIST_FIRST(&old_config->dpList);
 	}
-	free(old_config); 
+	free(old_config);
 
 	/* Everytime we add new config we need to add code here. How to react to config change  */
 }
@@ -82,91 +91,87 @@ init_spgwc_dynamic_config(struct app_config *cfg )
 	LIST_INIT(&cfg->dpList);
 
 	struct rte_cfgfile *file = rte_cfgfile_load(APP_CONFIG_FILE, 0);
-	if (NULL == file)
-	{
-		fprintf(stderr, "App config file is missing, ignore error...");
+	if (NULL == file) {
+		RTE_LOG_DP(ERR, CP, "App config file is missing, ignore error...\n");
 		return;
 	}
 
 	entry = rte_cfgfile_get_entry(file, "GLOBAL", "NUM_DP_SELECTION_RULES");
-	{
-		fprintf(stderr, "NUM_DP_SELECTION_RULES missing from app_config.cfg file, abort parsing");
+	if (entry == NULL) {
+		RTE_LOG_DP(ERR, CP, "NUM_DP_SELECTION_RULES missing from app_config.cfg file, abort parsing\n");
 		return;
 	}
 	num_dp_selection_rules = atoi(entry);
 
-	for(index = 0; index <num_dp_selection_rules; index++)
-	{
-		char sectionname[64] = {0};
+	for (index = 0; index <num_dp_selection_rules; index++) {
+		static char sectionname[64] = {0};
 		struct dp_info *dpInfo = NULL;
 		dpInfo = (struct dp_info *)calloc(1, sizeof(struct dp_info));
 
+		if (dpInfo == NULL) {
+			RTE_LOG_DP(ERR, CP, "Could not allocate memory for dpInfo!\n");
+			return;
+		}
 		snprintf(sectionname, sizeof(sectionname),
-						"DP_SELECTION_RULES_%u", index);
+			 "DP_SELECTION_RULES_%u", index);
 		entry = rte_cfgfile_get_entry(file, sectionname, "DPID");
-		if (entry)
-		{
+		if (entry) {
 			dpInfo->dpId = atoi(entry);
-		} 
-		else 
-			fprintf(stderr, "DPID not found in the configuration file");
+		} else {
+			RTE_LOG_DP(ERR, CP, "DPID not found in the configuration file\n");
+		}
 
 		entry = rte_cfgfile_get_entry(file, sectionname, "DPNAME");
-		if (entry)
-		{
+		if (entry) {
 			strncpy(dpInfo->dpName, entry, DP_SITE_NAME_MAX);
-		} 		
-		else
-			fprintf(stderr, "DPNAME not found in the configuration file");
+		} else {
+			RTE_LOG_DP(ERR, CP, "DPNAME not found in the configuration file\n");
+		}
 
 		entry = rte_cfgfile_get_entry(file, sectionname, "MCC");
-		if (entry)
-		{
-			// TODO : handle 2 digit mcc, mnc 
+		if (entry) {
+			// TODO : handle 2 digit mcc, mnc
 			dpInfo->key.mcc_mnc.mcc_digit_1 = (unsigned char )entry[0];
 			dpInfo->key.mcc_mnc.mcc_digit_2 = (unsigned char )entry[1];
 			dpInfo->key.mcc_mnc.mcc_digit_3 = (unsigned char )entry[2];
-		} 		
-		else
-			fprintf(stderr, "MCC not found in the configuration file");
+		} else {
+			RTE_LOG_DP(ERR, CP, "MCC not found in the configuration file\n");
+		}
 
 		entry = rte_cfgfile_get_entry(file, sectionname, "MNC");
-		if (entry)
-		{
+		if (entry) {
 			dpInfo->key.mcc_mnc.mnc_digit_1 = (unsigned char )entry[0];
 			dpInfo->key.mcc_mnc.mnc_digit_2 = (unsigned char )entry[1];
 			dpInfo->key.mcc_mnc.mnc_digit_3 = (unsigned char )entry[2];
-		} 
-		else
-			fprintf(stderr, "MNC not found in the configuration file");
+		} else {
+			RTE_LOG_DP(ERR, CP, "MNC not found in the configuration file\n");
+		}
 
 		entry = rte_cfgfile_get_entry(file, sectionname, "TAC");
-		if (entry)
-		{
+		if (entry) {
 			dpInfo->key.tac = atoi(entry);
-		} 
-		else
-			fprintf(stderr, "TAC not found in the configuration file");
+		} else {
+			RTE_LOG_DP(ERR, CP, "TAC not found in the configuration file\n");
+		}
 		LIST_INSERT_HEAD(&cfg->dpList, dpInfo, dpentries);
 	}
 	return;
-} 
+}
 
 /* Given key find the DP. Once DP is found then return its dpId */
 uint64_t 
 select_dp_for_key(struct dp_key *key)
 {
-	fprintf(stderr, "Key - MCC = %d%d%d MNC %d%d%d TAC = %d", key->mcc_mnc.mcc_digit_1, 
-					key->mcc_mnc.mcc_digit_2, key->mcc_mnc.mcc_digit_3, key->mcc_mnc.mnc_digit_1, 
-					key->mcc_mnc.mnc_digit_2, key->mcc_mnc.mnc_digit_3, key->tac);
+	RTE_LOG_DP(INFO, CP, "Key - MCC = %d%d%d MNC %d%d%d TAC = %d", key->mcc_mnc.mcc_digit_1,
+		   key->mcc_mnc.mcc_digit_2, key->mcc_mnc.mcc_digit_3, key->mcc_mnc.mnc_digit_1,
+		   key->mcc_mnc.mnc_digit_2, key->mcc_mnc.mnc_digit_3, key->tac);
 
-	struct dp_info *np; 
-	LIST_FOREACH(np, &appl_config->dpList, dpentries)
-	{
+	struct dp_info *np;
+	LIST_FOREACH(np, &appl_config->dpList, dpentries) {
 		if(bcmp((void *)(&np->key.mcc_mnc), (void *)(&key->mcc_mnc), 3) != 0)
-				continue;
+			continue;
 		if(np->key.tac != key->tac)
-				continue;
+			continue;
 		return np->dpId;
 	}
 	return DPN_ID; /* 0 is invalid DP */ 
