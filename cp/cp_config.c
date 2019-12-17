@@ -13,6 +13,7 @@
 #include "cp_config.h"
 #include <rte_cfgfile.h>
 #include <rte_log.h>
+#include <rte_debug.h>
 
 #ifndef RTE_LOGTYPE_CP
 #define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
@@ -103,7 +104,7 @@ init_spgwc_dynamic_config(struct app_config *cfg )
 	}
 	num_dp_selection_rules = atoi(entry);
 
-	for (index = 0; index <num_dp_selection_rules; index++) {
+	for (index = 0; index < num_dp_selection_rules; index++) {
 		static char sectionname[64] = {0};
 		struct dp_info *dpInfo = NULL;
 		dpInfo = (struct dp_info *)calloc(1, sizeof(struct dp_info));
@@ -113,7 +114,7 @@ init_spgwc_dynamic_config(struct app_config *cfg )
 			return;
 		}
 		snprintf(sectionname, sizeof(sectionname),
-			 "DP_SELECTION_RULES_%u", index);
+			 "DP_SELECTION_RULE_%u", index + 1);
 		entry = rte_cfgfile_get_entry(file, sectionname, "DPID");
 		if (entry) {
 			dpInfo->dpId = atoi(entry);
@@ -159,10 +160,10 @@ init_spgwc_dynamic_config(struct app_config *cfg )
 }
 
 /* Given key find the DP. Once DP is found then return its dpId */
-uint64_t 
+uint32_t
 select_dp_for_key(struct dp_key *key)
 {
-	RTE_LOG_DP(INFO, CP, "Key - MCC = %d%d%d MNC %d%d%d TAC = %d", key->mcc_mnc.mcc_digit_1,
+	RTE_LOG_DP(INFO, CP, "Key - MCC = %d%d%d MNC %d%d%d TAC = %d\n", key->mcc_mnc.mcc_digit_1,
 		   key->mcc_mnc.mcc_digit_2, key->mcc_mnc.mcc_digit_3, key->mcc_mnc.mnc_digit_1,
 		   key->mcc_mnc.mnc_digit_2, key->mcc_mnc.mnc_digit_3, key->tac);
 
@@ -175,4 +176,51 @@ select_dp_for_key(struct dp_key *key)
 		return np->dpId;
 	}
 	return DPN_ID; /* 0 is invalid DP */ 
+}
+
+uint8_t
+resolve_upf_context_to_dpInfo(struct upf_context *upf, char *hostname, struct in_addr s1u_sgw_ip)
+{
+	struct dp_info *dp;
+	LIST_FOREACH(dp, &appl_config->dpList, dpentries) {
+		if (!strcmp(hostname, dp->dpName)) {
+			dp->upf = upf;
+			dp->s1u_sgw_ip = s1u_sgw_ip;
+			return 1;
+		}
+	}
+	return 0;
+}
+
+struct in_addr
+fetch_s1u_sgw_ip(uint32_t dpId)
+{
+	struct dp_info *dp;
+	struct in_addr a = { .s_addr = 0 };
+	LIST_FOREACH(dp, &appl_config->dpList, dpentries) {
+		if (dpId == dp->dpId) {
+			return dp->s1u_sgw_ip;
+		}
+	}
+
+	rte_panic("Could not find s1u ip address for dpid: %u\n", dpId);
+	rte_exit(EXIT_FAILURE, "Could not find s1u ip address for dpid: %u\n", dpId);
+	/* control should never reach here */
+	RTE_SET_USED(a);
+	return a;
+}
+
+struct upf_context *
+fetch_upf_context(uint32_t dpId)
+{
+	struct dp_info *dp;
+	LIST_FOREACH(dp, &appl_config->dpList, dpentries) {
+		if (dpId == dp->dpId) {
+			return dp->upf;
+		}
+	}
+
+	rte_panic("Could not find upf_context for dpid: %u\n", dpId);
+	/* control should never reach here */
+	return NULL;
 }

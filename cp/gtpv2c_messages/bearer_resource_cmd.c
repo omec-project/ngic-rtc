@@ -5,6 +5,9 @@
 #include <rte_errno.h>
 
 #include "gtpv2c_set_ie.h"
+#if defined(ZMQ_COMM) && defined(MULTI_UPFS)
+#include "cp_config.h"
+#endif
 
 #define DEFAULT_BEARER_QOS_PRIORITY (15)
 
@@ -385,11 +388,20 @@ set_create_bearer_request(gtpv2c_header *gtpv2c_tx, uint32_t sequence,
 			set_bearer_qos_ie(gtpv2c_tx, IE_INSTANCE_ZERO, bearer));
 		add_grouped_ie_length(bearer_context_group,
 			set_bearer_tft_ie(gtpv2c_tx, IE_INSTANCE_ZERO, bearer));
+#if defined(ZMQ_COMM) && defined(MULTI_UPFS)
+		add_grouped_ie_length(bearer_context_group,
+			set_ipv4_fteid_ie(gtpv2c_tx,
+				GTPV2C_IFTYPE_S1U_SGW_GTPU,
+				IE_INSTANCE_ZERO,
+				fetch_s1u_sgw_ip(context->dpId),
+				bearer->s1u_sgw_gtpu_teid));
+#else
 		add_grouped_ie_length(bearer_context_group,
 			set_ipv4_fteid_ie(gtpv2c_tx,
 				GTPV2C_IFTYPE_S1U_SGW_GTPU,
 				IE_INSTANCE_ZERO,
 				s1u_sgw_ip, bearer->s1u_sgw_gtpu_teid));
+#endif
 	}
 }
 
@@ -449,7 +461,11 @@ create_dedicated_bearer(gtpv2c_header *gtpv2c_rx,
 
 	set_s1u_sgw_gtpu_teid(ded_bearer, brc->context);
 
+#if defined(ZMQ_COMM) && defined(MULTI_UPFS)
+	ded_bearer->s1u_sgw_gtpu_ipv4 = fetch_s1u_sgw_ip(brc->context->dpId);
+#else
 	ded_bearer->s1u_sgw_gtpu_ipv4 = s1u_sgw_ip;
+#endif
 	ded_bearer->pdn = brc->pdn;
 	memcpy(&ded_bearer->qos.qos, &fqos->qos, sizeof(qos_segment));
 	/* default values - to be considered later */

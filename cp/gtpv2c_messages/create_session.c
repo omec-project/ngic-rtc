@@ -10,7 +10,9 @@
 #include "gtpv2c_messages.h"
 #include "gtpv2c_set_ie.h"
 #include "../cp_dp_api/vepc_cp_dp_api.h"
+#if defined(ZMQ_COMM) && defined(MULTI_UPFS)
 #include "cp_config.h"
+#endif
 
 #define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
 
@@ -81,7 +83,11 @@ set_create_session_response(gtpv2c_header *gtpv2c_tx,
 
 		} else {
 //			ip.s_addr = ntohl(s1u_sgw_ip.s_addr);
+#if defined(ZMQ_COMM) && defined(MULTI_UPFS)
+			ip.s_addr = htonl(bearer->s1u_sgw_gtpu_ipv4.s_addr);
+#else
 			ip.s_addr = htonl(s1u_sgw_ip.s_addr);
+#endif
 		    set_ipv4_fteid(&cs_resp.bearer_context.s1u_sgw_ftied,
 			GTPV2C_IFTYPE_S1U_SGW_GTPU,
 				IE_INSTANCE_ZERO, ip,
@@ -118,6 +124,7 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 	int ret;
 	static uint32_t process_sgwc_s5s8_cs_req_cnt;
 	static uint32_t process_spgwc_s11_cs_res_cnt;
+	uint32_t dataplane_id = 0;
 
 	ret = decode_create_session_request_t((uint8_t *) gtpv2c_rx,
 			&csr);
@@ -227,7 +234,20 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 		bearer->qos.qos.dl_gbr =
 			csr.bearer_context.bearer_qos.guaranteed_bit_rate_for_downlink;
 
+#if defined(ZMQ_COMM) && defined(MULTI_UPFS)
+		/* Take MCC/MNC from the CSReq ULI
+		 * Make subscriber key
+		 */
+		struct dp_key dpkey = {0};
+		dpkey.tac = csr.uli.tai.tac;
+		memcpy((void *)(&dpkey.mcc_mnc), (void *)(&csr.uli.tai.mcc_mnc), 3);
+
+		/* TODO : need to do similar things for PGW only */
+		dataplane_id = select_dp_for_key(&dpkey);
+		bearer->s1u_sgw_gtpu_ipv4 = fetch_s1u_sgw_ip(dataplane_id);
+#else
 		bearer->s1u_sgw_gtpu_ipv4 = s1u_sgw_ip;
+#endif
 		set_s1u_sgw_gtpu_teid(bearer, context);
 		bearer->s5s8_sgw_gtpu_ipv4 = s5s8_sgwu_ip;
 		/* Note: s5s8_sgw_gtpu_teid based s11_sgw_gtpc_teid
@@ -336,18 +356,10 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 						bearer->eps_bearer_id);
 
 	struct dp_id dp_id = { .id = DPN_ID };
-	/* Take MCC/MNC from the CSReq ULI
-	 * Make subscriber key
-	 */
-	struct dp_key dpkey = {0};
-	dpkey.tac = csr.uli.tai.tac;
-	memcpy((void *)(&dpkey.mcc_mnc), (void *)(&csr.uli.tai.mcc_mnc), 3);
 
-	/* TODO : need to do similar things for PGW only */
-	uint64_t id = select_dp_for_key(&dpkey);
-	if (id > 0) {
+	if (dataplane_id > 0) {
 		/* We want to attach subscriber to this DP */
-		dp_id.id  = id;
+		dp_id.id  = dataplane_id;
 	}
 	context->dpId = dp_id.id;
 

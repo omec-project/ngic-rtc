@@ -199,7 +199,7 @@ int process_comm_msg(void *buf)
 		switch(rbuf->mtype) {
 			case MSG_SESS_CRE: {
 				resp.op_id = rbuf->msg_union.sess_entry.op_id;
-				resp.dp_id.id = DPN_ID;
+				resp.dp_id.id = rbuf->dp_id.id;
 				resp.mtype = DPN_RESPONSE;
 				resp.sess_id = rbuf->msg_union.sess_entry.sess_id;
 #if defined (CP_BUILD) && defined (MULTI_UPFS)
@@ -212,7 +212,7 @@ int process_comm_msg(void *buf)
 			}
 			case MSG_SESS_MOD: {
 				resp.op_id = rbuf->msg_union.sess_entry.op_id;
-				resp.dp_id.id = DPN_ID;
+				resp.dp_id.id = rbuf->dp_id.id;
 				resp.mtype = DPN_RESPONSE;
 				resp.sess_id = rbuf->msg_union.sess_entry.sess_id;
 #if defined (CP_BUILD) && defined (MULTI_UPFS)
@@ -225,7 +225,7 @@ int process_comm_msg(void *buf)
 			}
 			case MSG_SESS_DEL: {
 				resp.op_id = rbuf->msg_union.sess_entry.op_id;
-				resp.dp_id.id = DPN_ID;
+				resp.dp_id.id = rbuf->dp_id.id;
 				resp.mtype = DPN_RESPONSE;
 				resp.sess_id = rbuf->msg_union.sess_entry.sess_id;
 #if defined (CP_BUILD) && defined (MULTI_UPFS)
@@ -256,7 +256,8 @@ void
 send_dp_credentials(void)
 {
 	static char addr_string[128] = {0};
-	uint64_t msg_bundle = 0;
+	static char hostname[256] = {0};
+	struct reg_msg_bundle rmb;
 	/* setting up ZMQ-based sockets */
 	void *context = zmq_ctx_new();
 	void *requester = zmq_socket(context, ZMQ_REQ);
@@ -270,13 +271,18 @@ send_dp_credentials(void)
 
 	RTE_LOG_DP(INFO, API, "Iface: sent join request. Waiting for response\n");
 
+	/* get hostname */
+	if (gethostname(hostname, sizeof(hostname)) == -1) {
+		rte_exit(EXIT_FAILURE, "Unable to retreive hostname of DP!\n");
+	}
+
 	/* build message */
-	/* Put DP's IP in the first 32 B; Put S1U's IP address to the last 32 B */
-	msg_bundle = (((uint64_t)dp_comm_ip.s_addr) << (sizeof(dp_comm_ip) * CHAR_BIT));
-	msg_bundle = (msg_bundle) | app.s1u_ip;
+	rmb.dp_comm_ip.s_addr = dp_comm_ip.s_addr;
+	rmb.s1u_ip.s_addr = app.s1u_ip;
+	strncpy(rmb.hostname, hostname, sizeof(hostname));
 
 	/* send request */
-	if (zmq_send(requester, (void *)&msg_bundle, sizeof(msg_bundle), 0) == -1) {
+	if (zmq_send(requester, (void *)&rmb, sizeof(rmb), 0) == -1) {
 		rte_exit(EXIT_FAILURE, "Iface: failed to send registration request to CP!\n");
 	}
 	/* get response */
@@ -359,16 +365,13 @@ check_for_new_dps(void)
 {
 	struct in_addr a;
 	uint32_t addr;
-	uint64_t msg_bundle;
+	struct reg_msg_bundle msg_bundle;
 	memset(&addr, 0, sizeof(addr));
-	msg_bundle = 0;
 	/* receive request */
 	int n = zmq_recv(dp_sock, &msg_bundle, sizeof(msg_bundle), 0);
 	assert(n != -1);
-	/* DP's IP in the first 32 B; S1U's IP address to the last 32 B */
-	addr = (uint32_t)(msg_bundle >> (sizeof(addr) * CHAR_BIT));
-	a.s_addr = addr;
-	s1u_sgw_ip.s_addr = (msg_bundle & 0xFFFFFFFF);
+	a.s_addr = msg_bundle.dp_comm_ip.s_addr;
+	s1u_sgw_ip.s_addr = msg_bundle.s1u_ip.s_addr;
 	RTE_SET_USED(a);
 	uint8_t done = 0;
 
@@ -436,18 +439,43 @@ check_for_new_dps(void)
 #endif
 			/* add the pull descriptor to poll list */
 			zmq_items[upf_count].socket = upc->zmqpull_sockcet;
-			zmq_items[upf_count].events = ZMQ_POLLIN;
+			zmq_items[upf_count].events = ZMQ_POLLIN | ZMQ_POLLERR;
+			/* add zmq descriptor index to upc */
+			upc->zmq_desc = upf_count;
 		} else {
 			rte_exit(EXIT_FAILURE, "Can't allocate memory for upc!\n");
 		}
 		assert(zmq_send(dp_sock, &cp_comm_port, (size_t)2, 0) != -1);
 		/* send packet filter to registered upf */
 		init_pkt_filter_for_dp();
+		/* resolve upf context to dpInfo */
+		if (resolve_upf_context_to_dpInfo(upc, msg_bundle.hostname, s1u_sgw_ip) == 0) {
+			rte_exit(EXIT_FAILURE, "Registered DP entry does not exist in app_config!!\n");
+		}
 	}
 	/* re-initialize registration socket */
 	zmq_close(dp_sock);
 	zmq_ctx_destroy(dp_sock_context);
 	init_dp_sock();
+}
+
+/**
+ *
+ */
+struct upf_context *
+fetch_upf_context_via_desc(uint32_t desc)
+{
+	struct upf_context *upf = NULL;
+
+	TAILQ_FOREACH(upf, &upf_list, entries) {
+		if (upf->zmq_desc == desc)
+			return upf;
+	}
+
+	RTE_LOG_DP(ERR, API, "Can't find the right upf for the zmq epoll event on desc %u\n",
+		   desc);
+
+	return NULL;
 }
 
 /* Definitions change since we need to tell which upf contexts need to be used */
