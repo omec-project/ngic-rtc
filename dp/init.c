@@ -217,10 +217,18 @@ init_af_socks()
 
 		switch (port) {
 		case S1U_PORT_VETH_ID:
-			ifidx = if_nametoindex(app.ul_iface_name);
+			if (app.no_veth == 0) {
+				ifidx = if_nametoindex(app.ul_iface_name);
+			} else {
+				strcpy(peer_ifname, app.ul_iface_name);
+			}
 			break;
 		case SGI_PORT_VETH_ID:
-			ifidx = if_nametoindex(app.dl_iface_name);
+			if (app.no_veth == 0) {
+				ifidx = if_nametoindex(app.dl_iface_name);
+			} else {
+				strcpy(peer_ifname, app.dl_iface_name);
+			}
 			break;
 		default:
 			rte_panic("Unknown port_id: %hu\n", port);
@@ -229,8 +237,11 @@ init_af_socks()
 		if (ifidx == 0)
 			rte_panic("Failed to retrieve ifidx for port: %hu\n", port);
 		/* create full string for net_af_packet */
-		if (if_indextoname(ifidx - 1, peer_ifname) == NULL)
-			rte_panic("Failed to retrieve interface name of peer veth\n");
+		if (app.no_veth == 0) {
+			if (if_indextoname(ifidx - 1, peer_ifname) == NULL)
+				rte_panic("Failed to retrieve interface name of peer veth\n");
+		}
+
 		sprintf(dev_name, "net_af_packet%d,iface=%s", port, peer_ifname);
 
 		retval = rte_eth_dev_attach(dev_name, &port);

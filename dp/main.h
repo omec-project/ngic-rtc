@@ -409,6 +409,7 @@ struct app_params {
 	uint32_t ports_mask;
 	char ul_iface_name[MAX_LEN];
 	char dl_iface_name[MAX_LEN];
+	uint32_t no_veth;
 	enum dp_config spgw_cfg;
 	struct ether_addr s1u_ether_addr;		/* s1u mac addr */
 	struct ether_addr s5s8_sgwu_ether_addr;	/* s5s8_sgwu mac addr */

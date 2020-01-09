@@ -335,6 +335,7 @@ parse_config_args(struct app_params *app, int argc, char **argv)
 		{"kni_portmask", required_argument, 0, 'p'},
 		{"ul_iface", required_argument, 0, 'b'},
 		{"dl_iface", required_argument, 0, 'c'},
+		{"no_veth", optional_argument, 0, 't'},
 		{NULL, 0, 0, 0}
 	};
 
@@ -621,6 +622,9 @@ parse_config_args(struct app_params *app, int argc, char **argv)
 			memcpy(app->dl_iface_name, optarg, RTE_KNI_NAMESIZE);
 			break;
 
+		case 't':
+			app->no_veth = 1;
+			break;
 		default:
 			dp_print_usage();
 			return -1;
