@@ -65,8 +65,26 @@ extern uint16_t cp_comm_port;
 extern struct in_addr cp_nb_ip;
 extern uint16_t cp_nb_port;
 extern struct in_addr s1u_sgw_ip;
+#ifndef TAILQ_END
+#define TAILQ_END(head)		(NULL)
+#endif
+
+#ifndef TAILQ_FOREACH_SAFE
+#define TAILQ_FOREACH_SAFE(var, head, field, next)			\
+	for ((var) = ((head)->tqh_first);				\
+	     (var) != TAILQ_END(head) &&				\
+		     ((next) = TAILQ_NEXT(var, field), 1); (var) = (next))
+#endif
 /* head of the dp list */
 TAILQ_HEAD(, upf_context) upf_list;
+/**
+ * @brief
+ * If upf is lost, delete it's entry from CP completely
+ * @param upf
+ *	upf - ptr to zmq_pull_ifconnect
+ * @return
+ */
+void delete_upf(char *zp_ifconnect);
 /**
  * @brief
  * Used by CP to check for new DP registration requests

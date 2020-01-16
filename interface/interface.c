@@ -358,7 +358,34 @@ init_dp_sock(void)
 }
 
 /**
- * Called right after zmq_poll if an event is obsered on descriptor `0`
+ * Called right after zmq_poll if a err event is observed on registered upf
+ */
+void
+delete_upf(char *zp_ifconnect)
+{
+	struct upf_context *item;
+	struct upf_context *item_temp;
+
+	TAILQ_FOREACH_SAFE(item, &upf_list, entries, item_temp) {
+		if (!strcmp(item->zmq_pull_ifconnect, zp_ifconnect)) {
+			/* close contexts and sockets */
+			active_comm_msg->destroy(item);
+			/* remove upf from the list */
+			TAILQ_REMOVE(&upf_list, item, entries);
+
+			/* update zmq_items */
+			int i;
+			for (i = item->zmq_desc; i < upf_count - 1; i++)
+				zmq_items[i] = zmq_items[i + 1];
+			/* decrement upf_count */
+			upf_count--;
+			fprintf(stderr, "Deleting DP.\n");
+			rte_free(item);
+		}
+	}
+}
+/**
+ * Called right after zmq_poll if an event is observed on descriptor `0`
  */
 void
 check_for_new_dps(void)
@@ -398,6 +425,8 @@ check_for_new_dps(void)
 				 "%s://%s:%u", "tcp", inet_ntoa(a), zmq_cp_push_port);
 #endif
 			fprintf(stderr, "%s\n", upc->zmq_push_ifconnect);
+			/* delete upf if it's entry already exists */
+			delete_upf(upc->zmq_pull_ifconnect);
 			upf_count++;
 			TAILQ_INSERT_HEAD(&upf_list, upc, entries);
 			/* Socket to talk to Client */
@@ -485,8 +514,12 @@ zmq_cp_init_socket(void)
 	/*
 	 * zmqpull/zmqpush init
 	 */
-	zmq_pull_create();
-	return zmq_push_create();
+	if (zmq_pull_create() != 0)
+		RTE_LOG_DP(ERR, API, "ZMQ Server failed!\n");
+	if (zmq_push_create() != 0)
+		RTE_LOG_DP(ERR, API, "ZMQ Client failed!\n");
+
+	return 0;
 }
 
 static int
