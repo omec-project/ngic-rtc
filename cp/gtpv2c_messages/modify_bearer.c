@@ -57,7 +57,11 @@ set_modify_bearer_response(gtpv2c_header *gtpv2c_tx,
 	mb_resp.bearer_context.header.len += sizeof(uint8_t) + IE_HEADER_SIZE;
 
 	struct in_addr ip;
+#if defined(ZMQ_COMM) && defined(MULTI_UPFS)
+	ip.s_addr = htonl(fetch_s1u_sgw_ip(context->dpId).s_addr);
+#else
 	ip.s_addr = htonl(s1u_sgw_ip.s_addr);
+#endif
 	set_ipv4_fteid(&mb_resp.bearer_context.s1u_sgw_ftied,
 			GTPV2C_IFTYPE_S1U_SGW_GTPU, IE_INSTANCE_ZERO, ip,
 			htonl(bearer->s1u_sgw_gtpu_teid));

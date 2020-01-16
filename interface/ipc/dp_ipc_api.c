@@ -20,6 +20,7 @@
 #include "udp/vepc_udp.h"
 #include "dp_ipc_api.h"
 #if defined(CP_BUILD) && defined(ZMQ_COMM) && defined(MULTI_UPFS)
+/* Header file inserted for zmq_poll logistics */
 #include "zmq_push_pull.h"
 #endif
 
@@ -58,18 +59,22 @@ int iface_remove_que(enum cp_dp_comm id)
 		int i = 1;
 		/* + 1 to account for the registration socket */
 		rc = zmq_poll(zmq_items, upf_count + 1, -1);
-		if (rc <= 0)
+		if (rc <= 0) {
+			RTE_LOG_DP(ERR, API, "zmq_poll returned %d\n", rc);
 			return rc;
+		}
 		/* register for new dps */
 		if (zmq_items[0].revents & ZMQ_POLLIN)
 			check_for_new_dps();
-		/* process remaining upfs */
-		TAILQ_FOREACH(upf, &upf_list, entries) {
+		/* process remaining upfs; iterate through all upfs fds and process msgs  */
+		for (i = 1; i <= upf_count; i++) {
 			if ((zmq_items[i].revents & ZMQ_POLLIN)) {
-				rc = comm_node[id].recv(upf, (void *)&r_buf, sizeof(struct resp_msgbuf));
-				process_resp_msg((void *)&r_buf);
+				upf = fetch_upf_context_via_desc(i);
+				if (upf != NULL) {
+					rc = comm_node[id].recv(upf, (void *)&r_buf, sizeof(struct resp_msgbuf));
+					process_resp_msg((void *)&r_buf);
+				}
 			}
-			i++;
 		}
 #else
 		rc = comm_node[id].recv((void *)&r_buf, sizeof(struct resp_msgbuf));

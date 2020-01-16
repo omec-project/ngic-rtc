@@ -96,7 +96,7 @@ int s5s8_pgwc_fd = -1;
 /* We should move all the config inside this structure eventually 
  * config is scattered all across the place as of now 
  */
-struct app_config *appl_config=NULL; 
+struct app_config *appl_config = NULL;
 
 pcap_dumper_t *pcap_dumper;
 pcap_t *pcap_reader;
@@ -277,7 +277,8 @@ parse_arg(int argc, char **argv)
 	}
 }
 
-/* TODO : we should get dp_id as argument */
+/* TODO : we should get dp_id as argument. CP_DP_TABLE_CONFIG is never enabled */
+/* XXX: need to figure out whether this can be deleted */
 void
 initialize_tables_on_dp(void)
 {
@@ -483,9 +484,12 @@ init_cp(void)
 #endif
 
 	appl_config = (struct app_config *) calloc(1, sizeof(struct app_config));
+	if (appl_config == NULL) {
+		rte_exit(EXIT_FAILURE, "Can't allocate memory for appl_config!\n");
+	}
 
 	/* Parse initial configuration file */
-	init_spgwc_dynamic_config(appl_config); 
+	init_spgwc_dynamic_config(appl_config);
 
 	/* Lets register config change hook */
 	register_config_updates();
@@ -1432,7 +1436,6 @@ main(int argc, char **argv)
 
 	if (cp_params.stats_core_id != RTE_MAX_LCORE)
 		rte_eal_remote_launch(do_stats, NULL, cp_params.stats_core_id);
-
 
 #ifdef SIMU_CP
 	if (cp_params.simu_core_id != RTE_MAX_LCORE)

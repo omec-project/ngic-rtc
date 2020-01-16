@@ -109,7 +109,7 @@ delete_context(delete_session_request_t *ds_req,
 			si.sess_id = SESS_ID(
 					context->s11_sgw_gtpc_teid,
 					si.bearer_id);
-			struct dp_id dp_id = { .id = DPN_ID };
+			struct dp_id dp_id = { .id = context->dpId };
 			session_delete(dp_id, si);
 
 			rte_free(pdn->eps_bearers[i]);

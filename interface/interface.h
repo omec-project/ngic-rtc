@@ -38,7 +38,13 @@ extern uint16_t cp_nb_port;
 
 #ifdef ZMQ_COMM
 #if defined (CP_BUILD) && defined (MULTI_UPFS)
+/* for TAILQ */
 #include <sys/queue.h>
+#include "cp_config.h"
+/**
+ * Used to hold registered UPF context.
+ * Also becomes a part of the TAILQ list node
+ */
 typedef struct upf_context {
 	char zmq_pull_ifconnect[128];
 	char zmq_push_ifconnect[128];
@@ -46,9 +52,11 @@ typedef struct upf_context {
 	void *zmqpull_sockcet;
 	void *zmqpush_sockctxt;
 	void *zmqpush_sockcet;
+	uint32_t zmq_desc;
 
 	TAILQ_ENTRY(upf_context) entries;
 } upf_context;
+/* running upf count */
 extern uint8_t upf_count;
 extern struct in_addr dp_comm_ip;
 extern struct in_addr cp_comm_ip;
@@ -56,16 +64,64 @@ extern uint16_t dp_comm_port;
 extern uint16_t cp_comm_port;
 extern struct in_addr cp_nb_ip;
 extern uint16_t cp_nb_port;
+extern struct in_addr s1u_sgw_ip;
+#ifndef TAILQ_END
+#define TAILQ_END(head)		(NULL)
+#endif
+
+#ifndef TAILQ_FOREACH_SAFE
+#define TAILQ_FOREACH_SAFE(var, head, field, next)			\
+	for ((var) = ((head)->tqh_first);				\
+	     (var) != TAILQ_END(head) &&				\
+		     ((next) = TAILQ_NEXT(var, field), 1); (var) = (next))
+#endif
+/* head of the dp list */
 TAILQ_HEAD(, upf_context) upf_list;
+/**
+ * @brief
+ * If upf is lost, delete it's entry from CP completely
+ * @param upf
+ *	upf - ptr to zmq_pull_ifconnect
+ * @return
+ */
+void delete_upf(char *zp_ifconnect);
+/**
+ * @brief
+ * Used by CP to check for new DP registration requests
+ * @return
+ */
 void check_for_new_dps(void);
+/**
+ * @brief
+ * Used by CP to intialize the CP northbound port (for registration)
+ * @return
+ */
 void init_dp_sock(void);
-#define MAX_UPFS               5
+
+/**
+ * @brief
+ * Retrieve the right upf context given a zmq desc
+ *
+ * @return
+ * upf_context ptr
+ */
+struct upf_context *fetch_upf_context_via_desc(uint32_t desc);
+#define MAX_UPFS               16
 #elif defined (MULTI_UPFS) /* CP_BUILD && MULTI_UPFS */
 extern struct in_addr cp_nb_ip;
 extern uint16_t cp_nb_port;
 #endif /* MULTI_UPFS */
 char zmq_pull_ifconnect[128];
 char zmq_push_ifconnect[128];
+
+#ifdef MULTI_UPFS
+typedef struct reg_msg_bundle
+{
+	struct in_addr dp_comm_ip;
+	struct in_addr s1u_ip;
+	char hostname[256];
+} reg_msg_bundle;
+#endif
 
 extern struct in_addr zmq_cp_ip, zmq_dp_ip;
 extern uint16_t zmq_cp_pull_port, zmq_dp_pull_port;

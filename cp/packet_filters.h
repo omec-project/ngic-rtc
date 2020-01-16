@@ -126,5 +126,5 @@ int meter_profile_index_get(uint64_t cir);
  * Send packet filters and rules to each registered UPF
  */
 void init_pkt_filter_for_dp(void);
-#endif
+#endif /* CP_BUILD && MULTI_UPFS */
 #endif
