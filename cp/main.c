@@ -60,7 +60,7 @@
 #define PCAP_TTL                     (64)
 #define PCAP_VIHL                    (0x0045)
 
-#define S11_MME_IP_SET			(0x0001)
+#define SGW_CONFIG_SET			(0x0001)
 #define S11_SGW_IP_SET			(0x0002)
 #define S5S8_SGWC_IP_SET		(0x0004)
 #define S5S8_PGWC_IP_SET		(0x0008)
@@ -72,7 +72,7 @@
 #define APN_NAME_SET			(0x0200)
 #define LOG_LEVEL_SET			(0x0300)
 
-#define REQ_ARGS				(S11_MME_IP_SET | \
+#define REQ_ARGS				(SGW_CONFIG_SET | \
 								S11_SGW_IP_SET | \
 								S1U_SGW_IP_SET | IP_POOL_IP_SET | \
 								IP_POOL_MASK_SET | APN_NAME_SET | \
@@ -203,7 +203,7 @@ parse_arg(int argc, char **argv)
 		switch (c) {
 		case 'd':
 			spgw_cfg = (uint8_t)atoi(optarg);
-			args_set |= S11_MME_IP_SET;
+			args_set |= SGW_CONFIG_SET;
 			break;
 		case 's':
 			parse_arg_host(optarg, &s11_sgw_ip);

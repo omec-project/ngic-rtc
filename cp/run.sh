@@ -16,7 +16,6 @@ LOG_LEVEL=1
 if [ "${SPGW_CFG}" == "01" ]; then
 	ARGS="-l $CORELIST --socket-mem $NUMA0_MEMORY,$NUMA1_MEMORY --file-prefix cp --no-pci -- \
       -d $SPGW_CFG            \
-	  -m $S11_MME_IP          \
 	  -s $S11_SGW_IP          \
 	  -w $S1U_SGW_IP          \
 	  -r $S5S8_SGWC_IP        \
@@ -29,7 +28,6 @@ if [ "${SPGW_CFG}" == "01" ]; then
 elif [ "${SPGW_CFG}" == "02" ]; then
 	ARGS="-l $CORELIST --socket-mem $NUMA0_MEMORY,$NUMA1_MEMORY --file-prefix cp --no-pci -- \
       -d $SPGW_CFG            \
-	  -m $S11_MME_IP          \
 	  -s $S11_SGW_IP          \
 	  -w $S1U_SGW_IP          \
 	  -r $S5S8_SGWC_IP        \
@@ -42,7 +40,6 @@ elif [ "${SPGW_CFG}" == "02" ]; then
 elif [ "${SPGW_CFG}" == "03" ]; then
 	ARGS="-l $CORELIST --socket-mem $NUMA0_MEMORY,$NUMA1_MEMORY --file-prefix cp --no-pci -- \
       -d $SPGW_CFG            \
-	  -m $S11_MME_IP          \
 	  -s $S11_SGW_IP          \
 	  -w $S1U_SGW_IP          \
 	  -i $IP_POOL_IP          \
