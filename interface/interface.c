@@ -257,6 +257,7 @@ send_dp_credentials(void)
 {
 	static char addr_string[128] = {0};
 	static char hostname[256] = {0};
+	char *hp;
 	struct reg_msg_bundle rmb;
 	/* setting up ZMQ-based sockets */
 	void *context = zmq_ctx_new();
@@ -271,17 +272,13 @@ send_dp_credentials(void)
 
 	RTE_LOG_DP(INFO, API, "Iface: sent join request. Waiting for response\n");
 
-    char *hp;
-    hp = getenv("DP_NAME");
-    if(hp)
-    {
-      strcpy(hostname, hp);
-	  RTE_LOG_DP(INFO, API, "Found DP_NAME environment variable %s \n", hostname );
-    }
-	/* get hostname */
-    else if (gethostname(hostname, sizeof(hostname)) == -1) {
-            rte_exit(EXIT_FAILURE, "Unable to retreive hostname of DP!\n");
-    }
+	hp = getenv("DP_NAME");
+	if (hp) {
+		strcpy(hostname, hp);
+		RTE_LOG_DP(INFO, API, "Found DP_NAME environment variable %s \n", hostname );
+	} else if (gethostname(hostname, sizeof(hostname)) == -1) { /* get hostname */
+		rte_exit(EXIT_FAILURE, "Unable to retreive hostname of DP!\n");
+	}
 	RTE_LOG_DP(INFO, API, "DP hostname %s \n", hostname );
 
 	/* build message */
