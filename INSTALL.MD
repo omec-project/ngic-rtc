@@ -126,7 +126,6 @@ CP application run parameters to be supplied in cp_config.cfg:
 | -s11_sgw_ip       | MANDATORY   | Local interface IP exposed to Linux        |
 |                   |             | networking stack to be used by the Control |
 |                   |             | Plane for messaging with the MME           |
-| -s11_mme_ip       | MANDATORY   | MME IP                                     |
 | -s1u_sgw_ip       | MANDATORY   | Network interface IP exposed by DP; must be|
 |                   |             | equivalent to --s1u_ip parameter of DP     |
 | -s5s8_sgwc_ip     | OPTIONAL    | Applicable in case of SGWC configuration   |
