@@ -169,8 +169,10 @@ select_dp_for_key(struct dp_key *key)
 
 	struct dp_info *np;
 	LIST_FOREACH(np, &appl_config->dpList, dpentries) {
+#if 0
 		if(bcmp((void *)(&np->key.mcc_mnc), (void *)(&key->mcc_mnc), 3) != 0)
 			continue;
+#endif
 		if(np->key.tac != key->tac)
 			continue;
 		return np->dpId;

@@ -271,10 +271,18 @@ send_dp_credentials(void)
 
 	RTE_LOG_DP(INFO, API, "Iface: sent join request. Waiting for response\n");
 
+    char *hp;
+    hp = getenv("DP_NAME");
+    if(hp)
+    {
+      strcpy(hostname, hp);
+	  RTE_LOG_DP(INFO, API, "Found DP_NAME environment variable %s \n", hostname );
+    }
 	/* get hostname */
-	if (gethostname(hostname, sizeof(hostname)) == -1) {
-		rte_exit(EXIT_FAILURE, "Unable to retreive hostname of DP!\n");
-	}
+    else if (gethostname(hostname, sizeof(hostname)) == -1) {
+            rte_exit(EXIT_FAILURE, "Unable to retreive hostname of DP!\n");
+    }
+	RTE_LOG_DP(INFO, API, "DP hostname %s \n", hostname );
 
 	/* build message */
 	rmb.dp_comm_ip.s_addr = dp_comm_ip.s_addr;
@@ -486,7 +494,7 @@ check_for_new_dps(void)
 		assert(zmq_send(dp_sock, &upc->cp_comm_port, (size_t)2, 0) != -1);
 		/* resolve upf context to dpInfo */
 		if (resolve_upf_context_to_dpInfo(upc, msg_bundle.hostname, s1u_sgw_ip) == 0) {
-			rte_exit(EXIT_FAILURE, "Registered DP entry does not exist in app_config!!\n");
+			rte_exit(EXIT_FAILURE, "Registered DP entry does not exist in app_config %s !!\n", msg_bundle.hostname);
 		}
 		/* send packet filter to registered upf */
 		init_pkt_filter_for_dp(upc->dpId);

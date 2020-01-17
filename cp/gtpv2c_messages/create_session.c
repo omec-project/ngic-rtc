@@ -244,7 +244,11 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 
 		/* TODO : need to do similar things for PGW only */
 		dataplane_id = select_dp_for_key(&dpkey);
+		fprintf(stderr, "dpid.%d imsi.%llu \n",dataplane_id, (long long unsigned int)context->imsi);
+
+        
 		bearer->s1u_sgw_gtpu_ipv4 = fetch_s1u_sgw_ip(dataplane_id);
+		fprintf(stderr, "dpid.%d, s1uaddr %s \n",dataplane_id, inet_ntoa(bearer->s1u_sgw_gtpu_ipv4));
 #else
 		bearer->s1u_sgw_gtpu_ipv4 = s1u_sgw_ip;
 #endif
