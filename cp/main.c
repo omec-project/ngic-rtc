@@ -543,8 +543,8 @@ dump_pcap(uint16_t payload_length, uint8_t *tx_buf, struct sockaddr *dest_addr)
 
 	struct ipv4_hdr *ih = (struct ipv4_hdr *) &eh[1];
 
-    struct sockaddr_in *mme_addr = (struct sockaddr_in *)dest_addr;
-	ih->dst_addr = mme_addr->sin_addr.s_addr; 
+	struct sockaddr_in *mme_addr = (struct sockaddr_in *)dest_addr;
+	ih->dst_addr = mme_addr->sin_addr.s_addr;
 	ih->src_addr = s11_sgw_ip.s_addr;
 	ih->next_proto_id = IPPROTO_UDP;
 	ih->version_ihl = PCAP_VIHL;
