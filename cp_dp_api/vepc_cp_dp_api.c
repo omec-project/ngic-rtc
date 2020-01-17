@@ -132,7 +132,7 @@ send_dp_msg(struct dp_id dp_id, struct msgbuf *msg_payload)
 #if defined (CP_BUILD) && defined (MULTI_UPFS)
 	struct upf_context *upf = NULL;
 	/* since we are inserting new dps on head, TAILQ_FIRST should be fine. Logic will be revised on future updates */
-	upf = (dp_id.id == DPN_ID) ? TAILQ_FIRST(&upf_list) : fetch_upf_context(dp_id.id);
+	upf = fetch_upf_context(dp_id.id);
 	if (upf == NULL || active_comm_msg->send(upf, (void *)msg_payload, sizeof(struct msgbuf)) < 0) {
 		perror("msgsnd");
 		return -1;

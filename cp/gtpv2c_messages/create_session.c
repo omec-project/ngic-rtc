@@ -182,8 +182,13 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 	memcpy(&context->msisdn, &csr.msisdn.msisdn, csr.msisdn.header.len);
 
 	context->s11_sgw_gtpc_ipv4 = s11_sgw_ip;
+	// host order ...htonl done before encoding
 	context->s11_mme_gtpc_teid = csr.sender_ftied.teid_gre;
-	context->s11_mme_gtpc_ipv4 = s11_mme_ip;
+	// keeping address in network order. address just filled in dest address while
+	// sending messages out
+	context->s11_mme_gtpc_ipv4.s_addr = htonl(csr.sender_ftied.ip.ipv4.s_addr);
+	RTE_LOG_DP(INFO, CP, "Context has MME IP set to %x , %s \n",
+		   context->s11_mme_gtpc_ipv4.s_addr, inet_ntoa(csr.sender_ftied.ip.ipv4));
 
 	pdn = context->pdns[ebi_index];
 	{
@@ -244,11 +249,11 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 
 		/* TODO : need to do similar things for PGW only */
 		dataplane_id = select_dp_for_key(&dpkey);
-		fprintf(stderr, "dpid.%d imsi.%llu \n",dataplane_id, (long long unsigned int)context->imsi);
+		RTE_LOG_DP(INFO, CP, "dpid.%d imsi.%llu \n", dataplane_id, (long long unsigned int)context->imsi);
 
         
 		bearer->s1u_sgw_gtpu_ipv4 = fetch_s1u_sgw_ip(dataplane_id);
-		fprintf(stderr, "dpid.%d, s1uaddr %s \n",dataplane_id, inet_ntoa(bearer->s1u_sgw_gtpu_ipv4));
+		RTE_LOG_DP(INFO, CP, "dpid.%d, s1uaddr %s \n", dataplane_id, inet_ntoa(bearer->s1u_sgw_gtpu_ipv4));
 #else
 		bearer->s1u_sgw_gtpu_ipv4 = s1u_sgw_ip;
 #endif

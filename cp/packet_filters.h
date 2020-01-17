@@ -54,8 +54,11 @@ extern const pkt_fltr catch_all;
 void
 push_packet_filter(uint16_t index);
 
+#ifdef MULTI_UPFS
+struct dp_id;
+#endif
 void
-push_sdf_rules(uint16_t index);
+push_sdf_rules(uint16_t index, struct dp_id);
 
 /**
  * Installs a packet filter in the CP & DP.
@@ -125,6 +128,6 @@ int meter_profile_index_get(uint64_t cir);
 /**
  * Send packet filters and rules to each registered UPF
  */
-void init_pkt_filter_for_dp(void);
+void init_pkt_filter_for_dp(uint32_t dpId);
 #endif /* CP_BUILD && MULTI_UPFS */
 #endif

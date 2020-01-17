@@ -188,6 +188,7 @@ resolve_upf_context_to_dpInfo(struct upf_context *upf, char *hostname, struct in
 		if (!strcmp(hostname, dp->dpName)) {
 			dp->upf = upf;
 			dp->s1u_sgw_ip = s1u_sgw_ip;
+			upf->dpId = dp->dpId;
 			return 1;
 		}
 	}

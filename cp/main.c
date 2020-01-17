@@ -60,7 +60,7 @@
 #define PCAP_TTL                     (64)
 #define PCAP_VIHL                    (0x0045)
 
-#define S11_MME_IP_SET			(0x0001)
+#define SGW_CONFIG_SET			(0x0001)
 #define S11_SGW_IP_SET			(0x0002)
 #define S5S8_SGWC_IP_SET		(0x0004)
 #define S5S8_PGWC_IP_SET		(0x0008)
@@ -72,7 +72,7 @@
 #define APN_NAME_SET			(0x0200)
 #define LOG_LEVEL_SET			(0x0300)
 
-#define REQ_ARGS				(S11_MME_IP_SET | \
+#define REQ_ARGS				(SGW_CONFIG_SET | \
 								S11_SGW_IP_SET | \
 								S1U_SGW_IP_SET | IP_POOL_IP_SET | \
 								IP_POOL_MASK_SET | APN_NAME_SET | \
@@ -176,7 +176,6 @@ parse_arg(int argc, char **argv)
 
 	const struct option long_options[] = {
 	  {"spgw_cfg",  required_argument, NULL, 'd'},
-	  {"s11_mme_ip",  required_argument, NULL, 'm'},
 	  {"s11_sgw_ip",  required_argument, NULL, 's'},
 	  {"s5s8_sgwc_ip", optional_argument, NULL, 'r'},
 	  {"s5s8_pgwc_ip",  optional_argument, NULL, 'g'},
@@ -204,11 +203,7 @@ parse_arg(int argc, char **argv)
 		switch (c) {
 		case 'd':
 			spgw_cfg = (uint8_t)atoi(optarg);
-			args_set |= S11_MME_IP_SET;
-			break;
-		case 'm':
-			parse_arg_host(optarg, &s11_mme_ip);
-			args_set |= S11_MME_IP_SET;
+			args_set |= SGW_CONFIG_SET;
 			break;
 		case 's':
 			parse_arg_host(optarg, &s11_sgw_ip);
@@ -508,7 +503,7 @@ gtpv2c_send(int gtpv2c_if_fd, uint8_t *gtpv2c_tx_buf,
 {
 	int bytes_tx;
 	if (pcap_dumper) {
-		dump_pcap(gtpv2c_pyld_len, gtpv2c_tx_buf);
+		dump_pcap(gtpv2c_pyld_len, gtpv2c_tx_buf, dest_addr);
 	} else {
 		bytes_tx = sendto(gtpv2c_if_fd, gtpv2c_tx_buf, gtpv2c_pyld_len, 0,
 			(struct sockaddr *) dest_addr, dest_addr_len);
@@ -524,7 +519,7 @@ gtpv2c_send(int gtpv2c_if_fd, uint8_t *gtpv2c_tx_buf,
 }
 
 void
-dump_pcap(uint16_t payload_length, uint8_t *tx_buf)
+dump_pcap(uint16_t payload_length, uint8_t *tx_buf, struct sockaddr *dest_addr)
 {
 	static struct pcap_pkthdr pcap_tx_header;
 	gettimeofday(&pcap_tx_header.ts, NULL);
@@ -548,7 +543,8 @@ dump_pcap(uint16_t payload_length, uint8_t *tx_buf)
 
 	struct ipv4_hdr *ih = (struct ipv4_hdr *) &eh[1];
 
-	ih->dst_addr = s11_mme_ip.s_addr;
+	struct sockaddr_in *mme_addr = (struct sockaddr_in *)dest_addr;
+	ih->dst_addr = mme_addr->sin_addr.s_addr;
 	ih->src_addr = s11_sgw_ip.s_addr;
 	ih->next_proto_id = IPPROTO_UDP;
 	ih->version_ihl = PCAP_VIHL;
@@ -715,15 +711,14 @@ control_plane(void)
 				 ((spgw_cfg == SGWC) || (spgw_cfg == SPGWC)) &&
 				 (bytes_s11_rx > 0) &&
 				 (
-				  /*(s11_mme_sockaddr.sin_addr.s_addr != s11_mme_ip.s_addr) ||*/
 				  (gtpv2c_s11_rx->gtpc.version != GTP_VERSION_GTPV2C)
 				 )
 				) {
 				fprintf(stderr, "Discarding packet from %s:%u - "
-						"Expected S11_MME_IP = %s\n",
+						"Expected GTPv2 packet but received gtp version  = %d\n",
 						inet_ntoa(s11_mme_sockaddr.sin_addr),
 						ntohs(s11_mme_sockaddr.sin_port),
-						inet_ntoa(s11_mme_ip));
+						gtpv2c_s11_rx->gtpc.version);
 				return;
 			} else if (
 						 ((spgw_cfg == PGWC) && (bytes_s5s8_rx > 0)) &&
@@ -1238,7 +1233,7 @@ ddn_by_session_id(uint64_t session_id) {
 			+ sizeof(gtpv2c_tx->gtpc);
 
 	if (pcap_dumper) {
-		dump_pcap(payload_length, tx_buf);
+		dump_pcap(payload_length, tx_buf, (struct sockaddr *)&mme_s11_sockaddr_in);
 	} else {
 		uint32_t bytes_tx = sendto(s11_fd, tx_buf, payload_length, 0,
 		    (struct sockaddr *) &mme_s11_sockaddr_in,
@@ -1418,7 +1413,6 @@ main(int argc, char **argv)
 
 	parse_arg(argc - ret, argv + ret);
 	printf("spgw_cfg:  %d\n", spgw_cfg);
-	printf("s11_mme_ip:  %s\n", inet_ntoa(s11_mme_ip));
 	printf("s11_sgw_ip:  %s\n", inet_ntoa(s11_sgw_ip));
 	printf("s5s8_sgwc_ip:  %s\n", inet_ntoa(s5s8_sgwc_ip));
 	printf("s5s8_pgwc_ip:  %s\n", inet_ntoa(s5s8_pgwc_ip));
