@@ -290,7 +290,6 @@ get_next_ie(gtpv2c_ie *gtpv2c_ie_ptr, gtpv2c_ie *limit);
 	       child_ie_ptr;                                                  \
 	       child_ie_ptr = get_next_ie(child_ie_ptr, gtpv2c_limit_ie_ptr))
 
-extern struct in_addr s11_mme_ip;
 extern struct sockaddr_in s11_mme_sockaddr;
 
 extern struct in_addr s11_sgw_ip;
@@ -319,7 +318,7 @@ extern struct in_addr s5s8_pgwu_ip;
  * in @pcap_dumper (global)
  */
 void
-dump_pcap(uint16_t payload_length, uint8_t *tx_buf);
+dump_pcap(uint16_t payload_length, uint8_t *tx_buf, struct sockaddr *d_addr);
 
 /**
  * Helper function to set the gtp header for a gtpv2c message.

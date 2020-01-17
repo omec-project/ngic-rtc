@@ -182,8 +182,13 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 	memcpy(&context->msisdn, &csr.msisdn.msisdn, csr.msisdn.header.len);
 
 	context->s11_sgw_gtpc_ipv4 = s11_sgw_ip;
-	context->s11_mme_gtpc_teid = csr.sender_ftied.teid_gre;
-	context->s11_mme_gtpc_ipv4 = s11_mme_ip;
+    //host order ...htonl done before encoding
+	context->s11_mme_gtpc_teid = csr.sender_ftied.teid_gre; 
+    // keeping address in network order. address just filled in dest address while 
+    //sending messages out  
+	context->s11_mme_gtpc_ipv4.s_addr = htonl(csr.sender_ftied.ip.ipv4.s_addr); 
+    RTE_LOG_DP(INFO, CP, "Context has MME IP set to %x , %s \n",
+               context->s11_mme_gtpc_ipv4.s_addr, inet_ntoa(csr.sender_ftied.ip.ipv4));
 
 	pdn = context->pdns[ebi_index];
 	{
