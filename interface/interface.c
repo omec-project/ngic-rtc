@@ -358,31 +358,21 @@ init_dp_sock(void)
 }
 
 /**
- * Called right after zmq_poll if a err event is observed on registered upf
+ * Check if DP tries to reconnect
  */
-void
-delete_upf(char *zp_ifconnect)
+struct upf_context *
+check_upf_exists(char *zp_ifconnect)
 {
 	struct upf_context *item;
 	struct upf_context *item_temp;
 
 	TAILQ_FOREACH_SAFE(item, &upf_list, entries, item_temp) {
 		if (!strcmp(item->zmq_pull_ifconnect, zp_ifconnect)) {
-			/* close contexts and sockets */
-			active_comm_msg->destroy(item);
-			/* remove upf from the list */
-			TAILQ_REMOVE(&upf_list, item, entries);
-
-			/* update zmq_items */
-			int i;
-			for (i = item->zmq_desc; i < upf_count - 1; i++)
-				zmq_items[i] = zmq_items[i + 1];
-			/* decrement upf_count */
-			upf_count--;
-			fprintf(stderr, "Deleting DP.\n");
-			rte_free(item);
+			return item;
 		}
 	}
+
+	return NULL;
 }
 /**
  * Called right after zmq_poll if an event is observed on descriptor `0`
@@ -404,83 +394,102 @@ check_for_new_dps(void)
 
 	/* verify */
 	if (n > 0) {
-		struct upf_context *upc = rte_calloc(NULL, 1, sizeof(struct upf_context), 0);
+		struct upf_context *upc;
+		char zmq_pull_ifconnect[128];
+#if ZMQ_DIRECT
+		snprintf(zmq_pull_ifconnect, sizeof(zmq_pull_ifconnect),
+			 "%s://%s:%u", "tcp", inet_ntoa(a), dp_comm_port);
+#else
+		snprintf(zmq_pull_ifconnect, sizeof(zmq_pull_ifconnect),
+			 "%s://%s:%u", "tcp", inet_ntoa(a), zmq_cp_pull_port);
+#endif
+		/* bypass upf creation if entry already exists */
+		upc = check_upf_exists(zmq_pull_ifconnect);
+		if (upc == NULL)
+			upc = rte_calloc(NULL, 1, sizeof(struct upf_context), 0);
 		if (upc != NULL) {
 #if ZMQ_DIRECT
 			/* register pull and push sockets */
-			snprintf(upc->zmq_pull_ifconnect, sizeof(upc->zmq_pull_ifconnect),
-				 "%s://%s:%u", "tcp", inet_ntoa(a), dp_comm_port);
+			if (upc->zmq_pull_ifconnect[0] == '\0')
+				strcpy(upc->zmq_pull_ifconnect, zmq_pull_ifconnect);
+				//snprintf(upc->zmq_pull_ifconnect, sizeof(upc->zmq_pull_ifconnect),
+				//	 "%s://%s:%u", "tcp", inet_ntoa(a), dp_comm_port);
 #else
 			/* register pull and push sockets */
-			snprintf(upc->zmq_pull_ifconnect, sizeof(upc->zmq_pull_ifconnect),
-				 "%s://%s:%u", "tcp", inet_ntoa(a), zmq_cp_pull_port);
+			if (upc->zmq_pull_ifconnect[0] == '\0')
+				strcpy(upc->zmq_pull_ifconnect, zmq_pull_ifconnect);
+				//snprintf(upc->zmq_pull_ifconnect, sizeof(upc->zmq_pull_ifconnect),
+				//	 "%s://%s:%u", "tcp", inet_ntoa(a), zmq_cp_pull_port);
 #endif
 			fprintf(stderr, "%s\n", upc->zmq_pull_ifconnect);
 #if ZMQ_DIRECT
-			snprintf(upc->zmq_push_ifconnect, sizeof(upc->zmq_push_ifconnect),
-				 "%s://%s:%u", "tcp", inet_ntoa(cp_comm_ip),
-				 (++cp_comm_port % MAX_TCP_PORT));
+			if (upc->zmq_push_ifconnect[0] == '\0')
+				snprintf(upc->zmq_push_ifconnect, sizeof(upc->zmq_push_ifconnect),
+					 "%s://%s:%u", "tcp", inet_ntoa(cp_comm_ip),
+					 (++cp_comm_port % MAX_TCP_PORT));
 #else
-			snprintf(upc->zmq_push_ifconnect, sizeof(upc->zmq_push_ifconnect),
-				 "%s://%s:%u", "tcp", inet_ntoa(a), zmq_cp_push_port);
+			if (upc->zmq_push_ifconnect[0] == '\0')
+				snprintf(upc->zmq_push_ifconnect, sizeof(upc->zmq_push_ifconnect),
+					 "%s://%s:%u", "tcp", inet_ntoa(a), zmq_cp_push_port);
 #endif
 			fprintf(stderr, "%s\n", upc->zmq_push_ifconnect);
-			/* delete upf if it's entry already exists */
-			delete_upf(upc->zmq_pull_ifconnect);
-			upf_count++;
-			TAILQ_INSERT_HEAD(&upf_list, upc, entries);
-			/* Socket to talk to Client */
-			upc->zmqpull_sockctxt = zmq_ctx_new();
-			upc->zmqpull_sockcet = zmq_socket(upc->zmqpull_sockctxt, ZMQ_PULL);
+			if (upc->zmqpull_sockctxt == NULL) {
+				upf_count++;
+				TAILQ_INSERT_HEAD(&upf_list, upc, entries);
+				/* Socket to talk to Client */
+				upc->zmqpull_sockctxt = zmq_ctx_new();
+				upc->zmqpull_sockcet = zmq_socket(upc->zmqpull_sockctxt, ZMQ_PULL);
 #if ZMQ_DIRECT
-			do {
+				do {
+					fprintf(stderr, "ZMQ Server connect to:\t%s\t\t; device:\t%s\n",
+						upc->zmq_push_ifconnect, ZMQ_DEV_ID);
+					n = zmq_bind(upc->zmqpull_sockcet, upc->zmq_push_ifconnect);
+					if (n == 0)
+						done = 1;
+					else {
+						fprintf(stderr, "ZMQ Server connect to: \t%s failed. Trying %u\n",
+							upc->zmq_push_ifconnect, cp_comm_port);
+						snprintf(upc->zmq_push_ifconnect, sizeof(upc->zmq_push_ifconnect),
+							 "%s://%s:%u", "tcp", inet_ntoa(cp_comm_ip),
+							 (++cp_comm_port % MAX_TCP_PORT));
+					}
+				} while (done == 0);
+
+				upc->cp_comm_port = cp_comm_port;
+#else
 				fprintf(stderr, "ZMQ Server connect to:\t%s\t\t; device:\t%s\n",
-					upc->zmq_push_ifconnect, ZMQ_DEV_ID);
-				n = zmq_bind(upc->zmqpull_sockcet, upc->zmq_push_ifconnect);
-				if (n == 0)
-					done = 1;
-				else {
-					fprintf(stderr, "ZMQ Server connect to: \t%s failed. Trying %u\n",
-						upc->zmq_push_ifconnect, cp_comm_port);
-					snprintf(upc->zmq_push_ifconnect, sizeof(upc->zmq_push_ifconnect),
-						 "%s://%s:%u", "tcp", inet_ntoa(cp_comm_ip),
-						 (++cp_comm_port % MAX_TCP_PORT));
-				}
-			} while (done == 0);
-#else
-			fprintf(stderr, "ZMQ Server connect to:\t%s\t\t; device:\t%s\n",
-			       upc->zmq_pull_ifconnect, ZMQ_DEV_ID);
-			n = zmq_connect(upc->zmqpull_sockcet, upc->zmq_pull_ifconnect);
-			assert(n == 0);
+					upc->zmq_pull_ifconnect, ZMQ_DEV_ID);
+				n = zmq_connect(upc->zmqpull_sockcet, upc->zmq_pull_ifconnect);
+				assert(n == 0);
 #endif
-			upc->zmqpush_sockctxt = zmq_ctx_new();
-			upc->zmqpush_sockcet = zmq_socket(upc->zmqpush_sockctxt, ZMQ_PUSH);
+				upc->zmqpush_sockctxt = zmq_ctx_new();
+				upc->zmqpush_sockcet = zmq_socket(upc->zmqpush_sockctxt, ZMQ_PUSH);
 #if ZMQ_DIRECT
-			fprintf(stderr, "ZMQ Client connect to:\t%s\t\t; device:\t%s\n",
-			       upc->zmq_pull_ifconnect, ZMQ_DEV_ID);
-			n = zmq_connect(upc->zmqpush_sockcet, upc->zmq_pull_ifconnect);
-			assert(n == 0);
+				fprintf(stderr, "ZMQ Client connect to:\t%s\t\t; device:\t%s\n",
+					upc->zmq_pull_ifconnect, ZMQ_DEV_ID);
+				n = zmq_connect(upc->zmqpush_sockcet, upc->zmq_pull_ifconnect);
+				assert(n == 0);
 #else
-			fprintf(stderr, "ZMQ Client connect to:\t%s\t\t; device:\t%s\n",
-			       upc->zmq_push_ifconnect, ZMQ_DEV_ID);
-			n = zmq_connect(upc->zmqpush_sockcet, upc->zmq_push_ifconnect);
-			assert(n == 0);
+				fprintf(stderr, "ZMQ Client connect to:\t%s\t\t; device:\t%s\n",
+					upc->zmq_push_ifconnect, ZMQ_DEV_ID);
+				n = zmq_connect(upc->zmqpush_sockcet, upc->zmq_push_ifconnect);
+				assert(n == 0);
 #endif
-			/* add the pull descriptor to poll list */
-			zmq_items[upf_count].socket = upc->zmqpull_sockcet;
-			zmq_items[upf_count].events = ZMQ_POLLIN | ZMQ_POLLERR;
-			/* add zmq descriptor index to upc */
-			upc->zmq_desc = upf_count;
+				/* add the pull descriptor to poll list */
+				zmq_items[upf_count].socket = upc->zmqpull_sockcet;
+				zmq_items[upf_count].events = ZMQ_POLLIN | ZMQ_POLLERR;
+				upc->cp_comm_port = cp_comm_port;
+			}
 		} else {
 			rte_exit(EXIT_FAILURE, "Can't allocate memory for upc!\n");
 		}
-		assert(zmq_send(dp_sock, &cp_comm_port, (size_t)2, 0) != -1);
-		/* send packet filter to registered upf */
-		init_pkt_filter_for_dp();
+		assert(zmq_send(dp_sock, &upc->cp_comm_port, (size_t)2, 0) != -1);
 		/* resolve upf context to dpInfo */
 		if (resolve_upf_context_to_dpInfo(upc, msg_bundle.hostname, s1u_sgw_ip) == 0) {
 			rte_exit(EXIT_FAILURE, "Registered DP entry does not exist in app_config!!\n");
 		}
+		/* send packet filter to registered upf */
+		init_pkt_filter_for_dp(upc->dpId);
 	}
 	/* re-initialize registration socket */
 	zmq_close(dp_sock);
@@ -492,17 +501,17 @@ check_for_new_dps(void)
  *
  */
 struct upf_context *
-fetch_upf_context_via_desc(uint32_t desc)
+fetch_upf_context_via_sock(void *socket)
 {
 	struct upf_context *upf = NULL;
 
 	TAILQ_FOREACH(upf, &upf_list, entries) {
-		if (upf->zmq_desc == desc)
+		if (upf->zmqpull_sockcet == socket)
 			return upf;
 	}
 
-	RTE_LOG_DP(ERR, API, "Can't find the right upf for the zmq epoll event on desc %u\n",
-		   desc);
+	RTE_LOG_DP(ERR, API, "Can't find the right upf for the zmq epoll event on sock %p\n",
+		   socket);
 
 	return NULL;
 }

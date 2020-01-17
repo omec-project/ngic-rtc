@@ -52,7 +52,8 @@ typedef struct upf_context {
 	void *zmqpull_sockcet;
 	void *zmqpush_sockctxt;
 	void *zmqpush_sockcet;
-	uint32_t zmq_desc;
+	uint16_t cp_comm_port;
+	uint32_t dpId;
 
 	TAILQ_ENTRY(upf_context) entries;
 } upf_context;
@@ -79,12 +80,13 @@ extern struct in_addr s1u_sgw_ip;
 TAILQ_HEAD(, upf_context) upf_list;
 /**
  * @brief
- * If upf is lost, delete it's entry from CP completely
- * @param upf
- *	upf - ptr to zmq_pull_ifconnect
- * @return
+ * If upf is lost and tries to reconnect, retrieve the last upf_context record
+ * @param zp_ifconnect
+ *	zp_ifconnect - ptr to zmq_pull_ifconnect
+ *
+ * @return upf_context
  */
-void delete_upf(char *zp_ifconnect);
+struct upf_context *check_upf_exists(char *zp_ifconnect);
 /**
  * @brief
  * Used by CP to check for new DP registration requests
@@ -100,12 +102,12 @@ void init_dp_sock(void);
 
 /**
  * @brief
- * Retrieve the right upf context given a zmq desc
+ * Retrieve the right upf context given a zmq sock
  *
  * @return
  * upf_context ptr
  */
-struct upf_context *fetch_upf_context_via_desc(uint32_t desc);
+struct upf_context *fetch_upf_context_via_sock(void *sock);
 #define MAX_UPFS               16
 #elif defined (MULTI_UPFS) /* CP_BUILD && MULTI_UPFS */
 extern struct in_addr cp_nb_ip;

@@ -126,10 +126,15 @@ int meter_profile_index_get(uint64_t cir)
 }
 
 void
-push_sdf_rules(uint16_t index)
+push_sdf_rules(uint16_t index
+#ifdef MULTI_UPFS
+	       , struct dp_id dp_id
+#endif
+	       )
 {
+#ifndef MULTI_UPFS
 	struct dp_id dp_id = { .id = DPN_ID };
-
+#endif
 	char local_ip[INET_ADDRSTRLEN];
 	char remote_ip[INET_ADDRSTRLEN];
 
@@ -811,10 +816,10 @@ parse_adc_rules(void)
 }
 #if defined(CP_BUILD) && defined(MULTI_UPFS)
 void
-init_pkt_filter_for_dp(void)
+init_pkt_filter_for_dp(uint32_t dpId)
 {
 	uint32_t i;
-	struct dp_id dp_id = { .id = DPN_ID };
+	struct dp_id dp_id = { .id = dpId };
 
 	/* send pcc entries first */
 	for (i = 0; i < PCC_TABLE_SIZE; i++) {
@@ -836,7 +841,7 @@ init_pkt_filter_for_dp(void)
 	/* send sdf entries */
 	for (i = 0; i < SDF_FILTER_TABLE_SIZE; i++) {
 		if (sdf_filters[i] != NULL) {
-			push_sdf_rules(i);
+			push_sdf_rules(i, dp_id);
 		}
 	}
 

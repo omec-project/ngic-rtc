@@ -69,7 +69,7 @@ int iface_remove_que(enum cp_dp_comm id)
 		/* process remaining upfs; iterate through all upfs fds and process msgs  */
 		for (i = 1; i <= upf_count; i++) {
 			if ((zmq_items[i].revents & ZMQ_POLLIN)) {
-				upf = fetch_upf_context_via_desc(i);
+				upf = fetch_upf_context_via_sock(zmq_items[i].socket);
 				if (upf != NULL) {
 					rc = comm_node[id].recv(upf, (void *)&r_buf, sizeof(struct resp_msgbuf));
 					process_resp_msg((void *)&r_buf);
