@@ -34,4 +34,5 @@ void get_info_filled(msg_info *msg, err_rsp_info *t2 , uint8_t index);
 #ifdef GX_BUILD
 void send_ccr_t_req(msg_info *msg, uint8_t ebi, uint32_t teid);
 #endif /* GX_BUILD */
+void send_version_not_supported(int iface, uint32_t seq);
 #endif

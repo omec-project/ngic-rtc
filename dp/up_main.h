@@ -973,6 +973,29 @@ void dump_pcap(struct rte_mbuf **pkts, uint32_t n,
 
 #endif /* PCAP_GEN */
 
+#ifdef PRINT_NEW_RULE_ENTRY
+void
+print_pcc_val(struct pcc_rules *pcc);
+
+void
+print_sel_type_val(struct adc_rules *adc);
+
+void
+print_adc_val(struct adc_rules *adc);
+
+void
+print_mtr_val(struct mtr_entry *mtr);
+
+void
+print_sdf_val(struct pkt_filter *sdf);
+#endif /* PRINT_NEW_RULE_ENTRY */
+
+int
+parse_adc_buf(int sel_type, char *arm, struct adc_rules *adc);
+
+uint32_t
+get_sdf_indices(char *sdf_idx, uint32_t *out_sdf_idx);
+
 /***********************ddn_utils.c functions end**********************/
 #endif /* _MAIN_H_ */
 

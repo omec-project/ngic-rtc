@@ -549,3 +549,29 @@ void send_ccr_t_req(msg_info *msg, uint8_t ebi, uint32_t teid){
 	}
 }
 #endif /* GX_BUILD */
+
+void send_version_not_supported(int iface, uint32_t seq){
+
+	bzero(&tx_buf, sizeof(tx_buf));
+	gtpv2c_header *gtpv2c_tx = (gtpv2c_header *) tx_buf;
+	gtpv2c_header_t *header = (gtpv2c_header_t *) gtpv2c_tx;
+
+	set_gtpv2c_header(header, 0, GTP_VERSION_NOT_SUPPORTED_IND, 0, seq);
+
+
+	uint16_t msg_len = 0;
+	msg_len = encode_gtpv2c_header_t(header, (uint8_t *)gtpv2c_tx);
+	header->gtpc.message_len = htons(msg_len - 4);
+
+	payload_length = msg_len;
+	if(iface == S11_IFACE){
+		gtpv2c_send(s11_fd, tx_buf, payload_length,
+				(struct sockaddr *) &s11_mme_sockaddr, s11_mme_sockaddr_len);
+
+	}else{
+		gtpv2c_send(s5s8_fd, tx_buf, payload_length,
+				(struct sockaddr *)&s5s8_recv_sockaddr, s5s8_sockaddr_len);
+
+	}
+	return;
+}
