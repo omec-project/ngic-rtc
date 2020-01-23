@@ -2394,7 +2394,7 @@ fill_pdn_info(create_sess_req_t *csr, pdn_connection *pdn)
 
 	if(csr->ue_time_zone.header.len)
 	{
-		pdn->ue_time_zone_flag = TRUE;
+		pdn->ue_time_zone_flag = FALSE;
 		pdn->ue_tz.tz = csr->ue_time_zone.time_zone;
 		pdn->ue_tz.dst = csr->ue_time_zone.daylt_svng_time;
 	}
@@ -4404,11 +4404,12 @@ int process_pfcp_sess_mod_req_handover(mod_bearer_req_t *mb_req)
 	}
 
 	/* TODO something with modify_bearer_request.delay if set */
-
 	if(((context->old_uli_valid == TRUE) && (((context->event_trigger & (1 << ULI_EVENT_TRIGGER))) != 0))
 		|| ((pdn->old_ue_tz_valid == TRUE) && (((context->event_trigger) & (1 << UE_TIMEZONE_EVT_TRIGGER)) != 0))) {
 
+#ifdef GX_BUILD
 		ret = gen_ccru_request(pdn, bearer, mb_req, flag_check_uli);
+#endif /* GX_BUILD */
 		pdn->context->old_uli_valid = FALSE;
 		pdn->old_ue_tz_valid = FALSE;
 
@@ -4421,7 +4422,6 @@ int process_pfcp_sess_mod_req_handover(mod_bearer_req_t *mb_req)
 
 		return ret;
 	}
-
 	ret = send_pfcp_sess_mod_req_handover(pdn, bearer, mb_req);
 
 	return 0;

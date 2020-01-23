@@ -57,10 +57,16 @@ gtpv2c_pcnd_check(gtpv2c_header_t *gtpv2c_rx, int bytes_rx)
 		return ret;
 	}
 
-	if ((bytes_rx > 0) &&
-			((gtpv2c_rx->gtpc.version != GTP_VERSION_GTPV2C))) {
-		/* clLog(clSystemLog, eCLSeverityDebug,stderr, "Discarding packet due to gtpv2c version is not supported.."); */
-		return GTPV2C_CAUSE_VERSION_NOT_SUPPORTED;
+	if(bytes_rx > 0){
+		if (gtpv2c_rx->gtpc.version < GTP_VERSION_GTPV2C) {
+			fprintf(stderr, "Discarding packet due to gtp version is not supported..");
+			return GTPV2C_CAUSE_VERSION_NOT_SUPPORTED;
+		}else if (gtpv2c_rx->gtpc.version > GTP_VERSION_GTPV2C){
+			send_version_not_supported(spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE,
+					gtpv2c_rx->teid.has_teid.seq);
+			fprintf(stderr, "Discarding packet due to gtp version is not supported..");
+			return GTPV2C_CAUSE_VERSION_NOT_SUPPORTED;
+		}
 	}
 	return 0;
 
@@ -77,6 +83,10 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx)
 	int i = 0;
 
 	if ((ret = gtpv2c_pcnd_check(gtpv2c_rx, bytes_rx)) != 0){
+
+		if(ret == GTPV2C_CAUSE_VERSION_NOT_SUPPORTED) {
+			return ret;
+		}
 
 		switch(msg->msg_type) {
 

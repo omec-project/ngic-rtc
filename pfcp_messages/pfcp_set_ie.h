@@ -1168,15 +1168,6 @@ uint8_t
 upf_context_entry_add(uint32_t *upf_ip, upf_context_t *entry);
 
 /**
- * @brief  : get msg type from cstm ie string
- * @param  : pfd_conts, holds pfc contents data
- * @param  : idx, index in array
- * @return : Returns 0 in case of success , -1 otherwise
- */
-uint64_t
-get_rule_type(pfcp_pfd_contents_ie_t *pfd_conts, uint16_t *idx);
-
-/**
  * @brief  : search entry in upf hash using ip
  * @param  : upf_ip, key to search entry
  * @param  : entry, variable to store search result
@@ -1227,5 +1218,14 @@ clear_s5s8_sgwc_hash_table(void);
 int
 send_ccr_u_msg(mod_bearer_req_t *mb_req);
 #endif /* CP_BUILD */
+
+/**
+ * @brief  : get msg type from cstm ie string
+ * @param  : pfd_conts, holds pfc contents data
+ * @param  : idx, index in array
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+uint64_t
+get_rule_type(pfcp_pfd_contents_ie_t *pfd_conts, uint16_t *idx);
 
 #endif /* PFCP_SET_IE_H */

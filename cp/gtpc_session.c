@@ -188,11 +188,23 @@ fill_cs_request(create_sess_req_t *cs_req, struct ue_context_t *context,
 
 	set_ie_header(&cs_req->selection_mode.header, GTP_IE_SELECTION_MODE, IE_INSTANCE_ZERO,
 			sizeof(uint8_t));
+
+	if (context->pdns[ebi_index]->ue_time_zone_flag == TRUE) {
+		cs_req->ue_time_zone.time_zone = context->pdns[ebi_index]->ue_tz.tz;
+		cs_req->ue_time_zone.daylt_svng_time = context->pdns[ebi_index]->ue_tz.dst;
+		cs_req->ue_time_zone.spare2 = 0;
+
+		set_ie_header(&cs_req->ue_time_zone.header, GTP_IE_UE_TIME_ZONE, IE_INSTANCE_ZERO,
+				sizeof(gtp_ue_time_zone_ie_t) - sizeof(ie_header_t));
+		cs_req->header.gtpc.message_len = cs_req->ue_time_zone.header.len + sizeof(ie_header_t);
+		//context->pdns[ebi_index]->ue_time_zone_flag = FALSE;
+	}
+
 	if (context->pdns[ebi_index]->pdn_type.ipv4)
-			cs_req->pdn_type.pdn_type_pdn_type = PDN_TYPE_TYPE_IPV4;
+		cs_req->pdn_type.pdn_type_pdn_type = PDN_TYPE_TYPE_IPV4;
 
 	if (context->pdns[ebi_index]->pdn_type.ipv6)
-			cs_req->pdn_type.pdn_type_pdn_type = PDN_TYPE_TYPE_IPV6;
+		cs_req->pdn_type.pdn_type_pdn_type = PDN_TYPE_TYPE_IPV6;
 
 	cs_req->pdn_type.pdn_type_spare2 = context->pdns[ebi_index]->pdn_type.spare;
 	set_ie_header(&cs_req->pdn_type.header, GTP_IE_PDN_TYPE, IE_INSTANCE_ZERO,
@@ -262,7 +274,7 @@ fill_cs_request(create_sess_req_t *cs_req, struct ue_context_t *context,
 	if (context->mapped_ue_usage_type >= 0)
 		set_mapped_ue_usage_type(&cs_req->mapped_ue_usage_type, context->mapped_ue_usage_type);
 
-	cs_req->header.gtpc.message_len =
+	cs_req->header.gtpc.message_len +=
 			cs_req->imsi.header.len + cs_req->msisdn.header.len
 			+ sizeof(ie_header_t)
 			+ sizeof(ie_header_t)
@@ -1067,7 +1079,7 @@ process_sgwc_s5s8_delete_session_request(del_sess_rsp_t *ds_resp)
 
 	uint8_t pfcp_msg[512]={0};
 
-	pfcp_sess_del_req.header.seid_seqno.has_seid.seid = bearer->pdn->seid;
+	pfcp_sess_del_req.header.seid_seqno.has_seid.seid = bearer->pdn->dp_seid;
 	int encoded = encode_pfcp_sess_del_req_t(&pfcp_sess_del_req, pfcp_msg);
 	pfcp_header_t *header = (pfcp_header_t *) pfcp_msg;
 	header->message_len = htons(encoded - 4);

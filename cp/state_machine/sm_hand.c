@@ -220,7 +220,8 @@ process_sess_est_resp_handler(void *data, void *unused_param)
 			add_gtpv2c_if_timer_entry(
 				UE_SESS_ID(msg->pfcp_msg.pfcp_sess_est_resp.header.seid_seqno.has_seid.seid),
 				&s5s8_recv_sockaddr, tx_buf, payload_length,
-				UE_BEAR_ID(msg->pfcp_msg.pfcp_sess_est_resp.header.seid_seqno.has_seid.seid) - 5);
+				UE_BEAR_ID(msg->pfcp_msg.pfcp_sess_est_resp.header.seid_seqno.has_seid.seid) - 5,
+				S5S8_IFACE);
 		}
 
 		//s5s8_sgwc_msgcnt++;
@@ -542,7 +543,8 @@ process_sess_est_resp_sgw_reloc_handler(void *data, void *unused_param)
 		add_gtpv2c_if_timer_entry(
 			UE_SESS_ID(msg->pfcp_msg.pfcp_sess_est_resp.header.seid_seqno.has_seid.seid),
 			&s5s8_recv_sockaddr, tx_buf, payload_length,
-			UE_BEAR_ID(msg->pfcp_msg.pfcp_sess_est_resp.header.seid_seqno.has_seid.seid) - 5);
+			UE_BEAR_ID(msg->pfcp_msg.pfcp_sess_est_resp.header.seid_seqno.has_seid.seid) - 5,
+			S5S8_IFACE);
 	}
 
 	RTE_SET_USED(data);
@@ -816,7 +818,8 @@ process_sess_mod_resp_sgw_reloc_handler(void *data, void *unused_param)
 		add_gtpv2c_if_timer_entry(
 			UE_SESS_ID(msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid),
 			&s5s8_recv_sockaddr, tx_buf, payload_length,
-			UE_BEAR_ID(msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid) - 5);
+			UE_BEAR_ID(msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid) - 5,
+			S5S8_IFACE);
 	}
 
 	RTE_SET_USED(data);
@@ -867,7 +870,8 @@ process_pfcp_sess_mod_resp_cbr_handler(void *data, void *unused_param)
 			add_gtpv2c_if_timer_entry(
 					UE_SESS_ID(msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid),
 					&s5s8_recv_sockaddr, tx_buf, payload_length,
-					UE_BEAR_ID(msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid) - 5);
+					UE_BEAR_ID(msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid) - 5,
+					S5S8_IFACE);
 		}
 		if (resp->msg_type == GTP_CREATE_BEARER_RSP) {
 
@@ -889,7 +893,8 @@ process_pfcp_sess_mod_resp_cbr_handler(void *data, void *unused_param)
 			add_gtpv2c_if_timer_entry(
 					UE_SESS_ID(msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid),
 					&s11_mme_sockaddr, tx_buf, payload_length,
-					UE_BEAR_ID(msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid) - 5);
+					UE_BEAR_ID(msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid) - 5,
+					S11_IFACE);
 
 			update_cli_stats(s11_mme_sockaddr.sin_addr.s_addr,
 				gtpv2c_tx->gtpc.message_type, SENT,S11);
@@ -1064,7 +1069,8 @@ process_mod_resp_delete_handler(void *data, void *unused_param)
 		add_gtpv2c_if_timer_entry(
 			UE_SESS_ID(msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid),
 			&s5s8_recv_sockaddr, tx_buf, payload_length,
-			UE_BEAR_ID(msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid) - 5);
+			UE_BEAR_ID(msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid) - 5,
+			S5S8_IFACE);
 
 	} else {
 		/*Code should not reach here since this handler is only for SGWC*/
@@ -1126,7 +1132,8 @@ process_pfcp_sess_mod_resp_dbr_handler(void *data, void *unused_param)
 			add_gtpv2c_if_timer_entry(
 				UE_SESS_ID(msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid),
 				&s5s8_recv_sockaddr, tx_buf, payload_length,
-				UE_BEAR_ID(msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid) - 5);
+				UE_BEAR_ID(msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid) - 5,
+				S5S8_IFACE);
 		}
 
 	} else {
@@ -1137,7 +1144,8 @@ process_pfcp_sess_mod_resp_dbr_handler(void *data, void *unused_param)
 		add_gtpv2c_if_timer_entry(
 				UE_SESS_ID(msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid),
 				&s11_mme_sockaddr, tx_buf, payload_length,
-				UE_BEAR_ID(msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid) - 5);
+				UE_BEAR_ID(msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid) - 5,
+				S11_IFACE);
 
 		update_cli_stats(s11_mme_sockaddr.sin_addr.s_addr,
 				gtpv2c_tx->gtpc.message_type, SENT,

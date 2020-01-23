@@ -412,8 +412,9 @@ void set_modify_bearer_request(gtpv2c_header_t *gtpv2c_tx, /*create_sess_req_t *
 		mbr.ue_time_zone.spare2 = 0;
 		mbr.ue_time_zone.daylt_svng_time = pdn->ue_tz.dst;
 
-		set_ie_header(&mbr.ue_time_zone.header, GTP_IE_UE_TIME_ZONE, IE_INSTANCE_ZERO, mbr.ue_time_zone.header.len);
-		pdn->ue_time_zone_flag = false;
+		mbr.ue_time_zone.spare2 = 0;
+		set_ie_header(&mbr.ue_time_zone.header, GTP_IE_UE_TIME_ZONE,
+				IE_INSTANCE_ZERO, (sizeof(uint8_t) * 2));
 	}
 
 	set_ie_header(&mbr.bearer_contexts_to_be_modified.header, GTP_IE_BEARER_CONTEXT,

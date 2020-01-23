@@ -71,7 +71,7 @@ timer_callback(gstimerinfo_t *ti, const void *data_t);
  */
 void
 add_gtpv2c_if_timer_entry(uint32_t teid, struct sockaddr_in *peer_addr,
-	uint8_t *buf, uint16_t buf_len, uint8_t ebi_index);
+	uint8_t *buf, uint16_t buf_len, uint8_t ebi_index, enum source_interface iface);
 
 /**
  * @brief  : Fills and adds timer entry, and starts periodic timer for pfcp message

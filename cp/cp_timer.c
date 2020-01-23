@@ -8,6 +8,7 @@
 
 #define DIAMETER_PCC_RULE_EVENT (5142)
 
+extern int s11_fd;
 extern int s5s8_fd;
 extern int pfcp_fd;
 
@@ -144,6 +145,7 @@ timer_callback(gstimerinfo_t *ti, const void *data_t )
 		case GX_IFACE:
 			break;
 		case S11_IFACE:
+			timer_retry_send(s11_fd, data);
 			break;
 		case S5S8_IFACE:
 			timer_retry_send(s5s8_fd, data);
@@ -299,7 +301,7 @@ add_pfcp_if_timer_entry(uint32_t teid, struct sockaddr_in *peer_addr,
 
 void
 add_gtpv2c_if_timer_entry(uint32_t teid, struct sockaddr_in *peer_addr,
-	uint8_t *buf, uint16_t buf_len, uint8_t ebi_index)
+	uint8_t *buf, uint16_t buf_len, uint8_t ebi_index, enum source_interface iface)
 {
 	int ret = 0;
 	peerData *timer_entry = NULL;
@@ -307,7 +309,7 @@ add_gtpv2c_if_timer_entry(uint32_t teid, struct sockaddr_in *peer_addr,
 	ue_context *context = NULL;
 
 	/* fill and add timer entry */
-	timer_entry = fill_timer_entry_data(S5S8_IFACE, peer_addr,
+	timer_entry = fill_timer_entry_data(iface, peer_addr,
 			buf, buf_len, pfcp_config.request_tries, teid, ebi_index);
 
 	if(!(add_timer_entry(timer_entry, pfcp_config.request_timeout, timer_callback))) {

@@ -112,4 +112,12 @@ void gen_reauth_error_response(pdn_connection *pdn, int16_t error);
 void send_ccr_t_req(msg_info *msg, uint8_t ebi, uint32_t teid);
 #endif /* GX_BUILD */
 
+/**
+ * @brief  : Send Version not supported response to peer node.
+ * @param  : iface, interface.
+ * @param  : seq, sequesnce number.
+ * @return : Returns nothing
+ */
+void send_version_not_supported(int iface, uint32_t seq);
+
 #endif

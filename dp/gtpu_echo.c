@@ -64,27 +64,23 @@ static void reset_req_pkt_as_resp(struct rte_mbuf *echo_pkt) {
  * @return : Returns 0 in case of success , -1 otherwise
  */
 static int set_recovery(struct rte_mbuf *echo_pkt, uint8_t port_id) {
-	//struct ipv4_hdr *ip_hdr = get_mtoip(echo_pkt);
+	struct ipv4_hdr *ip_hdr = get_mtoip(echo_pkt);
 	struct gtpu_hdr *gtpu_hdr = get_mtogtpu(echo_pkt);
 	gtpu_recovery_ie *recovery_ie = NULL;
 
-	/* VS: Fix the recovery IE issue for response */
-	recovery_ie = (gtpu_recovery_ie *)rte_pktmbuf_append(echo_pkt,
-			(sizeof(gtpu_recovery_ie)));
+	/* Get the extra len bytes for recovery */
+	uint16_t extra_len = echo_pkt->pkt_len - (ETHER_HDR_LEN + ntohs(ip_hdr->total_length));
 
-	//if (((app.spgw_cfg == SGWU) || (app.spgw_cfg == SAEGWU)) &&
-	//		(port_id == S1U_PORT_ID)) {
-	//	if (echo_pkt->pkt_len - (ETHER_HDR_LEN +(ip_hdr->total_length))) {
-	//		recovery_ie = (gtpu_recovery_ie*)((char*)gtpu_hdr+
-	//				GTPU_HDR_SIZE + ntohs(gtpu_hdr->msglen));
-	//	} else if ((echo_pkt->pkt_len - (ETHER_HDR_LEN +(ip_hdr->total_length))) == 0) {
-	//		recovery_ie = (gtpu_recovery_ie *)rte_pktmbuf_append(echo_pkt,
-	//				(sizeof(gtpu_recovery_ie)));
-	//	}
-	//} else {
-	//	recovery_ie = (gtpu_recovery_ie *)rte_pktmbuf_append(echo_pkt,
-	//			(sizeof(gtpu_recovery_ie)));
-	//}
+	if (extra_len < sizeof(gtpu_recovery_ie)) {
+		recovery_ie = (gtpu_recovery_ie *)rte_pktmbuf_append(echo_pkt, (sizeof(gtpu_recovery_ie) - extra_len));
+		/* Checking the sufficient header room lenght for the recovery */
+		if ((echo_pkt->pkt_len - (ETHER_HDR_LEN + ntohs(ip_hdr->total_length)) <  sizeof(gtpu_recovery_ie))) {
+			fprintf(stderr, "ERROR: For recovery there is not sufficient lenght is allocated\n");
+			return -1;
+		}
+	}
+	/* Point to the current location of the recovery ie */
+	recovery_ie = (gtpu_recovery_ie*)((char*)gtpu_hdr + GTPU_HDR_SIZE + ntohs(gtpu_hdr->msglen));
 
 	if (recovery_ie == NULL) {
 		clLog(clSystemLog, eCLSeverityCritical, "Couldn't append %lu bytes to mbuf",
@@ -115,6 +111,11 @@ static void set_checksum(struct rte_mbuf *echo_pkt) {
 	ipv4hdr->hdr_checksum = rte_ipv4_cksum(ipv4hdr);
 }
 
+/* Brief: Function to process GTP-U echo request
+ * @ Input param: echo_pkt rte_mbuf pointer
+ * @ Output param: none
+ * Return: void
+ */
 void process_echo_request(struct rte_mbuf *echo_pkt, uint8_t port_id) {
 	int ret;
 	ret = set_recovery(echo_pkt, port_id);

@@ -285,255 +285,255 @@ zmq_recv_socket(void *buf, uint32_t zmqmsgbufsz)
 	return zmqmsglen;
 }
 
-#ifdef PRINT_NEW_RULE_ENTRY
-/**
- * @brief  : Function to print ADC rules values.
- * @param  : [In] pointer to adc rule structure element
- * @return : Returns nothing
- */
-static void
-print_sel_type_val(struct adc_rules *adc)
-{
-	if (NULL != adc) {
-		switch (adc->sel_type) {
-			case DOMAIN_NAME:
-				clLog(clSystemLog, eCLSeverityDebug, " ---> Domain Name :%s\n",
-						adc->u.domain_name);
-				break;
-
-			case DOMAIN_IP_ADDR:
-				clLog(clSystemLog, eCLSeverityDebug, " ---> Domain Ip :%d\n",
-						(adc->u.domain_ip.u.ipv4_addr));
-				break;
-
-			case DOMAIN_IP_ADDR_PREFIX:
-				clLog(clSystemLog, eCLSeverityDebug, " ---> Domain Ip :%d\n",
-						(adc->u.domain_ip.u.ipv4_addr));
-				clLog(clSystemLog, eCLSeverityDebug, " ---> Domain Prefix :%d\n",
-						adc->u.domain_prefix.prefix);
-				break;
-
-			default:
-				clLog(clSystemLog, eCLSeverityCritical, "UNKNOWN Selector Type: %d\n",
-						adc->sel_type);
-				break;
-		}
-	}
-}
-
-/**
- * @brief  : Function to print ADC rules values.
- * @param  : [In] pointer to adc rule structure element
- * @return : Returns nothing
- */
-static void
-print_adc_val(struct adc_rules *adc)
-{
-	if (NULL != adc) {
-		clLog(clSystemLog, eCLSeverityDebug, "=========================================\n");
-		clLog(clSystemLog, eCLSeverityDebug, " ---> ADC Rule Method ::\n");
-		clLog(clSystemLog, eCLSeverityDebug, "=========================================\n");
-		clLog(clSystemLog, eCLSeverityDebug, " ---> Rule id : %d\n", adc->rule_id);
-
-		print_sel_type_val(adc);
-
-		clLog(clSystemLog, eCLSeverityDebug, "=========================================\n\n");
-	}
-}
-
-/**
- * @brief  : Function to print PCC rules values.
- * @param  : [In] pointer to pcc rule structure element
- * @return : Returns nothing
- */
-static void
-print_pcc_val(struct pcc_rules *pcc)
-{
-	if (NULL != pcc) {
-		clLog(clSystemLog, eCLSeverityDebug, "=========================================\n");
-		clLog(clSystemLog, eCLSeverityDebug, " ---> PCC Rule Method ::\n");
-		clLog(clSystemLog, eCLSeverityDebug, "=========================================\n");
-		clLog(clSystemLog, eCLSeverityDebug, " ---> Rule id : %d\n", pcc->rule_id);
-		clLog(clSystemLog, eCLSeverityDebug, " ---> metering_method :%d\n",
-				pcc->metering_method);
-		clLog(clSystemLog, eCLSeverityDebug, " ---> charging_mode :%d\n",
-				pcc->charging_mode);
-		clLog(clSystemLog, eCLSeverityDebug, " ---> rating_group :%d\n",
-				pcc->rating_group);
-		clLog(clSystemLog, eCLSeverityDebug, " ---> rule_status :%d\n",
-				pcc->rule_status);
-		clLog(clSystemLog, eCLSeverityDebug, " ---> gate_status :%d\n",
-				pcc->gate_status);
-		clLog(clSystemLog, eCLSeverityDebug, " ---> session_cont :%d\n",
-				pcc->session_cont);
-		clLog(clSystemLog, eCLSeverityDebug, " ---> monitoring_key :%d\n",
-				pcc->monitoring_key);
-		clLog(clSystemLog, eCLSeverityDebug, " ---> precedence :%d\n",
-				pcc->precedence);
-		clLog(clSystemLog, eCLSeverityDebug, " ---> level_of_report :%d\n",
-				pcc->report_level);
-		clLog(clSystemLog, eCLSeverityDebug, " ---> mute_status :%d\n",
-				pcc->mute_notify);
-		clLog(clSystemLog, eCLSeverityDebug, " ---> drop_pkt_count :%ld\n",
-				pcc->drop_pkt_count);
-		clLog(clSystemLog, eCLSeverityDebug, " ---> redirect_info :%d\n",
-				pcc->redirect_info.info);
-		clLog(clSystemLog, eCLSeverityDebug, " ---> ul_mbr_mtr_profile_idx :%d\n",
-				pcc->qos.ul_mtr_profile_index);
-		clLog(clSystemLog, eCLSeverityDebug, " ---> dl_mbr_mtr_profile_idx :%d\n",
-				pcc->qos.dl_mtr_profile_index);
-		clLog(clSystemLog, eCLSeverityDebug, " ---> ADC Index :%d\n",
-				pcc->adc_idx);
-		clLog(clSystemLog, eCLSeverityDebug, " ---> SDF Index count:%d\n",
-				pcc->sdf_idx_cnt);
-		for(int i =0; i< pcc->sdf_idx_cnt; ++i)
-			clLog(clSystemLog, eCLSeverityDebug, " ---> SDF IDx [%d]:%d\n",
-					i, pcc->sdf_idx[i]);
-		clLog(clSystemLog, eCLSeverityDebug, " ---> rule_name:%s\n", pcc->rule_name);
-		clLog(clSystemLog, eCLSeverityDebug, " ---> sponsor_id:%s\n", pcc->sponsor_id);
-		clLog(clSystemLog, eCLSeverityDebug, "=========================================\n\n");
-	}
-}
-
-/**
- * @brief  : Function to print METER rules values.
- * @param  : [In] pointer to mtr entry structure element
- * @return : Returns nothing
- */
-static void
-print_mtr_val(struct mtr_entry *mtr)
-{
-	if (NULL != mtr) {
-		clLog(clSystemLog, eCLSeverityDebug, "=========================================\n");
-		clLog(clSystemLog, eCLSeverityDebug, " ---> Meter Rule Method ::\n");
-		clLog(clSystemLog, eCLSeverityDebug, "=========================================\n");
-		clLog(clSystemLog, eCLSeverityDebug, " ---> Meter profile index :%d\n",
-				mtr->mtr_profile_index);
-		clLog(clSystemLog, eCLSeverityDebug, " ---> Meter CIR :%ld\n",
-				mtr->mtr_param.cir);
-		clLog(clSystemLog, eCLSeverityDebug, " ---> Meter CBS :%ld\n",
-				mtr->mtr_param.cbs);
-		clLog(clSystemLog, eCLSeverityDebug, " ---> Meter EBS :%ld\n",
-				mtr->mtr_param.ebs);
-		clLog(clSystemLog, eCLSeverityDebug, " ---> Metering Method :%d\n",
-				mtr->metering_method);
-		clLog(clSystemLog, eCLSeverityDebug, "=========================================\n\n");
-	}
-}
-
-/**
- * @brief  : Function to print SDF rules values.
- * @param  : [In] pointer to pkt_filter structure element
- * @return : Returns nothing
- */
-static void
-print_sdf_val(struct pkt_filter *sdf)
-{
-	if (NULL != sdf) {
-		clLog(clSystemLog, eCLSeverityDebug, "==========================================\n");
-		clLog(clSystemLog, eCLSeverityDebug, " ---> SDF Rule Method ::\n");
-		clLog(clSystemLog, eCLSeverityDebug, "==========================================\n");
-
-		switch (sdf->sel_rule_type) {
-			case RULE_STRING:
-				clLog(clSystemLog, eCLSeverityDebug, " ---> pcc_rule_id :%d\n",
-						sdf->pcc_rule_id);
-				clLog(clSystemLog, eCLSeverityDebug, " ---> rule_type :%d\n",
-						sdf->sel_rule_type);
-				clLog(clSystemLog, eCLSeverityDebug, " ---> rule_str : %s\n",
-						sdf->u.rule_str);
-				clLog(clSystemLog, eCLSeverityDebug, "====================================\n\n");
-				break;
-
-			case FIVE_TUPLE:
-				/*TODO: rule should be in struct
-				 * five_tuple_rule
-				 * This field is currently not used
-				 */
-				break;
-
-			default:
-				clLog(clSystemLog, eCLSeverityCritical, "UNKNOWN Rule Type: %d\n",
-						sdf->sel_rule_type);
-				break;
-		}
-	}
-}
-#endif /*PRINT_NEW_RULE_ENTRY*/
-
-/**
- * @brief  : Function to parse adc rules values into adc_rules struct.
- *           Here parse values as per selector type (DOMAIN_NAME,
- *           DOMAIN_IP_ADDR, and DOMAIN_IP_ADDR_PREFIX), domain name,
- *           domain ip addr, domain prefix parameters values from recv buf and
- *           stored into adc_rules struct.
- *           ref.doc: message_sdn.docx
- *           section : Table No.11 ADC Rules
- * @param  : sel_type, selctor type pointed to adc rule type
- * @param  : [In] pointer (arm) to zmq rcv structure element
- * @param  : [Out] pointer (adc) to adc rules structure element
- * @return : Returns 0 in case of success , -1 otherwise
- */
-static int
-parse_adc_buf(int sel_type, char *arm, struct adc_rules *adc)
-{
-		if (arm != NULL) {
-			switch (sel_type) {
-				case DOMAIN_NAME:
-					strncpy(adc->u.domain_name, (char *)((arm)+1),
-							*(uint8_t *)(arm));
-
-#ifdef PRINT_NEW_RULE_ENTRY
-					print_adc_val(adc);
-#endif
-					return 0;
-
-				case DOMAIN_IP_ADDR_PREFIX:
-					adc->u.domain_ip.u.ipv4_addr =
-						ntohl(*(uint32_t *)(arm));
-					adc->u.domain_prefix.prefix =
-						rte_bswap16(*(uint16_t *)((arm) + 4));
-#ifdef PRINT_NEW_RULE_ENTRY
-					print_adc_val(adc);
-#endif  /* PRINT_NEW_RULE_ENTRY */
-					return 0;
-
-				case DOMAIN_IP_ADDR:
-					adc->u.domain_ip.u.ipv4_addr =
-						ntohl(*(uint32_t *)(arm));
-#ifdef PRINT_NEW_RULE_ENTRY
-					print_adc_val(adc);
-#endif  /* PRINT_NEW_RULE_ENTRY */
-					return 0;
-
-				default:
-					clLog(clSystemLog, eCLSeverityCritical, "UNKNOWN Selector Type: %d\n",
-							sel_type);
-					return -1;
-			}
-		}
-		return -1;
-}
-
-/**
- * @brief  : Convert sdf_idx array in to array of integers for SDF index values.
- *           Sample input : "[0, 1, 2, 3]"
- * @param  : [IN] sdf_idx : String containing comma separater SDF index values
- * @param  : [OUT] out_sdf_idx : Array of integers converted from sdf_idx
- * @return : Returns 0 in case of success , -1 otherwise
- */
-static uint32_t
-get_sdf_indices(char *sdf_idx, uint32_t *out_sdf_idx)
-{
-	char *tmp = strtok (sdf_idx,",");
-	int i = 0;
-
-	while ((NULL != tmp) && (i < MAX_SDF_IDX_COUNT)) {
-		out_sdf_idx[i++] = atoi(tmp);
-		tmp = strtok (NULL, ",");
-	}
-	return i;
-}
+//#ifdef PRINT_NEW_RULE_ENTRY
+///**
+// * @brief  : Function to print ADC rules values.
+// * @param  : [In] pointer to adc rule structure element
+// * @return : Returns nothing
+// */
+//static void
+//print_sel_type_val(struct adc_rules *adc)
+//{
+//	if (NULL != adc) {
+//		switch (adc->sel_type) {
+//			case DOMAIN_NAME:
+//				clLog(clSystemLog, eCLSeverityDebug, " ---> Domain Name :%s\n",
+//						adc->u.domain_name);
+//				break;
+//
+//			case DOMAIN_IP_ADDR:
+//				clLog(clSystemLog, eCLSeverityDebug, " ---> Domain Ip :%d\n",
+//						(adc->u.domain_ip.u.ipv4_addr));
+//				break;
+//
+//			case DOMAIN_IP_ADDR_PREFIX:
+//				clLog(clSystemLog, eCLSeverityDebug, " ---> Domain Ip :%d\n",
+//						(adc->u.domain_ip.u.ipv4_addr));
+//				clLog(clSystemLog, eCLSeverityDebug, " ---> Domain Prefix :%d\n",
+//						adc->u.domain_prefix.prefix);
+//				break;
+//
+//			default:
+//				clLog(clSystemLog, eCLSeverityCritical, "UNKNOWN Selector Type: %d\n",
+//						adc->sel_type);
+//				break;
+//		}
+//	}
+//}
+//
+///**
+// * @brief  : Function to print ADC rules values.
+// * @param  : [In] pointer to adc rule structure element
+// * @return : Returns nothing
+// */
+//static void
+//print_adc_val(struct adc_rules *adc)
+//{
+//	if (NULL != adc) {
+//		clLog(clSystemLog, eCLSeverityDebug, "=========================================\n");
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> ADC Rule Method ::\n");
+//		clLog(clSystemLog, eCLSeverityDebug, "=========================================\n");
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> Rule id : %d\n", adc->rule_id);
+//
+//		print_sel_type_val(adc);
+//
+//		clLog(clSystemLog, eCLSeverityDebug, "=========================================\n\n");
+//	}
+//}
+//
+///**
+// * @brief  : Function to print PCC rules values.
+// * @param  : [In] pointer to pcc rule structure element
+// * @return : Returns nothing
+// */
+//static void
+//print_pcc_val(struct pcc_rules *pcc)
+//{
+//	if (NULL != pcc) {
+//		clLog(clSystemLog, eCLSeverityDebug, "=========================================\n");
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> PCC Rule Method ::\n");
+//		clLog(clSystemLog, eCLSeverityDebug, "=========================================\n");
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> Rule id : %d\n", pcc->rule_id);
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> metering_method :%d\n",
+//				pcc->metering_method);
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> charging_mode :%d\n",
+//				pcc->charging_mode);
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> rating_group :%d\n",
+//				pcc->rating_group);
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> rule_status :%d\n",
+//				pcc->rule_status);
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> gate_status :%d\n",
+//				pcc->gate_status);
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> session_cont :%d\n",
+//				pcc->session_cont);
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> monitoring_key :%d\n",
+//				pcc->monitoring_key);
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> precedence :%d\n",
+//				pcc->precedence);
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> level_of_report :%d\n",
+//				pcc->report_level);
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> mute_status :%d\n",
+//				pcc->mute_notify);
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> drop_pkt_count :%ld\n",
+//				pcc->drop_pkt_count);
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> redirect_info :%d\n",
+//				pcc->redirect_info.info);
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> ul_mbr_mtr_profile_idx :%d\n",
+//				pcc->qos.ul_mtr_profile_index);
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> dl_mbr_mtr_profile_idx :%d\n",
+//				pcc->qos.dl_mtr_profile_index);
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> ADC Index :%d\n",
+//				pcc->adc_idx);
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> SDF Index count:%d\n",
+//				pcc->sdf_idx_cnt);
+//		for(int i =0; i< pcc->sdf_idx_cnt; ++i)
+//			clLog(clSystemLog, eCLSeverityDebug, " ---> SDF IDx [%d]:%d\n",
+//					i, pcc->sdf_idx[i]);
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> rule_name:%s\n", pcc->rule_name);
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> sponsor_id:%s\n", pcc->sponsor_id);
+//		clLog(clSystemLog, eCLSeverityDebug, "=========================================\n\n");
+//	}
+//}
+//
+///**
+// * @brief  : Function to print METER rules values.
+// * @param  : [In] pointer to mtr entry structure element
+// * @return : Returns nothing
+// */
+//static void
+//print_mtr_val(struct mtr_entry *mtr)
+//{
+//	if (NULL != mtr) {
+//		clLog(clSystemLog, eCLSeverityDebug, "=========================================\n");
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> Meter Rule Method ::\n");
+//		clLog(clSystemLog, eCLSeverityDebug, "=========================================\n");
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> Meter profile index :%d\n",
+//				mtr->mtr_profile_index);
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> Meter CIR :%ld\n",
+//				mtr->mtr_param.cir);
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> Meter CBS :%ld\n",
+//				mtr->mtr_param.cbs);
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> Meter EBS :%ld\n",
+//				mtr->mtr_param.ebs);
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> Metering Method :%d\n",
+//				mtr->metering_method);
+//		clLog(clSystemLog, eCLSeverityDebug, "=========================================\n\n");
+//	}
+//}
+//
+///**
+// * @brief  : Function to print SDF rules values.
+// * @param  : [In] pointer to pkt_filter structure element
+// * @return : Returns nothing
+// */
+//static void
+//print_sdf_val(struct pkt_filter *sdf)
+//{
+//	if (NULL != sdf) {
+//		clLog(clSystemLog, eCLSeverityDebug, "==========================================\n");
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> SDF Rule Method ::\n");
+//		clLog(clSystemLog, eCLSeverityDebug, "==========================================\n");
+//
+//		switch (sdf->sel_rule_type) {
+//			case RULE_STRING:
+//				clLog(clSystemLog, eCLSeverityDebug, " ---> pcc_rule_id :%d\n",
+//						sdf->pcc_rule_id);
+//				clLog(clSystemLog, eCLSeverityDebug, " ---> rule_type :%d\n",
+//						sdf->sel_rule_type);
+//				clLog(clSystemLog, eCLSeverityDebug, " ---> rule_str : %s\n",
+//						sdf->u.rule_str);
+//				clLog(clSystemLog, eCLSeverityDebug, "====================================\n\n");
+//				break;
+//
+//			case FIVE_TUPLE:
+//				/*TODO: rule should be in struct
+//				 * five_tuple_rule
+//				 * This field is currently not used
+//				 */
+//				break;
+//
+//			default:
+//				clLog(clSystemLog, eCLSeverityCritical, "UNKNOWN Rule Type: %d\n",
+//						sdf->sel_rule_type);
+//				break;
+//		}
+//	}
+//}
+//#endif /*PRINT_NEW_RULE_ENTRY*/
+//
+///**
+// * @brief  : Function to parse adc rules values into adc_rules struct.
+// *           Here parse values as per selector type (DOMAIN_NAME,
+// *           DOMAIN_IP_ADDR, and DOMAIN_IP_ADDR_PREFIX), domain name,
+// *           domain ip addr, domain prefix parameters values from recv buf and
+// *           stored into adc_rules struct.
+// *           ref.doc: message_sdn.docx
+// *           section : Table No.11 ADC Rules
+// * @param  : sel_type, selctor type pointed to adc rule type
+// * @param  : [In] pointer (arm) to zmq rcv structure element
+// * @param  : [Out] pointer (adc) to adc rules structure element
+// * @return : Returns 0 in case of success , -1 otherwise
+// */
+//static int
+//parse_adc_buf(int sel_type, char *arm, struct adc_rules *adc)
+//{
+//		if (arm != NULL) {
+//			switch (sel_type) {
+//				case DOMAIN_NAME:
+//					strncpy(adc->u.domain_name, (char *)((arm)+1),
+//							*(uint8_t *)(arm));
+//
+//#ifdef PRINT_NEW_RULE_ENTRY
+//					print_adc_val(adc);
+//#endif
+//					return 0;
+//
+//				case DOMAIN_IP_ADDR_PREFIX:
+//					adc->u.domain_ip.u.ipv4_addr =
+//						ntohl(*(uint32_t *)(arm));
+//					adc->u.domain_prefix.prefix =
+//						rte_bswap16(*(uint16_t *)((arm) + 4));
+//#ifdef PRINT_NEW_RULE_ENTRY
+//					print_adc_val(adc);
+//#endif  /* PRINT_NEW_RULE_ENTRY */
+//					return 0;
+//
+//				case DOMAIN_IP_ADDR:
+//					adc->u.domain_ip.u.ipv4_addr =
+//						ntohl(*(uint32_t *)(arm));
+//#ifdef PRINT_NEW_RULE_ENTRY
+//					print_adc_val(adc);
+//#endif  /* PRINT_NEW_RULE_ENTRY */
+//					return 0;
+//
+//				default:
+//					clLog(clSystemLog, eCLSeverityCritical, "UNKNOWN Selector Type: %d\n",
+//							sel_type);
+//					return -1;
+//			}
+//		}
+//		return -1;
+//}
+//
+///**
+// * @brief  : Convert sdf_idx array in to array of integers for SDF index values.
+// *           Sample input : "[0, 1, 2, 3]"
+// * @param  : [IN] sdf_idx : String containing comma separater SDF index values
+// * @param  : [OUT] out_sdf_idx : Array of integers converted from sdf_idx
+// * @return : Returns 0 in case of success , -1 otherwise
+// */
+//static uint32_t
+//get_sdf_indices(char *sdf_idx, uint32_t *out_sdf_idx)
+//{
+//	char *tmp = strtok (sdf_idx,",");
+//	int i = 0;
+//
+//	while ((NULL != tmp) && (i < MAX_SDF_IDX_COUNT)) {
+//		out_sdf_idx[i++] = atoi(tmp);
+//		tmp = strtok (NULL, ",");
+//	}
+//	return i;
+//}
 
 /**
  * @brief  : Converts zmq message type to session_info or
