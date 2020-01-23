@@ -199,6 +199,10 @@ msg_handler_s11(void)
 		(errno == EAGAIN  || errno == EWOULDBLOCK))
 		return;
 
+	if (!gtpv2c_s11_rx->gtpc.message_type) {
+		return;
+	}
+
 	if (bytes_s11_rx > 0)
 		++cp_stats.rx;
 
@@ -438,6 +442,11 @@ msg_handler_s5s8(void)
 		(errno == EAGAIN  || errno == EWOULDBLOCK)
 		)
 		return;
+
+	if (!gtpv2c_s5s8_rx->gtpc.message_type) {
+		return;
+	}
+
 #if 0
 	if ((spgw_cfg == SGWC) || (spgw_cfg == PGWC)) {
 		if ((bytes_s5s8_rx > 0) &&
