@@ -68,7 +68,7 @@ pfcp_pcnd_check(uint8_t *pfcp_rx, msg_info *msg, int bytes_rx)
 			memcpy(&msg->upf_ipv4.s_addr,
 					&msg->pfcp_msg.pfcp_ass_resp.node_id.node_id_value,
 					IPV4_SIZE);
-			if(pfcp_config.cp_type == PGWC) {
+			if(pfcp_config.cp_type != SGWC) {
 				/* Init rule tables of user-plane */
 				upf_pfcp_sockaddr.sin_addr.s_addr = msg->upf_ipv4.s_addr;
 				init_dp_rule_tables();

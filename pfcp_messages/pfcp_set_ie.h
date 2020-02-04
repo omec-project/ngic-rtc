@@ -537,9 +537,6 @@ upflist_by_ue_hash_entry_lookup(uint64_t *imsi_val, uint16_t imsi_len,
 uint8_t
 upf_context_entry_add(uint32_t *upf_ip, upf_context_t *entry);
 
-uint64_t
-get_rule_type(pfcp_pfd_contents_ie_t *pfd_conts, uint16_t *idx);
-
 int
 upf_context_entry_lookup(uint32_t upf_ip, upf_context_t **entry);
 
@@ -554,5 +551,8 @@ create_s5s8_sgwc_hash_table(void);
 void
 clear_s5s8_sgwc_hash_table(void);
 #endif /* CP_BUILD */
+
+uint64_t
+get_rule_type(pfcp_pfd_contents_ie_t *pfd_conts, uint16_t *idx);
 
 #endif /* PFCP_SET_IE_H */

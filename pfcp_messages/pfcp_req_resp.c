@@ -22,6 +22,7 @@
 #include "pfcp_association.h"
 #include "pfcp_messages_encoder.h"
 #include "pfcp_messages_decoder.h"
+#include "interface.h"
 
 #ifdef CP_BUILD
 #include "pfcp.h"
@@ -304,6 +305,7 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 	int encoded = 0;
 	int decoded = 0;
 	uint8_t pfcp_msg[1024]= {0};
+	struct msgbuf rule_msg = {0} ;
 
 	RTE_LOG_DP(DEBUG, DP, "Bytes received is %d\n", bytes_rx);
 	RTE_LOG_DP(DEBUG, DP, "IPADDR [%u]\n", peer_addr->sin_addr.s_addr);
@@ -405,37 +407,102 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 			}
 		case PFCP_PFD_MGMT_REQUEST:
 			{
-				memset(pfcp_msg, 0, sizeof(pfcp_msg));
+				memset(pfcp_msg, 0, 1024);
+				memset(&rule_msg, 0, sizeof(struct msgbuf));
 				int offend_id = 0;
 				uint8_t cause_id = 0;
+				uint16_t idx=0;
+				pfcp_pfd_mgmt_req_t *pfcp_pfd_mgmt_req = malloc(sizeof(pfcp_pfd_mgmt_req_t));
+				memset(pfcp_pfd_mgmt_req, 0, sizeof(pfcp_pfd_mgmt_req_t));
 				pfcp_pfd_mgmt_rsp_t pfcp_pfd_mgmt_resp = {0};
-				pfcp_pfd_mgmt_req_t pfcp_pfd_mgmt_req = {0};
-
 				/* Decode pfcp pfd mgmt req */
-				decoded = decode_pfcp_pfd_mgmt_req_t(buf_rx, &pfcp_pfd_mgmt_req);
+				decoded = decode_pfcp_pfd_mgmt_req_t(buf_rx, pfcp_pfd_mgmt_req);
+				/* Check for custom ie data is present and extract rule string  */
+				for (int itr = 0; itr < pfcp_pfd_mgmt_req->app_ids_pfds_count; itr++) {
+					for (int itr1 = 0; itr1 < pfcp_pfd_mgmt_req->app_ids_pfds[itr].pfd_context_count; itr1++) {
+						for (int itr2 = 0; itr2 < pfcp_pfd_mgmt_req->app_ids_pfds[itr].pfd_context[itr1].pfd_contents_count; itr2++) {
+							if(pfcp_pfd_mgmt_req->app_ids_pfds[itr].pfd_context[itr1].pfd_contents[itr2].header.len){
+								if((pfcp_pfd_mgmt_req->app_ids_pfds[itr].pfd_context[itr1].pfd_contents[itr2].pfd_contents_cp)                                               && (pfcp_pfd_mgmt_req->app_ids_pfds[itr].pfd_context[itr1].pfd_contents[itr2].len_of_cstm_pfd_cntnt)){
 
-				cause_id = REQUESTACCEPTED;
+									cause_id = REQUESTACCEPTED;
+								}
+							} else{
+								cause_id = MANDATORYIEMISSING;
+								offend_id= PFCP_IE_PFD_CONTENTS;
+							}
+
+							if(cause_id == REQUESTACCEPTED){
+								/* extract msg type from cstm string */
+								rule_msg.mtype = get_rule_type(&pfcp_pfd_mgmt_req->app_ids_pfds[itr].pfd_context[itr1].
+										pfd_contents[itr2], &idx);
+								if (rule_msg.mtype == MSG_ADC_TBL_ADD) {
+									rule_msg.msg_union.adc_filter_entry =
+										*(struct adc_rules *)(pfcp_pfd_mgmt_req->app_ids_pfds[itr].
+												pfd_context[itr1].pfd_contents[itr2].cstm_pfd_cntnt + idx);
+#ifdef PRINT_NEW_RULE_ENTRY
+									print_adc_val(&rule_msg.msg_union.adc_filter_entry);
+#endif /* PRINT_NEW_RULE_ENTRY */
+								}else if (rule_msg.mtype == MSG_PCC_TBL_ADD) {
+									rule_msg.msg_union.pcc_entry =
+										*(struct pcc_rules *)(pfcp_pfd_mgmt_req->app_ids_pfds[itr].
+												pfd_context[itr1].pfd_contents[itr2].cstm_pfd_cntnt + idx);
+#ifdef PRINT_NEW_RULE_ENTRY
+									print_pcc_val(&rule_msg.msg_union.pcc_entry);
+#endif /* PRINT_NEW_RULE_ENTRY */
+								}else if (rule_msg.mtype == MSG_MTR_ADD) {
+									rule_msg.msg_union.mtr_entry =
+										*(struct mtr_entry *)(pfcp_pfd_mgmt_req->app_ids_pfds[itr].
+												pfd_context[itr1].pfd_contents[itr2].cstm_pfd_cntnt + idx);
+#ifdef PRINT_NEW_RULE_ENTRY
+									print_mtr_val(&rule_msg.msg_union.mtr_entry);
+#endif /* PRINT_NEW_RULE_ENTRY */
+								}else if (rule_msg.mtype == MSG_SDF_ADD) {
+									rule_msg.msg_union.pkt_filter_entry =
+										*(struct pkt_filter *)(pfcp_pfd_mgmt_req->app_ids_pfds[itr].
+												pfd_context[itr1].pfd_contents[itr2].cstm_pfd_cntnt + idx);
+#ifdef PRINT_NEW_RULE_ENTRY
+									print_sdf_val(&rule_msg.msg_union.pkt_filter_entry);
+#endif /* PRINT_NEW_RULE_ENTRY */
+								}else {
+									RTE_LOG_DP(DEBUG, DP, "No rules received\n");
+								}
+							}
+						}
+					}
+				}
 				/* Fill pfcp pfd mgmt response */
 				fill_pfcp_pfd_mgmt_resp(&pfcp_pfd_mgmt_resp, cause_id, offend_id);
 
-				if(pfcp_pfd_mgmt_req.header.s) {
+				if(pfcp_pfd_mgmt_req->header.s) {
 					pfcp_pfd_mgmt_resp.header.seid_seqno.no_seid.seq_no =
-						pfcp_pfd_mgmt_req.header.seid_seqno.has_seid.seq_no;
+						pfcp_pfd_mgmt_req->header.seid_seqno.has_seid.seq_no;
 				} else {
 					pfcp_pfd_mgmt_resp.header.seid_seqno.no_seid.seq_no =
-						pfcp_pfd_mgmt_req.header.seid_seqno.no_seid.seq_no;
+						pfcp_pfd_mgmt_req->header.seid_seqno.no_seid.seq_no;
 				}
 
 				encoded = encode_pfcp_pfd_mgmt_rsp_t(&pfcp_pfd_mgmt_resp, pfcp_msg);
+
+				RTE_SET_USED(encoded);
 
 				pfcp_header_t *pfcp_hdr = (pfcp_header_t *) pfcp_msg;
 				pfcp_hdr->message_len = htons(encoded - 4);
 
 				RTE_LOG_DP(DEBUG, DP, "sending response of sess [%d] from dp\n",pfcp_hdr->message_type);
 				RTE_LOG_DP(DEBUG, DP, "length[%d]\n",htons(pfcp_hdr->message_len));
+				/* Free the allocated memory  */
+				free(pfcp_pfd_mgmt_req);
+				for (int itr_1 = 0; itr_1 < pfcp_pfd_mgmt_req->app_ids_pfds_count; itr_1++) {
+					for (int itr_2 = 0; itr_2 < pfcp_pfd_mgmt_req->app_ids_pfds[itr_1].pfd_context_count; itr_2++) {
+						for (int itr_3 = 0; itr_3 < pfcp_pfd_mgmt_req->app_ids_pfds[itr_1].pfd_context[itr_2].pfd_contents_count;
+								itr_3++) {
+							free(pfcp_pfd_mgmt_req->app_ids_pfds[itr_1].pfd_context[itr_2].pfd_contents[itr_3].cstm_pfd_cntnt);
+						}
+					}
+				}
 				break;
-
 			}
+
 		case PFCP_SESSION_ESTABLISHMENT_REQUEST:
 			{
 				memset(pfcp_msg, 0, 1024);

@@ -58,6 +58,7 @@ SRCS-y := up_main.c\
 	$(SRCDIR)/../pfcp_messages/pfcp_util.o\
 	$(SRCDIR)/../pfcp_messages/pfcp_set_ie.o\
 	$(SRCDIR)/../pfcp_messages/pfcp_up_sess.o\
+	$(SRCDIR)/../pfcp_messages/pfcp_print_rule.o\
 	$(SRCDIR)/../pfcp_messages/pfcp_req_resp.o\
 	$(SRCDIR)/../pfcp_messages/pfcp_association.o\
 	$(SRCDIR)/../pfcp_messages/pfcp_up_sess_rsp.o\
@@ -141,11 +142,11 @@ endif
 # ngic-dp debug/testing/profiling options CFLAGS
 # #############################################################
 # gdb: un-comment 'CFLAGS += -g -O0' comment 'CFLAGS += -O3'
-CFLAGS += -O0
-#CFLAGS += -g -O0
+#CFLAGS += -O0
+CFLAGS += -g -O0
 
 #un-comment below line to remove all log level for preformance testing.
-CFLAGS += -DPERF_TEST
+#CFLAGS += -DPERF_TEST
 
 #un-comment below line to generate pcap on east-west interfaces
 CFLAGS += -DPCAP_GEN
@@ -169,7 +170,7 @@ endif
 # Un-comment below line to print ADC, PCC, METER and SDF rule entry
 # passed from FPC-SDN in add entry operation.
 # Note : This flag works with Log level 'DEBUG'
-#CFLAGS += -DPRINT_NEW_RULE_ENTRY
+CFLAGS += -DPRINT_NEW_RULE_ENTRY
 
 # Un-comment below line to get packet stats on each core.
 CFLAGS += -DSTATS
