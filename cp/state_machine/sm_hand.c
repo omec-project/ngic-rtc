@@ -1136,10 +1136,10 @@ process_pfcp_sess_mod_resp_dbr_handler(void *data, void *unused_param)
 				S5S8_IFACE);
 		}
 
-	} else {
-	    gtpv2c_send(s11_fd, tx_buf, payload_length,
-	            (struct sockaddr *) &s11_mme_sockaddr,
-	            s11_mme_sockaddr_len);
+	} else if (resp->msg_type != GX_RAA_MSG) {
+		gtpv2c_send(s11_fd, tx_buf, payload_length,
+				(struct sockaddr *) &s11_mme_sockaddr,
+				s11_mme_sockaddr_len);
 
 		add_gtpv2c_if_timer_entry(
 				UE_SESS_ID(msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid),

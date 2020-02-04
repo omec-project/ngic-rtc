@@ -4954,6 +4954,7 @@ process_delete_bearer_pfcp_sess_response(uint64_t sess_id, gtpv2c_header_t *gtpv
 			gen_reauth_response(context, resp->eps_bearer_id - 5);
 
 			resp->state = CONNECTED_STATE;
+			resp->msg_type = GX_RAA_MSG;
 			context->pdns[resp->eps_bearer_id - 5]->state = CONNECTED_STATE;
 
 			s11_mme_sockaddr.sin_addr.s_addr =
