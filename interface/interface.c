@@ -491,10 +491,12 @@ check_for_new_dps(void)
 		assert(zmq_send(dp_sock, &upc->cp_comm_port, (size_t)2, 0) != -1);
 		/* resolve upf context to dpInfo */
 		if (resolve_upf_context_to_dpInfo(upc, msg_bundle.hostname, s1u_sgw_ip) == 0) {
-			rte_exit(EXIT_FAILURE, "Registered DP entry does not exist in app_config %s !!\n", msg_bundle.hostname);
+			RTE_LOG_DP(INFO, CP, "Invalid dpname %s received from edge \n", msg_bundle.hostname);
 		}
-		/* send packet filter to registered upf */
-		init_pkt_filter_for_dp(upc->dpId);
+		else {
+            /* send packet filter to registered upf */
+		    init_pkt_filter_for_dp(upc->dpId);
+        }
 	}
 	/* re-initialize registration socket */
 	zmq_close(dp_sock);
