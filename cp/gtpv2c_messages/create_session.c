@@ -14,7 +14,7 @@
 #include "cp_config.h"
 #endif
 
-#define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
+
 
 extern uint32_t num_adc_rules;
 extern uint32_t adc_rule_id[];

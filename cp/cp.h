@@ -32,6 +32,10 @@
 #endif
 #endif /* PERF_TEST */
 
+#ifndef RTE_LOGTYPE_CP
+#define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
+#endif
+
 #ifdef SYNC_STATS
 #include <time.h>
 #define DEFAULT_STATS_PATH  "./logs/"

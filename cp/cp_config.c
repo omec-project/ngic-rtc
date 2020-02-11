@@ -15,10 +15,6 @@
 #include <rte_log.h>
 #include <rte_debug.h>
 
-#ifndef RTE_LOGTYPE_CP
-#define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
-#endif
-
 void
 config_change_cbk(char *config_file, uint32_t flags)
 {

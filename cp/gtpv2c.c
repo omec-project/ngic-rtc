@@ -18,8 +18,6 @@
 #include "ue.h"
 #include "interface.h"
 
-#define RTE_LOGTYPE_CP RTE_LOGTYPE_USER1
-
 struct sockaddr_in s11_mme_sockaddr;
 
 struct in_addr s11_sgw_ip;

@@ -9,8 +9,6 @@
 #include "gtpv2c_set_ie.h"
 #include "../cp_dp_api/vepc_cp_dp_api.h"
 
-#define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
-
 /* PGWC S5S8 handlers:
  * static int delete_pgwc_context(...)
  * process_pgwc_s5s8_delete_session_request(...)

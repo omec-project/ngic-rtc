@@ -17,10 +17,7 @@
 #include <string.h>
 #include <monitor_config.h>
 #include <rte_log.h>
-
-#ifndef RTE_LOGTYPE_CP
-#define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
-#endif
+#include "cp.h"
 
 #define MAX_FILE_PATH 128
 struct entry

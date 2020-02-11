@@ -58,10 +58,6 @@
 	#define DP_PKEY_PATH "dp_pkey_path"
 #endif /* SGX_CDR */
 
-#ifndef RTE_LOGTYPE_CP
-#define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
-#endif
-
 /*
  * UDP Setup
  */

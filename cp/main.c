@@ -78,8 +78,6 @@
 								IP_POOL_MASK_SET | APN_NAME_SET | \
 								LOG_LEVEL_SET)
 
-#define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
-
 #ifdef ZMQ_COMM
 #define OP_ID_HASH_SIZE     (1 << 18)
 

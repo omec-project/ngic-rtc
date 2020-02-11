@@ -8,8 +8,6 @@
 #include "../cp_dp_api/vepc_cp_dp_api.h"
 #include "gtpv2c_set_ie.h"
 
-#define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
-
 extern struct response_info resp_t;
 
 /**

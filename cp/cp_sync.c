@@ -22,8 +22,6 @@
 #include "gtpv2c_set_ie.h"
 #include "gtpv2c.h"
 
-#define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
-
 extern struct rte_hash *resp_op_id_hash;
 extern struct response_info resp_t;
 extern socklen_t s11_mme_sockaddr_len;
