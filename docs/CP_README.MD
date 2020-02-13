@@ -1,16 +1,7 @@
-Copyright (c) 2017 Intel Corporation
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-     http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+<!--
+SPDX-License-Identifier: Apache-2.0
+Copyright(c) 2017 Intel Corporation
+-->
 
 NGIC Control Plane
 ==================
@@ -137,7 +128,6 @@ NGIC Control Plane
              structure, including the assignment of UE IP and verification of
              correct APN. Simplified TEID and IP pool is exposed here.
 
-
 2. Low Level Code Walk-through
 -----------------------------
 
@@ -199,7 +189,6 @@ positive values indicate errors with descriptions defined in 3GPP Cause values
 (See 3GPP TS 29.274 clause 8.4 for description). These errors will be displayed
 to console prior to discarding the message.
 
-
 ##### 2.2.1 Attach Procedure
 
 Per 3GPP TS 23.401 clause 5.3.2.1, an E-UTRAN Initial Attach procedure includes
@@ -236,7 +225,6 @@ time Downlink traffic may flow towards the UE.
 
 eNB Handover procedures are supported by updating the eNB F-TEID via Modify Bearer
 Request and Responses in the same sequence as the Attach Procedure.
-
 
 ##### 2.2.3 Dedicated Bearer Establishment (UE-initiated ONLY)
 
@@ -292,7 +280,6 @@ information storage as well as to the Data Plane via calls to the cp_dp_api.
 Delete Session Message processing occurs in the process_delete_session_request
 with the help of the delete_context function. The response message is populated
 by the process_delete_session_request.
-
 
 3. PCAP Support
 -----------------------------
@@ -361,7 +348,6 @@ would require the following (list may be incomplete):
           E.g. UE_IP(1) = 16.255.255.254
           E.g. UE_IP(2) = 16.255.255.253   ... and so on
 
-
 4. CP-FPC Lifecycle (When built with SDN_ODL_BUILD flag)
 ----------------------------
 
@@ -375,9 +361,7 @@ using [HTTP Chunked Transfer Encoding](https://tools.ietf.org/html/rfc7230#secti
 The remaining connetion is a one-time HTTP-GET request for the DPN topology
 made to the FPC ODL Plugin.
 
-
 ##### 4.2 CP-FPC Lifecycle Message Time Sequence
-
 
                             CP                                                              FPC
                             |                                                                |
@@ -420,8 +404,6 @@ made to the FPC ODL Plugin.
     Notification SSE Stream |<-------------------------------------------- 9 DPN-Unavailable-|
                             //                                                               //
                             |- 10 Unbind Client -------------------------------------------->| Request SSE Stream
-
-
 
 5. Control Plane Limitations
 ----------------------------

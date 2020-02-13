@@ -1,17 +1,5 @@
-/*
- * Copyright (c) 2017 Intel Corporation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+/* SPDX-License-Identifier: Apache-2.0
+ * Copyright(c) 2017 Intel Corporation
  */
 
 #ifndef _CDR_H
@@ -33,7 +21,6 @@
 #define RECORD_TIME_FORMAT "%Y%m%d%H%M%S"
 #define RECORD_TIME_LENGTH 16 /* buffer size for RECORD_TIME_FORMAT-ed string */
 #define BUFFER_SIZE 4096
-
 
 /* cdr field type callbacks
  * all callbacks must have the same parameters
@@ -108,7 +95,6 @@ set_cdr_path(const char *path);
 const char *
 iptoa(struct ip_addr addr);
 
-
 /**
  * Export PCC record to file
  * @param pcc_rule
@@ -178,7 +164,6 @@ export_cdr_record(struct dp_session_info *session, char *name,
  */
 void export_mtr(struct dp_session_info *session, char *name,
 		uint32_t id, uint64_t drops);
-
 
 /**
  * @file

@@ -1,0 +1,151 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dp
+data:
+  launch.sh: |
+    #!/bin/bash -xe
+
+    RUN_DIR=${RUN_DIR:-"/opt/dp"}
+    mkdir -p $RUN_DIR/config
+    cd $RUN_DIR/config
+    cp /etc/dp/config/{cdr.cfg,dp_config.cfg,interface.cfg} .
+    sed -i "s/CP_ADDR/$CP_ADDR/g" interface.cfg
+    sed -i "s/DP_ADDR/$DP_ADDR/g" interface.cfg
+    . dp_config.cfg
+    ngic_dataplane $EAL_ARGS -- $APP_ARGS
+  dp_config.cfg: |
+    if [ ! -d "/dev/hugepages" ]; then
+        MEMORY="--no-huge -m $((MEM_LIMIT-1024))"
+    fi
+
+    CORES="-c $(taskset -p $$ | awk '{print $NF}')"
+    EAL_ARGS="${CORES} ${MEMORY} ${DEVICES}"
+
+    SPGW_CFG="--spgw_cfg 03"
+    S1U_IP=$(ip -4 addr show dev ${S1U_DEVNAME} | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
+    SGI_IP=$(ip -4 addr show dev ${SGI_DEVNAME} | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
+    S1U_MAC=$(ip addr show dev ${S1U_DEVNAME} | awk '$1=="link/ether"{print $2}')
+    SGI_MAC=$(ip addr show dev ${SGI_DEVNAME} | awk '$1=="link/ether"{print $2}')
+    S1U="--s1u_ip ${S1U_IP} --s1u_mac ${S1U_MAC} --ul_iface ${S1U_DEVNAME}"
+    SGI="--sgi_ip ${SGI_IP} --sgi_mac ${SGI_MAC} --dl_iface ${SGI_DEVNAME} --sgi_gw_ip ${RTR_SGI_IP} --sgi_mask ${SGI_MASK}"
+    MISC="--log 1"
+    APP_ARGS="${S1U} ${SGI} ${MISC} ${SPGW_CFG}"
+  cdr.cfg: |
+    CDR_PATH=./cdr
+    MASTER_CDR=./cdr/master.csv
+  interface.cfg: |
+    [0]
+    dp_comm_ip = DP_ADDR
+    dp_comm_port = 20
+    cp_comm_ip = CP_ADDR
+    cp_comm_port = 21
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dp
+spec:
+  selector:
+    app: dp
+  clusterIP: None
+  ports:
+  - name: cpdp
+    port: 20
+    protocol: UDP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: dp
+  labels:
+    app: dp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dp
+  serviceName: "dp"
+  template:
+    metadata:
+      labels:
+        app: dp
+      annotations:
+        k8s.v1.cni.cncf.io/networks: '[
+                { "name": "s1u-net", "interface": "s1u-net" },
+                { "name": "sgi-net", "interface": "sgi-net" }
+        ]'
+    spec:
+      # Required if working with Linux bound devices so that kernel does not
+      # reply to GTP-U packets
+      #initContainers:
+      #- name: init
+      #  image: "ngick8stesting/c3po-init"
+      #  command: [ "sh", "-xec"]
+      #  securityContext:
+      #    capabilities:
+      #      add:
+      #        - NET_ADMIN
+      #  args:
+      #  - iptables -I OUTPUT -p icmp --icmp-type destination-unreachable -j DROP;
+      containers:
+      - name: dp
+        image: "krsna1729/ngic-dp"
+        imagePullPolicy: Always
+        stdin: true
+        tty: true
+        env:
+        - name: MEM_LIMIT
+          valueFrom:
+            resourceFieldRef:
+              containerName: dp
+              resource: limits.memory
+              divisor: 1Mi
+        - name: S1U_DEVNAME
+          value: s1u-net
+        - name: SGI_DEVNAME
+          value: sgi-net
+        - name: DEVICES
+          value: ""  # "--no-pci --vdev eth_af_packet0,iface=s1u-net --vdev eth_af_packet1,iface=sgi-net"
+        - name: CP_ADDR
+          value: cp-0.cp.default.svc.cluster.local
+        - name: DP_ADDR
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: RTR_SGI_IP
+          value: "13.1.1.110"
+        - name: SGI_MASK
+          value: "255.255.255.192"
+        command: ["/opt/dp/scripts/launch.sh"]
+        volumeMounts:
+        - name: dp-script
+          mountPath: /opt/dp/scripts/launch.sh
+          subPath: launch.sh
+        - name: dp-config
+          mountPath: /etc/dp/config
+        #- name: hugepage
+        #  mountPath: /dev/hugepages
+        resources:
+          limits:
+            #hugepages-2Mi: 4Gi
+            cpu: 4
+            memory: 5Gi #200Mi
+            intel.com/sriov_vfio: '2'
+        securityContext:
+          capabilities:
+            add:
+              - IPC_LOCK
+      volumes:
+      - name: dp-script
+        configMap:
+          name: dp
+          defaultMode: 493
+      - name: dp-config
+        configMap:
+          name: dp
+          defaultMode: 420
+      #- name: hugepage
+      #  emptyDir:
+      #    medium: HugePages

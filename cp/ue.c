@@ -1,17 +1,5 @@
-/*
- * Copyright (c) 2017 Intel Corporation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+/* SPDX-License-Identifier: Apache-2.0
+ * Copyright(c) 2017 Intel Corporation
  */
 
 #include "ue.h"
@@ -116,7 +104,6 @@ create_ue_hash(void)
 	}
 }
 
-
 void
 set_ip_pool_ip(const char *ip_str)
 {
@@ -125,7 +112,6 @@ set_ip_pool_ip(const char *ip_str)
 	printf("ip_pool_ip:  %s\n", inet_ntoa(ip_pool_ip));
 }
 
-
 void
 set_ip_pool_mask(const char *ip_str)
 {
@@ -133,7 +119,6 @@ set_ip_pool_mask(const char *ip_str)
 		rte_panic("Invalid argument - %s - Exiting.", ip_str);
 	printf("ip_pool_mask: %s\n", inet_ntoa(ip_pool_mask));
 }
-
 
 void
 set_apn_name(apn *an_apn, char *argstr)
@@ -167,7 +152,6 @@ set_apn_name(apn *an_apn, char *argstr)
 		--ptr;
 	} while (ptr != an_apn->apn_name_label);
 }
-
 
 void
 print_ue_context_by(struct rte_hash *h, ue_context *context)
@@ -210,7 +194,6 @@ print_ue_context_by(struct rte_hash *h, ue_context *context)
 		puts("");
 	}
 }
-
 
 int
 create_ue_context(uint8_t *imsi_val, uint16_t imsi_len,
@@ -285,7 +268,6 @@ create_ue_context(uint8_t *imsi_val, uint16_t imsi_len,
 		return GTPV2C_CAUSE_SYSTEM_FAILURE;
 	}
 
-
 	ebi_index = ebi - 5;
 	pdn = (*context)->pdns[ebi_index];
 	bearer = (*context)->eps_bearers[ebi_index];
@@ -359,12 +341,10 @@ create_ue_context(uint8_t *imsi_val, uint16_t imsi_len,
 	for (i = 0; i < MAX_FILTERS_PER_UE; ++i)
 		bearer->packet_filter_map[i] = -ENOENT;
 
-
 	bearer->pdn = pdn;
 	bearer->eps_bearer_id = ebi;
 	return 0;
 }
-
 
 apn *
 get_apn(char *apn_label, uint16_t apn_length)
@@ -388,7 +368,6 @@ get_apn(char *apn_label, uint16_t apn_length)
 	return apn_list+i;
 }
 
-
 uint32_t
 acquire_ip(struct in_addr *ipv4)
 {
@@ -400,4 +379,3 @@ acquire_ip(struct in_addr *ipv4)
 	ipv4->s_addr = GET_UE_IP(next_ip_index++);
 	return 0;
 }
-

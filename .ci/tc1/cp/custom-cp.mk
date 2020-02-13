@@ -1,0 +1,1 @@
+CFLAGS += -DZMQ_COMM

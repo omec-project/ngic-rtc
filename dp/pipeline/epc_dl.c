@@ -1,17 +1,5 @@
-/*
- * Copyright (c) 2017 Intel Corporation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+/* SPDX-License-Identifier: Apache-2.0
+ * Copyright(c) 2017 Intel Corporation
  */
 
 #include <string.h>
@@ -128,14 +116,11 @@ static inline void epc_dl_set_port_id(struct rte_mbuf *m)
 	}
 
 	/* Flag all other pkts for epc_dl proc handling */
-	if (likely
-			(ipv4_packet &&
-			((ipv4_hdr->next_proto_id == IPPROTO_UDP) ||
-			(ipv4_hdr->next_proto_id == IPPROTO_TCP)))) {
-			RTE_LOG_DP(DEBUG, DP, "SGI packet\n");
-			*port_id_offset = 0;
-			dl_sgi_pkt = 1;
-			dl_arp_pkt = 0;
+	if (likely(ipv4_packet)) {
+		RTE_LOG_DP(DEBUG, DP, "SGI packet\n");
+		*port_id_offset = 0;
+		dl_sgi_pkt = 1;
+		dl_arp_pkt = 0;
 	} //GCC_Security flag
 }
 
@@ -171,8 +156,12 @@ static int epc_dl_port_in_ah(struct rte_pipeline *p,
 
 	if (dl_nkni_pkts) {
 		RTE_LOG(DEBUG, DP, "KNI: DL send pkts to kni\n");
+#ifdef USE_AF_PACKET
+		kern_packet_ingress(SGI_PORT_ID, kni_pkts_burst, dl_nkni_pkts);
+#else
 		kni_ingress(kni_port_params_array[SGI_PORT_ID],
 				kni_pkts_burst, dl_nkni_pkts);
+#endif
 
 	}
 #ifdef STATS
@@ -236,12 +225,12 @@ void epc_dl_init(struct epc_dl_params *param, int core, uint8_t in_port_id, uint
     case PGWU:
         if (in_port_id != app.sgi_port && in_port_id != app.s5s8_pgwu_port)
             rte_exit(EXIT_FAILURE, "Wrong MAC configured for S5S8_PGWU/SGI interface\n");
-		break;
+	break;
 
     case SPGWU:
         if (in_port_id != app.sgi_port && in_port_id != app.s1u_port)
             rte_exit(EXIT_FAILURE, "Wrong MAC configured for S1U/SGI interface\n");
-	    break;
+	break;
 
     default:
         rte_exit(EXIT_FAILURE, "Invalid DP type(SPGW_CFG).\n");
@@ -405,8 +394,11 @@ void epc_dl(void *args)
 	 *  Then analyzes it and calls the specific actions for the specific requests.
 	 *  Finally constructs the response mbuf and puts it back to the resp_q.
 	 */
+#ifdef USE_AF_PACKET
+	kern_packet_egress(S1U_PORT_ID);
+#else /* KNI MODE */
 	rte_kni_handle_request(kni_port_params_array[SGI_PORT_ID]->kni[0]);
-
+#endif
 	uint32_t queued_cnt = rte_ring_count(shared_ring[S1U_PORT_ID]);
 	if (queued_cnt) {
 		struct rte_mbuf *pkts[queued_cnt];
@@ -444,4 +436,3 @@ void register_dl_worker(epc_dl_handler f, int port)
 {
 	epc_dl_worker_func[port] = f;
 }
-

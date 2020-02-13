@@ -1,17 +1,5 @@
-/*
- * Copyright (c) 2017 Intel Corporation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+/* SPDX-License-Identifier: Apache-2.0
+ * Copyright(c) 2017 Intel Corporation
  */
 
 #include <rte_errno.h>
@@ -352,7 +340,6 @@ install_packet_filters(eps_bearer *ded_bearer,
 	return 0;
 }
 
-
 /**
  * from parameters, populates gtpv2c message 'create bearer request' and
  * populates required information elements as defined by
@@ -435,7 +422,6 @@ create_dedicated_bearer(gtpv2c_header *gtpv2c_rx,
 	if (brc->context->ded_bearer != NULL)
 		return -EPERM;
 
-
 	if (brc->flow_quality_of_service == NULL) {
 		fprintf(stderr, "Received Bearer Resource Command without Flow "
 				"QoS IE\n");
@@ -482,7 +468,6 @@ create_dedicated_bearer(gtpv2c_header *gtpv2c_rx,
 
 	return 0;
 }
-
 
 /**
  * When a bearer resource command is received for some UE Context/PDN connection
@@ -544,7 +529,6 @@ delete_packet_filter(gtpv2c_header *gtpv2c_rx,
 
 	return 0;
 }
-
 
 int
 process_bearer_resource_command(gtpv2c_header *gtpv2c_rx,

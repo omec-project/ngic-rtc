@@ -1,16 +1,7 @@
-Copyright (c) 2017 Intel Corporation
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-     http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+<!--
+SPDX-License-Identifier: Apache-2.0
+Copyright(c) 2017 Intel Corporation
+-->
 
 NGIC Installation Guide
 =======================
@@ -42,7 +33,6 @@ Deployment-1 as SPGW(Service GW and PDN GW combined):
 | pktgen etc |    | |                         | |    | pktgen etc |
 +------------+    | +-------------------------+ |    +------------+
                   +-----------------------------+
-
 
 Deployment-2 as SGW(Service GW) and PGW(PDN GW):
                                             +----------+
@@ -81,7 +71,6 @@ control plane communicate over S5S8 protocol, and same way SGW and PGW in datapl
 * System5 hosts the MME. Currently NGIC VNF has been tested with ng4t MME.
 * MME sends commands to ControlPlane over 1G interface. This can be higher
 speed interface also.
-
 
 2. Configuration
 -----------------
@@ -175,20 +164,19 @@ DP application parameters to be supplied in dp_config.cfg:
 
 Dataplane supported command line arguments are:
 
-
 | ARGUMENT          | PRESENCE    | DESCRIPTION                                |
 |:------------------|:------------|:-------------------------------------------|
 | --spgw_cfg        | MANDATORY   | DP run setup:01(SGWU), 02(PGWU),03(SPGWU)  |
 | --s1u_ip          | MANDATORY   | S1U IP address of the SGW.                 |
 | --s1u_mac         | MANDATORY   | S1U port mac address of the SGW.           |
 | --sgi_ip          | MANDATORY   | SGI IP address of the SGW.                 |
-| --s5s8_sgwu_port  | MANDATORY   | Port of SGWU s5s8 interface. Applicable for|
+| --s5s8_sgwu_port  | OPTIONAL    | Port of SGWU s5s8 interface. Applicable for|
 |                   |             | SGWU configuration only                    |
-| --s5s8_sgwu_mac   | MANDATORY   | MAC of SGWU s5s8 interface. Applicable for |
+| --s5s8_sgwu_mac   | OPTIONAL    | MAC of SGWU s5s8 interface. Applicable for |
 |                   |             | SGWU configuration only                    |
-| --s5s8_pgwu_port  | MANDATORY   | Port of PGWU s5s8 interface. Applicable for|
+| --s5s8_pgwu_port  | OPTIONAL    | Port of PGWU s5s8 interface. Applicable for|
 |                   |             | PGWU configuration only                    |
-| --s5s8_pgwu_mac   | MANDATORY   | MAC of PGWU s5s8 interface. Applicable for |
+| --s5s8_pgwu_mac   | OPTIONAL    | MAC of PGWU s5s8 interface. Applicable for |
 |                   |             | PGWU configuration only                    |
 | --sgi_mac         | MANDATORY   | SGI port mac address of the PGW.           |
 | --s1uc            | OPTIONAL    | core number to run s1u rx/tx.              |
@@ -221,11 +209,9 @@ direction of messages. Listed below the diagram is the descriptions of
 [Components](./INSTALL.MD#2-4-1-components) and
 [Interfaces](./INSTALL.MD#2-4-2-interfaces).
 
-To disable CP to DP direct communication over ZMQ, disable ZMQ_COMM CFLAG in
-`ng-core_cfg.mk`. In this case ZMQ push/pull model is used.
-
-ZMQ_COMM flag (ZMQ Push Pull) is enabled by default in config/ng-core_cfg.mk
-Thus, ZMQ(tcp) is the default mode of communication between CP & DP in NGIC.
+To enable CP to DP direct communication over ZMQ, define ZMQ_COMM CFLAG in
+[`custom-cp.mk`](cp/custom-cp.mk) and [`custom-dp.mk`](dp/custom-dp.mk). In this
+case ZMQ push/pull model is used.
 
 ```text
 +-------------------------------------------------------------------------------+
@@ -262,8 +248,7 @@ Thus, ZMQ(tcp) is the default mode of communication between CP & DP in NGIC.
 ##### 2.4.1 Components
 
 - FPC - SDN Controller: Interfaces contained within this component are used
-    only when NGIC is built with the `DSDN_ODL_BUILD` CFLAG set in
-    `ng-core_cfg.mk`.
+    only when NGIC is built with the `DSDN_ODL_BUILD` CFLAG set.
 
 - ZMQ FORWARDER: the instance of the forwarder_device.py script. ***This
     component should be co-located with the FPC Karaf component.***
@@ -313,7 +298,6 @@ the ZMQ FORWARDER device.
 Additional information on the northbound interfaces and their uses can be found
 in the [CP_README.MD](docs/CP_README.MD)
 
-
 ##### 2.4.3 Co-located Configuration
 For a co-located NGIC deployment along with the FPC Controller, each IP address
 parameter in the `config/interface.cfg` file may be set to the loopback
@@ -326,11 +310,9 @@ configuration ofthe FPC components. These parameters and values include
 `zmq_sub_port=5560`, `zmq_pub_port=5559` and `fpc_port=8181`. More information
 can be found at the [FPC GitHub page](https://github.com/opendaylight/fpc).
 
-
 ##### 2.4.6 NGIC Port Parameters
 The `dp_comm_port`, `cp_comm_port`, and `cp_nb_server_port` parameters may
 utilize any available ports on the respective systems.
-
 
 #### 2.5 Simulated CP config (Optional):
 This option can be used to test Dataplane with a simulated ControlPlane
@@ -566,7 +548,6 @@ a. Setup 10G ports for VNF to run:
   For more details refer
   http://dpdk.org/doc/guides-16.11/linux_gsg/build_dpdk.html#binding-and-unbinding-network-ports-to-from-the-kernel-modules
 
-
   [FOR DPDK 18.02]
   1. cd dpdk
   2. ./usertools/dpdk_nic_bind.py --status <--- List the network device
@@ -577,10 +558,10 @@ a. Setup 10G ports for VNF to run:
 
 b. If ZMQ_COMM flag is enabled, start ZMQ Streamer before running DP and CP
 
-  If ZMQ_COMM flag is enabled in the config file ng-core_cfg.mk, then we need to start the
-  ZMQ streamer before running DP & CP. This can be done via the following script run.
-  NOTE: The script needs to be started either on CP or DP or any other systems and update
-        interface.cfg accordingly. No need to start on both CP and DP.
+  If ZMQ_COMM flag is enabled, then we need to start the ZMQ streamer before
+  running DP & CP. This can be done via the following script run. NOTE: The
+  script needs to be started either on CP or DP or any other systems and update
+  interface.cfg accordingly. No need to start on both CP and DP.
 
 ```shell
 cd dev_scripts
@@ -618,6 +599,33 @@ cd  dev_scripts
 ```
 
 f. Then start the traffic generator and MME if applicable.
+
+You can now run ngic without kni support using the following guidelines:
+
+a. Repeat step (a) from previous subsection to setup dpdk driver.
+
+b. Enable `-DUSE_AF_PACKET` macro in [`dp/Makefile`](dp/Makefile). Then add the mac addresses of
+port0 and port1 in [`config/dp_config.cfg`](config/dp_config.cfg) to run `ngic_dataplane`.
+
+```shell
+cd dp
+Edit run.sh to add coremask
+```
+
+c. Run following to create veth pairs of S1U/SGI interfaces.
+
+```shell
+sudo ./setup_af_ifaces.sh
+```
+
+d. Run dp.
+
+```shell
+cd dp
+./run.sh
+```
+
+e. Update cp_config.cfg with required parameters.
 #### 3.5 Standalone Virtualization:
 Dataplane has been tested with SRIOV and OVS with SIMU_CP configuration:
 
@@ -641,7 +649,6 @@ Dataplane has been tested with SRIOV and OVS with SIMU_CP configuration:
 
     -   Open `/etc/default/grub` configuration file.
     -   Append `iommu=pt intel_iommu=on` to the `GRUB_CMDLINE_LINUX` entry.
-
 
 4. Generating API documentation
 -------------------------------

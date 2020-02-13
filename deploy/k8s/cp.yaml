@@ -1,0 +1,515 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cp-pod-reader
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: pod-reader
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get"]
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: cp-pod-reader-rb
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: pod-reader
+subjects:
+- kind: ServiceAccount
+  name: cp-pod-reader
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cp
+data:
+  launch.sh: |
+    #!/bin/bash -xe
+
+    RUN_DIR=${RUN_DIR:-"/opt/cp"}
+    mkdir -p $RUN_DIR/config
+    cd $RUN_DIR/config
+    cp /etc/cp/config/{adc_rules.cfg,cp_config.cfg,interface.cfg,meter_profile.cfg,pcc_rules.cfg,sdf_rules.cfg} .
+    sed -i "s/CP_ADDR/$CP_ADDR/g" interface.cfg
+    sed -i "s/DP_ADDR/$DP_ADDR/g" interface.cfg
+    . cp_config.cfg
+    ngic_controlplane $EAL_ARGS -- $APP_ARGS
+  cp_config.cfg: |
+    if [ ! -d "/dev/hugepages" ]; then
+        MEMORY="--no-huge -m $((MEM_LIMIT-1024))"
+    fi
+    SHARED_DIR="/opt/cp/config/shared"
+    if [ -d ${SHARED_DIR} ]; then
+        while [ ! -f ${SHARED_DIR}/SGW_S1U_IP ]; do echo "Waiting for SGW_S1U_IP"; sleep 2; done
+        SGW_S1U_IP=$(cat ${SHARED_DIR}/SGW_S1U_IP)
+    fi
+
+    MGMT_INFO="-s ${CP_ADDR} -m ${MME_S11_IP} -w ${SGW_S1U_IP}"
+    APN_INFO="-i ${IP_POOL_IP} -p ${IP_POOL_MASK} -a ${APN}"
+    SPGW_CFG="-d 03 -l 2 -r 7.7.7.7 -g 6.6.6.6 -v 4.4.4.4  -u 5.5.5.5"
+    APP_ARGS="${MGMT_INFO} ${APN_INFO} ${SPGW_CFG} ${TEID_INFO}"
+
+    CORES="-c $(taskset -p $$ | awk '{print $NF}')"
+    DEVICES="--no-pci"
+    EAL_ARGS="${CORES} ${MEMORY} ${DEVICES}"
+  interface.cfg: |
+    [0]
+    dp_comm_ip = DP_ADDR
+    dp_comm_port = 20
+    cp_comm_ip = CP_ADDR
+    cp_comm_port = 21
+  adc_rules.cfg: |
+    [GLOBAL]
+    NUM_ADC_RULES = 5
+
+    ;FORMAT ::
+    ;ADC_TYPE : [ DOMAIN = 0 | IP = 1 | IP PREFIX =2 ]
+    ;
+    ;if ADC_TYPE = 0
+    ;   DOMAIN
+    ;elseif ADC_TYPE = 1
+    ;   IP
+    ;elseif ADC_TYPE = 2
+    ;   IP
+    ;   PREFIX
+    ;else
+    ;   NONE
+    ;
+    ;NOTE :
+    ;Rules defined first have a higher priority, unless DROP is specified
+    ;(i.e. multiple rules for the same IP).
+    ;When specifying DROP with an IP address, use a prefix of 32 to prevent DNS
+    ;results from overwriting rule.
+
+
+    [ADC_RULE_1]
+    ADC_TYPE = 1
+    IP = 13.1.1.111
+
+    [ADC_RULE_2]
+    ADC_TYPE = 2
+    IP = 13.1.1.0
+    PREFIX = 24
+
+    [ADC_RULE_3]
+    ADC_TYPE = 1
+    IP = 13.1.1.112
+    PREFIX = 24
+
+    [ADC_RULE_4]
+    ADC_TYPE = 0
+    DOMAIN = www.example.gov
+
+    [ADC_RULE_5]
+    ADC_TYPE = 0
+    DOMAIN = www.drop_example.com
+  meter_profile.cfg: |
+    [GLOBAL]
+    NUM_OF_IDX = 7
+
+    [ENTRY_1]
+    ;Committed Information Rate (CIR). Measured in bytes per second.
+    ;MBR is mapped into CIR, convert MBR from bits to Bytes and set CIR.
+    CIR = 2342400
+    ;Committed Burst Size unit = Bytes
+    CBS = 5856
+    ;Excess Burst Size unit = Bytes
+    EBS = 11712
+    ;Meter profile index. Refer this index in static_pcc.cfg to set AMBR/MBR
+    MTR_PROFILE_IDX = 3
+
+    [ENTRY_2]
+    ;1200 = 1756800
+    ;1400 = 2049600
+    ;1600 = 2342400
+    CIR = 2342400
+    CBS = 5856
+    EBS = 11712
+    MTR_PROFILE_IDX = 4
+
+    [ENTRY_3]
+    ; QCI5,QCI7 15.571kbps = 1947 B
+    CIR = 2342400
+    CBS = 5856
+    EBS = 11712
+    MTR_PROFILE_IDX = 5
+
+    [ENTRY_4]
+    ; QCI1, 44kbps = 5500 B
+    CIR = 2342400
+    CBS = 5856
+    EBS = 11712
+    MTR_PROFILE_IDX = 6
+
+    [ENTRY_5]
+    ; QCI9, 31.143kbps = 3893 B
+    CIR = 2342400
+    CBS = 5856
+    EBS = 11712
+    MTR_PROFILE_IDX = 7
+
+    [ENTRY_6]
+    ; 128B, 7pps
+    CIR = 2342400
+    CBS = 512
+    EBS = 1024
+    MTR_PROFILE_IDX = 8
+
+    [ENTRY_7]
+    ; 128B, 2pps
+    CIR = 2342400
+    CBS = 512
+    EBS = 1024
+    MTR_PROFILE_IDX = 9
+
+  pcc_rules.cfg: |
+    [GLOBAL]
+    NUM_PCC_FILTERS = 9
+    ;To config AMBR/MBR values refer meter_profile.cfg. specify only the
+    ;meter profile index to be set here.
+    UL_AMBR_MTR_PROFILE_IDX = 3
+    DL_AMBR_MTR_PROFILE_IDX = 4
+
+    ;default filter - must be first for now (until DP doesn't install any filters)
+    ;associated with default adc rule
+    [PCC_FILTER_1]
+    RULE_NAME = DefaultRule
+    RATING_GROUP = 9
+    SERVICE_ID = 0
+    RULE_STATUS = 0
+    GATE_STATUS = 1
+    SESSION_CONT = 0
+    REPORT_LEVEL = 1
+    CHARGING_MODE = 0
+    METERING_METHOD = 0
+    MUTE_NOTIFY = 0
+    MONITORING_KEY = 0
+    SPONSOR_ID = 0
+    REDIRECT_INFO = 0
+    PRECEDENCE = 254
+    DROP_PKT_COUNT = 0
+    ;Specify the meter profile index from meter_profile.cfg
+    UL_MBR_MTR_PROFILE_IDX = 7
+    DL_MBR_MTR_PROFILE_IDX = 7
+    ;List of ADC filter indices
+    SDF_FILTER_IDX = 99998
+
+    [PCC_FILTER_2]
+    RULE_NAME = sdf_rule_1
+    RATING_GROUP = 5
+    SERVICE_ID = 0
+    RULE_STATUS = 0
+    GATE_STATUS = 1
+    SESSION_CONT = 0
+    REPORT_LEVEL = 2
+    CHARGING_MODE = 0
+    METERING_METHOD = 0
+    MUTE_NOTIFY = 0
+    MONITORING_KEY = 0
+    SPONSOR_ID = 0
+    REDIRECT_INFO = 0
+    PRECEDENCE = 1
+    DROP_PKT_COUNT = 0
+    UL_MBR_MTR_PROFILE_IDX = 5
+    DL_MBR_MTR_PROFILE_IDX = 5
+    ;List of SDF filter indices
+    SDF_FILTER_IDX = 1
+
+    [PCC_FILTER_3]
+    RULE_NAME = sdf_rule_2
+    RATING_GROUP = 1
+    SERVICE_ID = 0
+    RULE_STATUS = 0
+    GATE_STATUS = 1
+    SESSION_CONT = 0
+    REPORT_LEVEL = 3
+    CHARGING_MODE = 0
+    METERING_METHOD = 0
+    MUTE_NOTIFY = 0
+    MONITORING_KEY = 0
+    SPONSOR_ID = 0
+    REDIRECT_INFO = 0
+    PRECEDENCE = 18
+    DROP_PKT_COUNT = 0
+    UL_MBR_MTR_PROFILE_IDX = 6
+    DL_MBR_MTR_PROFILE_IDX = 6
+    ;List of SDF filter indices
+    SDF_FILTER_IDX = 2
+
+    [PCC_FILTER_4]
+    RULE_NAME = adc_rule_1
+    RATING_GROUP = Zero-Rate
+    SERVICE_ID = Internet
+    RULE_STATUS = 0
+    GATE_STATUS = 1
+    SESSION_CONT = 0
+    REPORT_LEVEL = 8
+    CHARGING_MODE = 0
+    METERING_METHOD = 0
+    MUTE_NOTIFY = 0
+    MONITORING_KEY = 0
+    REDIRECT_INFO = 0
+    SPONSOR_ID = Example
+    PRECEDENCE = 15
+    DROP_PKT_COUNT = 0
+    UL_MBR_MTR_PROFILE_IDX = 7
+    DL_MBR_MTR_PROFILE_IDX = 7
+    ;List of SDF filter indices
+    ADC_FILTER_IDX = 1
+
+    [PCC_FILTER_5]
+    RULE_NAME = adc_rule_2
+    RATING_GROUP = 0
+    SERVICE_ID = CIPA
+    RULE_STATUS = 0
+    GATE_STATUS = 1
+    SESSION_CONT = 0
+    REPORT_LEVEL = 9
+    CHARGING_MODE = 0
+    METERING_METHOD = 0
+    MUTE_NOTIFY = 0
+    MONITORING_KEY = 0
+    SPONSOR_ID = Example
+    REDIRECT_INFO = 0
+    SPONSOR_ID = Example
+    REDIRECT_INFO = 0
+    PRECEDENCE = 4
+    DROP_PKT_COUNT = 0
+    UL_MBR_MTR_PROFILE_IDX = 0
+    DL_MBR_MTR_PROFILE_IDX = 0
+    ;List of SDF filter indices
+    ADC_FILTER_IDX = 2
+
+    [PCC_FILTER_6]
+    RULE_NAME = sdf_rule_3
+    RATING_GROUP = 7
+    SERVICE_ID = 0
+    RULE_STATUS = 0
+    GATE_STATUS = 1
+    SESSION_CONT = 0
+    REPORT_LEVEL = 4
+    CHARGING_MODE = 0
+    METERING_METHOD = 0
+    MUTE_NOTIFY = 0
+    MONITORING_KEY = 0
+    SPONSOR_ID = 0
+    REDIRECT_INFO = 0
+    PRECEDENCE = 17
+    DROP_PKT_COUNT = 0
+    UL_MBR_MTR_PROFILE_IDX = 5
+    DL_MBR_MTR_PROFILE_IDX = 5
+    ;List of SDF filter indices
+    SDF_FILTER_IDX = 3
+
+    [PCC_FILTER_7]
+    RULE_NAME = adc_rule_3
+    RATING_GROUP = Zero-Rate
+    SERVICE_ID = Internet
+    RULE_STATUS = 0
+    GATE_STATUS = 1
+    SESSION_CONT = 0
+    REPORT_LEVEL = 5
+    CHARGING_MODE = 0
+    METERING_METHOD = 0
+    MUTE_NOTIFY = 0
+    MONITORING_KEY = 0
+    SPONSOR_ID = Example
+    REDIRECT_INFO = 0
+    PRECEDENCE = 210
+    DROP_PKT_COUNT = 0
+    UL_MBR_MTR_PROFILE_IDX = 7
+    DL_MBR_MTR_PROFILE_IDX = 7
+    ;List of SDF filter indices
+    ADC_FILTER_IDX = 4
+
+    [PCC_FILTER_8]
+    RULE_NAME = adc_rule_4
+    RATING_GROUP = Zero-Rate
+    SERVICE_ID = Management
+    RULE_STATUS = 0
+    GATE_STATUS = 1
+    SESSION_CONT = 0
+    REPORT_LEVEL = 6
+    CHARGING_MODE = 0
+    METERING_METHOD = 0
+    MUTE_NOTIFY = 0
+    MONITORING_KEY = 0
+    SPONSOR_ID = Example
+    REDIRECT_INFO = 0
+    PRECEDENCE = 200
+    DROP_PKT_COUNT = 0
+    UL_MBR_MTR_PROFILE_IDX = 7
+    DL_MBR_MTR_PROFILE_IDX = 7
+    ;List of SDF filter indices
+    ADC_FILTER_IDX = 12
+
+    [PCC_FILTER_9]
+    RULE_NAME = adc_rule_5
+    RATING_GROUP = Zero-Rate
+    SERVICE_ID = Provisioning
+    RULE_STATUS = 0
+    GATE_STATUS = 1
+    SESSION_CONT = 0
+    REPORT_LEVEL = 7
+    CHARGING_MODE = 0
+    METERING_METHOD = 0
+    MUTE_NOTIFY = 0
+    MONITORING_KEY = 0
+    SPONSOR_ID = Example
+    REDIRECT_INFO = 0
+    PRECEDENCE = 220
+    DROP_PKT_COUNT = 0
+    UL_MBR_MTR_PROFILE_IDX = 7
+    DL_MBR_MTR_PROFILE_IDX = 7
+    ;List of SDF filter indices
+    ADC_FILTER_IDX = 3
+  sdf_rules.cfg: |
+    [GLOBAL]
+    NUM_SDF_FILTERS = 4
+
+    [SDF_FILTER_1]
+    DIRECTION = downlink_only
+    IPV4_REMOTE = 13.2.1.113
+    IPV4_REMOTE_MASK = 255.255.255.0
+    PROTOCOL = 17
+    LOCAL_LOW_LIMIT_PORT = 0
+    LOCAL_HIGH_LIMIT_PORT = 65535
+    REMOTE_LOW_LIMIT_PORT = 0
+    REMOTE_HIGH_LIMIT_PORT = 65535
+
+    [SDF_FILTER_2]
+    DIRECTION = uplink_only
+    IPV4_LOCAL = 16.255.255.0
+    IPV4_LOCAL_MASK = 255.255.255.0
+    PROTOCOL = 17
+    LOCAL_LOW_LIMIT_PORT = 0
+    LOCAL_HIGH_LIMIT_PORT = 65535
+    REMOTE_LOW_LIMIT_PORT = 0
+    REMOTE_HIGH_LIMIT_PORT = 65535
+
+    [SDF_FILTER_3]
+    DIRECTION = downlink_only
+    IPV4_REMOTE = 130.10.0.0
+    IPV4_REMOTE_MASK = 255.255.0.0
+    PROTOCOL = 17
+    REMOTE_LOW_LIMIT_PORT = 5060
+    REMOTE_HIGH_LIMIT_PORT = 5060
+
+    [SDF_FILTER_4]
+    DIRECTION = uplink_only
+    IPV4_REMOTE = 103.1.0.0
+    IPV4_REMOTE_MASK = 255.255.0.0
+    PROTOCOL = 17
+    LOCAL_LOW_LIMIT_PORT = 17000
+    LOCAL_HIGH_LIMIT_PORT = 17010
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cp
+spec:
+  selector:
+    app: cp
+  clusterIP: None
+  ports:
+  - name: s11
+    port: 2123
+    protocol: UDP
+  - name: cpdp
+    port: 21
+    protocol: UDP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: cp
+  labels:
+    app: cp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cp
+  serviceName: "cp"
+  template:
+    metadata:
+      labels:
+        app: cp
+    spec:
+      serviceAccount: cp-pod-reader
+      initContainers:
+      - name: init
+        image: ngick8stesting/kubectl
+        command: ["/bin/sh", "-co", "pipefail"]
+        args:
+        - until $(kubectl get pod -ojson dp-0 2>/dev/null | jq -r '.metadata.annotations["k8s.v1.cni.cncf.io/networks-status"]' | jq -r '.[] | select(.name=="s1u-net") | .ips[0]' > /opt/cp/config/shared/SGW_S1U_IP);
+          do echo "waiting for DP"; sleep 2;done
+        volumeMounts:
+        - name: shared-data
+          mountPath: /opt/cp/config/shared
+      containers:
+      - name: cp
+        image: "krsna1729/ngic-cp"
+        imagePullPolicy: Always
+        stdin: true
+        tty: true
+        command: ["/opt/cp/scripts/launch.sh"]
+        env:
+        - name: MEM_LIMIT
+          valueFrom:
+            resourceFieldRef:
+              containerName: cp
+              resource: limits.memory
+              divisor: 1Mi
+        #- name: SGW_S1U_IP
+        #  value: "11.1.1.1"
+        - name: CP_ADDR
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: DP_ADDR
+          value: dp-0.dp.default.svc.cluster.local
+        - name: MME_S11_IP
+          value: mme-0.mme.default.svc.cluster.local
+        - name: APN
+          value: apn1
+        - name: IP_POOL_IP
+          value: "16.0.0.0"
+        - name: IP_POOL_MASK
+          value: "255.0.0.0"
+        volumeMounts:
+        - name: cp-script
+          mountPath: /opt/cp/scripts/launch.sh
+          subPath: launch.sh
+        - name: cp-config
+          mountPath: /etc/cp/config
+        - name: shared-data
+          mountPath: /opt/cp/config/shared
+        #- name: hugepage
+        #  mountPath: /dev/hugepages
+        resources:
+          limits:
+            #hugepages-2Mi: 2Gi
+            cpu: 3
+            memory: 3Gi #200Mi
+      volumes:
+      - name: cp-script
+        configMap:
+          name: cp
+          defaultMode: 493
+      - name: cp-config
+        configMap:
+          name: cp
+          defaultMode: 420
+      - name: shared-data
+        emptyDir: {}
+        #- name: hugepage
+        #  emptyDir:
+        #    medium: HugePages

@@ -1,17 +1,5 @@
-/*
- * Copyright (c) 2017 Intel Corporation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+/* SPDX-License-Identifier: Apache-2.0
+ * Copyright(c) 2017 Intel Corporation
  */
 
 #include <stdio.h>
@@ -43,11 +31,13 @@
 #include <rte_ethdev.h>
 #include <rte_port_ethdev.h>
 #include <rte_kni.h>
+#ifdef USE_AF_PACKET
+#include <libmnl/libmnl.h>
+#endif
 
 #ifdef STATIC_ARP
 #include <rte_cfgfile.h>
 #endif	/* STATIC_ARP */
-
 
 /* VS: Routing Discovery */
 #include <fcntl.h>
@@ -57,7 +47,6 @@
 #include "net/if_arp.h"
 #include "sys/ioctl.h"
 #include "net/route.h"
-
 
 #include "epc_arp.h"
 #include "epc_packet_framework.h"
@@ -143,7 +132,6 @@ struct kni_port_params *kni_port_params_array[RTE_MAX_ETHPORTS];
 #define TABLE_SIZE (8192 * 4)
 #define ERR_RET(x) do { perror(x); return EXIT_FAILURE; } while (0);
 
-
 /**
  * VS: Get Local arp table entry
  */
@@ -157,7 +145,6 @@ char gwAddr[128];
 char netMask[128];
 int route_sock = -1;
 int gatway_flag = 0;
-
 
 /* Structure for sending the request */
 typedef struct
@@ -180,7 +167,6 @@ struct RouteInfo
 	/** mac address */
 	struct ether_addr gateWay_Mac;
 };
-
 
 /**
  * print arp table
@@ -291,23 +277,6 @@ struct arp_icmp_route_table_entry {
 	uint32_t mask;
 	uint32_t port;
 	uint32_t nh;
-};
-
-struct ether_addr broadcast_ether_addr = {
-	.addr_bytes[0] = 0xFF,
-	.addr_bytes[1] = 0xFF,
-	.addr_bytes[2] = 0xFF,
-	.addr_bytes[3] = 0xFF,
-	.addr_bytes[4] = 0xFF,
-	.addr_bytes[5] = 0xFF,
-};
-static const struct ether_addr null_ether_addr = {
-	.addr_bytes[0] = 0x00,
-	.addr_bytes[1] = 0x00,
-	.addr_bytes[2] = 0x00,
-	.addr_bytes[3] = 0x00,
-	.addr_bytes[4] = 0x00,
-	.addr_bytes[5] = 0x00,
 };
 
 static void print_ip(int ip)
@@ -512,7 +481,6 @@ print_ipv4_h(struct ipv4_hdr *ip_h)
 	}
 }
 
-
 static void
 print_arp_packet(struct arp_hdr *arp_h)
 {
@@ -642,7 +610,6 @@ retrieve_arp_entry(struct arp_ipv4_key arp_key,
 
 		ret = rte_hash_lookup_data(route_hash_handle,
 						&key.dstAddr, (void **)&route_entry);
-
 
 		if (ret == 0) {
 			if ((route_entry->gateWay != 0) && (route_entry->gateWay_Mac.addr_bytes != 0)) {
@@ -1337,7 +1304,6 @@ del_route_entry(
 					inet_ntoa(*(struct in_addr *)&info->dstAddr),
 					rte_strerror(abs(ret)));
 
-
 			return -1;
 		}
 
@@ -1439,7 +1405,6 @@ get_iface_name(int iface_index, char *iface_Name)
 {
 	int fd;
 	struct ifreq ifr;
-
 
 	fd = socket(AF_INET, SOCK_DGRAM, 0);
 	if(fd == -1)
@@ -1568,7 +1533,6 @@ get_gateWay_mac(uint32_t IP_gateWay, char *iface_Mac)
 	return 0;
 }
 
-
 /**
  * Create pthread to read or receive data/events from netlink socket.
  */
@@ -1622,7 +1586,7 @@ static void
 					(rtp->rtm_table != RT_TABLE_MAIN))
 		        continue;
 
-			i++;
+		    i++;
 		    /* Get attributes of rtp */
 		    rtap = (struct rtattr *) RTM_RTA(rtp);
 
@@ -1713,7 +1677,6 @@ static void
 	return NULL; //GCC_Security flag
 }
 
-
 static int
 init_netlink_socket(void)
 {
@@ -1739,7 +1702,8 @@ init_netlink_socket(void)
 
 	addr_t.nl_family = PF_NETLINK;
 	addr_t.nl_pad = 0;
-	addr_t.nl_pid = getpid();
+	/* avoid address re-bind errors (with mnl_sock) by setting nl_pid value to 0 */
+	addr_t.nl_pid = 0;
 	addr_t.nl_groups = RTMGRP_LINK | RTMGRP_IPV4_ROUTE;
 
 	if (bind(route_sock,(struct sockaddr *)&addr_t,sizeof(addr_t)) < 0)
@@ -1992,6 +1956,125 @@ epc_arp_init(void)
 #endif	/* STATIC_ARP */
 }
 
+#ifdef USE_AF_PACKET
+static int
+data_attr_cb(const struct nlattr *attr, void *data)
+{
+	const struct nlattr **tb = data;
+	int type = mnl_attr_get_type(attr);
+
+	/* skip unsupported attribute in user-space */
+	if (mnl_attr_type_valid(attr, IFLA_MAX) < 0)
+		return MNL_CB_OK;
+
+	switch(type) {
+	case IFLA_MTU:
+		if (mnl_attr_validate(attr, MNL_TYPE_U32) < 0) {
+			perror("mnl_attr_validate");
+			return MNL_CB_ERROR;
+		}
+		break;
+	case IFLA_IFNAME:
+		if (mnl_attr_validate(attr, MNL_TYPE_STRING) < 0) {
+			perror("mnl_attr_validate");
+			return MNL_CB_ERROR;
+		}
+		break;
+	case IFLA_ADDRESS:
+		if (mnl_attr_validate(attr, MNL_TYPE_BINARY) < 0) {
+			perror("mnl_attr_validate");
+			return MNL_CB_ERROR;
+		}
+		break;
+	case IFLA_IFALIAS:
+		if (mnl_attr_validate(attr, MNL_TYPE_STRING) < 0) {
+			perror("mnl_attr_validate");
+			return MNL_CB_ERROR;
+		}
+		break;
+	}
+	tb[type] = attr;
+	return MNL_CB_OK;
+}
+
+static int
+data_cb(const struct nlmsghdr *nlh, __rte_unused void *data)
+{
+	char name[IFNAMSIZ] = "";
+	int16_t portid = -1;
+	struct nlattr *tb[IFLA_MAX+1] = {NULL};
+	struct ifinfomsg *ifm = mnl_nlmsg_get_payload(nlh);
+
+	mnl_attr_parse(nlh, sizeof(*ifm), data_attr_cb, tb);
+
+	if (tb[IFLA_IFNAME]) {
+		strcpy(name, mnl_attr_get_str(tb[IFLA_IFNAME]));
+		if (!strcmp(name, app.ul_iface_name))
+			portid = S1U_PORT_ID;
+		else if (!strcmp(name, app.dl_iface_name))
+			portid = SGI_PORT_ID;
+	}
+
+	if (portid == -1) {
+		RTE_LOG_DP(INFO, DP, "Invalid parsed port id by mnl_sock\n");
+		return MNL_CB_ERROR;
+	}
+	if (tb[IFLA_ADDRESS]) {
+		uint8_t *hwaddr = mnl_attr_get_payload(tb[IFLA_ADDRESS]);
+		if (memcmp(hwaddr, dp_ports[portid].eth_addr->addr_bytes, ETHER_ADDR_LEN) != 0 &&
+		    kni_config_mac_address(portid, hwaddr) >= 0) {
+			RTE_LOG_DP(DEBUG, DP,
+				   "Changing eth address of %s to %02X:%02X:%02X:%02X:%02X:%02X\n",
+				   portid == S1U_PORT_ID ? "s1u_port" : "sgi_port",
+				   hwaddr[0], hwaddr[1], hwaddr[2],
+				   hwaddr[3], hwaddr[4], hwaddr[5]);
+			rte_eth_macaddr_get(portid, dp_ports[portid].eth_addr);
+		}
+	}
+
+	if (tb[IFLA_MTU]) {
+		uint16_t new_mtu = mnl_attr_get_u32(tb[IFLA_MTU]);
+		if (new_mtu != dp_ports[portid].mtu_size) {
+			RTE_LOG_DP(DEBUG, DP, "Changing mtu size of %s to %hu\n",
+				   portid == S1U_PORT_ID ? "s1u_port" : "sgi_port",
+				   new_mtu);
+			if (kni_change_mtu(portid, new_mtu) >= 0)
+				dp_ports[portid].mtu_size = new_mtu;
+		}
+	}
+
+	if (dp_ports[portid].promisc_state ^ (ifm->ifi_flags & IFF_PROMISC)) {
+		dp_ports[portid].promisc_state ^= 1;
+		if (dp_ports[portid].promisc_state) {
+			rte_eth_promiscuous_enable(portid);
+			RTE_LOG_DP(DEBUG, DP, "Promisc for portid: %s enabled!\n",
+				   portid == S1U_PORT_ID ? "s1u_port" : "sgi_port");
+		} else {
+			rte_eth_promiscuous_disable(portid);
+			RTE_LOG_DP(DEBUG, DP, "Promisc for portid: %s disabled\n",
+				   portid == S1U_PORT_ID ? "s1u_port" : "sgi_port");
+		}
+	}
+
+	return MNL_CB_OK;
+}
+
+static void
+handle_mnl_process(void)
+{
+	char buf[MNL_SOCKET_BUFFER_SIZE];
+	int ret;
+
+	ret = mnl_socket_recvfrom(mnl_sock, buf, sizeof(buf));
+
+	while (ret > 0) {
+		ret = mnl_cb_run(buf, ret, 0, 0, data_cb, NULL);
+		if (ret <= 0)
+			break;
+		ret = mnl_socket_recvfrom(mnl_sock, buf, sizeof(buf));
+	}
+}
+#else
 /* Burst rx from kni interface and enqueue rx pkts in ring */
 static void *handle_kni_process(__rte_unused void *arg)
 {
@@ -2000,6 +2083,7 @@ static void *handle_kni_process(__rte_unused void *arg)
 	}
 	return NULL; //GCC_Security flag
 }
+#endif
 
 void epc_arp(__rte_unused void *arg)
 {
@@ -2009,7 +2093,11 @@ void epc_arp(__rte_unused void *arg)
 			rte_pipeline_flush(myP);
 			param->flush_count = 0;
 		}
+#ifdef USE_AF_PACKET
+		handle_mnl_process();
+#else
 		handle_kni_process(NULL);
+#endif
 #ifdef NGCORE_SHRINK
 #ifdef STATS
 	epc_stats_core();

@@ -1,17 +1,5 @@
-/*
- * Copyright (c) 2017 Intel Corporation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+/* SPDX-License-Identifier: Apache-2.0
+ * Copyright(c) 2017 Intel Corporation
  */
 
 #ifndef _GTPU_H_
@@ -34,7 +22,6 @@
  * Last two SEQNB bytes should be 00 00
  * */
 #define GTPU_STATIC_SEQNB (uint32_t)0x00000000
-
 
 #define GPDU_HDR_SIZE_WITHOUT_SEQNB	8
 #define GPDU_HDR_SIZE_WITH_SEQNB	12

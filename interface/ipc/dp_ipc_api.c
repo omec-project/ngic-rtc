@@ -1,17 +1,5 @@
-/*
- * Copyright (c) 2017 Intel Corporation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+/* SPDX-License-Identifier: Apache-2.0
+ * Copyright(c) 2017 Intel Corporation
  */
 
 #include <stdint.h>
@@ -31,7 +19,6 @@
 #include "interface.h"
 #include "udp/vepc_udp.h"
 #include "dp_ipc_api.h"
-
 
 void iface_ipc_register_msg_cb(int msg_id,
 				int (*msg_cb)(struct msgbuf *msg_payload))
@@ -58,7 +45,6 @@ void iface_init_ipc_node(void)
  */
 int iface_remove_que(enum cp_dp_comm id)
 {
-
 
 #ifdef CP_BUILD
 #ifdef ZMQ_COMM
@@ -123,7 +109,6 @@ int iface_remove_que(enum cp_dp_comm id)
 	return 0;
 }
 
-
 /**
  * @brief Function to Poll message que.
  *
@@ -167,4 +152,3 @@ int iface_process_ipc_msgs(void)
 	}
 	return ret;
 }
-

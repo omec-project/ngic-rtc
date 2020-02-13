@@ -1,17 +1,5 @@
-/*
- * Copyright (c) 2017 Intel Corporation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+/* SPDX-License-Identifier: Apache-2.0
+ * Copyright(c) 2017 Intel Corporation
  */
 
 #define _GNU_SOURCE     /* Expose declaration of tdestroy() */
@@ -25,7 +13,6 @@
 #include <rte_cfgfile.h>
 #include <rte_hash.h>
 #include <rte_hash_crc.h>
-
 
 #include "vepc_cp_dp_api.h"
 #include "main.h"
@@ -372,7 +359,6 @@ add_dl_pcc_entry_key_with_idx(struct dp_session_info *old,
 	ret = rte_hash_add_key_data(rte_downlink_hash,
 			&dl_key, psdf);
 
-
 	if (ret < 0)
 		rte_panic("Failed to add entry in hash table");
 }
@@ -656,7 +642,6 @@ void print_adc_hash(void)
 	void *next_data;
 	uint32_t iter = 0;
 
-
 	while (rte_hash_iterate(rte_adc_hash, &next_key, &next_data, &iter) >= 0) {
 
 		struct in_addr tmp_ip_key;
@@ -921,7 +906,6 @@ dp_session_create(struct dp_id dp_id,
 	/* Update PCC rules addr*/
 	update_pcc_rules(data, &new);
 
-
 	data->client_id = entry->client_id;
 	new.client_id = entry->client_id;
 
@@ -966,7 +950,6 @@ dp_session_modify(struct dp_id dp_id,
 					entry->sess_id);
 		return -1;
 	}
-
 
 	copy_session_info(&mod_data, entry);
 	/* Update adc rules */
@@ -1372,7 +1355,6 @@ dp_session_delete(struct dp_id dp_id,
 	export_adc_cdr_record(data);
 	export_flow_cdr_record(data);
 
-
 	struct dp_session_info new;
 
 	memset(&new, 0, sizeof(struct dp_session_info));
@@ -1600,4 +1582,3 @@ app_sess_tbl_init(void)
 	iface_ipc_register_msg_cb(MSG_DDN_ACK, cb_ddn_ack);
 #endif /* DP_DDN */
 }
-

@@ -1,16 +1,5 @@
-# Copyright (c) 2017 Intel Corporation
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# SPDX-License-Identifier: Apache-2.0
+# Copyright(c) 2017 Intel Corporation
 
 ifeq ($(RTE_SDK),)
 $(error "Please define RTE_SDK environment variable")
@@ -22,7 +11,7 @@ MAKEFLAGS += -j
 RTE_TARGET ?= x86_64-native-linuxapp-gcc
 
 include $(RTE_SDK)/mk/rte.vars.mk
-include $(NG_CORE)/config/ng-core_cfg.mk
+include $(dir $(realpath $(firstword $(MAKEFILE_LIST))))/*.mk
 
 #DIRS-y += pipeline
 # binary name
@@ -51,16 +40,16 @@ SRCS-y := main.c\
 	timer_stats.c\
 	kni_pkt_handler.c\
 	gtpu_echo.c\
-	pipeline/epc_packet_framework.o\
-	pipeline/epc_arp.o\
-	pipeline/epc_spns_dns.o\
-	$(SRCDIR)/../interface/interface.o\
-	$(SRCDIR)/../cp_dp_api/vepc_cp_dp_api.o\
-	$(SRCDIR)/../test/simu_cp/nsb/nsb_test_util.o\
-	$(SRCDIR)/../test/simu_cp/simu_cp.o\
-	$(SRCDIR)/../test/simu_cp/pkt_filtrs.o\
-	$(SRCDIR)/../interface/ipc/dp_ipc_api.o\
-	$(SRCDIR)/../interface/udp/vepc_udp.o\
+	pipeline/epc_packet_framework.c\
+	pipeline/epc_arp.c\
+	pipeline/epc_spns_dns.c\
+	../interface/interface.c\
+	../cp_dp_api/vepc_cp_dp_api.c\
+	../test/simu_cp/nsb/nsb_test_util.c\
+	../test/simu_cp/simu_cp.c\
+	../test/simu_cp/pkt_filtrs.c\
+	../interface/ipc/dp_ipc_api.c\
+	../interface/udp/vepc_udp.c\
 
 CFLAGS += -I$(SRCDIR)/
 CFLAGS += -I$(SRCDIR)/../interface
@@ -74,7 +63,11 @@ CFLAGS += -I$(SRCDIR)/../test/simu_cp/nsb
 CFLAGS += -I$(SRCDIR)/pipeline
 CFLAGS += -I$(SRCDIR)/../cp
 CFLAGS += -I$(SRCDIR)/../lib/libsponsdn
-CFLAGS += -I$(SRCDIR)/../dpdk/lib/librte_acl/
+# TODO: This is a hack
+# We should not be looking into private structures
+# Handle this in a patch to DPDK if necessary
+# Check release notes
+CFLAGS += -I$(RTE_SDK)/lib/librte_acl/
 
 # Mandatory CFLAGS, LDFLAGS- DO NOT MODIFY
 # #############################################################
@@ -105,9 +98,7 @@ endif
 #dpdk-18.02 change build directory structure
 LDFLAGS += -L$(RTE_SRCDIR)/../lib/libsponsdn/x86_64-native-linuxapp-gcc/ -lsponsdn
 
-LDFLAGS += -L$(HYPERSCANDIR)/build/lib
-
-LDFLAGS += -lexpressionutil -lhs -lhs_runtime -lstdc++ -lm -lcrypto
+LDFLAGS += -lhs -lhs_runtime -lstdc++ -lm -lcrypto
 
 LDFLAGS += -lrte_pmd_af_packet
 
@@ -116,28 +107,28 @@ LDFLAGS += -lpcap
 # ngic-dp application options CFLAGS
 # #############################################################
 # ASR- Shrink pipeline COREs for Run to Completion (rtc) model
-ifneq (,$(findstring NGCORE_SHRINK, $(CFLAGS)))
+ifneq (,$(findstring NGCORE_SHRINK, $(CFLAGS), $(EXTRA_CFLAGS)))
         SRCS-y += ddn.c
-        SRCS-y += pipeline/epc_ul.o
-        SRCS-y += pipeline/epc_dl.o
+        SRCS-y += pipeline/epc_ul.c
+        SRCS-y += pipeline/epc_dl.c
 else
-		SRCS-y += pipeline/epc_rx.o\
-		pipeline/epc_tx.o\
-		pipeline/epc_load_balance.o\
-		pipeline/epc_worker.o\
+		SRCS-y += pipeline/epc_rx.c\
+		pipeline/epc_tx.c\
+		pipeline/epc_load_balance.c\
+		pipeline/epc_worker.c\
 		ddn_utils.c
 endif
 
 #validate both SDN_ODL_BUILD and ZMQ_COMM flag are not defined
-ifneq (,$(findstring SDN_ODL_BUILD, $(CFLAGS)))
-ifneq (,$(findstring ZMQ_COMM, $(CFLAGS)))
+ifneq (,$(findstring SDN_ODL_BUILD, $(CFLAGS), $(EXTRA_CFLAGS)))
+ifneq (,$(findstring ZMQ_COMM, $(CFLAGS), $(EXTRA_CFLAGS)))
 $(error "Both "SDN_ODL_BUILD" and "ZMQ_COMM" flags are defined. Exiting..")
 endif
 endif
 
-ifneq (,$(findstring SDN_ODL_BUILD, $(CFLAGS)))
-	SRCS-y += $(SRCDIR)/../interface/zmq/zmqsub.o
-	SRCS-y += $(SRCDIR)/../interface/zmq/zmqpub.o
+ifneq (,$(findstring SDN_ODL_BUILD, $(CFLAGS), $(EXTRA_CFLAGS)))
+	SRCS-y += ../interface/zmq/zmqsub.c
+	SRCS-y += ../interface/zmq/zmqpub.c
 	LDFLAGS += -L/usr/local/lib -lzmq
 endif
 
@@ -148,8 +139,8 @@ ifeq ($(SGX_BUILD), 1)
 	LDFLAGS += -lssl
 endif
 
-ifneq (,$(findstring ZMQ_COMM, $(CFLAGS)))
-	SRCS-y += $(SRCDIR)/../interface/zmq/zmq_push_pull.o
+ifneq (,$(findstring ZMQ_COMM, $(CFLAGS), $(EXTRA_CFLAGS)))
+	SRCS-y += ../interface/zmq/zmq_push_pull.c
 	LDFLAGS += -L/usr/local/lib -lzmq
 endif
 
@@ -158,6 +149,13 @@ endif
 # gdb: un-comment 'CFLAGS += -g -O0' comment 'CFLAGS += -O3'
 CFLAGS += -O3
 #CFLAGS += -g -O0
+
+# Un-comment to enable USE_AF_PACKET
+#CFLAGS += -DUSE_AF_PACKET
+ifneq (,$(findstring USE_AF_PACKET, $(CFLAGS), $(EXTRA_CFLAGS)))
+	CFLAGS += -I/usr/include/libnl3
+	LDFLAGS += -lmnl
+endif
 
 #un-comment below line to remove all log level for preformance testing.
 CFLAGS += -DPERF_TEST
@@ -173,8 +171,8 @@ CFLAGS += -DPERF_TEST
 #CFLAGS += -DDEL_SESS_REQ
 
 # VS- Used CP counters for maintain simulator stats.
-ifneq (,$(findstring SIMU_CP, $(CFLAGS)))
-        SRCS-y += $(SRCDIR)/../cp/cp_stats.o
+ifneq (,$(findstring SIMU_CP, $(CFLAGS), $(EXTRA_CFLAGS)))
+        SRCS-y += ../cp/cp_stats.c
 endif
 
 # Enable STATIC ARP for testing with il_nperf

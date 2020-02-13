@@ -1,17 +1,5 @@
-/*
- * Copyright (c) 2017 Intel Corporation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+/* SPDX-License-Identifier: Apache-2.0
+ * Copyright(c) 2017 Intel Corporation
  */
 
 #include <stdint.h>
@@ -31,6 +19,7 @@
 #include <rte_malloc.h>
 #include <rte_jhash.h>
 #include <rte_cfgfile.h>
+#include <rte_debug.h>
 
 #include "interface.h"
 #include "util.h"
@@ -50,6 +39,9 @@
 #ifdef ZMQ_COMM
 #include "zmq_push_pull.h"
 #include "cp.h"
+#endif
+#ifdef USE_AF_PACKET
+#include <libmnl/libmnl.h>
 #endif
 
 #include "main.h"
@@ -986,27 +978,36 @@ zmq_destroy(void)
 #endif /* !CP_BUILD*/
 
 #define IFACE_FILE "../config/interface.cfg"
+
+static void set_config_ip(struct in_addr *ip, const char *key,
+                 struct rte_cfgfile *file, const char *section, const char *entry)
+{
+		entry = rte_cfgfile_get_entry(file, section, key);
+		if (entry == NULL)
+			rte_panic("%s not found in %s", key, IFACE_FILE);
+		parse_arg_host(entry, ip);
+}
+
 #define SET_CONFIG_IP(ip, file, section, entry) \
-	do {\
-		entry = rte_cfgfile_get_entry(file, section, #ip);\
-		if (entry == NULL)\
-			rte_panic("%s not found in %s", #ip, IFACE_FILE);\
-		if (inet_aton(entry, &ip) == 0)\
-			rte_panic("Invalid %s in %s", #ip, IFACE_FILE);\
-	} while (0)
+	set_config_ip(&ip, #ip, file, section, entry)
+
+static void set_config_port(uint16_t *port, const char *key,
+                 struct rte_cfgfile *file, const char *section, const char *entry)
+{
+		entry = rte_cfgfile_get_entry(file, section, key);
+		if (entry == NULL)
+			rte_panic("%s not found in %s", key, IFACE_FILE);
+		if (sscanf(entry, "%"SCNu16, port) != 1)
+			rte_panic("Invalid %"PRIu16" in %s", *port, IFACE_FILE);
+}
+
 #define SET_CONFIG_PORT(port, file, section, entry) \
-	do {\
-		entry = rte_cfgfile_get_entry(file, section, #port);\
-		if (entry == NULL)\
-			rte_panic("%s not found in %s", #port, IFACE_FILE);\
-		if (sscanf(entry, "%"SCNu16, &port) != 1)\
-			rte_panic("Invalid %s in %s", #port, IFACE_FILE);\
-	} while (0)
+	set_config_port(&port, #port, file, section, entry)
 
 static void read_interface_config(void)
 {
 	struct rte_cfgfile *file = rte_cfgfile_load(IFACE_FILE, 0);
-	const char *file_entry;
+	char *file_entry = NULL;
 
 	if (file == NULL)
 		rte_exit(EXIT_FAILURE, "Cannot load configuration profile %s\n",
@@ -1099,7 +1100,6 @@ static void read_interface_config(void)
 			DP_PKEY_PATH);
 #endif /* SGX_CDR */
 }
-
 
 /**
  * @brief Initialize iface message passing
@@ -1213,7 +1213,10 @@ void sig_handler(int signo)
 #ifndef CP_BUILD
 		close(route_sock);
 		cdr_close();
-#endif
+#ifdef USE_AF_PACKET
+		mnl_socket_close(mnl_sock);
+#endif /* USE_AF_PACKET */
+#endif /* CP_BUILD */
 #ifdef TIMER_STATS
 #ifdef AUTO_ANALYSIS
 		print_perf_statistics();
@@ -1221,5 +1224,6 @@ void sig_handler(int signo)
 #endif /* TIMER_STATS */
 		rte_exit(EXIT_SUCCESS, "received SIGINT\n");
 	}
+	else if (signo == SIGSEGV)
+		rte_panic("received SIGSEGV\n");
 }
-

@@ -1,17 +1,5 @@
-/*
- * Copyright (c) 2017 Intel Corporation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+/* SPDX-License-Identifier: Apache-2.0
+ * Copyright(c) 2017 Intel Corporation
  */
 
 #include <time.h>
@@ -126,6 +114,11 @@ stats_init(void)
 	time_t t = time(NULL);
 	struct tm *tmp = localtime(&t);
 
+	int ret = mkdir(DEFAULT_STATS_PATH, S_IRWXU);
+	if (ret && errno != EEXIST)
+		rte_exit(EXIT_FAILURE, "Failed to create directory %s: %s\n",
+		DEFAULT_STATS_PATH, strerror(errno));
+
 	strftime(timestamp, NAME_MAX, "%Y_%m_%d_%H_%M_%S", tmp);
 	snprintf(filename, PATH_MAX, "%sCP_Sync_Stats_%s"
 			CSV_EXTENSION, DEFAULT_STATS_PATH, timestamp);
@@ -192,7 +185,6 @@ add_stats_entry(struct sync_stats *stats)
 	int ret;
 	_timer_t _init_time = 0;
 
-
 	struct sync_stats *tmp = rte_zmalloc("test",
 			sizeof(struct sync_stats),
 			RTE_CACHE_LINE_SIZE);
@@ -241,4 +233,3 @@ update_stats_entry(uint64_t key, uint8_t type)
 		stats->resp_recv_time = _init_time;
 	}
 }
-

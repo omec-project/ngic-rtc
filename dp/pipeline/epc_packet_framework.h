@@ -1,17 +1,5 @@
-/*
- * Copyright (c) 2017 Intel Corporation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+/* SPDX-License-Identifier: Apache-2.0
+ * Copyright(c) 2017 Intel Corporation
  */
 
 #ifndef __EPC_PACKET_FRAMEWORK_H__
@@ -45,6 +33,9 @@ extern uint64_t num_dns_processed;
 /**
  * S1U port id.
  */
+#ifdef USE_AF_PACKET
+#define	S1U_PORT_VETH_ID	S1U_PORT_ID + NUM_SPGW_PORTS
+#endif
 #define S1U_PORT_ID   0
 #define WEST_PORT_ID   0
 
@@ -54,6 +45,9 @@ extern uint64_t num_dns_processed;
 
 #define SGI_PORT_ID   1
 #define EAST_PORT_ID   1
+#ifdef USE_AF_PACKET
+#define	SGI_PORT_VETH_ID	SGI_PORT_ID + NUM_SPGW_PORTS
+#endif
 
 #define DL_RINGS_THRESHOLD 32
 

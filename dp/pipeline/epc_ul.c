@@ -1,17 +1,5 @@
-/*
- * Copyright (c) 2017 Intel Corporation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+/* SPDX-License-Identifier: Apache-2.0
+ * Copyright(c) 2017 Intel Corporation
  */
 
 #include <string.h>
@@ -196,8 +184,12 @@ static int epc_ul_port_in_ah(struct rte_pipeline *p,
 
 	if (ul_nkni_pkts) {
 		RTE_LOG(DEBUG, DP, "KNI: UL send pkts to kni\n");
+#ifdef USE_AF_PACKET
+		kern_packet_ingress(S1U_PORT_ID, kni_pkts_burst, ul_nkni_pkts);
+#else
 		kni_ingress(kni_port_params_array[S1U_PORT_ID],
 				kni_pkts_burst, ul_nkni_pkts);
+#endif
 	}
 
 #ifdef STATS
@@ -429,7 +421,11 @@ void epc_ul(void *args)
 	 *  Then analyzes it and calls the specific actions for the specific requests.
 	 *  Finally constructs the response mbuf and puts it back to the resp_q.
 	 */
+#ifdef USE_AF_PACKET
+	kern_packet_egress(SGI_PORT_ID);
+#else /* KNI mode */
 	rte_kni_handle_request(kni_port_params_array[S1U_PORT_ID]->kni[0]);
+#endif
 
 	uint32_t queued_cnt = rte_ring_count(shared_ring[SGI_PORT_ID]);
 	if (queued_cnt) {
@@ -455,4 +451,3 @@ void register_ul_worker(epc_ul_handler f, int port)
 {
 	epc_ul_worker_func[port] = f;
 }
-

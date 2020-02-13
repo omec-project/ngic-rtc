@@ -1,17 +1,5 @@
-/*
- * Copyright (c) 2017 Intel Corporation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+/* SPDX-License-Identifier: Apache-2.0
+ * Copyright(c) 2017 Intel Corporation
  */
 
 #ifndef _MAIN_H_
@@ -201,6 +189,7 @@
 #define METER_PROFILE_SDF_TABLE_SIZE (2048)
 #define DPN_ID                       (12345)
 
+#define LOGS_DIR "logs/"
 #ifdef PCAP_GEN
 /**
  * pcap filename length.
@@ -210,14 +199,14 @@
 /**
  * pcap filenames.
  */
-#define SPGW_S1U_PCAP_FILE "logs/uplink.pcap"
-#define SPGW_SGI_PCAP_FILE "logs/downlink.pcap"
+#define SPGW_S1U_PCAP_FILE LOGS_DIR "uplink.pcap"
+#define SPGW_SGI_PCAP_FILE LOGS_DIR "downlink.pcap"
 
-#define SGW_S1U_PCAP_FILE "logs/sgw_s1u.pcap"
-#define SGW_S5S8_PCAP_FILE "logs/sgw_s5s8.pcap"
+#define SGW_S1U_PCAP_FILE LOGS_DIR "sgw_s1u.pcap"
+#define SGW_S5S8_PCAP_FILE LOGS_DIR "sgw_s5s8.pcap"
 
-#define PGW_S5S8_PCAP_FILE "logs/pgw_s5s8.pcap"
-#define PGW_SGI_PCAP_FILE "logs/pgw_sgi.pcap"
+#define PGW_S5S8_PCAP_FILE LOGS_DIR "pgw_s5s8.pcap"
+#define PGW_SGI_PCAP_FILE LOGS_DIR "pgw_sgi.pcap"
 
 #endif /* PCAP_GEN */
 
@@ -263,7 +252,6 @@ struct ul_timer_stats {
 
 #endif /* TIMER_STATS */
 
-
 /* TODO: KNI releted parameters and struct define here */
 
 /* Max size of a single packet */
@@ -300,6 +288,26 @@ struct kni_port_params {
 extern uint32_t nb_ports;
 
 extern struct kni_port_params *kni_port_params_array[RTE_MAX_ETHPORTS];
+
+#ifdef USE_AF_PACKET
+/**
+ * Initialize libmnl netlink subsystem
+ */
+void
+init_mnl(void);
+
+/**
+ * Interface to burst rx and enqueue in to kernel
+ */
+void
+kern_packet_ingress(int portid, struct rte_mbuf *pkts_burst[PKT_BURST_SZ], unsigned nb_rx);
+
+/**
+ * Interface to relay tx traffic out of the kernel and into the outgoing NIC
+ */
+void
+kern_packet_egress(int portid);
+#endif
 
 /**
  * Interface to burst rx and enqueue mbufs into rx_q
@@ -426,6 +434,18 @@ extern struct app_params app;
 
 /** ethernet addresses of ports */
 struct ether_addr ports_eth_addr[RTE_MAX_ETHPORTS];
+
+#ifdef USE_AF_PACKET
+typedef struct dp_port_info {
+	struct ether_addr *eth_addr;
+	uint8_t ifup_state;
+	uint16_t mtu_size;
+	uint8_t promisc_state;
+} dp_port_info;
+
+struct dp_port_info dp_ports[RTE_MAX_ETHPORTS];
+extern struct mnl_socket *mnl_sock;
+#endif
 
 /** ethernet addresses of ports */
 extern struct ether_addr ports_eth_addr[];
@@ -896,7 +916,6 @@ void
 dl_sess_info_get(struct rte_mbuf **pkts, uint32_t n,
 		uint64_t *pkts_mask, struct dp_sdf_per_bearer_info **sess_info,
 		struct dp_session_info **si);
-
 
 /**
  * Gate the incoming pkts based on PCC entry info.
@@ -1548,7 +1567,6 @@ int
 hash_create(const char *name, struct rte_hash **rte_hash,
 		uint32_t entries, uint32_t key_len);
 
-
 /**
  * @brief initalizes data plane hash tables
  */
@@ -1644,7 +1662,6 @@ dp_ue_cdr_flush(struct dp_id dp_id,	struct msg_ue_cdr *ue_cdr);
 
 struct dp_session_info *
 get_session_data(uint64_t sess_id, uint32_t is_mod);
-
 
 /***********************ddn_utils.c functions start**********************/
 #ifdef NGCORE_SHRINK
@@ -1890,4 +1907,3 @@ void print_perf_statistics(void);
 
 /***********************ddn_utils.c functions end**********************/
 #endif /* _MAIN_H_ */
-

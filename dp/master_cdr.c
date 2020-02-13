@@ -1,17 +1,5 @@
-/*
- * Copyright (c) 2017 Intel Corporation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+/* SPDX-License-Identifier: Apache-2.0
+ * Copyright(c) 2017 Intel Corporation
  */
 
 #define _GNU_SOURCE     /* Expose declaration of strptime() */
@@ -85,7 +73,6 @@ static void md5_cb(FILE *file, struct master_file_entry_t *entry)
 		fprintf(file, "%02x", entry->md5_digest[i]);
 }
 
-
 struct master_field_t master_fields[] = {
 		{"filename", filename_master_cb},
 		{"start_time", start_time_cb},
@@ -153,7 +140,6 @@ parse_records(FILE *file,
 		fprintf(stderr, "Unable to read header - ");
 		return EXIT_FAILURE;
 	}
-
 
 	for (i = 0; i < NUM_CDR_FIELDS; ++i) {
 		entry_values[i] = strtok_r(
@@ -246,8 +232,6 @@ create_master_entry(FILE *master_file,
 		return;
 	}
 
-
-
 	ret = rename(old_filename, new_filename);
 	if (ret)
 		fprintf(stderr, "Failed to rename %s (%s:%d)\n",
@@ -334,7 +318,6 @@ finalize_cur_cdrs(const char *cdr_path)
 	closedir(dir);
 	fclose(master_file);
 }
-
 
 void
 set_master_cdr_file(const char *filename)

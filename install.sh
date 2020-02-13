@@ -1,20 +1,10 @@
 #! /bin/bash
 
-# Copyright (c) 2017 Intel Corporation
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# SPDX-License-Identifier: Apache-2.0
+# Copyright(c) 2017 Intel Corporation
 
 cd $(dirname ${BASH_SOURCE[0]})
+CPUS=${CPUS:-$(nproc)}
 SERVICE=3
 SGX_SERVICE=0
 SERVICE_NAME="Collocated CP and DP"
@@ -143,7 +133,8 @@ get_agreement_download()
 	echo "8.  hyperscan"
 	echo "9.  curl"
 	echo "10. openssl-dev"
-	echo "11. and other library dependencies"
+	echo "11. libmnl-dev"
+	echo "12. and other library dependencies"
 	while true; do
 		read -p "We need download above mentioned package. Press (y/n) to continue? " yn
 		case $yn in
@@ -172,7 +163,8 @@ install_libs()
 	sudo apt-get update
 	sudo apt-get -y install curl build-essential linux-headers-$(uname -r) \
 		git unzip libpcap0.8-dev gcc libjson0-dev make libc6 libc6-dev \
-		g++-multilib libzmq3-dev libcurl4-openssl-dev libssl-dev python-pip
+		g++-multilib libzmq3-dev libcurl4-openssl-dev libssl-dev python-pip \
+		libmnl-dev
 
 	pip install zmq
 
@@ -201,7 +193,7 @@ download_dpdk_zip()
 
 	echo ""
 	echo "Applying AVX not supported patch for resolved dpdk-18.02 i40e driver issue.."
-	patch $DPDK_DIR/drivers/net/i40e/i40e_rxtx.c $NGIC_DIR/patches/avx_not_suported.patch
+	patch -d $DPDK_DIR -p1 < $NGIC_DIR/patches/v2-net-i40e-fix-avx2-driver-check-for-rx-rearm.diff
 
 	if [ $? -ne 0 ] ; then
 		echo "Failed to apply AVX patch, please check the errors."
@@ -219,7 +211,7 @@ install_dpdk()
 	cp -f dpdk-18.02_common_linuxapp "$DPDK_DIR"/config/common_linuxapp
 
 	pushd "$DPDK_DIR"
-	make -j 20 install T="$RTE_TARGET"
+	make -j $CPUS install T="$RTE_TARGET"
 	if [ $? -ne 0 ] ; then
 		echo "Failed to build dpdk, please check the errors."
 		return
@@ -472,12 +464,8 @@ download_hyperscan()
 	pushd hyperscan-4.1.0
 	mkdir build; pushd build
 	cmake -DCMAKE_CXX_COMPILER=c++ ..
-	cmake --build .
-	export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PWD/lib
-	popd
-	export HYPERSCANDIR=$PWD
-	echo "export HYPERSCANDIR=$PWD" >> ../setenv.sh
-	popd
+	make -j $CPUS install
+	popd; popd;
 }
 
 
@@ -508,24 +496,21 @@ build_ngic()
 {
 	pushd $NGIC_DIR
 	source setenv.sh
-	if [ $SERVICE == 2 ] || [ $SERVICE == 3 ] ; then
-		make clean
-		echo "Building Libs..."
-		make build-lib || { echo -e "\nNG-CORE: Make lib failed\n"; }
-		echo "Building DP..."
-		make build-dp || { echo -e "\nDP: Make failed\n"; }
-	fi
-	if [ $SERVICE == 1 ] || [ $SERVICE == 3 ] ; then
-		echo "Building libgtpv2c..."
-		pushd $NGIC_DIR/libgtpv2c
-			make clean
-			make || { echo -e "\nlibgtpv2c: Make failed\n"; }
-		popd
-
-		echo "Building CP..."
-		make clean-cp
-		make build-cp || { echo -e "\nCP: Make failed\n"; }
-	fi
+	make -j $CPUS clean
+	case "$SERVICE" in
+		1)
+			make -j $CPUS WHAT="cp" || { echo -e "\nCP: Make failed\n"; }
+			;;
+		2)
+			make -j $CPUS WHAT="dp" || { echo -e "\nDP: Make failed\n"; }
+			;;
+		3)
+			make -j $CPUS WHAT="cp dp" || { echo -e "\nCP/DP: Make failed\n"; }
+			;;
+		*)
+			echo "Unknown service choice $SERVICE"
+			;;
+		esac
 	popd
 }
 

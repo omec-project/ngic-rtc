@@ -1,17 +1,5 @@
-/*
- * Copyright (c) 2017 Intel Corporation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+/* SPDX-License-Identifier: Apache-2.0
+ * Copyright(c) 2017 Intel Corporation
  */
 
 #include "ue.h"
@@ -67,7 +55,6 @@ parse_downlink_data_notification_ack(gtpv2c_header *gtpv2c_rx,
 	if (ret < 0 || !ddn_ack->context)
 		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 
-
 	/** TODO: we should fully verify mandatory fields within received
 	 * message */
 	FOR_EACH_GTPV2C_IE(gtpv2c_rx, current_ie, limit_ie)
@@ -119,7 +106,6 @@ set_downlink_data_notification(gtpv2c_header *gtpv2c_tx,
 	set_ar_priority_ie(gtpv2c_tx, IE_INSTANCE_ZERO, bearer);
 }
 
-
 int
 create_downlink_data_notification(ue_context *context, uint8_t eps_bearer_id,
 		uint32_t sequence, gtpv2c_header *gtpv2c_tx)
@@ -159,4 +145,3 @@ process_ddn_ack(gtpv2c_header *gtpv2c_rx, uint8_t *delay)
 	return 0;
 
 }
-

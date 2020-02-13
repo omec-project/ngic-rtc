@@ -1,17 +1,5 @@
-/*
- * Copyright (c) 2017 Intel Corporation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+/* SPDX-License-Identifier: Apache-2.0
+ * Copyright(c) 2017 Intel Corporation
  */
 
 #include <errno.h>
@@ -24,7 +12,6 @@
 #include "../cp_dp_api/vepc_cp_dp_api.h"
 
 #define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
-
 
 extern uint32_t num_adc_rules;
 extern uint32_t adc_rule_id[];
@@ -61,7 +48,6 @@ set_create_session_response(gtpv2c_header *gtpv2c_tx,
 
 		set_ie_header(&cs_resp.bearer_context.header, IE_BEARER_CONTEXT,
 				IE_INSTANCE_ZERO, 0);
-
 
 		set_ebi(&cs_resp.bearer_context.ebi, IE_INSTANCE_ZERO,
 				bearer->eps_bearer_id);
@@ -164,7 +150,6 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 			fprintf(stderr, "IPv6 Not Yet Implemented - Dropping packet\n");
 			return GTPV2C_CAUSE_PREFERRED_PDN_TYPE_UNSUPPORTED;
 	}
-
 
 	apn *apn_requested = get_apn((char *)csr.apn.apn, csr.apn.header.len);
 

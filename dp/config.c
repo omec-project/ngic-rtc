@@ -1,23 +1,18 @@
-/*
- * Copyright (c) 2017 Intel Corporation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+/* SPDX-License-Identifier: Apache-2.0
+ * Copyright(c) 2017 Intel Corporation
  */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <getopt.h>
 #include <arpa/inet.h>
+#include <sys/stat.h>
+#include <errno.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#include <unistd.h>
 
 #include <rte_ethdev.h>
 #include <rte_kni.h>
@@ -230,6 +225,41 @@ static inline int parse_ether_addr(struct ether_addr *hwaddr, const char *str)
 			(size_t *) &hwaddr->addr_bytes[4],
 			(size_t *) &hwaddr->addr_bytes[5]);
 	return 1;
+}
+
+#define SLEEP_SEC 5
+#define NUM_RETRIES 10
+
+/**
+ * Parses c-string containing dotted decimal ipv4 or hostname and stores the
+ *   value within the in_addr type
+ *
+ * @param optarg
+ *   c-string containing dotted decimal ipv4 address or hostname
+ * @param addr
+ *   destination of parsed IP string
+ */
+void
+parse_arg_host(const char *optarg, struct in_addr *addr)
+{
+	int ret = -1, retries = NUM_RETRIES;
+	struct addrinfo hints, *servinfo;
+	memset(&hints, 0, sizeof hints);
+	hints.ai_family = AF_INET;
+
+	/*NUM_RETRIES with SLEEP_SEC in between to resolve the name*/
+	while(retries-- > 0 && (ret = getaddrinfo(optarg, NULL, &hints, &servinfo) !=0)){
+		RTE_LOG(ERR, DP, "Unable to resolve %s. Retrying in %d sec\n",
+					optarg, SLEEP_SEC);
+		sleep(SLEEP_SEC);
+	}
+
+	if(ret)
+		rte_exit(EXIT_FAILURE, "Unable to resolve %s. Exiting\n", optarg);
+
+	struct sockaddr_in *h = (struct sockaddr_in *) servinfo->ai_addr;
+	memcpy(addr, &h->sin_addr, sizeof(struct in_addr));
+	freeaddrinfo(servinfo);
 }
 
 static inline void set_unused_lcore(int *core, uint64_t *used_coremask)
@@ -714,4 +744,10 @@ void dp_init(int argc, char **argv)
 			break;
 		}
 	}
+
+	/* TODO: Make logs directory configurable */
+	int ret = mkdir(LOGS_DIR, S_IRWXU);
+	if (ret && errno != EEXIST)
+		rte_exit(EXIT_FAILURE, "Failed to create directory %s: %s\n", LOGS_DIR,
+				strerror(errno));
 }

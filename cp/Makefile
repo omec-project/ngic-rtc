@@ -1,16 +1,5 @@
-# Copyright (c) 2017 Intel Corporation
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# SPDX-License-Identifier: Apache-2.0
+# Copyright(c) 2017 Intel Corporation
 
 ifeq ($(RTE_SDK),)
 $(error "Please define RTE_SDK environment variable")
@@ -22,7 +11,7 @@ MAKEFLAGS += -j
 RTE_TARGET ?= x86_64-native-linuxapp-gcc
 
 include $(RTE_SDK)/mk/rte.vars.mk
-include $(NG_CORE)/config/ng-core_cfg.mk
+include $(dir $(realpath $(firstword $(MAKEFILE_LIST))))/*.mk
 
 LIBGTPV2C_ROOT = $(SRCDIR)/../libgtpv2c
 
@@ -39,24 +28,24 @@ SRCS-y += ue.c
 SRCS-y += cp_stats.c
 SRCS-y += packet_filters.c
 
-SRCS-y += gtpv2c_messages/bearer_resource_cmd.o
-SRCS-y += gtpv2c_messages/create_bearer.o
-SRCS-y += gtpv2c_messages/create_session.o
-SRCS-y += gtpv2c_messages/create_s5s8_session.o
-SRCS-y += gtpv2c_messages/delete_bearer.o
-SRCS-y += gtpv2c_messages/delete_session.o
-SRCS-y += gtpv2c_messages/delete_s5s8_session.o
-SRCS-y += gtpv2c_messages/gtpv2c_echo.o
-SRCS-y += gtpv2c_messages/modify_bearer.o
-SRCS-y += gtpv2c_messages/downlink_data_notification.o
-SRCS-y += gtpv2c_messages/release_access_bearer.o
+SRCS-y += gtpv2c_messages/bearer_resource_cmd.c
+SRCS-y += gtpv2c_messages/create_bearer.c
+SRCS-y += gtpv2c_messages/create_session.c
+SRCS-y += gtpv2c_messages/create_s5s8_session.c
+SRCS-y += gtpv2c_messages/delete_bearer.c
+SRCS-y += gtpv2c_messages/delete_session.c
+SRCS-y += gtpv2c_messages/delete_s5s8_session.c
+SRCS-y += gtpv2c_messages/gtpv2c_echo.c
+SRCS-y += gtpv2c_messages/modify_bearer.c
+SRCS-y += gtpv2c_messages/downlink_data_notification.c
+SRCS-y += gtpv2c_messages/release_access_bearer.c
 
-SRCS-y += $(SRCDIR)/../test/simu_cp/simu_cp.o
-SRCS-y += $(SRCDIR)/../interface/ipc/dp_ipc_api.o
-SRCS-y += $(SRCDIR)/../interface/interface.o
-SRCS-y += $(SRCDIR)/../interface/udp/vepc_udp.o
+SRCS-y += ../test/simu_cp/simu_cp.c
+SRCS-y += ../interface/ipc/dp_ipc_api.c
+SRCS-y += ../interface/interface.c
+SRCS-y += ../interface/udp/vepc_udp.c
 
-SRCS-y += $(SRCDIR)/../cp_dp_api/vepc_cp_dp_api.o
+SRCS-y += ../cp_dp_api/vepc_cp_dp_api.c
 
 
 CFLAGS += -Wno-psabi # suppress "The ABI for passing parameters with 64-byte alignment has changed in GCC 4.6"
@@ -83,29 +72,29 @@ ifeq ($(CONFIG_RTE_TOOLCHAIN_GCC),y)
 CFLAGS_controlplane.o += -Wno-return-type
 endif
 
-LDLIBS += -L$(LIBGTPV2C_ROOT)/lib -lgtpv2c
+LDLIBS += -L$(LIBGTPV2C_ROOT)/build -lgtpv2c
 
 LDLIBS += -lpcap
 
 # ngic-cp application options CFLAGS
 # #############################################################
 #validate both SDN_ODL_BUILD and ZMQ_COMM flag are not defined
-ifneq (,$(findstring SDN_ODL_BUILD, $(CFLAGS)))
-ifneq (,$(findstring ZMQ_COMM, $(CFLAGS)))
+ifneq (,$(findstring SDN_ODL_BUILD, $(CFLAGS), $(EXTRA_CFLAGS)))
+ifneq (,$(findstring ZMQ_COMM, $(CFLAGS), $(EXTRA_CFLAGS)))
 $(error "Both "SDN_ODL_BUILD" and "ZMQ_COMM" flags are defined. Exiting..")
 endif
 endif
 
 #For SDN NB interface enable SDN_ODL_BUILD OR SDN_ONOS_BUILD not both
-ifneq (,$(findstring SDN_ODL_BUILD, $(CFLAGS)))
+ifneq (,$(findstring SDN_ODL_BUILD, $(CFLAGS), $(EXTRA_CFLAGS)))
 	SRCS-y += nb.c
 	LDLIBS += -ljson-c
 	LDLIBS += -lcurl
 endif
 
-ifneq (,$(findstring ZMQ_COMM, $(CFLAGS)))
+ifneq (,$(findstring ZMQ_COMM, $(CFLAGS), $(EXTRA_CFLAGS)))
 	SRCS-y += cp_sync.c
-	SRCS-y += $(SRCDIR)/../interface/zmq/zmq_push_pull.o
+	SRCS-y += ../interface/zmq/zmq_push_pull.c
 	LDFLAGS += -L/usr/local/lib -lzmq
 endif
 
@@ -129,7 +118,7 @@ CFLAGS_config.o := -D_GNU_SOURCE
 #Note: Req and Resp timer stats is not supported for CP <--> DP direct comm over UDP.
 #CFLAGS += -DSYNC_STATS
 
-ifneq (,$(findstring SYNC_STATS, $(CFLAGS)))
+ifneq (,$(findstring SYNC_STATS, $(CFLAGS), $(EXTRA_CFLAGS)))
 	SRCS-y += stats_sync.c
 endif
 

@@ -102,4 +102,3 @@ typedef long long int _timer_t;
  */
 char* format(uint64_t num);
 #endif
-

@@ -1,17 +1,5 @@
-/*
- * Copyright (c) 2017 Intel Corporation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+/* SPDX-License-Identifier: Apache-2.0
+ * Copyright(c) 2017 Intel Corporation
  */
 
 #ifndef _ZMQSUB_H
@@ -36,7 +24,6 @@
 #include <unistd.h>
 #include <string.h>
 
-
 #define __FILENAME__ \
 	(strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define ZMQSUB_DEBUG (0)
@@ -44,8 +31,6 @@
 #define MAX_NODE_ID_SIZE     (UINT8_MAX)
 #define MAX_NETWORK_ID_SIZE  (UINT8_MAX)
 #define MAX_LEN 128
-
-
 
 /* s11 interface message type */
 enum s11_msgtype {
@@ -208,7 +193,6 @@ extern char node_id[MAX_NODE_ID_SIZE];
 int
 do_zmq_mbuf_send(struct zmqbuf *mbuf);
 
-
 /**
  * @brief
  * creates zmq socket used for subscriber
@@ -326,4 +310,3 @@ hex_dump(FILE *fileptr, void *base, void *data, size_t length, int indent);
 #define PRINT_ZMQBUF_MESSAGE(buf, len, message) do {} while (0)
 #endif
 #endif
-

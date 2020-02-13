@@ -1,17 +1,5 @@
-/*
- * Copyright (c) 2017 Intel Corporation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+/* SPDX-License-Identifier: Apache-2.0
+ * Copyright(c) 2017 Intel Corporation
  */
 
 #include <stdlib.h>
@@ -21,7 +9,6 @@
 #include "req_resp.h"
 #include "util.h"
 #include "gtpv2c_messages.h"
-
 
 #define IE_HEADER_SIZE sizeof(ie_header_t)
 #define MBR_SIZE 5
@@ -41,7 +28,6 @@ decode_uint16_t(uint8_t *buf, uint16_t *val)
 	*val = ntohs(*val);
 	return sizeof(uint16_t);
 }
-
 
 static int
 decode_uint32_t(uint8_t *buf, uint32_t *val)

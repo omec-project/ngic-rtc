@@ -1,0 +1,4 @@
+*.c   text eol=lf filter=trimWhitespace diff=cpp
+*.h   text eol=lf filter=trimWhitespace diff=cpp
+*.MD  text eol=lf filter=trimWhitespace
+*.py  text eol=lf filter=trimWhitespace diff=python

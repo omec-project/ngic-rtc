@@ -1,17 +1,5 @@
-/*
- * Copyright (c) 2017 Intel Corporation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+/* SPDX-License-Identifier: Apache-2.0
+ * Copyright(c) 2017 Intel Corporation
  */
 
 #define _GNU_SOURCE     /* Expose declaration of tdestroy() */
@@ -81,8 +69,6 @@
 #define	IPV6_ADDR_LEN	16
 #define	IPV6_ADDR_U16	(IPV6_ADDR_LEN / sizeof(uint16_t))
 #define	IPV6_ADDR_U32	(IPV6_ADDR_LEN / sizeof(uint32_t))
-
-
 
 enum {
 	PROTO_FIELD_IPV4,
@@ -704,7 +690,6 @@ prepare_acl_parameter(struct rte_mbuf **pkts_in, struct acl_search *acl,
 	for (i = 0; i < PREFETCH_OFFSET && i < nb_rx; i++)
 		rte_prefetch0(rte_pktmbuf_mtod(pkts_in[i], void *));
 
-
 	for (i = 0; i < (nb_rx - PREFETCH_OFFSET); i++) {
 		rte_prefetch0(rte_pktmbuf_mtod
 				(pkts_in[i + PREFETCH_OFFSET], void *));
@@ -998,7 +983,6 @@ add_rules(const char *rule_path,
 
 	while ((fgets(buff, LINE_MAX, fh) != NULL))
 		acl_num++;
-
 
 	fseek(fh, 0, SEEK_SET);
 

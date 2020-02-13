@@ -1,18 +1,5 @@
-/*
-
- * Copyright (c) 2017 Intel Corporation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+/* SPDX-License-Identifier: Apache-2.0
+ * Copyright(c) 2019 Intel Corporation
  */
 
 #include <arpa/inet.h>
@@ -26,6 +13,10 @@
 #include <time.h>
 #include <ctype.h>
 #include <signal.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#include <unistd.h>
 
 #include <rte_memory.h>
 #include <rte_memzone.h>
@@ -97,7 +88,6 @@ int s11_pcap_fd = -1;
 int s5s8_sgwc_fd = -1;
 int s5s8_pgwc_fd = -1;
 
-
 pcap_dumper_t *pcap_dumper;
 pcap_t *pcap_reader;
 
@@ -121,20 +111,39 @@ set_log_level(uint8_t log_level)
 
 }
 
+#define SLEEP_SEC 5
+#define NUM_RETRIES 10
+
 /**
- * Parses c-string containing dotted decimal ipv4 and stores the
+ * Parses c-string containing dotted decimal ipv4 or hostname and stores the
  *   value within the in_addr type
  *
  * @param optarg
- *   c-string containing dotted decimal ipv4 address
+ *   c-string containing dotted decimal ipv4 address or hostname
  * @param addr
  *   destination of parsed IP string
  */
-static void
-parse_arg_ip(const char *optarg, struct in_addr *addr)
+void
+parse_arg_host(const char *optarg, struct in_addr *addr)
 {
-	if (!inet_aton(optarg, addr))
-		rte_panic("Invalid argument - %s - Exiting.\n", optarg);
+	int ret = -1, retries = NUM_RETRIES;
+	struct addrinfo hints, *servinfo;
+	memset(&hints, 0, sizeof hints);
+	hints.ai_family = AF_INET;
+
+	/*NUM_RETRIES with SLEEP_SEC in between to resolve the name*/
+  while(retries-- > 0 && (ret = getaddrinfo(optarg, NULL, &hints, &servinfo) !=0)){
+			RTE_LOG(ERR, CP, "Unable to resolve %s. Retrying in %d sec\n",
+						optarg, SLEEP_SEC);
+			sleep(SLEEP_SEC);
+  }
+
+	if(ret)
+			rte_exit(EXIT_FAILURE, "Unable to resolve %s. Exiting\n", optarg);
+
+  struct sockaddr_in *h = (struct sockaddr_in *) servinfo->ai_addr;
+  memcpy(addr, &h->sin_addr, sizeof(struct in_addr));
+  freeaddrinfo(servinfo);
 }
 
 /**
@@ -188,31 +197,31 @@ parse_arg(int argc, char **argv)
 			args_set |= S11_MME_IP_SET;
 			break;
 		case 'm':
-			parse_arg_ip(optarg, &s11_mme_ip);
+			parse_arg_host(optarg, &s11_mme_ip);
 			args_set |= S11_MME_IP_SET;
 			break;
 		case 's':
-			parse_arg_ip(optarg, &s11_sgw_ip);
+			parse_arg_host(optarg, &s11_sgw_ip);
 			args_set |= S11_SGW_IP_SET;
 			break;
 		case 'r':
-			parse_arg_ip(optarg, &s5s8_sgwc_ip);
+			parse_arg_host(optarg, &s5s8_sgwc_ip);
 			args_set |= S5S8_SGWC_IP_SET;
 			break;
 		case 'g':
-			parse_arg_ip(optarg, &s5s8_pgwc_ip);
+			parse_arg_host(optarg, &s5s8_pgwc_ip);
 			args_set |= S5S8_PGWC_IP_SET;
 			break;
 		case 'w':
-			parse_arg_ip(optarg, &s1u_sgw_ip);
+			parse_arg_host(optarg, &s1u_sgw_ip);
 			args_set |= IP_POOL_MASK_SET;
 			break;
 		case 'v':
-			parse_arg_ip(optarg, &s5s8_sgwu_ip);
+			parse_arg_host(optarg, &s5s8_sgwu_ip);
 			args_set |= S5S8_SGWU_IP_SET;
 			break;
 		case 'u':
-			parse_arg_ip(optarg, &s5s8_pgwu_ip);
+			parse_arg_host(optarg, &s5s8_pgwu_ip);
 			args_set |= S5S8_PGWU_IP_SET;
 			break;
 		case 'i':
@@ -448,7 +457,8 @@ init_cp(void)
 
 	if (signal(SIGINT, sig_handler) == SIG_ERR)
 		rte_exit(EXIT_FAILURE, "Error:can't catch SIGINT\n");
-
+	if (signal(SIGSEGV, sig_handler) == SIG_ERR)
+		rte_exit(EXIT_FAILURE, "Error:can't catch SIGSEGV\n");
 
 #ifndef SDN_ODL_BUILD
 #ifdef CP_DP_TABLE_CONFIG
@@ -1142,6 +1152,7 @@ control_plane(void)
 				return;
 			case GTP_DOWNLINK_DATA_NOTIFICATION_ACK:
 				cp_stats.ddn_ack++;
+				return;
 			case GTP_ECHO_REQ:
 				cp_stats.echo++;
 				break;
@@ -1421,4 +1432,3 @@ main(int argc, char **argv)
 
 	return 0;
 }
-

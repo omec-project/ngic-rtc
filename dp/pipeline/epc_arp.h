@@ -1,17 +1,5 @@
-/*
- * Copyright (c) 2017 Intel Corporation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+/* SPDX-License-Identifier: Apache-2.0
+ * Copyright(c) 2017 Intel Corporation
  */
 
 #ifndef __EPC_ARP_ICMP_H__
@@ -78,13 +66,11 @@ struct pipeline_arp_icmp_in_port_h_arg {
 (eth_addr).addr_bytes[4],  \
 (eth_addr).addr_bytes[5]
 
-
 /** IPv4 key for ARP table. */
 struct arp_ipv4_key {
 	/** ipv4 address */
 	uint32_t ip;
 };
-
 
 /** ARP table entry. */
 
@@ -182,4 +168,10 @@ int arp_qunresolved_ulpkt(struct arp_entry_data *arp_data,
 int arp_qunresolved_dlpkt(struct arp_entry_data *arp_data,
 				struct rte_mbuf *m, uint8_t portid);
 
+#ifdef USE_AF_PACKET
+int
+kni_change_mtu(uint16_t port_id, unsigned int new_mtu);
+
+int kni_config_mac_address(uint16_t port_id, uint8_t mac_addr[]);
+#endif
 #endif /*__EPC_ARP_ICMP_H__ */
