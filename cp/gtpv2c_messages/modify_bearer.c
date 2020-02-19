@@ -186,6 +186,10 @@ process_modify_bearer_request(gtpv2c_header *gtpv2c_rx,
 
 	/* Fetch subscriber using teid and then find the dpId */
 	if (session_modify(dp_id, session) < 0)
+#if defined(ZMQ_COMM) && defined(MULTI_UPFS)
+		RTE_LOG_DP(INFO, CP, "Bearer Session modify fail !!!\n");
+#else
 		rte_exit(EXIT_FAILURE, "Bearer Session modify fail !!!");
+#endif
 	return 0;
 }
