@@ -489,8 +489,13 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 	session.sess_id = SESS_ID(context->s11_sgw_gtpc_teid,
 						bearer->eps_bearer_id);
 
-	if (session_create(dp_id, session) < 0)
+	if (session_create(dp_id, session) < 0) {
+#if defined(ZMQ_COMM) && defined(MULTI_UPFS)
+		RTE_LOG_DP(INFO, CP, "Bearer session create failed!\n");
+#else
 		rte_exit(EXIT_FAILURE,"Bearer Session create fail !!!");
+#endif
+	}
 	if (bearer->s11u_mme_gtpu_teid) {
 		session.num_dl_pcc_rules = 1;
 		session.dl_pcc_rule_id[0] = FIRST_FILTER_ID;
@@ -500,8 +505,13 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 		for (i = 0; i < num_adc_rules; ++i)
 			        session.adc_rule_id[i] = adc_rule_id[i];
 
-		if (session_modify(dp_id, session) < 0)
+		if (session_modify(dp_id, session) < 0) {
+#if defined(ZMQ_COMM) && defined(MULTI_UPFS)
+			RTE_LOG_DP(INFO, CP, "Bearer session create CIOT implicit modify failed !!!\n");
+#else
 			rte_exit(EXIT_FAILURE, "Bearer Session create CIOT implicit modify fail !!!");
+#endif
+		}
 	}
 	return 0;
 }
