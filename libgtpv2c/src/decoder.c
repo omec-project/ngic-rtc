@@ -834,7 +834,35 @@ decode_bearer_context_modified_ie_t(uint8_t *buf,
 
 	return count;
 }
+/* 8.13 Protocol Configuration Options (PCO) 
+ * 10.5.6.3 Protocol configuration options in 3GPP TS 24.008 */
 
+static int 
+decode_pco_ie_t(uint8_t *buf, pco_ie_t *val)
+{
+	int i = 0;
+	uint16_t count = 0;
+	decode_ie_header_t(buf, &(val->header), IE_HEADER_SIZE);
+	count += IE_HEADER_SIZE;
+	uint8_t byte = buf[count]; // Read 1 byte 
+	val->ext = (byte & 0x80) >> 7; 
+	val->config_proto = (byte & 0x07);  
+	count++;
+
+	while(count < val->header.len && i < MAX_PCO_CONTAINERS) {
+		pco_opt_t *id = &val->ids[i];
+		memcpy(&id->type, &buf[count], sizeof(id->type));
+		id->type = ntohs(id->type);
+		count += sizeof(id->type);
+		memcpy(&id->len, &buf[count], sizeof(id->len));
+		count += sizeof(id->len);
+		memcpy(&id->data[0], &buf[count], id->len);
+		count += id->len;
+		i++;
+	}
+	val->num_of_opt = i;
+	return IE_HEADER_SIZE + val->header.len;
+}
 /**
  * decodes buffer to gtpv2c header.
  * @param buf
@@ -976,6 +1004,9 @@ decode_create_session_request_t(uint8_t *msg,
 				ie_header->instance == IE_INSTANCE_ZERO) {
 			count += decode_ue_timezone_ie_t(msg + count,
 								&cs_req->ue_timezone);
+		} else if (ie_header->type == IE_PCO &&
+				ie_header->instance == IE_INSTANCE_ZERO) {
+                        count += decode_pco_ie_t(msg + count, &cs_req->pco);
 		} else {
 			count += sizeof(ie_header_t) + ntohs(ie_header->len);
 		}

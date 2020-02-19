@@ -439,7 +439,7 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 void
 set_create_session_response(gtpv2c_header *gtpv2c_tx,
 		uint32_t sequence, ue_context *context, pdn_connection *pdn,
-		eps_bearer *bearer);
+		eps_bearer *bearer, pco_ie_t *pco);
 
 /**
  * Handles the processing of pgwc create session request messages

@@ -15,6 +15,11 @@
 #include <rte_log.h>
 #include <rte_debug.h>
 
+extern struct app_config *appl_config;
+
+const char *primary_dns = "8.8.8.8";
+const char *secondary_dns = "8.8.8.4";	
+
 void
 config_change_cbk(char *config_file, uint32_t flags)
 {
@@ -93,10 +98,28 @@ init_spgwc_dynamic_config(struct app_config *cfg )
 		return;
 	}
 
+	entry = rte_cfgfile_get_entry(file, "GLOBAL", "DNS_PRIMARY");
+	if (entry == NULL) {
+		RTE_LOG_DP(ERR, CP, "DNS_PRIMARY default config is missing. \n");
+		entry = primary_dns;
+	}
+	inet_aton(entry, &cfg->dns_p);
+	set_app_dns_primary(cfg);
+	RTE_LOG_DP(INFO, CP, "Global DNS_PRIMARY address is %s \n", inet_ntoa(cfg->dns_p));
+
+	entry = rte_cfgfile_get_entry(file, "GLOBAL", "DNS_SECONDARY");
+	if (entry == NULL) {
+		RTE_LOG_DP(ERR, CP, "DNS_SECONDARY default config is missing. \n");
+		entry = secondary_dns;
+	}
+	inet_aton(entry, &cfg->dns_s);
+	set_app_dns_secondary(cfg);
+	RTE_LOG_DP(INFO, CP, "Global DNS_SECONDARY address is %s \n", inet_ntoa(cfg->dns_s));
+
 	entry = rte_cfgfile_get_entry(file, "GLOBAL", "NUM_DP_SELECTION_RULES");
 	if (entry == NULL) {
-		RTE_LOG_DP(ERR, CP, "NUM_DP_SELECTION_RULES missing from app_config.cfg file, abort parsing\n");
-		return;
+       		RTE_LOG_DP(ERR, CP, "NUM_DP_SELECTION_RULES missing from app_config.cfg file, abort parsing\n");
+       		return;
 	}
 	num_dp_selection_rules = atoi(entry);
 
@@ -151,8 +174,25 @@ init_spgwc_dynamic_config(struct app_config *cfg )
 			RTE_LOG_DP(ERR, CP, "TAC not found in the configuration file\n");
 		}
 		LIST_INSERT_HEAD(&cfg->dpList, dpInfo, dpentries);
+	        entry = rte_cfgfile_get_entry(file, sectionname , "DNS_PRIMARY");
+	        if (entry == NULL) {
+	        	RTE_LOG_DP(ERR, CP, "DNS_PRIMARY default config is missing. \n");
+		        entry = primary_dns;
+	        }
+	        inet_aton(entry, &dpInfo->dns_p);
+ 		set_dp_dns_primary(dpInfo);
+	        RTE_LOG_DP(INFO, CP, "DNS_PRIMARY address is %s", inet_ntoa(dpInfo->dns_p));
+
+	        entry = rte_cfgfile_get_entry(file, sectionname , "DNS_SECONDARY");
+	        if (entry == NULL) {
+	        	RTE_LOG_DP(ERR, CP, "DNS_SECONDARY default config is missing. \n");
+		        entry = secondary_dns;
+	        }
+	        inet_aton(entry, &dpInfo->dns_s);
+ 		set_dp_dns_secondary(dpInfo);
+	        RTE_LOG_DP(INFO, CP, "DNS_SECONDARY address is %s", inet_ntoa(dpInfo->dns_s));
 	}
-	return;
+        return;
 }
 
 /* Given key find the DP. Once DP is found then return its dpId */
@@ -222,4 +262,34 @@ fetch_upf_context(uint32_t dpId)
 	rte_panic("Could not find upf_context for dpid: %u\n", dpId);
 	/* control should never reach here */
 	return NULL;
+}
+
+struct in_addr
+fetch_dns_primary_ip(uint32_t dpId, bool *present)
+{
+	struct dp_info *dp;
+	struct in_addr dns_p = { .s_addr = 0 };
+	LIST_FOREACH(dp, &appl_config->dpList, dpentries) {
+		if (dpId == dp->dpId) {
+			*present = true;
+			return dp->dns_p;
+		}
+	}
+	*present = get_app_primary_dns(appl_config, &dns_p);
+	return dns_p;
+}
+
+struct in_addr
+fetch_dns_secondary_ip(uint32_t dpId, bool *present)
+{
+	struct dp_info *dp;
+	struct in_addr dns_s = { .s_addr = 0 };
+	LIST_FOREACH(dp, &appl_config->dpList, dpentries) {
+		if (dpId == dp->dpId) {
+			*present = true;
+			return dp->dns_s;
+		}
+	}
+	*present = get_app_secondary_dns(appl_config, &dns_s);
+	return dns_s;
 }

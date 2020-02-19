@@ -11,6 +11,7 @@
 #include "ie.h"
 #include "gtpv2c_set_ie.h"
 #include "packet_filters.h"
+#include "assert.h"
 
 /**
  * helper function to get the location of the next information element '*ie'
@@ -508,3 +509,15 @@ create_bearer_context_ie(gtpv2c_header *header,
 {
 	return set_next_ie(header, IE_BEARER_CONTEXT, instance, 0);
 }
+
+void
+set_pco(pco_ie_t *pco, enum ie_instance instance, char *pco_buf, uint8_t len)
+{
+	set_ie_header(&pco->header, IE_PCO, instance, len);
+        printf("pco_buf = %p", pco_buf);
+	pco->pco = pco_buf;
+	pco->pco_len = len;
+	assert(pco->header.len != 0);
+	return;
+}
+
