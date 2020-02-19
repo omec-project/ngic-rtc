@@ -5031,6 +5031,12 @@ process_pfcp_sess_mod_resp(uint64_t sess_id, gtpv2c_header_t *gtpv2c_tx)
 		resp->state = CONNECTED_STATE;
 		/* Update the UE state */
 		pdn->state = CONNECTED_STATE;
+
+		/* Update the next hop IP address */
+		if (PGWC != pfcp_config.cp_type) {
+			s11_mme_sockaddr.sin_addr.s_addr =
+				htonl(context->s11_mme_gtpc_ipv4.s_addr);
+		}
 		return 0;
 
 	} else if (resp->msg_type == GTP_CREATE_SESSION_RSP) {

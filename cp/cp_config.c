@@ -360,7 +360,7 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 		if (strncmp(INT_SEC, cache_entries[i].name,
 						strlen(CONCURRENT)) == 0)
 			pfcp_config->dns_cache.sec =
-					(uint32_t)atoi(cache_entries[i].value);
+					(((uint32_t)atoi(cache_entries[i].value)) * 1000);
 		if (strncmp(QUERY_TIMEOUT, cache_entries[i].name,
 		                strlen(QUERY_TIMEOUT)) == 0)
 		    pfcp_config->dns_cache.timeoutms =

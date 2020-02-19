@@ -764,7 +764,8 @@ process_sgwc_create_bearer_rsp(create_bearer_rsp_t *cb_rsp)
 	bearer->s1u_sgw_gtpu_ipv4.s_addr = cb_rsp->bearer_contexts.s1u_sgw_fteid.ipv4_address;
 	bearer->s1u_sgw_gtpu_teid = cb_rsp->bearer_contexts.s1u_sgw_fteid.teid_gre_key;
 
-	s11_mme_sockaddr.sin_addr.s_addr = context->s11_mme_gtpc_ipv4.s_addr;
+	/* Update the next hop IP address */
+	s11_mme_sockaddr.sin_addr.s_addr = ntohl(context->s11_mme_gtpc_ipv4.s_addr);
 
 	uint32_t  seq_no = 0;
 	seq_no = bswap_32(cb_rsp->header.teid.has_teid.seq) ;
