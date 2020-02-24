@@ -834,9 +834,18 @@ decode_bearer_context_modified_ie_t(uint8_t *buf,
 
 	return count;
 }
-/* 8.13 Protocol Configuration Options (PCO) 
- * 10.5.6.3 Protocol configuration options in 3GPP TS 24.008 */
 
+/**
+ * decodes buffer to PCO IE
+ * 29.274 - 8.13 Protocol Configuration Options (PCO) 
+ * 24.008 - 10.5.6.3 Protocol configuration options 
+ * @param buf
+ *   buffer to be decoded
+ * @param val
+ *   protocol configuration option IE pointer  
+ * @return
+ *   number of decoded bytes.
+ */
 static int 
 decode_pco_ie_t(uint8_t *buf, pco_ie_t *val)
 {
@@ -845,8 +854,8 @@ decode_pco_ie_t(uint8_t *buf, pco_ie_t *val)
 	decode_ie_header_t(buf, &(val->header), IE_HEADER_SIZE);
 	count += IE_HEADER_SIZE;
 	uint8_t byte = buf[count]; // Read 1 byte 
-	val->ext = (byte & 0x80) >> 7; 
-	val->config_proto = (byte & 0x07);  
+	val->ext = (byte & 0x80) >> 7; // Check if MSB is set. MSB bit is to indicate extension 
+	val->config_proto = (byte & 0x07); // configuration protocol is set in lsb 3 bits.  
 	count++;
 
 	while(count < val->header.len && i < MAX_PCO_CONTAINERS) {

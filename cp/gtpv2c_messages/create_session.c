@@ -22,6 +22,12 @@ extern uint32_t num_adc_rules;
 extern uint32_t adc_rule_id[];
 struct response_info resp_t;
 
+/*
+ * @param: req_pco : this is the received PCO in the Request message (e.g. CSReq)
+ * @dpId : This is DP id of the user context. 
+ * @pco_buf : should have encoded pco which can be sent towards UE in GTP message (e.g. CSRsp)
+ @ return : length of the PCO buf 
+ */
 static int16_t 
 build_pco_response(char *pco_buf, pco_ie_t *req_pco, uint32_t dpId)
 {
@@ -74,7 +80,7 @@ build_pco_response(char *pco_buf, pco_ie_t *req_pco, uint32_t dpId)
 					/* Primary DNS Server IP Address */
 					if (dns_pri_configured == true ) 
 					{
-						uint8_t type=129;
+						uint8_t type=129; /* RFC 1877 Section 1.1  */
 						memcpy(&pco_buf[index], &type, sizeof(type));
 						index += sizeof(type);
 
@@ -89,7 +95,7 @@ build_pco_response(char *pco_buf, pco_ie_t *req_pco, uint32_t dpId)
 					/* Secondary DNS Server IP Address */
 					if (dns_secondary_configured == true) 
 					{
-						uint8_t type=131;
+						uint8_t type=131; /* RFC 1877 Section 1.3 */
 						memcpy(&pco_buf[index], &type, sizeof(type));
 						index += sizeof(type);
 
@@ -125,7 +131,7 @@ build_pco_response(char *pco_buf, pco_ie_t *req_pco, uint32_t dpId)
 				// we dont do MTU discovery. Should we send something ?	
 				break;
 			default:
-				fprintf(stderr, "Unknown PCO ID:(0x%x) received ", req_pco->ids[i].type);
+				RTE_LOG_DP(INFO, CP, "Unknown PCO ID:(0x%x) received ", req_pco->ids[i].type);
 		}
 	}
 	return index;
@@ -158,8 +164,12 @@ set_create_session_response(gtpv2c_header *gtpv2c_tx,
 	if(pco != NULL)
 	{
 		char *pco_buf = calloc(1, 260); 
-		uint16_t len = build_pco_response(pco_buf, pco, (uint32_t) context->dpId);	
-		set_pco(&cs_resp.pco, IE_INSTANCE_ZERO, pco_buf, len); 
+        if(pco_buf != NULL) 
+        {
+            //Should we even pass the CSReq in case of PCO not able to allocate ?
+		    uint16_t len = build_pco_response(pco_buf, pco, (uint32_t) context->dpId);	
+		    set_pco(&cs_resp.pco, IE_INSTANCE_ZERO, pco_buf, len); 
+        }
 	}
 
 	set_apn_restriction(&cs_resp.apn_restriction, IE_INSTANCE_ZERO,

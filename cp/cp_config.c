@@ -100,21 +100,35 @@ init_spgwc_dynamic_config(struct app_config *cfg )
 
 	entry = rte_cfgfile_get_entry(file, "GLOBAL", "DNS_PRIMARY");
 	if (entry == NULL) {
-		RTE_LOG_DP(ERR, CP, "DNS_PRIMARY default config is missing. \n");
+		RTE_LOG_DP(INFO, CP, "DNS_PRIMARY default config is missing. \n");
 		entry = primary_dns;
 	}
-	inet_aton(entry, &cfg->dns_p);
-	set_app_dns_primary(cfg);
-	RTE_LOG_DP(INFO, CP, "Global DNS_PRIMARY address is %s \n", inet_ntoa(cfg->dns_p));
+	if (inet_aton(entry, &cfg->dns_p) == 1)
+    {
+	  set_app_dns_primary(cfg);
+	  RTE_LOG_DP(INFO, CP, "Global DNS_PRIMARY address is %s \n", inet_ntoa(cfg->dns_p));
+    }
+    else
+    {
+        // invalid address 
+	    RTE_LOG_DP(ERR, CP, "Global DNS_PRIMARY address is invalid %s \n", entry);
+    }
 
 	entry = rte_cfgfile_get_entry(file, "GLOBAL", "DNS_SECONDARY");
 	if (entry == NULL) {
-		RTE_LOG_DP(ERR, CP, "DNS_SECONDARY default config is missing. \n");
+		RTE_LOG_DP(INFO, CP, "DNS_SECONDARY default config is missing. \n");
 		entry = secondary_dns;
 	}
-	inet_aton(entry, &cfg->dns_s);
-	set_app_dns_secondary(cfg);
-	RTE_LOG_DP(INFO, CP, "Global DNS_SECONDARY address is %s \n", inet_ntoa(cfg->dns_s));
+	if(inet_aton(entry, &cfg->dns_s) == 1)
+    {
+	    set_app_dns_secondary(cfg);
+	    RTE_LOG_DP(INFO, CP, "Global DNS_SECONDARY address is %s \n", inet_ntoa(cfg->dns_s));
+    }
+    else
+    {
+        // invalid address 
+	    RTE_LOG_DP(ERR, CP, "Global DNS_SECONDARY address is invalid %s \n", entry);
+    }
 
 	entry = rte_cfgfile_get_entry(file, "GLOBAL", "NUM_DP_SELECTION_RULES");
 	if (entry == NULL) {
@@ -174,23 +188,37 @@ init_spgwc_dynamic_config(struct app_config *cfg )
 			RTE_LOG_DP(ERR, CP, "TAC not found in the configuration file\n");
 		}
 		LIST_INSERT_HEAD(&cfg->dpList, dpInfo, dpentries);
-	        entry = rte_cfgfile_get_entry(file, sectionname , "DNS_PRIMARY");
-	        if (entry == NULL) {
-	        	RTE_LOG_DP(ERR, CP, "DNS_PRIMARY default config is missing. \n");
-		        entry = primary_dns;
-	        }
-	        inet_aton(entry, &dpInfo->dns_p);
- 		set_dp_dns_primary(dpInfo);
-	        RTE_LOG_DP(INFO, CP, "DNS_PRIMARY address is %s", inet_ntoa(dpInfo->dns_p));
+        entry = rte_cfgfile_get_entry(file, sectionname , "DNS_PRIMARY");
+        if (entry == NULL) {
+	        RTE_LOG_DP(INFO, CP, "DP DNS_PRIMARY default config is missing. \n");
+            entry = primary_dns;
+        }
+        if(inet_aton(entry, &dpInfo->dns_p) == 1)
+        {
+            set_dp_dns_primary(dpInfo);
+	        RTE_LOG_DP(INFO, CP, "DP DNS_PRIMARY address is %s", inet_ntoa(dpInfo->dns_p));
+        }
+        else
+        {
+			//invalid address
+	        RTE_LOG_DP(ERR, CP, "DP DNS_PRIMARY address is invalid %s ",entry);
+        }
 
-	        entry = rte_cfgfile_get_entry(file, sectionname , "DNS_SECONDARY");
-	        if (entry == NULL) {
-	        	RTE_LOG_DP(ERR, CP, "DNS_SECONDARY default config is missing. \n");
-		        entry = secondary_dns;
-	        }
-	        inet_aton(entry, &dpInfo->dns_s);
- 		set_dp_dns_secondary(dpInfo);
-	        RTE_LOG_DP(INFO, CP, "DNS_SECONDARY address is %s", inet_ntoa(dpInfo->dns_s));
+        entry = rte_cfgfile_get_entry(file, sectionname , "DNS_SECONDARY");
+        if (entry == NULL) {
+            RTE_LOG_DP(INFO, CP, "DP DNS_SECONDARY default config is missing. \n");
+            entry = secondary_dns;
+        }
+        if(inet_aton(entry, &dpInfo->dns_s) == 1)
+        {
+ 		    set_dp_dns_secondary(dpInfo);
+			RTE_LOG_DP(INFO, CP, "DP DNS_SECONDARY address is %s", inet_ntoa(dpInfo->dns_s));
+		}
+		else
+		{
+			//invalid address
+	        RTE_LOG_DP(ERR, CP, "DP DNS_SECONDARY address is invalid %s ",entry);
+		}
 	}
         return;
 }
@@ -270,7 +298,7 @@ fetch_dns_primary_ip(uint32_t dpId, bool *present)
 	struct dp_info *dp;
 	struct in_addr dns_p = { .s_addr = 0 };
 	LIST_FOREACH(dp, &appl_config->dpList, dpentries) {
-		if (dpId == dp->dpId) {
+		if ((dpId == dp->dpId) && (dp->flags & CONFIG_DNS_PRIMARY)) {
 			*present = true;
 			return dp->dns_p;
 		}
@@ -285,7 +313,7 @@ fetch_dns_secondary_ip(uint32_t dpId, bool *present)
 	struct dp_info *dp;
 	struct in_addr dns_s = { .s_addr = 0 };
 	LIST_FOREACH(dp, &appl_config->dpList, dpentries) {
-		if (dpId == dp->dpId) {
+		if ((dpId == dp->dpId) && (dp->flags & CONFIG_DNS_SECONDARY)) {
 			*present = true;
 			return dp->dns_s;
 		}

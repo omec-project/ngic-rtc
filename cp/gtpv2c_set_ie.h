@@ -157,6 +157,19 @@ void
 set_ipv4_paa(paa_ie_t *paa, enum ie_instance instance,
 	struct in_addr ipv4);
 
+/**
+ * Populates 'Protocol Configuration Option ' information element with given
+ * encoded buffer
+ *
+ * @param pco
+ *   pco ie pointer
+ * @param instance
+ *   Information element instance as specified by 3gpp 29.274 clause 6.1.3
+ * @param buf
+ *   pco encoded buf as per 24.008 section 19.5.6.3
+ * @return
+ *   void
+ */
 void
 set_pco(pco_ie_t *pco, enum ie_instance instance, char *buf, uint8_t len);
 
@@ -333,14 +346,6 @@ set_recovery_ie(gtpv2c_header *header, enum ie_instance instance);
  */
 void
 add_grouped_ie_length(gtpv2c_ie *group_ie, uint16_t grouped_ie_length);
-
-#if 0
-// why this function is declared at 2 places 
-void
-set_create_session_response(gtpv2c_header *gtpv2c_tx,
-		uint32_t sequence, ue_context *context, pdn_connection *pdn,
-		eps_bearer *bearer, pco_ie_t *pco);
-#endif
 
 /**
  * from parameters, populates gtpv2c message 'modify bearer response' and

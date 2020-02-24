@@ -46,15 +46,23 @@ struct dp_info
 	uint32_t dpId;
 	struct in_addr s1u_sgw_ip;
 	struct upf_context *upf;
+	struct in_addr dns_p, dns_s; 
 	LIST_ENTRY(dp_info) dpentries;
-        struct in_addr dns_p, dns_s; 
 };
 
+/*
+ * Set flag that Primary DNS config is available at Edge Site level. This should be called 
+ * when primary DNS address is set in the PGW app level 
+ */
 inline void set_dp_dns_primary(struct dp_info *dp) 
 {
   dp->flags |= CONFIG_DNS_PRIMARY;
 }
 
+/*
+ * Set flag that secondary DNS config is available at Edge Site level. This should be called 
+ * when secondary DNS address is set in the PGW app level 
+ */
 inline void set_dp_dns_secondary(struct dp_info *dp) 
 {
   dp->flags |= CONFIG_DNS_SECONDARY;
@@ -74,10 +82,20 @@ struct app_config
          struct in_addr dns_p, dns_s; 
 };
 
+/*
+ * Set flag that primary DNS config is available at App level. This should be called 
+ * when primary DNS address is set in the PGW app level 
+ */
+
 inline void set_app_dns_primary(struct app_config *app) 
 {
   app->flags |= CONFIG_DNS_PRIMARY;
 }
+
+/*
+ *  Get primary DNS address if available in dns_p and return true.
+ *  In case address is not available then return false
+ */
 
 inline bool get_app_primary_dns(struct app_config *app, struct in_addr *dns_p)
 {
@@ -90,10 +108,20 @@ inline bool get_app_primary_dns(struct app_config *app, struct in_addr *dns_p)
   
 }
 
+/*
+ * Set flag that secondary DNS config is available at App level. This should be called 
+ * when secondary DNS address is set in the PGW app level 
+ */
+
 inline void set_app_dns_secondary(struct app_config *app) 
 {
   app->flags |= CONFIG_DNS_SECONDARY;
 }
+
+/*
+ *  Get secondary DNS address if available in dns_p and return true.
+ *  In case address is not available then return false
+ */
 
 inline bool get_app_secondary_dns(struct app_config *app, struct in_addr *dns_s)
 {

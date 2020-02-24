@@ -514,7 +514,6 @@ void
 set_pco(pco_ie_t *pco, enum ie_instance instance, char *pco_buf, uint8_t len)
 {
 	set_ie_header(&pco->header, IE_PCO, instance, len);
-        printf("pco_buf = %p", pco_buf);
 	pco->pco = pco_buf;
 	pco->pco_len = len;
 	assert(pco->header.len != 0);
