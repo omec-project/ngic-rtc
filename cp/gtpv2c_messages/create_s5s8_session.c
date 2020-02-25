@@ -631,7 +631,7 @@ process_sgwc_s5s8_create_session_response(gtpv2c_header *gtpv2c_s5s8_rx,
 #ifndef ZMQ_COMM
 	set_create_session_response(
 			gtpv2c_s11_tx, gtpv2c_s5s8_rx->teid_u.has_teid.seq,
-			context, pdn, bearer);
+			context, pdn, bearer, NULL);
 
 #else
 		/* Set create session response */

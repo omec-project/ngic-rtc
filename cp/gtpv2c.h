@@ -435,11 +435,14 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
  *   PDN Connection data structure pertaining to the session to be created
  * @param bearer
  *   Default EPS Bearer corresponding to the PDN Connection to be created
+ * @param
+ *   PCO IE received from the UE. This will be used to set pco IE in the
+ *   CSRsp 
  */
 void
 set_create_session_response(gtpv2c_header *gtpv2c_tx,
 		uint32_t sequence, ue_context *context, pdn_connection *pdn,
-		eps_bearer *bearer);
+		eps_bearer *bearer, pco_ie_t *pco);
 
 /**
  * Handles the processing of pgwc create session request messages

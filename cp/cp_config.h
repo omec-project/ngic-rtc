@@ -10,6 +10,7 @@
 #define DP_SITE_NAME_MAX		256
 #include <stdint.h>
 #include <sys/queue.h>
+#include "stdbool.h"
 
 #define CP_CONFIG_ETC_PATH		"../config/app_config.cfg"
 #define CP_CONFIG_OPT_PATH		"/tmp/app_config.cfg"
@@ -34,18 +35,42 @@ struct dp_key
 	uint16_t tac;
 };
 
+#define  CONFIG_DNS_PRIMARY  	0x00000001
+#define  CONFIG_DNS_SECONDARY   0x00000002
+
 struct dp_info
 {
+	uint32_t  flags;
 	struct dp_key key;
 	char dpName[DP_SITE_NAME_MAX];
 	uint32_t dpId;
 	struct in_addr s1u_sgw_ip;
 	struct upf_context *upf;
+	struct in_addr dns_p, dns_s; 
 	LIST_ENTRY(dp_info) dpentries;
 };
 
+/*
+ * Set flag that Primary DNS config is available at Edge Site level. This should be called 
+ * when primary DNS address is set in the PGW app level 
+ */
+inline void set_dp_dns_primary(struct dp_info *dp) 
+{
+  dp->flags |= CONFIG_DNS_PRIMARY;
+}
+
+/*
+ * Set flag that secondary DNS config is available at Edge Site level. This should be called 
+ * when secondary DNS address is set in the PGW app level 
+ */
+inline void set_dp_dns_secondary(struct dp_info *dp) 
+{
+  dp->flags |= CONFIG_DNS_SECONDARY;
+}
+
 struct app_config 
 {
+	uint32_t  flags;
 	/* Dataplane selection rules. */
 	LIST_HEAD(dplisthead, dp_info) dpList;
 
@@ -54,7 +79,60 @@ struct app_config
 	 * SGW : DDN profile, APN (optional) etc..
 	 * PGW : APN, IP Pool etc..
 	 */
+         struct in_addr dns_p, dns_s; 
 };
+
+/*
+ * Set flag that primary DNS config is available at App level. This should be called 
+ * when primary DNS address is set in the PGW app level 
+ */
+
+inline void set_app_dns_primary(struct app_config *app) 
+{
+  app->flags |= CONFIG_DNS_PRIMARY;
+}
+
+/*
+ *  Get primary DNS address if available in dns_p and return true.
+ *  In case address is not available then return false
+ */
+
+inline bool get_app_primary_dns(struct app_config *app, struct in_addr *dns_p)
+{
+  if(app->flags & CONFIG_DNS_PRIMARY)
+  {
+    *dns_p = app->dns_p;
+    return true;
+  }
+  return false;
+  
+}
+
+/*
+ * Set flag that secondary DNS config is available at App level. This should be called 
+ * when secondary DNS address is set in the PGW app level 
+ */
+
+inline void set_app_dns_secondary(struct app_config *app) 
+{
+  app->flags |= CONFIG_DNS_SECONDARY;
+}
+
+/*
+ *  Get secondary DNS address if available in dns_p and return true.
+ *  In case address is not available then return false
+ */
+
+inline bool get_app_secondary_dns(struct app_config *app, struct in_addr *dns_s)
+{
+  if(app->flags & CONFIG_DNS_SECONDARY)
+  {
+    *dns_s = app->dns_s;
+    return true;
+  }
+  return false;
+  
+}
 
 void init_spgwc_dynamic_config(struct app_config *cfg);
 
@@ -75,6 +153,19 @@ uint8_t resolve_upf_context_to_dpInfo(struct upf_context *upf, char *hostname, s
  * Given dpId, what is the s1u's IP address of dp (as stored in the apl_config list)
  */
 struct in_addr fetch_s1u_sgw_ip(uint32_t dpId);
+
+/**
+ * Given dpId, what is the DNS Primary IP address of dp. If DP does not have config then 
+ * pass DNS config from global scope 
+ */
+struct in_addr fetch_dns_primary_ip(uint32_t dpId, bool *present);
+
+
+/**
+ * Given dpId, what is the DNS Secondary IP address of dp. If DP does not have config then 
+ * pass DNS config from global scope 
+ */
+struct in_addr fetch_dns_secondary_ip(uint32_t dpId, bool *present);
 
 /**
  * Given dpId, what is upf's context (as stored in the apl_config list)
