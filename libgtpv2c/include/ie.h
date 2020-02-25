@@ -491,9 +491,9 @@ typedef struct bearer_context_modified_ie_t {
 #define PCO_ID_IPV4_LINK_MTU_REQUEST                        0x0010
 
 typedef struct pco_opt_s {
-    uint16_t type;
-    uint8_t len;
-    uint8_t data[20];
+	uint16_t type;
+	uint8_t len;
+	uint8_t data[20];
 } pco_opt_t;
 
 #define MAX_PCO_CONTAINERS 16

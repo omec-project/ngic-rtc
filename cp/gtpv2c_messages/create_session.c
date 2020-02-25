@@ -44,8 +44,7 @@ build_pco_response(char *pco_buf, pco_ie_t *req_pco, uint32_t dpId)
         dns_p = fetch_dns_primary_ip(dpId, &dns_pri_configured);
         dns_s = fetch_dns_secondary_ip(dpId, &dns_secondary_configured);
 
-	for (i = 0; i < req_pco->num_of_opt; i++) 
-	{
+	for (i = 0; i < req_pco->num_of_opt; i++) {
 		uint16_t pco_type = htons(req_pco->ids[i].type);
 		uint8_t total_len;
 		switch(req_pco->ids[i].type) {
@@ -78,8 +77,7 @@ build_pco_response(char *pco_buf, pco_ie_t *req_pco, uint32_t dpId)
 					index += sizeof(ppp_len);
 
 					/* Primary DNS Server IP Address */
-					if (dns_pri_configured == true ) 
-					{
+					if (dns_pri_configured == true ) {
 						uint8_t type=129; /* RFC 1877 Section 1.1  */
 						memcpy(&pco_buf[index], &type, sizeof(type));
 						index += sizeof(type);
@@ -93,8 +91,7 @@ build_pco_response(char *pco_buf, pco_ie_t *req_pco, uint32_t dpId)
 					}
 
 					/* Secondary DNS Server IP Address */
-					if (dns_secondary_configured == true) 
-					{
+					if (dns_secondary_configured == true) {
 						uint8_t type=131; /* RFC 1877 Section 1.3 */
 						memcpy(&pco_buf[index], &type, sizeof(type));
 						index += sizeof(type);
@@ -109,13 +106,11 @@ build_pco_response(char *pco_buf, pco_ie_t *req_pco, uint32_t dpId)
 				}
 				break;
 			case PCO_ID_DNS_SERVER_IPV4_ADDRESS_REQUEST:
-				if(dns_pri_configured)
-				{
+				if (dns_pri_configured) {
 					memcpy(&pco_buf[index], &pco_type, sizeof(pco_type));
 					index += sizeof(pco_type);
 				}
-				if (dns_pri_configured == true) 
-				{
+				if (dns_pri_configured == true) {
 					uint8_t len = 4; 
 					memcpy(&pco_buf[index], &len, sizeof(len));
 					index += sizeof(len);
@@ -161,15 +156,13 @@ set_create_session_response(gtpv2c_header *gtpv2c_tx,
 			pdn->s5s8_pgw_gtpc_ipv4, pdn->s5s8_pgw_gtpc_teid);
 
 	set_ipv4_paa(&cs_resp.paa, IE_INSTANCE_ZERO, pdn->ipv4);
-	if(pco != NULL)
-	{
-		char *pco_buf = calloc(1, 260); 
-        if(pco_buf != NULL) 
-        {
-            //Should we even pass the CSReq in case of PCO not able to allocate ?
-		    uint16_t len = build_pco_response(pco_buf, pco, (uint32_t) context->dpId);	
-		    set_pco(&cs_resp.pco, IE_INSTANCE_ZERO, pco_buf, len); 
-        }
+	if (pco != NULL) {
+		char *pco_buf = calloc(1, 260);
+		if (pco_buf != NULL) {
+			//Should we even pass the CSReq in case of PCO not able to allocate ?
+			uint16_t len = build_pco_response(pco_buf, pco, (uint32_t) context->dpId);
+			set_pco(&cs_resp.pco, IE_INSTANCE_ZERO, pco_buf, len);
+		}
 	}
 
 	set_apn_restriction(&cs_resp.apn_restriction, IE_INSTANCE_ZERO,
@@ -252,7 +245,7 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 	static uint32_t process_sgwc_s5s8_cs_req_cnt;
 	static uint32_t process_spgwc_s11_cs_res_cnt;
 	uint32_t dataplane_id = 0;
-    struct dp_id dp_id = { .id = DPN_ID };
+	struct dp_id dp_id = { .id = DPN_ID };
 
 	ret = decode_create_session_request_t((uint8_t *) gtpv2c_rx,
 			&csr);
@@ -385,11 +378,11 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 #else
 		bearer->s1u_sgw_gtpu_ipv4 = s1u_sgw_ip;
 #endif
-        if (dataplane_id > 0) {
-         /* We want to attach subscriber to this DP */
-         dp_id.id  = dataplane_id;
-        }
-        context->dpId = dp_id.id;
+		if (dataplane_id > 0) {
+			/* We want to attach subscriber to this DP */
+			dp_id.id  = dataplane_id;
+		}
+		context->dpId = dp_id.id;
 
 		set_s1u_sgw_gtpu_teid(bearer, context);
 		bearer->s5s8_sgw_gtpu_ipv4 = s5s8_sgwu_ip;
@@ -400,15 +393,15 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 		bearer->pdn = pdn;
 
 		/*
-		if (create_session_request.s11u_mme_fteid) {
-			bearer->s11u_mme_gtpu_ipv4 =
-				IE_TYPE_PTR_FROM_GTPV2C_IE(fteid_ie,
-						create_session_request.s11u_mme_fteid)->ip_u.ipv4;
-			bearer->s11u_mme_gtpu_teid =
-				IE_TYPE_PTR_FROM_GTPV2C_IE(fteid_ie,
-						create_session_request.s11u_mme_fteid)->
-				fteid_ie_hdr.teid_or_gre;
-		}*/
+		  if (create_session_request.s11u_mme_fteid) {
+		  bearer->s11u_mme_gtpu_ipv4 =
+		  IE_TYPE_PTR_FROM_GTPV2C_IE(fteid_ie,
+		  create_session_request.s11u_mme_fteid)->ip_u.ipv4;
+		  bearer->s11u_mme_gtpu_teid =
+		  IE_TYPE_PTR_FROM_GTPV2C_IE(fteid_ie,
+		  create_session_request.s11u_mme_fteid)->
+		  fteid_ie_hdr.teid_or_gre;
+		  }*/
 	}
 
 	if (spgw_cfg == SGWC) {

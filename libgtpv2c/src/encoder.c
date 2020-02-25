@@ -942,7 +942,7 @@ encode_create_session_response_t(create_session_response_t *val,
 		enc_len += encode_bearer_context_created_ie_t(&(val->bearer_context), &buf);
 
 
-	if(val->pco.header.len)
+	if (val->pco.header.len)
 		enc_len += encode_pco_ie_t(&(val->pco), &buf);
 
 	*msg_len = enc_len;

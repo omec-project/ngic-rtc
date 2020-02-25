@@ -103,32 +103,26 @@ init_spgwc_dynamic_config(struct app_config *cfg )
 		RTE_LOG_DP(INFO, CP, "DNS_PRIMARY default config is missing. \n");
 		entry = primary_dns;
 	}
-	if (inet_aton(entry, &cfg->dns_p) == 1)
-    {
-	  set_app_dns_primary(cfg);
-	  RTE_LOG_DP(INFO, CP, "Global DNS_PRIMARY address is %s \n", inet_ntoa(cfg->dns_p));
-    }
-    else
-    {
-        // invalid address 
-	    RTE_LOG_DP(ERR, CP, "Global DNS_PRIMARY address is invalid %s \n", entry);
-    }
+	if (inet_aton(entry, &cfg->dns_p) == 1) {
+		set_app_dns_primary(cfg);
+		RTE_LOG_DP(INFO, CP, "Global DNS_PRIMARY address is %s \n", inet_ntoa(cfg->dns_p));
+	} else {
+		// invalid address 
+		RTE_LOG_DP(ERR, CP, "Global DNS_PRIMARY address is invalid %s \n", entry);
+	}
 
 	entry = rte_cfgfile_get_entry(file, "GLOBAL", "DNS_SECONDARY");
 	if (entry == NULL) {
 		RTE_LOG_DP(INFO, CP, "DNS_SECONDARY default config is missing. \n");
 		entry = secondary_dns;
 	}
-	if(inet_aton(entry, &cfg->dns_s) == 1)
-    {
-	    set_app_dns_secondary(cfg);
-	    RTE_LOG_DP(INFO, CP, "Global DNS_SECONDARY address is %s \n", inet_ntoa(cfg->dns_s));
-    }
-    else
-    {
-        // invalid address 
-	    RTE_LOG_DP(ERR, CP, "Global DNS_SECONDARY address is invalid %s \n", entry);
-    }
+	if(inet_aton(entry, &cfg->dns_s) == 1) {
+		set_app_dns_secondary(cfg);
+		RTE_LOG_DP(INFO, CP, "Global DNS_SECONDARY address is %s \n", inet_ntoa(cfg->dns_s));
+	} else {
+		// invalid address 
+		RTE_LOG_DP(ERR, CP, "Global DNS_SECONDARY address is invalid %s \n", entry);
+	}
 
 	entry = rte_cfgfile_get_entry(file, "GLOBAL", "NUM_DP_SELECTION_RULES");
 	if (entry == NULL) {
@@ -188,36 +182,30 @@ init_spgwc_dynamic_config(struct app_config *cfg )
 			RTE_LOG_DP(ERR, CP, "TAC not found in the configuration file\n");
 		}
 		LIST_INSERT_HEAD(&cfg->dpList, dpInfo, dpentries);
-        entry = rte_cfgfile_get_entry(file, sectionname , "DNS_PRIMARY");
-        if (entry == NULL) {
-	        RTE_LOG_DP(INFO, CP, "DP DNS_PRIMARY default config is missing. \n");
-            entry = primary_dns;
-        }
-        if(inet_aton(entry, &dpInfo->dns_p) == 1)
-        {
-            set_dp_dns_primary(dpInfo);
-	        RTE_LOG_DP(INFO, CP, "DP DNS_PRIMARY address is %s", inet_ntoa(dpInfo->dns_p));
-        }
-        else
-        {
+		entry = rte_cfgfile_get_entry(file, sectionname , "DNS_PRIMARY");
+		if (entry == NULL) {
+			RTE_LOG_DP(INFO, CP, "DP DNS_PRIMARY default config is missing. \n");
+			entry = primary_dns;
+		}
+		if (inet_aton(entry, &dpInfo->dns_p) == 1) {
+			set_dp_dns_primary(dpInfo);
+			RTE_LOG_DP(INFO, CP, "DP DNS_PRIMARY address is %s", inet_ntoa(dpInfo->dns_p));
+		} else {
 			//invalid address
-	        RTE_LOG_DP(ERR, CP, "DP DNS_PRIMARY address is invalid %s ",entry);
-        }
+			RTE_LOG_DP(ERR, CP, "DP DNS_PRIMARY address is invalid %s ",entry);
+		}
 
-        entry = rte_cfgfile_get_entry(file, sectionname , "DNS_SECONDARY");
-        if (entry == NULL) {
-            RTE_LOG_DP(INFO, CP, "DP DNS_SECONDARY default config is missing. \n");
-            entry = secondary_dns;
-        }
-        if(inet_aton(entry, &dpInfo->dns_s) == 1)
-        {
+		entry = rte_cfgfile_get_entry(file, sectionname , "DNS_SECONDARY");
+		if (entry == NULL) {
+			RTE_LOG_DP(INFO, CP, "DP DNS_SECONDARY default config is missing. \n");
+			entry = secondary_dns;
+		}
+		if (inet_aton(entry, &dpInfo->dns_s) == 1) {
  		    set_dp_dns_secondary(dpInfo);
 			RTE_LOG_DP(INFO, CP, "DP DNS_SECONDARY address is %s", inet_ntoa(dpInfo->dns_s));
-		}
-		else
-		{
+		} else {
 			//invalid address
-	        RTE_LOG_DP(ERR, CP, "DP DNS_SECONDARY address is invalid %s ",entry);
+			RTE_LOG_DP(ERR, CP, "DP DNS_SECONDARY address is invalid %s ",entry);
 		}
 	}
         return;
