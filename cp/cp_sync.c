@@ -6,7 +6,6 @@
 #include <errno.h>
 #include <limits.h>
 #include <stdlib.h>
-#include <assert.h>
 #include <string.h>
 #include <unistd.h>
 #include <ctype.h>
@@ -120,7 +119,7 @@ del_resp_op_id(uint64_t resp_op_id)
 					set_create_session_response(&(tmp->gtpv2c_tx_t),
 							tmp->gtpv2c_tx_t.teid_u.has_teid.seq,
 							&(tmp->context_t), &(tmp->pdn_t),
-							&(tmp->bearer_t));
+							&(tmp->bearer_t), &(tmp->pco));
 
 					payload_length = ntohs(tmp->gtpv2c_tx_t.gtpc.length)
 						+ sizeof(tmp->gtpv2c_tx_t.gtpc);

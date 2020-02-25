@@ -36,6 +36,7 @@ typedef struct create_session_request_t {
 	bearer_context_to_be_created_ie_t bearer_context;
 	recovery_ie_t recovery;
 	ue_timezone_ie_t ue_timezone;
+        pco_ie_t       pco;
 } create_session_request_t;
 
 typedef struct create_session_response_t {
@@ -45,6 +46,7 @@ typedef struct create_session_response_t {
 	fteid_ie_t pgws5s8_pmip;
 	paa_ie_t paa;
 	apn_restriction_ie_t apn_restriction;
+    	pco_ie_t pco;
 	bearer_context_created_ie_t bearer_context;
 } create_session_response_t;
 

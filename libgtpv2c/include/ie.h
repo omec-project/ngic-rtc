@@ -483,6 +483,30 @@ typedef struct bearer_context_modified_ie_t {
 	fteid_ie_t s1u_sgw_ftied;
 } bearer_context_modified_ie_t;
 
+ /* Reference - 10.5.6.3 Protocol configuration options in 3GPP TS 24.008 
+  */
+#define PCO_ID_INTERNET_PROTOCOL_CONTROL_PROTOCOL           0x8021
+#define PCO_ID_IP_ADDRESS_ALLOCATION_VIA_NAS_SIGNALLING     0x000a
+#define PCO_ID_DNS_SERVER_IPV4_ADDRESS_REQUEST              0x000d
+#define PCO_ID_IPV4_LINK_MTU_REQUEST                        0x0010
+
+typedef struct pco_opt_s {
+    uint16_t type;
+    uint8_t len;
+    uint8_t data[20];
+} pco_opt_t;
+
+#define MAX_PCO_CONTAINERS 16
+typedef struct pco_ie_t {
+	ie_header_t header;
+	char *pco; //encoded buf 
+	uint8_t pco_len; // encoded len
+        uint8_t ext;
+        uint8_t config_proto;
+        uint8_t num_of_opt;
+    	pco_opt_t ids[MAX_PCO_CONTAINERS];
+} pco_ie_t;
+
 #pragma pack()
 
 #endif /* _LIBGTPV2C_IE_H_ */
