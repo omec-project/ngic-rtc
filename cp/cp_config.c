@@ -30,7 +30,7 @@ config_change_cbk(char *config_file, uint32_t flags)
 	static char cmd[256];
 	sprintf(cmd, "cp %s %s", CP_CONFIG_ETC_PATH, CP_CONFIG_OPT_PATH);
 	int ret = system(cmd);
-	RTE_LOG_DP(INFO, CP, "system call return value: %d", ret);
+	RTE_LOG_DP(INFO, CP, "system call return value: %d \n", ret);
 
 	/* We dont expect quick updates from configmap..One update per interval. Typically 
 	 * worst case 60 seconds for 1 config update. Updates are clubbed and dont come frequent 
@@ -196,12 +196,12 @@ init_spgwc_dynamic_config(struct app_config *cfg )
         if(inet_aton(entry, &dpInfo->dns_p) == 1)
         {
             set_dp_dns_primary(dpInfo);
-	        RTE_LOG_DP(INFO, CP, "DP DNS_PRIMARY address is %s", inet_ntoa(dpInfo->dns_p));
+	        RTE_LOG_DP(INFO, CP, "DP DNS_PRIMARY address is %s \n", inet_ntoa(dpInfo->dns_p));
         }
         else
         {
 			//invalid address
-	        RTE_LOG_DP(ERR, CP, "DP DNS_PRIMARY address is invalid %s ",entry);
+	        RTE_LOG_DP(ERR, CP, "DP DNS_PRIMARY address is invalid %s \n",entry);
         }
 
         entry = rte_cfgfile_get_entry(file, sectionname , "DNS_SECONDARY");
@@ -212,12 +212,12 @@ init_spgwc_dynamic_config(struct app_config *cfg )
         if(inet_aton(entry, &dpInfo->dns_s) == 1)
         {
  		    set_dp_dns_secondary(dpInfo);
-			RTE_LOG_DP(INFO, CP, "DP DNS_SECONDARY address is %s", inet_ntoa(dpInfo->dns_s));
+			RTE_LOG_DP(INFO, CP, "DP DNS_SECONDARY address is %s \n", inet_ntoa(dpInfo->dns_s));
 		}
 		else
 		{
 			//invalid address
-	        RTE_LOG_DP(ERR, CP, "DP DNS_SECONDARY address is invalid %s ",entry);
+	        RTE_LOG_DP(ERR, CP, "DP DNS_SECONDARY address is invalid %s \n",entry);
 		}
 	}
         return;
