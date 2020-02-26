@@ -16,6 +16,8 @@
 #include <rte_debug.h>
 
 extern struct app_config *appl_config;
+extern char* config_update_base_folder; 
+extern bool native_config_folder;
 
 const char *primary_dns = "8.8.8.8";
 const char *secondary_dns = "8.8.8.4";	
@@ -26,17 +28,20 @@ config_change_cbk(char *config_file, uint32_t flags)
 	RTE_LOG_DP(INFO, CP, "Received %s. File %s flags: %x\n",
 		   __FUNCTION__, config_file, flags);
 
-	/* Move the updated config to standard path */
-	static char cmd[256];
-	sprintf(cmd, "cp %s %s", CP_CONFIG_ETC_PATH, CP_CONFIG_OPT_PATH);
-	int ret = system(cmd);
-	RTE_LOG_DP(INFO, CP, "system call return value: %d \n", ret);
-
+    if(native_config_folder == false)
+    {
+	  /* Move the updated config to standard path */
+	  static char cmd[256];
+	  sprintf(cmd, "cp %s %s", config_file, CP_CONFIG_OPT_PATH);
+	  int ret = system(cmd);
+	  RTE_LOG_DP(INFO, CP, "system call return value: %d \n", ret);
+    }
+ 
 	/* We dont expect quick updates from configmap..One update per interval. Typically 
 	 * worst case 60 seconds for 1 config update. Updates are clubbed and dont come frequent 
 	 * We re-register to avoid recursive callbacks 
 	 */
-	watch_config_change(CP_CONFIG_ETC_PATH, config_change_cbk);
+	watch_config_change(config_file, config_change_cbk);
 
 	/* Lets first parse the current app_config.cfg file  */
 	struct app_config *new_cfg;
@@ -76,11 +81,11 @@ config_change_cbk(char *config_file, uint32_t flags)
 }
 
 void 
-register_config_updates(void)
+register_config_updates(char *file)
 {
 	/* I would prefer a complete path than this relative path.
 	 * Looks like it may break */
-	watch_config_change(CP_CONFIG_ETC_PATH, config_change_cbk);
+	watch_config_change(file, config_change_cbk);
 }
 
 void 
@@ -190,34 +195,34 @@ init_spgwc_dynamic_config(struct app_config *cfg )
 		LIST_INSERT_HEAD(&cfg->dpList, dpInfo, dpentries);
         entry = rte_cfgfile_get_entry(file, sectionname , "DNS_PRIMARY");
         if (entry == NULL) {
-	        RTE_LOG_DP(INFO, CP, "DP DNS_PRIMARY default config is missing. \n");
+	        RTE_LOG_DP(INFO, CP, "DP (%s) DNS_PRIMARY default config is missing. \n", dpInfo->dpName);
             entry = primary_dns;
         }
         if(inet_aton(entry, &dpInfo->dns_p) == 1)
         {
             set_dp_dns_primary(dpInfo);
-	        RTE_LOG_DP(INFO, CP, "DP DNS_PRIMARY address is %s \n", inet_ntoa(dpInfo->dns_p));
+	        RTE_LOG_DP(INFO, CP, "DP (%s) DNS_PRIMARY address is %s \n", dpInfo->dpName, inet_ntoa(dpInfo->dns_p));
         }
         else
         {
 			//invalid address
-	        RTE_LOG_DP(ERR, CP, "DP DNS_PRIMARY address is invalid %s \n",entry);
+	        RTE_LOG_DP(ERR, CP, "DP (%s) DNS_PRIMARY address is invalid %s \n",dpInfo->dpName, entry);
         }
 
         entry = rte_cfgfile_get_entry(file, sectionname , "DNS_SECONDARY");
         if (entry == NULL) {
-            RTE_LOG_DP(INFO, CP, "DP DNS_SECONDARY default config is missing. \n");
+            RTE_LOG_DP(INFO, CP, "DP (%s)  DNS_SECONDARY default config is missing. \n", dpInfo->dpName);
             entry = secondary_dns;
         }
         if(inet_aton(entry, &dpInfo->dns_s) == 1)
         {
  		    set_dp_dns_secondary(dpInfo);
-			RTE_LOG_DP(INFO, CP, "DP DNS_SECONDARY address is %s \n", inet_ntoa(dpInfo->dns_s));
+			RTE_LOG_DP(INFO, CP, "DP (%s) DNS_SECONDARY address is %s \n", dpInfo->dpName, inet_ntoa(dpInfo->dns_s));
 		}
 		else
 		{
 			//invalid address
-	        RTE_LOG_DP(ERR, CP, "DP DNS_SECONDARY address is invalid %s \n",entry);
+	        RTE_LOG_DP(ERR, CP, "DP (%s) DNS_SECONDARY address is invalid %s \n",dpInfo->dpName, entry);
 		}
 	}
         return;
