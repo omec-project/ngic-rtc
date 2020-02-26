@@ -108,32 +108,26 @@ init_spgwc_dynamic_config(struct app_config *cfg )
 		RTE_LOG_DP(INFO, CP, "DNS_PRIMARY default config is missing. \n");
 		entry = primary_dns;
 	}
-	if (inet_aton(entry, &cfg->dns_p) == 1)
-    {
-	  set_app_dns_primary(cfg);
-	  RTE_LOG_DP(INFO, CP, "Global DNS_PRIMARY address is %s \n", inet_ntoa(cfg->dns_p));
-    }
-    else
-    {
-        // invalid address 
-	    RTE_LOG_DP(ERR, CP, "Global DNS_PRIMARY address is invalid %s \n", entry);
-    }
+	if (inet_aton(entry, &cfg->dns_p) == 1) {
+		set_app_dns_primary(cfg);
+		RTE_LOG_DP(INFO, CP, "Global DNS_PRIMARY address is %s \n", inet_ntoa(cfg->dns_p));
+	} else {
+		// invalid address 
+		RTE_LOG_DP(ERR, CP, "Global DNS_PRIMARY address is invalid %s \n", entry);
+	}
 
 	entry = rte_cfgfile_get_entry(file, "GLOBAL", "DNS_SECONDARY");
 	if (entry == NULL) {
 		RTE_LOG_DP(INFO, CP, "DNS_SECONDARY default config is missing. \n");
 		entry = secondary_dns;
 	}
-	if(inet_aton(entry, &cfg->dns_s) == 1)
-    {
-	    set_app_dns_secondary(cfg);
-	    RTE_LOG_DP(INFO, CP, "Global DNS_SECONDARY address is %s \n", inet_ntoa(cfg->dns_s));
-    }
-    else
-    {
-        // invalid address 
-	    RTE_LOG_DP(ERR, CP, "Global DNS_SECONDARY address is invalid %s \n", entry);
-    }
+	if(inet_aton(entry, &cfg->dns_s) == 1) {
+		set_app_dns_secondary(cfg);
+		RTE_LOG_DP(INFO, CP, "Global DNS_SECONDARY address is %s \n", inet_ntoa(cfg->dns_s));
+	} else {
+		// invalid address 
+		RTE_LOG_DP(ERR, CP, "Global DNS_SECONDARY address is invalid %s \n", entry);
+	}
 
 	entry = rte_cfgfile_get_entry(file, "GLOBAL", "NUM_DP_SELECTION_RULES");
 	if (entry == NULL) {
@@ -219,13 +213,21 @@ init_spgwc_dynamic_config(struct app_config *cfg )
  		    set_dp_dns_secondary(dpInfo);
 			RTE_LOG_DP(INFO, CP, "DP (%s) DNS_SECONDARY address is %s \n", dpInfo->dpName, inet_ntoa(dpInfo->dns_s));
 		}
-		else
-		{
+
+		entry = rte_cfgfile_get_entry(file, sectionname , "DNS_SECONDARY");
+		if (entry == NULL) {
+			RTE_LOG_DP(INFO, CP, "DP DNS_SECONDARY default config is missing. \n");
+			entry = secondary_dns;
+		}
+		if (inet_aton(entry, &dpInfo->dns_s) == 1) {
+ 		    set_dp_dns_secondary(dpInfo);
+			RTE_LOG_DP(INFO, CP, "DP DNS_SECONDARY address is %s", inet_ntoa(dpInfo->dns_s));
+		} else {
 			//invalid address
 	        RTE_LOG_DP(ERR, CP, "DP (%s) DNS_SECONDARY address is invalid %s \n",dpInfo->dpName, entry);
 		}
 	}
-        return;
+  return;
 }
 
 /* Given key find the DP. Once DP is found then return its dpId */

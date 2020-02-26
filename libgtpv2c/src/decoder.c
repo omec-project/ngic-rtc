@@ -858,7 +858,7 @@ decode_pco_ie_t(uint8_t *buf, pco_ie_t *val)
 	val->config_proto = (byte & 0x07); // configuration protocol is set in lsb 3 bits.  
 	count++;
 
-	while(count < val->header.len && i < MAX_PCO_CONTAINERS) {
+	while (count < val->header.len && i < MAX_PCO_CONTAINERS) {
 		pco_opt_t *id = &val->ids[i];
 		memcpy(&id->type, &buf[count], sizeof(id->type));
 		id->type = ntohs(id->type);
