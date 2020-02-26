@@ -55,7 +55,7 @@ notification_handler(struct rte_mbuf **pkts,
 
 	pfcp_session_datat_t *sess_data[MAX_BURST_SZ] = {NULL};
 
-	clLog(clSystemLog, eCLSeverityDebug, "Notification handler resolved the buffer packets\n");
+	clLog(clSystemLog, eCLSeverityDebug, "Notification handler resolving the buffer packets, count:%u\n", n);
 
 	for (i = 0; i < n; ++i) {
 		buf_pkt = pkts[i];
