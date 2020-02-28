@@ -218,6 +218,8 @@
 	if (value->pfd_contents_cp) \
 { \
 	encoded += encode_bits(value->len_of_cstm_pfd_cntnt, bit_count, destination, offset); \
+	memcpy(buf+ (encoded/CHAR_SIZE), (char *)value->cstm_pfd_cntnt, value->len_of_cstm_pfd_cntnt); \
+	encoded += value->len_of_cstm_pfd_cntnt * 8; \
 }
 
 /* Inside pfcp_pfd_contents_ie_t */

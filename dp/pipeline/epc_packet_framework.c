@@ -41,13 +41,14 @@
 #include <cmdline_socket.h>
 #include <cmdline.h>
 
-#include "main.h"
 #include "stats.h"
-#include "epc_packet_framework.h"
-#include "interface.h"
-#include "meter.h"
-#include "acl_dp.h"
+#include "up_main.h"
+//#include "meter.h"
+//#include "acl_dp.h"
 #include "commands.h"
+#include "interface.h"
+#include "dp_ipc_api.h"
+#include "epc_packet_framework.h"
 
 struct rte_ring *epc_mct_spns_dns_rx;
 struct epc_app_params epc_app = {
@@ -90,12 +91,14 @@ struct epc_app_params epc_app = {
 #endif	/* NGCORE_SHRINK */
 };
 
+#if defined(SDN_ODL_BUILD)
 static void *dp_zmq_thread(__rte_unused void *arg)
 {
 	while (1)
 		iface_remove_que(COMM_ZMQ);
 	return NULL; //GCC_Security flag
 }
+#endif  /* DP:(SDN_ODL_BUILD */
 
 static void epc_iface_core(__rte_unused void *args)
 {

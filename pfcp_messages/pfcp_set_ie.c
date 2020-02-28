@@ -14,28 +14,38 @@
  * limitations under the License.
  */
 
-#include "cp.h"
-#include "main.h"
-#include "pfcp.h"
 #include "pfcp_ies.h"
 #include "pfcp_util.h"
 #include "pfcp_set_ie.h"
 #include "pfcp_enum.h"
 
+#ifdef CP_BUILD
+#include "cp.h"
+#include "main.h"
+#include "pfcp.h"
+#else
+#include "up_main.h"
+#endif /* CP_BUILD */
+
+#define RI_MAX 8
 /* extern */
 uint32_t start_time;
+const uint32_t pfcp_base_seq_no = 0x00000000;
+static uint32_t pfcp_seq_no_offset;
 
 #ifdef CP_BUILD
 extern pfcp_config_t pfcp_config;
 static uint32_t pfcp_sgwc_seid_offset;
+#else
+static int curr_teid_index[RI_MAX] = {0};
+static int MAX_TEID[RI_MAX] = {0,2,4,8,16,32,64,128};
 #endif /* CP_BUILD */
 
 //static uint16_t pdn_conn_set_id;
 extern struct rte_hash *node_id_hash;
-struct rte_hash *heartbeat_recovery_hash;
+extern struct rte_hash *heartbeat_recovery_hash;
 const uint64_t pfcp_sgwc_base_seid = 0xC0FFEE;
 
-struct app_params app;
 
 void
 set_pfcp_header(pfcp_header_t *pfcp, uint8_t type, bool flag )
@@ -47,6 +57,46 @@ set_pfcp_header(pfcp_header_t *pfcp, uint8_t type, bool flag )
 	pfcp->message_type = type;
 }
 
+uint32_t
+generate_seq_no(void){
+	uint32_t id = 0;
+	id = pfcp_base_seq_no + (++pfcp_seq_no_offset);
+	return id;
+}
+
+uint32_t
+get_pfcp_sequence_number(uint8_t type, uint32_t seq){
+	switch(type){
+		case PFCP_HEARTBEAT_REQUEST :
+		case PFCP_PFD_MGMT_REQUEST:
+		case PFCP_ASSOCIATION_SETUP_REQUEST:
+		case PFCP_ASSOCIATION_UPDATE_REQUEST:
+		case PFCP_ASSOCIATION_RELEASE_REQUEST:
+		case PFCP_NODE_REPORT_REQUEST:
+		case PFCP_SESSION_SET_DELETION_REQUEST:
+		case PFCP_SESSION_ESTABLISHMENT_REQUEST:
+		case PFCP_SESSION_MODIFICATION_REQUEST:
+		case PFCP_SESSION_DELETION_REQUEST:
+		case PFCP_SESSION_REPORT_REQUEST:
+			return generate_seq_no();
+		case PFCP_HEARTBEAT_RESPONSE:
+		case PFCP_ASSOCIATION_SETUP_RESPONSE:
+		case PFCP_ASSOCIATION_UPDATE_RESPONSE:
+		case PFCP_ASSOCIATION_RELEASE_RESPONSE:
+		case PFCP_NODE_REPORT_RESPONSE:
+		case PFCP_SESSION_SET_DELETION_RESPONSE:
+		case PFCP_SESSION_ESTABLISHMENT_RESPONSE:
+		case PFCP_SESSION_MODIFICATION_RESPONSE:
+		case PFCP_SESSION_DELETION_RESPONSE:
+		case PFCP_SESSION_REPORT_RESPONSE:
+			return seq;
+		default:
+			RTE_LOG_DP(DEBUG, DP, "Unknown pfcp msg type. \n");
+			return 0;
+			break;
+	}
+	return 0;
+}
 
 void
 set_pfcp_seid_header(pfcp_header_t *pfcp, uint8_t type, bool flag,uint32_t seq)
@@ -133,23 +183,53 @@ set_cpf_features(pfcp_cp_func_feat_ie_t *cpf_feat)
 	//cpf_feat->supported_features = ALL_CPF_FEATURES_SUPPORTED;
 	cpf_feat->sup_feat = 0;
 }
+
+#ifdef DP_BUILD
+static uint8_t
+check_available_teid(uint8_t val){
+	uint8_t temp = 0;
+	temp = (curr_teid_index[val] << (8 -val));
+	//temp = (1 << (8 -val));
+	curr_teid_index[val]++;
+	if(curr_teid_index[val] >= MAX_TEID[val]){
+		curr_teid_index[val] = 0;
+	}
+	return temp;
+}
+
+static uint8_t
+assign_teid_range(uint8_t val){
+	if(val == 0){
+		return 0;
+	}else if (val > RI_MAX){
+		return -1;
+	}
+	return check_available_teid (val);
+}
+
 void
 set_up_ip_resource_info(pfcp_user_plane_ip_rsrc_info_ie_t *up_ip_resource_info,
 						uint8_t i)
 {
+	/* length will be 6 if teid_range is not included otherwise 7 */
 	pfcp_set_ie_header(&(up_ip_resource_info->header),
-								PFCP_IE_USER_PLANE_IP_RSRC_INFO, 6);
+								PFCP_IE_USER_PLANE_IP_RSRC_INFO, 7);
 
 	up_ip_resource_info->user_plane_ip_rsrc_info_spare  = 0;
 	up_ip_resource_info->assosi = 1;
 	up_ip_resource_info->assoni = 0;
-	up_ip_resource_info->teidri = 0;
 	up_ip_resource_info->v6     = 0;
 	up_ip_resource_info->v4     = 1;
-	up_ip_resource_info->teid_range  = 0;
 
 	if( up_ip_resource_info->assoni == 1)
 		up_ip_resource_info->ntwk_inst  = 1;
+
+	/* teid allocation logic */
+	up_ip_resource_info->teidri = app.teidri_val;
+	/* To ensure teid generated only once for one CP*/
+	if(i == 0){
+		up_ip_resource_info->teid_range  = assign_teid_range(up_ip_resource_info->teidri);
+	}
 
 	up_ip_resource_info->user_plane_ip_rsrc_info_spare2  = 0;
 	if( up_ip_resource_info->assosi ) {
@@ -193,6 +273,7 @@ set_up_ip_resource_info(pfcp_user_plane_ip_rsrc_info_ie_t *up_ip_resource_info,
 		}
 	}
 }
+#endif /* DP_BUILD*/
 
 void
 set_bar_id(pfcp_bar_id_ie_t *bar_id)
@@ -225,16 +306,21 @@ set_pdr_id(pfcp_pdr_id_ie_t *pdr_id)
 
 	pfcp_set_ie_header(&(pdr_id->header), PFCP_IE_PDR_ID,
 			(sizeof(pfcp_pdr_id_ie_t) - sizeof(pfcp_ie_header_t)));
-	pdr_id->rule_id = generate_pdr_id();
+	pdr_id->rule_id = 0;
 
 	return size;
 }
 
-void
+int
 set_far_id(pfcp_far_id_ie_t *far_id)
 {
-	pfcp_set_ie_header(&(far_id->header), PFCP_IE_FAR_ID, UINT32_SIZE);
-	far_id->far_id_value = generate_far_id();
+	int size = sizeof(pfcp_far_id_ie_t);
+
+	pfcp_set_ie_header(&(far_id->header), PFCP_IE_FAR_ID,
+			(sizeof(pfcp_far_id_ie_t) - sizeof(pfcp_ie_header_t)));
+	far_id->far_id_value = 0;
+
+	return size;
 
 }
 
@@ -242,7 +328,7 @@ void
 set_far_id_mbr(pfcp_far_id_ie_t *far_id)
 {
 	pfcp_set_ie_header(&(far_id->header), PFCP_IE_FAR_ID, UINT32_SIZE);
-	far_id->far_id_value = generate_far_id_mbr();
+	far_id->far_id_value = 0;
 
 }
 
@@ -259,13 +345,14 @@ set_precedence(pfcp_precedence_ie_t *prec)
 
 	pfcp_set_ie_header(&(prec->header), PFCP_IE_PRECEDENCE,
 			(sizeof(pfcp_precedence_ie_t) - sizeof(pfcp_ie_header_t)));
-	prec->prcdnc_val = 1;
+	prec->prcdnc_val = 0;
 
 	return size;
 }
-void
+int
 set_outer_hdr_removal(pfcp_outer_hdr_removal_ie_t *out_hdr_rem)
 {
+	int size = sizeof(pfcp_outer_hdr_removal_ie_t);
 	pfcp_set_ie_header(&(out_hdr_rem->header), PFCP_IE_OUTER_HDR_REMOVAL,
 			 UINT8_SIZE);
 
@@ -274,7 +361,7 @@ set_outer_hdr_removal(pfcp_outer_hdr_removal_ie_t *out_hdr_rem)
 	/* TODO: Revisit this for change in yang */
 	//out_hdr_rem->gtpu_ext_hdr_del = 0;
 	//	PFCP_IE_OUTER_HDR_REMOVAL;// OUTER_HEADER_REMOVAL_DESCRIPTION_GTP_U_UDP_IPV4;
-
+	return size;
 }
 void
 set_application_id(pfcp_application_id_ie_t *app_id)
@@ -331,26 +418,30 @@ set_activate_predefined_rules(pfcp_actvt_predef_rules_ie_t *act_predef_rule)
 	memcpy(&(act_predef_rule->predef_rules_nm), "PCC_RULE",8);
 }
 int
-creating_pdr(pfcp_create_pdr_ie_t *create_pdr)
+creating_pdr(pfcp_create_pdr_ie_t *create_pdr, int source_iface_value)
 {
 	int size = 0;
 
 	size += set_pdr_id(&(create_pdr->pdr_id));
 	size += set_precedence(&(create_pdr->precedence));
 	size += set_pdi(&(create_pdr->pdi));
-	//set_outer_hdr_removal(&(create_pdr->outer_hdr_removal));
-	//set_far_id(&(create_pdr->far_id));
-
+#ifdef CP_BUILD
+	if (pfcp_config.cp_type != SGWC && source_iface_value == SOURCE_INTERFACE_VALUE_ACCESS)
+		size += set_outer_hdr_removal(&(create_pdr->outer_hdr_removal));
+	size += set_far_id(&(create_pdr->far_id));
+#ifdef GX_BUILD
+	/* TODO: Revisit this for change in yang*/
+	if (pfcp_config.cp_type != SGWC){
+		for(int i=0; i < create_pdr->qer_id_count; i++ ) {
+			size += set_qer_id(&(create_pdr->qer_id[i]));
+		}
+	}
+#endif /* GX_BUILD*/
+#endif /* CP_BUILD */
 	/* TODO: Revisit this for change in yang
 	create_pdr->urr_id_count = 1;
 	for(int i=0; i < create_pdr->urr_id_count; i++ ) {
 		set_urr_id(&(create_pdr->urr_id[i]));
-	} */
-
-	/* TODO: Revisit this for change in yang
-	create_pdr->qer_id_count = 1;
-	for(int i=0; i < create_pdr->qer_id_count; i++ ) {
-		set_qer_id(&(create_pdr->qer_id[i]));
 	} */
 
 	/* TODO: Revisit this for change in yang
@@ -369,11 +460,10 @@ creating_far(pfcp_create_far_ie_t *create_far)
 {
 	uint16_t len = 0;
 
-	set_far_id(&(create_far->far_id));
-	len += sizeof(pfcp_far_id_ie_t);
+	len += set_far_id(&(create_far->far_id));
 	len += set_apply_action(&(create_far->apply_action));
 	/* Currently take as hardcoded value */
-	len += 4; /* Header Size of set_destination_interface and set_outer_header_creation ie */
+	len += 4; /* Header Size of set_apply action ie */
 
 	pfcp_set_ie_header(&(create_far->header), IE_CREATE_FAR, len);
 }
@@ -440,7 +530,7 @@ set_outer_header_creation(pfcp_outer_hdr_creation_ie_t *outer_hdr_creation)
 {
 	uint16_t len = 0;
 
-	outer_hdr_creation->outer_hdr_creation_desc = 0x01;
+	outer_hdr_creation->outer_hdr_creation_desc = 0x0100;
 	len += sizeof(outer_hdr_creation->outer_hdr_creation_desc);
 
 	outer_hdr_creation->teid = 0;
@@ -476,6 +566,7 @@ set_fq_csid(pfcp_fqcsid_ie_t *fq_csid,uint32_t nodeid_value)
 		fq_csid->pdn_conn_set_ident[i] = 0;
 		/*fq_csid->pdn_conn_set_ident[i] = htons(pdn_conn_set_id++);*/
 	}
+
 	pfcp_set_ie_header(&(fq_csid->header),
 			PFCP_IE_FQCSID,2*(fq_csid->number_of_csids) + 5);
 
@@ -653,15 +744,6 @@ set_network_instance(pfcp_ntwk_inst_ie_t *network_instance)
 	int size = sizeof(pfcp_ntwk_inst_ie_t);
 	pfcp_set_ie_header(&(network_instance->header), PFCP_IE_NTWK_INST,
 			(sizeof(pfcp_ntwk_inst_ie_t) - sizeof(pfcp_ie_header_t)));
-	/*VS:REVIEW: Need to remove this. */
-	network_instance->ntwk_inst[0] = 1;
-	network_instance->ntwk_inst[1] = 1;
-	network_instance->ntwk_inst[2] = 1;
-	network_instance->ntwk_inst[3] = 1;
-	network_instance->ntwk_inst[4] = 1;
-	network_instance->ntwk_inst[5] = 1;
-	network_instance->ntwk_inst[6] = 1;
-	network_instance->ntwk_inst[7] = 1;
 
 	return size;
 }
@@ -732,50 +814,79 @@ set_framed_routing(pfcp_framed_routing_ie_t *framedrouting)
 	//framedrouting->framed_routing[7] = 2;
 
 }
-void
+int
 set_qer_id(pfcp_qer_id_ie_t *qer_id)
 {
 
-	pfcp_set_ie_header(&(qer_id->header), PFCP_IE_QER_ID, UINT32_SIZE);
-	qer_id->qer_id_value = 33424;
-}
-void
-set_qer_correl_id(pfcp_qer_corr_id_ie_t *qer_correl_id)
-{
-	pfcp_set_ie_header(&(qer_correl_id->header),PFCP_IE_QER_CORR_ID,
-			UINT32_SIZE);
-	qer_correl_id->qer_corr_id_val = 1231;
+	int size = sizeof(pfcp_qer_id_ie_t);
+
+	pfcp_set_ie_header(&(qer_id->header), PFCP_IE_QER_ID,
+			(sizeof(pfcp_qer_id_ie_t) - sizeof(pfcp_ie_header_t)));
+	qer_id->qer_id_value = 0;
+
+	return size;
 }
 
-void
+int
+set_qer_correl_id(pfcp_qer_corr_id_ie_t *qer_correl_id)
+{
+	int size = sizeof(pfcp_qer_corr_id_ie_t);
+	pfcp_set_ie_header(&(qer_correl_id->header), PFCP_IE_QER_CORR_ID,
+			(sizeof(pfcp_qer_corr_id_ie_t) - sizeof(pfcp_ie_header_t)));
+
+	qer_correl_id->qer_corr_id_val = 0;
+
+	return size;
+}
+
+int
 set_gate_status( pfcp_gate_status_ie_t *gate_status)
 {
+	int size = sizeof(pfcp_gate_status_ie_t);
+
 	pfcp_set_ie_header(&(gate_status->header), PFCP_IE_GATE_STATUS,
-			UINT8_SIZE);
+			(sizeof(pfcp_gate_status_ie_t) - sizeof(pfcp_ie_header_t)));
+
 	gate_status->gate_status_spare = 0;
 	gate_status->ul_gate = UL_GATE_OPEN;
 	gate_status->ul_gate = DL_GATE_OPEN;
+
+	return size;
 }
 
-void
+int
 set_mbr(pfcp_mbr_ie_t *mbr)
 {
-	pfcp_set_ie_header(&(mbr->header), PFCP_IE_MBR, BITRATE_SIZE);
+	int size = sizeof(pfcp_mbr_ie_t);
+
+	pfcp_set_ie_header(&(mbr->header), PFCP_IE_MBR,
+			(sizeof(pfcp_mbr_ie_t) - sizeof(pfcp_ie_header_t)));
+
 	mbr->ul_mbr =1;
 	mbr->dl_mbr =1;
+
+	return size;
 }
 
-void
+int
 set_gbr(pfcp_gbr_ie_t *gbr)
 {
-	pfcp_set_ie_header(&(gbr->header), PFCP_IE_GBR, BITRATE_SIZE);
+	int size = sizeof(pfcp_gbr_ie_t);
+
+	pfcp_set_ie_header(&(gbr->header), PFCP_IE_GBR,
+			(sizeof(pfcp_gbr_ie_t) - sizeof(pfcp_ie_header_t)));
+
 	gbr->ul_gbr =1;
 	gbr->dl_gbr =1;
+
+	return size ;
 }
 
-void
+int
 set_packet_rate(pfcp_packet_rate_ie_t *pkt_rate)
 {
+	int size = sizeof(pfcp_packet_rate_ie_t);
+
 	pkt_rate->pckt_rate_spare = 0;
 	pkt_rate->dlpr = 1;
 	pkt_rate->ulpr = 1;
@@ -785,68 +896,123 @@ set_packet_rate(pfcp_packet_rate_ie_t *pkt_rate)
 	pkt_rate->pckt_rate_spare3 = 0;
 	pkt_rate->dnlnk_time_unit = UPLINKDOWNLINK_TIME_UNIT_MINUTE;
 	pkt_rate->max_dnlnk_pckt_rate = 2;
+
 	pfcp_set_ie_header(&(pkt_rate->header), PFCP_IE_PACKET_RATE,
-			sizeof(pfcp_packet_rate_ie_t) - PFCP_IE_HDR_SIZE);
+			(sizeof(pfcp_packet_rate_ie_t) - sizeof(pfcp_ie_header_t)));
+
+	return size;
 }
 
-void
+int
 set_dl_flow_level_mark(pfcp_dl_flow_lvl_marking_ie_t *dl_flow_level_marking)
 {
+	int size = sizeof(pfcp_dl_flow_lvl_marking_ie_t);
+
 	dl_flow_level_marking->dl_flow_lvl_marking_spare = 0;
 	dl_flow_level_marking->sci = 1;
 	dl_flow_level_marking->ttc = 1;
 	dl_flow_level_marking->tostraffic_cls = 12;
 	dl_flow_level_marking->svc_cls_indctr =1;
 	pfcp_set_ie_header(&(dl_flow_level_marking->header),
-		PFCP_IE_DL_FLOW_LVL_MARKING, sizeof(pfcp_dl_flow_lvl_marking_ie_t)-PFCP_IE_HDR_SIZE);
+		PFCP_IE_DL_FLOW_LVL_MARKING, sizeof(pfcp_dl_flow_lvl_marking_ie_t) - sizeof(pfcp_ie_header_t));
+
+	return size;
+}
+
+int
+set_qfi(pfcp_qfi_ie_t *qfi)
+{
+	int size = sizeof(pfcp_qfi_ie_t);
+	qfi->qfi_spare = 0;
+	qfi->qfi_value = 3;
+	pfcp_set_ie_header(&(qfi->header), PFCP_IE_QFI,
+			(sizeof(pfcp_qfi_ie_t) - sizeof(pfcp_ie_header_t)));
+
+	return size;
+}
+
+int
+set_rqi(pfcp_rqi_ie_t *rqi)
+{
+	int size = sizeof(pfcp_rqi_ie_t);
+
+	rqi->rqi_spare = 0;
+	rqi->rqi = 0;
+	pfcp_set_ie_header(&(rqi->header), PFCP_IE_RQI,
+			(sizeof(pfcp_rqi_ie_t) - sizeof(pfcp_ie_header_t)));
+
+	return size;
 }
 
 void
-set_qfi(pfcp_qfi_ie_t *qfi)
+creating_qer(pfcp_create_qer_ie_t *qer)
 {
-	qfi->qfi_spare = 0;
-	qfi->qfi_value = 3;
-	pfcp_set_ie_header(&(qfi->header), PFCP_IE_QFI,UINT8_SIZE);
+	int size = 0;
+	//set qer id
+	size += set_qer_id(&(qer->qer_id));
+
+	//set qer correlation id
+	//size += set_qer_correl_id(&(qer->qer_corr_id));
+
+	//set gate status
+	size += set_gate_status(&(qer->gate_status));
+
+	//set mbr
+	size += set_mbr(&(qer->maximum_bitrate));
+
+	//set gbr
+	size += set_gbr(&(qer->guaranteed_bitrate));
+
+	//set packet rate
+	//size += set_packet_rate(&(qer->packet_rate));
+
+	//set dl flow level
+	//size += set_dl_flow_level_mark(&(qer->dl_flow_lvl_marking));
+
+	//set qfi
+	//size += set_qfi(&(qer->qos_flow_ident));
+
+	//set rqi
+	//size += set_rqi(&(qer->reflective_qos));
+	//size = 79;
+	//sizeof(pfcp_update_qer_ie_t) - sizeof(pfcp_ie_header_t) - 12;
+	pfcp_set_ie_header(&(qer->header), IE_CREATE_QER, size);
+
 }
-void
-set_rqi(pfcp_rqi_ie_t *rqi)
-{
-	rqi->rqi_spare = 0;
-	rqi->rqi = 0;
-	pfcp_set_ie_header(&(rqi->header), PFCP_IE_RQI,UINT8_SIZE);
-}
+
 void
 updating_qer(pfcp_update_qer_ie_t *up_qer)
 {
+	int size = 0;
 	//set qer id
-	set_qer_id(&(up_qer->qer_id));
+	size += set_qer_id(&(up_qer->qer_id));
 
 	//set qer correlation id
-	set_qer_correl_id(&(up_qer->qer_corr_id));
+	size += set_qer_correl_id(&(up_qer->qer_corr_id));
 
 	//set gate status
-	set_gate_status(&(up_qer->gate_status));
+	size += set_gate_status(&(up_qer->gate_status));
 
 	//set mbr
-	set_mbr(&(up_qer->maximum_bitrate));
+	size += set_mbr(&(up_qer->maximum_bitrate));
 
 	//set gbr
-	set_gbr(&(up_qer->guaranteed_bitrate));
+	size += set_gbr(&(up_qer->guaranteed_bitrate));
 
 	//set packet rate
-	set_packet_rate(&(up_qer->packet_rate));
+	size += set_packet_rate(&(up_qer->packet_rate));
 
 	//set dl flow level
-	set_dl_flow_level_mark(&(up_qer->dl_flow_lvl_marking));
+	size += set_dl_flow_level_mark(&(up_qer->dl_flow_lvl_marking));
 
 	//set qfi
-	set_qfi(&(up_qer->qos_flow_ident));
+	size += set_qfi(&(up_qer->qos_flow_ident));
 
 	//set rqi
-	set_rqi(&(up_qer->reflective_qos));
-	uint8_t size = 79;
+	size += set_rqi(&(up_qer->reflective_qos));
+	//size = 79;
 	//sizeof(pfcp_update_qer_ie_t) - sizeof(pfcp_ie_header_t) - 12;
-	pfcp_set_ie_header(&(up_qer->header), IE_UPDATE_QER,size);
+	pfcp_set_ie_header(&(up_qer->header), IE_UPDATE_QER, size);
 }
 
 void
@@ -1201,7 +1367,64 @@ void cause_check_sess_estab(pfcp_sess_estab_req_t *pfcp_session_request,
 
 		*cause_id = INVALIDLENGTH;
 	}
+	if(!pfcp_session_request->create_far_count){
 
+		*offend_id = PFCP_IE_FAR_ID;
+		*cause_id = MANDATORYIEMISSING;
+
+	}else{
+		for(uint8_t i =0; i < pfcp_session_request->create_far_count; i++){
+			if(!pfcp_session_request->create_far[i].far_id.header.len){
+
+				*offend_id = PFCP_IE_FAR_ID;
+				*cause_id = MANDATORYIEMISSING;
+				return;
+			}
+
+			if(!pfcp_session_request->create_far[i].apply_action.header.len){
+
+				*offend_id = PFCP_IE_APPLY_ACTION;
+				*cause_id = MANDATORYIEMISSING;
+				return;
+			}
+		}
+	}
+
+	if(!pfcp_session_request->create_pdr_count){
+
+		*offend_id = PFCP_IE_PDR_ID;
+		*cause_id = MANDATORYIEMISSING;
+
+	}else{
+		for(uint8_t i =0; i < pfcp_session_request->create_pdr_count; i++){
+			if(!pfcp_session_request->create_pdr[i].pdr_id.header.len){
+
+				*offend_id = PFCP_IE_PDR_ID;
+				*cause_id = MANDATORYIEMISSING;
+				return;
+			}
+
+			if(!pfcp_session_request->create_pdr[i].precedence.header.len){
+
+				*offend_id = PFCP_IE_PRECEDENCE;
+				*cause_id = MANDATORYIEMISSING;
+				return;
+			}
+
+			if(!pfcp_session_request->create_pdr[i].pdi.header.len){
+
+				*offend_id = IE_PDI;
+				*cause_id = MANDATORYIEMISSING;
+				return;
+			}else{
+				if(!pfcp_session_request->create_pdr[i].pdi.src_intfc.header.len){
+					*offend_id = PFCP_IE_SRC_INTFC;
+					*cause_id = MANDATORYIEMISSING;
+					return;
+				}
+			}
+		}
+	}
 	/*if(!(pfcp_session_request->pgwc_fqcsid.header.len)) {
 
 		*cause_id = CAUSE_VALUES_CONDITIONALIEMISSING;
@@ -1259,6 +1482,39 @@ void cause_check_sess_estab(pfcp_sess_estab_req_t *pfcp_session_request,
 
 }
 
+#ifdef CP_BUILD
+
+int
+gx_context_entry_add(char *sess_id, gx_context_t *entry)
+{
+	int ret = 0;
+	ret = rte_hash_add_key_data(gx_context_by_sess_id_hash,
+			(const void *)sess_id , (void *)entry);
+
+	if (ret < 0) {
+		fprintf(stderr,
+				"%s - Error on rte_hash_add_key_data add\n",
+				strerror(ret));
+		return -1;
+	}
+	return 0;
+}
+
+int
+gx_context_entry_lookup(char *sess_id, gx_context_t **entry)
+{
+	int ret = rte_hash_lookup_data(gx_context_by_sess_id_hash,
+			(const void*) (sess_id), (void **) entry);
+
+	if (ret < 0) {
+		RTE_LOG_DP(DEBUG, DP, "NO ENTRY FOUND IN UPF HASH [%s]\n", sess_id);
+		return -1;
+	}
+
+	return 0;
+}
+
+
 uint8_t
 upf_context_entry_add(uint32_t *upf_ip, upf_context_t *entry)
 {
@@ -1282,12 +1538,15 @@ upf_context_entry_lookup(uint32_t upf_ip, upf_context_t **entry)
 			(const void*) &(upf_ip), (void **) entry);
 
 	if (ret < 0) {
-		RTE_LOG_DP(DEBUG, DP, "NO ENTRY FOUND IN UPF HASH [%u]\n", upf_ip);
+		fprintf(stderr, "%s:%d NO ENTRY FOUND IN UPF HASH [%u]\n",
+				__func__, __LINE__, upf_ip);
 		return -1;
 	}
 
 	return 0;
 }
+
+#endif /* CP_BUILD */
 
 uint8_t
 add_node_id_hash(uint32_t *nodeid, uint64_t *data )
@@ -1361,6 +1620,7 @@ cause_check_sess_modification(pfcp_sess_mod_req_t *pfcp_session_mod_req,
 		}
 	}
 
+	/*
 	for( int i = 0; i < pfcp_session_mod_req->create_pdr_count ; i++){
 		if((pfcp_session_mod_req->create_pdr[i].header.len) &&
 				(pfcp_session_mod_req->create_pdr[i].far_id.header.len)){
@@ -1377,6 +1637,7 @@ cause_check_sess_modification(pfcp_sess_mod_req_t *pfcp_session_mod_req,
 			}
 		}
 	}
+	*/
 
 	/*if(!(pfcp_session_mod_req->update_qer.header.len)) {
 		*cause_id = CAUSE_VALUES_CONDITIONALIEMISSING;
@@ -1385,13 +1646,14 @@ cause_check_sess_modification(pfcp_sess_mod_req_t *pfcp_session_mod_req,
 		*cause_id = CAUSE_VALUES_INVALIDLENGTH;
 	}*/
 
+	/*
 	if(!(pfcp_session_mod_req->update_bar.header.len)) {
 		*cause_id = CONDITIONALIEMISSING;
 		*offend_id = IE_UPD_BAR_SESS_MOD_REQ;
 
 	} else if(pfcp_session_mod_req->update_bar.header.len != UPDATE_BAR_LEN) {
-		//*cause_id = CAUSE_VALUES_INVALIDLENGTH;
-	}
+		*cause_id = CAUSE_VALUES_INVALIDLENGTH;
+	} */
 
 	/*TODO: There must a different FQCSID flag which is not comming from CP,that is why
 	code is commented*/
@@ -1505,7 +1767,7 @@ add_data_to_heartbeat_hash_table(uint32_t *ip, uint32_t *recov_time)
 	}
 	*temp = *recov_time;
 	ret = rte_hash_add_key_data(heartbeat_recovery_hash,
-			(const void *) &key, temp);
+			(const void *)&key, temp);
 	if (ret < 0) {
 		fprintf(stderr,"%s - Error on rte_hash_add_key_data add in heartbeat\n",
 				strerror(ret));
@@ -1542,27 +1804,6 @@ void add_ip_to_heartbeat_hash(struct sockaddr_in *peer_addr, uint32_t recovery_t
 }
 
 
-void
-create_heartbeat_hash_table(void)
-{
-	struct rte_hash_parameters rte_hash_params = {
-		.name = "recovery_time_hash",
-		.entries = 50,
-		.key_len = UINT32_SIZE,
-		.hash_func = rte_jhash,
-		.hash_func_init_val = 0,
-		.socket_id = rte_socket_id(),
-	};
-
-	heartbeat_recovery_hash = rte_hash_create(&rte_hash_params);
-	if (!heartbeat_recovery_hash) {
-		rte_panic("%s heartbeat_recovery_hash create failed: %s (%u)\n.",
-				rte_hash_params.name,
-				rte_strerror(rte_errno), rte_errno);
-	}
-
-}
-
 void delete_entry_heartbeat_hash(struct sockaddr_in *peer_addr)
 {
 	int ret = rte_hash_del_key(heartbeat_recovery_hash,
@@ -1576,6 +1817,27 @@ void delete_entry_heartbeat_hash(struct sockaddr_in *peer_addr)
 void clear_heartbeat_hash_table(void)
 {
 	rte_hash_free(heartbeat_recovery_hash);
+}
+
+#ifdef CP_BUILD
+void
+create_gx_context_hash(void)
+{
+	struct rte_hash_parameters rte_hash_params = {
+			.name = "gx_context_by_sess_id_hash",
+	    .entries = UPF_ENTRIES_DEFAULT,
+	    .key_len = MAX_LEN,
+	    .hash_func = rte_jhash,
+	    .hash_func_init_val = 0,
+	    .socket_id = rte_socket_id(),
+	};
+
+	gx_context_by_sess_id_hash = rte_hash_create(&rte_hash_params);
+	if (!gx_context_by_sess_id_hash) {
+		rte_panic("%s hash create failed: %s (%u)\n.",
+				rte_hash_params.name,
+		    rte_strerror(rte_errno), rte_errno);
+	}
 }
 
 void
@@ -1618,68 +1880,26 @@ create_upf_by_ue_hash(void)
 	}
 }
 
-#ifdef CP_BUILD
 void
-set_pdn_type(pfcp_pdn_type_ie_t *pdn,pdn_type_ie_t *pdn_mme)
+set_pdn_type(pfcp_pdn_type_ie_t *pdn, pdn_type_ie *pdn_mme)
 {
 	pfcp_set_ie_header(&(pdn->header), PFCP_IE_PDN_TYPE, UINT8_SIZE);
 	pdn->pdn_type_spare = 0;
 	//pdn->pdn_type = PFCP_PDN_TYPE_NON_IP;
-	//TODO :need to check what received from MME
-	pdn->pdn_type = pdn_mme->pdn_type;
-	//pdn->pdn_type = PFCP_PDN_TYPE_IPV4;
+	/* VS: Need to check the following conditions*/
+	if (pdn_mme->ipv4 == PDN_TYPE_IPV4)
+		pdn->pdn_type = PDN_TYPE_IPV4;
+	else if (pdn_mme->ipv6 == PDN_TYPE_IPV6)
+		pdn->pdn_type = PDN_TYPE_IPV6;
+	else if ((pdn_mme->ipv4 == PDN_TYPE_IPV4) &&
+			(pdn_mme->ipv6 == PDN_TYPE_IPV6)){
+		pdn->pdn_type = PDN_TYPE_IPV4_IPV6;
+	}
 }
 
-int
-decode_check_csr(gtpv2c_header *gtpv2c_rx,
-		create_session_request_t *csr)
-{
-	int ret = 0;
-	ret = decode_create_session_request_t((uint8_t *) gtpv2c_rx,
-			csr);
-
-	if (!ret) {
-		fprintf(stderr, "%s: Decoding failed for CSR message.\n", __func__);
-		return -EPERM;
-	}
-
-	if (csr->indication.header.len &&
-			csr->indication.indication_value.uimsi) {
-		fprintf(stderr, "Unauthenticated IMSI Not Yet Implemented - "
-				"Dropping packet\n");
-		return -EPERM;
-	}
-
-	if ((pfcp_config.cp_type == SGWC || pfcp_config.cp_type == SAEGWC) &&
-			(!csr->s5s8pgw_pmip.header.len)) {
-		fprintf(stderr, "Mandatory IE missing. Dropping packet\n");
-		return GTPV2C_CAUSE_MANDATORY_IE_MISSING;
-	}
-
-	if (!csr->apn_restriction.header.len
-			|| !csr->bearer_context.header.len
-			|| !csr->sender_ftied.header.len
-			|| !csr->imsi.header.len
-			|| !csr->ambr.header.len
-			|| !csr->pdn_type.header.len
-			|| !csr->bearer_context.bearer_qos.header.len
-			|| !(csr->pdn_type.pdn_type == PDN_IP_TYPE_IPV4) ) {
-		fprintf(stderr, "Mandatory IE missing. Dropping packet\n");
-		return GTPV2C_CAUSE_MANDATORY_IE_MISSING;
-	}
-
-	if (csr->pdn_type.pdn_type == PDN_IP_TYPE_IPV6 ||
-			csr->pdn_type.pdn_type == PDN_IP_TYPE_IPV4V6) {
-			fprintf(stderr, "IPv6 Not Yet Implemented - Dropping packet\n");
-			return GTPV2C_CAUSE_PREFERRED_PDN_TYPE_UNSUPPORTED;
-	}
-
-	return 0;
-}
-#endif /* CP_BUILD */
 
 int
-upflist_by_ue_hash_entry_add(uint8_t *imsi_val, uint16_t imsi_len,
+upflist_by_ue_hash_entry_add(uint64_t *imsi_val, uint16_t imsi_len,
 		upfs_dnsres_t *entry)
 {
 	uint64_t imsi = UINT64_MAX;
@@ -1699,7 +1919,7 @@ upflist_by_ue_hash_entry_add(uint8_t *imsi_val, uint16_t imsi_len,
 }
 
 int
-upflist_by_ue_hash_entry_lookup(uint8_t *imsi_val, uint16_t imsi_len,
+upflist_by_ue_hash_entry_lookup(uint64_t *imsi_val, uint16_t imsi_len,
 		upfs_dnsres_t **entry)
 {
 	uint64_t imsi = UINT64_MAX;
@@ -1717,3 +1937,20 @@ upflist_by_ue_hash_entry_lookup(uint8_t *imsi_val, uint16_t imsi_len,
 
 	return 0;
 }
+#endif /*CP_BUILD */
+
+/*get msg type from cstm ie string */
+uint64_t
+get_rule_type(pfcp_pfd_contents_ie_t *pfd_conts, uint16_t *idx)
+{
+	char Temp_buf[3] = {0};
+	for(*idx = 0; pfd_conts->cstm_pfd_cntnt[*idx] != 32; (*idx += 1))
+	{
+		Temp_buf[*idx] = pfd_conts->cstm_pfd_cntnt[*idx];
+	}
+
+	*idx += 1;
+	Temp_buf[*idx] = '\0';
+	return atoi(Temp_buf);
+}
+

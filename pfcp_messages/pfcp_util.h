@@ -22,7 +22,8 @@
 #include <arpa/inet.h>
 
 #ifdef CP_BUILD
-#include "req_resp.h"
+#include "ue.h"
+#include "gtp_messages.h"
 #endif /* CP_BUILD */
 
 extern uint32_t start_time;
@@ -31,8 +32,10 @@ extern struct rte_hash *heartbeat_recovery_hash;
 
 #ifdef CP_BUILD
 int
-get_upf_list(create_session_request_t *csr);
+get_upf_list(pdn_connection *pdn);
 
+int
+dns_query_lookup(ue_context *context, uint8_t eps_index, uint32_t **upf_ip);
 #endif /* CP_BUILD */
 
 int

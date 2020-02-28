@@ -43,8 +43,8 @@ SRCS-y += cp_config.c
 SRCS-y += debug_str.c
 SRCS-y += gtpv2c_set_ie.c
 SRCS-y += packet_filters.c
-SRCS-y += cp_app.c
-SRCS-y += ipc_api.c
+SRCS-y += gtpc_session.c
+SRCS-y += gtpv2c_error_rsp.c
 
 SRCS-y += state_machine/sm_init.o
 SRCS-y += state_machine/sm_hand.o
@@ -69,6 +69,7 @@ SRCS-y += $(SRCDIR)/../pfcp_messages/pfcp_session.o
 SRCS-y += $(SRCDIR)/../pfcp_messages/pfcp_set_ie.o
 SRCS-y += $(SRCDIR)/../pfcp_messages/pfcp_util.o
 SRCS-y += $(SRCDIR)/../pfcp_messages/pfcp_init.o
+
 
 SRCS-y += $(SRCDIR)/../test/simu_cp/simu_cp.o
 SRCS-y += $(SRCDIR)/../interface/ipc/dp_ipc_api.o
@@ -140,7 +141,7 @@ LDLIBS += -lm
 # ngic-cp debug/testing/profiling options CFLAGS
 # #############################################################
 #Enable'-g -O0' option for gdb
-CFLAGS += -O3
+CFLAGS += -O0
 #CFLAGS += -g -O0
 
 #un-comment below line to remove all log level for testing.
@@ -187,6 +188,18 @@ CFLAGS += -DUSE_DNS_QUERY
 	LDLIBS += $(LIBDNSCLIENT_ROOT)/lib/liboss-util.a -lstdc++ -lpistache
 	LDLIBS += -L$(LIBDNSCLIENT_ROOT)/modules/c-ares -lcares
 #endif
+
+# Comment below line to build cp without GxApp.
+CFLAGS += -DGX_BUILD
+
+ifneq (,$(findstring GX_BUILD, $(CFLAGS)))
+	SRCS-y += cp_app.c
+	SRCS-y += ipc_api.c
+	SRCS-y += state_machine/sm_gx_pcnd.o
+	SRCS-y += $(SRCDIR)/gx_app/src/gx_pack.o
+	SRCS-y += $(SRCDIR)/../pfcp_messages/pfcp_gx.o
+	CFLAGS += -I$(SRCDIR)/../cp/gx_app/include
+endif
 
 # ngic-cp application security check CFLAGS
 ###############################################################

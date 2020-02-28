@@ -213,6 +213,7 @@
 		"} ]," \
 	"}" \
 "}"
+//#define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
 
 /* From rfc2616 */
 enum http_status {

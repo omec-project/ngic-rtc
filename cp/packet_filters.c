@@ -481,6 +481,7 @@ init_sdf_rules(void)
 					rte_strerror(rte_errno), __FILE__, __LINE__);
 		}
 	}
+	num_sdf_filters = FIRST_FILTER_ID; /*Reset num_sdf_filters*/
 }
 
 static void
@@ -649,6 +650,7 @@ init_pcc_rules(void)
 		}
 
 	}
+	num_pcc_filter = FIRST_FILTER_ID; /*Reset num_pcc_filter*/
 }
 
 void

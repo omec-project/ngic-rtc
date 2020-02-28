@@ -51,19 +51,19 @@ static int set_recovery(struct rte_mbuf *echo_pkt, uint8_t port_id) {
 	struct gtpu_hdr *gtpu_hdr = get_mtogtpu(echo_pkt);
 	gtpu_recovery_ie *recovery_ie = NULL;
 
-	if (((app.spgw_cfg == SGWU) || (app.spgw_cfg == SAEGWU)) &&
-			(port_id == S1U_PORT_ID)) {
-		if (echo_pkt->pkt_len - (ETHER_HDR_LEN +(ip_hdr->total_length))) {
-			recovery_ie = (gtpu_recovery_ie*)((char*)gtpu_hdr+
-					GTPU_HDR_SIZE + ntohs(gtpu_hdr->msglen));
-		} else if ((echo_pkt->pkt_len - (ETHER_HDR_LEN +(ip_hdr->total_length))) == 0) {
-			recovery_ie = (gtpu_recovery_ie *)rte_pktmbuf_append(echo_pkt,
-					(sizeof(gtpu_recovery_ie)));
+	/* Get the extra len bytes for recovery */
+	uint16_t extra_len = echo_pkt->pkt_len - (ETHER_HDR_LEN + ntohs(ip_hdr->total_length));
+
+	if (extra_len < sizeof(gtpu_recovery_ie)) {
+		recovery_ie = (gtpu_recovery_ie *)rte_pktmbuf_append(echo_pkt, (sizeof(gtpu_recovery_ie) - extra_len));
+		/* Checking the sufficient header room lenght for the recovery */
+		if ((echo_pkt->pkt_len - (ETHER_HDR_LEN + ntohs(ip_hdr->total_length)) <  sizeof(gtpu_recovery_ie))) {
+			fprintf(stderr, "ERROR: For recovery there is not sufficient lenght is allocated\n");
+			return -1;
 		}
-	} else {
-		recovery_ie = (gtpu_recovery_ie *)rte_pktmbuf_append(echo_pkt,
-				(sizeof(gtpu_recovery_ie)));
 	}
+	/* Point to the current location of the recovery ie */
+	recovery_ie = (gtpu_recovery_ie*)((char*)gtpu_hdr + GTPU_HDR_SIZE + ntohs(gtpu_hdr->msglen));
 
 	if (recovery_ie == NULL) {
 		RTE_LOG_DP(ERR, DP, "Couldn't append %lu bytes to mbuf",

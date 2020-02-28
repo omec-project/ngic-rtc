@@ -533,9 +533,7 @@ int decode_pfcp_dl_flow_lvl_marking_ie_t(uint8_t *buf,
     value->ttc = decode_bits(buf, total_decoded, 1, &decoded);
     total_decoded += decoded;
     DECODE_TOSTRAFFIC_CLS_COND_1(buf, total_decoded, 16, decoded, value);
-    total_decoded += decoded;
     DECODE_SVC_CLS_INDCTR_COND_1(buf, total_decoded, 16, decoded, value);
-    total_decoded += decoded;
     return total_decoded/CHAR_SIZE;
 }
 
@@ -652,38 +650,48 @@ int decode_pfcp_suggstd_buf_pckts_cnt_ie_t(uint8_t *buf,
 int decode_pfcp_pfd_contents_ie_t(uint8_t *buf,
         pfcp_pfd_contents_ie_t *value)
 {
-    uint16_t total_decoded = 0;
-    total_decoded += decode_pfcp_ie_header_t(buf + (total_decoded/CHAR_SIZE), &value->header);
-    uint16_t decoded = 0;
-    value->pfd_contents_spare = decode_bits(buf, total_decoded, 4, &decoded);
-    total_decoded += decoded;
-    value->pfd_contents_cp = decode_bits(buf, total_decoded, 1, &decoded);
-    total_decoded += decoded;
-    value->dn = decode_bits(buf, total_decoded, 1, &decoded);
-    total_decoded += decoded;
-    value->url = decode_bits(buf, total_decoded, 1, &decoded);
-    total_decoded += decoded;
-    value->fd = decode_bits(buf, total_decoded, 1, &decoded);
-    total_decoded += decoded;
-    value->pfd_contents_spare2 = decode_bits(buf, total_decoded, 8, &decoded);
-    total_decoded += decoded;
-    DECODE_LEN_OF_FLOW_DESC_COND_2(buf, total_decoded, 16, decoded, value);
-    total_decoded += decoded;
-    DECODE_FLOW_DESC_COND_2(buf, total_decoded, 8, decoded, value);
-    total_decoded += decoded;
-    DECODE_LENGTH_OF_URL_COND_1(buf, total_decoded, 16, decoded, value);
-    total_decoded += decoded;
-    DECODE_URL2_COND_1(buf, total_decoded, 8, decoded, value);
-    total_decoded += decoded;
-    DECODE_LEN_OF_DOMAIN_NM_COND_1(buf, total_decoded, 16, decoded, value);
-    total_decoded += decoded;
-    DECODE_DOMAIN_NAME_COND_1(buf, total_decoded, 8, decoded, value);
-    total_decoded += decoded;
-    DECODE_LEN_OF_CSTM_PFD_CNTNT_COND_1(buf, total_decoded, 16, decoded, value);
-    total_decoded += decoded;
-    DECODE_CSTM_PFD_CNTNT_COND_1(buf, total_decoded, 8, decoded, value);
-    total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+	uint16_t total_decoded = 0;
+	total_decoded += decode_pfcp_ie_header_t(buf + (total_decoded/CHAR_SIZE), &value->header);
+	uint16_t decoded = 0;
+
+	value->pfd_contents_spare = decode_bits(buf, total_decoded, 4, &decoded);
+	total_decoded += decoded;
+
+	value->pfd_contents_cp = decode_bits(buf, total_decoded, 1, &decoded);
+	total_decoded += decoded;
+
+	value->dn = decode_bits(buf, total_decoded, 1, &decoded);
+	total_decoded += decoded;
+
+	value->url = decode_bits(buf, total_decoded, 1, &decoded);
+	total_decoded += decoded;
+
+	value->fd = decode_bits(buf, total_decoded, 1, &decoded);
+	total_decoded += decoded;
+	//value->pfd_contents_spare2 = decode_bits(buf, total_decoded, 8, &decoded);
+	//total_decoded += decoded;
+
+	DECODE_LEN_OF_FLOW_DESC_COND_2(buf, total_decoded, 16, decoded, value);
+	total_decoded += decoded;
+
+	DECODE_FLOW_DESC_COND_2(buf, total_decoded, 8, decoded, value);
+	total_decoded += decoded;
+
+	DECODE_LENGTH_OF_URL_COND_1(buf, total_decoded, 16, decoded, value);
+	total_decoded += decoded;
+
+	DECODE_URL2_COND_1(buf, total_decoded, 8, decoded, value);
+	total_decoded += decoded;
+
+	DECODE_LEN_OF_DOMAIN_NM_COND_1(buf, total_decoded, 16, decoded, value);
+	total_decoded += decoded;
+
+	DECODE_DOMAIN_NAME_COND_1(buf, total_decoded, 8, decoded, value);
+	total_decoded += decoded;
+
+	DECODE_LEN_OF_CSTM_PFD_CNTNT_COND_1(buf, total_decoded, 16, decoded, value);
+
+	return total_decoded/CHAR_SIZE;
 }
 
 /**
@@ -732,13 +740,11 @@ int decode_pfcp_packet_rate_ie_t(uint8_t *buf,
     value->uplnk_time_unit = decode_bits(buf, total_decoded, 3, &decoded);
     total_decoded += decoded;
     DECODE_MAX_UPLNK_PCKT_RATE_COND_1(buf, total_decoded, 16, decoded, value);
-    total_decoded += decoded;
     value->pckt_rate_spare3 = decode_bits(buf, total_decoded, 5, &decoded);
     total_decoded += decoded;
     value->dnlnk_time_unit = decode_bits(buf, total_decoded, 3, &decoded);
     total_decoded += decoded;
     DECODE_MAX_DNLNK_PCKT_RATE_COND_1(buf, total_decoded, 16, decoded, value);
-    total_decoded += decoded;
     return total_decoded/CHAR_SIZE;
 }
 
@@ -2088,7 +2094,7 @@ int decode_pfcp_user_plane_ip_rsrc_info_ie_t(uint8_t *buf,
 	total_decoded += decoded;
 
 	/* TODO: Revisit this for change in yang */
-	if(value->teid_range != 0) {
+	if(value->teidri != 0) {
 		value->teid_range = decode_bits(buf, total_decoded, 8, &decoded);
 		total_decoded += decoded;
 	}
@@ -2479,17 +2485,14 @@ int decode_pfcp_sdf_filter_ie_t(uint8_t *buf,
     value->sdf_fltr_spare2 = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
     DECODE_LEN_OF_FLOW_DESC_COND_1(buf, total_decoded, 16, decoded, value);
-    total_decoded += decoded;
-    DECODE_FLOW_DESC_COND_1(buf, total_decoded, 8, decoded, value);
-    total_decoded += decoded;
+	if (value->fd){
+		memcpy(&value->flow_desc, buf + (total_decoded/CHAR_SIZE), value->len_of_flow_desc );
+		total_decoded += (value->len_of_flow_desc * CHAR_SIZE);
+	}
     DECODE_TOS_TRAFFIC_CLS_COND_1(buf, total_decoded, 16, decoded, value);
-    total_decoded += decoded;
     DECODE_SECUR_PARM_IDX_COND_1(buf, total_decoded, 32, decoded, value);
-    total_decoded += decoded;
     DECODE_FLOW_LABEL_COND_1(buf, total_decoded, 24, decoded, value);
-    total_decoded += decoded;
     DECODE_SDF_FILTER_ID_COND_1(buf, total_decoded, 32, decoded, value);
-    total_decoded += decoded;
     return total_decoded/CHAR_SIZE;
 }
 
@@ -2629,15 +2632,15 @@ int decode_pfcp_outer_hdr_creation_ie_t(uint8_t *buf,
 	value->teid = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
     DECODE_IPV4_ADDRESS_COND_3(buf, total_decoded, 32, decoded, value);
-    total_decoded += decoded;
+    //total_decoded += decoded;
     DECODE_IPV6_ADDRESS_COND_3(buf, total_decoded, 8, decoded, value);
-    total_decoded += decoded;
+    //total_decoded += decoded;
     DECODE_PORT_NUMBER_COND_1(buf, total_decoded, 16, decoded, value);
-    total_decoded += decoded;
+    //total_decoded += decoded;
     DECODE_CTAG_COND_1(buf, total_decoded, 24, decoded, value);
-    total_decoded += decoded;
+    //total_decoded += decoded;
     DECODE_STAG_COND_1(buf, total_decoded, 24, decoded, value);
-    total_decoded += decoded;
+    //total_decoded += decoded;
     return total_decoded/CHAR_SIZE;
 }
 

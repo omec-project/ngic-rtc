@@ -1,6 +1,25 @@
+/*
+ * Copyright (c) 2019 Sprint
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 #include <stdint.h>
 
 #include "gx.h"
+#include "cp_app.h"
+#include "ipc_api.h"
+
+extern int g_gx_client_sock;
 
 /*
 *
@@ -122,43 +141,51 @@ int gx_cca_cb
    enum disp_action * act
 )
 {
-   int ret = FD_REASON_OK;
-   struct msg *ans = *msg;
-   struct msg *qry = NULL;
-   GxCCA *cca = NULL;
+	int ret = FD_REASON_OK;
+	struct msg *ans = *msg;
+	struct msg *qry = NULL;
+	char *send_buf = NULL;
+	gx_msg gx_resp = {0};
+	uint32_t buflen ;
 
-#if 0
-FD_DUMP_MESSAGE(rqst);
+#ifdef GX_DEBUG
+	FD_DUMP_MESSAGE(ans);
 #endif
+	gx_resp.msg_type = GX_CCA_MSG;
+	/* retrieve the original query associated with the answer */
+	CHECK_FCT(fd_msg_answ_getq (ans, &qry));
+	ret = gx_cca_parse(*msg, &(gx_resp.data.cp_cca));
 
-   /* retrieve the original query associated with the answer */
-   CHECK_FCT(fd_msg_answ_getq (ans, &qry));
+	if (ret != FD_REASON_OK)
+	{
+		goto err;
+	}
+	/* Cal the length of buffer needed */
+	buflen = gx_cca_calc_length (&gx_resp.data.cp_cca);
+	send_buf = malloc(buflen + sizeof(gx_resp.msg_type));
+	if( send_buf == NULL){
+ 			printf("SendBuff memory fails\n");
+			return 1;
+	}
+	memset(send_buf, 0, buflen);
+	/* encoding the cca header value to buffer */
+	memcpy( send_buf, &gx_resp.msg_type, sizeof(gx_resp.msg_type));
+	if ( gx_cca_pack( &(gx_resp.data.cp_cca), (unsigned char *)(send_buf + sizeof(gx_resp.msg_type)), buflen ) == 0 )
+	{
+		printf("CCA Packing failure \n");
+		goto err;
+	}
 
-   /* allocate the cca message */
-   cca = (GxCCA*)malloc(sizeof(*cca));
-
-   memset((void*)cca, 0, sizeof(*cca));
-
-   ret = gx_cca_parse(*msg, cca);
-   if (ret != FD_REASON_OK)
-      goto err;
-
-   /*
-    *  TODO - Add request processing code
-    */
-
-   gx_cca_free(cca);
-   goto fini2;
-
+	send_to_ipc_channel(g_gx_client_sock, send_buf, buflen + sizeof(gx_resp.msg_type) );
+	goto fini2;
 err:
-   gx_cca_free(cca);
-   free(cca);
-   goto fini2;
+	goto fini2;
 
 fini1:
 
 fini2:
-   FDCHECK_MSG_FREE(*msg);
-   *msg = NULL;
-   return 0;
+	free(send_buf);
+	FDCHECK_MSG_FREE(*msg);
+	*msg = NULL;
+	return 0;
 }

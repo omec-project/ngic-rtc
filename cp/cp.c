@@ -66,7 +66,7 @@ extern socklen_t s5s8_sockaddr_len;
 uint16_t payload_length;
 
 static uint8_t
-process_echo_req(gtpv2c_header *gtpv2c_rx, gtpv2c_header *gtpv2c_tx, int iface)
+process_echo_req(gtpv2c_header_t *gtpv2c_rx, gtpv2c_header_t *gtpv2c_tx, int iface)
 {
 	uint16_t payload_length = 0;
 	int ret = 0;
@@ -81,18 +81,8 @@ process_echo_req(gtpv2c_header *gtpv2c_rx, gtpv2c_header *gtpv2c_tx, int iface)
 		fprintf(stderr, "main.c::control_plane()::Error"
 				"\n\tprocess_echo_req "
 				"%s: (%d) %s\n",
-				gtp_type_str(gtpv2c_rx->gtpc.type), ret,
+				gtp_type_str(gtpv2c_rx->gtpc.message_type), ret,
 				(ret < 0 ? strerror(-ret) : cause_str(ret)));
-	}
-	if(iface == S11_IFACE){
-		cp_stats.nbr_of_mme_to_sgwc_echo_req_rcvd++;
-	}else {
-		if(spgw_cfg == PGWC){
-			cp_stats.nbr_of_sgwc_to_pgwc_echo_req_rcvd++;
-		}else{
-			cp_stats.pgwc_status = 1;
-			cp_stats.nbr_of_pgwc_to_sgwc_echo_req_rcvd++;
-		}
 	}
 #ifdef USE_REST
 	/* Reset ECHO Timers */
@@ -109,25 +99,18 @@ process_echo_req(gtpv2c_header *gtpv2c_rx, gtpv2c_header *gtpv2c_tx, int iface)
 	}
 #endif /* USE_REST */
 
-	payload_length = ntohs(gtpv2c_tx->gtpc.length)
+	payload_length = ntohs(gtpv2c_tx->gtpc.message_len)
 		+ sizeof(gtpv2c_tx->gtpc);
 
 	if(iface == S11_IFACE){
 		gtpv2c_send(s11_fd, s11_tx_buf, payload_length,
 				(struct sockaddr *) &s11_mme_sockaddr,
 				s11_mme_sockaddr_len);
-		cp_stats.nbr_of_sgwc_to_mme_echo_resp_sent++;
 		cp_stats.echo++;
 	}else{
 		gtpv2c_send(s5s8_fd, s5s8_tx_buf, payload_length,
 				(struct sockaddr *) &s5s8_recv_sockaddr,
 				s5s8_sockaddr_len);
-
-		if(spgw_cfg == PGWC){
-			cp_stats.nbr_of_pgwc_to_sgwc_echo_resp_sent++;
-		}else{
-			cp_stats.nbr_of_sgwc_to_pgwc_echo_resp_sent++;
-		}
 		cp_stats.echo++;
 	}
 	return 0;
@@ -135,7 +118,7 @@ process_echo_req(gtpv2c_header *gtpv2c_rx, gtpv2c_header *gtpv2c_tx, int iface)
 
 #ifdef USE_REST
 static uint8_t
-process_echo_resp(gtpv2c_header *gtpv2c_rx, int iface)
+process_echo_resp(gtpv2c_header_t *gtpv2c_rx, int iface)
 {
 	int ret = 0;
 
@@ -150,28 +133,21 @@ process_echo_resp(gtpv2c_header *gtpv2c_rx, int iface)
 			fprintf(stderr, "main.c::control_plane()::Error"
 					"\n\tprocess_echo_resp "
 					"%s: (%d) %s\n",
-					gtp_type_str(gtpv2c_rx->gtpc.type), ret,
+					gtp_type_str(gtpv2c_rx->gtpc.message_type), ret,
 					(ret < 0 ? strerror(-ret) : cause_str(ret)));
 			/* Error handling not implemented */
 			return -1;
 		}
-		cp_stats.nbr_of_mme_to_sgwc_echo_resp_rcvd++;
 	}else{
 		ret = process_response(s5s8_recv_sockaddr.sin_addr.s_addr);
 		if (ret) {
 			fprintf(stderr, "main.c::control_plane()::Error"
 					"\n\tprocess_echo_resp "
 					"%s: (%d) %s\n",
-					gtp_type_str(gtpv2c_rx->gtpc.type), ret,
+					gtp_type_str(gtpv2c_rx->gtpc.message_type), ret,
 					(ret < 0 ? strerror(-ret) : cause_str(ret)));
 			/* Error handling not implemented */
 			return -1;
-		}
-		if(spgw_cfg == PGWC){
-			cp_stats.nbr_of_sgwc_to_pgwc_echo_resp_rcvd++;
-		}else{
-			cp_stats.pgwc_status = 1;
-			cp_stats.nbr_of_pgwc_to_sgwc_echo_resp_rcvd++;
 		}
 	}
 	return 0;
@@ -182,14 +158,12 @@ process_echo_resp(gtpv2c_header *gtpv2c_rx, int iface)
 void
 msg_handler_s11(void)
 {
-	get_current_time(cp_stats.s11_peer_timestamp);
 	int ret = 0, bytes_s11_rx = 0;
 	msg_info msg = {0};
-	uint32_t dstIp;
 	bzero(&s11_rx_buf, sizeof(s11_rx_buf));
 	bzero(&s11_tx_buf, sizeof(s11_tx_buf));
-	gtpv2c_header *gtpv2c_s11_rx = (gtpv2c_header *) s11_rx_buf;
-	gtpv2c_header *gtpv2c_s11_tx = (gtpv2c_header *) s11_tx_buf;
+	gtpv2c_header_t *gtpv2c_s11_rx = (gtpv2c_header_t *) s11_rx_buf;
+	gtpv2c_header_t *gtpv2c_s11_tx = (gtpv2c_header_t *) s11_tx_buf;
 
 	bytes_s11_rx = recvfrom(s11_fd,
 			s11_rx_buf, MAX_GTPV2C_UDP_LEN, MSG_DONTWAIT,
@@ -204,31 +178,61 @@ msg_handler_s11(void)
 		return;
 	}
 
-	dstIp = (uint32_t)s11_mme_sockaddr.sin_addr.s_addr;
-	csUpdateIp(inet_ntoa(*((struct in_addr *)&dstIp)), 0, 0);
-
 	if ((bytes_s11_rx < 0) &&
 		(errno == EAGAIN  || errno == EWOULDBLOCK))
 		return;
-
+	if (!gtpv2c_s11_rx->gtpc.message_type) {
+		return;
+	}
 	if (bytes_s11_rx > 0)
 		++cp_stats.rx;
 
 	/* Reset periodic timers */
 	process_response(s11_mme_sockaddr.sin_addr.s_addr);
 
-	if (gtpv2c_s11_rx->gtpc.type == GTP_ECHO_REQ){
+	if (gtpv2c_s11_rx->gtpc.message_type == GTP_ECHO_REQ){
 		if (bytes_s11_rx > 0) {
+
+			/*CLI:after receiving echo add peer,but status FALSE*/
+			add_cli_peer(s11_mme_sockaddr.sin_addr.s_addr,itS11);
+			get_current_time(cp_stats.stat_timestamp);
+			update_cli_stats(s11_mme_sockaddr.sin_addr.s_addr,
+						gtpv2c_s11_rx->gtpc.message_type,RCVD,
+						cp_stats.stat_timestamp);
+
+			update_last_activity(s11_mme_sockaddr.sin_addr.s_addr,
+									cp_stats.stat_timestamp);
+
 			/* this call will handle echo request for boh PGWC and SGWC */
 			ret = process_echo_req(gtpv2c_s11_rx, gtpv2c_s11_tx, S11_IFACE);
 			if(ret != 0){
 				return;
+			} else {
+				/*CLI:send echo resp acc successfully*/
+				get_current_time(cp_stats.stat_timestamp);
+				update_cli_stats(s11_mme_sockaddr.sin_addr.s_addr,
+							gtpv2c_s11_tx->gtpc.message_type,SENT,
+							cp_stats.stat_timestamp);
+
+				update_last_activity(s11_mme_sockaddr.sin_addr.s_addr,
+										cp_stats.stat_timestamp);
+
+
 			}
 			++cp_stats.tx;
 		}
 		return;
-	}else if(gtpv2c_s11_rx->gtpc.type == GTP_ECHO_RSP){
+	}else if(gtpv2c_s11_rx->gtpc.message_type == GTP_ECHO_RSP){
 		if (bytes_s11_rx > 0) {
+
+			/*CLI:after receiving resp add peer,status FALSE*/
+			add_cli_peer(s11_mme_sockaddr.sin_addr.s_addr,itS11);
+			get_current_time(cp_stats.stat_timestamp);
+			update_cli_stats(s11_mme_sockaddr.sin_addr.s_addr,
+						gtpv2c_s11_rx->gtpc.message_type,RCVD,
+						cp_stats.stat_timestamp);
+			update_last_activity(s11_mme_sockaddr.sin_addr.s_addr, cp_stats.stat_timestamp);
+
 #ifdef USE_REST
 			/* this call will handle echo responce for boh PGWC and SGWC */
 			ret = process_echo_resp(gtpv2c_s11_rx, S11_IFACE);
@@ -240,19 +244,78 @@ msg_handler_s11(void)
 		}
 		return;
 	}else {
+
+
+		/*CLI:if CSR is rcvd with fail/acc then add peer,
+		 * but status will be true after accepted*/
+		if (gtpv2c_s11_rx->gtpc.message_type == GTP_CREATE_SESSION_REQ)
+		{
+			add_cli_peer((uint32_t)s11_mme_sockaddr.sin_addr.s_addr,itS11);
+		}
+
+		get_current_time(cp_stats.stat_timestamp);
+		update_last_activity(s11_mme_sockaddr.sin_addr.s_addr, cp_stats.stat_timestamp);
+
+		if(gtpv2c_s11_rx->gtpc.message_type != GTP_DOWNLINK_DATA_NOTIFICATION_ACK) {
+
+				update_cli_stats((uint32_t)s11_mme_sockaddr.sin_addr.s_addr,
+								gtpv2c_s11_rx->gtpc.message_type,
+								REQ,cp_stats.stat_timestamp);
+			}
+
 		if ((ret = gtpc_pcnd_check(gtpv2c_s11_rx, &msg, bytes_s11_rx)) != 0)
 			return;
 
-		if ((msg.state < END_STATE) && (msg.event < END_EVNT)) {
-			/* Called register callback */
-			ret = (*State_Machine[msg.state][msg.event])(&msg, gtpv2c_s11_rx);
-			if (ret) {
+		if(gtpv2c_s11_rx->gtpc.message_type == GTP_DOWNLINK_DATA_NOTIFICATION_ACK) {
+				update_cli_stats((uint32_t)s11_mme_sockaddr.sin_addr.s_addr,
+								gtpv2c_s11_rx->gtpc.message_type,
+								ACC,cp_stats.stat_timestamp);
+			}
 
+	/*cli_logic*/
+	switch (spgw_cfg) {
+	case SGWC:
+	case SAEGWC:
+			switch (gtpv2c_s11_rx->gtpc.message_type) {
+
+			case GTP_CREATE_SESSION_REQ:
+					/*add_cli_peer((uint32_t)s11_mme_sockaddr.sin_addr.s_addr,itS11);*/
+					update_peer_status((uint32_t)s11_mme_sockaddr.sin_addr.s_addr,TRUE);
+					break;
+			}
+		break;
+	default:
+		rte_panic("main.c::control_plane::cp_stats-"
+				"Unknown spgw_cfg= %u.", spgw_cfg);
+		break;
+	}
+
+
+		if ((msg.proc < END_PROC) && (msg.state < END_STATE) && (msg.event < END_EVNT)) {
+			if (SGWC == pfcp_config.cp_type) {
+			    ret = (*state_machine_sgwc[msg.proc][msg.state][msg.event])(&msg, NULL);
+			} else if (PGWC == pfcp_config.cp_type) {
+			    ret = (*state_machine_pgwc[msg.proc][msg.state][msg.event])(&msg, NULL);
+			} else if (SAEGWC == pfcp_config.cp_type) {
+			    ret = (*state_machine_saegwc[msg.proc][msg.state][msg.event])(&msg, NULL);
+			} else {
 				clLog(s11logger, eCLSeverityCritical, "%s : "
-						"State_Machine Callback failedn with Error: %d \n",
+						"Invalid Control Plane Type: %d \n",
+						__func__, pfcp_config.cp_type);
+				return;
+			}
+
+			if (ret) {
+				clLog(s11logger, eCLSeverityCritical, "%s : "
+						"State_Machine Callback failed with Error: %d \n",
 						__func__, ret);
 				return;
 			}
+		} else {
+			clLog(s11logger, eCLSeverityCritical, "%s : "
+						"Invalid Procedure or State or Event \n",
+						__func__);
+			return;
 		}
 	}
 
@@ -338,27 +401,23 @@ msg_handler_s11(void)
 	case SAEGWC:
 		if (bytes_s11_rx > 0) {
 			++cp_stats.tx;
-			switch (gtpv2c_s11_rx->gtpc.type) {
+			switch (gtpv2c_s11_rx->gtpc.message_type) {
 			case GTP_CREATE_SESSION_REQ:
 				cp_stats.create_session++;
-				cp_stats.number_of_connected_ues++;
 				break;
 			case GTP_DELETE_SESSION_REQ:
 				/* Need Clarification on it */
 				/*if (spgw_cfg != SGWC) { */
 					cp_stats.delete_session++;
 
-				if (cp_stats.number_of_connected_ues > 0) {
-					cp_stats.number_of_connected_ues--;
-				}
 				break;
 			case GTP_MODIFY_BEARER_REQ:
 				cp_stats.modify_bearer++;
+				//printf("VS:MBR[%u]:cnt: %u\n", gtpv2c_s11_rx->gtpc.type, ++cnt);
 				break;
 			case GTP_RELEASE_ACCESS_BEARERS_REQ:
 				cp_stats.rel_access_bearer++;
-				cp_stats.number_of_connected_ues--;
-				get_current_time(cp_stats.rel_access_bearer_time);
+
 				break;
 			case GTP_BEARER_RESOURCE_CMD:
 				cp_stats.bearer_resource++;
@@ -371,9 +430,6 @@ msg_handler_s11(void)
 				return;
 			case GTP_DOWNLINK_DATA_NOTIFICATION_ACK:
 				cp_stats.ddn_ack++;
-				cp_stats.number_of_connected_ues++;
-				get_current_time(cp_stats.ddn_ack_time);
-				/*cp_stats.rel_access_bearer--;*/
 			}
 		}
 		break;
@@ -388,23 +444,23 @@ msg_handler_s11(void)
 void
 msg_handler_s5s8(void)
 {
-	get_current_time(cp_stats.s5s8_peer_timestamp);
+	int ret = 0;
+	int bytes_s5s8_rx = 0;
+	msg_info msg = {0};
+
 	bzero(&s5s8_rx_buf, sizeof(s5s8_rx_buf));
-	gtpv2c_header *gtpv2c_s5s8_rx = (gtpv2c_header *) s5s8_rx_buf;
+	gtpv2c_header_t *gtpv2c_s5s8_rx = (gtpv2c_header_t *) s5s8_rx_buf;
 
 #ifdef USE_REST
 	bzero(&s5s8_tx_buf, sizeof(s5s8_tx_buf));
-	gtpv2c_header *gtpv2c_s5s8_tx = (gtpv2c_header *) s5s8_tx_buf;
+	gtpv2c_header_t *gtpv2c_s5s8_tx = (gtpv2c_header_t *) s5s8_tx_buf;
 #endif /* USE_REST */
-
-	int bytes_s5s8_rx = 0;
-	int ret = 0;
-	msg_info msg = {0};
 
 	bytes_s5s8_rx = recvfrom(s5s8_fd, s5s8_rx_buf,
 			MAX_GTPV2C_UDP_LEN, MSG_DONTWAIT,
 			(struct sockaddr *) &s5s8_recv_sockaddr,
 			&s5s8_sockaddr_len);
+
 	if (bytes_s5s8_rx == 0) {
 		fprintf(stderr, "s5s8 recvfrom error:"
 				"\n\ton %s:%u - %s\n",
@@ -413,19 +469,19 @@ msg_handler_s5s8(void)
 				strerror(errno));
 	}
 
-	if (spgw_cfg == PGWC)
-		csUpdateIp(inet_ntoa(s5s8_recv_sockaddr.sin_addr), 1, 0);
-
 	if (
 		(bytes_s5s8_rx < 0) &&
 		(errno == EAGAIN  || errno == EWOULDBLOCK)
 		)
 		return;
-
+	if (!gtpv2c_s5s8_rx->gtpc.message_type) {
+		return;
+	}
+#if 0
 	if ((spgw_cfg == SGWC) || (spgw_cfg == PGWC)) {
 		if ((bytes_s5s8_rx > 0) &&
 			 (unsigned)bytes_s5s8_rx != (
-			 ntohs(gtpv2c_s5s8_rx->gtpc.length)
+			 ntohs(gtpv2c_s5s8_rx->gtpc.message_len)
 			 + sizeof(gtpv2c_s5s8_rx->gtpc))
 			) {
 			ret = GTPV2C_CAUSE_INVALID_LENGTH;
@@ -436,19 +492,19 @@ msg_handler_s5s8(void)
 			fprintf(stderr, "SGWC|PGWC_s5s8 Received UDP Payload:"
 					"\n\t(%d bytes) with gtpv2c + "
 					"header (%u + %lu) = %lu bytes\n",
-					bytes_s5s8_rx, ntohs(gtpv2c_s5s8_rx->gtpc.length),
+					bytes_s5s8_rx, ntohs(gtpv2c_s5s8_rx->gtpc.message_len),
 					sizeof(gtpv2c_s5s8_rx->gtpc),
-					ntohs(gtpv2c_s5s8_rx->gtpc.length)
+					ntohs(gtpv2c_s5s8_rx->gtpc.message_len)
 					+ sizeof(gtpv2c_s5s8_rx->gtpc));
 		}
 	}
-
+#endif
 	if (bytes_s5s8_rx > 0)
 		++cp_stats.rx;
 
 	/* Reset periodic timers */
 	process_response(s5s8_recv_sockaddr.sin_addr.s_addr);
-
+#if 0
 	if (((spgw_cfg == PGWC) && (bytes_s5s8_rx > 0)) &&
 		  (gtpv2c_s5s8_rx->gtpc.version != GTP_VERSION_GTPV2C)
 		) {
@@ -459,20 +515,48 @@ msg_handler_s5s8(void)
 				inet_ntoa(pfcp_config.s5s8_ip));
 		return;
 		}
-
-	if(gtpv2c_s5s8_rx->gtpc.type == GTP_ECHO_REQ){
+#endif
+	if(gtpv2c_s5s8_rx->gtpc.message_type == GTP_ECHO_REQ){
 		if (bytes_s5s8_rx > 0) {
+
+		/*CLI:add sgwc as a peer after receiving echo req,status FALSE*/
+			add_cli_peer(s5s8_recv_sockaddr.sin_addr.s_addr,itS5S8);
+			get_current_time(cp_stats.stat_timestamp);
+			update_cli_stats(s5s8_recv_sockaddr.sin_addr.s_addr,
+								gtpv2c_s5s8_rx->gtpc.message_type,RCVD,
+								cp_stats.stat_timestamp);
+
+			update_last_activity(s5s8_recv_sockaddr.sin_addr.s_addr,
+									cp_stats.stat_timestamp);
 #ifdef USE_REST
 			ret = process_echo_req(gtpv2c_s5s8_rx, gtpv2c_s5s8_tx, S5S8_IFACE);
 			if(ret != 0){
 				return;
+			} else {
+
+				/*CLI:send echo resp successfully*/
+				get_current_time(cp_stats.stat_timestamp);
+				update_cli_stats(s5s8_recv_sockaddr.sin_addr.s_addr,
+							gtpv2c_s5s8_tx->gtpc.message_type,SENT,
+							cp_stats.stat_timestamp);
+
 			}
 #endif /* USE_REST */
 			++cp_stats.tx;
 		}
 		return;
-	}else if(gtpv2c_s5s8_rx->gtpc.type == GTP_ECHO_RSP){
+	}else if(gtpv2c_s5s8_rx->gtpc.message_type == GTP_ECHO_RSP){
 		if (bytes_s5s8_rx > 0) {
+
+
+		/*CLI:add sgwc as a peer after receiving echo resp,status FALSE*/
+			add_cli_peer(s5s8_recv_sockaddr.sin_addr.s_addr,itS5S8);
+			get_current_time(cp_stats.stat_timestamp);
+			update_cli_stats(s5s8_recv_sockaddr.sin_addr.s_addr,
+								gtpv2c_s5s8_rx->gtpc.message_type,RCVD,
+								cp_stats.stat_timestamp);
+			update_last_activity(s5s8_recv_sockaddr.sin_addr.s_addr,
+									cp_stats.stat_timestamp);
 #ifdef USE_REST
 			ret = process_echo_resp(gtpv2c_s5s8_rx, S5S8_IFACE);
 			if(ret != 0){
@@ -483,19 +567,120 @@ msg_handler_s5s8(void)
 		}
 		return;
 	}else {
-		if ((ret = gtpc_s5s8_pcnd_check(gtpv2c_s5s8_rx, &msg, bytes_s5s8_rx)) != 0)
+
+		/*CLI:add peer SGWC,when CSR is rcvd,status is FALSE
+		 * when CSR acc then TRUE*/
+		if (gtpv2c_s5s8_rx->gtpc.message_type == GTP_CREATE_SESSION_REQ)
+		{
+			add_cli_peer(s5s8_recv_sockaddr.sin_addr.s_addr, itS5S8);
+		}
+
+		if (gtpv2c_s5s8_rx->gtpc.message_type == GTP_MODIFY_BEARER_REQ)
+		{
+			add_cli_peer(s5s8_recv_sockaddr.sin_addr.s_addr, itS5S8);
+		}
+
+		get_current_time(cp_stats.stat_timestamp);
+
+		if(spgw_cfg == PGWC)
+			update_cli_stats(s5s8_recv_sockaddr.sin_addr.s_addr,
+						gtpv2c_s5s8_rx->gtpc.message_type,REQ,
+						cp_stats.stat_timestamp);
+
+		update_last_activity(s5s8_recv_sockaddr.sin_addr.s_addr,
+									cp_stats.stat_timestamp);
+
+		if ((ret = gtpc_pcnd_check(gtpv2c_s5s8_rx, &msg, bytes_s5s8_rx)) != 0)
+		{
+			/*update csr, dsr, mbr rej response*/
+			if(spgw_cfg == SGWC)
+				update_cli_stats(s5s8_recv_sockaddr.sin_addr.s_addr,
+							gtpv2c_s5s8_rx->gtpc.message_type,REJ,
+							cp_stats.stat_timestamp);
 			return;
+		}
 
-		if ((msg.state < END_STATE) && (msg.event < END_EVNT)) {
-			/* Called register callback */
-			ret = (*State_Machine[msg.state][msg.event])(&msg, gtpv2c_s5s8_rx);
+	/*cli logic*/
+	switch (spgw_cfg) {
+	case SGWC:
+		switch(gtpv2c_s5s8_rx->gtpc.message_type) {
+
+			case GTP_CREATE_SESSION_RSP:
+					update_sys_stat(number_of_users, INCREMENT);
+					update_sys_stat(number_of_active_session, INCREMENT);
+					update_peer_status(s5s8_recv_sockaddr.sin_addr.s_addr,TRUE);
+					get_current_time(cp_stats.stat_timestamp);
+					update_cli_stats(s5s8_recv_sockaddr.sin_addr.s_addr,
+								gtpv2c_s5s8_rx->gtpc.message_type,ACC,
+								cp_stats.stat_timestamp);
+				break;
+			case GTP_DELETE_SESSION_RSP:
+				get_current_time(cp_stats.stat_timestamp);
+				update_cli_stats(s5s8_recv_sockaddr.sin_addr.s_addr,
+								gtpv2c_s5s8_rx->gtpc.message_type,ACC,
+								cp_stats.stat_timestamp);
+				break;
+			case GTP_MODIFY_BEARER_RSP:
+				get_current_time(cp_stats.stat_timestamp);
+				update_peer_status(s5s8_recv_sockaddr.sin_addr.s_addr,TRUE);
+				update_cli_stats(s5s8_recv_sockaddr.sin_addr.s_addr,
+								gtpv2c_s5s8_rx->gtpc.message_type,ACC,
+								cp_stats.stat_timestamp);
+				update_last_activity(s5s8_recv_sockaddr.sin_addr.s_addr,
+								cp_stats.stat_timestamp);
+				add_node_conn_entry(s5s8_recv_sockaddr.sin_addr.s_addr, S5S8_PGWC_PORT_ID);
+				break;
+			default:
+				break;
+		}
+			break;
+	case PGWC:
+		switch(gtpv2c_s5s8_rx->gtpc.message_type) {
+			case GTP_CREATE_SESSION_REQ:
+				/*CLI:SGWC added as peer when rcv CSR,status is TRUE*/
+				/*add_cli_peer(s5s8_recv_sockaddr.sin_addr.s_addr, itS5S8);*/
+				update_peer_status(s5s8_recv_sockaddr.sin_addr.s_addr, TRUE);
+				break;
+			case GTP_MODIFY_BEARER_REQ:
+				add_node_conn_entry(s5s8_recv_sockaddr.sin_addr.s_addr, S5S8_PGWC_PORT_ID);
+				update_peer_status(s5s8_recv_sockaddr.sin_addr.s_addr, TRUE);
+				break;
+			default:
+					break;
+
+		}
+
+			break;
+	default :
+			break;
+	}
+
+
+		if ((msg.proc < END_PROC) && (msg.state < END_STATE) && (msg.event < END_EVNT)) {
+			if (SGWC == pfcp_config.cp_type) {
+			    ret = (*state_machine_sgwc[msg.proc][msg.state][msg.event])(&msg, NULL);
+			} else if (PGWC == pfcp_config.cp_type) {
+			    ret = (*state_machine_pgwc[msg.proc][msg.state][msg.event])(&msg, NULL);
+			} else if (SAEGWC == pfcp_config.cp_type) {
+			    ret = (*state_machine_saegwc[msg.proc][msg.state][msg.event])(&msg, NULL);
+			} else {
+				clLog(s5s8logger, eCLSeverityCritical, "%s : "
+						"Invalid Control Plane Type: %d \n",
+						__func__, pfcp_config.cp_type);
+				return;
+			}
+
 			if (ret) {
-
 				clLog(s5s8logger, eCLSeverityCritical, "%s : "
 						"State_Machine Callback failed with Error: %d \n",
 						__func__, ret);
 				return;
 			}
+		} else {
+			clLog(s11logger, eCLSeverityCritical, "%s : "
+						"Invalid Procedure or State or Event \n",
+						__func__);
+			return;
 		}
 	}
 
@@ -507,18 +692,15 @@ msg_handler_s5s8(void)
 			break; //do not update console stats for SGWC
 	case PGWC:
 		if (bytes_s5s8_rx > 0) {
-			switch (gtpv2c_s5s8_rx->gtpc.type) {
+			switch (gtpv2c_s5s8_rx->gtpc.message_type) {
 			case GTP_CREATE_SESSION_REQ:
 				cp_stats.create_session++;
-				cp_stats.sm_create_session_req_rcvd++;
-				get_current_time(cp_stats.sm_create_session_req_rcvd_time);
-				get_current_time(cp_stats.number_of_ues_time);
+				break;
+			case GTP_MODIFY_BEARER_REQ:
+				cp_stats.modify_bearer++;
 				break;
 			case GTP_DELETE_SESSION_REQ:
 				cp_stats.delete_session++;
-				cp_stats.sm_delete_session_req_rcvd++;
-				get_current_time(cp_stats.sm_delete_session_req_rcvd_time);
-				get_current_time(cp_stats.number_of_ues_time);
 				break;
 			}
 		}

@@ -16,7 +16,7 @@
 
 #include <arpa/inet.h>
 #include <rte_ip.h>
-#include "main.h"
+#include "up_main.h"
 #include "gtpu.h"
 
 int (*fp_decap_gtpu_hdr)(struct rte_mbuf *m);
@@ -195,7 +195,7 @@ uint32_t gtpu_inner_src_ip_dynamic_seqnb(struct rte_mbuf *m)
 	struct ipv4_hdr *inner_ipv4_hdr;
 
 	pkt_ptr = (uint8_t *) get_mtogtpu(m);
-	RTE_LOG_DP(DEBUG, DP, "ASR-SpirentvLS gtpu.c: GPDU_HDR_SIZE %u\n",
+	RTE_LOG_DP(DEBUG, DP, "VS-gtpu.c: GPDU_HDR_SIZE %u\n",
 			GPDU_HDR_SIZE_DYNAMIC(*pkt_ptr));
 
 	pkt_ptr += GPDU_HDR_SIZE_DYNAMIC(*pkt_ptr);
@@ -210,7 +210,7 @@ uint32_t gtpu_inner_src_ip_with_seqnb(struct rte_mbuf *m)
 	struct ipv4_hdr *inner_ipv4_hdr;
 
 	pkt_ptr = (uint8_t *) get_mtogtpu(m);
-	RTE_LOG(DEBUG, DP, "ASR-SpirentvLS gtpu.c: GPDU_HDR_SIZE %u\n",
+	RTE_LOG(DEBUG, DP, "VS-gtpu.c: GPDU_HDR_SIZE %u\n",
 			GPDU_HDR_SIZE_WITH_SEQNB);
 
 	pkt_ptr += GPDU_HDR_SIZE_WITH_SEQNB;
@@ -225,7 +225,7 @@ uint32_t gtpu_inner_src_ip_without_seqnb(struct rte_mbuf *m)
 	struct ipv4_hdr *inner_ipv4_hdr;
 
 	pkt_ptr = (uint8_t *) get_mtogtpu(m);
-	RTE_LOG(DEBUG, DP, "ASR-SpirentvLS gtpu.c: GPDU_HDR_SIZE %u\n",
+	RTE_LOG(DEBUG, DP, "VS-gtpu.c: GPDU_HDR_SIZE %u\n",
 			GPDU_HDR_SIZE_WITHOUT_SEQNB);
 
 	pkt_ptr += GPDU_HDR_SIZE_WITHOUT_SEQNB;

@@ -38,22 +38,22 @@
 /* cdr field type callbacks
  * all callbacks must have the same parameters
  */
-typedef uint64_t (*cb_64_type) (struct dp_session_info *session,
-		struct chrg_data_vol *vol,
-		struct dp_pcc_rules *pcc_rule,
-		struct adc_rules *adc_rule);
-typedef uint32_t (*cb_32_type) (struct dp_session_info *session,
-		struct chrg_data_vol *vol,
-		struct dp_pcc_rules *pcc_rule,
-		struct adc_rules *adc_rule);
-typedef const char *(*cb_str_type) (struct dp_session_info *session,
-		struct chrg_data_vol *vol,
-		struct dp_pcc_rules *pcc_rule,
-		struct adc_rules *adc_rule);
-typedef uint8_t (*cb_8_type) (struct dp_session_info *session,
-		struct chrg_data_vol *vol,
-		struct dp_pcc_rules *pcc_rule,
-		struct adc_rules *adc_rule);
+//typedef uint64_t (*cb_64_type) (struct dp_session_info *session,
+//		struct chrg_data_vol *vol,
+//		struct dp_pcc_rules *pcc_rule,
+//		struct adc_rules *adc_rule);
+//typedef uint32_t (*cb_32_type) (struct dp_session_info *session,
+//		struct chrg_data_vol *vol,
+//		struct dp_pcc_rules *pcc_rule,
+//		struct adc_rules *adc_rule);
+//typedef const char *(*cb_str_type) (struct dp_session_info *session,
+//		struct chrg_data_vol *vol,
+//		struct dp_pcc_rules *pcc_rule,
+//		struct adc_rules *adc_rule);
+//typedef uint8_t (*cb_8_type) (struct dp_session_info *session,
+//		struct chrg_data_vol *vol,
+//		struct dp_pcc_rules *pcc_rule,
+//		struct adc_rules *adc_rule);
 
 struct cdr_field_t {
 	const char *header;
@@ -61,10 +61,10 @@ struct cdr_field_t {
 	const char *format_specifier;
 	union {
 		uint64_t *value;
-		cb_64_type cb_64;
-		cb_32_type cb_32;
-		cb_8_type cb_8;
-		cb_str_type cb_str;
+		//cb_64_type cb_64;
+		//cb_32_type cb_32;
+		//cb_8_type cb_8;
+		//cb_str_type cb_str;
 	};
 };
 
@@ -121,10 +121,10 @@ iptoa(struct ip_addr addr);
  * @return
  * Void
  */
-void
-export_session_pcc_record(struct dp_pcc_rules *pcc_rule,
-					struct ipcan_dp_bearer_cdr *cdr,
-					struct dp_session_info *session);
+//void
+//export_session_pcc_record(struct dp_pcc_rules *pcc_rule,
+//					struct ipcan_dp_bearer_cdr *cdr,
+//					struct dp_session_info *session);
 
 /**
  * Export ADC record to file
@@ -138,10 +138,10 @@ export_session_pcc_record(struct dp_pcc_rules *pcc_rule,
  * @return
  * Void
  */
-void
-export_session_adc_record(struct adc_rules *adc_rule,
-					struct ipcan_dp_bearer_cdr *cdr,
-					struct dp_session_info *session);
+//void
+//export_session_adc_record(struct adc_rules *adc_rule,
+//					struct ipcan_dp_bearer_cdr *cdr,
+//					struct dp_session_info *session);
 /**
  * Export CDR record to file.
  * @param session
@@ -157,9 +157,9 @@ export_session_adc_record(struct adc_rules *adc_rule,
  * @return
  * Void
  */
-void
-export_cdr_record(struct dp_session_info *session, char *name,
-			uint32_t id, struct ipcan_dp_bearer_cdr *charge_record);
+//void
+//export_cdr_record(struct dp_session_info *session, char *name,
+//			uint32_t id, struct ipcan_dp_bearer_cdr *charge_record);
 
 /**
  * Export CDR record to file.
@@ -176,8 +176,8 @@ export_cdr_record(struct dp_session_info *session, char *name,
  * @return
  * Void
  */
-void export_mtr(struct dp_session_info *session, char *name,
-		uint32_t id, uint64_t drops);
+//void export_mtr(struct dp_session_info *session, char *name,
+//		uint32_t id, uint64_t drops);
 
 
 /**

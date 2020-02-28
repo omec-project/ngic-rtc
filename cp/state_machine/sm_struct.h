@@ -22,7 +22,7 @@
 #include "sm_hand.h"
 #include "pfcp_set_ie.h"
 #include "pfcp_messages.h"
-#include "gtpv2c_messages.h"
+#include "gtp_messages.h"
 
 
 struct rte_hash *sm_hash;
@@ -38,31 +38,43 @@ enum source_interface {
 
 //extern enum source_interface iface;
 
+typedef struct ue_context_key {
+	/* Bearer identifier */
+	uint8_t ebi_index;
+	/* UE Context key == teid */
+	uint32_t teid;
+} context_key;
+
 /* TODO: Need to optimized generic structure. */
 typedef struct msg_info{
 	uint8_t msg_type;
 	uint8_t state;
 	uint8_t event;
+	uint8_t proc;
+
+	/* VS: GX Msg retrieve teid of key for UE Context */
+	uint8_t eps_bearer_id;
+	uint32_t teid;
 
 	char sgwu_fqdn[MAX_HOSTNAME_LENGTH];
 	struct in_addr upf_ipv4;
 
 	//enum source_interface iface;
 
-	union s11_msg_info_t {
-		create_session_request_t csr;
-		modify_bearer_request_t mbr;
-		delete_session_request_t dsr;
+	union gtpc_msg_info {
+		create_sess_req_t csr;
+		create_sess_rsp_t cs_rsp;
+		mod_bearer_req_t mbr;
+		mod_bearer_rsp_t mb_rsp;
+		del_sess_req_t dsr;
+		del_sess_rsp_t ds_rsp;
 		rel_acc_ber_req rel_acc_ber_req_t;
 		downlink_data_notification_t ddn_ack;
-	}s11_msg;
-
-	/*Remove gtpv2c header from here after support libgtpv2 on s5s8 interface */
-	union s5s8_msg_info_t {
-		gtpv2c_header gtpv2c_rx;
-	}s5s8_msg;
-
+		create_bearer_req_t cb_req;
+		create_bearer_rsp_t cb_rsp;
+	}gtpc_msg;
 	union pfcp_msg_info_t {
+		pfcp_pfd_mgmt_rsp_t pfcp_pfd_resp;
 		pfcp_assn_setup_rsp_t pfcp_ass_resp;
 		pfcp_sess_estab_rsp_t pfcp_sess_est_resp;
 		pfcp_sess_mod_rsp_t pfcp_sess_mod_resp;
@@ -70,35 +82,38 @@ typedef struct msg_info{
 		pfcp_sess_rpt_req_t pfcp_sess_rep_req;
 	}pfcp_msg;
 
+	union gx_msg_info_t {
+		GxCCA cca;
+		GxRAR rar;
+	}gx_msg;
+
 }msg_info;
 
 /*
  * Structure for handling CS/MB/DS request synchoronusly.
  * */
 struct resp_info {
+	uint8_t proc;
 	uint8_t state;
 	uint8_t msg_type;
 	uint8_t eps_bearer_id;
-	uint32_t sequence;
-	uint32_t s11_sgw_gtpc_teid;
-	uint32_t s11_mme_gtpc_teid;
-	uint32_t s5s8_pgw_gtpc_teid;
-	uint32_t s5s8_sgw_gtpc_del_teid_ptr;
-	uint32_t s5s8_pgw_gtpc_ipv4;
-	struct in_addr s11_mme_gtpc_ipv4;
-	struct ue_context_t *context;
 
-	/* TODO: Need to remove */
-	union s11_msg_info {
-		create_session_request_t csr;
-		modify_bearer_request_t mbr;
-		delete_session_request_t dsr;
-	}s11_msg;
+	uint32_t s5s8_sgw_gtpc_teid;
+	uint32_t s5s8_pgw_gtpc_ipv4;
+
+	uint8_t eps_bearer_lvl_tft[257];
+	uint8_t tft_header_len;
+
+	union gtpc_msg {
+		create_sess_req_t csr;
+		mod_bearer_req_t mbr;
+		del_sess_req_t dsr;
+	}gtpc_msg;
 }__attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
 
 
-/* Declaration of state machine 2D array */
-typedef int (*const EventHandler[END_STATE+1][END_EVNT+1])(void *t1, void *t2);
+/* Declaration of state machine 3D array */
+typedef int (*const EventHandler[END_PROC+1][END_STATE+1][END_EVNT+1])(void *t1, void *t2);
 
 /* Create a session hash table to maintain the session information.*/
 void
@@ -147,10 +162,27 @@ uint8_t
 get_ue_state(uint32_t teid_key);
 
 /**
+ * Retrive UE Context entry from UE Context table.
+ */
+int8_t
+get_ue_context(uint32_t teid_key, ue_context **context);
+
+/**
+ * Retrive PDN entry from PDN table.
+ */
+int
+get_pdn(uint32_t teid_key, pdn_connection **pdn);
+
+/**
  * Get "last" param for cli
  */
-void 
+void
 get_current_time(char *last_time_stamp);
+
+/**
+ * Get proc name from enum
+ */
+const char * get_proc_string(int value);
 
 /**
  * Get state name from enum
@@ -161,5 +193,29 @@ const char * get_state_string(int value);
  * Get event name from enum
  */
 const char * get_event_string(int value);
+
+/**
+ * Update UE proc in UE Context.
+ */
+uint8_t
+update_ue_proc(uint32_t teid_key, uint8_t proc);
+
+/**
+ * Retrive UE Context.
+ */
+int8_t
+get_ue_context(uint32_t teid_key, ue_context **context);
+
+/**
+ * Update Procedure according to indication flags
+ */
+uint8_t
+get_procedure(msg_info *msg);
+
+/**
+ * Find Pending CSR Procedure according to indication flags
+ */
+uint8_t
+get_csr_proc(create_sess_req_t *csr);
 
 #endif

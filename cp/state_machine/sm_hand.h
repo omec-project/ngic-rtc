@@ -16,18 +16,13 @@
 
 #include <stdio.h>
 #include "sm_enum.h"
+#include "cp_app.h"
 
 /* Function */
 int association_setup_handler(void *arg1, void *arg2);
 
 /* Function */
-int csr_buffer_handler(void *arg1, void *arg2);
-
-/* Function */
 int process_assoc_resp_handler(void *arg1, void *arg2);
-
-/* Function */
-int process_cs_req_handler(void *arg1, void *arg2);
 
 /* Function */
 int process_cs_resp_handler(void *arg1, void *arg2);
@@ -62,3 +57,49 @@ int process_rpt_req_handler(void *arg1, void *arg2);
 /* Function */
 int process_default_handler(void *t1, void *t2);
 
+
+/* Function */
+int process_error_occured_handler(void *t1, void *t2);
+
+/* Function */
+int cca_msg_handler(void *t1 , void *t2);
+
+/* Function */
+int gx_setup_handler(void *arg1, void *arg2);
+
+/* Function */
+int process_pfcp_sess_mod_resp_cbr_handler(void *arg1, void *arg2);
+
+/* Function */
+int process_cbresp_handler(void *arg1, void *arg2);
+
+/* Function */
+int process_create_bearer_resp_handler(void *arg1, void *arg2);
+
+/* Function */
+int process_create_bearer_request_handler(void *arg1, void *arg2);
+
+/* Function */
+int process_rar_request_handler(void *arg1, void *arg2);
+
+/* Function */
+int pfd_management_handler(void *arg1, void *arg2);
+
+/* Function */
+int process_mod_resp_delete_handler(void *arg1, void *arg2);
+
+/* Function */
+int process_sess_mod_resp_sgw_reloc_handler(void *arg1, void *arg2);
+
+/* Function */
+int process_sess_est_resp_sgw_reloc_handler(void *arg1, void *arg2);
+
+/* Function */
+int process_mb_req_sgw_reloc_handler(void *arg1, void *arg2);
+
+int process_mbr_resp_handover_handler(void *arg1, void *arg2);
+
+int process_sess_del_resp_handover_handler(void *arg1, void *arg2);
+
+/* Function */
+int cca_t_msg_handler(void *arg1, void *arg2);

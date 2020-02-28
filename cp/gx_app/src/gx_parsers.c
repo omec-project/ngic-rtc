@@ -6,7 +6,7 @@
 #define IS_AVP(a) (gxDict.a.avp_code == hdr->avp_code)
 
 /*******************************************************************************/
-/* private grouped avp parser function declarations                            */ 
+/* private grouped avp parser function declarations                            */
 /*******************************************************************************/
 static int parseGxExperimentalResult(struct avp *avp, GxExperimentalResult *data);
 static int parseGxPraRemove(struct avp *avp, GxPraRemove *data);
@@ -213,15 +213,15 @@ int gx_rar_parse
         {
             fd_msg_avp_hdr (child_avp, &hdr);
 
-            if (IS_AVP(davp_event_trigger)) { data->event_trigger.list[data->event_trigger.count++] = hdr->avp_value->i32; }
-            else if (IS_AVP(davp_charging_rule_remove)) { FDCHECK_PARSE_DIRECT(parseGxChargingRuleRemove, child_avp, &data->charging_rule_remove.list[data->charging_rule_remove.count++]); }
-            else if (IS_AVP(davp_charging_rule_install)) { FDCHECK_PARSE_DIRECT(parseGxChargingRuleInstall, child_avp, &data->charging_rule_install.list[data->charging_rule_install.count++]); }
-            else if (IS_AVP(davp_qos_information)) { FDCHECK_PARSE_DIRECT(parseGxQosInformation, child_avp, &data->qos_information.list[data->qos_information.count++]); }
-            else if (IS_AVP(davp_usage_monitoring_information)) { FDCHECK_PARSE_DIRECT(parseGxUsageMonitoringInformation, child_avp, &data->usage_monitoring_information.list[data->usage_monitoring_information.count++]); }
-            else if (IS_AVP(davp_conditional_policy_information)) { FDCHECK_PARSE_DIRECT(parseGxConditionalPolicyInformation, child_avp, &data->conditional_policy_information.list[data->conditional_policy_information.count++]); }
-            else if (IS_AVP(davp_csg_information_reporting)) { data->csg_information_reporting.list[data->csg_information_reporting.count++] = hdr->avp_value->i32; }
-            else if (IS_AVP(davp_proxy_info)) { FDCHECK_PARSE_DIRECT(parseGxProxyInfo, child_avp, &data->proxy_info.list[data->proxy_info.count++]); }
-            else if (IS_AVP(davp_route_record)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->route_record.list[data->route_record.count++], GX_ROUTE_RECORD_LEN); }
+            if (IS_AVP(davp_event_trigger)) { data->event_trigger.list[data->event_trigger.count] = hdr->avp_value->i32; data->event_trigger.count++; }
+            else if (IS_AVP(davp_charging_rule_remove)) { FDCHECK_PARSE_DIRECT(parseGxChargingRuleRemove, child_avp, &data->charging_rule_remove.list[data->charging_rule_remove.count]); data->charging_rule_remove.count++; }
+            else if (IS_AVP(davp_charging_rule_install)) { FDCHECK_PARSE_DIRECT(parseGxChargingRuleInstall, child_avp, &data->charging_rule_install.list[data->charging_rule_install.count]); data->charging_rule_install.count++; }
+            else if (IS_AVP(davp_qos_information)) { FDCHECK_PARSE_DIRECT(parseGxQosInformation, child_avp, &data->qos_information.list[data->qos_information.count]); data->qos_information.count++; }
+            else if (IS_AVP(davp_usage_monitoring_information)) { FDCHECK_PARSE_DIRECT(parseGxUsageMonitoringInformation, child_avp, &data->usage_monitoring_information.list[data->usage_monitoring_information.count]); data->usage_monitoring_information.count++; }
+            else if (IS_AVP(davp_conditional_policy_information)) { FDCHECK_PARSE_DIRECT(parseGxConditionalPolicyInformation, child_avp, &data->conditional_policy_information.list[data->conditional_policy_information.count]); data->conditional_policy_information.count++; }
+            else if (IS_AVP(davp_csg_information_reporting)) { data->csg_information_reporting.list[data->csg_information_reporting.count] = hdr->avp_value->i32; data->csg_information_reporting.count++; }
+            else if (IS_AVP(davp_proxy_info)) { FDCHECK_PARSE_DIRECT(parseGxProxyInfo, child_avp, &data->proxy_info.list[data->proxy_info.count]); data->proxy_info.count++; }
+            else if (IS_AVP(davp_route_record)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->route_record.list[data->route_record.count], GX_ROUTE_RECORD_LEN); data->route_record.count++; }
 
             /* get the next child AVP */
             FDCHECK_FCT(fd_msg_browse(child_avp, MSG_BRW_NEXT, &child_avp, NULL), FD_REASON_BROWSE_NEXT_FAIL);
@@ -345,9 +345,9 @@ int gx_raa_parse
         {
             fd_msg_avp_hdr (child_avp, &hdr);
 
-            if (IS_AVP(davp_an_gw_address)) { FD_PARSE_ADDRESS(hdr->avp_value, data->an_gw_address.list[data->an_gw_address.count++]); }
-            else if (IS_AVP(davp_charging_rule_report)) { FDCHECK_PARSE_DIRECT(parseGxChargingRuleReport, child_avp, &data->charging_rule_report.list[data->charging_rule_report.count++]); }
-            else if (IS_AVP(davp_proxy_info)) { FDCHECK_PARSE_DIRECT(parseGxProxyInfo, child_avp, &data->proxy_info.list[data->proxy_info.count++]); }
+            if (IS_AVP(davp_an_gw_address)) { FD_PARSE_ADDRESS(hdr->avp_value, data->an_gw_address.list[data->an_gw_address.count]); data->an_gw_address.count++; }
+            else if (IS_AVP(davp_charging_rule_report)) { FDCHECK_PARSE_DIRECT(parseGxChargingRuleReport, child_avp, &data->charging_rule_report.list[data->charging_rule_report.count]); data->charging_rule_report.count++; }
+            else if (IS_AVP(davp_proxy_info)) { FDCHECK_PARSE_DIRECT(parseGxProxyInfo, child_avp, &data->proxy_info.list[data->proxy_info.count]); data->proxy_info.count++; }
 
             /* get the next child AVP */
             FDCHECK_FCT(fd_msg_browse(child_avp, MSG_BRW_NEXT, &child_avp, NULL), FD_REASON_BROWSE_NEXT_FAIL);
@@ -525,19 +525,19 @@ int gx_cca_parse
         {
             fd_msg_avp_hdr (child_avp, &hdr);
 
-            if (IS_AVP(davp_supported_features)) { FDCHECK_PARSE_DIRECT(parseGxSupportedFeatures, child_avp, &data->supported_features.list[data->supported_features.count++]); }
-            else if (IS_AVP(davp_event_trigger)) { data->event_trigger.list[data->event_trigger.count++] = hdr->avp_value->i32; }
-            else if (IS_AVP(davp_redirect_host)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->redirect_host.list[data->redirect_host.count++], GX_REDIRECT_HOST_LEN); }
-            else if (IS_AVP(davp_charging_rule_remove)) { FDCHECK_PARSE_DIRECT(parseGxChargingRuleRemove, child_avp, &data->charging_rule_remove.list[data->charging_rule_remove.count++]); }
-            else if (IS_AVP(davp_charging_rule_install)) { FDCHECK_PARSE_DIRECT(parseGxChargingRuleInstall, child_avp, &data->charging_rule_install.list[data->charging_rule_install.count++]); }
-            else if (IS_AVP(davp_qos_information)) { FDCHECK_PARSE_DIRECT(parseGxQosInformation, child_avp, &data->qos_information.list[data->qos_information.count++]); }
-            else if (IS_AVP(davp_usage_monitoring_information)) { FDCHECK_PARSE_DIRECT(parseGxUsageMonitoringInformation, child_avp, &data->usage_monitoring_information.list[data->usage_monitoring_information.count++]); }
-            else if (IS_AVP(davp_csg_information_reporting)) { data->csg_information_reporting.list[data->csg_information_reporting.count++] = hdr->avp_value->i32; }
-            else if (IS_AVP(davp_routing_rule_report)) { FDCHECK_PARSE_DIRECT(parseGxRoutingRuleReport, child_avp, &data->routing_rule_report.list[data->routing_rule_report.count++]); }
-            else if (IS_AVP(davp_conditional_policy_information)) { FDCHECK_PARSE_DIRECT(parseGxConditionalPolicyInformation, child_avp, &data->conditional_policy_information.list[data->conditional_policy_information.count++]); }
-            else if (IS_AVP(davp_proxy_info)) { FDCHECK_PARSE_DIRECT(parseGxProxyInfo, child_avp, &data->proxy_info.list[data->proxy_info.count++]); }
-            else if (IS_AVP(davp_route_record)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->route_record.list[data->route_record.count++], GX_ROUTE_RECORD_LEN); }
-            else if (IS_AVP(davp_load)) { FDCHECK_PARSE_DIRECT(parseGxLoad, child_avp, &data->load.list[data->load.count++]); }
+            if (IS_AVP(davp_supported_features)) { FDCHECK_PARSE_DIRECT(parseGxSupportedFeatures, child_avp, &data->supported_features.list[data->supported_features.count]); data->supported_features.count++; }
+            else if (IS_AVP(davp_event_trigger)) { data->event_trigger.list[data->event_trigger.count] = hdr->avp_value->i32; data->event_trigger.count++; }
+            else if (IS_AVP(davp_redirect_host)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->redirect_host.list[data->redirect_host.count], GX_REDIRECT_HOST_LEN); data->redirect_host.count++; }
+            else if (IS_AVP(davp_charging_rule_remove)) { FDCHECK_PARSE_DIRECT(parseGxChargingRuleRemove, child_avp, &data->charging_rule_remove.list[data->charging_rule_remove.count]); data->charging_rule_remove.count++; }
+            else if (IS_AVP(davp_charging_rule_install)) { FDCHECK_PARSE_DIRECT(parseGxChargingRuleInstall, child_avp, &data->charging_rule_install.list[data->charging_rule_install.count]); data->charging_rule_install.count++; }
+            else if (IS_AVP(davp_qos_information)) { FDCHECK_PARSE_DIRECT(parseGxQosInformation, child_avp, &data->qos_information.list[data->qos_information.count]); data->qos_information.count++; }
+            else if (IS_AVP(davp_usage_monitoring_information)) { FDCHECK_PARSE_DIRECT(parseGxUsageMonitoringInformation, child_avp, &data->usage_monitoring_information.list[data->usage_monitoring_information.count]); data->usage_monitoring_information.count++; }
+            else if (IS_AVP(davp_csg_information_reporting)) { data->csg_information_reporting.list[data->csg_information_reporting.count] = hdr->avp_value->i32; data->csg_information_reporting.count++; }
+            else if (IS_AVP(davp_routing_rule_report)) { FDCHECK_PARSE_DIRECT(parseGxRoutingRuleReport, child_avp, &data->routing_rule_report.list[data->routing_rule_report.count]); data->routing_rule_report.count++; }
+            else if (IS_AVP(davp_conditional_policy_information)) { FDCHECK_PARSE_DIRECT(parseGxConditionalPolicyInformation, child_avp, &data->conditional_policy_information.list[data->conditional_policy_information.count]); data->conditional_policy_information.count++; }
+            else if (IS_AVP(davp_proxy_info)) { FDCHECK_PARSE_DIRECT(parseGxProxyInfo, child_avp, &data->proxy_info.list[data->proxy_info.count]); data->proxy_info.count++; }
+            else if (IS_AVP(davp_route_record)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->route_record.list[data->route_record.count], GX_ROUTE_RECORD_LEN); data->route_record.count++; }
+            else if (IS_AVP(davp_load)) { FDCHECK_PARSE_DIRECT(parseGxLoad, child_avp, &data->load.list[data->load.count]); data->load.count++; }
 
             /* get the next child AVP */
             FDCHECK_FCT(fd_msg_browse(child_avp, MSG_BRW_NEXT, &child_avp, NULL), FD_REASON_BROWSE_NEXT_FAIL);
@@ -676,6 +676,8 @@ int gx_ccr_parse
         else if (IS_AVP(davp_origin_host)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->origin_host, GX_ORIGIN_HOST_LEN); data->presence.origin_host=1; }
         else if (IS_AVP(davp_origin_realm)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->origin_realm, GX_ORIGIN_REALM_LEN); data->presence.origin_realm=1; }
         else if (IS_AVP(davp_destination_realm)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->destination_realm, GX_DESTINATION_REALM_LEN); data->presence.destination_realm=1; }
+        else if (IS_AVP(davp_service_context_id)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->service_context_id, GX_SERVICE_CONTEXT_ID_LEN); data->presence.service_context_id=1; }
+        else if (IS_AVP(davp_cc_request_type)) { data->cc_request_type = hdr->avp_value->i32; data->presence.cc_request_type=1; }
         else if (IS_AVP(davp_cc_request_type)) { data->cc_request_type = hdr->avp_value->i32; data->presence.cc_request_type=1; }
         else if (IS_AVP(davp_cc_request_number)) { data->cc_request_number = hdr->avp_value->u32; data->presence.cc_request_number=1; }
         else if (IS_AVP(davp_credit_management_status)) { data->credit_management_status = hdr->avp_value->u32; data->presence.credit_management_status=1; }
@@ -787,21 +789,21 @@ int gx_ccr_parse
         {
             fd_msg_avp_hdr (child_avp, &hdr);
 
-            if (IS_AVP(davp_subscription_id)) { FDCHECK_PARSE_DIRECT(parseGxSubscriptionId, child_avp, &data->subscription_id.list[data->subscription_id.count++]); }
-            else if (IS_AVP(davp_supported_features)) { FDCHECK_PARSE_DIRECT(parseGxSupportedFeatures, child_avp, &data->supported_features.list[data->supported_features.count++]); }
-            else if (IS_AVP(davp_packet_filter_information)) { FDCHECK_PARSE_DIRECT(parseGxPacketFilterInformation, child_avp, &data->packet_filter_information.list[data->packet_filter_information.count++]); }
-            else if (IS_AVP(davp_an_gw_address)) { FD_PARSE_ADDRESS(hdr->avp_value, data->an_gw_address.list[data->an_gw_address.count++]); }
-            else if (IS_AVP(davp_ran_nas_release_cause)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->ran_nas_release_cause.list[data->ran_nas_release_cause.count++], GX_RAN_NAS_RELEASE_CAUSE_LEN); }
-            else if (IS_AVP(davp_tft_packet_filter_information)) { FDCHECK_PARSE_DIRECT(parseGxTftPacketFilterInformation, child_avp, &data->tft_packet_filter_information.list[data->tft_packet_filter_information.count++]); }
-            else if (IS_AVP(davp_charging_rule_report)) { FDCHECK_PARSE_DIRECT(parseGxChargingRuleReport, child_avp, &data->charging_rule_report.list[data->charging_rule_report.count++]); }
-            else if (IS_AVP(davp_application_detection_information)) { FDCHECK_PARSE_DIRECT(parseGxApplicationDetectionInformation, child_avp, &data->application_detection_information.list[data->application_detection_information.count++]); }
-            else if (IS_AVP(davp_event_trigger)) { data->event_trigger.list[data->event_trigger.count++] = hdr->avp_value->i32; }
-            else if (IS_AVP(davp_access_network_charging_identifier_gx)) { FDCHECK_PARSE_DIRECT(parseGxAccessNetworkChargingIdentifierGx, child_avp, &data->access_network_charging_identifier_gx.list[data->access_network_charging_identifier_gx.count++]); }
-            else if (IS_AVP(davp_coa_information)) { FDCHECK_PARSE_DIRECT(parseGxCoaInformation, child_avp, &data->coa_information.list[data->coa_information.count++]); }
-            else if (IS_AVP(davp_usage_monitoring_information)) { FDCHECK_PARSE_DIRECT(parseGxUsageMonitoringInformation, child_avp, &data->usage_monitoring_information.list[data->usage_monitoring_information.count++]); }
-            else if (IS_AVP(davp_presence_reporting_area_information)) { FDCHECK_PARSE_DIRECT(parseGxPresenceReportingAreaInformation, child_avp, &data->presence_reporting_area_information.list[data->presence_reporting_area_information.count++]); }
-            else if (IS_AVP(davp_proxy_info)) { FDCHECK_PARSE_DIRECT(parseGxProxyInfo, child_avp, &data->proxy_info.list[data->proxy_info.count++]); }
-            else if (IS_AVP(davp_route_record)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->route_record.list[data->route_record.count++], GX_ROUTE_RECORD_LEN); }
+            if (IS_AVP(davp_subscription_id)) { FDCHECK_PARSE_DIRECT(parseGxSubscriptionId, child_avp, &data->subscription_id.list[data->subscription_id.count]); data->subscription_id.count++; }
+            else if (IS_AVP(davp_supported_features)) { FDCHECK_PARSE_DIRECT(parseGxSupportedFeatures, child_avp, &data->supported_features.list[data->supported_features.count]); data->supported_features.count++; }
+            else if (IS_AVP(davp_packet_filter_information)) { FDCHECK_PARSE_DIRECT(parseGxPacketFilterInformation, child_avp, &data->packet_filter_information.list[data->packet_filter_information.count]); data->packet_filter_information.count++; }
+            else if (IS_AVP(davp_an_gw_address)) { FD_PARSE_ADDRESS(hdr->avp_value, data->an_gw_address.list[data->an_gw_address.count]); data->an_gw_address.count++; }
+            else if (IS_AVP(davp_ran_nas_release_cause)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->ran_nas_release_cause.list[data->ran_nas_release_cause.count], GX_RAN_NAS_RELEASE_CAUSE_LEN); data->ran_nas_release_cause.count++; }
+            else if (IS_AVP(davp_tft_packet_filter_information)) { FDCHECK_PARSE_DIRECT(parseGxTftPacketFilterInformation, child_avp, &data->tft_packet_filter_information.list[data->tft_packet_filter_information.count]); data->tft_packet_filter_information.count++; }
+            else if (IS_AVP(davp_charging_rule_report)) { FDCHECK_PARSE_DIRECT(parseGxChargingRuleReport, child_avp, &data->charging_rule_report.list[data->charging_rule_report.count]); data->charging_rule_report.count++; }
+            else if (IS_AVP(davp_application_detection_information)) { FDCHECK_PARSE_DIRECT(parseGxApplicationDetectionInformation, child_avp, &data->application_detection_information.list[data->application_detection_information.count]); data->application_detection_information.count++; }
+            else if (IS_AVP(davp_event_trigger)) { data->event_trigger.list[data->event_trigger.count] = hdr->avp_value->i32; data->event_trigger.count++; }
+            else if (IS_AVP(davp_access_network_charging_identifier_gx)) { FDCHECK_PARSE_DIRECT(parseGxAccessNetworkChargingIdentifierGx, child_avp, &data->access_network_charging_identifier_gx.list[data->access_network_charging_identifier_gx.count]); data->access_network_charging_identifier_gx.count++; }
+            else if (IS_AVP(davp_coa_information)) { FDCHECK_PARSE_DIRECT(parseGxCoaInformation, child_avp, &data->coa_information.list[data->coa_information.count]); data->coa_information.count++; }
+            else if (IS_AVP(davp_usage_monitoring_information)) { FDCHECK_PARSE_DIRECT(parseGxUsageMonitoringInformation, child_avp, &data->usage_monitoring_information.list[data->usage_monitoring_information.count]); data->usage_monitoring_information.count++; }
+            else if (IS_AVP(davp_presence_reporting_area_information)) { FDCHECK_PARSE_DIRECT(parseGxPresenceReportingAreaInformation, child_avp, &data->presence_reporting_area_information.list[data->presence_reporting_area_information.count]); data->presence_reporting_area_information.count++; }
+            else if (IS_AVP(davp_proxy_info)) { FDCHECK_PARSE_DIRECT(parseGxProxyInfo, child_avp, &data->proxy_info.list[data->proxy_info.count]); data->proxy_info.count++; }
+            else if (IS_AVP(davp_route_record)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->route_record.list[data->route_record.count], GX_ROUTE_RECORD_LEN); data->route_record.count++; }
 
             /* get the next child AVP */
             FDCHECK_FCT(fd_msg_browse(child_avp, MSG_BRW_NEXT, &child_avp, NULL), FD_REASON_BROWSE_NEXT_FAIL);
@@ -1232,10 +1234,10 @@ static int parseGxExperimentalResult
     /* process list AVP's if any are present */
     if (cnt > 0)
     {
-        
+
         /* iterate through the Experimental-Result child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
@@ -1299,13 +1301,13 @@ static int parseGxPraRemove
 
         /* iterate through the PRA-Remove child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
             fd_msg_avp_hdr (child_avp, &hdr);
 
-            if (IS_AVP(davp_presence_reporting_area_identifier)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->presence_reporting_area_identifier.list[data->presence_reporting_area_identifier.count++], GX_PRESENCE_REPORTING_AREA_IDENTIFIER_LEN); }
+            if (IS_AVP(davp_presence_reporting_area_identifier)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->presence_reporting_area_identifier.list[data->presence_reporting_area_identifier.count], GX_PRESENCE_REPORTING_AREA_IDENTIFIER_LEN); data->presence_reporting_area_identifier.count++; }
 
             /* get the next child AVP */
             FDCHECK_FCT(fd_msg_browse(child_avp, MSG_BRW_NEXT, &child_avp, NULL), FD_REASON_BROWSE_NEXT_FAIL);
@@ -1394,13 +1396,13 @@ static int parseGxQosInformation
 
         /* iterate through the QoS-Information child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
             fd_msg_avp_hdr (child_avp, &hdr);
 
-            if (IS_AVP(davp_conditional_apn_aggregate_max_bitrate)) { FDCHECK_PARSE_DIRECT(parseGxConditionalApnAggregateMaxBitrate, child_avp, &data->conditional_apn_aggregate_max_bitrate.list[data->conditional_apn_aggregate_max_bitrate.count++]); }
+            if (IS_AVP(davp_conditional_apn_aggregate_max_bitrate)) { FDCHECK_PARSE_DIRECT(parseGxConditionalApnAggregateMaxBitrate, child_avp, &data->conditional_apn_aggregate_max_bitrate.list[data->conditional_apn_aggregate_max_bitrate.count]); data->conditional_apn_aggregate_max_bitrate.count++; }
 
             /* get the next child AVP */
             FDCHECK_FCT(fd_msg_browse(child_avp, MSG_BRW_NEXT, &child_avp, NULL), FD_REASON_BROWSE_NEXT_FAIL);
@@ -1471,13 +1473,13 @@ static int parseGxConditionalPolicyInformation
 
         /* iterate through the Conditional-Policy-Information child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
             fd_msg_avp_hdr (child_avp, &hdr);
 
-            if (IS_AVP(davp_conditional_apn_aggregate_max_bitrate)) { FDCHECK_PARSE_DIRECT(parseGxConditionalApnAggregateMaxBitrate, child_avp, &data->conditional_apn_aggregate_max_bitrate.list[data->conditional_apn_aggregate_max_bitrate.count++]); }
+            if (IS_AVP(davp_conditional_apn_aggregate_max_bitrate)) { FDCHECK_PARSE_DIRECT(parseGxConditionalApnAggregateMaxBitrate, child_avp, &data->conditional_apn_aggregate_max_bitrate.list[data->conditional_apn_aggregate_max_bitrate.count]); data->conditional_apn_aggregate_max_bitrate.count++; }
 
             /* get the next child AVP */
             FDCHECK_FCT(fd_msg_browse(child_avp, MSG_BRW_NEXT, &child_avp, NULL), FD_REASON_BROWSE_NEXT_FAIL);
@@ -1536,13 +1538,13 @@ static int parseGxPraInstall
 
         /* iterate through the PRA-Install child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
             fd_msg_avp_hdr (child_avp, &hdr);
 
-            if (IS_AVP(davp_presence_reporting_area_information)) { FDCHECK_PARSE_DIRECT(parseGxPresenceReportingAreaInformation, child_avp, &data->presence_reporting_area_information.list[data->presence_reporting_area_information.count++]); }
+            if (IS_AVP(davp_presence_reporting_area_information)) { FDCHECK_PARSE_DIRECT(parseGxPresenceReportingAreaInformation, child_avp, &data->presence_reporting_area_information.list[data->presence_reporting_area_information.count]); data->presence_reporting_area_information.count++; }
 
             /* get the next child AVP */
             FDCHECK_FCT(fd_msg_browse(child_avp, MSG_BRW_NEXT, &child_avp, NULL), FD_REASON_BROWSE_NEXT_FAIL);
@@ -1613,17 +1615,17 @@ static int parseGxAreaScope
 
         /* iterate through the Area-Scope child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
             fd_msg_avp_hdr (child_avp, &hdr);
 
-            if (IS_AVP(davp_cell_global_identity)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->cell_global_identity.list[data->cell_global_identity.count++], GX_CELL_GLOBAL_IDENTITY_LEN); }
-            else if (IS_AVP(davp_e_utran_cell_global_identity)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->e_utran_cell_global_identity.list[data->e_utran_cell_global_identity.count++], GX_E_UTRAN_CELL_GLOBAL_IDENTITY_LEN); }
-            else if (IS_AVP(davp_routing_area_identity)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->routing_area_identity.list[data->routing_area_identity.count++], GX_ROUTING_AREA_IDENTITY_LEN); }
-            else if (IS_AVP(davp_location_area_identity)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->location_area_identity.list[data->location_area_identity.count++], GX_LOCATION_AREA_IDENTITY_LEN); }
-            else if (IS_AVP(davp_tracking_area_identity)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->tracking_area_identity.list[data->tracking_area_identity.count++], GX_TRACKING_AREA_IDENTITY_LEN); }
+            if (IS_AVP(davp_cell_global_identity)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->cell_global_identity.list[data->cell_global_identity.count], GX_CELL_GLOBAL_IDENTITY_LEN); data->cell_global_identity.count++; }
+            else if (IS_AVP(davp_e_utran_cell_global_identity)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->e_utran_cell_global_identity.list[data->e_utran_cell_global_identity.count], GX_E_UTRAN_CELL_GLOBAL_IDENTITY_LEN); data->e_utran_cell_global_identity.count++; }
+            else if (IS_AVP(davp_routing_area_identity)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->routing_area_identity.list[data->routing_area_identity.count], GX_ROUTING_AREA_IDENTITY_LEN); data->routing_area_identity.count++; }
+            else if (IS_AVP(davp_location_area_identity)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->location_area_identity.list[data->location_area_identity.count], GX_LOCATION_AREA_IDENTITY_LEN); data->location_area_identity.count++; }
+            else if (IS_AVP(davp_tracking_area_identity)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->tracking_area_identity.list[data->tracking_area_identity.count], GX_TRACKING_AREA_IDENTITY_LEN); data->tracking_area_identity.count++; }
 
             /* get the next child AVP */
             FDCHECK_FCT(fd_msg_browse(child_avp, MSG_BRW_NEXT, &child_avp, NULL), FD_REASON_BROWSE_NEXT_FAIL);
@@ -1692,10 +1694,10 @@ static int parseGxFlowInformation
     /* process list AVP's if any are present */
     if (cnt > 0)
     {
-        
+
         /* iterate through the Flow-Information child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
@@ -1760,13 +1762,13 @@ static int parseGxTunnelInformation
 
         /* iterate through the Tunnel-Information child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
             fd_msg_avp_hdr (child_avp, &hdr);
 
-            if (IS_AVP(davp_tunnel_header_filter)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->tunnel_header_filter.list[data->tunnel_header_filter.count++], GX_TUNNEL_HEADER_FILTER_LEN); }
+            if (IS_AVP(davp_tunnel_header_filter)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->tunnel_header_filter.list[data->tunnel_header_filter.count], GX_TUNNEL_HEADER_FILTER_LEN); data->tunnel_header_filter.count++; }
 
             /* get the next child AVP */
             FDCHECK_FCT(fd_msg_browse(child_avp, MSG_BRW_NEXT, &child_avp, NULL), FD_REASON_BROWSE_NEXT_FAIL);
@@ -1831,10 +1833,10 @@ static int parseGxTftPacketFilterInformation
     /* process list AVP's if any are present */
     if (cnt > 0)
     {
-        
+
         /* iterate through the TFT-Packet-Filter-Information child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
@@ -1896,10 +1898,10 @@ static int parseGxMbsfnArea
     /* process list AVP's if any are present */
     if (cnt > 0)
     {
-        
+
         /* iterate through the MBSFN-Area child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
@@ -2004,14 +2006,14 @@ static int parseGxEventReportIndication
 
         /* iterate through the Event-Report-Indication child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
             fd_msg_avp_hdr (child_avp, &hdr);
 
-            if (IS_AVP(davp_event_trigger)) { data->event_trigger.list[data->event_trigger.count++] = hdr->avp_value->i32; }
-            else if (IS_AVP(davp_an_gw_address)) { FD_PARSE_ADDRESS(hdr->avp_value, data->an_gw_address.list[data->an_gw_address.count++]); }
+            if (IS_AVP(davp_event_trigger)) { data->event_trigger.list[data->event_trigger.count] = hdr->avp_value->i32; data->event_trigger.count++; }
+            else if (IS_AVP(davp_an_gw_address)) { FD_PARSE_ADDRESS(hdr->avp_value, data->an_gw_address.list[data->an_gw_address.count]); data->an_gw_address.count++; }
 
             /* get the next child AVP */
             FDCHECK_FCT(fd_msg_browse(child_avp, MSG_BRW_NEXT, &child_avp, NULL), FD_REASON_BROWSE_NEXT_FAIL);
@@ -2069,10 +2071,10 @@ static int parseGxTdfInformation
     /* process list AVP's if any are present */
     if (cnt > 0)
     {
-        
+
         /* iterate through the TDF-Information child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
@@ -2134,10 +2136,10 @@ static int parseGxProxyInfo
     /* process list AVP's if any are present */
     if (cnt > 0)
     {
-        
+
         /* iterate through the Proxy-Info child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
@@ -2217,13 +2219,13 @@ static int parseGxUsedServiceUnit
 
         /* iterate through the Used-Service-Unit child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
             fd_msg_avp_hdr (child_avp, &hdr);
 
-            if (IS_AVP(davp_event_charging_timestamp)) { FD_PARSE_TIME(hdr->avp_value, data->event_charging_timestamp.list[data->event_charging_timestamp.count++]); }
+            if (IS_AVP(davp_event_charging_timestamp)) { FD_PARSE_TIME(hdr->avp_value, data->event_charging_timestamp.list[data->event_charging_timestamp.count]); data->event_charging_timestamp.count++; }
 
             /* get the next child AVP */
             FDCHECK_FCT(fd_msg_browse(child_avp, MSG_BRW_NEXT, &child_avp, NULL), FD_REASON_BROWSE_NEXT_FAIL);
@@ -2302,15 +2304,15 @@ static int parseGxChargingRuleInstall
 
         /* iterate through the Charging-Rule-Install child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
             fd_msg_avp_hdr (child_avp, &hdr);
 
-            if (IS_AVP(davp_charging_rule_definition)) { FDCHECK_PARSE_DIRECT(parseGxChargingRuleDefinition, child_avp, &data->charging_rule_definition.list[data->charging_rule_definition.count++]); }
-            else if (IS_AVP(davp_charging_rule_name)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->charging_rule_name.list[data->charging_rule_name.count++], GX_CHARGING_RULE_NAME_LEN); }
-            else if (IS_AVP(davp_charging_rule_base_name)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->charging_rule_base_name.list[data->charging_rule_base_name.count++], GX_CHARGING_RULE_BASE_NAME_LEN); }
+            if (IS_AVP(davp_charging_rule_definition)) { FDCHECK_PARSE_DIRECT(parseGxChargingRuleDefinition, child_avp, &data->charging_rule_definition.list[data->charging_rule_definition.count]); data->charging_rule_definition.count++; }
+            else if (IS_AVP(davp_charging_rule_name)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->charging_rule_name.list[data->charging_rule_name.count], GX_CHARGING_RULE_NAME_LEN); data->charging_rule_name.count++; }
+            else if (IS_AVP(davp_charging_rule_base_name)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->charging_rule_base_name.list[data->charging_rule_base_name.count], GX_CHARGING_RULE_BASE_NAME_LEN); data->charging_rule_base_name.count++; }
 
             /* get the next child AVP */
             FDCHECK_FCT(fd_msg_browse(child_avp, MSG_BRW_NEXT, &child_avp, NULL), FD_REASON_BROWSE_NEXT_FAIL);
@@ -2429,15 +2431,15 @@ static int parseGxChargingRuleDefinition
 
         /* iterate through the Charging-Rule-Definition child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
             fd_msg_avp_hdr (child_avp, &hdr);
 
-            if (IS_AVP(davp_flow_information)) { FDCHECK_PARSE_DIRECT(parseGxFlowInformation, child_avp, &data->flow_information.list[data->flow_information.count++]); }
-            else if (IS_AVP(davp_flows)) { FDCHECK_PARSE_DIRECT(parseGxFlows, child_avp, &data->flows.list[data->flows.count++]); }
-            else if (IS_AVP(davp_required_access_info)) { data->required_access_info.list[data->required_access_info.count++] = hdr->avp_value->i32; }
+            if (IS_AVP(davp_flow_information)) { FDCHECK_PARSE_DIRECT(parseGxFlowInformation, child_avp, &data->flow_information.list[data->flow_information.count]); data->flow_information.count++; }
+            else if (IS_AVP(davp_flows)) { FDCHECK_PARSE_DIRECT(parseGxFlows, child_avp, &data->flows.list[data->flows.count]); data->flows.count++; }
+            else if (IS_AVP(davp_required_access_info)) { data->required_access_info.list[data->required_access_info.count] = hdr->avp_value->i32; data->required_access_info.count++; }
 
             /* get the next child AVP */
             FDCHECK_FCT(fd_msg_browse(child_avp, MSG_BRW_NEXT, &child_avp, NULL), FD_REASON_BROWSE_NEXT_FAIL);
@@ -2502,14 +2504,14 @@ static int parseGxFinalUnitIndication
 
         /* iterate through the Final-Unit-Indication child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
             fd_msg_avp_hdr (child_avp, &hdr);
 
-            if (IS_AVP(davp_restriction_filter_rule)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->restriction_filter_rule.list[data->restriction_filter_rule.count++], GX_RESTRICTION_FILTER_RULE_LEN); }
-            else if (IS_AVP(davp_filter_id)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->filter_id.list[data->filter_id.count++], GX_FILTER_ID_LEN); }
+            if (IS_AVP(davp_restriction_filter_rule)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->restriction_filter_rule.list[data->restriction_filter_rule.count], GX_RESTRICTION_FILTER_RULE_LEN); data->restriction_filter_rule.count++; }
+            else if (IS_AVP(davp_filter_id)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->filter_id.list[data->filter_id.count], GX_FILTER_ID_LEN); data->filter_id.count++; }
 
             /* get the next child AVP */
             FDCHECK_FCT(fd_msg_browse(child_avp, MSG_BRW_NEXT, &child_avp, NULL), FD_REASON_BROWSE_NEXT_FAIL);
@@ -2565,10 +2567,10 @@ static int parseGxUnitValue
     /* process list AVP's if any are present */
     if (cnt > 0)
     {
-        
+
         /* iterate through the Unit-Value child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
@@ -2634,10 +2636,10 @@ static int parseGxPresenceReportingAreaInformation
     /* process list AVP's if any are present */
     if (cnt > 0)
     {
-        
+
         /* iterate through the Presence-Reporting-Area-Information child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
@@ -2712,14 +2714,14 @@ static int parseGxConditionalApnAggregateMaxBitrate
 
         /* iterate through the Conditional-APN-Aggregate-Max-Bitrate child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
             fd_msg_avp_hdr (child_avp, &hdr);
 
-            if (IS_AVP(davp_ip_can_type)) { data->ip_can_type.list[data->ip_can_type.count++] = hdr->avp_value->i32; }
-            else if (IS_AVP(davp_rat_type)) { data->rat_type.list[data->rat_type.count++] = hdr->avp_value->i32; }
+            if (IS_AVP(davp_ip_can_type)) { data->ip_can_type.list[data->ip_can_type.count] = hdr->avp_value->i32; data->ip_can_type.count++; }
+            else if (IS_AVP(davp_rat_type)) { data->rat_type.list[data->rat_type.count] = hdr->avp_value->i32; data->rat_type.count++; }
 
             /* get the next child AVP */
             FDCHECK_FCT(fd_msg_browse(child_avp, MSG_BRW_NEXT, &child_avp, NULL), FD_REASON_BROWSE_NEXT_FAIL);
@@ -2785,14 +2787,14 @@ static int parseGxAccessNetworkChargingIdentifierGx
 
         /* iterate through the Access-Network-Charging-Identifier-Gx child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
             fd_msg_avp_hdr (child_avp, &hdr);
 
-            if (IS_AVP(davp_charging_rule_base_name)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->charging_rule_base_name.list[data->charging_rule_base_name.count++], GX_CHARGING_RULE_BASE_NAME_LEN); }
-            else if (IS_AVP(davp_charging_rule_name)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->charging_rule_name.list[data->charging_rule_name.count++], GX_CHARGING_RULE_NAME_LEN); }
+            if (IS_AVP(davp_charging_rule_base_name)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->charging_rule_base_name.list[data->charging_rule_base_name.count], GX_CHARGING_RULE_BASE_NAME_LEN); data->charging_rule_base_name.count++; }
+            else if (IS_AVP(davp_charging_rule_name)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->charging_rule_name.list[data->charging_rule_name.count], GX_CHARGING_RULE_NAME_LEN); data->charging_rule_name.count++; }
 
             /* get the next child AVP */
             FDCHECK_FCT(fd_msg_browse(child_avp, MSG_BRW_NEXT, &child_avp, NULL), FD_REASON_BROWSE_NEXT_FAIL);
@@ -2853,10 +2855,10 @@ static int parseGxOcOlr
     /* process list AVP's if any are present */
     if (cnt > 0)
     {
-        
+
         /* iterate through the OC-OLR child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
@@ -2920,13 +2922,13 @@ static int parseGxRoutingRuleInstall
 
         /* iterate through the Routing-Rule-Install child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
             fd_msg_avp_hdr (child_avp, &hdr);
 
-            if (IS_AVP(davp_routing_rule_definition)) { FDCHECK_PARSE_DIRECT(parseGxRoutingRuleDefinition, child_avp, &data->routing_rule_definition.list[data->routing_rule_definition.count++]); }
+            if (IS_AVP(davp_routing_rule_definition)) { FDCHECK_PARSE_DIRECT(parseGxRoutingRuleDefinition, child_avp, &data->routing_rule_definition.list[data->routing_rule_definition.count]); data->routing_rule_definition.count++; }
 
             /* get the next child AVP */
             FDCHECK_FCT(fd_msg_browse(child_avp, MSG_BRW_NEXT, &child_avp, NULL), FD_REASON_BROWSE_NEXT_FAIL);
@@ -2995,10 +2997,10 @@ static int parseGxTraceData
     /* process list AVP's if any are present */
     if (cnt > 0)
     {
-        
+
         /* iterate through the Trace-Data child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
@@ -3070,13 +3072,13 @@ static int parseGxRoutingRuleDefinition
 
         /* iterate through the Routing-Rule-Definition child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
             fd_msg_avp_hdr (child_avp, &hdr);
 
-            if (IS_AVP(davp_routing_filter)) { FDCHECK_PARSE_DIRECT(parseGxRoutingFilter, child_avp, &data->routing_filter.list[data->routing_filter.count++]); }
+            if (IS_AVP(davp_routing_filter)) { FDCHECK_PARSE_DIRECT(parseGxRoutingFilter, child_avp, &data->routing_filter.list[data->routing_filter.count]); data->routing_filter.count++; }
 
             /* get the next child AVP */
             FDCHECK_FCT(fd_msg_browse(child_avp, MSG_BRW_NEXT, &child_avp, NULL), FD_REASON_BROWSE_NEXT_FAIL);
@@ -3174,14 +3176,14 @@ static int parseGxMdtConfiguration
 
         /* iterate through the MDT-Configuration child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
             fd_msg_avp_hdr (child_avp, &hdr);
 
-            if (IS_AVP(davp_mdt_allowed_plmn_id)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->mdt_allowed_plmn_id.list[data->mdt_allowed_plmn_id.count++], GX_MDT_ALLOWED_PLMN_ID_LEN); }
-            else if (IS_AVP(davp_mbsfn_area)) { FDCHECK_PARSE_DIRECT(parseGxMbsfnArea, child_avp, &data->mbsfn_area.list[data->mbsfn_area.count++]); }
+            if (IS_AVP(davp_mdt_allowed_plmn_id)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->mdt_allowed_plmn_id.list[data->mdt_allowed_plmn_id.count], GX_MDT_ALLOWED_PLMN_ID_LEN); data->mdt_allowed_plmn_id.count++; }
+            else if (IS_AVP(davp_mbsfn_area)) { FDCHECK_PARSE_DIRECT(parseGxMbsfnArea, child_avp, &data->mbsfn_area.list[data->mbsfn_area.count]); data->mbsfn_area.count++; }
 
             /* get the next child AVP */
             FDCHECK_FCT(fd_msg_browse(child_avp, MSG_BRW_NEXT, &child_avp, NULL), FD_REASON_BROWSE_NEXT_FAIL);
@@ -3248,15 +3250,15 @@ static int parseGxChargingRuleRemove
 
         /* iterate through the Charging-Rule-Remove child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
             fd_msg_avp_hdr (child_avp, &hdr);
 
-            if (IS_AVP(davp_charging_rule_name)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->charging_rule_name.list[data->charging_rule_name.count++], GX_CHARGING_RULE_NAME_LEN); }
-            else if (IS_AVP(davp_charging_rule_base_name)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->charging_rule_base_name.list[data->charging_rule_base_name.count++], GX_CHARGING_RULE_BASE_NAME_LEN); }
-            else if (IS_AVP(davp_required_access_info)) { data->required_access_info.list[data->required_access_info.count++] = hdr->avp_value->i32; }
+            if (IS_AVP(davp_charging_rule_name)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->charging_rule_name.list[data->charging_rule_name.count], GX_CHARGING_RULE_NAME_LEN); data->charging_rule_name.count++; }
+            else if (IS_AVP(davp_charging_rule_base_name)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->charging_rule_base_name.list[data->charging_rule_base_name.count], GX_CHARGING_RULE_BASE_NAME_LEN); data->charging_rule_base_name.count++; }
+            else if (IS_AVP(davp_required_access_info)) { data->required_access_info.list[data->required_access_info.count] = hdr->avp_value->i32; data->required_access_info.count++; }
 
             /* get the next child AVP */
             FDCHECK_FCT(fd_msg_browse(child_avp, MSG_BRW_NEXT, &child_avp, NULL), FD_REASON_BROWSE_NEXT_FAIL);
@@ -3314,10 +3316,10 @@ static int parseGxAllocationRetentionPriority
     /* process list AVP's if any are present */
     if (cnt > 0)
     {
-        
+
         /* iterate through the Allocation-Retention-Priority child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
@@ -3379,10 +3381,10 @@ static int parseGxDefaultEpsBearerQos
     /* process list AVP's if any are present */
     if (cnt > 0)
     {
-        
+
         /* iterate through the Default-EPS-Bearer-QoS child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
@@ -3450,13 +3452,13 @@ static int parseGxRoutingRuleReport
 
         /* iterate through the Routing-Rule-Report child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
             fd_msg_avp_hdr (child_avp, &hdr);
 
-            if (IS_AVP(davp_routing_rule_identifier)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->routing_rule_identifier.list[data->routing_rule_identifier.count++], GX_ROUTING_RULE_IDENTIFIER_LEN); }
+            if (IS_AVP(davp_routing_rule_identifier)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->routing_rule_identifier.list[data->routing_rule_identifier.count], GX_ROUTING_RULE_IDENTIFIER_LEN); data->routing_rule_identifier.count++; }
 
             /* get the next child AVP */
             FDCHECK_FCT(fd_msg_browse(child_avp, MSG_BRW_NEXT, &child_avp, NULL), FD_REASON_BROWSE_NEXT_FAIL);
@@ -3512,10 +3514,10 @@ static int parseGxUserEquipmentInfo
     /* process list AVP's if any are present */
     if (cnt > 0)
     {
-        
+
         /* iterate through the User-Equipment-Info child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
@@ -3579,10 +3581,10 @@ static int parseGxSupportedFeatures
     /* process list AVP's if any are present */
     if (cnt > 0)
     {
-        
+
         /* iterate through the Supported-Features child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
@@ -3648,10 +3650,10 @@ static int parseGxFixedUserLocationInfo
     /* process list AVP's if any are present */
     if (cnt > 0)
     {
-        
+
         /* iterate through the Fixed-User-Location-Info child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
@@ -3717,10 +3719,10 @@ static int parseGxDefaultQosInformation
     /* process list AVP's if any are present */
     if (cnt > 0)
     {
-        
+
         /* iterate through the Default-QoS-Information child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
@@ -3784,10 +3786,10 @@ static int parseGxLoad
     /* process list AVP's if any are present */
     if (cnt > 0)
     {
-        
+
         /* iterate through the Load child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
@@ -3848,10 +3850,10 @@ static int parseGxRedirectServer
     /* process list AVP's if any are present */
     if (cnt > 0)
     {
-        
+
         /* iterate through the Redirect-Server child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
@@ -3911,10 +3913,10 @@ static int parseGxOcSupportedFeatures
     /* process list AVP's if any are present */
     if (cnt > 0)
     {
-        
+
         /* iterate through the OC-Supported-Features child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
@@ -3986,10 +3988,10 @@ static int parseGxPacketFilterInformation
     /* process list AVP's if any are present */
     if (cnt > 0)
     {
-        
+
         /* iterate through the Packet-Filter-Information child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
@@ -4050,10 +4052,10 @@ static int parseGxSubscriptionId
     /* process list AVP's if any are present */
     if (cnt > 0)
     {
-        
+
         /* iterate through the Subscription-Id child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
@@ -4119,10 +4121,10 @@ static int parseGxChargingInformation
     /* process list AVP's if any are present */
     if (cnt > 0)
     {
-        
+
         /* iterate through the Charging-Information child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
@@ -4199,14 +4201,14 @@ static int parseGxUsageMonitoringInformation
 
         /* iterate through the Usage-Monitoring-Information child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
             fd_msg_avp_hdr (child_avp, &hdr);
 
-            if (IS_AVP(davp_granted_service_unit)) { FDCHECK_PARSE_DIRECT(parseGxGrantedServiceUnit, child_avp, &data->granted_service_unit.list[data->granted_service_unit.count++]); }
-            else if (IS_AVP(davp_used_service_unit)) { FDCHECK_PARSE_DIRECT(parseGxUsedServiceUnit, child_avp, &data->used_service_unit.list[data->used_service_unit.count++]); }
+            if (IS_AVP(davp_granted_service_unit)) { FDCHECK_PARSE_DIRECT(parseGxGrantedServiceUnit, child_avp, &data->granted_service_unit.list[data->granted_service_unit.count]); data->granted_service_unit.count++; }
+            else if (IS_AVP(davp_used_service_unit)) { FDCHECK_PARSE_DIRECT(parseGxUsedServiceUnit, child_avp, &data->used_service_unit.list[data->used_service_unit.count]); data->used_service_unit.count++; }
 
             /* get the next child AVP */
             FDCHECK_FCT(fd_msg_browse(child_avp, MSG_BRW_NEXT, &child_avp, NULL), FD_REASON_BROWSE_NEXT_FAIL);
@@ -4282,16 +4284,16 @@ static int parseGxChargingRuleReport
 
         /* iterate through the Charging-Rule-Report child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
             fd_msg_avp_hdr (child_avp, &hdr);
 
-            if (IS_AVP(davp_charging_rule_name)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->charging_rule_name.list[data->charging_rule_name.count++], GX_CHARGING_RULE_NAME_LEN); }
-            else if (IS_AVP(davp_charging_rule_base_name)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->charging_rule_base_name.list[data->charging_rule_base_name.count++], GX_CHARGING_RULE_BASE_NAME_LEN); }
-            else if (IS_AVP(davp_ran_nas_release_cause)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->ran_nas_release_cause.list[data->ran_nas_release_cause.count++], GX_RAN_NAS_RELEASE_CAUSE_LEN); }
-            else if (IS_AVP(davp_content_version)) { data->content_version.list[data->content_version.count++] = hdr->avp_value->u64; }
+            if (IS_AVP(davp_charging_rule_name)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->charging_rule_name.list[data->charging_rule_name.count], GX_CHARGING_RULE_NAME_LEN); data->charging_rule_name.count++; }
+            else if (IS_AVP(davp_charging_rule_base_name)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->charging_rule_base_name.list[data->charging_rule_base_name.count], GX_CHARGING_RULE_BASE_NAME_LEN); data->charging_rule_base_name.count++; }
+            else if (IS_AVP(davp_ran_nas_release_cause)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->ran_nas_release_cause.list[data->ran_nas_release_cause.count], GX_RAN_NAS_RELEASE_CAUSE_LEN); data->ran_nas_release_cause.count++; }
+            else if (IS_AVP(davp_content_version)) { data->content_version.list[data->content_version.count] = hdr->avp_value->u64; data->content_version.count++; }
 
             /* get the next child AVP */
             FDCHECK_FCT(fd_msg_browse(child_avp, MSG_BRW_NEXT, &child_avp, NULL), FD_REASON_BROWSE_NEXT_FAIL);
@@ -4350,10 +4352,10 @@ static int parseGxRedirectInformation
     /* process list AVP's if any are present */
     if (cnt > 0)
     {
-        
+
         /* iterate through the Redirect-Information child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
@@ -4411,10 +4413,10 @@ static int parseGxFailedAvp
     /* process list AVP's if any are present */
     if (cnt > 0)
     {
-        
+
         /* iterate through the Failed-AVP child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
@@ -4478,13 +4480,13 @@ static int parseGxRoutingRuleRemove
 
         /* iterate through the Routing-Rule-Remove child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
             fd_msg_avp_hdr (child_avp, &hdr);
 
-            if (IS_AVP(davp_routing_rule_identifier)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->routing_rule_identifier.list[data->routing_rule_identifier.count++], GX_ROUTING_RULE_IDENTIFIER_LEN); }
+            if (IS_AVP(davp_routing_rule_identifier)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->routing_rule_identifier.list[data->routing_rule_identifier.count], GX_ROUTING_RULE_IDENTIFIER_LEN); data->routing_rule_identifier.count++; }
 
             /* get the next child AVP */
             FDCHECK_FCT(fd_msg_browse(child_avp, MSG_BRW_NEXT, &child_avp, NULL), FD_REASON_BROWSE_NEXT_FAIL);
@@ -4547,10 +4549,10 @@ static int parseGxRoutingFilter
     /* process list AVP's if any are present */
     if (cnt > 0)
     {
-        
+
         /* iterate through the Routing-Filter child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
@@ -4612,10 +4614,10 @@ static int parseGxCoaInformation
     /* process list AVP's if any are present */
     if (cnt > 0)
     {
-        
+
         /* iterate through the CoA-Information child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
@@ -4687,10 +4689,10 @@ static int parseGxGrantedServiceUnit
     /* process list AVP's if any are present */
     if (cnt > 0)
     {
-        
+
         /* iterate through the Granted-Service-Unit child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
@@ -4751,10 +4753,10 @@ static int parseGxCcMoney
     /* process list AVP's if any are present */
     if (cnt > 0)
     {
-        
+
         /* iterate through the CC-Money child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
@@ -4822,13 +4824,13 @@ static int parseGxApplicationDetectionInformation
 
         /* iterate through the Application-Detection-Information child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
             fd_msg_avp_hdr (child_avp, &hdr);
 
-            if (IS_AVP(davp_flow_information)) { FDCHECK_PARSE_DIRECT(parseGxFlowInformation, child_avp, &data->flow_information.list[data->flow_information.count++]); }
+            if (IS_AVP(davp_flow_information)) { FDCHECK_PARSE_DIRECT(parseGxFlowInformation, child_avp, &data->flow_information.list[data->flow_information.count]); data->flow_information.count++; }
 
             /* get the next child AVP */
             FDCHECK_FCT(fd_msg_browse(child_avp, MSG_BRW_NEXT, &child_avp, NULL), FD_REASON_BROWSE_NEXT_FAIL);
@@ -4896,14 +4898,14 @@ static int parseGxFlows
 
         /* iterate through the Flows child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {
             fd_msg_avp_hdr (child_avp, &hdr);
 
-            if (IS_AVP(davp_flow_number)) { data->flow_number.list[data->flow_number.count++] = hdr->avp_value->u32; }
-            else if (IS_AVP(davp_content_version)) { data->content_version.list[data->content_version.count++] = hdr->avp_value->u64; }
+            if (IS_AVP(davp_flow_number)) { data->flow_number.list[data->flow_number.count] = hdr->avp_value->u32; data->flow_number.count++; }
+            else if (IS_AVP(davp_content_version)) { data->content_version.list[data->content_version.count] = hdr->avp_value->u64; data->content_version.count++; }
 
             /* get the next child AVP */
             FDCHECK_FCT(fd_msg_browse(child_avp, MSG_BRW_NEXT, &child_avp, NULL), FD_REASON_BROWSE_NEXT_FAIL);
@@ -4961,10 +4963,10 @@ static int parseGxUserCsgInformation
     /* process list AVP's if any are present */
     if (cnt > 0)
     {
-        
+
         /* iterate through the User-CSG-Information child AVP's */
         FDCHECK_FCT(fd_msg_browse(avp, MSG_BRW_FIRST_CHILD, &child_avp, NULL), FD_REASON_BROWSE_FIRST_FAIL);
-    
+
         /* keep going until there are no more child AVP's */
         while (child_avp)
         {

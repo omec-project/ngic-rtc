@@ -47,6 +47,7 @@ if [ "${SPGW_CFG}" == "01" ]; then
 				--ul_iface $UL_IFACE	\
 				--dl_iface $S5S8_IFACE	\
 				--kni_portmask $KNI_PORTMASK \
+				--teidri $TEIDRI \
 				--transmit_timer $TRANSMIT_TIMER	\
 				--periodic_timer $PERIODIC_TIMER \
 				--transmit_count $TRANSMIT_COUNT"
@@ -67,6 +68,7 @@ elif [ "${SPGW_CFG}" == "02" ]; then
 				--ul_iface $S5S8_IFACE	\
 				--dl_iface $DL_IFACE	\
 				--kni_portmask $KNI_PORTMASK \
+				--teidri $TEIDRI \
 				--transmit_timer $TRANSMIT_TIMER	\
 				--periodic_timer $PERIODIC_TIMER \
 				--transmit_count $TRANSMIT_COUNT"
@@ -89,6 +91,7 @@ elif [ "${SPGW_CFG}" == "03" ]; then
 				--ul_iface $UL_IFACE	\
 				--dl_iface $DL_IFACE	\
 				--kni_portmask $KNI_PORTMASK \
+				--teidri $TEIDRI \
 				--transmit_timer $TRANSMIT_TIMER	\
 				--periodic_timer $PERIODIC_TIMER \
 				--transmit_count $TRANSMIT_COUNT"

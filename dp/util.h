@@ -22,7 +22,11 @@
 #include <rte_mbuf.h>
 #include <rte_udp.h>
 
-#include "vepc_cp_dp_api.h"
+#ifdef DP_BUILD
+#include "up_main.h"
+#else
+#include "main.h"
+#endif /* DP_BUILD */
 /**
  * @file
  * This file contains macros, data structure definitions and function

@@ -5,9 +5,8 @@
 THIRD_PARTY_SW_PATH="third_party"
 OSS_UTIL_DIR="oss-util"
 C3PO_OSS_DIR="oss_adapter/c3po_oss"
-OSS_UTIL_GIT_LINK="http://gsgit.gslab.com/Sprint-Repos/oss-util.git"
-FREEDIAMETER="https://github.com/omec-project/freediameter.git"
-FREEDIAMETER_BRANCH="master"
+OSS_UTIL_GIT_LINK="http://10.155.205.206/C3PO-NGIC/oss-util.git"
+FREEDIAMETER="http://10.155.205.206/C3PO-NGIC/freeDiameter.git"
 
 SERVICES="$1"
 SUDO=''
@@ -92,12 +91,12 @@ download_freediameter()
 {
         cd $CUR_DIR
         [ -d $DEPS_DIR/freediameter ] && echo "FreeDiameter already exists at $DEPS_DIR/freediameter" && return
-        echo "Download FreeDiameter from OMEC....."
+        echo "Download FreeDiameter from sprint-repos....."
         if [ ! -d $THIRD_PARTY_SW_PATH ]; then
              mkdir $THIRD_PARTY_SW_PATH
         fi
         pushd $THIRD_PARTY_SW_PATH
-        git clone --branch $FREEDIAMETER_BRANCH $FREEDIAMETER
+        git clone $FREEDIAMETER
         if [ $? -ne 0 ] ; then
                         echo "Failed to clone FreeDiameter, please check the errors."
                         return
@@ -159,7 +158,7 @@ build_fd_gxapp()
 {
 	echo "Building FreeDiameter ..."
 	build_fd_lib
-
+        ldconfig 
 	echo "Building GxAPP ..."
 	build_gxapp
 }
@@ -193,14 +192,14 @@ install_build_deps() {
        install_dpdk
        if [[ $SERVICES == "CP" ]] || [[ $SERVICES == "cp" ]]; then
 	    install_oss_util
-	    download_freediameter
+#	    download_freediameter
             build_libgtpcv2c 
             build_fd_gxapp
        elif [[ $SERVICES == "DP" ]] || [[ $SERVICES == "dp" ]]; then
             download_hyperscan  
        else
             download_hyperscan
-            download_freediameter
+#            download_freediameter
             install_oss_util
             build_libgtpcv2c 
             build_fd_gxapp
