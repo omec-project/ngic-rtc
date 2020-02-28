@@ -211,17 +211,28 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 
 		 } else if (strncmp(CP_LOGGER, global_entries[i].name, strlen(CP_LOGGER)) == 0) {
 			 pfcp_config->cp_logger = (uint8_t)atoi(global_entries[i].value);
+			 fprintf(stderr, "CP: CP_LOGGER: %d\n",
+					pfcp_config->cp_logger);
 		 }
 
 		/* Parse timer and counter values from cp.cfg */
-		if(strncmp(TRANSMIT_TIMER, global_entries[i].name, strlen(TRANSMIT_TIMER)) == 0)
+		if(strncmp(TRANSMIT_TIMER, global_entries[i].name, strlen(TRANSMIT_TIMER)) == 0) {
 			pfcp_config->transmit_timer = (int)atoi(global_entries[i].value);
+			fprintf(stderr, "CP: TRANSMIT_TIMER: %d\n",
+				pfcp_config->transmit_timer);
+		}
 
-		if(strncmp(PERIODIC_TIMER, global_entries[i].name, strlen(PERIODIC_TIMER)) == 0)
+		if(strncmp(PERIODIC_TIMER, global_entries[i].name, strlen(PERIODIC_TIMER)) == 0) {
 			pfcp_config->periodic_timer = (int)atoi(global_entries[i].value);
+			fprintf(stderr, "CP: PERIODIC_TIMER: %d\n",
+				pfcp_config->periodic_timer);
+		}
 
-		if(strncmp(TRANSMIT_COUNT, global_entries[i].name, strlen(TRANSMIT_COUNT)) == 0)
+		if(strncmp(TRANSMIT_COUNT, global_entries[i].name, strlen(TRANSMIT_COUNT)) == 0) {
 			pfcp_config->transmit_cnt = (uint8_t)atoi(global_entries[i].value);
+			fprintf(stderr, "CP: TRANSMIT_COUNT: %u\n",
+				pfcp_config->transmit_cnt);
+		}
 
 		/* Parse CP Timer Request Time Out and Retries Values from cp.cfg */
 		if(strncmp(REQUEST_TIMEOUT, global_entries[i].name, strlen(REQUEST_TIMEOUT)) == 0){
@@ -239,6 +250,8 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 			/* 5 minute = 300000 milisecond  */
 			if(pfcp_config->request_timeout == 0) {
 				pfcp_config->request_timeout = 300000;
+				fprintf(stderr, "CP: DEFAULT REQUEST_TIMEOUT: %d\n",
+					pfcp_config->request_timeout);
 			}
 		}
 
@@ -257,6 +270,8 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
                         /* Defualt Request Retries value */
 			if(pfcp_config->request_tries == 0) {
 				pfcp_config->request_tries = 3;
+				fprintf(stderr, "CP: DEFAULT REQUEST_TRIES: %d\n",
+					pfcp_config->request_tries);
 			}
 		}
 	}
