@@ -188,7 +188,7 @@ parse_arg(int argc, char **argv)
 	  {"log_level",   required_argument, NULL, 'l'},
 	  {"pcap_file_in", required_argument, NULL, 'x'},
 	  {"pcap_file_out", required_argument, NULL, 'y'},
-      {"config_update_base_folder",optional_argument, NULL, 'f'},
+	  {"config_update_base_folder",optional_argument, NULL, 'f'},
 	  {0, 0, 0, 0}
 	};
 
@@ -256,24 +256,24 @@ parse_arg(int argc, char **argv)
 			pcap_dumper = pcap_dump_open(pcap, optarg);
 			s11_pcap_fd = pcap_fileno(pcap);
 			break;
-        case 'f':
-           config_update_base_folder = calloc(1, 128); 
-           strcpy(config_update_base_folder, optarg); 
-           break;
-
+		case 'f':
+			config_update_base_folder = calloc(1, 128);
+			strcpy(config_update_base_folder, optarg);
+			break;
 		default:
 			rte_panic("Unknown argument - %s.", argv[optind]);
 			break;
 		}
 	} while (c != -1);
 
-    /* Lets put default values if some configuration is missing */
-    if(config_update_base_folder == NULL)
-    {
-	  config_update_base_folder = (char *) calloc(1, 128);
-      strcpy(config_update_base_folder, CP_CONFIG_FOLDER); 
-      native_config_folder = true;
-    }
+	/* Lets put default values if some configuration is missing */
+	if (config_update_base_folder == NULL) {
+		config_update_base_folder = (char *) calloc(1, 128);
+		if (config_update_base_folder == NULL)
+			rte_panic("Unable to allocate memory for config_update_base_folder!\n");
+		strcpy(config_update_base_folder, CP_CONFIG_FOLDER);
+		native_config_folder = true;
+	}
 
 	if ((args_set & REQ_ARGS) != REQ_ARGS) {
 		fprintf(stderr, "Usage: %s\n", argv[0]);
@@ -502,10 +502,10 @@ init_cp(void)
 	init_spgwc_dynamic_config(appl_config);
 
 	/* Lets register config change hook */
-    char file[128] = {'\0'}; 
-    strcat(file, config_update_base_folder);
-    strcat(file, "app_config.cfg"); 
-    RTE_LOG_DP(DEBUG, CP, "Config file to monitor %s ", file);
+	char file[128] = {'\0'};
+	strcat(file, config_update_base_folder);
+	strcat(file, "app_config.cfg");
+	RTE_LOG_DP(DEBUG, CP, "Config file to monitor %s ", file);
 	register_config_updates(file);
 
 	create_ue_hash();

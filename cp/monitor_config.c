@@ -52,14 +52,14 @@ handle_events(int fd, int *wd, struct entry *config)
 	if (len <= 0) {
 		RTE_LOG_DP(DEBUG, CP, "inotify read config change len <= 0 \n ");
 		return handled; 
-     }
+	}
 
 	/* Loop over all events in the buffer */
 	for (ptr = buf; ptr < buf + len;
 	     ptr += sizeof(struct inotify_event) + event->len) {
 
 		event = (const struct inotify_event *) ptr;
-			RTE_LOG_DP(DEBUG, CP, "event mask %x: \n", event->mask);
+		RTE_LOG_DP(DEBUG, CP, "event mask %x: \n", event->mask);
 
 		/* Print event type */
 		if (event->mask & IN_ACCESS) {
@@ -112,7 +112,7 @@ handle_events(int fd, int *wd, struct entry *config)
 			break;
 		}
 	}
-    return handled;
+	return handled;
 }
 
 void *

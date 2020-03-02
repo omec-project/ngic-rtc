@@ -28,14 +28,13 @@ config_change_cbk(char *config_file, uint32_t flags)
 	RTE_LOG_DP(INFO, CP, "Received %s. File %s flags: %x\n",
 		   __FUNCTION__, config_file, flags);
 
-    if(native_config_folder == false)
-    {
-	  /* Move the updated config to standard path */
-	  static char cmd[256];
-	  sprintf(cmd, "cp %s %s", config_file, CP_CONFIG_OPT_PATH);
-	  int ret = system(cmd);
-	  RTE_LOG_DP(INFO, CP, "system call return value: %d \n", ret);
-    }
+	if (native_config_folder == false) {
+		/* Move the updated config to standard path */
+		static char cmd[256];
+		sprintf(cmd, "cp %s %s", config_file, CP_CONFIG_OPT_PATH);
+		int ret = system(cmd);
+		RTE_LOG_DP(INFO, CP, "system call return value: %d \n", ret);
+	}
  
 	/* We dont expect quick updates from configmap..One update per interval. Typically 
 	 * worst case 60 seconds for 1 config update. Updates are clubbed and dont come frequent 
@@ -187,30 +186,26 @@ init_spgwc_dynamic_config(struct app_config *cfg )
 			RTE_LOG_DP(ERR, CP, "TAC not found in the configuration file\n");
 		}
 		LIST_INSERT_HEAD(&cfg->dpList, dpInfo, dpentries);
-        entry = rte_cfgfile_get_entry(file, sectionname , "DNS_PRIMARY");
-        if (entry == NULL) {
-	        RTE_LOG_DP(INFO, CP, "DP (%s) DNS_PRIMARY default config is missing. \n", dpInfo->dpName);
-            entry = primary_dns;
-        }
-        if(inet_aton(entry, &dpInfo->dns_p) == 1)
-        {
-            set_dp_dns_primary(dpInfo);
-	        RTE_LOG_DP(INFO, CP, "DP (%s) DNS_PRIMARY address is %s \n", dpInfo->dpName, inet_ntoa(dpInfo->dns_p));
-        }
-        else
-        {
+		entry = rte_cfgfile_get_entry(file, sectionname , "DNS_PRIMARY");
+		if (entry == NULL) {
+			RTE_LOG_DP(INFO, CP, "DP (%s) DNS_PRIMARY default config is missing. \n", dpInfo->dpName);
+			entry = primary_dns;
+		}
+		if (inet_aton(entry, &dpInfo->dns_p) == 1) {
+			set_dp_dns_primary(dpInfo);
+			RTE_LOG_DP(INFO, CP, "DP (%s) DNS_PRIMARY address is %s \n", dpInfo->dpName, inet_ntoa(dpInfo->dns_p));
+		} else {
 			//invalid address
-	        RTE_LOG_DP(ERR, CP, "DP (%s) DNS_PRIMARY address is invalid %s \n",dpInfo->dpName, entry);
-        }
+			RTE_LOG_DP(ERR, CP, "DP (%s) DNS_PRIMARY address is invalid %s \n",dpInfo->dpName, entry);
+		}
 
-        entry = rte_cfgfile_get_entry(file, sectionname , "DNS_SECONDARY");
-        if (entry == NULL) {
-            RTE_LOG_DP(INFO, CP, "DP (%s)  DNS_SECONDARY default config is missing. \n", dpInfo->dpName);
-            entry = secondary_dns;
-        }
-        if(inet_aton(entry, &dpInfo->dns_s) == 1)
-        {
- 		    set_dp_dns_secondary(dpInfo);
+		entry = rte_cfgfile_get_entry(file, sectionname , "DNS_SECONDARY");
+		if (entry == NULL) {
+			RTE_LOG_DP(INFO, CP, "DP (%s)  DNS_SECONDARY default config is missing. \n", dpInfo->dpName);
+			entry = secondary_dns;
+		}
+		if (inet_aton(entry, &dpInfo->dns_s) == 1) {
+			set_dp_dns_secondary(dpInfo);
 			RTE_LOG_DP(INFO, CP, "DP (%s) DNS_SECONDARY address is %s \n", dpInfo->dpName, inet_ntoa(dpInfo->dns_s));
 		}
 
@@ -227,7 +222,6 @@ init_spgwc_dynamic_config(struct app_config *cfg )
 	        RTE_LOG_DP(ERR, CP, "DP (%s) DNS_SECONDARY address is invalid %s \n",dpInfo->dpName, entry);
 		}
 	}
-  return;
 }
 
 /* Given key find the DP. Once DP is found then return its dpId */
