@@ -47,6 +47,7 @@ struct dp_info
 	struct in_addr s1u_sgw_ip;
 	struct upf_context *upf;
 	struct in_addr dns_p, dns_s; 
+    struct ip_table *static_pool_tree;
 	LIST_ENTRY(dp_info) dpentries;
 };
 
@@ -171,4 +172,10 @@ struct in_addr fetch_dns_secondary_ip(uint32_t dpId, bool *present);
  * Given dpId, what is upf's context (as stored in the apl_config list)
  */
 struct upf_context *fetch_upf_context(uint32_t dpId);
+
+/**
+ * Given dpId, return dpInfo 
+ */
+struct dp_info *fetch_dp_context(uint32_t dpId);
+
 #endif

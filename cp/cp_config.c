@@ -14,6 +14,7 @@
 #include <rte_cfgfile.h>
 #include <rte_log.h>
 #include <rte_debug.h>
+#include "string.h"
 
 extern struct app_config *appl_config;
 
@@ -130,6 +131,8 @@ init_spgwc_dynamic_config(struct app_config *cfg )
 	    RTE_LOG_DP(ERR, CP, "Global DNS_SECONDARY address is invalid %s \n", entry);
     }
 
+
+
 	entry = rte_cfgfile_get_entry(file, "GLOBAL", "NUM_DP_SELECTION_RULES");
 	if (entry == NULL) {
        		RTE_LOG_DP(ERR, CP, "NUM_DP_SELECTION_RULES missing from app_config.cfg file, abort parsing\n");
@@ -209,18 +212,39 @@ init_spgwc_dynamic_config(struct app_config *cfg )
             RTE_LOG_DP(INFO, CP, "DP DNS_SECONDARY default config is missing. \n");
             entry = secondary_dns;
         }
-        if(inet_aton(entry, &dpInfo->dns_s) == 1)
-        {
+        if(inet_aton(entry, &dpInfo->dns_s) == 1) {
  		    set_dp_dns_secondary(dpInfo);
 			RTE_LOG_DP(INFO, CP, "DP DNS_SECONDARY address is %s", inet_ntoa(dpInfo->dns_s));
 		}
-		else
-		{
+		else {
 			//invalid address
 	        RTE_LOG_DP(ERR, CP, "DP DNS_SECONDARY address is invalid %s ",entry);
 		}
-	}
-        return;
+
+		entry = rte_cfgfile_get_entry(file, sectionname, "STATIC_IP_POOL");
+	    if(entry != NULL) {
+			char *pool=(char *) calloc(1, 128); 
+			strcpy(pool, entry); 
+			RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL %s configured in app_config.cfg \n", pool);
+			const char token[2] = "/";
+			char *network_str = strtok(pool, token);
+			RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL Network %s \n", network_str);
+			struct in_addr network;
+			inet_aton(network_str, &network);
+			network.s_addr = ntohl(network.s_addr); // host order 
+
+			char *mask_str = strtok(NULL, token);
+			uint32_t mask;
+			mask = atoi(mask_str);
+			if(mask > 23) { /* we dont want to allow big static block allocation */
+           		dpInfo->static_pool_tree = calloc(1, sizeof(struct ip_table));
+				create_ue_pool(dpInfo->static_pool_tree, network, mask); 
+			} else
+				RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL %s configured with large size network. \n", pool);
+        	free(pool);
+		}
+ 	}
+    return;
 }
 
 /* Given key find the DP. Once DP is found then return its dpId */
@@ -275,6 +299,20 @@ fetch_s1u_sgw_ip(uint32_t dpId)
 	/* control should never reach here */
 	RTE_SET_USED(a);
 	return a;
+}
+
+struct dp_info *
+fetch_dp_context(uint32_t dpId)
+{
+	struct dp_info *dp;
+	LIST_FOREACH(dp, &appl_config->dpList, dpentries) {
+		if (dpId == dp->dpId) {
+			return dp;
+		}
+	}
+	rte_panic("Could not find DP for dpid: %u\n", dpId);
+	/* control should never reach here */
+	return NULL;
 }
 
 struct upf_context *

@@ -24,6 +24,7 @@ struct rte_hash *ue_context_by_fteid_hash;
 
 static struct in_addr ip_pool_ip;
 static struct in_addr ip_pool_mask;
+struct ip_table *static_addr_pool = NULL;
 
 apn apn_list[MAX_NB_DPN];
 
@@ -379,3 +380,78 @@ acquire_ip(struct in_addr *ipv4)
 	ipv4->s_addr = GET_UE_IP(next_ip_index++);
 	return 0;
 }
+
+//network address in host order 
+void
+create_ue_pool(struct ip_table *addr_root, struct in_addr network, uint32_t mask)
+{
+   // create static pool 
+    uint32_t total_address = 1;
+    uint32_t i;
+    mask = 32 - mask;
+    while(mask)
+    {
+      total_address = total_address << 1; 
+      mask -=  1;
+    }
+    printf("\n Number of possible addresses = %d \n", total_address);
+
+    for(i=1; i <(total_address - 1); i++)
+    {
+       struct in_addr ue_ip;
+       ue_ip.s_addr = network.s_addr + i; 
+       add_ip_node(addr_root, ue_ip);
+       ue_ip.s_addr = htonl(ue_ip.s_addr); // just for print purpose 
+       printf("Add UE IP address = %s  in pool \n", inet_ntoa(ue_ip)); 
+    }
+}
+
+
+/* Add nodes in the m-trie. Duplicate elements overwrite old elements 
+ * 4 comparisions to add the ip address 
+ */
+void add_ip_node(struct ip_table *search_tree, struct in_addr host)
+{
+   unsigned char byte;
+   uint32_t addr = host.s_addr;
+   uint32_t mask[] = {0xff000000, 0xff0000, 0xff00, 0xff};
+   uint32_t shift[]  = {24, 16, 8, 0};
+
+   for(int i=0; i<=3; i++)
+   {
+       byte = (mask[i] & addr) >> shift[i];
+       if(search_tree->octet[byte] == NULL)
+         search_tree->octet[byte] = calloc(1, sizeof(struct ip_table));
+       search_tree = search_tree->octet[byte];
+   }
+   char *p = inet_ntoa(host);
+   search_tree->ue_address = calloc(1,20); /*abc.efg.hij.klm => 15 char */ 
+   strcpy(search_tree->ue_address, p);
+   return;
+}
+
+bool find_ip_node(struct ip_table *search_tree , struct in_addr host)
+{
+  unsigned char byte;
+  uint32_t mask[] = {0xff000000, 0xff0000, 0xff00, 0xff};
+  uint32_t shift[]  = {24, 16, 8, 0};
+
+  for(int i=0; i<=3; i++)
+  {
+    byte = ((host.s_addr) & mask[i])>> shift[i];
+    if(search_tree->octet[byte] == NULL)
+    {
+      return false;
+    }
+    search_tree = search_tree->octet[byte]; 
+  }
+  printf("Found address %s in static IP Pool \n", search_tree->ue_address);
+  /* Delete should free the flag.. Currently we are not taking care of hanging sessions. 
+   * hangign sessions at PDN GW + Static Address is already trouble. This also means that
+   * if new session comes to PDN GW and if old session found present then PDN GW should 
+   * delete old session. this is TODO.
+   */ 
+  search_tree->used = true; 
+  return true; 
+}
+

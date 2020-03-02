@@ -186,13 +186,14 @@ parse_arg(int argc, char **argv)
 	  {"log_level",   required_argument, NULL, 'l'},
 	  {"pcap_file_in", required_argument, NULL, 'x'},
 	  {"pcap_file_out", required_argument, NULL, 'y'},
+	  {"static_pool", optional_argument, NULL, 'h'},
 	  {0, 0, 0, 0}
 	};
 
 	do {
 		int option_index = 0;
 
-		c = getopt_long(argc, argv, "d:m:s:r:g:w:v:u:i:p:a:l:x:y:", long_options,
+		c = getopt_long(argc, argv, "d:m:s:r:g:w:v:u:i:p:a:l:x:y:h:", long_options,
 		    &option_index);
 
 		if (c == -1)
@@ -253,7 +254,39 @@ parse_arg(int argc, char **argv)
 			pcap_dumper = pcap_dump_open(pcap, optarg);
 			s11_pcap_fd = pcap_fileno(pcap);
 			break;
-		default:
+		case 'h':
+			{
+#ifndef MULTI_UPFS
+				char *pool=(char *) calloc(1, 128); 
+                uint32_t mask;
+                struct in_addr network;
+                const char token[2] = "/";
+
+				strcpy(pool, optarg); 
+                RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL %s configured in app_config.cfg \n", pool);
+
+                char *network_str = strtok(pool, token);
+                RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL Network %s \n", network_str);
+                inet_aton(network_str, &network);
+
+                char *mask_str = strtok(NULL, token);
+                mask = atoi(mask_str);
+                RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL %s configured with mask %d network %s\n", pool, mask, inet_ntoa(network));
+
+                network.s_addr = ntohl(network.s_addr); // host order 
+				if(mask > 23) { /* we dont want to allow big static block allocation */
+                  static_addr_pool = calloc(1, struct ip_table);
+                  create_ue_pool(static_addr_pool, network, mask); 
+                } else
+                  RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL %s configured with large size network. \n", pool);
+
+				free(pool);
+#else
+                RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL is for multi upf case should be provided in app_config.cfg \n");
+#endif
+			}
+            break;
+ 		default:
 			rte_panic("Unknown argument - %s.", argv[optind]);
 			break;
 		}
