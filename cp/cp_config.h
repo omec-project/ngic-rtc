@@ -90,7 +90,7 @@ struct app_config
 
 inline void set_app_dns_primary(struct app_config *app) 
 {
-  app->flags |= CONFIG_DNS_PRIMARY;
+	app->flags |= CONFIG_DNS_PRIMARY;
 }
 
 /*
@@ -100,13 +100,11 @@ inline void set_app_dns_primary(struct app_config *app)
 
 inline bool get_app_primary_dns(struct app_config *app, struct in_addr *dns_p)
 {
-  if(app->flags & CONFIG_DNS_PRIMARY)
-  {
-    *dns_p = app->dns_p;
-    return true;
-  }
-  return false;
-  
+	if (app->flags & CONFIG_DNS_PRIMARY) {
+		*dns_p = app->dns_p;
+		return true;
+	}
+	return false;
 }
 
 /*
@@ -116,7 +114,7 @@ inline bool get_app_primary_dns(struct app_config *app, struct in_addr *dns_p)
 
 inline void set_app_dns_secondary(struct app_config *app) 
 {
-  app->flags |= CONFIG_DNS_SECONDARY;
+	app->flags |= CONFIG_DNS_SECONDARY;
 }
 
 /*
@@ -126,13 +124,11 @@ inline void set_app_dns_secondary(struct app_config *app)
 
 inline bool get_app_secondary_dns(struct app_config *app, struct in_addr *dns_s)
 {
-  if(app->flags & CONFIG_DNS_SECONDARY)
-  {
-    *dns_s = app->dns_s;
-    return true;
-  }
-  return false;
-  
+	if (app->flags & CONFIG_DNS_SECONDARY) {
+		*dns_s = app->dns_s;
+		return true;
+	}
+	return false;
 }
 
 void init_spgwc_dynamic_config(struct app_config *cfg);
