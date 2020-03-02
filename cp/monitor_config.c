@@ -40,77 +40,79 @@ handle_events(int fd, int *wd, struct entry *config)
 
 	/* Loop while events can be read from inotify file descriptor. */
 	RTE_LOG_DP(INFO, CP, "Received file event for %s \n", config->config_file);
-	while (1) {
+	/* Read some events. */
+	len = read(fd, buf, sizeof buf);
+	/* If the nonblocking read() found no events to read, then
+	   it returns -1 with errno set to EAGAIN. In that case,
+	   we exit the loop. */
+	if (len == -1 && errno != EAGAIN) {
+		rte_exit(EXIT_FAILURE, "Failed to read!\n");
+	}
 
-		/* Read some events. */
-		len = read(fd, buf, sizeof buf);
-		if (len == -1 && errno != EAGAIN) {
-			rte_exit(EXIT_FAILURE, "Failed to read!\n");
+	if (len <= 0) {
+		RTE_LOG_DP(DEBUG, CP, "inotify read config change len <= 0 \n ");
+		return handled; 
+	}
+
+	/* Loop over all events in the buffer */
+	for (ptr = buf; ptr < buf + len;
+	     ptr += sizeof(struct inotify_event) + event->len) {
+
+		event = (const struct inotify_event *) ptr;
+		RTE_LOG_DP(DEBUG, CP, "event mask %x: \n", event->mask);
+
+		/* Print event type */
+		if (event->mask & IN_ACCESS) {
+			RTE_LOG_DP(DEBUG, CP, "IN_ACCESS: \n");
+			continue;
+		}
+		if (event->mask & IN_CLOSE_NOWRITE) {
+			RTE_LOG_DP(DEBUG, CP, "IN_CLOSE_NOWRITE: \n");
+			continue;
+		}
+		if (event->mask & IN_OPEN) {
+			RTE_LOG_DP(DEBUG, CP, "IN_OPEN: skip \n");
+			continue;
+		}
+		if (event->mask & IN_ATTRIB) {
+			RTE_LOG_DP(DEBUG, CP, "IN_ATTRIB: \n");
+		}
+		if (event->mask & IN_CLOSE_WRITE) {
+			RTE_LOG_DP(DEBUG, CP, "IN_CLOSE_WRITE: \n");
+		}
+		if (event->mask & IN_CREATE) {
+			RTE_LOG_DP(DEBUG, CP, "IN_CREATE: \n");
+		}
+		if (event->mask & IN_DELETE) {
+			RTE_LOG_DP(DEBUG, CP, "IN_DELETE: \n");
+		}
+		if (event->mask & IN_DELETE_SELF) {
+			RTE_LOG_DP(DEBUG, CP, "IN_DELETE_SELF: \n");
+		}
+		if (event->mask & IN_MODIFY) {
+			RTE_LOG_DP(DEBUG, CP, "IN_MODIFY: \n");
+		}
+		if (event->mask & IN_MOVE_SELF) {
+			RTE_LOG_DP(DEBUG, CP, "IN_MOVE_SELF: \n");
+		}
+		if (event->mask & IN_MOVED_FROM)
+			RTE_LOG_DP(DEBUG, CP, "IN_MOVED_FROM: \n");
+
+		if (event->mask & IN_MOVED_TO) {
+				RTE_LOG_DP(DEBUG, CP, "IN_MOVED_TO: \n");
+		}
+		if (event->mask & IN_IGNORED) {
+			RTE_LOG_DP(DEBUG, CP, "IN_IGNORE: file deleted \n");
 		}
 
-		/* If the nonblocking read() found no events to read, then
-		   it returns -1 with errno set to EAGAIN. In that case,
-		   we exit the loop. */
-		if (len <= 0)
+		if (wd[0] == event->wd) {
+			RTE_LOG_DP(DEBUG, CP, "calling config change callback \n");
+			handled = true;
+			config->callback(config->config_file, 0);
 			break;
-
-		/* Loop over all events in the buffer */
-		for (ptr = buf; ptr < buf + len;
-		     ptr += sizeof(struct inotify_event) + event->len) {
-
-			event = (const struct inotify_event *) ptr;
-
-			/* Print event type */
-			if (event->mask & IN_ACCESS) {
-				RTE_LOG_DP(DEBUG, CP, "IN_ACCESS: ");
-				continue;
-			}
-			if (event->mask & IN_ATTRIB) {
-				RTE_LOG_DP(DEBUG, CP, "IN_ATTRIB: ");
-			}
-			if (event->mask & IN_CLOSE_WRITE) {
-				RTE_LOG_DP(DEBUG, CP, "IN_CLOSE_WRITE: ");
-			}
-			if (event->mask & IN_CLOSE_NOWRITE) {
-				RTE_LOG_DP(DEBUG, CP, "IN_CLOSE_NOWRITE: ");
-				continue;
-			}
-			if (event->mask & IN_CREATE) {
-				RTE_LOG_DP(DEBUG, CP, "IN_CREATE: ");
-			}
-			if (event->mask & IN_DELETE) {
-				RTE_LOG_DP(DEBUG, CP, "IN_DELETE: ");
-			}
-			if (event->mask & IN_DELETE_SELF) {
-				RTE_LOG_DP(DEBUG, CP, "IN_DELETE_SELF: ");
-			}
-			if (event->mask & IN_MODIFY) {
-				RTE_LOG_DP(DEBUG, CP, "IN_MODIFY: ");
-			}
-			if (event->mask & IN_MOVE_SELF) {
-				RTE_LOG_DP(DEBUG, CP, "IN_MOVE_SELF: ");
-			}
-			if (event->mask & IN_MOVED_FROM)
-				RTE_LOG_DP(DEBUG, CP, "IN_MOVED_FROM: ");
-			if (event->mask & IN_MOVED_TO) {
-				RTE_LOG_DP(DEBUG, CP, "IN_MOVED_TO: ");
-			}
-			if (event->mask & IN_OPEN) {
-				RTE_LOG_DP(DEBUG, CP, "IN_OPEN: skip ");
-				continue;
-			}
-			if (event->mask & IN_IGNORED) {
-				RTE_LOG_DP(DEBUG, CP, "IN_IGNORE: file deleted ");
-			}
-
-			if (wd[0] == event->wd) {
-				handled = true;
-				config->callback(config->config_file, 0);
-				break;
-			}
 		}
 	}
-    return handled;
+	return handled;
 }
 
 void *

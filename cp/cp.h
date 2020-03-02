@@ -283,8 +283,15 @@ close_stats(void);
  */
 void config_change_cbk(char *config_file, uint32_t flags);
 
-/* Register for the watcher for the config update */
-void register_config_updates(void);
+/**
+ * Register for the watcher for the config update
+ * @param file
+ * filename
+ *
+ * @return
+ * Void
+ */
+void register_config_updates(char *file);
 
 /* ================================================================================= */
 #endif

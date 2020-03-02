@@ -90,6 +90,8 @@ int s11_fd = -1;
 int s11_pcap_fd = -1;
 int s5s8_sgwc_fd = -1;
 int s5s8_pgwc_fd = -1;
+char *config_update_base_folder = NULL;
+bool native_config_folder = false;
 
 /* We should move all the config inside this structure eventually 
  * config is scattered all across the place as of now 
@@ -187,13 +189,14 @@ parse_arg(int argc, char **argv)
 	  {"pcap_file_in", required_argument, NULL, 'x'},
 	  {"pcap_file_out", required_argument, NULL, 'y'},
 	  {"static_pool", optional_argument, NULL, 'h'},
+	  {"config_update_base_folder",optional_argument, NULL, 'f'},
 	  {0, 0, 0, 0}
 	};
 
 	do {
 		int option_index = 0;
 
-		c = getopt_long(argc, argv, "d:m:s:r:g:w:v:u:i:p:a:l:x:y:h:", long_options,
+		c = getopt_long(argc, argv, "d:m:s:r:g:w:v:u:i:p:a:l:x:y:h:f:", long_options,
 		    &option_index);
 
 		if (c == -1)
@@ -286,11 +289,26 @@ parse_arg(int argc, char **argv)
 #endif
 			}
             break;
- 		default:
+
+		case 'f':
+			config_update_base_folder = calloc(1, 128);
+			strcpy(config_update_base_folder, optarg);
+			break;
+		default:
 			rte_panic("Unknown argument - %s.", argv[optind]);
 			break;
 		}
 	} while (c != -1);
+
+	/* Lets put default values if some configuration is missing */
+	if (config_update_base_folder == NULL) {
+		config_update_base_folder = (char *) calloc(1, 128);
+		if (config_update_base_folder == NULL)
+			rte_panic("Unable to allocate memory for config_update_base_folder!\n");
+		strcpy(config_update_base_folder, CP_CONFIG_FOLDER);
+		native_config_folder = true;
+	}
+
 	if ((args_set & REQ_ARGS) != REQ_ARGS) {
 		fprintf(stderr, "Usage: %s\n", argv[0]);
 		for (c = 0; long_options[c].name; ++c) {
@@ -518,7 +536,11 @@ init_cp(void)
 	init_spgwc_dynamic_config(appl_config);
 
 	/* Lets register config change hook */
-	register_config_updates();
+	char file[128] = {'\0'};
+	strcat(file, config_update_base_folder);
+	strcat(file, "app_config.cfg");
+	RTE_LOG_DP(DEBUG, CP, "Config file to monitor %s ", file);
+	register_config_updates(file);
 
 	create_ue_hash();
 }
