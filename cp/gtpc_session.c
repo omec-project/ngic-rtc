@@ -18,6 +18,7 @@
 #include "gtpv2c_error_rsp.h"
 #include "cp_timer.h"
 #include "clogger.h"
+#include "main.h"
 
 extern int pfcp_fd;
 extern int s5s8_fd;
@@ -962,6 +963,21 @@ delete_pgwc_context(del_sess_req_t *ds_req, ue_context **_context,
 			si.sess_id = SESS_ID(
 					context->s11_sgw_gtpc_teid,
 					si.bearer_id);
+			/* Delete rules those are associated with PDN  */
+			/* REVIEW: Remove the hardcoded rules counter, use the dynamic counter to maintain the list*/
+			for (uint8_t iCnt = 0; iCnt < 16; ++iCnt) {
+				if (NULL != bearer->dynamic_rules[iCnt]) {
+					rule_name_key_t key = {0};
+					memcpy(&key.rule_name, bearer->dynamic_rules[iCnt]->rule_name,
+						255);
+					sprintf(key.rule_name, "%s%d", key.rule_name, (bearer->pdn)->call_id);
+					if (del_rule_name_entry(key) != 0) {
+						clLog(clSystemLog, eCLSeverityCritical,
+							FORMAT" Error on delete rule name entries\n",
+							ERR_MSG);
+					}
+				}
+			}
 			/*
 			 * struct dp_id dp_id = { .id = DPN_ID };
 			 * session_delete(dp_id, si);
@@ -987,9 +1003,9 @@ delete_pgwc_context(del_sess_req_t *ds_req, ue_context **_context,
 int
 delete_sgwc_context(uint32_t gtpv2c_teid, ue_context **_context, uint64_t *seid)
 {
-	int i;
+	int i = 0;
 	//int ret;
-	pdn_connection *pdn_ctxt;
+	pdn_connection *pdn_ctxt = NULL;
 	int ebi_index = UE_BEAR_ID(*seid) - 5;
 	pdn_ctxt = (*_context)->pdns[ebi_index];
 	for (i = 0; i < MAX_BEARERS; ++i) {
@@ -1011,23 +1027,21 @@ delete_sgwc_context(uint32_t gtpv2c_teid, ue_context **_context, uint64_t *seid)
 					si.bearer_id);
 			*seid = si.sess_id;
 
-			/* Provision to Delete charging rule
+			/* Delete rules those are associated with PDN  */
+			/* REVIEW: Remove the hardcoded rules counter, use the dynamic counter to maintain the list*/
 			for (uint8_t iCnt = 0; iCnt < 16; ++iCnt) {
 				if (NULL != bearer->dynamic_rules[iCnt]) {
 					rule_name_key_t key = {0};
-
 					memcpy(&key.rule_name, bearer->dynamic_rules[iCnt]->rule_name,
 						255);
-
-					if(get_rule_name_entry(key) >= 0) {
-						if (del_rule_name_entry(key) != 0) {
-							clLog(clSystemLog, eCLSeverityCritical,
-								"%s %s - Error on delete rule name entries\n",__file__,
-								strerror(ret));
-						}
+					sprintf(key.rule_name, "%s%d", key.rule_name, (bearer->pdn)->call_id);
+					if (del_rule_name_entry(key) != 0) {
+						clLog(clSystemLog, eCLSeverityCritical,
+							FORMAT" Error on delete rule name entries\n",
+							ERR_MSG);
 					}
 				}
-			} */
+			}
 
 			rte_free(pdn_ctxt->eps_bearers[i]);
 			pdn_ctxt->eps_bearers[i] = NULL;

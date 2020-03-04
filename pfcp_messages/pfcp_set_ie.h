@@ -1159,6 +1159,15 @@ upflist_by_ue_hash_entry_lookup(uint64_t *imsi_val, uint16_t imsi_len,
 		upfs_dnsres_t **entry);
 
 /**
+ * @brief  : delete entry in upflist hash
+ * @param  : imsi_val, imsi value
+ * @param  : imsi_len, imsi length
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+int
+upflist_by_ue_hash_entry_delete(uint64_t *imsi_val, uint16_t imsi_len);
+
+/**
  * @brief  : Add entry to upf conetxt hash
  * @param  : upf_ip, up ip address
  * @param  : entry ,entry to be added

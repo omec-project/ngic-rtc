@@ -317,6 +317,13 @@ fill_pfcp_gx_sess_mod_req( pfcp_sess_mod_req_t *pfcp_sess_mod_req,
 				} else {
 					fill_remove_pfcp_info(pfcp_sess_mod_req, pdn->eps_bearers[bearer_id]);
 				}
+				/* VS: Remove the rule entry from the hash */
+				if (del_rule_name_entry(rule_name) != 0) {
+					clLog(sxlogger, eCLSeverityCritical,
+						FORMAT"Failed to del_rule_name_entry with rule_name\n",
+						ERR_MSG);
+					return;
+				}
 			}
 		}
 	}
@@ -5606,6 +5613,13 @@ process_pfcp_sess_del_resp(uint64_t sess_id, gtpv2c_header_t *gtpv2c_tx,
 					strerror(ret));
 		}
 
+		/* Delete UPFList entry from UPF Hash */
+		if ((upflist_by_ue_hash_entry_delete(&context->imsi, sizeof(context->imsi))) < 0){
+			clLog(clSystemLog, eCLSeverityCritical,
+					"%s %s - Error on upflist_by_ue_hash deletion of IMSI \n",__file__,
+					strerror(ret));
+		}
+
 #ifdef USE_CSID
 		fqcsid_t *csids = context->pgw_fqcsid;
 
@@ -5714,6 +5728,12 @@ process_pfcp_sess_del_resp(uint64_t sess_id, gtpv2c_header_t *gtpv2c_tx,
 	if (rte_hash_del_key(ue_context_by_imsi_hash, &context->imsi) < 0){
 		clLog(clSystemLog, eCLSeverityCritical,
 				"%s %s - Error on ue_context_by_fteid_hash del\n",__file__,
+				strerror(ret));
+	}
+	/* Delete UPFList entry from UPF Hash */
+	if ((upflist_by_ue_hash_entry_delete(&context->imsi, sizeof(context->imsi))) < 0){
+		clLog(clSystemLog, eCLSeverityCritical,
+				"%s %s - Error on upflist_by_ue_hash deletion of IMSI \n",__file__,
 				strerror(ret));
 	}
 

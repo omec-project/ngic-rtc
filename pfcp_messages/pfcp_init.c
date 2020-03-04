@@ -243,18 +243,22 @@ del_rule_name_entry(const rule_name_key_t rule_key)
 		/* Rule Name Entry is present. Delete Rule Name Entry */
 		ret = rte_hash_del_key(rule_name_bearer_id_map_hash, &rule_key);
 		if ( ret < 0) {
-			clLog(clSystemLog, eCLSeverityCritical, "%s:%d Entry not found for Rule_Name:%s...\n",
-						__func__, __LINE__, rule_key.rule_name);
+			clLog(clSystemLog, eCLSeverityCritical, FORMAT"Entry not found for Rule_Name:%s...\n",
+						ERR_MSG, rule_key.rule_name);
 			return -1;
 		}
+		clLog(clSystemLog, eCLSeverityDebug, FORMAT"Rule_Name:%s is found \n",
+				ERR_MSG, rule_key.rule_name);
+	} else {
+		clLog(clSystemLog, eCLSeverityDebug, FORMAT"Rule_Name:%s is not found \n",
+				ERR_MSG, rule_key.rule_name);
 	}
 
 	/* Free data from hash */
-	rte_free(bearer);
-	bearer = NULL;
-
-	clLog(clSystemLog, eCLSeverityDebug, "%s: Rule_Name:%s\n",
-			__func__, rule_key.rule_name);
+	if (bearer != NULL) {
+		rte_free(bearer);
+		bearer = NULL;
+	}
 
 	return 0;
 }

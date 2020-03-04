@@ -2003,6 +2003,33 @@ upflist_by_ue_hash_entry_lookup(uint64_t *imsi_val, uint16_t imsi_len,
 
 	return 0;
 }
+
+int
+upflist_by_ue_hash_entry_delete(uint64_t *imsi_val, uint16_t imsi_len)
+{
+	uint64_t imsi = UINT64_MAX;
+	upfs_dnsres_t *entry = NULL;
+	memcpy(&imsi, imsi_val, imsi_len);
+
+	int ret = rte_hash_lookup_data(upflist_by_ue_hash, &imsi,
+			(void **)&entry);
+	if (ret) {
+		/* PDN Conn Entry is present. Delete PDN Conn Entry */
+		ret = rte_hash_del_key(upflist_by_ue_hash, &imsi);
+
+		if ( ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical, FORMAT"IMSI entry is not found:%lu...\n",
+						ERR_MSG, imsi);
+			return -1;
+		}
+	}
+
+	/* Free data from hash */
+	if (entry != NULL)
+		rte_free(entry);
+
+	return 0;
+}
 #endif /*CP_BUILD */
 
 /*get msg type from cstm ie string */
