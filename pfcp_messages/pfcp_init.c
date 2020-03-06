@@ -30,6 +30,8 @@
 
 #define MAX_HASH_SIZE (1 << 15)
 #define MAX_PDN_HASH_SIZE (1 << 8)
+/* Number of Entries: 1023 can be stored */
+#define MAX_RULES_ENTRIES_HASH_SIZE (1 << 10)
 
 const uint8_t bar_base_rule_id = 0xFF;
 static uint8_t bar_rule_id_offset;
@@ -1006,7 +1008,7 @@ init_pfcp_tables(void)
 			.socket_id = rte_socket_id()
 		},
 		{	.name = "RULE_NAME_BEARER_ID_HASH",
-			.entries = MAX_PDN_HASH_SIZE,
+			.entries = MAX_RULES_ENTRIES_HASH_SIZE,
 			.key_len = sizeof(rule_name_key_t),
 			.hash_func = rte_hash_crc,
 			.hash_func_init_val = 0,

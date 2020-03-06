@@ -317,13 +317,6 @@ fill_pfcp_gx_sess_mod_req( pfcp_sess_mod_req_t *pfcp_sess_mod_req,
 				} else {
 					fill_remove_pfcp_info(pfcp_sess_mod_req, pdn->eps_bearers[bearer_id]);
 				}
-				/* VS: Remove the rule entry from the hash */
-				if (del_rule_name_entry(rule_name) != 0) {
-					clLog(sxlogger, eCLSeverityCritical,
-						FORMAT"Failed to del_rule_name_entry with rule_name\n",
-						ERR_MSG);
-					return;
-				}
 			}
 		}
 	}
