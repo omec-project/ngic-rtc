@@ -62,6 +62,7 @@ add_resp_op_id_hash(void)
 			break;
 		} /* Req handling case */
 
+        case GTP_RELEASE_ACCESS_BEARERS_REQ:
 		default:
 			/*Adding entry for received entry for unknown request for now.
 			 * For future reference*/
