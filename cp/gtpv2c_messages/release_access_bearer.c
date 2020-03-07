@@ -129,7 +129,7 @@ process_release_access_bearer_request(gtpv2c_header *gtpv2c_rx,
 			s11_sgw_gtpc_teid,
 			bearer->eps_bearer_id);
 
-		/* Set msg type.because this gets copie in the transaction while 
+		/* Set msg type.because this gets copied in the transaction while 
 			sending DP message */
 		resp_t.msg_type = GTP_RELEASE_ACCESS_BEARERS_REQ;
 
@@ -137,7 +137,7 @@ process_release_access_bearer_request(gtpv2c_header *gtpv2c_rx,
 			rte_exit(EXIT_FAILURE,
 				"Bearer Session modify fail !!!");
 
-        return 0; /* dedicated bearer support would need change here */
+		return 0; /* dedicated bearer support would need change here */
 	}
 	return 0;
 }
