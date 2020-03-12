@@ -17,20 +17,20 @@
 #ifndef PFCP_STRUCT_H
 #define PFCP_STRUCT_H
 
-#define MAX_LIST_SIZE	16
-
+#define MAX_LIST_SIZE	    16
+#define MAX_FLOW_DESC_LEN   256
 #include "pfcp_ies.h"
 
 /**
-Description -Source Interface
-*/
+ * @brief  : Maintains Source Interface details
+ */
 typedef struct source_intfc_info_t {
 	uint8_t interface_value;
 } src_intfc_t;
 
 /**
-Description -F-TEID
-*/
+ * @brief  : Maintains fteid details
+ */
 typedef struct fteid_info_t {
 	uint8_t chid;
 	uint8_t ch;
@@ -43,8 +43,8 @@ typedef struct fteid_info_t {
 }fteid_ie_t;
 
 /**
-Description -UE IP Address
-*/
+ * @brief  : Maintains ue ip address details
+ */
 typedef struct ue_ip_address_info_t {
 	uint8_t ipv6d;
 	uint8_t sd;
@@ -56,8 +56,8 @@ typedef struct ue_ip_address_info_t {
 } ue_ip_addr_t;
 
 /**
-Description -SDF Filter
-*/
+ * @brief  : Maintains sdf filter details
+ */
 typedef struct sdf_filter_info_t {
 	uint8_t bid;
 	uint8_t fl;
@@ -65,7 +65,7 @@ typedef struct sdf_filter_info_t {
 	uint8_t ttc;
 	uint8_t fd;
 	/* TODO: Need to think on flow desc*/
-	uint8_t flow_desc[255];
+	uint8_t flow_desc[MAX_FLOW_DESC_LEN];
 	uint16_t len_of_flow_desc;
 	uint16_t tos_traffic_cls;
 	uint32_t secur_parm_idx;
@@ -74,21 +74,24 @@ typedef struct sdf_filter_info_t {
 } sdf_filter_t;
 
 /**
-Description -Network Instance
-*/
+ * @brief  : Maintains Network Instance value
+ */
 typedef struct network_inst_t {
 	/* TODO: Revisit this */
-	uint8_t ntwk_inst[8];
+	uint8_t ntwk_inst[32];
 } ntwk_inst_t;
 
 /**
-Description -Application ID
-*/
+ * @brief  : Maintains Application ID value
+ */
 typedef struct application_id_info_t {
   /* TODO: Revisit this for change */
   uint8_t app_ident[8];
 } app_id_t;
 
+/**
+ * @brief  : Maintains pdi information
+ */
 typedef struct pdi_info_t {
 	uint8_t sdf_filter_cnt;
 	src_intfc_t src_intfc;
@@ -99,40 +102,47 @@ typedef struct pdi_info_t {
 	app_id_t application_id;
 }pdi_t;
 
-
 /**
-Description -Outer Header Removal
-*/
+ * @brief  : Maintains Outer Header Removal
+ */
 typedef struct outer_hdr_removal_info_t {
   uint8_t outer_hdr_removal_desc;
 /* TODO: Revisit this for change */
 //  uint8_t gtpu_ext_hdr_del;
 } outer_hdr_removal_t;
 
+/**
+ * @brief  : Maintains urr id value
+ */
 typedef struct urr_id_t {
 	uint32_t urr_id;		/* URR ID */
 }urr;
 
+/**
+ * @brief  : Maintains qer id value
+ */
 typedef struct qer_id_t {
 	uint32_t qer_id;		/* QER ID */
 }qer;
 
+/**
+ * @brief  : Maintains activating predefined rule name
+ */
 typedef struct actvt_predef_rules_t {
 	/* VS:TODO: Revist this part */
 	uint8_t predef_rules_nm[8];
 }actvt_predef_rules;
 
-
 /**
-Description -Destination Interface
-*/
+ * @brief  : Maintains Destination Interface value
+ */
 typedef struct destination_intfc_t {
 	uint8_t interface_value;
 } dst_intfc_t;
 
 /**
-Description -Outer Header Creation
-*/
+ * @brief  : Maintains Outer Header Creation information
+ */
 typedef struct outer_hdr_creation_info_t{
 	uint16_t outer_hdr_creation_desc;
 	uint32_t teid;
@@ -144,15 +154,15 @@ typedef struct outer_hdr_creation_info_t{
 }outer_hdr_creation_t;
 
 /**
-Description -Transport Level Marking
-*/
+ * @brief  : Maintains Transport Level Marking
+ */
 typedef struct transport_lvl_marking_info_t {
 	uint16_t tostraffic_cls;
 } trnspt_lvl_marking_t;
 
 /**
-Description -Header Enrichment
-*/
+ * @brief  : Maintains Header Enrichment info
+ */
 typedef struct hdr_enrchmt_info_t {
 	uint8_t header_type;
 	uint8_t len_of_hdr_fld_nm;
@@ -161,10 +171,9 @@ typedef struct hdr_enrchmt_info_t {
 	uint8_t hdr_fld_val;
 } hdr_enrchmt_t;
 
-
 /**
-Description -Redirect Information
-*/
+ * @brief  : Maintains Redirect Information
+ */
 typedef struct redirect_info_t {
 	uint8_t redir_addr_type;
 	uint8_t redir_svr_addr_len;
@@ -172,31 +181,31 @@ typedef struct redirect_info_t {
 } redir_info_t;
 
 /**
-Description -Forwarding Policy
-*/
+ * @brief  : Maintains Forwarding Policy info
+ */
 typedef struct forwardng_plcy_t {
 	uint8_t frwdng_plcy_ident_len;
 	uint8_t frwdng_plcy_ident;
 } frwdng_plcy_t;
 
 /**
-Description -Traffic Endpoint ID
-*/
+ * @brief  : Maintains Traffic Endpoint ID
+ */
 typedef struct traffic_endpoint_id_t {
 	uint8_t traffic_endpt_id_val;
 } traffic_endpt_id_t;
 
 /**
-Description -Proxying
-*/
+ * @brief  : Maintains proxying info
+ */
 typedef struct proxying_inf_t {
 	uint8_t ins;
 	uint8_t arp;
 } proxying_t;
 
 /**
-Description -Apply Action
-*/
+ * @brief  : Maintains Apply Action details
+ */
 typedef struct apply_action_t {
 	uint8_t dupl;
 	uint8_t nocp;
@@ -206,32 +215,32 @@ typedef struct apply_action_t {
 } apply_action;
 
 /**
-Description -Gate Status
-*/
+ * @brief  : Maintains gate status
+ */
 typedef struct gate_status_info_t {
 	uint8_t ul_gate;
 	uint8_t dl_gate;
 } gate_status_t;
 
 /**
-Description -MBR
-*/
+ * @brief  : Maintains mbr info
+ */
 typedef struct mbr_info_t {
 	uint64_t ul_mbr;
 	uint64_t dl_mbr;
 } mbr_t;
 
 /**
-Description -GBR
-*/
+ * @brief  : Maintains gbr info
+ */
 typedef struct gbr_info_t {
 	uint64_t ul_gbr;
 	uint64_t dl_gbr;
 } gbr_t;
 
 /**
-Description -Packet Rate
-*/
+ * @brief  : Maintains Packet Rate info
+ */
 typedef struct packet_rate_info_t {
 	uint8_t dlpr;
 	uint8_t ulpr;
@@ -241,10 +250,9 @@ typedef struct packet_rate_info_t {
 	uint16_t max_dnlnk_pckt_rate;
 } packet_rate_t;
 
-
 /**
-Description -DL Flow Level Marking
-*/
+ * @brief  : Maintains DL Flow Level Marking
+ */
 typedef struct dl_flow_level_marking_t {
 	uint8_t sci;
 	uint8_t ttc;
@@ -253,49 +261,95 @@ typedef struct dl_flow_level_marking_t {
 } dl_flow_lvl_marking_t;
 
 /**
-Description -QFI
-*/
+ * @brief  : Maintains qfi value
+ */
 typedef struct qfi_info_t {
 	uint8_t qfi_value;
 } qfi_t;
 
 /**
-Description -RQI
-*/
+ * @brief  : Maintains rqi value
+ */
 typedef struct rqi_info_t {
 	uint8_t rqi;
 } rqi_t;
 
 /**
-Description -Paging Policy Indicator
-*/
+ * @brief  : Maintains Paging Policy Indicator value
+ */
 typedef struct paging_policy_indctr_t {
 	uint8_t ppi_value;
 } paging_plcy_indctr_t;
 
 /**
-Description -Averaging Window
-*/
+ * @brief  : Maintains Averaging Window
+ */
 typedef struct avgng_window_t {
 	uint32_t avgng_wnd;
 } avgng_wnd_t;
 
 /**
-Description -Downlink Data Notification Delay
-*/
+ * @brief  : Maintains Downlink Data Notification Delay
+ */
 typedef struct downlink_data_notif_delay_t {
 	/* Note: delay_val_in_integer_multiples_of_50_millisecs_or_zero */
 	uint8_t delay;
 } dnlnk_data_notif_delay_t;
 
 /**
-Description -Suggested Buffering Packets Count
-*/
+ * @brief  : Maintains Suggested Buffering Packets Count
+ */
 typedef struct suggested_buf_packets_cnt_t {
 	uint8_t pckt_cnt_val;
 } suggstd_buf_pckts_cnt_t;
 
+/**
+ * @brief : Maintains measurement methods in urr
+ */
+typedef struct measurement_method_t {
+
+	uint8_t event;
+	uint8_t volum;
+	uint8_t durat;
+
+}measurement_method;
+
+/**
+ * @brief : Maintains reporting trigger in urr
+ */
+typedef struct reporting_trigger_t {
+
+	uint8_t timth;
+	uint8_t volth;
+	uint8_t eveth;
+
+}reporting_trigger;
+
+/**
+ * @brief : Maintains volume threshold in urr
+ */
+typedef struct volume_threshold_t {
+
+	uint64_t total_volume;
+	uint64_t uplink_volume;
+	uint64_t downlink_volume;
+
+}volume_threshold;
+
+
+/**
+ * @brief : Maintains time threshold in urr
+ */
+typedef struct time_threshold_t {
+
+	uint32_t time_threshold;
+
+}time_threshold;
+
 #ifdef CP_BUILD
+/**
+ * @brief  : Maintains far information
+ */
 typedef struct far_info_t {
 	//uint8_t bar_id_value;						/* BAR ID */
 	uint32_t far_id_value;						/* FAR ID */
@@ -309,24 +363,9 @@ typedef struct far_info_t {
 	apply_action actions;						/* Apply Action parameters*/
 }far_t;
 
-
-typedef struct pdr_info_t {
-	uint8_t urr_id_count;						/* Number of URR */
-	uint8_t qer_id_count;						/* Number of QER */
-	uint8_t actvt_predef_rules_count;			/* Number of predefine rules */
-	uint16_t rule_id;							/* PDR ID*/
-	uint32_t prcdnc_val;						/* Precedence Value*/
-	uint64_t session_id;						/* Session ID */
-	pdi_t pdi;									/* Packet Detection Information */
-	far_t far;									/* FAR structure info */
-	outer_hdr_removal_t outer_hdr_removal;		/* Outer Header Removal */
-	urr urr_id[MAX_LIST_SIZE];					/* Collection of URR IDs */
-	qer qer_id[MAX_LIST_SIZE];					/* Collection of QER IDs */
-	actvt_predef_rules rules[MAX_LIST_SIZE];	/* Collection of active predefined rules */
-
-}pdr_t;
-
-
+/**
+ * @brief  : Maintains qer information
+ */
 typedef struct qer_info_t {
 	/*VS: TODO: Remove qer id*/
 	uint32_t qer_id;							/* QER ID */
@@ -343,15 +382,49 @@ typedef struct qer_info_t {
 	avgng_wnd_t avgng_wnd;						/* Averaging Window */
 }qer_t;
 
+/**
+ * @brief  : Maintains urr information
+ */
+typedef struct urr_info_t {
+
+	uint32_t urr_id_value;
+	uint64_t session_id;
+	measurement_method mea_mt;
+	reporting_trigger rept_trigg;
+	volume_threshold vol_th;
+	time_threshold time_th;
+
+}urr_t;
+
+/**
+ * @brief  : Maintains pdr information
+ */
+typedef struct pdr_info_t {
+	uint8_t urr_id_count;						/* Number of URR */
+	uint8_t qer_id_count;						/* Number of QER */
+	uint8_t actvt_predef_rules_count;			/* Number of predefine rules */
+	uint16_t rule_id;							/* PDR ID*/
+	uint32_t prcdnc_val;						/* Precedence Value*/
+	uint64_t session_id;						/* Session ID */
+	pdi_t pdi;									/* Packet Detection Information */
+	far_t far;									/* FAR structure info */
+	qer_t qer;
+	urr_t urr;
+	outer_hdr_removal_t outer_hdr_removal;		/* Outer Header Removal */
+	urr urr_id[MAX_LIST_SIZE];					/* Collection of URR IDs */
+	qer qer_id[MAX_LIST_SIZE];					/* Collection of QER IDs */
+	actvt_predef_rules rules[MAX_LIST_SIZE];	/* Collection of active predefined rules */
+
+}pdr_t;
+
+/**
+ * @brief  : Maintains bar information
+ */
 typedef struct bar_info_t {
 	uint8_t bar_id;				/* BAR ID */
 	dnlnk_data_notif_delay_t ddn_delay;
 	suggstd_buf_pckts_cnt_t suggstd_buf_pckts_cnt;
 }bar_t;
 
-/*VS:TODO: Revisit this part and update it. */
-typedef struct urr_info_t {
-
-}urr_t;
 #endif  /* CP_BUILD */
 #endif /* PFCP_STRUCT_H */

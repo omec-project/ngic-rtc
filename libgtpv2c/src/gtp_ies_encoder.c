@@ -14,10 +14,12 @@
 */
 
 
+#include <inttypes.h>
+#include <stdio.h>
+#include <stdint.h>
 #include "../include/gtp_ies_encoder.h"
 
 #include "../include/enc_dec_bits.h"
-
 /**
  * Encodes gtpv2c header to buffer.
  * @param val
@@ -30,26 +32,26 @@
 int encode_gtpv2c_header_t(gtpv2c_header_t *value,
 	uint8_t *buf)
 {
-    uint16_t encoded = 0;
+	uint16_t encoded = 0;
 
-    encoded += encode_bits(value->gtpc.version, 3, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->gtpc.piggyback, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->gtpc.teid_flag, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->gtpc.spare, 3, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->gtpc.version, 3, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->gtpc.piggyback, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->gtpc.teid_flag, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->gtpc.spare, 3, buf + (encoded/8), encoded % CHAR_SIZE);
 
-    encoded += encode_bits(value->gtpc.message_type, 8, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->gtpc.message_len, 16, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->gtpc.message_type, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+	encoded += encode_bits(value->gtpc.message_len, 16, buf + (encoded/8), encoded % CHAR_SIZE);
 
-    if (value->gtpc.teid_flag == 1) {
-	encoded += encode_bits(value->teid.has_teid.teid, 32, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->teid.has_teid.seq, 24, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->teid.has_teid.spare, 8, buf + (encoded/8), encoded % CHAR_SIZE);
-    } else {
-	encoded += encode_bits(value->teid.no_teid.seq, 24, buf + (encoded/8), encoded % CHAR_SIZE);
-	encoded += encode_bits(value->teid.no_teid.spare, 8, buf + (encoded/8), encoded % CHAR_SIZE);
-    }
+	if (value->gtpc.teid_flag == 1) {
+		encoded += encode_bits(value->teid.has_teid.teid, 32, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->teid.has_teid.seq, 24, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->teid.has_teid.spare, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+	} else {
+		encoded += encode_bits(value->teid.no_teid.seq, 24, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->teid.no_teid.spare, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+	}
 
-    return encoded/CHAR_SIZE;
+	return encoded/CHAR_SIZE;
 }
 
 /**
@@ -231,6 +233,23 @@ int encode_gtp_guti_ie(gtp_guti_ie_t *value,
 }
 
 
+
+void
+encode_imsi(uint64_t val, int len, uint8_t *imsi)
+{
+    uint8_t buf[32] = {0};
+    snprintf(buf, 32, "%" PRIu64, val);
+
+    for (int i=0; i<len; i++)
+         imsi[i] = ((buf[i*2 + 1] & 0xF) << 4) | ((buf[i*2] & 0xF));
+
+    uint8_t odd = strlen(buf)%2;
+    if (odd)
+        imsi[len -1] = (0xF << 4) | ((buf[(len-1)*2] & 0xF));
+
+    return;
+}
+
 /**
 * Encodes gtp_imsi_ie to buffer.
 * @param buf
@@ -246,7 +265,8 @@ int encode_gtp_imsi_ie(gtp_imsi_ie_t *value,
     uint16_t encoded = 0;
     encoded += encode_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
     //encoded += encode_bits(value->imsi_number_digits, 64, buf + (encoded/8), encoded % CHAR_SIZE);
-    memcpy(buf + (encoded/CHAR_SIZE), &value->imsi_number_digits, value->header.len);
+    encode_imsi(value->imsi_number_digits, value->header.len, buf + (encoded/CHAR_SIZE));
+    //memcpy(buf + (encoded/CHAR_SIZE), &value->imsi_number_digits, value->header.len);
     encoded += value->header.len * CHAR_SIZE;
 
     return encoded/CHAR_SIZE;
@@ -1784,10 +1804,10 @@ int encode_gtp_secdry_rat_usage_data_rpt_ie(gtp_secdry_rat_usage_data_rpt_ie_t *
     encoded += encode_bits(value->secdry_rat_type, 8, buf + (encoded/8), encoded % CHAR_SIZE);
     encoded += encode_bits(value->spare3, 4, buf + (encoded/8), encoded % CHAR_SIZE);
     encoded += encode_bits(value->ebi, 4, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->start_timestamp, 8, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->end_timestamp, 8, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->usage_data_dl, 8, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->usage_data_ul, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->start_timestamp, 32, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->end_timestamp, 32, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->usage_data_dl, 64, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->usage_data_ul, 64, buf + (encoded/8), encoded % CHAR_SIZE);
 
     return encoded/CHAR_SIZE;
 }
@@ -2397,6 +2417,7 @@ int encode_gtp_user_csg_info_ie(gtp_user_csg_info_ie_t *value,
     encoded += encode_bits(value->mnc_digit_2, 4, buf + (encoded/8), encoded % CHAR_SIZE);
     encoded += encode_bits(value->mnc_digit_1, 4, buf + (encoded/8), encoded % CHAR_SIZE);
     encoded += encode_bits(value->spare2, 5, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->csg_id, 3, buf + (encoded/8), encoded % CHAR_SIZE);
     encoded += encode_bits(value->csg_id2, 24, buf + (encoded/8), encoded % CHAR_SIZE);
     encoded += encode_bits(value->access_mode, 2, buf + (encoded/8), encoded % CHAR_SIZE);
     encoded += encode_bits(value->spare3, 4, buf + (encoded/8), encoded % CHAR_SIZE);
@@ -2930,9 +2951,11 @@ int encode_gtp_fqcsid_ie(gtp_fqcsid_ie_t *value,
     encoded += encode_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
     encoded += encode_bits(value->node_id_type, 4, buf + (encoded/8), encoded % CHAR_SIZE);
     encoded += encode_bits(value->number_of_csids, 4, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->node_id, 8, buf + (encoded/8), encoded % CHAR_SIZE);
-    memcpy(buf + (encoded/8), &value->pdn_csid,PDN_CSID_LEN);
-    encoded += PDN_CSID_LEN * CHAR_SIZE;
+    encoded += encode_bits(value->node_address, 32, buf + (encoded/8), encoded % CHAR_SIZE);
+    //memcpy(buf + (encoded/8), &value->pdn_csid,PDN_CSID_LEN);
+    //encoded += PDN_CSID_LEN * CHAR_SIZE;
+	for(int i = 0; i < value->number_of_csids; i++)
+		encoded += encode_bits(value->pdn_csid[i], 16, buf + (encoded/8), encoded % CHAR_SIZE);
 
     return encoded/CHAR_SIZE;
 }
@@ -3596,7 +3619,7 @@ int encode_gtp_ip_address_ie(gtp_ip_address_ie_t *value,
 {
     uint16_t encoded = 0;
     encoded += encode_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-    encoded += encode_bits(value->ipv4_ipv6_addr, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->ipv4_ipv6_addr, 32, buf + (encoded/8), encoded % CHAR_SIZE);
 
     return encoded/CHAR_SIZE;
 }

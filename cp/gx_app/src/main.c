@@ -45,6 +45,12 @@ int fdstart()
 	return FD_REASON_OK;
 }
 
+/**
+ * @brief  : Parse fd configuration
+ * @param  : filename , config file name
+ * @param  : peer_name , peer node name
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 static int
 parse_fd_config(const char *filename, char *peer_name)
 {
@@ -84,7 +90,7 @@ int main(int argc, char **argv)
 {
 	int rval = 0;
 	const char *fdcfg = "gx.conf";
-	char peer_name[256] = {0};
+	char peer_name[MAX_PEER_NAME_LEN] = {0};
 
 	printf("Registering signal handler...");
 	if ( signal(SIGINT, signal_handler) == SIG_ERR )
@@ -131,10 +137,11 @@ int main(int argc, char **argv)
 	}
 
 	printf("Waiting to connect to [%s] \n", peer_name);
-	while(1){
+
+	while(1) {
 		struct peer_hdr *peer;
 		sleep(1);
-		if ( ! fd_peer_getbyid(peer_name, strlen(peer_name), 1, &peer ) ){
+		if ( ! fd_peer_getbyid(peer_name, strnlen(peer_name,MAX_PEER_NAME_LEN), 1, &peer ) ){
 			int state = fd_peer_get_state(peer);
 			if ( state == STATE_OPEN || state == STATE_OPEN_NEW ) {
 				break;
@@ -147,9 +154,9 @@ int main(int argc, char **argv)
 			return -1;
 		}
 	}
+
 	printf("complete\n");
 
-	printf("Opening unix socket...");
 	if ( (rval = unixsock()) != FD_REASON_OK )
 	{
 		printf("Failure (%d) in unixsock()\n", rval);

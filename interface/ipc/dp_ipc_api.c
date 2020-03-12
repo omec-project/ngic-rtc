@@ -42,9 +42,9 @@
 #include "../cp/state_machine/sm_struct.h"
 
 #ifdef GX_BUILD
-extern int gx_app_sock;
+extern int gx_app_sock_read;
 #endif /* GX_BUILD */
-
+extern volatile uint8_t recovery_flag;
 #endif /* CP_BUILD */
 
 //extern int errno;
@@ -78,7 +78,7 @@ udp_recv(void *msg_payload, uint32_t size,
 	int bytes = recvfrom(my_sock.sock_fd, msg_payload, size, 0,
 			(struct sockaddr *)peer_addr, &addr_len);
 	/*if (bytes < size) {
-		RTE_LOG_DP(ERR, DP, "Failed recv msg !!!\n");
+		clLog(clSystemLog, eCLSeverityCritical, "Failed recv msg !!!\n");
 		return -1;
 	}*/
 	return bytes;
@@ -157,7 +157,7 @@ void iface_process_ipc_msgs(void)
 #ifdef GX_BUILD
 	/* Add GX_FD in the set */
 	if ((spgw_cfg == PGWC ) || (spgw_cfg == SAEGWC)) {
-		FD_SET(gx_app_sock, &readfds);
+		FD_SET(gx_app_sock_read, &readfds);
 	}
 #endif /* GX_BUILD */
 
@@ -171,14 +171,14 @@ void iface_process_ipc_msgs(void)
 		max = (my_sock.sock_fd > my_sock.sock_fd_s11 ?
 				my_sock.sock_fd : my_sock.sock_fd_s11);
 #ifdef GX_BUILD
-		max = (gx_app_sock > max ? gx_app_sock : max);
+		max = (gx_app_sock_read > max ? gx_app_sock_read : max);
 #endif /* GX_BUILD */
 	}
 	if (spgw_cfg == PGWC) {
 		max = (my_sock.sock_fd > my_sock.sock_fd_s5s8 ?
 				my_sock.sock_fd : my_sock.sock_fd_s5s8);
 #ifdef GX_BUILD
-		max = (gx_app_sock > max ? gx_app_sock : max);
+		max = (gx_app_sock_read > max ? gx_app_sock_read : max);
 #endif /* GX_BUILD */
 	}
 
@@ -203,6 +203,25 @@ void iface_process_ipc_msgs(void)
 		/*TODO: Need to Fix*/
 		//perror("select"); /* error occurred in select() */
 	} else if (rv > 0) {
+		/* when recovery mode is initiate, only pfcp message we handle, and other msg is in socket queue */
+#ifdef CP_BUILD
+		if (recovery_flag == 1) {
+			if (FD_ISSET(my_sock.sock_fd, &readfds)) {
+					process_pfcp_msg(pfcp_rx, &peer_addr);
+			} else {
+				return;
+			}
+		}
+#ifdef GX_BUILD
+		if ((spgw_cfg == PGWC) || (spgw_cfg == SAEGWC)) {
+			if (FD_ISSET(gx_app_sock_read, &readfds)) {
+					msg_handler_gx();
+			}
+		}
+#endif  /* GX_BUILD */
+
+#endif /* CP_BUILD */
+
 		/* one or both of the descriptors have data */
 		if (FD_ISSET(my_sock.sock_fd, &readfds))
 				process_pfcp_msg(pfcp_rx, &peer_addr);
@@ -219,13 +238,6 @@ void iface_process_ipc_msgs(void)
 			}
 		}
 
-#ifdef GX_BUILD
-		if ((spgw_cfg == PGWC) || (spgw_cfg == SAEGWC)) {
-			if (FD_ISSET(gx_app_sock, &readfds)) {
-					msg_handler_gx();
-			}
-		}
-#endif  /* GX_BUILD */
 #endif
 
 	}

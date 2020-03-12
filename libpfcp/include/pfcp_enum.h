@@ -116,6 +116,13 @@ enum rule_id_type {
 	RULE_ID_TYPE_BAR =4,
 };
 
+enum li_policy {
+	CC_BASED = 0,
+	EVENT_BASED = 1,
+	CC_EVENT_BASED = 2,
+	CC_EVENT_DELETE = 3,
+};
+
 #endif /* __PFCP_ENUM_H */
 
 

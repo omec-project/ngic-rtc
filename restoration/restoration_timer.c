@@ -29,23 +29,22 @@
 #include <arpa/inet.h>
 
 #include "restoration_timer.h"
+#include "clogger.h"
 
 #ifdef CP_BUILD
 #include "main.h"
-#ifdef C3PO_OSS
 #include "cp_stats.h"
-#include "cp_adapter.h"
-#endif
 #else
 #include "up_main.h"
 #endif
+#include "gw_adapter.h"
 
 char hbt_filename[256] = "../config/hrtbeat_recov_time.txt";
 
 static pthread_t _gstimer_thread;
 static pid_t _gstimer_tid;
 
-extern struct rte_hash *conn_hash_handle;
+//extern struct rte_hash *conn_hash_handle;
 
 const char *getPrintableTime(void)
 {
@@ -57,7 +56,7 @@ const char *getPrintableTime(void)
 	gettimeofday(&tv, &tz);
 	ptm = localtime( &tv.tv_sec );
 
-	sprintf( buf, "%04d-%02d-%02d %02d:%02d:%02d.%03ld",
+	snprintf( buf, MAX_LEN, "%04d-%02d-%02d %02d:%02d:%02d.%03ld",
 			ptm->tm_year + 1900,
 			ptm->tm_mon + 1,
 			ptm->tm_mday,
@@ -69,7 +68,11 @@ const char *getPrintableTime(void)
 	return buf;
 }
 
-
+/**
+ * @brief  : Start timer thread
+ * @param  : arg, used to control access to thread
+ * @return : Returns nothing
+ */
 static void *_gstimer_thread_func(void *arg)
 {
 	int keepgoing = 1;
@@ -104,6 +107,12 @@ static void *_gstimer_thread_func(void *arg)
 	return NULL;
 }
 
+/**
+ * @brief  : Initialize timer
+ * @param  : timer_id, timer if
+ * @param  : data, holds timer related information
+ * @return : Returns true in case of success , false otherwise
+ */
 static bool _create_timer(timer_t *timer_id, const void *data)
 {
 	int status;
@@ -126,7 +135,7 @@ static bool _create_timer(timer_t *timer_id, const void *data)
 	 */
 	status = timer_create(CLOCK_REALTIME, &se, timer_id);
 
-	return status == -1 ? false : true;
+	return status == 0 ? true : false;
 }
 
 bool gst_init(void)
@@ -246,6 +255,37 @@ void deinitTimer( gstimerinfo_t *ti )
 	gst_timer_deinit( ti );
 }
 
+bool init_timer(peerData *md, int ptms, gstimercallback cb)
+{
+	return gst_timer_init(&md->pt, ttInterval, cb, ptms, md);
+}
+
+bool starttimer(gstimerinfo_t *ti)
+{
+	return gst_timer_start( ti );
+}
+
+void stoptimer(timer_t *tid)
+{
+	struct itimerspec ts;
+
+	/*
+	 * set the timer expiration, setting it_value and it_interval to 0 disables the timer
+	 */
+	ts.it_value.tv_sec = 0;
+	ts.it_value.tv_nsec = 0;
+	ts.it_interval.tv_sec = 0;
+	ts.it_interval.tv_nsec = 0;
+
+	timer_settime(*tid, 0, &ts, NULL);
+
+}
+
+void deinittimer(timer_t *tid)
+{
+	timer_delete(*tid);
+}
+
 void _sleep( int seconds )
 {
 	sleep( seconds );
@@ -256,7 +296,7 @@ void del_entry_from_hash(uint32_t ipAddr)
 
 	int ret = 0;
 
-	RTE_LOG_DP(DEBUG, DP, " Delete entry from connection table of ip:%s\n",
+	clLog(clSystemLog, eCLSeverityDebug, " Delete entry from connection table of ip:%s\n",
 			inet_ntoa(*(struct in_addr *)&ipAddr));
 
 	/* Delete entry from connection hash table */
@@ -264,11 +304,11 @@ void del_entry_from_hash(uint32_t ipAddr)
 			&ipAddr);
 
 	if (ret == -ENOENT)
-		RTE_LOG_DP(DEBUG, DP, "key is not found\n");
+		clLog(clSystemLog, eCLSeverityDebug, "key is not found\n");
 	if (ret == -EINVAL)
-		RTE_LOG_DP(DEBUG, DP, "Invalid Params: Failed to del from hash table\n");
+		clLog(clSystemLog, eCLSeverityDebug, "Invalid Params: Failed to del from hash table\n");
 	if (ret < 0)
-		RTE_LOG_DP(DEBUG, DP, "VS: Failed to del entry from hash table\n");
+		clLog(clSystemLog, eCLSeverityDebug, "VS: Failed to del entry from hash table\n");
 
 	conn_cnt--;
 
@@ -284,14 +324,12 @@ uint8_t process_response(uint32_t dstIp)
 			&dstIp, (void **)&conn_data);
 
 	if ( ret < 0) {
-		RTE_LOG_DP(DEBUG, DP, " Entry not found for NODE :%s\n",
+		clLog(clSystemLog, eCLSeverityDebug, " Entry not found for NODE :%s\n",
 				inet_ntoa(*(struct in_addr *)&dstIp));
 	} else {
 		conn_data->itr_cnt = 0;
-#ifdef CP_BUILD
-			update_peer_timeouts(conn_data->dstIP,0); //cli
 
-#endif /*CP_BUILD*/
+		update_peer_timeouts(conn_data->dstIP,0);
 
 		/* Stop transmit timer for specific peer node */
 		stopTimer( &conn_data->tt );
@@ -299,7 +337,7 @@ uint8_t process_response(uint32_t dstIp)
 		stopTimer( &conn_data->pt );
 		/* Reset Periodic Timer */
 		if ( startTimer( &conn_data->pt ) < 0)
-			RTE_LOG_DP(ERR, DP, "Periodic Timer failed to start...\n");
+			clLog(clSystemLog, eCLSeverityCritical, "Periodic Timer failed to start...\n");
 
 	}
 	return 0;
@@ -310,7 +348,7 @@ void recovery_time_into_file(uint32_t recov_time)
 	FILE *fp = NULL;
 
 	if ((fp = fopen(hbt_filename, "w+")) == NULL) {
-				RTE_LOG_DP(ERR, DP, "Unable to open heartbeat recovery file..\n");
+				clLog(clSystemLog, eCLSeverityCritical, "Unable to open heartbeat recovery file..\n");
 
 	} else {
 		fseek(fp, 0, SEEK_SET);

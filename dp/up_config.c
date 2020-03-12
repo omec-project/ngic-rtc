@@ -14,6 +14,11 @@
  * limitations under the License.
  */
 
+/*
+ * NOTE: clLogger initalization happens after parsing of configuration file,
+ *       thus clLog cannot be used here, instead printf is used.
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <getopt.h>
@@ -26,7 +31,14 @@
 #include "up_main.h"
 #include "pipeline/epc_packet_framework.h"
 
-/* prints the usage statement and quits with an error message */
+/* TEIDRI data info file fd */
+FILE *teidri_fd = NULL;
+
+/**
+ * @brief  : prints the usage statement and quits with an error message
+ * @param  : No param
+ * @return : Returns nothing
+ */
 static inline void dp_print_usage(void)
 {
 	printf("\nDataplane supported command line arguments are:\n\n");
@@ -192,11 +204,17 @@ static inline void dp_print_usage(void)
 	exit(0);
 }
 
-/* parse ethernet address */
+/**
+ * @brief  : parse ethernet address
+ * @param  : hwaddr, structure to parsed ethernet address
+ * @param  : str, input string
+ * @return : Returns 0 in case of success , 1 otherwise
+ */
 static inline int parse_ether_addr(struct ether_addr *hwaddr, const char *str)
 {
 	/* 01 34 67 90 23 56 */
 	/* XX:XX:XX:XX:XX:XX */
+	/*TODO : change strlen with strnlen with proper size (n)*/
 	if (strlen(str) != 17 ||
 			!isxdigit(str[0]) ||
 			!isxdigit(str[1]) ||
@@ -228,6 +246,12 @@ static inline int parse_ether_addr(struct ether_addr *hwaddr, const char *str)
 	return 1;
 }
 
+/**
+ * @brief  : Set unused core
+ * @param  : core
+ * @param  : used_coremask
+ * @return : Returns nothing
+ */
 static inline void set_unused_lcore(int *core, uint64_t *used_coremask)
 {
 	if (*core != -1) {
@@ -248,18 +272,11 @@ static inline void set_unused_lcore(int *core, uint64_t *used_coremask)
 }
 
 /**
- * Function to parse command line config.
- *
- * @param app
- *	global app config structure.
- * @param argc
- *	number of arguments.
- * @param argv
- *	list of arguments.
- *
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : Function to parse command line config.
+ * @param  : app, global app config structure.
+ * @param  : argc, number of arguments.
+ * @param  : argv, list of arguments.
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 static inline int
 parse_config_args(struct app_params *app, int argc, char **argv)
@@ -305,12 +322,14 @@ parse_config_args(struct app_params *app, int argc, char **argv)
 		{"periodic_timer", required_argument, 0, 'P'},
 		{"transmit_count", required_argument, 0, 'Q'},
 		{"teidri", required_argument, 0, 'R'},
+		{"dp_logger", required_argument, 0, 'L'},
+		{"ddf_intfc", required_argument, 0, 'D'},
 		{NULL, 0, 0, 0}
 	};
 
 	optind = 0;/* reset getopt lib */
 
-	while ((opt = getopt_long(argc, argv, "i:m:s:n:w:l:f:h:a:e:I:O:T:P:Q:R:",
+	while ((opt = getopt_long(argc, argv, "i:m:s:n:w:l:f:h:a:e:I:O:T:P:Q:R:L:D:",
 					spgw_opts, &option_index)) != EOF) {
 		switch (opt) {
 		case 'h':
@@ -609,6 +628,20 @@ parse_config_args(struct app_params *app, int argc, char **argv)
 			/* Configure TEIDRI val */
 		case 'R':
 			app->teidri_val = atoi(optarg);
+			if( app->teidri_val < 0 || app->teidri_val > 7 ){
+				printf("Invalid TEIDRI value %d. Please configure TEIDRI value between 0 to 7\n",
+						app->teidri_val);
+				dp_print_usage();
+				app->teidri_val = 0;
+				return -1;
+			}
+			break;
+		case 'L':
+			app->dp_logger = atoi(optarg);
+			break;
+
+		case 'D':
+			strncpy(app->ddf_intfc, optarg, DDF_INTFC_LEN);
 			break;
 
 		default:
@@ -678,24 +711,215 @@ parse_config_args(struct app_params *app, int argc, char **argv)
 
 
 	RTE_LOG(NOTICE, DP, "TEIDRI :  %d\n",app->teidri_val);
+	RTE_LOG(NOTICE, DP, "DP_LOGGER :  %d\n",app->dp_logger);
 	return 0;
 }
 
-/**
- * Function to initialize the dp config.
- *
- * @param argc
- *	number of arguments.
- * @param argv
- *	list of arguments.
- *
- * @return
- *	None
- */
+/* read assinged teid range indecation and CP node address */
+static int
+read_teidri_data (char *filename)
+{
+	char str_buf[20] = {0};
+	char *token = NULL;
+
+	/* Open file for read data if Created , if file not create then create file for store data */
+	if ((teidri_fd = fopen(filename, "r")) == NULL) {
+		RTE_LOG(NOTICE, DP, FORMAT"Creating New file  %s : ERROR : %s \n", ERR_MSG, filename,
+				strerror(errno));
+		/* Assume file is not created */
+		if ((teidri_fd = fopen(filename, "w")) == NULL) {
+			RTE_LOG(NOTICE, DP,  FORMAT"Error: %s \n", ERR_MSG, strerror(errno));
+			return -1;
+		}
+		fclose(teidri_fd);
+		return 0;
+	}
+
+	RTE_LOG(NOTICE, DP, " File Open for Reading TEIDRI Data :: START : \n");
+	/* */
+	while ((fgets(str_buf, 256, teidri_fd)) != NULL ) {
+		/* Read CP Node address */
+		/* Format : node addr , TEIDRI ,\n*/
+		token = strtok(str_buf, ",");
+		if (token != NULL) {
+			app.teidri_info[app.num_cp].node_addr  = atoi(token);
+			token = strtok(NULL, ",");
+			if (token != NULL) {
+				app.teidri_info[app.num_cp].teid_range = atoi(token);
+			} else {
+				/* need to think about if value is not found in file */
+				clLog(clSystemLog, eCLSeverityDebug,
+						FORMAT"WARNING: TEIDRI value not found \n",
+						ERR_MSG);
+				continue;
+			}
+		} else {
+			/* need to think about if value is not found in file */
+			clLog(clSystemLog, eCLSeverityDebug,
+					FORMAT"WARNING: value not found in file \n",
+					ERR_MSG);
+			continue;
+		}
+		app.num_cp++;
+	}
+
+	RTE_LOG(NOTICE, DP, FORMAT"Number of CP : %d  \n",  ERR_MSG, app.num_cp);
+
+	if (fclose(teidri_fd) != 0) {
+		RTE_LOG(NOTICE, DP, FORMAT"ERROR : %s\n",  ERR_MSG, strerror(errno));
+		return -1;
+	}
+	RTE_LOG(NOTICE, DP, " File Close :: END :  \n");
+	return 0;
+}
+
+int
+get_node_teidri(uint8_t *teid_range, uint32_t node_addr)
+{
+
+	for (uint8_t itr = 0; itr < app.num_cp; itr++) {
+		/* Checking given node address to stored node address */
+		if(app.teidri_info[itr].node_addr == node_addr) {
+			*teid_range = app.teidri_info[itr].teid_range;
+			return 1;
+		}
+	}
+	/* Node address not found into stored data */
+	clLog(clSystemLog, eCLSeverityDebug, FORMAT" NODE Address not found  \n", ERR_MSG);
+	return 0;
+}
+
+/* Function to write teid range and node address into file in csv format */
+/* TODO : add one more paramete for file name in both read and write teidri data function */
+int
+add_teidri_node_entry(uint8_t teid_range, uint32_t node_addr, char *filename)
+{
+	if (node_addr == 0) {
+		clLog(clSystemLog, eCLSeverityDebug, FORMAT" NODE Address is : %u  \n", ERR_MSG,
+								node_addr);
+		return -1;
+	}
+
+	/* Open file for write data in append mode */
+	if ((teidri_fd = fopen(filename, "a")) == NULL) {
+		RTE_LOG(NOTICE, DP, FORMAT"Error: %s \n", ERR_MSG, strerror(errno));
+		return -1;
+	}
+	clLog(clSystemLog, eCLSeverityDebug,
+			FORMAT"File open : %s  successfully \n", ERR_MSG, filename);
+
+	/* Set fd at end of the file  */
+	fseek(teidri_fd, 0L,SEEK_END);
+
+	/* Write into file in cvs format FORMAT : node_addr , teid_range ,\n */
+	if (fprintf(teidri_fd, "%u , %d ,\n", node_addr, teid_range) < 0) {
+		RTE_LOG(NOTICE, DP,  FORMAT"Error: %s \n", ERR_MSG, strerror(errno));
+		return -1;
+	}
+
+	/* copy into data structure */
+	app.teidri_info[app.num_cp].node_addr = node_addr;
+	app.teidri_info[app.num_cp].teid_range = teid_range;
+	app.num_cp++;
+	clLog(clSystemLog, eCLSeverityDebug,
+			FORMAT"node addr : %u : teid range : %d : num cp : %d \n", ERR_MSG,
+			app.teidri_info[(app.num_cp - 1)].node_addr,
+			app.teidri_info[(app.num_cp - 1)].teid_range, app.num_cp);
+
+	if (fclose(teidri_fd) != 0) {
+		RTE_LOG(NOTICE, DP, FORMAT"ERROR : %s\n",  ERR_MSG, strerror(errno));
+		return -1;
+	}
+	clLog(clSystemLog, eCLSeverityDebug,
+			FORMAT"File close : %s successfully \n", ERR_MSG, filename);
+	return 0;
+
+}
+
+/* Funtion to to delete all containt of file */
+int
+flush_teidri_data(char *filename)
+{
+
+	if ((teidri_fd = fopen(filename, "w")) == NULL ) {
+		clLog(clSystemLog, eCLSeverityDebug, FORMAT"ERROR [%s] : %s \n",
+				ERR_MSG, filename, strerror(errno));
+		return -1;
+	}
+
+	if (fclose(teidri_fd) != 0) {
+		clLog(clSystemLog, eCLSeverityDebug,
+				FORMAT"ERROR : %s\n",  ERR_MSG, strerror(errno));
+		return -1;
+	}
+
+	return 0;
+}
+
+/* Function to delete teidri node addr entry from file */
+int
+delete_teidri_node_entry(char *filename, uint32_t node_addr)
+{
+	uint8_t line_num = 0;
+	/* Checking which node entry requested to delete */
+	for (uint8_t itr = 0; itr < app.num_cp; itr++) {
+		++line_num;
+		if (app.teidri_info[itr].node_addr == node_addr) {
+			clLog(clSystemLog, eCLSeverityDebug,
+					FORMAT"Node entry found :%u, line number : %d  \n",
+					ERR_MSG, node_addr, line_num);
+			break;
+		}
+	}
+
+	/* Checking last node entry present or not */
+	if ((line_num == app.num_cp) &&
+			(node_addr != app.teidri_info[(line_num - 1)].node_addr)) {
+		clLog(clSystemLog, eCLSeverityDebug,
+				FORMAT"Node entry not found :%u \n", ERR_MSG, node_addr);
+		return 0;
+	}
+
+	if ((teidri_fd = fopen(filename, "w")) == NULL) {
+		clLog(clSystemLog, eCLSeverityCritical,
+				FORMAT"Error: %s \n", ERR_MSG, strerror(errno));
+		return -1;
+	}
+
+	for (uint8_t itr = 0; itr < app.num_cp; itr++) {
+		if (itr != (line_num - 1)) {
+			/* Write into file in cvs format FORMAT : node_addr , teid_range ,\n */
+			if (fprintf(teidri_fd, "%u , %d ,\n", app.teidri_info[itr].node_addr,
+						app.teidri_info[itr].teid_range) < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,
+						FORMAT"Error: %s \n", ERR_MSG, strerror(errno));
+				//return -1;
+			}
+
+		}
+	}
+
+	if (fclose(teidri_fd) != 0) {
+		clLog(clSystemLog, eCLSeverityDebug,
+				FORMAT"ERROR : %s\n",  ERR_MSG, strerror(errno));
+		return -1;
+	}
+
+	clLog(clSystemLog, eCLSeverityDebug,
+			FORMAT"Node entry delete, node addr : %u, line number : %d  \n",
+			ERR_MSG, node_addr, line_num);
+	return 0;
+}
+
 void dp_init(int argc, char **argv)
 {
 	if (parse_config_args(&app, argc, argv) < 0)
 		rte_exit(EXIT_FAILURE, "Error: Config parse fail !!!\n");
+
+	if (read_teidri_data(TEIDRI_FILENAME) != 0) {
+		/* Need to think about error handling */
+		clLog(clSystemLog, eCLSeverityCritical, FORMAT"ERROR : \n", ERR_MSG);
+	}
 	switch (app.gtpu_seqnb_in)
 	{
 		case 1: /* include sequence number */

@@ -46,11 +46,9 @@ int gx_send_raa(void *data)
 
 	gx_raa_unpack((unsigned char *)data, gx_raa);
 	buflen = gx_raa_calc_length (&gx_raa);
-	printf("Buflen %d\n", buflen);
 
 	//memcpy(&rqst_ptr, ((unsigned char *)data + buflen -1), sizeof(unsigned long));
 	memcpy(&ans, ((unsigned char *)data + *(uint32_t*)data), sizeof(ans));
-	printf("Address in RAA %p\n", ans);
 
 	//	ans = (struct msg*)rqst_ptr;
 

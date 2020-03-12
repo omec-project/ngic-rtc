@@ -57,18 +57,16 @@ extern int pfcp_fd;
 extern struct sockaddr_in upf_pfcp_sockaddr;
 
 /**
- * @brief Pack the message which has to be sent to DataPlane.
- * @param mtype
- *	mtype - Message type.
- * @param dp_id
- *	dp_id - identifier which is unique across DataPlanes.
- * @param param
- *	param - parameter to be parsed based on msg type.
- * @param  msg_payload
- *	msg_payload - message payload to be sent.
- * @return
- *	0 - success
- *	-1 - fail
+ * @brief  : Pack the message which has to be sent to DataPlane.
+ * @param  : mtype
+ *           mtype - Message type.
+ * @param  : dp_id
+ *           dp_id - identifier which is unique across DataPlanes.
+ * @param  : param
+ *           param - parameter to be parsed based on msg type.
+ * @param  : msg_payload
+ *           msg_payload - message payload to be sent.
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 static int
 build_dp_msg(enum dp_msg_type mtype, struct dp_id dp_id,
@@ -126,20 +124,18 @@ build_dp_msg(enum dp_msg_type mtype, struct dp_id dp_id,
 				*(struct downlink_data_notification *)param;
 		break;
 	default:
-		clLog(apilogger, eCLSeverityCritical, "build_dp_msg: Invalid msg type\n");
+		clLog(clSystemLog, eCLSeverityCritical, "build_dp_msg: Invalid msg type\n");
 		return -1;
 	}
 	return 0;
 }
 /**
- * Send message to DP.
- * @param dp_id
- *	dp_id - identifier which is unique across DataPlanes.
- * @param  msg_payload
- *	msg_payload - message payload to be sent.
- * @return
- *	0 - success
- *	-1 - fail
+ * @brief  : Send message to DP.
+ * @param  : dp_id
+ *           dp_id - identifier which is unique across DataPlanes.
+ * @param  : msg_payload
+ *           msg_payload - message payload to be sent.
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 static int
 send_dp_msg(struct dp_id dp_id, struct msgbuf *msg_payload)
@@ -158,16 +154,10 @@ send_dp_msg(struct dp_id dp_id, struct msgbuf *msg_payload)
 	pfcp_header_t *header=(pfcp_header_t *) pfd_msg;
 	header->message_len = htons(pfd_msg_len - 4);
 
-	if (pfcp_send(pfcp_fd, (char *)pfd_msg, pfd_msg_len, &upf_pfcp_sockaddr) < 0 ){
-		printf("Error sending: %i\n",errno);
+	if (pfcp_send(pfcp_fd, (char *)pfd_msg, pfd_msg_len, &upf_pfcp_sockaddr,SENT) < 0 ){
+		clLog(clSystemLog, eCLSeverityCritical,"Error sending: %i\n",errno);
 		free(pfd_mgmt_req.app_ids_pfds[0].pfd_context[0].pfd_contents[0].cstm_pfd_cntnt);
 		return -1;
-	}
-	else {
-		get_current_time(cp_stats.stat_timestamp);
-		update_cli_stats(upf_pfcp_sockaddr.sin_addr.s_addr,
-								PFCP_PFD_MGMT_REQ,
-								REQ,cp_stats.stat_timestamp);
 	}
 	free(pfd_mgmt_req.app_ids_pfds[0].pfd_context[0].pfd_contents[0].cstm_pfd_cntnt);
 	return 0;
@@ -557,3 +547,114 @@ ue_cdr_flush(struct dp_id dp_id, struct msg_ue_cdr ue_cdr)
 #endif
 }
 #endif /* CP_BUILD*/
+
+int
+encode_li_header(li_header_t *header, uint8_t *buf)
+{
+
+	int encoded = 0;
+	uint32_t tmp = 0;
+	uint16_t tmpport = 0;
+	uint64_t imsiTmp = 0;
+
+	memcpy(buf, &(header->flags), 1);
+	encoded += 1;
+
+	tmpport = htons(header->len);
+	memcpy(buf + encoded, &tmpport, sizeof(uint16_t));
+	encoded += sizeof(uint16_t);
+
+	imsiTmp = header->imsi;
+	memcpy(buf + encoded, &imsiTmp, sizeof(uint64_t));
+	encoded += sizeof(uint64_t);
+
+	if (header->flags.src) {
+		tmp = htonl(header->src_ip);
+		memcpy(buf + encoded, &tmp, sizeof(uint32_t));
+		encoded += sizeof(uint32_t);
+
+		tmpport = htons(header->src_port);
+		memcpy(buf + encoded, &tmpport, sizeof(uint16_t));
+		encoded += sizeof(uint16_t);
+	}
+
+	if (header->flags.dst) {
+		tmp = htonl(header->dst_ip);
+		memcpy(buf + encoded, &tmp, sizeof(uint32_t));
+		encoded += sizeof(uint32_t);
+
+		tmpport = htons(header->dst_port);
+		memcpy(buf + encoded, &tmpport, sizeof(uint16_t));
+		encoded += sizeof(uint16_t);
+	}
+
+	if (header->flags.df2) {
+		tmp = htonl(header->df2_ip);
+		memcpy(buf + encoded, &tmp, sizeof(uint32_t));
+		encoded += sizeof(uint32_t);
+	}
+
+	if (header->flags.df3) {
+		tmp = htonl(header->df3_ip);
+		memcpy(buf + encoded, &tmp, sizeof(uint32_t));
+		encoded += sizeof(uint32_t);
+	}
+
+	return encoded;
+}
+
+int8_t
+create_li_header(uint8_t *uiPayload, int *iPayloadLen, uint8_t type,
+		uint64_t uiImsi, uint32_t uiSrcIp, uint32_t uiDstIp,
+		uint16_t uiSrcPort, uint16_t uiDstPort, uint32_t uiDdf2Ip, uint32_t uiDdf3Ip)
+{
+	int iEncoded;
+	li_header_t liHdr = {0};
+	uint8_t uiTmp[MAX_LI_HDR_SIZE] = {0};
+
+	for (int iCnt = 0; iCnt < *iPayloadLen; iCnt++) {
+		uiTmp[iCnt] = uiPayload[iCnt];
+	}
+
+	if (type != NOT_PRESENT) {
+		liHdr.flags.type = PRESENT;
+	}
+
+	if (*iPayloadLen != NOT_PRESENT) {
+		liHdr.len = *iPayloadLen;
+	}
+
+	if (uiImsi != NOT_PRESENT) {
+		liHdr.imsi = uiImsi;
+	}
+
+	if (uiSrcIp != NOT_PRESENT) {
+		liHdr.flags.src = PRESENT;
+		liHdr.src_ip = uiSrcIp;
+		liHdr.src_port = uiSrcPort;
+	}
+
+	if (uiDstIp != NOT_PRESENT) {
+		liHdr.flags.dst = PRESENT;
+		liHdr.dst_ip = uiDstIp;
+		liHdr.dst_port = uiDstPort;
+	}
+
+	if (uiDdf2Ip != NOT_PRESENT) {
+		liHdr.flags.df2 = PRESENT;
+		liHdr.df2_ip = uiDdf2Ip;
+	}
+
+	if (uiDdf3Ip != NOT_PRESENT) {
+		liHdr.flags.df3 = PRESENT;
+		liHdr.df3_ip = uiDdf3Ip;
+	}
+
+	iEncoded = encode_li_header(&liHdr, uiPayload);
+	for (int iCnt = 0; iCnt < *iPayloadLen; iCnt++) {
+		uiPayload[iEncoded++] = uiTmp[iCnt];
+	}
+
+	*iPayloadLen = iEncoded;
+	return 0;
+}

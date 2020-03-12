@@ -20,6 +20,10 @@
 #include "pfcp_ies.h"
 #include "pfcp_struct.h"
 
+#ifdef USE_CSID
+#include "csid_struct.h"
+#endif /* USE_CSID */
+
 /**
  * ipv4 address format.
  */
@@ -35,6 +39,9 @@
 #define MAX_BEARERS 15
 #define MAX_LIST_SIZE 16
 #define ACL_TABLE_NAME_LEN 16
+#define MAX_ACL_TABLES		1000
+#define MAX_SDF_RULE_NUM	32
+#define NAME_LEN			32
 
 typedef struct pfcp_session_t pfcp_session_t;
 typedef struct pfcp_session_datat_t pfcp_session_datat_t;
@@ -43,12 +50,14 @@ typedef struct qer_info_t qer_info_t;
 typedef struct urr_info_t urr_info_t;
 typedef struct predef_rules_t predef_rules_t;
 
-/* rte hash for pfcp context
- * hash key: pfcp sess id, data:  pfcp_session_t
+/**
+ * @brief  : rte hash for pfcp context
+ *           hash key: pfcp sess id, data:  pfcp_session_t
  */
 struct rte_hash *sess_ctx_by_sessid_hash;
 
-/* rte hash for session data by teid.
+/**
+ * @brief  : rte hash for session data by teid.
  * hash key: teid, data:  pfcp_session_datat_t
  * Usage:
  * 	1) SGW-U : UL & DL packet detection (Check packet against sdf rules defined in acl_table_name and get matching PDR ID.
@@ -56,36 +65,62 @@ struct rte_hash *sess_ctx_by_sessid_hash;
  */
 struct rte_hash *sess_by_teid_hash;
 
-/* rte hash for session data by ue ip addr.
+/**
+ * @brief  : rte hash for session data by ue ip addr.
  * hash key: ue ip addr, data:  pfcp_session_datat_t
  * Usage:
  * 	PGW-U : DL packet detection ()
  */
 struct rte_hash *sess_by_ueip_hash;
 
-/* rte hash for pdr by pdr id.
+/**
+ * @brief  : rte hash for pdr by pdr id.
  * hash key: pdr id, data:  pdr_info_t (pointer to already allocated pfcp_session_datat_t:pdr_info_t)
  */
 struct rte_hash *pdr_by_id_hash;
 
 
-/* rte hash for far by far id.
+/**
+ * @brief  : rte hash for far by far id.
  * hash key: far id, data:  far_info_t (pointer to already allocated pfcp_session_datat_t:pdr_info_t:far_info_t)
  */
 struct rte_hash *far_by_id_hash;
 
-/* rte hash for qer by qer id.
+/**
+ * @brief  : rte hash for qer by qer id.
  * hash key: qer id, data:  qer_info_t (pointer to already allocated pfcp_session_datat_t:pdr_info_t:qer_info_t)
  */
 struct rte_hash *qer_by_id_hash;
 
-/* rte hash for urr data by urr id.
+/**
+ * @brief  : rte hash for urr data by urr id.
  * hash key: urr id, data:  urr_info_t (pointer to already allocated pfcp_session_datat_t:pdr_info_t:urr_info_t)
  */
 struct rte_hash *urr_by_id_hash;
 
+/**
+ * @brief  : rte hash for timer data by urr id.
+ * hash key: urr id, data:  peerData
+ */
+struct rte_hash *timer_by_id_hash;
+
+/**
+ * @brief  : rte hash for socket.
+ */
+struct rte_hash *sock_by_ddf_ip_hash;
+
+
 enum up_session_state { CONNECTED, IDLE, IN_PROGRESS };
 
+enum urr_mesur_method {
+	VOL_BASED,
+	TIME_BASED,
+	VOL_TIME_BASED
+};
+
+/**
+ * @brief  : Maintains predefined rules list
+ */
 typedef struct predef_rules_t {
 	/* VS:TODO: Revist this part */
 	uint8_t predef_rules_nm[8];
@@ -94,6 +129,9 @@ typedef struct predef_rules_t {
 	predef_rules_t *next;
 }predef_rules_t;
 
+/**
+ * @brief  : Maintains far related forwarding parameter info
+ */
 typedef struct far_frwdng_parms_t {
 	ntwk_inst_t ntwk_inst;						/* Network Instance */
 	dst_intfc_t dst_intfc;						/* Destination Interface */
@@ -104,16 +142,35 @@ typedef struct far_frwdng_parms_t {
 	hdr_enrchmt_t hdr_enrchmt;					/* Container for header enrichment */
 } far_frwdng_parms_t;
 
+/**
+ * @brief  : Maintains duplicating parameters
+ */
+typedef struct duplicating_parms_t {
+
+	dst_intfc_t dst_intfc;
+	outer_hdr_creation_t outer_hdr_creation;
+
+}duplicating_parms_t;
+
+
+/**
+ * @brief  : Maintains far related information
+ */
 typedef struct far_info_t {
 	uint32_t far_id_value;						/* FAR ID */
 	apply_action actions;						/* Apply Action parameters */
 	far_frwdng_parms_t frwdng_parms;				/* Forwarding paramneters */
-
+	uint32_t dup_parms_cnt;
+	int tcp_sock_fd[MAX_LIST_SIZE];
+	duplicating_parms_t dup_parms[MAX_LIST_SIZE];
 	//pfcp_session_t *session;					/* Pointer to session */
 	pfcp_session_datat_t *session;					/* Pointer to session */
 }far_info_t;
 
 
+/**
+ * @brief  : Maintains qer related information
+ */
 typedef struct qer_info_t {
 	uint32_t qer_id;						/* FAR ID */
 	uint32_t qer_corr_id_val;					/* QER Correlation ID */
@@ -133,6 +190,9 @@ typedef struct qer_info_t {
 	qer_info_t *next;
 }qer_info_t;
 
+/**
+ * @brief  : Maintains bar related information
+ */
 typedef struct bar_info_t {
 	uint8_t bar_id;				/* BAR ID */
 	dnlnk_data_notif_delay_t ddn_delay;
@@ -140,13 +200,30 @@ typedef struct bar_info_t {
 }bar_info_t;
 
 /*VS:TODO: Revisit this part and update it. */
+/**
+ * @brief  : Maintains urr related information
+ */
 typedef struct urr_info_t {
 	/* TODO: Add members */
 	uint32_t urr_id;							/* URR ID */
+	uint16_t meas_method;                       /* Measurment Method */
+	uint16_t rept_trigg;                        /* Reporting Trigger */
+	uint32_t vol_thes_uplnk;                    /* Vol Threshold */
+	uint32_t vol_thes_dwnlnk;                   /* Vol Threshold */
+	uint32_t time_thes;                         /* Time Threshold */
+	uint32_t uplnk_data;                        /* Uplink data usage */
+	uint32_t dwnlnk_data;                       /* Downlink Data Usage */
+	uint32_t start_time;                        /* Start Time */
+	uint32_t end_time;                          /* End Time */
+	uint32_t first_pkt_time;                    /* First Pkt Time */
+	uint32_t last_pkt_time;                     /* Last Pkt Time */
 
 	urr_info_t *next;
 }urr_info_t;
 
+/**
+ * @brief  : Maintains pdr related information
+ */
 typedef struct pdr_info_t {
 	/* VS: Need to remove PDR ID or not */
 	uint16_t rule_id;							/* PDR ID*/
@@ -172,11 +249,18 @@ typedef struct pdr_info_t {
 	pdr_info_t *next;
 }pdr_info_t;
 
+/**
+ * @brief  : Maintains pfcp session data related information
+ */
 typedef struct pfcp_session_datat_t {
 
 	uint32_t ue_ip_addr;
+	uint32_t eNB_ip_addr;
+	uint32_t sgwu_ip_addr;
+	uint32_t pgwu_ip_addr;
 	char acl_table_name[ACL_TABLE_NAME_LEN];
-	int acl_table_indx;
+	int acl_table_indx[MAX_SDF_RULE_NUM];
+	uint8_t acl_table_count;
 
 	pdr_info_t *pdrs;
 	//VS:TODO:NEED TO THINK ON IT
@@ -190,268 +274,227 @@ typedef struct pfcp_session_datat_t {
 	struct pfcp_session_datat_t *next;
 } pfcp_session_datat_t;
 
+/**
+ * @brief  : Maintains pfcp session related information
+ */
 typedef struct pfcp_session_t {
 	uint64_t cp_seid;
 	uint64_t up_seid;
+	uint64_t imsi;
 
 	uint8_t ber_cnt;
 	uint32_t teids[MAX_BEARERS];
+
+	/* TODO: Need to optimized */
+#ifdef USE_CSID
+	fqcsid_t *enb_fqcsid;
+	fqcsid_t *mme_fqcsid;
+	fqcsid_t *sgw_fqcsid;
+	fqcsid_t *sgwu_fqcsid;
+	fqcsid_t *pgw_fqcsid;
+	fqcsid_t *pgwu_fqcsid;
+#endif /* USE_REST */
 	pfcp_session_datat_t *sessions;
+	uint32_t dup_parms_cnt;
+	int tcp_sock_fd[MAX_LIST_SIZE];
 } pfcp_session_t;
 
 /**
- * Add session entry in session context hash table.
- *
- * @param up_sess_id
- * key.
- * @param pfcp_session_t sess_cntxt
- * return 0 or 1.
- *
+ * @brief  : Add session entry in session context hash table.
+ * @param  : up_sess_id , key
+ * @param  : pfcp_session_t sess_cntxt
+ * @return : 0 or 1.
  */
 int8_t
 add_sess_info_entry(uint64_t up_sess_id, pfcp_session_t *sess_cntxt);
 
 /**
- * Get UP Session entry from session hash table.
- *
- * @param UP SESS ID
- * key.
- * return pfcp_session_t sess_cntxt or NULL
- *
+ * @brief  : Get UP Session entry from session hash table.
+ * @param  : UP SESS ID  key.
+ * @param  : is_mod
+ * @return : pfcp_session_t sess_cntxt or NULL
  */
 
 pfcp_session_t *
 get_sess_info_entry(uint64_t up_sess_id, uint8_t is_mod);
 
 /**
- * Delete Session entry from Session hash table.
- *
- * @param UP SESS ID
- * key.
- * return 0 or 1.
- *
+ * @brief  : Delete Session entry from Session hash table.
+ * @param  : UP SESS ID, key.
+ * @return : 0 or 1.
  */
 int8_t
 del_sess_info_entry(uint64_t up_sess_id);
 
 /**
- * Add session data entry based on teid in session data hash table.
- *
- * @param teid
- * key.
- * @param pfcp_session_datat_t sess_cntxt
- * return 0 or 1.
- *
+ * @brief  : Add session data entry based on teid in session data hash table.
+ * @param  : teid, key.
+ * @param  : pfcp_session_datat_t sess_cntxt
+ * @return : 0 or 1.
  */
 int8_t
 add_sess_by_teid_entry(uint32_t teid, pfcp_session_datat_t *sess_cntxt);
 
 /**
- * Get Session entry by teid from session hash table.
- *
- * @param teid
- * key.
- * @param pfcp_session_datat_t head
- * head pointer 
- * return pfcp_session_t sess_cntxt or NULL
- *
+ * @brief  : Get Session entry by teid from session hash table.
+ * @param  : teid, key.
+ * @param  : pfcp_session_datat_t head, head pointer
+ * @param  : is_mod
+ * @return : pfcp_session_t sess_cntxt or NULL
  */
 
 pfcp_session_datat_t *
 get_sess_by_teid_entry(uint32_t teid, pfcp_session_datat_t **head, uint8_t is_mod);
 
 /**
- * Delete Session entry by teid from Session hash table.
- *
- * @param teid
- * key.
- * return 0 or 1.
- *
+ * @brief  : Delete Session entry by teid from Session hash table.
+ * @param  : teid, key.
+ * @return : 0 or 1.
  */
 int8_t
 del_sess_by_teid_entry(uint32_t teid);
 
 /**
- * Add session data entry based on UE IP in session data hash table.
- *
- * @param UE_IP
- * key.
- * @param pfcp_session_datat_t sess_cntxt
- * return 0 or 1.
- *
+ * @brief  : Add session data entry based on UE IP in session data hash table.
+ * @param  : UE_IP, key.
+ * @param  : pfcp_session_datat_t sess_cntxt
+ * @return : 0 or 1.
  */
 int8_t
 add_sess_by_ueip_entry(uint32_t ue_ip, pfcp_session_datat_t **sess_cntxt);
 
 /**
- * Get Session entry by UE_IP from session hash table.
- *
- * @param UE_IP
- * key.
- * return pfcp_session_t sess_cntxt or NULL
- *
+ * @brief  : Get Session entry by UE_IP from session hash table.
+ * @param  : UE_IP, key.
+ * @param  : pfcp_session_datat_t head, head pointer
+ * @param  : is_mod
+ * @return : pfcp_session_t sess_cntxt or NULL
  */
 pfcp_session_datat_t *
 get_sess_by_ueip_entry(uint32_t ue_ip, pfcp_session_datat_t **head, uint8_t is_mod);
 
 /**
- * Delete Session entry by UE_IP from Session hash table.
- *
- * @param UE_IP
- * key.
- * return 0 or 1.
- *
+ * @brief  : Delete Session entry by UE_IP from Session hash table.
+ * @param  : UE_IP, key.
+ * @return : 0 or 1.
  */
 int8_t
 del_sess_by_ueip_entry(uint32_t ue_ip);
 
 /**
- * Add PDR entry in PDR hash table.
- *
- * @param rule_id/PDR_ID
- * key.
- * @param pdr_info_t pdr
- * return 0 or 1.
- *
+ * @brief  : Add PDR entry in PDR hash table.
+ * @param  : rule_id/PDR_ID, key.
+ * @param  : pdr_info_t pdr
+ * @return : 0 or 1.
  */
 int8_t
 add_pdr_info_entry(uint16_t rule_id, pdr_info_t *pdr);
 
 /**
- * Get PDR entry from PDR hash table.
- *
- * @param PDR ID
- * key.
- * @param pdr_info_t *head
- * head pointer 
- * return pdr_info_t pdr or NULL
- *
+ * @brief  : Get PDR entry from PDR hash table.
+ * @param  : PDR ID, key
+ * @param  : pdr_info_t *head, head pointer
+ * @return : pdr_info_t pdr or NULL
  */
 pdr_info_t *
 get_pdr_info_entry(uint16_t rule_id, pdr_info_t **head);
 
 /**
- * Delete PDR entry from PDR hash table.
- *
- * @param PDR ID
- * key.
- * return 0 or 1.
- *
+ * @brief  : Delete PDR entry from PDR hash table.
+ * @param  : PDR ID, key
+ * @return : 0 or 1.
  */
 int8_t
 del_pdr_info_entry(uint16_t rule_id);
 
 /**
- * Add FAR entry in FAR hash table.
- *
- * @param FAR_ID
- * key.
- * @param far_info_t far
- * return 0 or 1.
- *
+ * @brief  : Add FAR entry in FAR hash table.
+ * @param  : FAR_ID, key
+ * @param  : far_info_t far
+ * @return : 0 or 1.
  */
 int8_t
 add_far_info_entry(uint16_t far_id, far_info_t **far);
 
 /**
- * Get FAR entry from FAR hash table.
- *
- * @param FAR ID
- * key.
- * return far_info_t pdr or NULL
- *
+ * @brief  : Get FAR entry from FAR hash table.
+ * @param  : FAR ID, key
+ * @return : far_info_t pdr or NULL
  */
 far_info_t *
 get_far_info_entry(uint16_t far_id);
 
 /**
- * Delete FAR entry from FAR hash table.
- *
- * @param FAR ID
- * key.
- * return 0 or 1.
- *
+ * @brief  : Delete FAR entry from FAR hash table.
+ * @param  : FAR ID, key.
+ * @return : 0 or 1.
  */
 int8_t
 del_far_info_entry(uint16_t far_id);
 
 /**
- * Add QER entry in QER hash table.
- *
- * @param qer_id
- * key.
- * @param qer_info_t context
- * return 0 or 1.
- *
+ * @brief  : Add QER entry in QER hash table.
+ * @param  : qer_id, key
+ * @param  : qer_info_t context
+ * @return : 0 or 1.
  */
 int8_t
 add_qer_info_entry(uint32_t qer_id, qer_info_t **cntxt);
 
 /**
- * Get QER entry from QER hash table.
- *
- * @param QER ID
- * key.
- * return qer_info_t cntxt or NULL
- *
+ * @brief  : Get QER entry from QER hash table.
+ * @param  : QER ID, key.
+ * @return : qer_info_t cntxt or NULL
  */
 qer_info_t *
 get_qer_info_entry(uint32_t qer_id, qer_info_t **head);
 
 /**
- * Delete QER entry from QER hash table.
- *
- * @param QER ID
- * key.
- * return 0 or 1.
- *
+ * @brief  : Delete QER entry from QER hash table.
+ * @param  : QER ID, key
+ * @return : 0 or 1.
  */
 int8_t
 del_qer_info_entry(uint32_t qer_id);
 
 /**
- * Add URR entry in URR hash table.
- *
- * @param urr_id
- * key.
- * @param urr_info_t context
- * return 0 or 1.
- *
+ * @brief  : Add URR entry in URR hash table.
+ * @param  : urr_id, key
+ * @param  : urr_info_t context
+ * @return : 0 or 1.
  */
 int8_t
 add_urr_info_entry(uint32_t urr_id, urr_info_t **cntxt);
 
 /**
- * Get URR entry from urr hash table.
- *
- * @param URR ID
- * key.
- * return urr_info_t cntxt or NULL
- *
+ * @brief  : Get URR entry from urr hash table.
+ * @param  : URR ID, key
+ * @return : urr_info_t cntxt or NULL
  */
 urr_info_t *
 get_urr_info_entry(uint32_t urr_id);
 
 /**
- * Delete URR entry from URR hash table.
- *
- * @param URR ID
- * key.
- * return 0 or 1.
- *
+ * @brief  : Delete URR entry from URR hash table.
+ * @param  : URR ID, key
+ * @return : 0 or 1.
  */
 int8_t
 del_urr_info_entry(uint32_t urr_id);
 
 /**
- * @brief Initializes the pfcp context hash table used to account for
- * PDR, QER, BAR and FAR rules information tables and Session tables based on sessid, teid and UE_IP.
+ * @brief  : Initializes the pfcp context hash table used to account for
+ *           PDR, QER, BAR and FAR rules information tables and Session tables based on sessid, teid and UE_IP.
+ * @param  : No param
+ * @return : Returns nothing
  */
 void
 init_up_hash_tables(void);
 
 /**
- * Generate the SESSION ID
+ * @brief  : Generate the user plane SESSION ID
+ * @param  : cp session id
+ * @return : up session id
  */
 uint64_t
 gen_up_sess_id(uint64_t cp_sess_id);

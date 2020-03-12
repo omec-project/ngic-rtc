@@ -22,7 +22,7 @@
 #include "pfcp_messages_encoder.h"
 #include "pfcp_messages_decoder.h"
 #include "../cp_dp_api/vepc_cp_dp_api.h"
-
+#include "clogger.h"
 #ifdef CP_BUILD
 #include "cp.h"
 #include "main.h"
@@ -30,8 +30,11 @@
 #include "cp_stats.h"
 #include "cp_config.h"
 #include "gtpv2c_error_rsp.h"
+#include "cp_timer.h"
+#include "cdr.h"
 #else
 #include "up_main.h"
+#include "gw_adapter.h"
 #endif /* CP_BUILD */
 
 #if defined(CP_BUILD) && defined(USE_DNS_QUERY)
@@ -156,7 +159,7 @@ set_pfd_contents(pfcp_pfd_contents_ie_t *pfd_conts, struct msgbuf *cstm_buf)
 			case MSG_MTR_CRE:
 				pfd_conts->cstm_pfd_cntnt = malloc(sizeof(struct cb_args_table));
 				/* Fill msg type */
-				struct_len = sprintf((char *)pfd_conts->cstm_pfd_cntnt, "%"PRId64" ",cstm_buf->mtype);
+				struct_len = snprintf((char *)pfd_conts->cstm_pfd_cntnt, MAX_LEN, "%"PRId64" ",cstm_buf->mtype);
 				/* Fill cstm ie contents frome rule structure as string */
 				memcpy(pfd_conts->cstm_pfd_cntnt+struct_len, (uint8_t *)&cstm_buf->msg_union.msg_table,
 														sizeof(cstm_buf->msg_union.msg_table));
@@ -166,7 +169,7 @@ set_pfd_contents(pfcp_pfd_contents_ie_t *pfd_conts, struct msgbuf *cstm_buf)
 			case MSG_EXP_CDR:
 				pfd_conts->cstm_pfd_cntnt = malloc(sizeof(struct msg_ue_cdr));
 				/* Fill msg type */
-				struct_len = sprintf((char *)pfd_conts->cstm_pfd_cntnt,
+				struct_len = snprintf((char *)pfd_conts->cstm_pfd_cntnt, MAX_LEN,
 												"%"PRId64" ",cstm_buf->mtype);
 				/* Fill cstm ie contents frome rule structure as string */
 				memcpy(pfd_conts->cstm_pfd_cntnt + struct_len,
@@ -183,7 +186,7 @@ set_pfd_contents(pfcp_pfd_contents_ie_t *pfd_conts, struct msgbuf *cstm_buf)
 			case MSG_SDF_DEL:
 				pfd_conts->cstm_pfd_cntnt = malloc(sizeof(struct pkt_filter));
 				/* Fill msg type */
-				struct_len = sprintf((char *)pfd_conts->cstm_pfd_cntnt,
+				struct_len = snprintf((char *)pfd_conts->cstm_pfd_cntnt, MAX_LEN,
 													"%"PRId64" ",cstm_buf->mtype);
 				/* Fill cstm ie contents frome rule structure as string */
 				memcpy(pfd_conts->cstm_pfd_cntnt + struct_len,
@@ -194,7 +197,7 @@ set_pfd_contents(pfcp_pfd_contents_ie_t *pfd_conts, struct msgbuf *cstm_buf)
 			case MSG_ADC_TBL_DEL:
 				pfd_conts->cstm_pfd_cntnt = malloc(sizeof(struct adc_rules));
 				/* Fill msg type */
-				struct_len = sprintf((char *)pfd_conts->cstm_pfd_cntnt,
+				struct_len = snprintf((char *)pfd_conts->cstm_pfd_cntnt, MAX_LEN,
 												"%"PRId64" ",cstm_buf->mtype);
 				/* Fill cstm ie contents frome rule structure as string */
 				memcpy(pfd_conts->cstm_pfd_cntnt + struct_len,
@@ -205,7 +208,7 @@ set_pfd_contents(pfcp_pfd_contents_ie_t *pfd_conts, struct msgbuf *cstm_buf)
 			case MSG_PCC_TBL_DEL:
 				pfd_conts->cstm_pfd_cntnt = malloc(sizeof(struct pcc_rules));
 				/* Fill msg type */
-				struct_len = sprintf((char *)pfd_conts->cstm_pfd_cntnt,
+				struct_len = snprintf((char *)pfd_conts->cstm_pfd_cntnt, MAX_LEN,
 												"%"PRId64" ",cstm_buf->mtype);
 				/* Fill cstm ie contents frome rule structure as string */
 				memcpy(pfd_conts->cstm_pfd_cntnt + struct_len,
@@ -217,7 +220,7 @@ set_pfd_contents(pfcp_pfd_contents_ie_t *pfd_conts, struct msgbuf *cstm_buf)
 			case MSG_SESS_DEL:
 				pfd_conts->cstm_pfd_cntnt = malloc(sizeof(struct session_info));
 				/* Fill msg type */
-				struct_len = sprintf((char *)pfd_conts->cstm_pfd_cntnt,
+				struct_len = snprintf((char *)pfd_conts->cstm_pfd_cntnt, MAX_LEN,
 												"%"PRId64" ",cstm_buf->mtype);
 				/* Fill cstm ie contents frome rule structure as string */
 				memcpy(pfd_conts->cstm_pfd_cntnt + struct_len,
@@ -228,7 +231,7 @@ set_pfd_contents(pfcp_pfd_contents_ie_t *pfd_conts, struct msgbuf *cstm_buf)
 			case MSG_MTR_DEL:
 				pfd_conts->cstm_pfd_cntnt = malloc(sizeof(struct mtr_entry));
 				/* Fill msg type */
-				struct_len = sprintf((char *)pfd_conts->cstm_pfd_cntnt,
+				struct_len = snprintf((char *)pfd_conts->cstm_pfd_cntnt, MAX_LEN,
 													"%"PRId64" ",cstm_buf->mtype);
 				/* Fill cstm ie contents frome rule structure as string */
 				memcpy(pfd_conts->cstm_pfd_cntnt + struct_len ,
@@ -238,7 +241,7 @@ set_pfd_contents(pfcp_pfd_contents_ie_t *pfd_conts, struct msgbuf *cstm_buf)
 			case MSG_DDN_ACK:
 				pfd_conts->cstm_pfd_cntnt = malloc(sizeof(struct downlink_data_notification));
 				/* Fill msg type */
-				struct_len = sprintf((char *)pfd_conts->cstm_pfd_cntnt,
+				struct_len = snprintf((char *)pfd_conts->cstm_pfd_cntnt, MAX_LEN,
 																"%"PRId64" ",cstm_buf->mtype);
 				/* Fill cstm ie contents frome rule structure as string */
 				memcpy(pfd_conts->cstm_pfd_cntnt + struct_len ,
@@ -246,7 +249,7 @@ set_pfd_contents(pfcp_pfd_contents_ie_t *pfd_conts, struct msgbuf *cstm_buf)
 				pfd_conts->len_of_cstm_pfd_cntnt = sizeof(struct downlink_data_notification) + struct_len;
 				break;
 			default:
-				clLog(apilogger, eCLSeverityCritical, "build_dp_msg: Invalid msg type\n");
+				clLog(clSystemLog, eCLSeverityCritical, "build_dp_msg: Invalid msg type\n");
 				break;
 		}
 	}
@@ -256,7 +259,11 @@ set_pfd_contents(pfcp_pfd_contents_ie_t *pfd_conts, struct msgbuf *cstm_buf)
 	return (pfd_conts->len_of_cstm_pfd_cntnt + 3);
 }
 
-/* Fill pfd context */
+/**
+ * @brief  : This function fills in values to pfd context ie
+ * @param  : pfd_contxt is pointer to structure of pfd context ie
+ * @return : This function dose not return anything
+ */
 static void
 set_pfd_context(pfcp_pfd_context_ie_t *pfd_conxt)
 {
@@ -267,7 +274,11 @@ set_pfd_context(pfcp_pfd_context_ie_t *pfd_conxt)
 
 }
 
-/* FIll pfd Application id  */
+/**
+ * @brief  : This function fills in values to pfd application id ie
+ * @param  : app_id is pointer to structure of pfd application id ie
+ * @return : This function dose not return anything
+ */
 static void
 set_pfd_application_id(pfcp_application_id_ie_t *app_id)
 {
@@ -277,7 +288,12 @@ set_pfd_application_id(pfcp_application_id_ie_t *app_id)
 
 }
 
-/* Fill pfd app id and pfd context */
+/**
+ * @brief  : This function fills pfd app id and pfd context
+ * @param  : app_id_pfds_t is pointer to structure of  ie
+ * @param  : len denotes total length of ie
+ * @return : This function dose not return anything
+ */
 static void
 set_app_ids_pfds(pfcp_app_ids_pfds_ie_t *app_ids_pfds_t , uint16_t len)
 {
@@ -323,6 +339,8 @@ buffer_csr_request(ue_context *context,
 						RTE_CACHE_LINE_SIZE, rte_socket_id());
 
 	key->teid = context->s11_sgw_gtpc_teid;
+	key->sender_teid = context->s11_mme_gtpc_teid;
+	key->sequence = context->sequence;
 	key->ebi_index = ebi;
 
 	upf_context->pending_csr_teid[upf_context->csr_cnt] = (uint32_t *)key;
@@ -340,13 +358,18 @@ get_upf_ip(ue_context *ctxt, upfs_dnsres_t **_entry,
 	upfs_dnsres_t *entry = NULL;
 
 	if (upflist_by_ue_hash_entry_lookup(&ctxt->imsi,
-			sizeof(ctxt->imsi), &entry) != 0)
+			sizeof(ctxt->imsi), &entry) != 0) {
+		clLog(clSystemLog, eCLSeverityCritical,
+				"%s:%d Failure in upflist_by_ue_hash_entry_lookup\n",__func__, __LINE__);
 		return -1;
+	}
 
 	if (entry->current_upf > entry->upf_count) {
 		/* TODO: Add error log : Tried sending
 		 * association request to all upf.*/
 		/* Remove entry from hash ?? */
+		clLog(clSystemLog, eCLSeverityCritical,
+				"%s:%d Failure in sending association request to all upf\n",__func__, __LINE__);
 		return -1;
 	}
 
@@ -356,23 +379,28 @@ get_upf_ip(ue_context *ctxt, upfs_dnsres_t **_entry,
 }
 #endif /* USE_DNS_QUERY */
 
+/**
+ * @brief  : This function creates association setup request and sends to peer
+ * @param  : context holds information of ue
+ * @param  : ebi_index denotes index of bearer stored in array
+ * @return : This function dose not return anything
+ */
 static int
 assoication_setup_request(ue_context *context, uint8_t ebi_index)
 {
 	int ret = 0;
 	uint32_t upf_ip = 0;
 	upf_context_t *upf_context = NULL;
-	EInterfaceType it;
+
 	//char sgwu_fqdn_res[MAX_HOSTNAME_LENGTH] = {0};
 	pfcp_assn_setup_req_t pfcp_ass_setup_req = {0};
 
 	upf_ip = (context->pdns[ebi_index])->upf_ipv4.s_addr;
-
 	upf_context  = rte_zmalloc_socket(NULL, sizeof(upf_context_t),
 				RTE_CACHE_LINE_SIZE, rte_socket_id());
 
 	if (upf_context == NULL) {
-		fprintf(stderr, "Failure to allocate upf context: "
+		clLog(clSystemLog, eCLSeverityCritical, "Failure to allocate upf context: "
 				"%s (%s:%d)\n",
 				rte_strerror(rte_errno),
 				__FILE__,
@@ -383,14 +411,14 @@ assoication_setup_request(ue_context *context, uint8_t ebi_index)
 
 	ret = upf_context_entry_add(&upf_ip, upf_context);
 	if (ret) {
-		RTE_LOG_DP(ERR, CP, "%s : Error: %d \n", __func__, ret);
+		clLog(clSystemLog, eCLSeverityCritical, "%s : Error: %d \n", __func__, ret);
 		return -1;
 	}
 
 
 	ret = buffer_csr_request(context, upf_context, ebi_index);
 	if (ret) {
-		clLog(sxlogger, eCLSeverityCritical, "%s:%d Error: %d \n",
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%d Error: %d \n",
 				__func__, __LINE__, ret);
 		return -1;
 	}
@@ -412,59 +440,58 @@ assoication_setup_request(ue_context *context, uint8_t ebi_index)
 	upf_pfcp_sockaddr.sin_addr.s_addr = upf_ip;
 #endif /* USE_DNS_QUERY */
 
-	if ( pfcp_send(pfcp_fd, pfcp_msg, encoded, &upf_pfcp_sockaddr) < 0 ) {
-		printf("Error sending\n\n");
+	/* fill and add timer entry */
+	peerData *timer_entry = NULL;
+	timer_entry =  fill_timer_entry_data(PFCP_IFACE, &upf_pfcp_sockaddr,
+			pfcp_msg, encoded, pfcp_config.request_tries, context->s11_sgw_gtpc_teid, ebi_index);
+
+	timer_entry->imsi = context->imsi;
+
+	if(!(add_timer_entry(timer_entry, pfcp_config.request_timeout, association_timer_callback))) {
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%u Faild to add timer entry...\n",
+				__FILE__, __func__, __LINE__);
+	}
+
+	if ( pfcp_send(pfcp_fd, pfcp_msg, encoded, &upf_pfcp_sockaddr,SENT) < 0 ) {
+		clLog(clSystemLog, eCLSeverityDebug,"Error sending\n\n");
 	}else {
 
-		/*CLI: idebtify interface*/
-		if (pfcp_config.cp_type == SGWC)
-		{
-			it = itSxa;
-		} else if (pfcp_config.cp_type == PGWC)
-		{
-			it = itSxb;
-		} else {
-			it = itSxaSxb;
+		upf_context->timer_entry = timer_entry;
+		if (starttimer(&timer_entry->pt) < 0) {
+			clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%u Periodic Timer failed to start...\n",
+					__FILE__, __func__, __LINE__);
 		}
-
-		/*CLI:add entry for SGWU when asstn setup req sent
-		 *,but status is FALSE till resp rcvd*/
-		add_cli_peer(upf_ip,it);
-		get_current_time(cp_stats.stat_timestamp);
-		update_cli_stats(upf_ip,
-				pfcp_ass_setup_req.header.message_type,
-				REQ,cp_stats.stat_timestamp);
 	}
 
 	return 0;
 }
 
 int
-process_pfcp_assoication_request(ue_context *context, uint8_t ebi_index)
+process_pfcp_assoication_request(pdn_connection *pdn, uint8_t ebi_index)
 {
 	int ret = 0;
 	struct in_addr upf_ipv4 = {0};
 	upf_context_t *upf_context = NULL;
 
-	if ((context->pdns[ebi_index])->upf_ipv4.s_addr == 0) {
+	if (pdn->upf_ipv4.s_addr == 0) {
 #ifdef USE_DNS_QUERY
 		uint32_t *upf_ip = NULL;
 		upf_ip = &upf_ipv4.s_addr;
 
 		/* VS: Select the UPF based on DNS */
-		ret = dns_query_lookup(context, ebi_index, &upf_ip);
+		ret = dns_query_lookup(pdn, &upf_ip);
 		if (ret) {
-			clLog(sxlogger, eCLSeverityCritical, "[%s]:[%s]:[%d] Error: %d \n",
+			clLog(clSystemLog, eCLSeverityCritical, "[%s]:[%s]:[%d] Error: %d \n",
 					__file__, __func__, __LINE__, ret);
 			return ret;
 		}
 
-		(context->pdns[ebi_index])->upf_ipv4.s_addr = *upf_ip;
+		pdn->upf_ipv4.s_addr = *upf_ip;
 		/* Need to think on it*/
 		upf_ipv4.s_addr = *upf_ip;
 #else
-		(context->pdns[ebi_index])->upf_ipv4 = pfcp_config.upf_pfcp_ip;
-		upf_ipv4 = pfcp_config.upf_pfcp_ip;
+		pdn->upf_ipv4.s_addr = pfcp_config.upf_pfcp_ip.s_addr;
+		upf_ipv4.s_addr = pfcp_config.upf_pfcp_ip.s_addr;
 #endif /* USE_DNS_QUERY */
 
 	}
@@ -474,24 +501,25 @@ process_pfcp_assoication_request(ue_context *context, uint8_t ebi_index)
 			(const void*) &(upf_ipv4.s_addr), (void **) &(upf_context));
 	if (ret >= 0) {
 		if (upf_context->state == PFCP_ASSOC_RESP_RCVD_STATE) {
-			ret = process_pfcp_sess_est_request(context->s11_sgw_gtpc_teid, ebi_index);
+			ret = process_pfcp_sess_est_request(pdn->context->s11_sgw_gtpc_teid, pdn, upf_context);
 			if (ret) {
-					clLog(sxlogger, eCLSeverityCritical, "%s:%d Error: %d \n",
+					clLog(clSystemLog, eCLSeverityCritical, "%s:%d Error: %d \n",
 							__func__, __LINE__, ret);
 					return ret;
 			}
 		} else {
-			ret = buffer_csr_request(context, upf_context, ebi_index);
+			ret = buffer_csr_request(pdn->context, upf_context, ebi_index);
 			if (ret) {
-				clLog(sxlogger, eCLSeverityCritical, "%s:%d Error: %d \n",
+				clLog(clSystemLog, eCLSeverityCritical, "%s:%d Error: %d \n",
 						__func__, __LINE__, ret);
 				return -1;
 			}
 		}
 	} else {
-		ret = assoication_setup_request(context, ebi_index);
+
+		ret = assoication_setup_request(pdn->context, ebi_index);
 		if (ret) {
-				clLog(sxlogger, eCLSeverityCritical, "%s:%d Error: %d \n",
+				clLog(clSystemLog, eCLSeverityCritical, "%s:%d Error: %d \n",
 						__func__, __LINE__, ret);
 				return ret;
 		}
@@ -542,13 +570,15 @@ uint8_t
 process_pfcp_ass_resp(msg_info *msg, struct sockaddr_in *peer_addr)
 {
 	int ret = 0;
+	pdn_connection *pdn = NULL;
+	struct resp_info *resp = NULL;
 	upf_context_t *upf_context = NULL;
 
 	ret = rte_hash_lookup_data(upf_context_by_ip_hash,
 			(const void*) &(msg->upf_ipv4.s_addr), (void **) &(upf_context));
 
 	if (ret < 0) {
-		clLog(sxlogger, eCLSeverityDebug, "NO ENTRY FOUND IN UPF HASH [%u]\n",
+		clLog(clSystemLog, eCLSeverityDebug, "NO ENTRY FOUND IN UPF HASH [%u]\n",
 				msg->upf_ipv4.s_addr);
 		return 0;
 	}
@@ -596,7 +626,8 @@ process_pfcp_ass_resp(msg_info *msg, struct sockaddr_in *peer_addr)
 	/* teid_range from first user plane ip IE is used since, for same CP ,
 	 * DP will assigne single teid_range , So all IE's will have same value for teid_range*/
 	/* Change teid base address here */
-	if(msg->pfcp_msg.pfcp_ass_resp.user_plane_ip_rsrc_info[0].teidri != 0){
+	if (msg->pfcp_msg.pfcp_ass_resp.user_plane_ip_rsrc_info[0].teidri != 0) {
+		upf_context->teidri = msg->pfcp_msg.pfcp_ass_resp.user_plane_ip_rsrc_info[0].teid_range;
 		set_base_teid(msg->pfcp_msg.pfcp_ass_resp.user_plane_ip_rsrc_info[0].teid_range);
 	}
 
@@ -604,9 +635,14 @@ process_pfcp_ass_resp(msg_info *msg, struct sockaddr_in *peer_addr)
 
 		context_key *key = (context_key *)upf_context->pending_csr_teid[i];
 
-		ret = process_pfcp_sess_est_request(key->teid, key->ebi_index);
+		if (get_pdn(key->teid, &pdn) < 0){
+			clLog(clSystemLog, eCLSeverityCritical, "%s:%d Failed to get pdn for teid: %u\n",
+					__func__, __LINE__, key->teid);
+		}
+
+		ret = process_pfcp_sess_est_request(key->teid, pdn, upf_context);
 		if (ret) {
-				clLog(sxlogger, eCLSeverityCritical, "%s : Error: %d \n", __func__, ret);
+				clLog(clSystemLog, eCLSeverityCritical, "%s : Error: %d \n", __func__, ret);
 #ifdef CP_BUILD
 					if(ret != -1) {
 						cs_error_response(msg, ret,
@@ -614,6 +650,15 @@ process_pfcp_ass_resp(msg_info *msg, struct sockaddr_in *peer_addr)
 						process_error_occured_handler(&msg, NULL);
 					}
 #endif /* CP_BUILD */
+		} else {
+			/* Need to remove + 5 after adding ebi_index in upf_context */
+			if (get_sess_entry(SESS_ID(key->teid, key->ebi_index + 5), &resp) != 0) {
+				clLog(clSystemLog, eCLSeverityCritical, "%s:%d NO Session Entry Found for sess ID:%lu\n",
+					__func__, __LINE__,  SESS_ID(key->teid, key->ebi_index));
+				return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+			}
+			/* stored csr for error response */
+			resp->gtpc_msg.csr = upf_context->csr;
 		}
 
 		rte_free(upf_context->pending_csr[i]);
@@ -626,12 +671,16 @@ process_pfcp_ass_resp(msg_info *msg, struct sockaddr_in *peer_addr)
 			msg->pfcp_msg.pfcp_ass_resp.rcvry_time_stmp.rcvry_time_stmp_val);
 
 #ifdef USE_REST
-	if ((add_node_conn_entry((uint32_t)peer_addr->sin_addr.s_addr,
-					SX_PORT_ID)) != 0) {
+	uint32_t ip_addr = peer_addr->sin_addr.s_addr;
+	if (ip_addr != 0) {
+		if ((add_node_conn_entry(ip_addr,
+						SX_PORT_ID)) != 0) {
 
-		RTE_LOG_DP(ERR, DP, "Failed to add connection entry for SGWU/SAEGWU");
+			clLog(clSystemLog, eCLSeverityCritical, "Failed to add connection entry for SGWU/SAEGWU\n");
+		}
+		clLog(clSystemLog, eCLSeverityDebug, FORMAT"Added Connection entry for UPF:"IPV4_ADDR"\n",
+				ERR_MSG, IPV4_ADDR_HOST_FORMAT(ip_addr));
 	}
-
 #endif/* USE_REST */
 	return 0;
 
@@ -645,6 +694,7 @@ process_pfcp_report_req(pfcp_sess_rpt_req_t *pfcp_sess_rep_req)
 	uint8_t ebi_index;
 	int ret = 0, encoded = 0;
 	ue_context *context = NULL;
+	pdn_connection *pdn = NULL;
 	uint8_t pfcp_msg[250] = {0};
 	struct resp_info *resp = NULL;
 	pfcp_sess_rpt_rsp_t pfcp_sess_rep_resp = {0};
@@ -655,63 +705,83 @@ process_pfcp_report_req(pfcp_sess_rpt_req_t *pfcp_sess_rep_req)
 
 	/* Stored the session information*/
 	if (get_sess_entry(sess_id, &resp) != 0) {
-		fprintf(stderr, "Failed to add response in entry in SM_HASH\n");
+		clLog(clSystemLog, eCLSeverityCritical, "Failed to add response in entry in SM_HASH\n");
 		return -1;
 	}
 
+	ebi_index =  UE_BEAR_ID(sess_id) - 5;
+
 	/* Retrive the s11 sgwc gtpc teid based on session id.*/
 	sequence = pfcp_sess_rep_req->header.seid_seqno.has_seid.seq_no;
-	resp->msg_type = PFCP_SESSION_REPORT_REQUEST;
-
-	clLog(sxlogger, eCLSeverityDebug, "DDN Request recv from DP for sess:%lu\n", sess_id);
 
 	if (pfcp_sess_rep_req->report_type.dldr == 1) {
+		clLog(clSystemLog, eCLSeverityDebug, "DDN Request recv from DP for sess:%lu\n", sess_id);
 		ret = ddn_by_session_id(sess_id);
 		if (ret) {
-			fprintf(stderr, "DDN %s: (%d) \n", __func__, ret);
+			clLog(clSystemLog, eCLSeverityCritical, "DDN %s: (%d) \n", __func__, ret);
 			return -1;
 		}
+
+		resp->msg_type = PFCP_SESSION_REPORT_REQUEST;
 		/* Update the Session state */
 		resp->state = DDN_REQ_SNT_STATE;
-	}
 
-	/* Update the UE State */
-	ret = update_ue_state(s11_sgw_gtpc_teid,
-			DDN_REQ_SNT_STATE);
-	if (ret < 0) {
-		fprintf(stderr, "%s:Failed to update UE State for teid: %u\n", __func__,
-				s11_sgw_gtpc_teid);
-	}
 
-	/* Retrieve the UE context */
-	ret = get_ue_context(s11_sgw_gtpc_teid, &context);
-	if (ret < 0) {
-			fprintf(stderr, "%s:%d Failed to update UE State for teid: %u\n",
-					__func__, __LINE__,
+		/* Update the UE State */
+		ret = update_ue_state(s11_sgw_gtpc_teid,
+				DDN_REQ_SNT_STATE, ebi_index);
+		if (ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical, "%s:Failed to update UE State for teid: %u\n", __func__,
 					s11_sgw_gtpc_teid);
+		}
+
+		/* Retrieve the UE context */
+		ret = get_ue_context(s11_sgw_gtpc_teid, &context);
+		if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical, "%s:%d Failed to update UE State for teid: %u\n",
+						__func__, __LINE__,
+						s11_sgw_gtpc_teid);
+		}
+		pdn = GET_PDN(context, ebi_index);
+		if(pdn == NULL){
+			clLog(clSystemLog, eCLSeverityCritical,
+					"%s:%d Failed to get pdn \n", __func__, __LINE__);
+			return -1;
+		}
+
+		pdn->state = DDN_REQ_SNT_STATE;
+
 	}
-	context->state = DDN_REQ_SNT_STATE;
+
+	if (pfcp_sess_rep_req->report_type.usar == 1) {
+
+		for(int i=0; i< pfcp_sess_rep_req->usage_report_count; i++)
+		fill_cdr_info_sess_rpt_req(sess_id,&pfcp_sess_rep_req->usage_report[i]);
+	}
+
+	ret = get_ue_context(s11_sgw_gtpc_teid, &context);
+	pdn = GET_PDN(context, ebi_index);
+	if(pdn == NULL){
+		clLog(clSystemLog, eCLSeverityCritical,
+				"%s:%d Failed to get pdn \n", __func__, __LINE__);
+		return -1;
+	}
 
 	/*Fill and send pfcp session report response. */
 	fill_pfcp_sess_report_resp(&pfcp_sess_rep_resp,
 			sequence);
-	ebi_index = resp->eps_bearer_id;
 
-	pfcp_sess_rep_resp.header.seid_seqno.has_seid.seid = context->pdns[ebi_index - 5]->dp_seid;
+	pfcp_sess_rep_resp.header.seid_seqno.has_seid.seid = pdn->dp_seid;
 
 	encoded =  encode_pfcp_sess_rpt_rsp_t(&pfcp_sess_rep_resp, pfcp_msg);
 	pfcp_header_t *pfcp_hdr = (pfcp_header_t *) pfcp_msg;
 	pfcp_hdr->message_len = htons(encoded - 4);
 
-	if (pfcp_send(pfcp_fd, pfcp_msg, encoded, &upf_pfcp_sockaddr) < 0 ) {
-		clLog(sxlogger, eCLSeverityCritical, "Error REPORT REPONSE message: %i\n", errno);
+	if (pfcp_send(pfcp_fd, pfcp_msg, encoded, &upf_pfcp_sockaddr,ACC) < 0 ) {
+		clLog(clSystemLog, eCLSeverityCritical, "Error REPORT REPONSE message: %i\n", errno);
 		return -1;
 	}
 	else {
-		get_current_time(cp_stats.stat_timestamp);
-		update_cli_stats((uint32_t)upf_pfcp_sockaddr.sin_addr.s_addr,
-				pfcp_sess_rep_resp.header.message_type,ACC,
-							cp_stats.stat_timestamp);
 	}
 
 	return 0;
@@ -742,8 +812,10 @@ fill_pfcp_association_release_resp(pfcp_assn_rel_rsp_t *pfcp_ass_rel_resp)
 
 void
 fill_pfcp_association_setup_resp(pfcp_assn_setup_rsp_t *pfcp_ass_setup_resp,
-				uint8_t cause )
+				uint8_t cause, uint32_t peer_addr )
 {
+	uint8_t teid_range = 0;
+	uint8_t teidri_gen_flag = 0;
 	uint32_t seq  = 1;
 	uint32_t node_value = 0;
 
@@ -761,27 +833,71 @@ fill_pfcp_association_setup_resp(pfcp_assn_setup_rsp_t *pfcp_ass_setup_resp,
 	/* As we are not supporting this feature
 	set_upf_features(&(pfcp_ass_setup_resp->up_func_feat)); */
 
-	if (app.spgw_cfg == SGWU) {
-		pfcp_ass_setup_resp->user_plane_ip_rsrc_info_count = 2; /*for s1u and s5s8 sgwc ips*/
-		/*UPF Features IE is added for the ENDMARKER feauture which is supported in SGWU only*/
-		set_upf_features(&(pfcp_ass_setup_resp->up_func_feat));
-		pfcp_ass_setup_resp->up_func_feat.sup_feat |=  EMPU ;
-		pfcp_ass_setup_resp->header.message_len += pfcp_ass_setup_resp->up_func_feat.header.len;
+	if (cause == REQUESTACCEPTED) {
+		if (app.spgw_cfg == SGWU) {
+			pfcp_ass_setup_resp->user_plane_ip_rsrc_info_count = 2; /*for s1u and s5s8 sgwc ips*/
+			/*UPF Features IE is added for the ENDMARKER feauture which is supported in SGWU only*/
+			set_upf_features(&(pfcp_ass_setup_resp->up_func_feat));
+			pfcp_ass_setup_resp->up_func_feat.sup_feat |=  EMPU ;
+			pfcp_ass_setup_resp->header.message_len += pfcp_ass_setup_resp->up_func_feat.header.len;
 
 
-	} else if ((app.spgw_cfg == PGWU) || (app.spgw_cfg == SAEGWU)) {
-		pfcp_ass_setup_resp->user_plane_ip_rsrc_info_count = 1; /*for s5s8 pgwc ip*/
-	}
+		} else if ((app.spgw_cfg == PGWU) || (app.spgw_cfg == SAEGWU)) {
+			pfcp_ass_setup_resp->user_plane_ip_rsrc_info_count = 1; /*for s5s8 pgwc ip*/
+		}
 
-	for( int i=0; i < pfcp_ass_setup_resp->user_plane_ip_rsrc_info_count; i++ ){
-		set_up_ip_resource_info(&(pfcp_ass_setup_resp->user_plane_ip_rsrc_info[i]),i);
-		/* Copy same teid_range in all user plane IP rsrc IEs */
-		pfcp_ass_setup_resp->user_plane_ip_rsrc_info[i].teidri =
+		/* Checking node addr TEDIRI  value into stored data */
+		teidri_gen_flag = get_node_teidri(&teid_range, peer_addr);
+
+		if (teidri_gen_flag == 1) {
+			/* TEIDRI value found into data */
+			clLog(clSystemLog, eCLSeverityDebug,
+					"TEIDRI value found into data node addr : %u : TEIDRI : %d \n",
+					peer_addr, teid_range);
+
+			/* Set up IP resource info */
+			/* Note : for avoiding compilation error we need to pass hardcoded value to function */
+			for ( int itr = 0;
+					itr < pfcp_ass_setup_resp->user_plane_ip_rsrc_info_count; itr++ ) {
+				set_up_ip_resource_info(&(pfcp_ass_setup_resp->user_plane_ip_rsrc_info[itr]),
+						itr, teidri_gen_flag);
+				pfcp_ass_setup_resp->user_plane_ip_rsrc_info[itr].teid_range =
+					teid_range;
+			}
+
+			/* Assuming if peer node address and TEIDRI value find into file data, that's means DP Restarted */
+			clLog(clSystemLog, eCLSeverityDebug,
+					FORMAT"PREVIOUS : DP Restart counter : %d \n ", ERR_MSG,
+					dp_restart_cntr);
+
+			update_dp_restart_cntr();
+
+			clLog(clSystemLog, eCLSeverityDebug,
+					FORMAT"UPDATED : DP Restart counter : %d \n ", ERR_MSG,
+					dp_restart_cntr);
+
+		} else {
+			for( int i = 0; i < pfcp_ass_setup_resp->user_plane_ip_rsrc_info_count; i++ ){
+				set_up_ip_resource_info(&(pfcp_ass_setup_resp->user_plane_ip_rsrc_info[i]), i, teidri_gen_flag);
+				/* Copy same teid_range in all user plane IP rsrc IEs */
+				pfcp_ass_setup_resp->user_plane_ip_rsrc_info[i].teidri =
 					pfcp_ass_setup_resp->user_plane_ip_rsrc_info[0].teidri;
-		pfcp_ass_setup_resp->user_plane_ip_rsrc_info[i].teid_range =
+				pfcp_ass_setup_resp->user_plane_ip_rsrc_info[i].teid_range =
 					pfcp_ass_setup_resp->user_plane_ip_rsrc_info[0].teid_range;
-		 pfcp_ass_setup_resp->header.message_len +=
-			        pfcp_ass_setup_resp->user_plane_ip_rsrc_info[i].header.len;
+				pfcp_ass_setup_resp->header.message_len +=
+					pfcp_ass_setup_resp->user_plane_ip_rsrc_info[i].header.len;
+			}
+			/* If node addr and teid range not found in file,
+			 * than dump into file, assing teid range and crosponding node addr */
+			if (add_teidri_node_entry(pfcp_ass_setup_resp->user_plane_ip_rsrc_info[0].teid_range,
+						peer_addr, TEIDRI_FILENAME) < 0) {
+				clLog(clSystemLog, eCLSeverityDebug,FORMAT"ERROR :Unable to write data into file"
+						" for Node addr : %u : TEIDRI : %d \n",
+						ERR_MSG, peer_addr,
+						pfcp_ass_setup_resp->user_plane_ip_rsrc_info[0].teid_range);
+
+			}
+		}
 	}
 
 	pfcp_ass_setup_resp->header.message_len = pfcp_ass_setup_resp->node_id.header.len +
@@ -900,14 +1016,14 @@ int process_pfcp_heartbeat_req(struct sockaddr_in *peer_addr, uint32_t seq)
 	header->message_len = htons(encoded - 4);
 
 #ifdef CP_BUILD
-	if ( pfcp_send(pfcp_fd, pfcp_msg, encoded, peer_addr) < 0 ) {
-				clLog(sxlogger, eCLSeverityDebug, "Error sending: %i\n", errno);
+	if ( pfcp_send(pfcp_fd, pfcp_msg, encoded, peer_addr,SENT) < 0 ) {
+				clLog(clSystemLog, eCLSeverityDebug, "Error sending: %i\n", errno);
 	}
 #endif
 
 #ifdef DP_BUILD
-	if ( pfcp_send(my_sock.sock_fd, pfcp_msg, encoded, peer_addr) < 0 ) {
-					RTE_LOG_DP(DEBUG, DP, "Error sending: %i\n",errno);
+	if ( pfcp_send(my_sock.sock_fd, pfcp_msg, encoded, peer_addr,SENT) < 0 ) {
+					clLog(clSystemLog, eCLSeverityDebug, "Error sending: %i\n",errno);
 	}
 #endif
 

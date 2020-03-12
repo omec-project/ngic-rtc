@@ -50,7 +50,9 @@ if [ "${SPGW_CFG}" == "01" ]; then
 				--teidri $TEIDRI \
 				--transmit_timer $TRANSMIT_TIMER	\
 				--periodic_timer $PERIODIC_TIMER \
-				--transmit_count $TRANSMIT_COUNT"
+				--transmit_count $TRANSMIT_COUNT \
+				--dp_logger $DP_LOGGER	\
+				--ddf_intfc $DDF_INTFC"
 elif [ "${SPGW_CFG}" == "02" ]; then
 	ARGS="-l $CORELIST -n 4 --socket-mem $NUMA0_MEMORY,$NUMA1_MEMORY 	\
 				--file-prefix dp	\
@@ -71,7 +73,9 @@ elif [ "${SPGW_CFG}" == "02" ]; then
 				--teidri $TEIDRI \
 				--transmit_timer $TRANSMIT_TIMER	\
 				--periodic_timer $PERIODIC_TIMER \
-				--transmit_count $TRANSMIT_COUNT"
+				--transmit_count $TRANSMIT_COUNT \
+				--dp_logger $DP_LOGGER	\
+				--ddf_intfc $DDF_INTFC"
 elif [ "${SPGW_CFG}" == "03" ]; then
 	ARGS="-l $CORELIST -n 4 --socket-mem $NUMA0_MEMORY,$NUMA1_MEMORY 	\
 				--file-prefix dp	\
@@ -94,7 +98,9 @@ elif [ "${SPGW_CFG}" == "03" ]; then
 				--teidri $TEIDRI \
 				--transmit_timer $TRANSMIT_TIMER	\
 				--periodic_timer $PERIODIC_TIMER \
-				--transmit_count $TRANSMIT_COUNT"
+				--transmit_count $TRANSMIT_COUNT \
+				--dp_logger $DP_LOGGER	\
+				--ddf_intfc $DDF_INTFC"
 fi
 
 
@@ -104,10 +110,6 @@ fi
 
 if [ -n "${SGI_GW_IP}" ]; then
 	ARGS="$ARGS --sgi_gw_ip $SGI_GW_IP"
-fi
-
-if [ -n "${CDR_PATH}" ]; then
-	ARGS="$ARGS --cdr_path $CDR_PATH"
 fi
 
 if [ -n "${MASTER_CDR}" ]; then
@@ -123,6 +125,11 @@ USAGE=$"Usage: run.sh [ debug | log ]
 
 if [ -z "$1" ]; then
 
+	$APP_PATH/$APP $ARGS
+
+elif [ "$1" == "core" ]; then
+	/bin/rm -f ./core
+	ulimit -c unlimited
 	$APP_PATH/$APP $ARGS
 
 elif [ "$1" == "log" ]; then

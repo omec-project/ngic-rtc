@@ -23,12 +23,19 @@
 #include "nb.h"
 #endif
 #include "cp_stats.h"
+#include "cp.h"
+#include <sys/stat.h>
+#include <netinet/in.h>
+#include <stdbool.h>
+#include "gw_adapter.h"
+
 
 struct cp_stats_t cp_stats;
 
 /**
- * @brief callback used to display rx packets per second
- * @return number of packets received by the control plane s11 interface
+ * @brief  : callback used to display rx packets per second
+ * @param  : void
+ * @return : number of packets received by the control plane s11 interface
  */
 static uint64_t
 rx_pkts_per_sec(void)
@@ -40,8 +47,9 @@ rx_pkts_per_sec(void)
 }
 
 /**
- * @brief callback used to display tx packets per second
- * @return number of packets transmitted by the control plane s11 interface
+ * @brief  : callback used to display tx packets per second
+ * @param  : void
+ * @return : number of packets transmitted by the control plane s11 interface
  */
 static uint64_t
 tx_pkts_per_sec(void)
@@ -53,8 +61,9 @@ tx_pkts_per_sec(void)
 }
 
 /**
- * @brief callback used to display control plane uptime
- * @return control plane uptime in seconds
+ * @brief  : callback used to display control plane uptime
+ * @param  : void
+ * @return : control plane uptime in seconds
  */
 static uint64_t
 stats_time(void)
@@ -62,10 +71,16 @@ stats_time(void)
 	uint64_t ret = cp_stats.time;
 
 	cp_stats.time++;
+	oss_reset_time++;
 	return ret;
 }
 
 #ifdef SDN_ODL_BUILD
+/**
+ * @brief  : Calculates difference between nb sent and received messages
+ * @param  : void
+ * @return : Returns difference.
+ */
 static uint64_t
 nb_ok_delta(void)
 {
@@ -74,6 +89,11 @@ nb_ok_delta(void)
 	return (nb_ok < nb_sent ? nb_sent - nb_ok : 0);
 }
 
+/**
+ * @brief  : Calculates difference between nb sent and cnr messages
+ * @param  : void
+ * @return : Returns difference.
+ */
 static uint64_t
 nb_cnr_delta(void)
 {
@@ -83,9 +103,8 @@ nb_cnr_delta(void)
 }
 #endif
 /**
- * @brief statistics entry
- * used to simplify statistics by providing a common interface for statistic
- * values or calculations and their names
+ * @brief  : statistics entry used to simplify statistics by providing a common
+ *           interface for statistic values or calculations and their names
  */
 struct stat_entry_t {
 	enum {VALUE, LAMBDA} type;
@@ -108,7 +127,7 @@ struct stat_entry_t {
 			stat_entries[entry_index].header)
 
 /**
- * statistic entry definitions
+ * @brief  : statistic entry definitions
  */
 struct stat_entry_t stat_entries[] = {
 	DEFINE_LAMBDA_STAT(5, stats_time, "", "time"),
@@ -135,7 +154,9 @@ struct stat_entry_t stat_entries[] = {
 
 
 /**
- * @brief prints out statistics entries
+ * @brief  : prints out statistics entries
+ * @param  : void
+ * @return : void
  */
 static inline void
 print_stat_entries(void) {

@@ -20,7 +20,7 @@
 #include <stdint.h>
 #include <time.h>
 #include <rte_common.h>
-#define LAST_TIMER_SIZE 80
+#include "gw_adapter.h"
 #define __file__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 /**
  * @file
@@ -29,7 +29,7 @@
  */
 
 /**
- * @brief counters used to display statistics on the control plane
+ * @brief  : counters used to display statistics on the control plane
  */
 struct cp_stats_t {
 
@@ -63,24 +63,18 @@ struct cp_stats_t {
 
 extern struct cp_stats_t cp_stats;
 
-extern int s11logger;
-extern int s5s8logger;
-extern int sxlogger;
-extern int gxlogger;
-extern int apilogger;
-extern int epclogger;
-
 /**
- * Prints control plane signaling message statistics
- *
- * @return
- *   Never returns/value ignored
+ * @brief  : Prints control plane signaling message statistics
+ * @param  : Currently not being used
+ * @return : Never returns/value ignored
  */
 int
 do_stats(__rte_unused void *ptr);
 
 /**
- * @brief clears the control plane statistic counters
+ * @brief  : clears the control plane statistic counters
+ * @param  : No param
+ * @return : Returns nothing
  */
 void
 reset_cp_stats(void);

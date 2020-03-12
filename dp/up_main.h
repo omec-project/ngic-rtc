@@ -44,10 +44,20 @@
 #include "vepc_cp_dp_api.h"
 #include "epc_packet_framework.h"
 
+#include "clogger.h"
+
 #ifdef USE_REST
 #include "../restoration/restoration_timer.h"
 #endif /* use_rest */
 
+#ifdef USE_CSID
+#include "../pfcp_messages/csid_struct.h"
+#endif /* USE_CSID */
+
+/* File name of TEIDRI and peer node address */
+#define TEIDRI_FILENAME     "../config/up_teidri_cp_ip_data.csv"
+
+#define FILE_NAME "../config/dp_rstCnt.txt"
 /**
  * dataplane rte logs.
  */
@@ -262,20 +272,54 @@
  */
 #define NB_ECHO_MBUF  1024
 
+#define MAX_CP 7
+
+/* Max D-DF Interface Length */
+#define DDF_INTFC_LEN	64
+
+/* Interface selection */
+#define INTERFACE \
+			( (SAEGWU == app.spgw_cfg) ? Sxa_Sxb : ( (PGWU != app.spgw_cfg) ? Sxa : Sxb ) )
+
 struct rte_mempool *echo_mpool;
 
 extern int32_t conn_cnt;
+uint8_t dp_restart_cntr;
 
+
+/**
+ * @brief  : Initialize restoration thread
+ * @param  : No param
+ * @return : Returns nothing
+ */
 void rest_thread_init(void);
 
 #ifdef CP_BUILD
+/**
+ * @brief  : Add node entry
+ * @param  : dstIp, Ip address to be added
+ * @param  : portId, port number
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 uint8_t
 add_node_conn_entry(uint32_t dstIp, uint8_t portId);
 
-
+/**
+ * @brief  : Update rst count
+ * @param  : No param
+ * @return : Returns Updated restart counter Value
+ */
 uint8_t
 update_rstCnt(void);
+
 #else
+/**
+ * @brief  : Add node entry
+ * @param  : dstIp, Ip address to be added
+ * @param  : sess_id, session id
+ * @param  : portId, port number
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 uint8_t
 add_node_conn_entry(uint32_t dstIp, uint64_t sess_id, uint8_t portId);
 
@@ -284,18 +328,30 @@ add_node_conn_entry(uint32_t dstIp, uint64_t sess_id, uint8_t portId);
  *
  * hash handles connections for S1U, SGI and PFCP
  */
-extern struct rte_hash *conn_hash_handle;
+//extern struct rte_hash *conn_hash_handle;
 
 #endif /* CP_BUILD */
 
+/**
+ * @brief  : Flush enodeB session
+ * @param  : data_t, peer node connection information
+ * @return : Returns nothing
+ */
 void
 flush_eNB_session(peerData *data_t);
 
+/**
+ * @brief  : Flush dp session
+ * @param  : ip_addr, ip address
+ * @param  : sess_id, session id
+ * @return : Returns nothing
+ */
 void
 dp_flush_session(uint32_t ip_addr, uint64_t sess_id);
 #endif  /* USE_REST */
+
 /**
- * Structure of port parameters
+ * @brief   :Structure of port parameters
  */
 struct kni_port_params {
 	uint8_t port_id;/* Port ID */
@@ -312,40 +368,70 @@ extern uint32_t nb_ports;
 extern struct kni_port_params *kni_port_params_array[RTE_MAX_ETHPORTS];
 
 /**
- * Interface to burst rx and enqueue mbufs into rx_q
+ * @brief  : Interface to burst rx and enqueue mbufs into rx_q
+ * @param  : p, kni parameters
+ * @param  : pkts_burst, mbufs packets
+ * @param  : nb_rs, number of packets
+ * @return : Returns nothing
  */
 void
 kni_ingress(struct kni_port_params *p,
 		struct rte_mbuf *pkts_burst[PKT_BURST_SZ], unsigned nb_rx);
 
 /**
- * Interface to dequeue mbufs from tx_q and burst tx
+ * @brief  : Interface to dequeue mbufs from tx_q and burst tx
+ * @param  : p, kni parameters
+ * @return : Returns nothing
  */
 void  kni_egress(struct kni_port_params *p);
 
 /**
- * free mbufs after trasmited resp back on port.
+ * @brief  : free mbufs after trasmited resp back on port.
+ * @param  : pkts_burst, mbufs packets
+ * @param  : num, number of packets
+ * @return : Returns nothing
  */
 void
 kni_burst_free_mbufs(struct rte_mbuf **pkts, unsigned num);
 
-/* Initialize KNI subsystem */
+/**
+ * @brief  : Initialize KNI subsystem
+ * @param  : No param
+ * @return : Returns nothing
+ */
 void
 init_kni(void);
 
-/* KNI interface allocatation */
+/**
+ * @brief  : KNI interface allocatation
+ * @param  : port_id, port number
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 int
 kni_alloc(uint16_t port_id);
 
-/* Check the link status of all ports in up to 9s, and print them finally */
+/**
+ * @brief  : Check the link status of all ports in up to 9s, and print them finally
+ * @param  : port_id, port number
+ * @param  : port_mask, mask value
+ * @return : Returns nothing
+ */
 void
 check_all_ports_link_status(uint16_t port_num, uint32_t port_mask);
 
-/* Validate dpdk interface are configure properly  */
+/**
+ * @brief  : Validate dpdk interface are configure properly
+ * @param  : port_mask, mask value
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 int
 validate_parameters(uint32_t portmask);
 
-/* Free KNI allocation interface on ports */
+/**
+ * @brief  : Free KNI allocation interface on ports
+ * @param  : No param
+ * @return : Returns nothing
+ */
 void free_kni_ports(void);
 
 //VS: Routing Discovery
@@ -374,8 +460,18 @@ enum dp_config {
 	SAEGWU = 03,
 };
 
+/* @brief : Collection of assinged TEID range and connected CP node address */
+typedef struct teidri_info {
+	/* IP address of conneted CP */
+	uint32_t node_addr;
+	/* TEID range assinged to CP */
+	uint8_t teid_range;
+}teidri_info_t;
+
+
+
 /**
- * Application configure structure .
+ * @brief  : Application configure structure .
  */
 struct app_params {
 	enum	 dp_config spgw_cfg;
@@ -413,17 +509,23 @@ struct app_params {
 	uint32_t gtpu_seqnb_out;		/* outgoing GTP sequence number
 						 * 0 - do not include (default)
 						 * 1 - include */
+
+	uint8_t num_cp;                          /* Number of connected CP */
+	teidri_info_t teidri_info[MAX_CP];       /* Assinged TEIDRI connected CP node address */
+
 	uint32_t ports_mask;
 	uint8_t transmit_cnt;
 	int transmit_timer;
 	int periodic_timer;
-	uint8_t teidri_val;
+	int teidri_val;
+	uint8_t dp_logger;
 	char ul_iface_name[MAX_LEN];
 	char dl_iface_name[MAX_LEN];
 	struct ether_addr s1u_ether_addr;	/* s1u mac addr */
 	struct ether_addr s5s8_sgwu_ether_addr;	/* s5s8_sgwu mac addr */
 	struct ether_addr s5s8_pgwu_ether_addr;	/* s5s8_pgwu mac addr */
 	struct ether_addr sgi_ether_addr;	/* sgi mac addr */
+	char ddf_intfc[DDF_INTFC_LEN];		/* D-Df interface name */ 
 
 #ifdef SGX_CDR
 	const char *dealer_in_ip;		/* dealerIn ip */
@@ -450,13 +552,17 @@ struct ether_addr ports_eth_addr[RTE_MAX_ETHPORTS];
 /** ethernet addresses of ports */
 extern struct ether_addr ports_eth_addr[];
 
-/** ADC sponsored dns table msg payload */
+/**
+ * @brief  : ADC sponsored dns table msg payload
+ */
 struct msg_adc {
 	uint32_t ipv4;
 	uint32_t rule_id;
 };
 
-/** UL Bearer Map key for hash lookup.*/
+/**
+ * @brief  : UL Bearer Map key for hash lookup.
+ */
 struct ul_bm_key {
 	/** s1u/s5s8u teid */
 	uint32_t teid;
@@ -464,6 +570,9 @@ struct ul_bm_key {
 	uint32_t rid;
 };
 
+/**
+ * @brief  : Maintains ddn information
+ */
 typedef struct ddn_info_t {
 	/* PDR ID */
 	uint8_t pdr_id;
@@ -472,6 +581,14 @@ typedef struct ddn_info_t {
 	/* UP Seid */
 	uint64_t up_seid;
 }ddn_t;
+
+typedef struct  li_data_t
+{
+	uint8_t *pkts;
+	far_info_t *far;
+	int size;
+}li_data_t;
+
 
 /** CDR actions, N_A should never be accounted for */
 enum pkt_action_t {CHARGED, DROPPED, N_A};
@@ -505,82 +622,58 @@ extern int arp_icmp_get_dest_mac_address(const uint32_t ipaddr,
 		uint32_t *nhip);
 
 /**
- * Push DNS packets to DN queue from worker cores
- *
- * @param pkt
- *	pkt - DNS packet.
- *
- * @return
- *	0  on success
- *	-1 on failure
-*/
+ * @brief  : Push DNS packets to DN queue from worker cores
+ * @param  :pkt, DNS packet.
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 int
 push_dns_ring(struct rte_mbuf *);
 
 /**
- * Pop DNS packets from ring and send to library for processing
- *
- * @param
- *  Unused
- *
- * @return
- *	None
+ * @brief  : Pop DNS packets from ring and send to library for processing
+ * @param  : No param
+ * @return : Returns nothing
  */
 void
 scan_dns_ring(void);
 
 /**
- * Function to Initialize the Environment Abstraction Layer (EAL).
- *
- * @param void
- *	void.
- *
- * @return
- *	None
+ * @brief  : Function to Initialize the Environment Abstraction Layer (EAL).
+ * @param  : No param
+ * @return : Returns nothing
  */
 void
 dp_port_init(void);
 
 /**
- * Function to initialize the dataplane application config.
- *
- * @param argc
- *	number of arguments.
- * @param argv
- *	list of arguments.
- *
- * @return
- *	None
+ * @brief  : Function to initialize the dataplane application config.
+ * @param  : argc, number of arguments.
+ * @param  : argv, list of arguments.
+ * @return : Returns nothing
  */
 void
 dp_init(int argc, char **argv);
 
 /**
- * Decap gtpu header.
- *
- * @param pkts
- *	pointer to mbuf of incoming packets.
- * @param n
- *	number of pkts.
- * @param pkts_mask
- * 	bit mask to process the pkts, reset bit to free the pkt.
+ * @brief  : Decap gtpu header.
+ * @param  : pkts, pointer to mbuf of incoming packets.
+ * @param  : n, number of pkts.
+ * @param  : pkts_mask, bit mask to process the pkts, reset bit to free the pkt.
+ * @return : Returns nothing
  */
 void
 gtpu_decap(struct rte_mbuf **pkts, uint32_t n,
 		uint64_t *pkts_mask);
 
 /**
- * Encap gtpu header.
- *
- * @param pdr information
- * @param sess_info
- *	pointer to session info.
- * @param pkts
- *	pointer to mbuf of incoming packets.
- * @param n
- *	number of pkts.
- * @param pkts_mask
- *	bit mask to process the pkts, reset bit to free the pkt.
+ * @brief  : Encap gtpu header.
+ * @param  : pdrs, pdr information
+ * @param  : sess_info, pointer to session info.
+ * @param  : pkts, pointer to mbuf of incoming packets.
+ * @param  : n, number of pkts.
+ * @param  : pkts_mask, bit mask to process the pkts, reset bit to free the pkt.
+ * @param  : pkts_queue_mask, packet queue mask
+ * @return : Returns nothing
  */
 void
 gtpu_encap(pdr_info_t **pdrs, pfcp_session_datat_t **sess_info, struct rte_mbuf **pkts,
@@ -588,89 +681,59 @@ gtpu_encap(pdr_info_t **pdrs, pfcp_session_datat_t **sess_info, struct rte_mbuf 
 
 /*************************pkt_handler.ci functions start*********************/
 /**
- * Function to handle incoming pkts on s1u interface.
- *
- * @param p
- *	pointer to pipeline.
- * @param pkts
- *	pointer to pkts.
- * @param n
- *	number of pkts.
- *
- * @return
- *	- 0  on success
- *	- -1 on failure
+ * @brief  : Function to handle incoming pkts on s1u interface.
+ * @param  : p, pointer to pipeline.
+ * @param  : pkts, pointer to pkts.
+ * @param  : n, number of pkts.
+ * @param  : wk_index,
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 s1u_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
 		int wk_index);
 
 /**
- * Function to handle incoming pkts on s5s8 SGW interface.
- *
- * @param p
- *	pointer to pipeline.
- * @param pkts
- *	pointer to pkts.
- * @param n
- *	number of pkts.
- *
- * @return
- *	- 0  on success
- *	- -1 on failure
+ * @brief  : Function to handle incoming pkts on s5s8 SGW interface.
+ * @param  : p, pointer to pipeline.
+ * @param  : pkts, pointer to pkts.
+ * @param  : n, number of pkts.
+ * @param  : wk_index,
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 sgw_s5_s8_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts,
 		uint32_t n,	int wk_index);
 
 /**
- * Function to handle incoming pkts on s5s8 PGW interface.
- *
- * @param p
- *	pointer to pipeline.
- * @param pkts
- *	pointer to pkts.
- * @param n
- *	number of pkts.
- *
- * @return
- *	- 0  on success
- *	- -1 on failure
+ * @brief  : Function to handle incoming pkts on s5s8 PGW interface.
+ * @param  : p, pointer to pipeline.
+ * @param  : pkts, pointer to pkts.
+ * @param  : n, number of pkts.
+ * @param  : wk_index,
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 pgw_s5_s8_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts,
 		uint32_t n,	int wk_index);
 
 /**
- * Function to handle incoming pkts on sgi interface.
- *
- * @param p
- *	pointer to pipeline.
- * @param pkts
- *	pointer to pkts.
- * @param n
- *	number of pkts.
- *
- * @return
- *	- 0  on success
- *	- -1 on failure
+ * @brief  : Function to handle incoming pkts on sgi interface.
+ * @param  : p, pointer to pipeline.
+ * @param  : pkts, pointer to pkts.
+ * @param  : n, number of pkts.
+ * @param  : wk_index,
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 sgi_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
 		int wk_index);
 
 /**
- * Function to handle notifications from CP which needs updates to
- * an active session. So notification handler should process them.
- *
- * @param pkts
- *	pointer to icontrol pkts.
- * @param n
- *	number of pkts.
- *
- * @return
- *	- 0  on success
- *	- -1 on failure
+ * @brief  : Function to handle notifications from CP which needs updates to
+ *           an active session. So notification handler should process them.
+ * @param  : pkts, pointer to icontrol pkts.
+ * @param  : n, number of pkts.
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 
 int notification_handler(struct rte_mbuf **pkts,
@@ -679,40 +742,32 @@ int notification_handler(struct rte_mbuf **pkts,
 /*************************pkt_handler.c functions end***********************/
 
 /**
- * Clone the DNS pkts and send to CP.
- * @param pkts
- *	pointer to mbuf of incoming packets.
- * @param n
- *	number of pkts.
+ * @brief  : Clone the DNS pkts and send to CP.
+ * @param  : pkts, pointer to mbuf of incoming packets.
+ * @param  : n, number of pkts.
+ * @return : Returns nothing
  */
 void
 clone_dns_pkts(struct rte_mbuf **pkts, uint32_t n, uint64_t pkts_mask);
 
 /**
- * If rule id is DNS, update the meta info.
- * @param pkts
- *	pointer to mbuf of incoming packets.
- * @param n
- *	number of pkts.
- * @param rid
- *	sdf rule id to check the DNS pkts.
+ * @brief  : If rule id is DNS, update the meta info.
+ * @param  : pkts, pointer to mbuf of incoming packets.
+ * @param  : n, number of pkts.
+ * @param  : rid, sdf rule id to check the DNS pkts.
+ * @return : Returns nothing
  */
 void
 update_dns_meta(struct rte_mbuf **pkts, uint32_t n, uint32_t *rid);
 
 /**
- * Set checksum offload in meta,
- * Fwd based on nexthop info.
- * @param pkts
- *	pointer to mbuf of incoming packets.
- * @param n
- *	number of pkts.
- * @param pkts_mask
- *	bit mask to process the pkts, reset bit to free the pkt.
- * @param portid
- *	port id to forward the pkt.
- * @param PDR
- *	pointer to pdr session info
+ * @brief  : Set checksum offload in meta, Fwd based on nexthop info.
+ * @param  : pkts, pointer to mbuf of incoming packets.
+ * @param  : n, number of pkts.
+ * @param  : pkts_mask, bit mask to process the pkts, reset bit to free the pkt.
+ * @param  : portid, port id to forward the pkt.
+ * @param  : PDR, pointer to pdr session info
+ * @return : Returns nothing
  */
 void
 update_nexthop_info(struct rte_mbuf **pkts, uint32_t n,
@@ -721,29 +776,24 @@ update_nexthop_info(struct rte_mbuf **pkts, uint32_t n,
 
 /************* Session information function prototype***********/
 /**
- * Get the UL session info from table lookup.
- * @param pkts
- *	pointer to mbuf of incoming packets.
- * @param n
- *	number of pkts.
- * @param pkts_mask
- *	bit mask to process the pkts, reset bit to free the pkt.
- * @param sess_info
- *	session information returned after hash lookup.
+ * @brief  : Get the UL session info from table lookup.
+ * @param  : pkts, pointer to mbuf of incoming packets.
+ * @param  : n, number of pkts.
+ * @param  : pkts_mask, bit mask to process the pkts, reset bit to free the pkt.
+ * @param  : sess_info, session information returned after hash lookup.
+ * @return : Returns nothing
  */
 void
 ul_sess_info_get(struct rte_mbuf **pkts, uint32_t n,
 		uint64_t *pkts_mask, pfcp_session_datat_t **sess_info);
 /**
- * Get the DL session info from table lookup.
- * @param pkts
- *	pointer to mbuf of incoming packets.
- * @param n
- *	number of pkts.
- * @param pkts_mask
- *	bit mask to process the pkts, reset bit to free the pkt.
- * @param sess_info
- *	session information returned after hash lookup.
+ * @brief  : Get the DL session info from table lookup.
+ * @param  : pkts, pointer to mbuf of incoming packets.
+ * @param  : n, number of pkts.
+ * @param  : pkts_mask, bit mask to process the pkts, reset bit to free the pkt.
+ * @param  : sess_info, session information returned after hash lookup.
+ * @param  : pkts_queue_mask, packet queue mask
+ * @return : Returns nothing
  */
 void
 dl_sess_info_get(struct rte_mbuf **pkts, uint32_t n,
@@ -752,84 +802,90 @@ dl_sess_info_get(struct rte_mbuf **pkts, uint32_t n,
 
 
 /**
- * Get the DL session info from table lookup.
- * @param pkts
- *	pointer to mbuf of incoming packets.
- * @param n
- *	number of pkts.
- * @param pkts_mask
- *	bit mask to process the pkts, reset bit to free the pkt.
- * @param sess_info
- *	session information returned after hash lookup.
+ * @brief  : Get the DL session info from table lookup.
+ * @param  : pkts, pointer to mbuf of incoming packets.
+ * @param  : n, number of pkts.
+ * @param  : pkts_mask, bit mask to process the pkts, reset bit to free the pkt.
+ * @param  : sess_info, session information returned after hash lookup.
+ * @param  : pkts_queue_mask, packet queue mask
+ * @return : Returns nothing
  */
 void
 dl_get_sess_info(struct rte_mbuf **pkts, uint32_t n,
 		uint64_t *pkts_mask,
 		pfcp_session_datat_t **sess_data, uint64_t *pkts_queue_mask);
 /**
- * Gate the incoming pkts based on PCC entry info.
- * @param pcc_info
- *	list of pcc id precedence struct pionters.
- *	pcc information.
- * @param  n
- *	number of pkts.
- * @param  pkts_mask
- *	bit mask to process the pkts, reset bit to free the pkt.
- * @param  pcc_id
- *	array of pcc id.
- *
- * @return
- * Void
+ * @brief  : Gate the incoming pkts based on PCC entry info.
+ * @param  : sdf_info, list of pcc id precedence struct pionters.
+ * @param  : adc_info, list of pcc id precedence struct pionters.
+ * @param  : n, number of pkts.
+ * @param  : pkts_mask, bit mask to process the pkts, reset bit to free the pkt.
+ * @param  : pcc_id, array of pcc id.
+ * @return : Returns nothing
  */
 void
 pcc_gating(struct pcc_id_precedence *sdf_info, struct pcc_id_precedence *adc_info,
 		uint32_t n, uint64_t *pkts_mask, uint32_t *pcc_id);
 
 /**
- * @brief Called by CP to remove from uplink look up table.
- *
- * This function is thread safe due to message queue implementation.
+ * @brief  : Called by CP to remove from uplink look up table.
+ *           Note-This function is thread safe due to message queue implementation.
+ * @param  : key
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int iface_del_uplink_data(struct ul_bm_key *key);
 
 /**
- * @brief Called by CP to remove from downlink look up table.
- *
- * This function is thread safe due to message queue implementation.
+ * @brief  : Called by CP to remove from downlink look up table.
+ *           Note-This function is thread safe due to message queue implementation.
+ * @param  : key
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int iface_del_downlink_data(struct dl_bm_key *key);
 
 /**
- * @brief Called by DP to lookup key-value pair in uplink look up table.
- *
- * This function is thread safe (Read Only).
+ * @brief  : Called by DP to lookup key-value pair in uplink look up table.
+ *           Note-This function is thread safe (Read Only).
+ * @param  : key
+ * @param  : value, buffer to store to result
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 iface_lookup_uplink_data(struct ul_bm_key *key,
 		void **value);
 
 /**
- * @brief Called by DP to do bulk lookup of key-value pair in uplink
- * look up table.
- *
- * This function is thread safe (Read Only).
+ * @brief  : Called by DP to do bulk lookup of key-value pair in uplink
+ *           look up table.
+ *           Note-This function is thread safe (Read Only).
+ * @param  : key, keys
+ * @param  : n, nuber of keys
+ * @param  : hit_mask
+ * @param  : value, buffer to store to result
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 iface_lookup_uplink_bulk_data(const void **key, uint32_t n,
 		uint64_t *hit_mask, void **value);
 /**
- * @brief Called by DP to lookup key-value pair in downlink look up table.
- *
- * This function is thread safe (Read Only).
+ * @brief  : Called by DP to lookup key-value pair in downlink look up table.
+ *           Note-This function is thread safe (Read Only).
+ * @param  : key, keys
+ * @param  : value, buffer to store to result
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 iface_lookup_downlink_data(struct dl_bm_key *key,
 		void **value);
 /**
- * @brief Called by DP to do bulk lookup of key-value pair in downlink
- * look up table.
- *
- * This function is thread safe (Read Only).
+ * @brief  : Called by DP to do bulk lookup of key-value pair in downlink
+ *           look up table.
+ *           Note-This function is thread safe (Read Only).
+ * @param  : key, keys
+ * @param  : n, nuber of keys
+ * @param  : hit_mask
+ * @param  : value, buffer to store to result
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 iface_lookup_downlink_bulk_data(const void **key, uint32_t n,
@@ -839,19 +895,21 @@ iface_lookup_downlink_bulk_data(const void **key, uint32_t n,
 /***********************ddn_utils.c functions start**********************/
 #ifdef USE_REST
 /**
- * Function to initialize/create shared ring, ring_container and mem_pool to
- * inter-communication between DL and iface core.
- *
- * @param void
- *	void.
- *
- * @return
- *	None
+ * @brief  : Function to initialize/create shared ring, ring_container and mem_pool to
+ *           inter-communication between DL and iface core.
+ * @param  : No param
+ * @return : Returns nothing
  */
 void
 echo_table_init(void);
 
 #ifndef CP_BUILD
+/**
+ * @brief  : Function to build GTP-U echo request
+ * @param  : echo_pkt, rte_mbuf pointer
+ * @param  : gtppu_seqnb, sequence number
+ * @return : Returns nothing
+ */
 void
 build_echo_request(struct rte_mbuf *echo_pkt, peerData *entry, uint16_t gtpu_seqnb);
 #endif /* CP_BUILD*/
@@ -860,81 +918,69 @@ build_echo_request(struct rte_mbuf *echo_pkt, peerData *entry, uint16_t gtpu_seq
 
 #ifdef DP_BUILD
 /**
- * Function to initialize/create shared ring, ring_container and mem_pool to
- * inter-communication between DL and iface core.
- *
- * @param void
- *	void.
- *
- * @return
- *	None
+ * @brief  : Function to initialize/create shared ring, ring_container and mem_pool to
+ *           inter-communication between DL and iface core.
+ * @param  : No param
+ * @return : Returns nothing
  */
 void
 dp_ddn_init(void);
 
 /**
- * Downlink data notification ack information. The information
- * regarding downlink should be updated bearer info.
- * @param dp_id
- *	table identifier.
- * @param  ddn_ack
- *	Downlink data notification ack information
- *
- * @return
- *	- 0 - success
- *	- -1 - fail
+ * @brief  : Downlink data notification ack information. The information
+ *           regarding downlink should be updated bearer info.
+ * @param  : dp_id, table identifier.
+ * @param  : ddn_ack, Downlink data notification ack information
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 dp_ddn_ack(struct dp_id dp_id,
 		struct downlink_data_notification_ack_t *ddn_ack);
 
 /**
- * @brief Enqueue the downlink packets based upon the mask.
- *
- * @param sess_info
- * Session for which buffering needs to be performed
- * @param pkts
- * Set of incoming packets
- * @param pkts_queue_mask
- * Mask of packets which needs to be buffered
- *
- * @return
- *  void
+ * @brief  : Enqueue the downlink packets based upon the mask.
+ * @param  : pdrs, pdr information
+ * @param  : sess_info, Session for which buffering needs to be performed
+ * @param  : pkts, Set of incoming packets
+ * @param  : pkts_queue_mask,  Mask of packets which needs to be buffered
+ * @return : Returns nothing
  */
 void
 enqueue_dl_pkts(pdr_info_t **pdrs, pfcp_session_datat_t **sess_info,
 		struct rte_mbuf **pkts, uint64_t pkts_queue_mask );
 
+/**
+ * @brief  : Process pfcp session report request
+ * @param  : peer_addr, peer node information
+ * @param  : ddn, ddn information
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 uint8_t
 process_pfcp_session_report_req(struct sockaddr_in *peer_addr,
 			ddn_t *ddn);
 #endif /* DP_BUILD */
 
 /**
- * update nexthop info.
- * @param pkts
- *	pointer to mbuf of packets.
- * @param n
- *	number of pkts.
- * @param pkts_mask
- *	bit mask to process the pkts, reset bit to free the pkt.
- * @param sess_data
- *	pointer to session bear info
+ * @brief  : update nexthop info.
+ * @param  : pkts, pointer to mbuf of packets.
+ * @param  : n, number of pkts.
+ * @param  : pkts_mask, bit mask to process the pkts, reset bit to free the pkt.
+ * @param  : sess_data, pointer to session bear info
+ * @param  : pdrs, pdr information
+ * @return : Returns nothing
  */
 void
 update_nexts5s8_info(struct rte_mbuf **pkts, uint32_t n, uint64_t *pkts_mask,
 		pfcp_session_datat_t **sess_data, pdr_info_t **pdrs);
 
 /**
- * update enb ip in ip header and s1u tied in gtp header.
- * @param pkts
- *	pointer to mbuf of packets.
- * @param n
- *	number of pkts.
- * @param pkts_mask
- *	bit mask to process the pkts, reset bit to free the pkt.
- * @param sess_data
- *	pointer to session bear info
+ * @brief  : update enb ip in ip header and s1u tied in gtp header.
+ * @param  : pkts, pointer to mbuf of packets.
+ * @param  : n, number of pkts.
+ * @param  : pkts_mask, bit mask to process the pkts, reset bit to free the pkt.
+ * @param  : sess_data, pointer to session bear info
+ * @param  : pdrs, pdr information
+ * @return : Returns nothing
  */
 void
 update_enb_info(struct rte_mbuf **pkts, uint32_t n,
@@ -942,36 +988,120 @@ update_enb_info(struct rte_mbuf **pkts, uint32_t n,
 		pdr_info_t **pdr);
 
 
+/**
+ * @brief  : Process endmarker data received in session modify request
+ * @param  : far, far information
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 int sess_modify_with_endmarker(far_info_t *far);
 
 #ifdef PCAP_GEN
 /**
- * @brief initalizes user plane pcap feature
+ * @brief  : initalizes user plane pcap feature
+ * @param  : No param
+ * @return : Returns nothing
  */
 void
 up_pcap_init(void);
 
 /**
- * initialize pcap dumper.
- * @param pcap_filename
- *	pointer to pcap output filename.
+ * @brief  : initialize pcap dumper.
+ * @param  : pcap_filename, pointer to pcap output filename.
+ * @return : Returns pointer to pcap dumper
  */
 pcap_dumper_t *
 init_pcap(char* pcap_filename);
 
 /**
- * write into pcap file.
- * @param pkts
- *	pointer to mbuf of packets.
- * @param n
- *	number of pkts.
- * @param pcap_dumper
- *	pointer to pcap dumper.
+ * @brief  : write into pcap file.
+ * @param  : pkts, pointer to mbuf of packets.
+ * @param  : n,number of pkts.
+ * @param  : pcap_dumper, pointer to pcap dumper.
+ * @return : Returns nothing
  */
 void dump_pcap(struct rte_mbuf **pkts, uint32_t n,
 		pcap_dumper_t *pcap_dumper);
 
 #endif /* PCAP_GEN */
+
+/**
+ * @brief  : search and get node TEIDRI value if available in strored data.
+ * @param  : teid_range, TEIDRI value.
+ * @param  : node_addr, node address of CP .
+ * @return : Returns
+ *           1 - on success , node address and teidri found.
+ *           0 - node address not found.
+ */
+int
+get_node_teidri(uint8_t *teid_range, uint32_t node_addr);
+
+/**
+ * @brief  : Write TEIDRI value and node address into file in csv format.
+ * @param  : teid_range, TEIDRI value.
+ * @param  : node_addr, node address of CP .
+ * @return : Returns
+ *           0 - on success.
+ *           -1 - on fail.
+ */
+int
+add_teidri_node_entry(uint8_t teid_range, uint32_t node_addr, char *filename);
+
+/**
+ * @brief  : delete all containt from file.
+ * @param  : filename, file name,
+ * @return : Returns
+ *           0 - on success.
+ *           -1 - on fail.
+ */
+int
+flush_teidri_data(char *filename);
+
+/**
+ * @brief  : Delete  TEIDRI value and node address from file.
+ * @param  : filename, file name.
+ * @param  : node_addr, node address of CP .
+ * @return : Returns
+ *           0 - on success.
+ *           -1 - on fail.
+ */
+int
+delete_teidri_node_entry(char *filename, uint32_t node_addr);
+
+/**
+ * @brief  : get dp restart counter value.
+ * @param  : No Param.
+ * @return : Returns
+ *           dp restart counter value.
+ */
+uint8_t
+get_dp_restart_cntr(void);
+
+/**
+ * @brief  : update dp restart counter value.
+ * @param  : No Param.
+ * @return : Nothing
+ */
+void
+update_dp_restart_cntr(void);
+
+#ifdef USE_CSID
+int
+fill_peer_node_info_t(pfcp_session_t *sess);
+
+int8_t
+fill_fqcsid_sess_est_rsp(pfcp_sess_estab_rsp_t *pfcp_sess_est_rsp, pfcp_session_t *sess);
+
+int8_t
+process_up_sess_set_del_req(pfcp_sess_set_del_req_t *pfcp_sess_set_del_req);
+
+/* Cleanup Session information by local csid*/
+int8_t
+up_del_pfcp_peer_node_sess(uint32_t node_addr, uint8_t iface);
+
+int8_t
+del_sess_by_csid_entry(pfcp_session_t *sess, fqcsid_t *csids, uint8_t iface);
+
+#endif /* USE_CSID */
 
 #ifdef PRINT_NEW_RULE_ENTRY
 void

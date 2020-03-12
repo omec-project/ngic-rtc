@@ -35,6 +35,7 @@
 #include "util.h"
 #include "interface.h"
 #include "dp_ipc_api.h"
+#include "clogger.h"
 
 //#include "acl_dp.h"
 //#include "meter.h"
@@ -68,6 +69,7 @@
 #ifdef CP_BUILD
 #ifdef GX_BUILD
 extern int gx_app_sock;
+extern int gx_app_sock_read;
 #endif /* GX_BUILD */
 #endif /* CP_BUILD */
 
@@ -131,7 +133,7 @@ int set_comm_type(enum cp_dp_comm id)
 		active_comm_msg = &comm_node[id];
 		comm_node[id].status = 1;
 	} else {
-		RTE_LOG_DP(ERR, DP,"Error: Cannot set communication type\n");
+		clLog(clSystemLog, eCLSeverityCritical,"Error: Cannot set communication type\n");
 		return -1;
 	}
 	return 0;
@@ -143,7 +145,7 @@ int unset_comm_type(enum cp_dp_comm id)
 		active_comm_msg->destroy();
 		comm_node[id].status = 0;
 	} else {
-		RTE_LOG_DP(ERR, DP,"Error: Cannot unset communication type\n");
+		clLog(clSystemLog, eCLSeverityCritical,"Error: Cannot unset communication type\n");
 		return -1;
 	}
 	return 0;
@@ -165,11 +167,17 @@ int process_comm_msg(void *buf)
 
 #ifdef CP_BUILD
 #ifdef SDN_ODL_BUILD
+/**
+ * @brief  : send data on udp interface
+ * @param  : msg_payload, buffer holds data to be sent
+ * @param  : size, total size of data
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 static int
 udp_send_socket(void *msg_payload, uint32_t size)
 {
 	if (__send_udp_packet(&my_sock, msg_payload, size) < 0)
-		RTE_LOG_DP(ERR, DP, "Failed to send msg !!!\n");
+		clLog(clSystemLog, eCLSeverityCritical, "Failed to send msg !!!\n");
 
 	/* Workaround to avoid out of order packets on DP. In case of load it
 	 * is observed that packets are received out of order at DP e.g. MB is
@@ -179,11 +187,9 @@ udp_send_socket(void *msg_payload, uint32_t size)
 }
 
 /**
- * Init listen socket.
- *
- * @return
- *0 - success
- *-1 - fail
+ * @brief  : Init listen socket.
+ * @param  : No param
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 static int
 udp_init_cp_socket(void)
@@ -206,11 +212,9 @@ udp_init_cp_socket(void)
 
 #ifndef CP_BUILD
 /**
- * Init listen socket.
- *
- * @return
- * 0 - success
- * -1 - fail
+ * @brief  : Init listen socket.
+ * @param  : No param
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 static int
 udp_init_dp_socket(void)
@@ -225,20 +229,15 @@ udp_init_dp_socket(void)
 
 #ifdef SDN_ODL_BUILD
 /**
- * UDP packet receive API.
- * @param msg_payload
- * msg_payload - message payload from communication API.
- * @param size
- * size - size of message payload.
- *
- * @return
- * 0 - success
- * -1 - fail
- */
-/**
  * Code Rel. Jan 30, 2017
  * UDP recvfrom used for PCC, ADC, Session table initialization.
  * Needs to be from SDN controller as code & data models evolve.
+ */
+
+/**
+ * @brief  : Init zmq socket.
+ * @param  : No param
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 static int
 zmq_init_socket(void)
@@ -250,6 +249,12 @@ zmq_init_socket(void)
 	return zmq_subsocket_create();
 }
 
+/**
+ * @brief  : send data on zmq interface
+ * @param  : zmqmsgbuf, buffer holds data to be sent
+ * @param  : zmqmsgbufsz, total size of data
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 static int
 zmq_send_socket(void *zmqmsgbuf, uint32_t zmqmsgbufsz)
 {
@@ -259,6 +264,12 @@ zmq_send_socket(void *zmqmsgbuf, uint32_t zmqmsgbufsz)
 	return zmq_mbuf_send(zmqmsgbuf, sizeof(struct zmqbuf));
 }
 
+/**
+ * @brief  : Receive data on udp interface
+ * @param  : buf, buffer to store incoming data
+ * @param  : zmqmsgbufsz, total size of received data
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 static int
 zmq_recv_socket(void *buf, uint32_t zmqmsgbufsz)
 {
@@ -268,7 +279,7 @@ zmq_recv_socket(void *buf, uint32_t zmqmsgbufsz)
 	int zmqmsglen = zmq_mbuf_rcv(buf, zmqmsgbufsz);
 
 	if (zmqmsglen > 0) {
-		RTE_LOG_DP(DEBUG, DP,
+		clLog(clSystemLog, eCLSeverityDebug,
 				"Rcvd zmqmsglen= %d:\t zmqmsgbufsz= %u\n",
 				zmqmsglen, zmqmsgbufsz);
 	}
@@ -276,36 +287,35 @@ zmq_recv_socket(void *buf, uint32_t zmqmsgbufsz)
 }
 
 //#ifdef PRINT_NEW_RULE_ENTRY
-/**
- * @Name : print_sel_type_val
- * @arguments : [In] pointer to adc rule structure element
- * @return : void
- * @Description : Function to print ADC rules values.
- */
+///**
+// * @brief  : Function to print ADC rules values.
+// * @param  : [In] pointer to adc rule structure element
+// * @return : Returns nothing
+// */
 //static void
 //print_sel_type_val(struct adc_rules *adc)
 //{
 //	if (NULL != adc) {
 //		switch (adc->sel_type) {
 //			case DOMAIN_NAME:
-//				RTE_LOG_DP(DEBUG, DP, " ---> Domain Name :%s\n",
+//				clLog(clSystemLog, eCLSeverityDebug, " ---> Domain Name :%s\n",
 //						adc->u.domain_name);
 //				break;
 //
 //			case DOMAIN_IP_ADDR:
-//				RTE_LOG_DP(DEBUG, DP, " ---> Domain Ip :%d\n",
+//				clLog(clSystemLog, eCLSeverityDebug, " ---> Domain Ip :%d\n",
 //						(adc->u.domain_ip.u.ipv4_addr));
 //				break;
 //
 //			case DOMAIN_IP_ADDR_PREFIX:
-//				RTE_LOG_DP(DEBUG, DP, " ---> Domain Ip :%d\n",
+//				clLog(clSystemLog, eCLSeverityDebug, " ---> Domain Ip :%d\n",
 //						(adc->u.domain_ip.u.ipv4_addr));
-//				RTE_LOG_DP(DEBUG, DP, " ---> Domain Prefix :%d\n",
+//				clLog(clSystemLog, eCLSeverityDebug, " ---> Domain Prefix :%d\n",
 //						adc->u.domain_prefix.prefix);
 //				break;
 //
 //			default:
-//				RTE_LOG_DP(ERR, DP, "UNKNOWN Selector Type: %d\n",
+//				clLog(clSystemLog, eCLSeverityCritical, "UNKNOWN Selector Type: %d\n",
 //						adc->sel_type);
 //				break;
 //		}
@@ -313,131 +323,127 @@ zmq_recv_socket(void *buf, uint32_t zmqmsgbufsz)
 //}
 //
 ///**
-// * @Name : print_adc_val
-// * @arguments : [In] pointer to adc rule structure element
-// * @return : void
-// * @Description : Function to print ADC rules values.
+// * @brief  : Function to print ADC rules values.
+// * @param  : [In] pointer to adc rule structure element
+// * @return : Returns nothing
 // */
 //static void
 //print_adc_val(struct adc_rules *adc)
 //{
 //	if (NULL != adc) {
-//		RTE_LOG_DP(DEBUG, DP, "=========================================\n");
-//		RTE_LOG_DP(DEBUG, DP, " ---> ADC Rule Method ::\n");
-//		RTE_LOG_DP(DEBUG, DP, "=========================================\n");
-//		RTE_LOG_DP(DEBUG, DP, " ---> Rule id : %d\n", adc->rule_id);
+//		clLog(clSystemLog, eCLSeverityDebug, "=========================================\n");
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> ADC Rule Method ::\n");
+//		clLog(clSystemLog, eCLSeverityDebug, "=========================================\n");
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> Rule id : %d\n", adc->rule_id);
 //
 //		print_sel_type_val(adc);
 //
-//		RTE_LOG_DP(DEBUG, DP, "=========================================\n\n");
+//		clLog(clSystemLog, eCLSeverityDebug, "=========================================\n\n");
 //	}
 //}
 //
 ///**
-// * @Name : print_pcc_val
-// * @arguments : [In] pointer to pcc rule structure element
-// * @return : void
-// * @Description : Function to print PCC rules values.
+// * @brief  : Function to print PCC rules values.
+// * @param  : [In] pointer to pcc rule structure element
+// * @return : Returns nothing
 // */
-//void
+//static void
 //print_pcc_val(struct pcc_rules *pcc)
 //{
 //	if (NULL != pcc) {
-//		RTE_LOG_DP(DEBUG, DP, "=========================================\n");
-//		RTE_LOG_DP(DEBUG, DP, " ---> PCC Rule Method ::\n");
-//		RTE_LOG_DP(DEBUG, DP, "=========================================\n");
-//		RTE_LOG_DP(DEBUG, DP, " ---> Rule id : %d\n", pcc->rule_id);
-//		RTE_LOG_DP(DEBUG, DP, " ---> metering_method :%d\n",
+//		clLog(clSystemLog, eCLSeverityDebug, "=========================================\n");
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> PCC Rule Method ::\n");
+//		clLog(clSystemLog, eCLSeverityDebug, "=========================================\n");
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> Rule id : %d\n", pcc->rule_id);
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> metering_method :%d\n",
 //				pcc->metering_method);
-//		RTE_LOG_DP(DEBUG, DP, " ---> charging_mode :%d\n",
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> charging_mode :%d\n",
 //				pcc->charging_mode);
-//		RTE_LOG_DP(DEBUG, DP, " ---> rating_group :%d\n",
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> rating_group :%d\n",
 //				pcc->rating_group);
-//		RTE_LOG_DP(DEBUG, DP, " ---> rule_status :%d\n",
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> rule_status :%d\n",
 //				pcc->rule_status);
-//		RTE_LOG_DP(DEBUG, DP, " ---> gate_status :%d\n",
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> gate_status :%d\n",
 //				pcc->gate_status);
-//		RTE_LOG_DP(DEBUG, DP, " ---> session_cont :%d\n",
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> session_cont :%d\n",
 //				pcc->session_cont);
-//		RTE_LOG_DP(DEBUG, DP, " ---> monitoring_key :%d\n",
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> monitoring_key :%d\n",
 //				pcc->monitoring_key);
-//		RTE_LOG_DP(DEBUG, DP, " ---> precedence :%d\n",
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> precedence :%d\n",
 //				pcc->precedence);
-//		RTE_LOG_DP(DEBUG, DP, " ---> level_of_report :%d\n",
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> level_of_report :%d\n",
 //				pcc->report_level);
-//		RTE_LOG_DP(DEBUG, DP, " ---> mute_status :%d\n",
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> mute_status :%d\n",
 //				pcc->mute_notify);
-//		RTE_LOG_DP(DEBUG, DP, " ---> drop_pkt_count :%ld\n",
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> drop_pkt_count :%ld\n",
 //				pcc->drop_pkt_count);
-//		RTE_LOG_DP(DEBUG, DP, " ---> redirect_info :%d\n",
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> redirect_info :%d\n",
 //				pcc->redirect_info.info);
-//		RTE_LOG_DP(DEBUG, DP, " ---> ul_mbr_mtr_profile_idx :%d\n",
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> ul_mbr_mtr_profile_idx :%d\n",
 //				pcc->qos.ul_mtr_profile_index);
-//		RTE_LOG_DP(DEBUG, DP, " ---> dl_mbr_mtr_profile_idx :%d\n",
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> dl_mbr_mtr_profile_idx :%d\n",
 //				pcc->qos.dl_mtr_profile_index);
-//		RTE_LOG_DP(DEBUG, DP, " ---> ADC Index :%d\n",
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> ADC Index :%d\n",
 //				pcc->adc_idx);
-//		RTE_LOG_DP(DEBUG, DP, " ---> SDF Index count:%d\n",
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> SDF Index count:%d\n",
 //				pcc->sdf_idx_cnt);
 //		for(int i =0; i< pcc->sdf_idx_cnt; ++i)
-//			RTE_LOG_DP(DEBUG, DP, " ---> SDF IDx [%d]:%d\n",
+//			clLog(clSystemLog, eCLSeverityDebug, " ---> SDF IDx [%d]:%d\n",
 //					i, pcc->sdf_idx[i]);
-//		RTE_LOG_DP(DEBUG, DP, " ---> rule_name:%s\n", pcc->rule_name);
-//		RTE_LOG_DP(DEBUG, DP, " ---> sponsor_id:%s\n", pcc->sponsor_id);
-//		RTE_LOG_DP(DEBUG, DP, "=========================================\n\n");
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> rule_name:%s\n", pcc->rule_name);
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> sponsor_id:%s\n", pcc->sponsor_id);
+//		clLog(clSystemLog, eCLSeverityDebug, "=========================================\n\n");
 //	}
 //}
 //
 ///**
-// * @Name : print_mtr_val
-// * @arguments : [In] pointer to mtr entry structure element
-// * @return : void
-// * @Description : Function to print METER rules values.
+// * @brief  : Function to print METER rules values.
+// * @param  : [In] pointer to mtr entry structure element
+// * @return : Returns nothing
 // */
 //static void
 //print_mtr_val(struct mtr_entry *mtr)
 //{
 //	if (NULL != mtr) {
-//		RTE_LOG_DP(DEBUG, DP, "=========================================\n");
-//		RTE_LOG_DP(DEBUG, DP, " ---> Meter Rule Method ::\n");
-//		RTE_LOG_DP(DEBUG, DP, "=========================================\n");
-//		RTE_LOG_DP(DEBUG, DP, " ---> Meter profile index :%d\n",
+//		clLog(clSystemLog, eCLSeverityDebug, "=========================================\n");
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> Meter Rule Method ::\n");
+//		clLog(clSystemLog, eCLSeverityDebug, "=========================================\n");
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> Meter profile index :%d\n",
 //				mtr->mtr_profile_index);
-//		RTE_LOG_DP(DEBUG, DP, " ---> Meter CIR :%ld\n",
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> Meter CIR :%ld\n",
 //				mtr->mtr_param.cir);
-//		RTE_LOG_DP(DEBUG, DP, " ---> Meter CBS :%ld\n",
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> Meter CBS :%ld\n",
 //				mtr->mtr_param.cbs);
-//		RTE_LOG_DP(DEBUG, DP, " ---> Meter EBS :%ld\n",
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> Meter EBS :%ld\n",
 //				mtr->mtr_param.ebs);
-//		RTE_LOG_DP(DEBUG, DP, " ---> Metering Method :%d\n",
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> Metering Method :%d\n",
 //				mtr->metering_method);
-//		RTE_LOG_DP(DEBUG, DP, "=========================================\n\n");
+//		clLog(clSystemLog, eCLSeverityDebug, "=========================================\n\n");
 //	}
 //}
 //
 ///**
-// * @Name : print_sdf_val
-// * @arguments : [In] pointer to pkt_filter structure element
-// * @return : void
-// * @Description : Function to print SDF rules values.
+// * @brief  : Function to print SDF rules values.
+// * @param  : [In] pointer to pkt_filter structure element
+// * @return : Returns nothing
 // */
 //static void
 //print_sdf_val(struct pkt_filter *sdf)
 //{
 //	if (NULL != sdf) {
-//		RTE_LOG_DP(DEBUG, DP, "==========================================\n");
-//		RTE_LOG_DP(DEBUG, DP, " ---> SDF Rule Method ::\n");
-//		RTE_LOG_DP(DEBUG, DP, "==========================================\n");
+//		clLog(clSystemLog, eCLSeverityDebug, "==========================================\n");
+//		clLog(clSystemLog, eCLSeverityDebug, " ---> SDF Rule Method ::\n");
+//		clLog(clSystemLog, eCLSeverityDebug, "==========================================\n");
 //
 //		switch (sdf->sel_rule_type) {
 //			case RULE_STRING:
-//				RTE_LOG_DP(DEBUG, DP, " ---> pcc_rule_id :%d\n",
+//				clLog(clSystemLog, eCLSeverityDebug, " ---> pcc_rule_id :%d\n",
 //						sdf->pcc_rule_id);
-//				RTE_LOG_DP(DEBUG, DP, " ---> rule_type :%d\n",
+//				clLog(clSystemLog, eCLSeverityDebug, " ---> rule_type :%d\n",
 //						sdf->sel_rule_type);
-//				RTE_LOG_DP(DEBUG, DP, " ---> rule_str : %s\n",
+//				clLog(clSystemLog, eCLSeverityDebug, " ---> rule_str : %s\n",
 //						sdf->u.rule_str);
-//				RTE_LOG_DP(DEBUG, DP, "====================================\n\n");
+//				clLog(clSystemLog, eCLSeverityDebug, "====================================\n\n");
 //				break;
 //
 //			case FIVE_TUPLE:
@@ -448,22 +454,94 @@ zmq_recv_socket(void *buf, uint32_t zmqmsgbufsz)
 //				break;
 //
 //			default:
-//				RTE_LOG_DP(ERR, DP, "UNKNOWN Rule Type: %d\n",
+//				clLog(clSystemLog, eCLSeverityCritical, "UNKNOWN Rule Type: %d\n",
 //						sdf->sel_rule_type);
 //				break;
 //		}
 //	}
 //}
 //#endif /*PRINT_NEW_RULE_ENTRY*/
+//
+///**
+// * @brief  : Function to parse adc rules values into adc_rules struct.
+// *           Here parse values as per selector type (DOMAIN_NAME,
+// *           DOMAIN_IP_ADDR, and DOMAIN_IP_ADDR_PREFIX), domain name,
+// *           domain ip addr, domain prefix parameters values from recv buf and
+// *           stored into adc_rules struct.
+// *           ref.doc: message_sdn.docx
+// *           section : Table No.11 ADC Rules
+// * @param  : sel_type, selctor type pointed to adc rule type
+// * @param  : [In] pointer (arm) to zmq rcv structure element
+// * @param  : [Out] pointer (adc) to adc rules structure element
+// * @return : Returns 0 in case of success , -1 otherwise
+// */
+//static int
+//parse_adc_buf(int sel_type, char *arm, struct adc_rules *adc)
+//{
+//		if (arm != NULL) {
+//			switch (sel_type) {
+//				case DOMAIN_NAME:
+//					strncpy(adc->u.domain_name, (char *)((arm)+1),
+//							*(uint8_t *)(arm));
+//
+//#ifdef PRINT_NEW_RULE_ENTRY
+//					print_adc_val(adc);
+//#endif
+//					return 0;
+//
+//				case DOMAIN_IP_ADDR_PREFIX:
+//					adc->u.domain_ip.u.ipv4_addr =
+//						ntohl(*(uint32_t *)(arm));
+//					adc->u.domain_prefix.prefix =
+//						rte_bswap16(*(uint16_t *)((arm) + 4));
+//#ifdef PRINT_NEW_RULE_ENTRY
+//					print_adc_val(adc);
+//#endif  /* PRINT_NEW_RULE_ENTRY */
+//					return 0;
+//
+//				case DOMAIN_IP_ADDR:
+//					adc->u.domain_ip.u.ipv4_addr =
+//						ntohl(*(uint32_t *)(arm));
+//#ifdef PRINT_NEW_RULE_ENTRY
+//					print_adc_val(adc);
+//#endif  /* PRINT_NEW_RULE_ENTRY */
+//					return 0;
+//
+//				default:
+//					clLog(clSystemLog, eCLSeverityCritical, "UNKNOWN Selector Type: %d\n",
+//							sel_type);
+//					return -1;
+//			}
+//		}
+//		return -1;
+//}
+//
+///**
+// * @brief  : Convert sdf_idx array in to array of integers for SDF index values.
+// *           Sample input : "[0, 1, 2, 3]"
+// * @param  : [IN] sdf_idx : String containing comma separater SDF index values
+// * @param  : [OUT] out_sdf_idx : Array of integers converted from sdf_idx
+// * @return : Returns 0 in case of success , -1 otherwise
+// */
+//static uint32_t
+//get_sdf_indices(char *sdf_idx, uint32_t *out_sdf_idx)
+//{
+//	char *tmp = strtok (sdf_idx,",");
+//	int i = 0;
+//
+//	while ((NULL != tmp) && (i < MAX_SDF_IDX_COUNT)) {
+//		out_sdf_idx[i++] = atoi(tmp);
+//		tmp = strtok (NULL, ",");
+//	}
+//	return i;
+//}
 
 /**
- * @Name : zmq_buf_process
- * @argument :
- * [IN] zmqmsgbuf_rx : Pointer to received zmq buffer
- * [IN] zmqmsglen : Length of the zmq buffer
- * @return : 0 - success
- * @Description : Converts zmq message type to session_info or
- * respective rules info
+ * @brief  : Converts zmq message type to session_info or
+ *           respective rules info
+ * @param  : [IN] zmqmsgbuf_rx : Pointer to received zmq buffer
+ * @param  : [IN] zmqmsglen : Length of the zmq buffer
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 
 int
@@ -606,7 +684,7 @@ zmq_mbuf_process(struct zmqbuf *zmqmsgbuf_rx, int zmqmsglen)
 				ret = parse_adc_buf(adc->sel_type, (((char *)(buf) + 1)), adc);
 
 				if (ret < 0){
-				    RTE_LOG_DP(ERR, DP, "Failed to filled adc structure\n");
+				    clLog(clSystemLog, eCLSeverityCritical, "Failed to filled adc structure\n");
 				}
 				break;
 			}
@@ -734,7 +812,7 @@ zmq_mbuf_process(struct zmqbuf *zmqmsgbuf_rx, int zmqmsglen)
 				        break;
 
 				    default:
-				        RTE_LOG_DP(ERR, DP, "UNKNOWN Rule Type: %d\n",
+				        clLog(clSystemLog, eCLSeverityCritical, "UNKNOWN Rule Type: %d\n",
 						sdf_t->rule_type);
 				        break;
 				}
@@ -748,12 +826,12 @@ zmq_mbuf_process(struct zmqbuf *zmqmsgbuf_rx, int zmqmsglen)
 				rbuf->mtype = MSG_DDN_ACK;
 				rbuf->dp_id.id = DPN_ID;
 
-				printf("ACK received from FPC..\n");
+				clLog(clSystemLog, eCLSeverityDebug,"ACK received from FPC..\n");
 				break;
 			}
 
 		default:
-			    RTE_LOG_DP(ERR, DP, "UNKNOWN Message Type: %d\n", zmqmsgbuf_rx->type);
+			    clLog(clSystemLog, eCLSeverityCritical, "UNKNOWN Message Type: %d\n", zmqmsgbuf_rx->type);
 			    break;
 
 	}
@@ -770,12 +848,17 @@ zmq_mbuf_process(struct zmqbuf *zmqmsgbuf_rx, int zmqmsglen)
 	ret = do_zmq_mbuf_send(&zmqmsgbuf_tx);
 
 	if (ret < 0)
-		RTE_LOG_DP(DEBUG, DP, "do_zmq_mbuf_send failed for type: %"PRIu8"\n",
+		clLog(clSystemLog, eCLSeverityDebug, "do_zmq_mbuf_send failed for type: %"PRIu8"\n",
 				zmqmsgbuf_rx->type);
 
 	return ret;
 }
 
+/**
+ * @brief  : Closes zmq socket
+ * @param  : No param
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 static int
 zmq_destroy(void)
 {
@@ -807,6 +890,11 @@ do {\
 	rte_panic("Invalid %s in %s", #port, IFACE_FILE);\
 } while (0)
 
+/**
+ * @brief  : Read interface configuration form config file
+ * @param  : No param
+ * @return : Returns nothing
+ */
 static
 void read_interface_config(void)
 {
@@ -883,7 +971,7 @@ void iface_module_constructor(void)
 		read_interface_config();
 
 #ifdef CP_BUILD
-		printf("IFACE: CP Initialization\n");
+		clLog(clSystemLog, eCLSeverityDebug,"IFACE: CP Initialization\n");
 #ifdef SDN_ODL_BUILD
 		register_comm_msg_cb(COMM_SOCKET,
 				udp_init_cp_socket,
@@ -895,7 +983,7 @@ void iface_module_constructor(void)
 #else   /* CP_BUILD */
 #ifndef SDN_ODL_BUILD
 
-		RTE_LOG_DP(NOTICE, DP, "IFACE: DP Initialization\n");
+		clLog(clSystemLog, eCLSeverityMajor, "IFACE: DP Initialization\n");
 		create_udp_socket(dp_comm_ip, dp_comm_port, &my_sock);
 
 #else
@@ -927,8 +1015,8 @@ void sig_handler(int signo)
 
 #ifdef CP_BUILD
 #ifdef GX_BUILD
-			if (gx_app_sock > 0)
-				close_ipc_channel(gx_app_sock);
+			if (gx_app_sock_read > 0)
+				close_ipc_channel(gx_app_sock_read);
 #endif /* GX_BUILD */
 #ifdef SYNC_STATS
 			retrive_stats_entry();

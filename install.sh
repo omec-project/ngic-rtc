@@ -34,6 +34,8 @@ LINUX_SGX_SDK="https://github.com/intel/linux-sgx.git"
 LINUX_SGX_SDK_BRANCH_TAG="sgx_1.9"
 FREEDIAMETER_DIR=$NGIC_DIR/$THIRD_PARTY_SW_PATH/
 FREEDIAMETER="http://gsgit.gslab.com/Sprint-Repos/freediameter.git"
+HIREDIS_DIR=$NGIC_DIR/$THIRD_PARTY_SW_PATH/
+HIREDIS="https://github.com/redis/hiredis.git"
 CP_NUMA_NODE=0
 DP_NUMA_NODE=0
 
@@ -116,29 +118,48 @@ step_2()
 {
 	TITLE="Download and Install"
 	CONFIG_NUM=1
-	TEXT[1]="Agree to download"
-	FUNC[1]="get_agreement_download"
-	TEXT[2]="Download packages"
-	FUNC[2]="install_libs"
-	TEXT[3]="Download DPDK zip"
-	FUNC[3]="download_dpdk_zip"
-	TEXT[4]="Install DPDK"
-	FUNC[4]="install_dpdk"
+	INDEX_CNT=1
+
+	TEXT[INDEX_CNT]="Agree to download"
+	FUNC[INDEX_CNT]="get_agreement_download"
+	((INDEX_CNT++))
+
+	TEXT[INDEX_CNT]="Download packages"
+	FUNC[INDEX_CNT]="install_libs"
+	((INDEX_CNT++))
+
+        TEXT[INDEX_CNT]="Download and install oss-util for cli"
+        FUNC[INDEX_CNT]="install_oss_util"
+	((INDEX_CNT++))
+
+	TEXT[INDEX_CNT]="Download DPDK zip"
+	FUNC[INDEX_CNT]="download_dpdk_zip"
+	((INDEX_CNT++))
+
+	TEXT[INDEX_CNT]="Install DPDK"
+	FUNC[INDEX_CNT]="install_dpdk"
+	((INDEX_CNT++))
+
 	if [ "$SERVICE" -ne 1 ] ; then
-	TEXT[5]="Download hyperscan"
-	FUNC[5]="download_hyperscan"
-	if [ "$SGX_SERVICE" -eq 1 ] ; then
-	TEXT[6]="Download Intel(R) SGX SDK"
-	FUNC[6]="download_linux_sgx"
-	fi
+		TEXT[INDEX_CNT]="Download hyperscan"
+		FUNC[INDEX_CNT]="download_hyperscan"
+		((INDEX_CNT++))
+
+		if [ "$SGX_SERVICE" -eq 1 ] ; then
+			TEXT[INDEX_CNT]="Download Intel(R) SGX SDK"
+			FUNC[INDEX_CNT]="download_linux_sgx"
+			((INDEX_CNT++))
+		fi
 	fi
 	if [ "$SERVICE" -ne 2 ] ; then
-	TEXT[5]="Download and install oss-util for DNS and cli"
-    FUNC[5]="install_oss_util"
+		TEXT[INDEX_CNT]="Download FreeDiameter"
+		FUNC[INDEX_CNT]="download_freediameter"
+		((INDEX_CNT++))
 	fi
 	if [ "$SERVICE" -ne 2 ] ; then
-	TEXT[6]="Download FreeDiameter"
-	FUNC[6]="download_freediameter"
+		TEXT[INDEX_CNT]="Download Hiredis"
+		FUNC[INDEX_CNT]="download_hiredis"
+		((INDEX_CNT++))
 	fi
 }
 
@@ -313,7 +334,7 @@ configure_services()
 				setup_dp_type
 				SERVICE=2
 				SERVICE_NAME="DP"
-				recom_memory=4096
+				recom_memory=5120
 				memory=`cat config/dp_config.cfg  | grep "MEMORY=" | head -n 1 | cut -d '=' -f 2`
 				setup_memory
 				setup_numa_node
@@ -517,6 +538,24 @@ download_freediameter()
         popd
 
 }
+
+
+download_hiredis()
+{
+	echo "Download Highredis from git....."
+	if [ ! -d $HIREDIS_DIR ]; then
+	     mkdir $HIREDIS_DIR
+        fi
+        pushd $HIREDIS_DIR
+	git clone $HIREDIS
+	if [ $? -ne 0 ] ; then
+	                echo "Failed to clone hiredis, please check the errors."
+	                return
+	fi
+        popd
+
+}
+
 download_linux_sgx()
 {
 	echo "Download Linux SGX SDK....."
@@ -556,6 +595,33 @@ build_fd_lib()
 	popd
 	popd
 }
+
+build_hiredis()
+{
+	pushd $HIREDIS_DIR/hiredis
+	make
+	if [ $? -ne 0 ] ; then
+		echo "Failed to build Hiredis, please check the errors."
+		return
+	fi
+	make install
+	if [ $? -ne 0 ] ; then
+		echo "Make install Failed in Hiredis, please check the errors."
+		return
+	fi
+
+	libhrso="/usr/local/lib/libhiredis.so"
+	libhra="/usr/local/lib/libhiredis.a"
+
+	if [ ! -e "$libhrso" ] && ! [ -e "$libhra" ]; then
+		echo "libhiredis.so and libhiredis.a does not exist at /usr/local/lib"
+		return
+	fi
+	export LD_LIBERY_PATH=$LD_LIBERY_PATH:/usr/local/lib
+	sudo ldconfig
+	popd
+}
+
 
 build_gxapp()
 {
@@ -598,7 +664,7 @@ step_3()
 install_oss_util()
 {
    pushd $NGIC_DIR/$OSS_UTIL_DIR
-   git clone -b oss_util_dev $OSS_UTIL_GIT_LINK
+   git clone -b cli_dev $OSS_UTIL_GIT_LINK
    mv oss-util_old oss-util
    pushd oss-util
    ./install.sh
@@ -629,7 +695,7 @@ build_ngic()
 		echo "Building Libs..."
 		make build-lib || { echo -e "\nNG-CORE: Make lib failed\n"; }
 		echo "Building DP..."
-		make build-dp || { echo -e "\nDP: Make failed\n"; }
+		make -j 10 build-dp || { echo -e "\nDP: Make failed\n"; }
 	fi
 	if [ $SERVICE == 1 ] || [ $SERVICE == 3 ] ; then
 		echo "Building libgtpv2c..."
@@ -644,6 +710,9 @@ build_ngic()
 
 		echo "Building FD and GxApp..."
 		build_fd_gxapp
+
+		echo "Building Hiredis"
+		build_hiredis
 
 		echo "Building CP..."
 		make clean-cp

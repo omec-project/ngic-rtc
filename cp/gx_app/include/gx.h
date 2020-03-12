@@ -24,6 +24,53 @@
 
 #define CONNECTPEER  "ConnectPeer"
 
+/* EVENT TRIGGER SET BY PCRF ON PGWC */
+
+#define RAT_EVENT_TRIGGER           2
+#define RAI_EVENT_TRIGGER           12
+#define ULI_EVENT_TRIGGER           13
+#define UE_TIMEZONE_EVT_TRIGGER     25
+#define TAI_EVENT_TRIGGER           26
+#define ECGI_EVENT_TRIGGER          27
+
+
+
+
+/*The above flag will be set bit wise as
+ *       * Bit 7| Bit 6 | Bit 5 | Bit 4 | Bit 3|  Bit 2|  Bit 1|  Bit 0 |
+ *        *---------------------------------------------------------------
+ *        *|     |       |       | ECGI  | RAI  |  SAI  |  CGI  |  TAI   |
+ *        ----------------------------------------------------------------
+ *
+ */
+
+#define ECGI_AND_TAI_PRESENT        17
+#define TAI_PRESENT                 1
+#define CGI_PRESENT                 2
+#define SAI_PRESENT                 4
+#define RAI_PRESENT                 8
+#define ECGI_PRESENT                16
+
+
+#define GX_UE_TIMEZONE_TYPE         0x17
+#define GX_ECGI_AND_TAI_TYPE        0x82
+#define GX_TAI_TYPE                 0x80
+#define GX_ECGI_TYPE                0x81
+#define GX_SAI_TYPE                 0x01
+#define GX_RAI_TYPE                 0x02
+#define GX_CGI_TYPE                 0x00
+#define EVENT_TRIGGER_LIST           64
+
+enum diameter_error {
+    DIAMETER_UNKNOWN_SESSION_ID = 5002,
+	DIAMETER_MISSING_AVP = 5005,
+    DIAMETER_ERROR_USER_UNKNOWN = 5030,
+    DIAMETER_UNABLE_TO_COMPLY =  5012
+};
+
+/**
+ * @brief  : Maintains gx dictionary information
+ */
 typedef struct gxDict {
     struct dict_object * vndETSI;
     struct dict_object * vnd3GPP2;

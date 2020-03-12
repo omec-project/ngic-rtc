@@ -47,7 +47,7 @@ extended_cdr_init(void)
 	snprintf(filename, PATH_MAX, "%sextended_cdr_%s"
 			CDR_CSV_EXTENSION, cdr_path, timestamp);
 
-	printf("Logging Extended CDR Records to %s\n", filename);
+	clLog(clSystemLog, eCLSeverityDebug,"Logging Extended CDR Records to %s\n", filename);
 
 	extended_cdr_file = fopen(filename, "w");
 	if (!extended_cdr_file)

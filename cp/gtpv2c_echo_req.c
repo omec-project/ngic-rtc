@@ -39,6 +39,9 @@
 
 #define CONN_ENTRIY_FILE "../config/static_arp.cfg"
 
+/**
+ * @brief  : Maintains gtpu header info
+ */
 typedef struct gtpuHdr_s {
 	uint8_t version_flags;
 	uint8_t msg_type;
@@ -48,12 +51,22 @@ typedef struct gtpuHdr_s {
 } __attribute__((__packed__)) gtpuHdr_t;
 
 
-/* GTPU-Recovery Information Element */
+/**
+ * @brief  : Maintains GTPU-Recovery Information Element
+ */
 typedef struct gtpu_recovery_ie_t {
     uint8_t type;
     uint8_t restart_cntr;
 } gtpu_recovery_ie;
 
+/**
+ * @brief  : Set values in recovery ie
+ * @param  : recovery, ie structure to be filled
+ * @param  : type, ie type
+ * @param  : length, total length
+ * @param  : instance, instance value
+ * @return : Returns nothing
+ */
 static void
 set_recovery_ie_t(gtp_recovery_ie_t *recovery, uint8_t type, uint16_t length,
 					uint8_t instance)
@@ -65,21 +78,49 @@ set_recovery_ie_t(gtp_recovery_ie_t *recovery, uint8_t type, uint16_t length,
 	recovery->recovery = rstCnt;
 
 }
-/* Brief: Function to build GTP-U echo request
- * @ Input param: echo_pkt rte_mbuf pointer
- * @ Output param: none
- * Return: void
+
+/**
+ * @brief  : Set values in node features ie
+ * @param  : node_feature, structure to be filled
+ * @param  : type, ie type
+ * @param  : length, total length
+ * @param  : instance, instance value
+ * @return : Returns nothing
+ */
+
+void
+set_node_feature_ie(gtp_node_features_ie_t *node_feature, uint8_t type, uint16_t length,
+		uint8_t instance, uint8_t sup_feature)
+{
+	node_feature->header.type = type;
+	node_feature->header.len = length;
+	node_feature->header.instance = instance;
+
+	node_feature->sup_feat = sup_feature;
+
+}
+
+/**
+ * @brief  : Function to build GTP-U echo request
+ * @param  : echo_pkt rte_mbuf pointer
+ * @param  : gtpu_seqnb, sequence number
+ * @return : void
  */
 void
-build_gtpv2_echo_request(gtpv2c_header_t *echo_pkt, uint16_t gtpu_seqnb)
+build_gtpv2_echo_request(gtpv2c_header_t *echo_pkt, uint16_t gtpu_seqnb, uint8_t iface)
 {
 	echo_request_t echo_req = {0};
 
 	set_gtpv2c_teid_header((gtpv2c_header_t *)&echo_req.header,
-			GTP_ECHO_REQ, 0, gtpu_seqnb);
+			GTP_ECHO_REQ, 0, gtpu_seqnb , 0);
 
 	set_recovery_ie_t((gtp_recovery_ie_t *)&echo_req.recovery, GTP_IE_RECOVERY,
 						sizeof(uint8_t), IE_INSTANCE_ZERO);
+
+	if(iface  == S11_SGW_PORT_ID) {
+		set_node_feature_ie((gtp_node_features_ie_t *)&echo_req.sending_node_feat,
+				GTP_IE_NODE_FEATURES, sizeof(uint8_t), IE_INSTANCE_ZERO, PRN);
+	}
 
 	uint16_t msg_len = 0;
 	msg_len = encode_echo_request(&echo_req, (uint8_t *)echo_pkt);

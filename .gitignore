@@ -5,6 +5,10 @@ test/sponsdn/x86_64-native-linuxapp-gcc/
 config/cp_rstCnt.txt
 config/hrtbeat_recov_time.txt
 cp/gx_app/gx_app
+cp/gx_app/demoCA
+cp/gx_app/cacert.pem
+cp/gx_app/cakey.pem
+cp/gx_app/01.pem
 cp/.gdb_history
 cp/build/
 dp/build/
@@ -14,8 +18,12 @@ third_party
 *.a
 *.o
 *.so
-*.o.cmd
 *.o.d
+*.tmp
+*.o.cmd
+*.cert.pem
+*.csr.pem
+*.key.pem
 .agree
 .download
 dpdk*

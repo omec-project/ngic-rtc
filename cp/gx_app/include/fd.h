@@ -43,9 +43,15 @@
 #define FD_REASON_BROWSE_FIRST_FAIL     16
 #define FD_REASON_BROWSE_NEXT_FAIL      17
 
+#define MAX_FD_ADDRESS_LEN              16
+#define MAX_PEER_NAME_LEN               256
+
+/**
+ * @brief  : Maintains fd address details
+ */
 typedef struct fdAddress {
    uint16_t type;
-   uint8_t address[16];
+   uint8_t address[MAX_FD_ADDRESS_LEN];
 } FdAddress;
 
 typedef time_t FdTime;
@@ -262,6 +268,8 @@ typedef time_t FdTime;
  *    f - the return value variable
  *    g - error code if failure detected
  */
+
+/*TODO : change strlen with strnlen with proper size (n)*/
 #define FDCHECK_MSG_ADD_AVP_STR_2(a, b, c, d, e, f, g) \
 { \
    union avp_value val; \

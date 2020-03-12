@@ -25,12 +25,11 @@ int unixsock();
 
 /*TBD need to move this in freediameter generated code*/
 /**
- * @brief Add element to freediameter message
- * ready
- * @param[in] val - AVP value to be added
- * @param[in] obj - Disctionary object
- * @param[in/out] msg_buf
- * @return int Sucess or failure code
+ * @brief  : Add element to freediameter message ready
+ * @param  : [in] val - AVP value to be added
+ * @param  : [in] obj - Disctionary object
+ * @param  : [in/out] msg_buf
+ * @return : int Sucess or failure code
  */
 int
 add_fd_msg(union avp_value *val, struct dict_object * obj,
@@ -229,25 +228,14 @@ enum disp_action * act
 	int ret = FD_REASON_OK;
 	struct msg *rqst = *msg;
 	//struct msg *ans = rqst;
-	char *send_buf = NULL;
+	uint8_t *send_buf = NULL;
 	gx_msg *gx_req = NULL;
-	uint32_t buflen ;
-
-	/* stored the rqst pointer, required in RAA*/
-	//uint64_t *rqst_ptr = malloc(sizeof(uint64_t));
-	//memcpy(rqst_ptr, (uint64_t *)(*msg), sizeof(uint64_t));
-	printf("address msg %p \n", *msg);
+	uint32_t buflen = 0;
 
 	*msg = NULL;
-#if 1
+#if 0
 	FD_DUMP_MESSAGE(rqst);
 #endif
-
-	//prep_rar_for_cp(&gx_req, sess, rqst);
-	 //printf("ULBW [%u] DLBW[%u] \n", gx_req.data.cp_rar.default_qos_information.max_requested_bandwidth_ul,
-	//	gx_req.data.cp_rar.default_qos_information.max_requested_bandwidth_dl); */
-
-	//send_to_ipc_channel(g_gx_client_sock, (char *)&gx_req);
 
 	/* allocate the rar message */
 	gx_req = malloc( sizeof(gx_msg) );
@@ -280,12 +268,12 @@ enum disp_action * act
 
 
 	memcpy((unsigned char *)(send_buf + sizeof(gx_req->msg_type) + buflen), &rqst, sizeof(rqst));
+
 	send_to_ipc_channel(g_gx_client_sock, send_buf, buflen + sizeof(gx_req->msg_type) + sizeof(rqst));
 
 	/* Free the memory sender buffer */
 	free(send_buf);
 
-    printf("===== SENT RAR FROM GXAPP TO PCEF and address===  \n");
 #if GX_DEBUG
 	FD_DUMP_MESSAGE(rqst);
 #endif

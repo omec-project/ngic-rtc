@@ -646,40 +646,42 @@ if (value->s11_u_mme_fteid.header.len)
 *   number of encoded bytes.
 */
 int encode_del_bearer_cmd(del_bearer_cmd_t *value,
-    uint8_t *buf)
+		uint8_t *buf)
 {
-    uint16_t encoded = 0;
-    encoded += encode_gtpv2c_header_t(&value->header, buf +encoded);
+	uint16_t encoded = 0;
+	encoded += encode_gtpv2c_header_t(&value->header, buf +encoded);
 
+	for(uint8_t i=0; i<value->bearer_count; i++) {
+		if (value->bearer_contexts[i].header.len) {
+			encoded += encode_gtp_del_bearer_command_bearer_ctxt_ie((&(value->bearer_contexts[i])), (buf + encoded));
+		}
+	}
 
-if (value->bearer_contexts.header.len)
-        encoded += encode_gtp_bearer_context_ie(&(value->bearer_contexts), buf + encoded);
+	if (value->uli.header.len)
+		encoded += encode_gtp_user_loc_info_ie(&(value->uli), buf + encoded);
 
-if (value->uli.header.len)
-        encoded += encode_gtp_user_loc_info_ie(&(value->uli), buf + encoded);
+	if (value->uli_timestamp.header.len)
+		encoded += encode_gtp_uli_timestamp_ie(&(value->uli_timestamp), buf + encoded);
 
-if (value->uli_timestamp.header.len)
-        encoded += encode_gtp_uli_timestamp_ie(&(value->uli_timestamp), buf + encoded);
+	if (value->ue_time_zone.header.len)
+		encoded += encode_gtp_ue_time_zone_ie(&(value->ue_time_zone), buf + encoded);
 
-if (value->ue_time_zone.header.len)
-        encoded += encode_gtp_ue_time_zone_ie(&(value->ue_time_zone), buf + encoded);
+	if (value->mmes4_sgsns_ovrld_ctl_info.header.len)
+		encoded += encode_gtp_ovrld_ctl_info_ie(&(value->mmes4_sgsns_ovrld_ctl_info), buf + encoded);
 
-if (value->mmes4_sgsns_ovrld_ctl_info.header.len)
-        encoded += encode_gtp_ovrld_ctl_info_ie(&(value->mmes4_sgsns_ovrld_ctl_info), buf + encoded);
+	if (value->sgws_ovrld_ctl_info.header.len)
+		encoded += encode_gtp_ovrld_ctl_info_ie(&(value->sgws_ovrld_ctl_info), buf + encoded);
 
-if (value->sgws_ovrld_ctl_info.header.len)
-        encoded += encode_gtp_ovrld_ctl_info_ie(&(value->sgws_ovrld_ctl_info), buf + encoded);
+	if (value->sender_fteid_ctl_plane.header.len)
+		encoded += encode_gtp_fully_qual_tunn_endpt_idnt_ie(&(value->sender_fteid_ctl_plane), buf + encoded);
 
-if (value->sender_fteid_ctl_plane.header.len)
-        encoded += encode_gtp_fully_qual_tunn_endpt_idnt_ie(&(value->sender_fteid_ctl_plane), buf + encoded);
+	if (value->secdry_rat_usage_data_rpt.header.len)
+		encoded += encode_gtp_secdry_rat_usage_data_rpt_ie(&(value->secdry_rat_usage_data_rpt), buf + encoded);
 
-if (value->secdry_rat_usage_data_rpt.header.len)
-        encoded += encode_gtp_secdry_rat_usage_data_rpt_ie(&(value->secdry_rat_usage_data_rpt), buf + encoded);
+	if (value->priv_ext.header.len)
+		encoded += encode_gtp_priv_ext_ie(&(value->priv_ext), buf + encoded);
 
-if (value->priv_ext.header.len)
-        encoded += encode_gtp_priv_ext_ie(&(value->priv_ext), buf + encoded);
-
-    return encoded;
+	return encoded;
 }
 
 
@@ -749,6 +751,9 @@ if (value->uli.header.len)
 if (value->serving_network.header.len)
         encoded += encode_gtp_serving_network_ie(&(value->serving_network), buf + encoded);
 
+if (value->selection_mode.header.len)
+        encoded += encode_gtp_selection_mode_ie(&(value->selection_mode), buf + encoded);
+
 if (value->indctn_flgs.header.len)
         encoded += encode_gtp_indication_ie(&(value->indctn_flgs), buf + encoded);
 
@@ -761,8 +766,10 @@ if (value->apn_ambr.header.len)
 if (value->delay_dnlnk_pckt_notif_req.header.len)
         encoded += encode_gtp_delay_value_ie(&(value->delay_dnlnk_pckt_notif_req), buf + encoded);
 
-if (value->bearer_contexts_to_be_modified.header.len)
-        encoded += encode_gtp_mod_bearer_request_bearer_ctxt_to_be_modified_ie(&(value->bearer_contexts_to_be_modified), buf + encoded);
+for (uint8_t iCnt = 0; iCnt < value->bearer_count; ++iCnt) {
+	if (value->bearer_contexts_to_be_modified[iCnt].header.len)
+		encoded += encode_gtp_mod_bearer_request_bearer_ctxt_to_be_modified_ie(&(value->bearer_contexts_to_be_modified[iCnt]), buf + encoded);
+}
 
 if (value->bearer_contexts_to_be_removed.header.len)
         encoded += encode_gtp_mod_bearer_request_bearer_ctxt_to_be_removed_ie(&(value->bearer_contexts_to_be_removed), buf + encoded);
@@ -841,6 +848,9 @@ if (value->secdry_rat_usage_data_rpt.header.len)
 
 if (value->priv_ext.header.len)
         encoded += encode_gtp_priv_ext_ie(&(value->priv_ext), buf + encoded);
+
+if (value->rat_type.header.len)
+        encoded += encode_gtp_rat_type_ie(&(value->rat_type), buf + encoded);
 
     return encoded;
 }
@@ -1730,8 +1740,10 @@ if (value->apn_restriction.header.len)
 if (value->pco.header.len)
         encoded += encode_gtp_prot_cfg_opts_ie(&(value->pco), buf + encoded);
 
-if (value->bearer_contexts_modified.header.len)
-        encoded += encode_gtp_mod_bearer_response_bearer_ctxt_modified_ie(&(value->bearer_contexts_modified), buf + encoded);
+for (uint8_t iCnt = 0; iCnt < value->bearer_count; ++iCnt) {
+	if (value->bearer_contexts_modified[iCnt].header.len)
+		encoded += encode_gtp_mod_bearer_response_bearer_ctxt_modified_ie(&(value->bearer_contexts_modified[iCnt]), buf + encoded);
+}
 
 if (value->bearer_contexts_marked_removal.header.len)
         encoded += encode_gtp_mod_bearer_response_bearer_ctxt_marked_removal_ie(&(value->bearer_contexts_marked_removal), buf + encoded);
@@ -2104,8 +2116,11 @@ if (value->linked_eps_bearer_id.header.len)
 if (value->pco.header.len)
         encoded += encode_gtp_prot_cfg_opts_ie(&(value->pco), buf + encoded);
 
-if (value->bearer_contexts_created.header.len)
-        encoded += encode_gtp_create_sess_response_bearer_ctxt_created_ie(&(value->bearer_contexts_created), buf + encoded);
+	for(uint8_t i= 0; i< value->bearer_count; i++) {
+		if (value->bearer_contexts_created[i].header.len) {
+			encoded += encode_gtp_create_sess_response_bearer_ctxt_created_ie(&(value->bearer_contexts_created[i]), buf + encoded);
+		}
+	}
 
 if (value->bearer_contexts_marked_removal.header.len)
         encoded += encode_gtp_create_sess_response_bearer_ctxt_marked_removal_ie(&(value->bearer_contexts_marked_removal), buf + encoded);
@@ -2315,8 +2330,10 @@ if (value->lbi.header.len)
 if (value->pco.header.len)
         encoded += encode_gtp_prot_cfg_opts_ie(&(value->pco), buf + encoded);
 
-if (value->bearer_contexts.header.len)
-        encoded += encode_gtp_create_bearer_request_bearer_ctxt_ie(&(value->bearer_contexts), buf + encoded);
+for(uint8_t idx = 0; idx < value->bearer_cnt; ++idx) {
+	if (value->bearer_contexts[idx].header.len)
+			encoded += encode_gtp_create_bearer_request_bearer_ctxt_ie(&(value->bearer_contexts[idx]), buf + encoded);
+}
 
 if (value->pgw_fqcsid.header.len)
         encoded += encode_gtp_fqcsid_ie(&(value->pgw_fqcsid), buf + encoded);
@@ -3044,24 +3061,25 @@ if (value->hdr_comp_cfg.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_del_bearer_command__bearer_ctxt_ie(gtp_del_bearer_command__bearer_ctxt_ie_t *value,
-    uint8_t *buf)
+int encode_gtp_del_bearer_command_bearer_ctxt_ie(gtp_del_bearer_command_bearer_ctxt_ie_t *value,
+		uint8_t *buf)
 {
-    uint16_t encoded = 0;
-    encoded += encode_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
+	uint16_t encoded = 0;
+	encoded += encode_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
 
-    encoded /= CHAR_SIZE;
+	encoded /= CHAR_SIZE;
 
-if (value->eps_bearer_id.header.len)
-        encoded += encode_gtp_eps_bearer_id_ie(&(value->eps_bearer_id), buf + encoded);
+	if (value->eps_bearer_id.header.len) {
+		encoded += encode_gtp_eps_bearer_id_ie(&(value->eps_bearer_id), buf + encoded);
+	}
 
-if (value->bearer_flags.header.len)
-        encoded += encode_gtp_bearer_flags_ie(&(value->bearer_flags), buf + encoded);
+	if (value->bearer_flags.header.len)
+		encoded += encode_gtp_bearer_flags_ie(&(value->bearer_flags), buf + encoded);
 
-if (value->ran_nas_release_cause.header.len)
-        encoded += encode_gtp_ran_nas_cause_ie(&(value->ran_nas_release_cause), buf + encoded);
+	if (value->ran_nas_release_cause.header.len)
+		encoded += encode_gtp_ran_nas_cause_ie(&(value->ran_nas_release_cause), buf + encoded);
 
-    return encoded;
+	return encoded;
 }
 
 
@@ -3280,8 +3298,11 @@ if (value->trstd_wlan_mode_indctn.header.len)
 if (value->pco.header.len)
         encoded += encode_gtp_prot_cfg_opts_ie(&(value->pco), buf + encoded);
 
-if (value->bearer_contexts_to_be_created.header.len)
-        encoded += encode_gtp_create_sess_request_bearer_ctxt_to_be_created_ie(&(value->bearer_contexts_to_be_created), buf + encoded);
+for (uint8_t iCnt = 0; iCnt < value->bearer_count; ++iCnt) {
+	if (value->bearer_contexts_to_be_created[iCnt].header.len) {
+		encoded += encode_gtp_create_sess_request_bearer_ctxt_to_be_created_ie(&(value->bearer_contexts_to_be_created[iCnt]), buf + encoded);
+	}
+}
 
 if (value->bearer_contexts_to_be_removed.header.len)
         encoded += encode_gtp_create_sess_request_bearer_ctxt_to_be_removed_ie(&(value->bearer_contexts_to_be_removed), buf + encoded);
@@ -3306,6 +3327,10 @@ if (value->twan_fqcsid.header.len)
 
 if (value->ue_time_zone.header.len)
         encoded += encode_gtp_ue_time_zone_ie(&(value->ue_time_zone), buf + encoded);
+
+if (value->indctn_flgs.header.len) {
+         encoded += encode_gtp_indication_ie(&(value->indctn_flgs), buf + encoded);
+}
 
 if (value->uci.header.len)
         encoded += encode_gtp_user_csg_info_ie(&(value->uci), buf + encoded);
@@ -3468,8 +3493,10 @@ int encode_upd_bearer_req(upd_bearer_req_t *value,
     encoded += encode_gtpv2c_header_t(&value->header, buf +encoded);
 
 
-if (value->bearer_contexts.header.len)
-        encoded += encode_gtp_bearer_context_ie(&(value->bearer_contexts), buf + encoded);
+for(uint8_t count =0; count < value->bearer_context_count; count++){
+    if (value->bearer_contexts[count].header.len)
+            encoded += encode_gtp_upd_bearer_request__bearer_ctxt_ie(&(value->bearer_contexts[count]), buf + encoded);
+}
 
 if (value->pti.header.len)
         encoded += encode_gtp_proc_trans_id_ie(&(value->pti), buf + encoded);
@@ -3531,96 +3558,99 @@ if (value->priv_ext.header.len)
 * @param buf
 *   buffer to store encoded values.
 * @param value
-    del_bearer_rsp_t
-* @return
-*   number of encoded bytes.
-*/
+del_bearer_rsp_t
+ * @return
+ *   number of encoded bytes.
+ */
 int encode_del_bearer_rsp(del_bearer_rsp_t *value,
-    uint8_t *buf)
+		uint8_t *buf)
 {
-    uint16_t encoded = 0;
-    encoded += encode_gtpv2c_header_t(&value->header, buf +encoded);
+	uint16_t encoded = 0;
+	encoded += encode_gtpv2c_header_t(&value->header, buf +encoded);
 
 
-if (value->cause.header.len)
-        encoded += encode_gtp_cause_ie(&(value->cause), buf + encoded);
+	if (value->cause.header.len)
+		encoded += encode_gtp_cause_ie(&(value->cause), buf + encoded);
 
-if (value->lbi.header.len)
-        encoded += encode_gtp_eps_bearer_id_ie(&(value->lbi), buf + encoded);
+	if (value->lbi.header.len)
+		encoded += encode_gtp_eps_bearer_id_ie(&(value->lbi), buf + encoded);
 
-if (value->bearer_contexts.header.len)
-        encoded += encode_gtp_bearer_context_ie(&(value->bearer_contexts), buf + encoded);
+	for(uint8_t i = 0; i<value->bearer_count; i++) {
+		if (value->bearer_contexts[i].header.len)
+			//encoded += encode_gtp_bearer_context_ie(&(value->bearer_contexts[i]), buf + encoded);
+			encoded += encode_gtp_del_bearer_response_bearer_ctxt_ie(&(value->bearer_contexts[i]), buf + encoded);
+	}
 
-if (value->recovery.header.len)
-        encoded += encode_gtp_recovery_ie(&(value->recovery), buf + encoded);
+	if (value->recovery.header.len)
+		encoded += encode_gtp_recovery_ie(&(value->recovery), buf + encoded);
 
-if (value->mme_fqcsid.header.len)
-        encoded += encode_gtp_fqcsid_ie(&(value->mme_fqcsid), buf + encoded);
+	if (value->mme_fqcsid.header.len)
+		encoded += encode_gtp_fqcsid_ie(&(value->mme_fqcsid), buf + encoded);
 
-if (value->sgw_fqcsid.header.len)
-        encoded += encode_gtp_fqcsid_ie(&(value->sgw_fqcsid), buf + encoded);
+	if (value->sgw_fqcsid.header.len)
+		encoded += encode_gtp_fqcsid_ie(&(value->sgw_fqcsid), buf + encoded);
 
-if (value->epdg_fqcsid.header.len)
-        encoded += encode_gtp_fqcsid_ie(&(value->epdg_fqcsid), buf + encoded);
+	if (value->epdg_fqcsid.header.len)
+		encoded += encode_gtp_fqcsid_ie(&(value->epdg_fqcsid), buf + encoded);
 
-if (value->twan_fqcsid.header.len)
-        encoded += encode_gtp_fqcsid_ie(&(value->twan_fqcsid), buf + encoded);
+	if (value->twan_fqcsid.header.len)
+		encoded += encode_gtp_fqcsid_ie(&(value->twan_fqcsid), buf + encoded);
 
-if (value->pco.header.len)
-        encoded += encode_gtp_prot_cfg_opts_ie(&(value->pco), buf + encoded);
+	if (value->pco.header.len)
+		encoded += encode_gtp_prot_cfg_opts_ie(&(value->pco), buf + encoded);
 
-if (value->ue_time_zone.header.len)
-        encoded += encode_gtp_ue_time_zone_ie(&(value->ue_time_zone), buf + encoded);
+	if (value->ue_time_zone.header.len)
+		encoded += encode_gtp_ue_time_zone_ie(&(value->ue_time_zone), buf + encoded);
 
-if (value->uli.header.len)
-        encoded += encode_gtp_user_loc_info_ie(&(value->uli), buf + encoded);
+	if (value->uli.header.len)
+		encoded += encode_gtp_user_loc_info_ie(&(value->uli), buf + encoded);
 
-if (value->uli_timestamp.header.len)
-        encoded += encode_gtp_uli_timestamp_ie(&(value->uli_timestamp), buf + encoded);
+	if (value->uli_timestamp.header.len)
+		encoded += encode_gtp_uli_timestamp_ie(&(value->uli_timestamp), buf + encoded);
 
-if (value->twan_identifier.header.len)
-        encoded += encode_gtp_twan_identifier_ie(&(value->twan_identifier), buf + encoded);
+	if (value->twan_identifier.header.len)
+		encoded += encode_gtp_twan_identifier_ie(&(value->twan_identifier), buf + encoded);
 
-if (value->twan_idnt_ts.header.len)
-        encoded += encode_gtp_twan_idnt_ts_ie(&(value->twan_idnt_ts), buf + encoded);
+	if (value->twan_idnt_ts.header.len)
+		encoded += encode_gtp_twan_idnt_ts_ie(&(value->twan_idnt_ts), buf + encoded);
 
-if (value->mmes4_sgsns_ovrld_ctl_info.header.len)
-        encoded += encode_gtp_ovrld_ctl_info_ie(&(value->mmes4_sgsns_ovrld_ctl_info), buf + encoded);
+	if (value->mmes4_sgsns_ovrld_ctl_info.header.len)
+		encoded += encode_gtp_ovrld_ctl_info_ie(&(value->mmes4_sgsns_ovrld_ctl_info), buf + encoded);
 
-if (value->sgws_ovrld_ctl_info.header.len)
-        encoded += encode_gtp_ovrld_ctl_info_ie(&(value->sgws_ovrld_ctl_info), buf + encoded);
+	if (value->sgws_ovrld_ctl_info.header.len)
+		encoded += encode_gtp_ovrld_ctl_info_ie(&(value->sgws_ovrld_ctl_info), buf + encoded);
 
-if (value->mmes4_sgsn_idnt.header.len)
-        encoded += encode_gtp_ip_address_ie(&(value->mmes4_sgsn_idnt), buf + encoded);
+	if (value->mmes4_sgsn_idnt.header.len)
+		encoded += encode_gtp_ip_address_ie(&(value->mmes4_sgsn_idnt), buf + encoded);
 
-if (value->twanepdgs_ovrld_ctl_info.header.len)
-        encoded += encode_gtp_ovrld_ctl_info_ie(&(value->twanepdgs_ovrld_ctl_info), buf + encoded);
+	if (value->twanepdgs_ovrld_ctl_info.header.len)
+		encoded += encode_gtp_ovrld_ctl_info_ie(&(value->twanepdgs_ovrld_ctl_info), buf + encoded);
 
-if (value->wlan_loc_info.header.len)
-        encoded += encode_gtp_twan_identifier_ie(&(value->wlan_loc_info), buf + encoded);
+	if (value->wlan_loc_info.header.len)
+		encoded += encode_gtp_twan_identifier_ie(&(value->wlan_loc_info), buf + encoded);
 
-if (value->wlan_loc_ts.header.len)
-        encoded += encode_gtp_twan_idnt_ts_ie(&(value->wlan_loc_ts), buf + encoded);
+	if (value->wlan_loc_ts.header.len)
+		encoded += encode_gtp_twan_idnt_ts_ie(&(value->wlan_loc_ts), buf + encoded);
 
-if (value->ue_local_ip_addr.header.len)
-        encoded += encode_gtp_ip_address_ie(&(value->ue_local_ip_addr), buf + encoded);
+	if (value->ue_local_ip_addr.header.len)
+		encoded += encode_gtp_ip_address_ie(&(value->ue_local_ip_addr), buf + encoded);
 
-if (value->ue_udp_port.header.len)
-        encoded += encode_gtp_port_number_ie(&(value->ue_udp_port), buf + encoded);
+	if (value->ue_udp_port.header.len)
+		encoded += encode_gtp_port_number_ie(&(value->ue_udp_port), buf + encoded);
 
-if (value->nbifom_cntnr.header.len)
-        encoded += encode_gtp_full_qual_cntnr_ie(&(value->nbifom_cntnr), buf + encoded);
+	if (value->nbifom_cntnr.header.len)
+		encoded += encode_gtp_full_qual_cntnr_ie(&(value->nbifom_cntnr), buf + encoded);
 
-if (value->ue_tcp_port.header.len)
-        encoded += encode_gtp_port_number_ie(&(value->ue_tcp_port), buf + encoded);
+	if (value->ue_tcp_port.header.len)
+		encoded += encode_gtp_port_number_ie(&(value->ue_tcp_port), buf + encoded);
 
-if (value->secdry_rat_usage_data_rpt.header.len)
-        encoded += encode_gtp_secdry_rat_usage_data_rpt_ie(&(value->secdry_rat_usage_data_rpt), buf + encoded);
+	if (value->secdry_rat_usage_data_rpt.header.len)
+		encoded += encode_gtp_secdry_rat_usage_data_rpt_ie(&(value->secdry_rat_usage_data_rpt), buf + encoded);
 
-if (value->priv_ext.header.len)
-        encoded += encode_gtp_priv_ext_ie(&(value->priv_ext), buf + encoded);
+	if (value->priv_ext.header.len)
+		encoded += encode_gtp_priv_ext_ie(&(value->priv_ext), buf + encoded);
 
-    return encoded;
+	return encoded;
 }
 
 
@@ -3983,8 +4013,10 @@ int encode_upd_bearer_rsp(upd_bearer_rsp_t *value,
 if (value->cause.header.len)
         encoded += encode_gtp_cause_ie(&(value->cause), buf + encoded);
 
-if (value->bearer_contexts.header.len)
-        encoded += encode_gtp_bearer_context_ie(&(value->bearer_contexts), buf + encoded);
+for(uint8_t count =0; count < value->bearer_context_count; count++){
+	if (value->bearer_contexts[count].header.len)
+        encoded += encode_gtp_upd_bearer_response__bearer_ctxt_ie(&(value->bearer_contexts[count]), buf + encoded);
+}
 
 if (value->pco.header.len)
         encoded += encode_gtp_prot_cfg_opts_ie(&(value->pco), buf + encoded);
@@ -4235,6 +4267,36 @@ if (value->s1u_sgw_fteid.header.len)
 
 if (value->s11_u_sgw_fteid.header.len)
         encoded += encode_gtp_fully_qual_tunn_endpt_idnt_ie(&(value->s11_u_sgw_fteid), buf + encoded);
+
+    return encoded;
+}
+
+/**
+* Encodes del_pdn_conn_set_req_t to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+    del_pdn_conn_set_req_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_del_pdn_conn_set_req(del_pdn_conn_set_req_t *value,
+    uint8_t *buf)
+{
+    uint16_t encoded = 0;
+    encoded += encode_gtpv2c_header_t(&value->header, buf +encoded);
+
+	if (value->mme_fqcsid.header.len)
+	        encoded += encode_gtp_fqcsid_ie(&(value->mme_fqcsid), buf + encoded);
+
+	if (value->sgw_fqcsid.header.len)
+	        encoded += encode_gtp_fqcsid_ie(&(value->sgw_fqcsid), buf + encoded);
+
+	if (value->pgw_fqcsid.header.len)
+	        encoded += encode_gtp_fqcsid_ie(&(value->pgw_fqcsid), buf + encoded);
+
+	if (value->priv_ext.header.len)
+	        encoded += encode_gtp_priv_ext_ie(&(value->priv_ext), buf + encoded);
 
     return encoded;
 }
@@ -4935,8 +4997,13 @@ int encode_del_bearer_req(del_bearer_req_t *value,
     encoded += encode_gtpv2c_header_t(&value->header, buf +encoded);
 
 
-if (value->eps_bearer_ids.header.len)
-        encoded += encode_gtp_eps_bearer_id_ie(&(value->eps_bearer_ids), buf + encoded);
+if (value->lbi.header.len)
+        encoded += encode_gtp_eps_bearer_id_ie(&(value->lbi), buf + encoded);
+
+for(uint8_t iCnt = 0; iCnt < value->bearer_count; iCnt++) {
+	if (value->eps_bearer_ids[iCnt].header.len)
+        	encoded += encode_gtp_eps_bearer_id_ie(&(value->eps_bearer_ids[iCnt]), buf + encoded);
+}
 
 if (value->failed_bearer_contexts.header.len)
         encoded += encode_gtp_bearer_context_ie(&(value->failed_bearer_contexts), buf + encoded);
@@ -5410,8 +5477,10 @@ int encode_create_bearer_rsp(create_bearer_rsp_t *value,
 if (value->cause.header.len)
         encoded += encode_gtp_cause_ie(&(value->cause), buf + encoded);
 
-if (value->bearer_contexts.header.len)
-        encoded += encode_gtp_create_bearer_response_bearer_ctxt_ie(&(value->bearer_contexts), buf + encoded);
+for(uint8_t idx = 0; idx < value->bearer_cnt; idx++) {
+	if (value->bearer_contexts[idx].header.len)
+		encoded += encode_gtp_create_bearer_response_bearer_ctxt_ie(&value->bearer_contexts[idx], buf + encoded);
+}
 
 if (value->recovery.header.len)
         encoded += encode_gtp_recovery_ie(&(value->recovery), buf + encoded);
@@ -5542,7 +5611,7 @@ if (value->priv_ext.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_del_bearer_response__bearer_ctxt_ie(gtp_del_bearer_response__bearer_ctxt_ie_t *value,
+int encode_gtp_del_bearer_response_bearer_ctxt_ie(gtp_del_bearer_response_bearer_ctxt_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -5593,7 +5662,6 @@ if (value->priv_ext.header.len)
 
     return encoded;
 }
-
 
 /**
 * Encodes upd_pdn_conn_set_req_t to buffer.
@@ -5723,5 +5791,74 @@ if (value->sgw_fteid_ul_data_fwdng.header.len)
         encoded += encode_gtp_fully_qual_tunn_endpt_idnt_ie(&(value->sgw_fteid_ul_data_fwdng), buf + encoded);
 
     return encoded;
+}
+
+
+/**
+* Encodes change notification_req to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+	change_noti_req_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_change_noti_req(change_noti_req_t *value,
+		uint8_t *buf)
+{
+	uint16_t encoded = 0;
+	encoded += encode_gtpv2c_header_t(&value->header, buf +encoded);
+
+	if (value->imsi.header.len)
+		encoded += encode_gtp_imsi_ie(&(value->imsi), buf + encoded);
+
+	if(value->rat_type.header.len)
+		encoded += encode_gtp_rat_type_ie(&(value->rat_type), buf + encoded);
+
+	if(value->uli.header.len)
+		encoded += encode_gtp_user_loc_info_ie(&(value->uli), buf + encoded);
+
+	if(value->uci.header.len)
+		encoded += encode_gtp_user_csg_info_ie(&(value->uci), buf + encoded);
+
+	if(value->ipv4_address.header.len)
+		encoded += encode_gtp_ip_address_ie(&(value->ipv4_address), buf + encoded);
+
+	if (value->lbi.header.len)
+		encoded += encode_gtp_eps_bearer_id_ie(&(value->lbi), buf + encoded);
+
+	for(uint8_t i = 0; i< value->second_rat_count; i++) {
+		if(value->secdry_rat_usage_data_rpt[i].header.len)
+			encoded += encode_gtp_secdry_rat_usage_data_rpt_ie(&(value->secdry_rat_usage_data_rpt[i]), buf + encoded);
+	}
+
+	return encoded;
+}
+
+
+
+/**
+* Encodes change notification_rsp to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+	change_noti_rsp_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_change_noti_rsp(change_noti_rsp_t *value,
+		uint8_t *buf)
+{
+
+	uint16_t encoded = 0;
+	encoded += encode_gtpv2c_header_t(&value->header, buf +encoded);
+
+	if (value->imsi.header.len) {
+		encoded += encode_gtp_imsi_ie(&(value->imsi), buf + encoded);
+	}
+	if(value->cause.header.len)
+		encoded += encode_gtp_cause_ie(&(value->cause), buf + encoded);
+
+	return encoded;
 }
 

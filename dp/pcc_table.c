@@ -28,9 +28,11 @@ struct rte_hash *rte_pcc_hash;
 extern struct rte_hash *rte_sdf_pcc_hash;
 extern struct rte_hash *rte_adc_pcc_hash;
 /**
- * @brief Called by DP to lookup key-value in PCC table.
- *
- * This function is thread safe (Read Only).
+ * @brief  : Called by DP to lookup key-value in PCC table.
+ *           This function is thread safe (Read Only).
+ * @param  : key32, key
+ * @param  : value, Structure to fill result of lookup
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int iface_lookup_pcc_data(const uint32_t key32,
 					struct dp_pcc_rules **value)
@@ -42,7 +44,7 @@ int
 dp_pcc_table_create(struct dp_id dp_id, uint32_t max_elements)
 {
 	if (rte_pcc_hash) {
-		RTE_LOG_DP(INFO, DP, "PCC table: \"%s\" exist\n", dp_id.name);
+		clLog(clSystemLog, eCLSeverityInfo, "PCC table: \"%s\" exist\n", dp_id.name);
 		return 0;
 	}
 
@@ -67,19 +69,21 @@ dp_pcc_entry_add(struct dp_id dp_id, struct pcc_rules *entry)
 
 	pcc = rte_zmalloc("data", sizeof(struct dp_pcc_rules),
 			   RTE_CACHE_LINE_SIZE);
-	if (pcc == NULL)
+	if (pcc == NULL) {
+		clLog(clSystemLog, eCLSeverityCritical, "Failed to allocate memory for pcc structre\n");
 		return -1;
+	}
 	memcpy(pcc, entry, sizeof(struct pcc_rules));
 
 	key32 = entry->rule_id;
 	ret = rte_hash_add_key_data(rte_pcc_hash, &key32,
 				  pcc);
 	if (ret < 0) {
-		RTE_LOG_DP(ERR, DP, "Failed to add entry in hash table");
+		clLog(clSystemLog, eCLSeverityCritical, "Failed to add entry in hash table");
 		return -1;
 	}
 
-	RTE_LOG_DP(INFO, DP, "PCC_TBL ADD: rule_id:%u, addr:0x%"PRIx64
+	clLog(clSystemLog, eCLSeverityInfo, "PCC_TBL ADD: rule_id:%u, addr:0x%"PRIx64
 			", ul_mtr_idx:%u, dl_mtr_idx:%u, sdf_cnt=%d, adc_idx=%d\n",
 			pcc->rule_id, (uint64_t)pcc,
 			pcc->qos.ul_mtr_profile_index,
@@ -95,6 +99,7 @@ dp_pcc_entry_add(struct dp_id dp_id, struct pcc_rules *entry)
 				entry->gate_status, 1, &entry->adc_idx);
 	return 0;
 }
+
 int
 dp_pcc_entry_delete(struct dp_id dp_id, struct pcc_rules *entry)
 {
@@ -105,14 +110,16 @@ dp_pcc_entry_delete(struct dp_id dp_id, struct pcc_rules *entry)
 	ret = rte_hash_lookup_data(rte_pcc_hash, &key32,
 				  (void **)&pcc);
 	if (ret < 0) {
-		RTE_LOG_DP(ERR, DP, "Failed to del\n"
+		clLog(clSystemLog, eCLSeverityCritical, "Failed to del\n"
 			"pcc key 0x%x to hash table\n",
 			 key32);
 		return -1;
 	}
 	ret = rte_hash_del_key(rte_pcc_hash, &key32);
-	if (ret < 0)
+	if (ret < 0) {
+		clLog(clSystemLog, eCLSeverityCritical, "Failed to delete pcc hash for %x\n",key32);
 		return -1;
+	}
 
 	rte_free(pcc);
 	return 0;
@@ -120,13 +127,9 @@ dp_pcc_entry_delete(struct dp_id dp_id, struct pcc_rules *entry)
 
 /******************** Call back functions **********************/
 /**
- *  Call back to parse msg to create pcc rules table
- *
- * @param msg_payload
- *	payload from CP
- * @return
- *	- 0 Success.
- *	- -1 Failure.
+ * @brief  : Call back to parse msg to create pcc rules table
+ * @param  : msg_payload, payload from CP
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 static int
 cb_pcc_table_create(struct msgbuf *msg_payload)
@@ -136,13 +139,9 @@ cb_pcc_table_create(struct msgbuf *msg_payload)
 }
 
 /**
- *  Call back to parse msg to delete table
- *
- * @param msg_payload
- *	payload from CP
- * @return
- *	- 0 Success.
- *	- -1 Failure.
+ * @brief  : Call back to parse msg to delete table
+ * @param  : msg_payload, payload from CP
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 static int
 cb_pcc_table_delete(struct msgbuf *msg_payload)
@@ -150,15 +149,6 @@ cb_pcc_table_delete(struct msgbuf *msg_payload)
 	return pcc_table_delete(msg_payload->dp_id);
 }
 
-/**
- *  Call back to parse msg to add pcc rules.
- *
- * @param msg_payload
- *	payload from CP
- * @return
- *	- 0 Success.
- *	- -1 Failure.
- */
 //static
 int cb_pcc_entry_add(struct msgbuf *msg_payload)
 {
@@ -167,12 +157,9 @@ int cb_pcc_entry_add(struct msgbuf *msg_payload)
 }
 
 /**
- * Call back to delete pcc rules.
- * @param msg_payload
- *	payload from CP
- * @return
- *	- 0 Success.
- *	- -1 Failure.
+ * @brief  : Call back to delete pcc rules.
+ * @param  : msg_payload, payload from CP
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 static int
 cb_pcc_entry_delete(struct msgbuf *msg_payload)
@@ -194,16 +181,15 @@ void app_pcc_tbl_init(void)
 }
 
 /**
- * Returns insertion position in sorted array, after moving elements.
- * Capacity of pcc should be n+1
- * @param pcc
- *	Pointer to pcc_id_precedence structure
- * @param n
- *	no of entries in pcc
- * @param precedence
- *	Comparison is based on precedence.
- * @return
- * Insert position for new element.
+ * @brief  : Returns insertion position in sorted array, after moving elements.
+ *           Capacity of pcc should be n+1
+ * @param  : pcc
+ *           Pointer to pcc_id_precedence structure
+ * @param  : n
+ *           no of entries in pcc
+ * @param  : precedence
+ *           Comparison is based on precedence.
+ * @return : Insert position for new element.
  */
 static uint32_t
 get_insert_position(struct pcc_id_precedence *pcc, uint32_t n,
@@ -215,20 +201,19 @@ get_insert_position(struct pcc_id_precedence *pcc, uint32_t n,
 	return i+1;
 }
 
-/**
- * Returns delete position in sorted array, after moving elements.
- * Capacity of pcc should be n-1
- * @param pcc
- *	Pointer to pcc_id_precedence structure
- * @param n
- *	no of entries in pcc
- * @param precedence
- *	Comparison is based on precedence.
- * @return
- * Insert position for new element.
- */
 /* --> GCC_security flag */
 #if 0
+/**
+ * @brief  : Returns delete position in sorted array, after moving elements.
+ *           Capacity of pcc should be n-1
+ * @param  : pcc
+ *           Pointer to pcc_id_precedence structure
+ * @param  : n
+ *           no of entries in pcc
+ * @param  : precedence
+ *           Comparison is based on precedence.
+ * @return : Insert position for new element.
+ */
 static uint32_t
 get_delete_position(struct pcc_id_precedence *pcc, uint32_t n,
 		uint32_t pcc_id)
@@ -242,23 +227,14 @@ get_delete_position(struct pcc_id_precedence *pcc, uint32_t n,
  /* <-- GCC_security flag */
 
 /**
- * Add entry into SDF-PCC or ADC-PCC association hash.
- * @param type
- *  Type of hash table, SDF/ADC.
- * @param pcc_id
- *  PCC rule id to be added.
- * @param precedence
- *  PCC rule precedence.
- * @param gate_status
- *  PCC rule gate status.
- * @param  n
- *  Number of SDF/ADC rules.
- * @param  rule_ids
- *  Pointer to SDF/ADC rule ids.
- *
- * @return
- *  0 - on success
- *  -1 - on failure
+ * @brief  : Add entry into SDF-PCC or ADC-PCC association hash.
+ * @param  : type, Type of hash table, SDF/ADC.
+ * @param  : pcc_id, PCC rule id to be added.
+ * @param  : precedence, PCC rule precedence.
+ * @param  : gate_status, PCC rule gate status.
+ * @param  : n, Number of SDF/ADC rules.
+ * @param  : rule_ids,  Pointer to SDF/ADC rule ids.
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 filter_pcc_entry_add(enum filter_pcc_type type, uint32_t pcc_id,
@@ -274,8 +250,10 @@ filter_pcc_entry_add(enum filter_pcc_type type, uint32_t pcc_id,
 		hash = rte_sdf_pcc_hash;
 	else if (type == FILTER_ADC)
 		hash = rte_adc_pcc_hash;
-	else
+	else {
+		clLog(clSystemLog, eCLSeverityCritical, "Invalid pcc filter type\n");
 		return -1;
+	}
 
 	for (i = 0; i < n; i++) {
 		ret = rte_hash_lookup_data(hash, &rule_ids[i], (void **)&pinfo);
@@ -308,7 +286,7 @@ filter_pcc_entry_add(enum filter_pcc_type type, uint32_t pcc_id,
 			if (ret < 0) {
 				rte_free(pcc);
 				rte_free(data);
-				RTE_LOG_DP(DEBUG, DP, "Failed to add entry in rte_sdf_pcc hash.\n");
+				clLog(clSystemLog, eCLSeverityDebug, "Failed to add entry in rte_sdf_pcc hash.\n");
 				continue;
 			}
 		} else {
@@ -340,7 +318,7 @@ filter_pcc_entry_add(enum filter_pcc_type type, uint32_t pcc_id,
 			if (ret < 0) {
 				rte_free(pcc);
 				rte_free(data);
-				RTE_LOG_DP(DEBUG, DP, "Failed to delete from rte_sdf_pcc hash\n");
+				clLog(clSystemLog, eCLSeverityDebug, "Failed to delete from rte_sdf_pcc hash\n");
 				continue;
 			}
 
@@ -353,7 +331,7 @@ filter_pcc_entry_add(enum filter_pcc_type type, uint32_t pcc_id,
 			if (ret < 0) {
 				rte_free(pcc);
 				rte_free(data);
-				RTE_LOG_DP(DEBUG, DP,
+				clLog(clSystemLog, eCLSeverityDebug,
 						"Failed to add entry in sdf_pcc hash table\n");
 				continue;
 			}
@@ -363,19 +341,12 @@ filter_pcc_entry_add(enum filter_pcc_type type, uint32_t pcc_id,
 }
 
 /**
- * Search SDF-PCC or ADC-PCC association hash for SDF/ADC ruleid as a key
- * @param type
- *  Type of hash table, SDF/ADC.
- * @param pcc_id
- *  SDF/ADC rule ids to be used for searching.
- * @param  n
- *  Number of SDF/ADC rules.
- * @param  pcc_info
- *  Pointer to matched PCC info.
- *
- * @return
- *  0 - on success
- *  -1 - on failure
+ * @brief  : Search SDF-PCC or ADC-PCC association hash for SDF/ADC ruleid as a key
+ * @param  : type, Type of hash table, SDF/ADC.
+ * @param  : pcc_id, SDF/ADC rule ids to be used for searching.
+ * @param  : n, Number of SDF/ADC rules.
+ * @param  : pcc_info, Pointer to matched PCC info.
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 filter_pcc_entry_lookup(enum filter_pcc_type type, uint32_t* rule_ids,
@@ -391,7 +362,7 @@ filter_pcc_entry_lookup(enum filter_pcc_type type, uint32_t* rule_ids,
 	else if (type == FILTER_ADC)
 		hash = rte_adc_pcc_hash;
 	else {
-		RTE_LOG_DP(INFO, DP, "filter_pcc_entry_lookup hash type mistmatch");
+		clLog(clSystemLog, eCLSeverityInfo, "filter_pcc_entry_lookup hash type mistmatch");
 		return -1;
 	}
 

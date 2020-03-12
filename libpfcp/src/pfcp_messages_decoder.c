@@ -209,11 +209,13 @@ int decode_pfcp_create_urr_ie_t(uint8_t *buf,
       uint16_t buf_len = 0;
 
       count = decode_pfcp_ie_header_t(buf + count, &value->header);
+	  count = count/CHAR_SIZE;
 
       value->linked_urr_id_count = 0;
       value->aggregated_urrs_count = 0;
       value->add_mntrng_time_count = 0;
 
+	  buf_len = value->header.len;
       while (count < buf_len) {
 
           pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
@@ -658,8 +660,9 @@ int decode_pfcp_upd_bar_sess_rpt_rsp_ie_t(uint8_t *buf,
 *   number of decoded bytes.
 */
 int decode_pfcp_sess_mod_req_t(uint8_t *buf,
-		pfcp_sess_mod_req_t *value)
+		pfcp_sess_mod_req_t *value, sx_intf_t intf_type)
 {
+	uint8_t fq_count = 0;
 	uint16_t count = 0;
 	uint16_t buf_len = 0;
 
@@ -695,6 +698,9 @@ int decode_pfcp_sess_mod_req_t(uint8_t *buf,
 		pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
 
 		uint16_t ie_type = ntohs(ie_header->type);
+		if(ie_type == PFCP_IE_FQCSID) {
+			fq_count += 1;
+		}
 
 		if (ie_type == PFCP_IE_FSEID) {
 			count += decode_pfcp_fseid_ie_t(buf + count, &value->cp_fseid);
@@ -712,16 +718,17 @@ int decode_pfcp_sess_mod_req_t(uint8_t *buf,
 			count += decode_pfcp_upd_traffic_endpt_ie_t(buf + count, &value->upd_traffic_endpt);
 		}  else if (ie_type == PFCP_IE_PFCPSMREQ_FLAGS) {
 			count += decode_pfcp_pfcpsmreq_flags_ie_t(buf + count, &value->pfcpsmreq_flags);
-		}  else if (ie_type == PFCP_IE_FQCSID) {
-			count += decode_pfcp_fqcsid_ie_t(buf + count, &value->pgw_c_fqcsid);
-		}  else if (ie_type == PFCP_IE_FQCSID) {
-			count += decode_pfcp_fqcsid_ie_t(buf + count, &value->sgw_c_fqcsid);
-		}  else if (ie_type == PFCP_IE_FQCSID) {
-			count += decode_pfcp_fqcsid_ie_t(buf + count, &value->mme_fqcsid);
-		}  else if (ie_type == PFCP_IE_FQCSID) {
-			count += decode_pfcp_fqcsid_ie_t(buf + count, &value->epdg_fqcsid);
-		}  else if (ie_type == PFCP_IE_FQCSID) {
-			count += decode_pfcp_fqcsid_ie_t(buf + count, &value->twan_fqcsid);
+		} else if (ie_type == PFCP_IE_FQCSID) {
+			if ((intf_type == Sxa || intf_type == Sxb || intf_type == Sxa_Sxb) && fq_count == 1)
+				count += decode_pfcp_fqcsid_ie_t(buf + count, &value->pgw_c_fqcsid);
+			else if ((intf_type == Sxa || intf_type == Sxb || intf_type == Sxa_Sxb) && fq_count == 2)
+				count += decode_pfcp_fqcsid_ie_t(buf + count, &value->sgw_c_fqcsid);
+			else if ((intf_type == Sxa || intf_type == Sxb || intf_type == Sxa_Sxb) && fq_count == 3)
+				count += decode_pfcp_fqcsid_ie_t(buf + count, &value->mme_fqcsid);
+			else if ((intf_type == Sxb || intf_type == Sxa_Sxb) && fq_count == 4)
+				count += decode_pfcp_fqcsid_ie_t(buf + count, &value->epdg_fqcsid);
+			else if ((intf_type == Sxb || intf_type == Sxa_Sxb) && fq_count == 5)
+				count += decode_pfcp_fqcsid_ie_t(buf + count, &value->twan_fqcsid);
 		}  else if (ie_type == PFCP_IE_USER_PLANE_INACT_TIMER) {
 			count += decode_pfcp_user_plane_inact_timer_ie_t(buf + count, &value->user_plane_inact_timer);
 		}  else if (ie_type == PFCP_IE_QUERY_URR_REF) {
@@ -775,6 +782,9 @@ int decode_pfcp_usage_rpt_sess_mod_rsp_ie_t(uint8_t *buf,
       uint16_t buf_len = 0;
 
       count = decode_pfcp_ie_header_t(buf + count, &value->header);
+	  count /= CHAR_SIZE;
+
+	  buf_len = value->header.len;
 
 
       while (count < buf_len) {
@@ -906,7 +916,9 @@ int decode_pfcp_usage_rpt_sess_del_rsp_ie_t(uint8_t *buf,
       uint16_t buf_len = 0;
 
       count = decode_pfcp_ie_header_t(buf + count, &value->header);
+	  count /=CHAR_SIZE;
 
+	  buf_len = value->header.len;
 
       while (count < buf_len) {
 
@@ -1043,6 +1055,9 @@ int decode_pfcp_usage_rpt_sess_rpt_req_ie_t(uint8_t *buf,
       uint16_t buf_len = 0;
 
       count = decode_pfcp_ie_header_t(buf + count, &value->header);
+	  count /= CHAR_SIZE;
+
+	  buf_len = value->header.len;
 
       value->evnt_time_stmp_count = 0;
 
@@ -1147,48 +1162,53 @@ int decode_pfcp_sess_del_rsp_t(uint8_t *buf,
 *   number of decoded bytes.
 */
 int decode_pfcp_sess_set_del_req_t(uint8_t *buf,
-      pfcp_sess_set_del_req_t *value)
+		pfcp_sess_set_del_req_t *value, sx_intf_t intf_type)
 {
-      uint16_t count = 0;
-      uint16_t buf_len = 0;
+	uint8_t fq_count = 0;
+	uint16_t count = 0;
+	uint16_t buf_len = 0;
 
-      count = decode_pfcp_header_t(buf + count, &value->header);
+	count = decode_pfcp_header_t(buf + count, &value->header);
 
-      if (value->header.s)
-          buf_len = value->header.message_len - 12;
-      else
-          buf_len = value->header.message_len - 4;
+	if (value->header.s)
+		buf_len = value->header.message_len - 12;
+	else
+		buf_len = value->header.message_len - 4;
 
-      buf = buf + count;
-      count = 0;
+	buf = buf + count;
+	count = 0;
 
 
-      while (count < buf_len) {
+	while (count < buf_len) {
 
-          pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
+		pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
 
-          uint16_t ie_type = ntohs(ie_header->type);
+		uint16_t ie_type = ntohs(ie_header->type);
+		if(ie_type == PFCP_IE_FQCSID) {
+			fq_count += 1;
+		}
 
-      if (ie_type == PFCP_IE_NODE_ID) {
-            count += decode_pfcp_node_id_ie_t(buf + count, &value->node_id);
-      }  else if (ie_type == PFCP_IE_FQCSID) {
-            count += decode_pfcp_fqcsid_ie_t(buf + count, &value->sgw_c_fqcsid);
-      }  else if (ie_type == PFCP_IE_FQCSID) {
-            count += decode_pfcp_fqcsid_ie_t(buf + count, &value->pgw_c_fqcsid);
-      }  else if (ie_type == PFCP_IE_FQCSID) {
-            count += decode_pfcp_fqcsid_ie_t(buf + count, &value->sgw_u_fqcsid);
-      }  else if (ie_type == PFCP_IE_FQCSID) {
-            count += decode_pfcp_fqcsid_ie_t(buf + count, &value->pgw_u_fqcsid);
-      }  else if (ie_type == PFCP_IE_FQCSID) {
-            count += decode_pfcp_fqcsid_ie_t(buf + count, &value->twan_fqcsid);
-      }  else if (ie_type == PFCP_IE_FQCSID) {
-            count += decode_pfcp_fqcsid_ie_t(buf + count, &value->epdg_fqcsid);
-      }  else if (ie_type == PFCP_IE_FQCSID) {
-            count += decode_pfcp_fqcsid_ie_t(buf + count, &value->mme_fqcsid);
-      }  else
-            count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
-      }
-      return count;
+		if (ie_type == PFCP_IE_NODE_ID) {
+			count += decode_pfcp_node_id_ie_t(buf + count, &value->node_id);
+		} else if (ie_type == PFCP_IE_FQCSID) {
+			if ((intf_type == Sxa || intf_type == Sxb || intf_type == Sxa_Sxb) && fq_count == 1)
+				count += decode_pfcp_fqcsid_ie_t(buf + count, &value->sgw_c_fqcsid);
+			else if ((intf_type == Sxa || intf_type == Sxb || intf_type == Sxa_Sxb) && fq_count == 2)
+				count += decode_pfcp_fqcsid_ie_t(buf + count, &value->pgw_c_fqcsid);
+			else if ((intf_type == Sxa || intf_type == Sxa_Sxb) && fq_count == 3)
+				count += decode_pfcp_fqcsid_ie_t(buf + count, &value->sgw_u_fqcsid);
+			else if ((intf_type == Sxb || intf_type == Sxa_Sxb) && fq_count == 4)
+				count += decode_pfcp_fqcsid_ie_t(buf + count, &value->pgw_u_fqcsid);
+		//	else if ((intf_type == Sxb || intf_type == Sxa_Sxb) && fq_count == 5)
+		//		count += decode_pfcp_fqcsid_ie_t(buf + count, &value->twan_fqcsid);
+		//	else if ((intf_type == Sxb || intf_type == Sxa_Sxb) && fq_count == 6)
+		//		count += decode_pfcp_fqcsid_ie_t(buf + count, &value->epdg_fqcsid);
+			else if ((intf_type == Sxa || intf_type == Sxb || intf_type == Sxa_Sxb) && fq_count == 5)
+				count += decode_pfcp_fqcsid_ie_t(buf + count, &value->mme_fqcsid);
+		} else
+			count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
+	}
+	return count;
 }
 /**
 * Decodes pfcp_sess_set_del_rsp_t to buffer.
@@ -1346,7 +1366,9 @@ int decode_pfcp_sess_mod_rsp_t(uint8_t *buf,
             count += decode_pfcp_failed_rule_id_ie_t(buf + count, &value->failed_rule_id);
       }  else if (ie_type == PFCP_IE_ADD_USAGE_RPTS_INFO) {
             count += decode_pfcp_add_usage_rpts_info_ie_t(buf + count, &value->add_usage_rpts_info);
-      }  else if (ie_type == IE_CREATED_TRAFFIC_ENDPT) {
+      } else if (ie_type == PFCP_IE_FQCSID) {
+		    count += decode_pfcp_fqcsid_ie_t(buf + count, &value->sgw_u_fqcsid);
+	  } else if (ie_type == IE_CREATED_TRAFFIC_ENDPT) {
             count += decode_pfcp_created_traffic_endpt_ie_t(buf + count, &value->createdupdated_traffic_endpt);
       }  else if (ie_type == IE_USAGE_RPT_SESS_MOD_RSP) {
             count += decode_pfcp_usage_rpt_sess_mod_rsp_ie_t(buf + count, &value->usage_report[value->usage_report_count++]);
@@ -1622,6 +1644,9 @@ int decode_pfcp_update_pdr_ie_t(uint8_t *buf,
       uint16_t buf_len = 0;
 
       count = decode_pfcp_ie_header_t(buf + count, &value->header);
+
+      count = count/CHAR_SIZE;
+      buf_len = value->header.len;
 
       value->actvt_predef_rules_count = 0;
       value->deact_predef_rules_count = 0;
@@ -2103,8 +2128,9 @@ int decode_pfcp_assn_upd_req_t(uint8_t *buf,
 v*   number of decoded bytes.
 */
 int decode_pfcp_sess_estab_req_t(uint8_t *buf,
-		pfcp_sess_estab_req_t *value)
+		pfcp_sess_estab_req_t *value, sx_intf_t intf_type)
 {
+	uint8_t fq_count = 0;
 	uint16_t count = 0;
 	uint16_t buf_len = 0;
 
@@ -2129,6 +2155,9 @@ int decode_pfcp_sess_estab_req_t(uint8_t *buf,
 		pfcp_ie_header_t *ie_header = (pfcp_ie_header_t *) (buf + count);
 
 		uint16_t ie_type = ntohs(ie_header->type);
+		if(ie_type == PFCP_IE_FQCSID){
+			fq_count += 1;
+		}
 
 		if (ie_type == PFCP_IE_NODE_ID) {
 			count += decode_pfcp_node_id_ie_t(buf + count, &value->node_id);
@@ -2138,16 +2167,17 @@ int decode_pfcp_sess_estab_req_t(uint8_t *buf,
 			count += decode_pfcp_create_bar_ie_t(buf + count, &value->create_bar);
 		}  else if (ie_type == PFCP_IE_PDN_TYPE) {
 			count += decode_pfcp_pdn_type_ie_t(buf + count, &value->pdn_type);
-		}  else if (ie_type == PFCP_IE_FQCSID) {
-			count += decode_pfcp_fqcsid_ie_t(buf + count, &value->sgw_c_fqcsid);
-		}  else if (ie_type == PFCP_IE_FQCSID) {
-			count += decode_pfcp_fqcsid_ie_t(buf + count, &value->mme_fqcsid);
-		}  else if (ie_type == PFCP_IE_FQCSID) {
-			count += decode_pfcp_fqcsid_ie_t(buf + count, &value->pgw_c_fqcsid);
-		}  else if (ie_type == PFCP_IE_FQCSID) {
-			count += decode_pfcp_fqcsid_ie_t(buf + count, &value->epdg_fqcsid);
-		}  else if (ie_type == PFCP_IE_FQCSID) {
-			count += decode_pfcp_fqcsid_ie_t(buf + count, &value->twan_fqcsid);
+		} else if (ie_type == PFCP_IE_FQCSID) {
+			if ((intf_type == Sxa || intf_type == Sxb || intf_type == Sxa_Sxb) && fq_count == 1)
+				count += decode_pfcp_fqcsid_ie_t(buf + count, &value->sgw_c_fqcsid);
+			else if ((intf_type == Sxa || intf_type == Sxb || intf_type == Sxa_Sxb) && fq_count == 2)
+				count += decode_pfcp_fqcsid_ie_t(buf + count, &value->mme_fqcsid);
+			else if ((intf_type == Sxa || intf_type == Sxb || intf_type == Sxa_Sxb) && fq_count == 3)
+				count += decode_pfcp_fqcsid_ie_t(buf + count, &value->pgw_c_fqcsid);
+			else if ((intf_type == Sxb || intf_type == Sxa_Sxb) && fq_count == 4)
+				count += decode_pfcp_fqcsid_ie_t(buf + count, &value->epdg_fqcsid);
+			else if ((intf_type == Sxb || intf_type == Sxa_Sxb) && fq_count == 5)
+				count += decode_pfcp_fqcsid_ie_t(buf + count, &value->twan_fqcsid);
 		}  else if (ie_type == PFCP_IE_USER_PLANE_INACT_TIMER) {
 			count += decode_pfcp_user_plane_inact_timer_ie_t(buf + count, &value->user_plane_inact_timer);
 		}  else if (ie_type == PFCP_IE_USER_ID) {
@@ -2511,11 +2541,12 @@ int decode_pfcp_update_far_ie_t(uint8_t *buf,
             count += decode_pfcp_upd_frwdng_parms_ie_t(buf + count, &value->upd_frwdng_parms);
       }  else if (ie_type == PFCP_IE_BAR_ID) {
             count += decode_pfcp_bar_id_ie_t(buf + count, &value->bar_id);
-      }  else if (ie_type == IE_UPD_DUPNG_PARMS) {
+      }  else if (ie_type == IE_DUPNG_PARMS) {
             count += decode_pfcp_upd_dupng_parms_ie_t(buf + count, &value->upd_dupng_parms[value->upd_dupng_parms_count++]);
       }  else
             count += sizeof(pfcp_ie_header_t) + ntohs(ie_header->len);
       }
+
       return count;
 }
 /**
@@ -2690,7 +2721,7 @@ int decode_pfcp_add_mntrng_time_ie_t(uint8_t *buf,
 *   number of decoded bytes.
 */
 int decode_pfcp_sess_estab_rsp_t(uint8_t *buf,
-      pfcp_sess_estab_rsp_t *value)
+      pfcp_sess_estab_rsp_t *value, sx_intf_t intf_type)
 {
       uint16_t count = 0;
       uint16_t buf_len = 0;
@@ -2726,9 +2757,9 @@ int decode_pfcp_sess_estab_rsp_t(uint8_t *buf,
             count += decode_pfcp_load_ctl_info_ie_t(buf + count, &value->load_ctl_info);
       }  else if (ie_type == IE_OVRLD_CTL_INFO) {
             count += decode_pfcp_ovrld_ctl_info_ie_t(buf + count, &value->ovrld_ctl_info);
-      }  else if (ie_type == PFCP_IE_FQCSID) {
+      }  else if (ie_type == PFCP_IE_FQCSID && (intf_type == Sxa || intf_type == Sxa_Sxb)) {
             count += decode_pfcp_fqcsid_ie_t(buf + count, &value->sgw_u_fqcsid);
-      }  else if (ie_type == PFCP_IE_FQCSID) {
+      }  else if (ie_type == PFCP_IE_FQCSID && (intf_type == Sxb || intf_type == Sxa_Sxb)) {
             count += decode_pfcp_fqcsid_ie_t(buf + count, &value->pgw_u_fqcsid);
       }  else if (ie_type == PFCP_IE_FAILED_RULE_ID) {
             count += decode_pfcp_failed_rule_id_ie_t(buf + count, &value->failed_rule_id);

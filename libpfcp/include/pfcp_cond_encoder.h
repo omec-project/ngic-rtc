@@ -311,7 +311,7 @@
 
 /* Inside pfcp_outer_hdr_creation_ie_t */
 #define ENCODE_TEID_COND_1(value, bit_count, destination, offset, encoded) \
-	if (value->outer_hdr_creation_desc)\
+if ((value->outer_hdr_creation_desc >> 8) == 1 || (value->outer_hdr_creation_desc >> 9) == 1)\
 { \
 	encoded += encode_bits(value->teid, bit_count, destination, offset); \
 }
@@ -338,11 +338,10 @@
 
 /* Inside pfcp_outer_hdr_creation_ie_t */
 #define ENCODE_PORT_NUMBER_COND_1(value, bit_count, destination, offset, encoded) \
-	/* To check */
-/* if (value->) \
+if ((value->outer_hdr_creation_desc >> 10) == 1 || (value->outer_hdr_creation_desc >> 11) == 1)\
 { \
-	encoded += encode_bits(value->, bit_count, destination, offset); \
-} */
+	encoded += encode_bits(value->port_number, bit_count, destination, offset); \
+}
 
 /* Inside pfcp_outer_hdr_creation_ie_t */
 #define ENCODE_CTAG_COND_1(value, bit_count, destination, offset, encoded) \
@@ -362,7 +361,8 @@
 
 /* Inside pfcp_outer_hdr_creation_ie_t */
 #define ENCODE_IPV4_ADDRESS_COND_3(value, bit_count, destination, offset, encoded) \
-	if (1)\
+if ((value->outer_hdr_creation_desc >> 8) == 1 || (value->outer_hdr_creation_desc >> 10) == 1 \
+				|| (value->outer_hdr_creation_desc >> 12) == 1)\
 { \
 	encoded += encode_bits(value->ipv4_address, bit_count, destination, offset); \
 }

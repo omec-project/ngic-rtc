@@ -30,7 +30,8 @@
 #include "dp_ipc_api.h"
 #include "pfcp_set_ie.h"
 #include "../pfcp_messages/pfcp.h"
-
+#include "gw_adapter.h"
+#include "li_config.h"
 
 #ifdef USE_REST
 #include "../restoration/restoration_timer.h"
@@ -43,6 +44,10 @@
 #ifdef SDN_ODL_BUILD
 #include "nb.h"
 #endif
+
+#ifdef USE_CSID
+#include "csid_struct.h"
+#endif /* USE_CSID */
 
 #define LOG_LEVEL_SET      (0x0001)
 
@@ -60,6 +65,10 @@ uint32_t up_time = 0;
 uint8_t rstCnt = 0;
 #endif /* USE_REST*/
 
+#ifdef USE_CSID
+uint16_t local_csid = 0;
+#endif /* USE_CSID */
+
 struct cp_params cp_params;
 extern struct cp_stats_t cp_stats;
 
@@ -67,14 +76,10 @@ int apnidx = 0;
 clock_t cp_stats_execution_time;
 _timer_t st_time;
 
-/*CLI :new logic definations*/
-cli_node_t cli_node = {0};
-SPeer *peer[MAX_PEER] = {NULL};
-int cnt_peer = 0;
-int nbr_of_peer = 0;
-
 /**
- * Setting/enable CP RTE LOG_LEVEL.
+ * @brief  : Setting/enable CP RTE LOG_LEVEL.
+ * @param  : log_level, log level to be set
+ * @return : Returns nothing
  */
 static void
 set_log_level(uint8_t log_level)
@@ -92,10 +97,13 @@ set_log_level(uint8_t log_level)
 
 }
 
-/* This function is used to set signal mask
- * for main thread.This maks will be inherited
- * by all other threads as default */
-
+/**
+ * @brief  : This function is used to set signal mask
+ *           for main thread.This maks will be inherited
+ *           by all other threads as default
+ * @param  : No param
+ * @return : Returns nothing
+ */
 /*static void
 set_signal_mask(void)
 {
@@ -109,13 +117,11 @@ set_signal_mask(void)
 }*/
 
 /**
- * Parses c-string containing dotted decimal ipv4 and stores the
- *   value within the in_addr type
- *
- * @param optarg
- *   c-string containing dotted decimal ipv4 address
- * @param addr
- *   destination of parsed IP string
+ * @brief  : Parses c-string containing dotted decimal ipv4 and stores the
+ *           value within the in_addr type
+ * @param  : optarg, c-string containing dotted decimal ipv4 address
+ * @param  : addr, destination of parsed IP string
+ * @return : Returns nothing
  */
 /*
 static void
@@ -128,12 +134,10 @@ parse_arg_ip(const char *optarg, struct in_addr *addr)
 
 /**
  *
- * Parses non-dpdk command line program arguments for control plane
- *
- * @param argc
- *   number of arguments
- * @param argv
- *   array of c-string arguments
+ * @brief  : Parses non-dpdk command line program arguments for control plane
+ * @param  : argc, number of arguments
+ * @param  : argv, array of c-string arguments
+ * @return : Returns nothing
  */
 static void
 parse_arg(int argc, char **argv)
@@ -179,9 +183,9 @@ parse_arg(int argc, char **argv)
 	} while (c != -1);
 
 	if ((args_set & REQ_ARGS) != REQ_ARGS) {
-		fprintf(stderr, "Usage: %s\n", argv[0]);
+		clLog(clSystemLog, eCLSeverityCritical, "Usage: %s\n", argv[0]);
 		for (c = 0; long_options[c].name; ++c) {
-			fprintf(stderr, "\t[ -%s | -%c ] %s\n",
+			clLog(clSystemLog, eCLSeverityCritical, "\t[ -%s | -%c ] %s\n",
 					long_options[c].name,
 					long_options[c].val,
 					long_options[c].name);
@@ -192,13 +196,10 @@ parse_arg(int argc, char **argv)
 
 #ifndef SDN_ODL_BUILD
 /**
- * @brief callback initated by nb listener thread
- * @param arg
- * unused
- * @return
- * never returns
+ * @brief  : callback initated by nb listener thread
+ * @param  : arg, unused
+ * @return : never returns
  */
-
 static int
 control_plane(void)
 {
@@ -216,7 +217,9 @@ control_plane(void)
 #endif /* SDN_ODL_BUILD */
 
 /**
- * @brief initializes the core assignments for various control plane threads
+ * @brief  : initializes the core assignments for various control plane threads
+ * @param  : No param
+ * @return : Returns nothing
  */
 static void
 init_cp_params(void) {
@@ -224,34 +227,32 @@ init_cp_params(void) {
 
 	cp_params.stats_core_id = rte_get_next_lcore(last_lcore, 1, 0);
 	if (cp_params.stats_core_id == RTE_MAX_LCORE)
-		fprintf(stderr, "Insufficient cores in coremask to "
+		clLog(clSystemLog, eCLSeverityCritical, "Insufficient cores in coremask to "
 				"spawn stats thread\n");
 	last_lcore = cp_params.stats_core_id;
 
 #ifdef SIMU_CP
 	cp_params.simu_core_id = rte_get_next_lcore(last_lcore, 1, 0);
 	if (cp_params.simu_core_id == RTE_MAX_LCORE)
-		fprintf(stderr, "Insufficient cores in coremask to "
+		clLog(clSystemLog, eCLSeverityCritical, "Insufficient cores in coremask to "
 				"spawn stats thread\n");
 	last_lcore = cp_params.simu_core_id;
 #endif
 }
 
-
 /**
- * Main function - initializes dpdk environment, parses command line arguments,
- * calls initialization function, and spawns stats and control plane function
- * @param argc
- *   number of arguments
- * @param argv
- *   array of c-string arguments
- * @return
- *   returns 0
+ * @brief  : Main function - initializes dpdk environment, parses command line arguments,
+ *           calls initialization function, and spawns stats and control plane function
+ * @param  : argc, number of arguments
+ * @param  : argv, array of c-string arguments
+ * @return : returns 0
  */
 int
 main(int argc, char **argv)
 {
 	int ret;
+	uint16_t uiLiCntr = 0;
+	struct li_df_config_t li_df_config[LI_MAX_SIZE];
 
 	//set_signal_mask();
 
@@ -283,9 +284,26 @@ main(int argc, char **argv)
 	init_cp();
 	init_cp_params();
 
-#ifdef C3PO_OSS
-	init_cli_module(&pfcp_config);
-#endif   /*C3PO_OSS */
+	number_of_transmit_count = pfcp_config.transmit_cnt;
+	number_of_request_tries = pfcp_config.request_tries;
+	transmit_timer_value = pfcp_config.transmit_timer;
+	periodic_timer_value = pfcp_config.periodic_timer;
+	request_timeout_value = pfcp_config.request_timeout;
+
+	init_cli_module(pfcp_config.cp_logger);
+	init_redis();
+
+	ret = registerCpOnDadmf(pfcp_config.dadmf_ip,
+			pfcp_config.dadmf_port, pfcp_config.pfcp_ip,
+			li_df_config, &uiLiCntr);
+	if (ret < 0) {
+		/* Error Condition Handling*/
+	}
+
+	ret = fillup_li_df_hash(li_df_config, uiLiCntr);
+	if (ret < 0) {
+		/* Error Condition Handling */
+	}
 
 	/* TODO: Need to Re-arrange the hash initialize */
 	create_heartbeat_hash_table();
@@ -325,20 +343,12 @@ main(int argc, char **argv)
 	init_pfcp_tables();
 	init_sm_hash();
 
-	/* VS: TODO: Need to remove this part when integrate the CCR changes */
-	/* TEST LOGIC FOR CCR SESSION ID*/
-	/*uint32_t call_id = 0;
-	uint32_t test_id = 0;
-	char str[MAX_LEN] = {0};
-	while(1) {
-		call_id = generate_call_id();
-		gen_sess_id_for_ccr(str, call_id);
-		printf("VS: sess_id:%s, Call_Id:%u\n", str, call_id);
-		test_id = retrieve_call_id(str);
-		printf("VS: Call_Id:%u\n", test_id);
-		sleep(2);
+#ifdef USE_CSID
+	init_fqcsid_hash_tables();
+#endif /* USE_CSID */
 
-	}*/
+	recovery_flag = 0;
+
 	control_plane();
 
 	/* TODO: Move this call in appropriate place */

@@ -24,10 +24,16 @@
 #include "pfcp_messages.h"
 #include "gtp_messages.h"
 
+#define PROC_NAME_LEN 128
+#define STATE_NAME_LEN 128
+#define EVNT_NAME_LEN 128
 
 struct rte_hash *sm_hash;
-extern char state_name[40];
-extern char event_name[40];
+
+extern char state_name[STATE_NAME_LEN];
+extern char event_name[EVNT_NAME_LEN];
+extern struct rte_hash *li_df_by_imsi_hash;
+
 
 enum source_interface {
 	GX_IFACE = 1,
@@ -38,14 +44,24 @@ enum source_interface {
 
 //extern enum source_interface iface;
 
+/**
+ * @brief  : Maintains ue context Bearer identifier and tied
+ */
 typedef struct ue_context_key {
 	/* Bearer identifier */
 	uint8_t ebi_index;
 	/* UE Context key == teid */
 	uint32_t teid;
+	/* UE Context key == sender teid */
+	uint32_t sender_teid;
+	/* UE Context key == sequence number */
+	uint32_t sequence;
 } context_key;
 
 /* TODO: Need to optimized generic structure. */
+/**
+ * @brief  : Maintains decoded message from different messages
+ */
 typedef struct msg_info{
 	uint8_t msg_type;
 	uint8_t state;
@@ -72,6 +88,18 @@ typedef struct msg_info{
 		downlink_data_notification_t ddn_ack;
 		create_bearer_req_t cb_req;
 		create_bearer_rsp_t cb_rsp;
+		del_bearer_req_t db_req;
+		del_bearer_rsp_t db_rsp;
+		upd_bearer_req_t ub_req;
+		upd_bearer_rsp_t ub_rsp;
+		pgw_rstrt_notif_ack_t pgw_rstrt_notif_ack;
+		upd_pdn_conn_set_req_t upd_pdn_req;
+		upd_pdn_conn_set_rsp_t upd_pdn_rsp;
+		del_pdn_conn_set_req_t del_pdn_req;
+		del_pdn_conn_set_rsp_t del_pdn_rsp;
+		del_bearer_cmd_t  del_ber_cmd;
+		change_noti_req_t change_not_req;
+		change_noti_rsp_t change_not_rsp;
 	}gtpc_msg;
 	union pfcp_msg_info_t {
 		pfcp_pfd_mgmt_rsp_t pfcp_pfd_resp;
@@ -80,6 +108,8 @@ typedef struct msg_info{
 		pfcp_sess_mod_rsp_t pfcp_sess_mod_resp;
 		pfcp_sess_del_rsp_t pfcp_sess_del_resp;
 		pfcp_sess_rpt_req_t pfcp_sess_rep_req;
+		pfcp_sess_set_del_req_t pfcp_sess_set_del_req;
+		pfcp_sess_set_del_rsp_t pfcp_sess_set_del_rsp;
 	}pfcp_msg;
 
 	union gx_msg_info_t {
@@ -89,25 +119,39 @@ typedef struct msg_info{
 
 }msg_info;
 
-/*
- * Structure for handling CS/MB/DS request synchoronusly.
- * */
+/**
+ * @brief  : Structure for handling CS/MB/DS request synchoronusly.
+ */
 struct resp_info {
 	uint8_t proc;
 	uint8_t state;
 	uint8_t msg_type;
 	uint8_t eps_bearer_id;
 
+	/* Default Bearer Id */
+	uint8_t linked_eps_bearer_id;
+
+	/* Dedicated Bearer Id */
+	uint8_t bearer_count;
+	uint8_t eps_bearer_ids[MAX_BEARERS];
+
 	uint32_t s5s8_sgw_gtpc_teid;
 	uint32_t s5s8_pgw_gtpc_ipv4;
 
-	uint8_t eps_bearer_lvl_tft[257];
-	uint8_t tft_header_len;
+	uint8_t eps_bearer_lvl_tft[MAX_BEARERS][257];
+	uint8_t tft_header_len[MAX_BEARERS];
 
 	union gtpc_msg {
 		create_sess_req_t csr;
+		create_sess_rsp_t cs_rsp;
 		mod_bearer_req_t mbr;
+		create_bearer_rsp_t cb_rsp;
+		create_bearer_req_t cb_req;
 		del_sess_req_t dsr;
+		del_bearer_cmd_t del_bearer_cmd;
+		change_noti_req_t change_not_req;
+		del_bearer_req_t db_req;
+		upd_bearer_req_t ub_req;
 	}gtpc_msg;
 }__attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
 
@@ -115,105 +159,162 @@ struct resp_info {
 /* Declaration of state machine 3D array */
 typedef int (*const EventHandler[END_PROC+1][END_STATE+1][END_EVNT+1])(void *t1, void *t2);
 
-/* Create a session hash table to maintain the session information.*/
+/**
+ * @brief  : Create a session hash table to maintain the session information.
+ * @param  : No param
+ * @return : Returns nothing
+ */
 void
 init_sm_hash(void);
 
 /**
- * Add session entry in session table.
+ * @brief  : Add session entry in session table.
+ * @param  : sess_id, session id
+ * @param  : resp, structure to store session info
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 uint8_t
 add_sess_entry(uint64_t sess_id, struct resp_info *resp);
 
 /**
- * Retrive session entry from session table.
+ * @brief  : Retrive session entry from session table.
+ * @param  : sess_id, session id
+ * @param  : resp, structure to store session info
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 uint8_t
 get_sess_entry(uint64_t sess_id, struct resp_info **resp);
 
 /**
- * Retrive session state from session table.
+ * @brief  : Retrive session state from session table.
+ * @param  : sess_id, session id
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 uint8_t
 get_sess_state(uint64_t sess_id);
 
 /**
- * Update session state in session table.
+ * @brief  : Update session state in session table.
+ * @param  : sess_id, session id
+ * @param  : state, new state to be updated
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 uint8_t
 update_sess_state(uint64_t sess_id, uint8_t state);
 
 /**
- * Delete session entry from session table.
+ * @brief  : Delete session entry from session table.
+ * @param  : sess_id, session id
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 uint8_t
 del_sess_entry(uint64_t sess_id);
 
 /**
- * Update UE state in UE Context.
+ * @brief  : Update UE state in UE Context.
+ * @param  : teid_key, key to search context
+ * @param  : state, new state to be updated
+ * @param  : ebi_index, index of bearer id stored in array
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 uint8_t
-update_ue_state(uint32_t teid_key, uint8_t state);
+update_ue_state(uint32_t teid_key, uint8_t state, uint8_t ebi_index);
 
 /**
- * Retrive UE state from UE Context.
+ * @brief  : Retrive UE state from UE Context.
+ * @param  : teid_key, key for search
+ * @param  : ebi_index, index of bearer id stored in array
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 uint8_t
-get_ue_state(uint32_t teid_key);
+get_ue_state(uint32_t teid_key ,uint8_t ebi_index);
 
 /**
- * Retrive UE Context entry from UE Context table.
+ * Retrive Bearer entry from Bearer table.
+ */
+int8_t
+get_bearer_by_teid(uint32_t teid_key, struct eps_bearer_t **bearer);
+
+/**
+ * Retrive ue context entry from Bearer table,using sgwc s5s8 teid.
+ */
+int8_t
+get_ue_context_by_sgw_s5s8_teid(uint32_t teid_key, ue_context **context);
+
+/**
+ * @brief  : Retrive UE Context entry from UE Context table.
+ * @param  : teid_key, key to search context
+ * @param  : context, structure to store retrived context
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int8_t
 get_ue_context(uint32_t teid_key, ue_context **context);
 
+/* This function use only in clean up while error */
+int8_t
+get_ue_context_while_error(uint32_t teid_key, ue_context **context);
+
 /**
- * Retrive PDN entry from PDN table.
+ * @brief  : Retrive PDN entry from PDN table.
+ * @param  : teid_key, key for search
+ * @param  : pdn, structure to store retrived pdn
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 get_pdn(uint32_t teid_key, pdn_connection **pdn);
 
 /**
- * Get "last" param for cli
- */
-void
-get_current_time(char *last_time_stamp);
-
-/**
- * Get proc name from enum
+ * @brief  : Get proc name from enum
+ * @param  : value , enum value of procedure
+ * @return : Returns procedure name
  */
 const char * get_proc_string(int value);
 
 /**
- * Get state name from enum
+ * @brief  : Get state name from enum
+ * @param  : value , enum value of state
+ * @return : Returns state name
  */
 const char * get_state_string(int value);
 
 /**
- * Get event name from enum
+ * @brief  : Get event name from enum
+ * @param  : value , enum value of event
+ * @return : Returns event name
  */
 const char * get_event_string(int value);
 
 /**
- * Update UE proc in UE Context.
+ * @brief  : Update UE proc in UE Context.
+ * @param  : teid_key, key for search
+ * @param  : proc, procedure
+ * @param  : ebi_index, index of bearer id stored in array
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 uint8_t
-update_ue_proc(uint32_t teid_key, uint8_t proc);
+update_ue_proc(uint32_t teid_key, uint8_t proc, uint8_t ebi_index);
 
 /**
- * Retrive UE Context.
+ * @brief  : Retrive UE Context.
+ * @param  : teid_key, key for search
+ * @param  : context, structure to store retrived ue context
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int8_t
 get_ue_context(uint32_t teid_key, ue_context **context);
 
 /**
- * Update Procedure according to indication flags
+ * @brief  : Update Procedure according to indication flags
+ * @param  : msg, message data
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 uint8_t
 get_procedure(msg_info *msg);
 
 /**
- * Find Pending CSR Procedure according to indication flags
+ * @brief  : Find Pending CSR Procedure according to indication flags
+ * @param  : csr, csr data
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 uint8_t
 get_csr_proc(create_sess_req_t *csr);

@@ -144,7 +144,7 @@ int gx_cca_cb
 	int ret = FD_REASON_OK;
 	struct msg *ans = *msg;
 	struct msg *qry = NULL;
-	char *send_buf = NULL;
+	uint8_t *send_buf = NULL;
 	gx_msg gx_resp = {0};
 	uint32_t buflen ;
 

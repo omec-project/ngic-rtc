@@ -28,6 +28,15 @@
 #include "up_main.h"
 #include "pfcp_up_llist.h"
 #include "pfcp_up_struct.h"
+#include "clogger.h"
+#include "pfcp_set_ie.h"
+#include "pfcp_up_sess.h"
+#include "pfcp_set_ie.h"
+#include "pfcp_messages_encoder.h"
+#include "pfcp_messages_decoder.h"
+#include "pfcp_util.h"
+#include "../cp_dp_api/tcp_client.h"
+
 
 #ifdef EXTENDED_CDR
 uint64_t s1u_non_gtp_pkts_mask;
@@ -37,6 +46,12 @@ uint64_t s1u_non_gtp_pkts_mask;
 extern pcap_dumper_t *pcap_dumper_east;
 extern pcap_dumper_t *pcap_dumper_west;
 #endif /* PCAP_GEN */
+
+
+extern udp_sock_t my_sock;
+extern struct rte_ring *li_dl_ring;
+extern struct rte_ring *li_ul_ring;
+
 
 int
 notification_handler(struct rte_mbuf **pkts,
@@ -55,7 +70,7 @@ notification_handler(struct rte_mbuf **pkts,
 
 	pfcp_session_datat_t *sess_data[MAX_BURST_SZ] = {NULL};
 
-	RTE_LOG_DP(DEBUG, DP, "Notification handler resolved the buffer packets\n");
+	clLog(clSystemLog, eCLSeverityDebug, "Notification handler resolving the buffer packets, count:%u\n", n);
 
 	for (i = 0; i < n; ++i) {
 		buf_pkt = pkts[i];
@@ -65,14 +80,14 @@ notification_handler(struct rte_mbuf **pkts,
 		if (app.spgw_cfg == SGWU) {
 			data = get_sess_by_teid_entry(*key, NULL, SESS_MODIFY);
 			if (data == NULL) {
-				RTE_LOG_DP(DEBUG, DP, FORMAT"Session entry not found for TEID:%u\n",
+				clLog(clSystemLog, eCLSeverityDebug, FORMAT"Session entry not found for TEID:%u\n",
 									ERR_MSG, *key);
 				continue;
 			}
 		} else {
 			data = get_sess_by_ueip_entry(*key, NULL, SESS_MODIFY);
 			if (data == NULL) {
-				RTE_LOG_DP(DEBUG, DP, FORMAT"Session entry not found for UE_IP:"IPV4_ADDR"\n",
+				clLog(clSystemLog, eCLSeverityDebug, FORMAT"Session entry not found for UE_IP:"IPV4_ADDR"\n",
 									ERR_MSG, IPV4_ADDR_HOST_FORMAT(*key));
 				continue;
 			}
@@ -81,13 +96,13 @@ notification_handler(struct rte_mbuf **pkts,
 		rte_ctrlmbuf_free(buf_pkt);
 		ring = data->dl_ring;
 		if (data->sess_state != CONNECTED) {
-			RTE_LOG_DP(DEBUG, DP, FORMAT"Update the State to CONNECTED\n",
+			clLog(clSystemLog, eCLSeverityDebug, FORMAT"Update the State to CONNECTED\n",
 					ERR_MSG);
 			data->sess_state = CONNECTED;
 		}
 
 		if (!ring) {
-			RTE_LOG_DP(DEBUG, DP, FORMAT"No DL Ring is found..!!!\n",
+			clLog(clSystemLog, eCLSeverityDebug, FORMAT"No DL Ring is found..!!!\n",
 					ERR_MSG);
 			continue; /* No dl ring*/
 		}
@@ -105,7 +120,7 @@ notification_handler(struct rte_mbuf **pkts,
 				pdr[i] = sess_info[i]->pdrs;
 
 			if(app.spgw_cfg == SAEGWU) {
-				RTE_LOG_DP(DEBUG, DP, FORMAT"SAEGWU: Encap the GTPU Pkts...\n", 
+				clLog(clSystemLog, eCLSeverityDebug, FORMAT"SAEGWU: Encap the GTPU Pkts...\n",
 						ERR_MSG);
 				/* Encap GTPU header*/
 				gtpu_encap(&pdr[0], &sess_info[0], (struct rte_mbuf **)pkts, ret,
@@ -118,12 +133,12 @@ notification_handler(struct rte_mbuf **pkts,
 			}
 
 			if (pkts_queue_mask != 0)
-			    RTE_LOG_DP(ERR, DP, "Something is wrong!!, the "
+			    clLog(clSystemLog, eCLSeverityCritical, "Something is wrong!!, the "
 			            "session still doesnt hv "
 			            "enb teid\n");
 
 			if(app.spgw_cfg == SGWU){
-				RTE_LOG_DP(DEBUG, DP, "Update the Next Hop eNB ipv4 frame info\n");
+				clLog(clSystemLog, eCLSeverityDebug, "Update the Next Hop eNB ipv4 frame info\n");
 				/* Update nexthop L3 header*/
 				update_enb_info(pkts, num, &pkts_mask, &sess_data[0], &pdr[0]);
 			}
@@ -136,7 +151,7 @@ notification_handler(struct rte_mbuf **pkts,
 			uint32_t pkt_indx = 0;
 
 #ifdef STATS
-			RTE_LOG_DP(DEBUG, DP, "Resolved the Buffer packets Pkts:%u\n", ret);
+			clLog(clSystemLog, eCLSeverityDebug, "Resolved the Buffer packets Pkts:%u\n", ret);
 			epc_app.dl_params[SGI_PORT_ID].pkts_in += ret;
 			epc_app.dl_params[SGI_PORT_ID].ddn_buf_pkts -= ret;
 #endif /* STATS */
@@ -155,7 +170,7 @@ notification_handler(struct rte_mbuf **pkts,
 
 		if (rte_ring_enqueue(dl_ring_container, ring) ==
 				ENOBUFS) {
-			RTE_LOG_DP(ERR, DP, "Can't put ring back, so free it\n");
+			clLog(clSystemLog, eCLSeverityCritical, "Can't put ring back, so free it\n");
 			rte_ring_free(ring);
 		}
 	}
@@ -163,6 +178,154 @@ notification_handler(struct rte_mbuf **pkts,
 	return 0;
 }
 
+int send_usage_report_req(urr_info_t *urr, uint64_t cp_seid, uint32_t trig){
+
+	pfcp_sess_rpt_req_t pfcp_sess_rep_req = {0};
+	static uint32_t seq = 1;
+	int encoded = 0;
+	uint8_t pfcp_msg[1024]= {0};
+	memset(pfcp_msg, 0, sizeof(pfcp_msg));
+
+	seq = get_pfcp_sequence_number(PFCP_SESSION_REPORT_REQUEST, seq);
+
+	set_pfcp_seid_header((pfcp_header_t *) &(pfcp_sess_rep_req.header),
+		PFCP_SESSION_REPORT_REQUEST, HAS_SEID, seq);
+
+	pfcp_sess_rep_req.header.seid_seqno.has_seid.seid = cp_seid;
+
+	set_sess_report_type(&pfcp_sess_rep_req.report_type);
+	pfcp_sess_rep_req.report_type.dldr = 0;
+	pfcp_sess_rep_req.report_type.usar = 1;
+
+	fill_sess_rep_req_usage_report(&pfcp_sess_rep_req.usage_report[pfcp_sess_rep_req.usage_report_count++],
+																								urr, trig);
+
+	encoded = encode_pfcp_sess_rpt_req_t(&pfcp_sess_rep_req, pfcp_msg);
+	pfcp_header_t *pfcp_hdr = (pfcp_header_t *) pfcp_msg;
+	pfcp_hdr->message_len = htons(encoded - 4);
+
+	clLog(clSystemLog, eCLSeverityDebug, "sending PFCP_SESSION_REPORT_REQUEST [%d] from dp\n",pfcp_hdr->message_type);
+	clLog(clSystemLog, eCLSeverityDebug, "length[%d]\n",htons(pfcp_hdr->message_len));
+
+	if (encoded != 0) {
+		if(pfcp_send(my_sock.sock_fd,
+					(char *)pfcp_msg,
+							 encoded,
+	 					&dest_addr_t,
+								SENT) < 0) {
+			clLog(clSystemLog, eCLSeverityDebug, "Error sending: %i\n",errno);
+		}
+	}
+
+	pfcp_session_t *sess = NULL;
+	sess = get_sess_info_entry(cp_seid, SESS_MODIFY);
+
+	if(sess == NULL) {
+               clLog(clSystemLog, eCLSeverityCritical, "Failed to Retrieve Session Info %d::%s\n\n", __LINE__, __func__ );
+    }
+
+    process_event_li(sess, NULL, 0, pfcp_msg, encoded,
+                     dest_addr_t.sin_addr.s_addr, dest_addr_t.sin_port);
+	return 0;
+}
+
+/**
+ * @brief  : Update the Usage Report structre as per data recived
+ * @param  : pkts, pkts recived
+ * @param  : n, no of pkts recived
+ * @param  : pkts_mask, packet  mask
+ * @param  : pdr, structure for pdr info for pkts
+ * @return : Returns 0 for succes and -1 failure
+ */
+static
+int update_usage(struct rte_mbuf **pkts, uint32_t n, uint64_t *pkts_mask,
+										pdr_info_t **pdr, uint16_t flow){
+	for(int i = 0; i < n; i++){
+		if (ISSET_BIT(*pkts_mask, i)) {
+			if(pdr[i]->urr_count){
+				if(flow == DOWNLINK){
+					if(!pdr[i]->urr->first_pkt_time)
+						pdr[i]->urr->first_pkt_time = current_ntp_timestamp();
+					pdr[i]->urr->last_pkt_time = current_ntp_timestamp();
+					pdr[i]->urr->dwnlnk_data += rte_pktmbuf_data_len(pkts[i]);
+					if((pdr[i]->urr->rept_trigg == VOL_TIME_BASED || pdr[i]->urr->rept_trigg == VOL_BASED) &&
+												(pdr[i]->urr->dwnlnk_data >= pdr[i]->urr->vol_thes_dwnlnk)){
+						clLog(clSystemLog, eCLSeverityDebug, "downlink Volume threshol reached\n");
+						send_usage_report_req(pdr[i]->urr, pdr[i]->session->cp_seid,
+																			VOL_BASED);
+						pdr[i]->urr->dwnlnk_data = 0;
+					}
+				}else if(flow == UPLINK){
+					pdr[i]->urr->uplnk_data += rte_pktmbuf_data_len(pkts[i]);
+					if(!pdr[i]->urr->first_pkt_time)
+						pdr[i]->urr->first_pkt_time = current_ntp_timestamp();
+					pdr[i]->urr->last_pkt_time = current_ntp_timestamp();
+					if((pdr[i]->urr->rept_trigg == VOL_TIME_BASED || pdr[i]->urr->rept_trigg == VOL_BASED) &&
+							(pdr[i]->urr->uplnk_data >= pdr[i]->urr->vol_thes_uplnk)){
+						clLog(clSystemLog, eCLSeverityDebug, "uplink Volume threshol reached\n");
+						send_usage_report_req(pdr[i]->urr, pdr[i]->session->cp_seid,
+																			VOL_BASED);
+						pdr[i]->urr->uplnk_data = 0;
+					}
+				}
+			}
+		}
+	}
+	return 0;
+}
+/**
+ * @Brief  : Function to enqueue pkts for LI if required
+ * @param  : n, no of packets
+ * @param  : pkts, mbuf packets
+ * @param  : pkts_mask, packet mask
+ * @param  : PDR, pointer to pdr session info
+ * @param  : flow, direction of packet flow
+ * @return : Returns nothing
+ */
+static void
+enqueue_li_pkts(uint32_t n, struct rte_mbuf **pkts,
+			 		pdr_info_t **pdr, uint16_t flow){
+
+	uint32_t i;
+	for(i =0; i < n; i++){
+		if(pkts[i] != NULL && pdr[i] != NULL &&
+			pdr[i]->far->dup_parms_cnt > 0){
+
+			li_data_t *li_data;
+			li_data = rte_malloc(NULL, sizeof(li_data_t), 0);
+
+			li_data->size = rte_pktmbuf_data_len(pkts[i]);
+
+			uint8_t *tmp_pkt =  rte_pktmbuf_mtod(pkts[i], uint8_t *);
+			li_data->pkts = rte_malloc(NULL, li_data->size, 0);
+			memcpy(li_data->pkts, tmp_pkt, li_data->size);
+
+			li_data->far = pdr[i]->far;
+
+			if(flow == DOWNLINK){
+				if (rte_ring_enqueue(li_dl_ring, (void *)li_data) == -ENOBUFS) {
+					clLog(clSystemLog, eCLSeverityCritical, "%s::Can't queue DL LI pkt- ring full..."
+																							, __func__);
+				}
+			}else{
+				if (rte_ring_enqueue(li_ul_ring, (void *)li_data) == -ENOBUFS) {
+					clLog(clSystemLog, eCLSeverityCritical, "%s::Can't queue UL LI pkt- ring full..."
+																						, __func__);
+				}
+			}
+			rte_free(pkts[i]);
+		}
+	}
+}
+
+/**
+ * @brief  : Fill pdr details
+ * @param  : n, no of pdrs
+ * @param  : sess_data, session information
+ * @param  : pdr, structure to ne filled
+ * @param  : pkts_queue_mask, packet queue mask
+ * @return : Returns nothing
+ */
 static void
 fill_pdr_info(uint32_t n, pfcp_session_datat_t **sess_data,
 				pdr_info_t **pdr, uint64_t *pkts_queue_mask)
@@ -179,6 +342,16 @@ fill_pdr_info(uint32_t n, pfcp_session_datat_t **sess_data,
 	return;
 }
 
+/**
+ * @brief  : Get pdr details
+ * @param  : sess_data, session information
+ * @param  : pdr, structure to ne filled
+ * @param  : precedence, variable to precedence value
+ * @param  : n, no of pdrs
+ * @param  : pkts_mask, packet mask
+ * @param  : pkts_queue_mask, packet queue mask
+ * @return : Returns nothing
+ */
 static void
 get_pdr_info(pfcp_session_datat_t **sess_data, pdr_info_t **pdr,
 		uint32_t **precedence, uint32_t n, uint64_t *pkts_mask,
@@ -187,49 +360,70 @@ get_pdr_info(pfcp_session_datat_t **sess_data, pdr_info_t **pdr,
 	uint32_t j = 0;
 
 	for (j = 0; j < n; j++) {
-		if (ISSET_BIT(*pkts_mask, j)) {
+		if (ISSET_BIT(*pkts_mask, j) && precedence[j] != NULL) {
 			pdr[j] = get_pdr_node(sess_data[j]->pdrs, *precedence[j]);
 
 			/* Need to check this condition */
 			if (pdr[j] == NULL) {
 				RESET_BIT(*pkts_mask, j);
 				//RESET_BIT(*pkts_queue_mask, j);
-				RTE_LOG_DP(DEBUG, DP, FORMAT": PDR LKUP Linked List :FAIL!! Precedence "
+				clLog(clSystemLog, eCLSeverityDebug, FORMAT": PDR LKUP Linked List :FAIL!! Precedence "
 					":%u\n", ERR_MSG,
 					*precedence[j]);
 			} else {
-				RTE_LOG_DP(DEBUG, DP, "PDR LKUP: PDR_ID:%u, FAR_ID:%u\n",
+				clLog(clSystemLog, eCLSeverityDebug, "PDR LKUP: PDR_ID:%u, FAR_ID:%u\n",
 					pdr[j]->rule_id, (pdr[j]->far)->far_id_value);
 			}
+		} else {
+			RESET_BIT(*pkts_mask, j);
 		}
-
-		//} else {
-		//	RESET_BIT(*pkts_queue_mask, j);
-		//}
 	}
 
 	return;
 }
 
+/**
+ * @brief  : Acl table lookup for sdf rule
+ * @param  : pkts, mbuf packets
+ * @param  : n, no of packets
+ * @param  : pkts_mask, packet mask
+ * @param  : sess_data, session information
+ * @param  : prcdnc, precedence value
+ * @return : Returns nothing
+ */
 static void
 acl_sdf_lookup(struct rte_mbuf **pkts, uint32_t n, uint64_t *pkts_mask,
 			pfcp_session_datat_t **sess_data,
 			uint32_t **prcdnc)
 {
 	uint32_t j = 0;
+	uint32_t tmp_prcdnc;
+
 
 	for (j = 0; j < n; j++) {
 		if (ISSET_BIT(*pkts_mask, j)) {
 			if (!sess_data[j]->acl_table_indx) {
 				RESET_BIT(*pkts_mask, j);
-				RTE_LOG_DP(ERR, DP, "Not Found any ACL_Table or SDF Rule for the UL\n");
+				clLog(clSystemLog, eCLSeverityCritical, "Not Found any ACL_Table or SDF Rule for the UL\n");
 				continue;
 			}
-
-			prcdnc[j] = sdf_lookup(pkts, j,
-				sess_data[j]->acl_table_indx);
-			RTE_LOG_DP(DEBUG, DP, "ACL SDF LKUP TABLE Index:%u, prcdnc:%u\n",
-						sess_data[j]->acl_table_indx, *prcdnc[j]);
+			tmp_prcdnc = 0;
+			int index = 0;
+			for(uint16_t itr = 0; itr < sess_data[j]->acl_table_count; itr++){
+				if(sess_data[j]->acl_table_indx[itr] != 0){
+					 prcdnc[j] = sdf_lookup(pkts, j,
+											sess_data[j]->acl_table_indx[itr]);
+				}
+				if(tmp_prcdnc == 0 || (*prcdnc[j] != 0 && *prcdnc[j] < tmp_prcdnc)){
+					tmp_prcdnc = *prcdnc[j];
+					index = itr;
+				}else{
+					*prcdnc[j] = tmp_prcdnc;
+				}
+			}
+			if(prcdnc[j] != NULL)
+				clLog(clSystemLog, eCLSeverityDebug, "ACL SDF LKUP TABLE Index:%u, prcdnc:%u\n",
+													sess_data[j]->acl_table_indx[index], *prcdnc[j]);
 		}
 	}
 	return;
@@ -263,6 +457,15 @@ s1u_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
 	uint32_t next_port = 0; //GCC_Security flag
 	pdr_info_t *pdr[MAX_BURST_SZ] = {NULL};
 	pfcp_session_datat_t *sess_data[MAX_BURST_SZ] = {NULL};
+	struct rte_mbuf *tmp_pkts[n];
+
+	/* DUPLICATING PKTS for LI */
+	for(uint8_t itr = 0; itr < n; itr++){
+		tmp_pkts[itr] = rte_malloc(NULL, sizeof(struct rte_mbuf), 0);
+		if (tmp_pkts[itr] == NULL)
+			rte_panic("Out of memory\n");
+		rte_memcpy(tmp_pkts[itr], pkts[itr], sizeof(struct rte_mbuf));
+	}
 
 	uint64_t pkts_mask;
 	pkts_mask = (~0LLU) >> (64 - n);
@@ -270,6 +473,7 @@ s1u_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
 
 	switch(app.spgw_cfg) {
 		case SAEGWU: {
+
 			/* Decap GTPU and update meta data*/
 			gtpu_decap(pkts, n, &pkts_mask);
 
@@ -279,17 +483,27 @@ s1u_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
 			/*Set next hop directly to SGi*/
 			next_port = app.sgi_port;
 
+
+			update_usage(tmp_pkts, n, &pkts_mask, pdr, UPLINK);
+
+			enqueue_li_pkts(n, tmp_pkts, pdr, UPLINK);
+
 			break;
 		}
 
 		case SGWU: {
+
 			ul_sess_info_get(pkts, n, &pkts_mask, &sess_data[0]);
 
 			/* Set next hop IP to S5/S8 PGW port*/
 			next_port = app.s5s8_sgwu_port;
-
 			/* Update nexthop L3 header*/
 			update_nexts5s8_info(pkts, n, &pkts_mask, &sess_data[0], &pdr[0]);
+
+			update_usage(pkts, n, &pkts_mask, pdr, UPLINK);
+
+			enqueue_li_pkts(n, tmp_pkts, pdr, UPLINK);
+
 
 			break;
 		}
@@ -321,6 +535,15 @@ sgw_s5_s8_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts,
 
 	uint64_t pkts_mask;
 	uint64_t pkts_queue_mask = 0;
+	struct rte_mbuf *tmp_pkts[n];
+
+	/* DUPLICATING PKTS for LI */
+     for(uint8_t itr = 0; itr < n; itr++){
+		tmp_pkts[itr] = rte_malloc(NULL, sizeof(struct rte_mbuf), 0);
+		if (tmp_pkts[itr] == NULL)
+			rte_panic("Out of memory\n");
+		rte_memcpy(tmp_pkts[itr], pkts[itr], sizeof(struct rte_mbuf));
+	}
 
 	pkts_mask = (~0LLU) >> (64 - n);
 
@@ -342,6 +565,7 @@ sgw_s5_s8_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts,
 	/* Update nexthop L2 header*/
 	update_nexthop_info(pkts, n, &pkts_mask, app.s1u_port, &pdr[0]);
 
+	enqueue_li_pkts(n, tmp_pkts, pdr, DOWNLINK);
 #ifdef PCAP_GEN
 	dump_pcap(pkts, n, pcap_dumper_east);
 #endif /* PCAP_GEN */
@@ -349,6 +573,7 @@ sgw_s5_s8_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts,
 	/* Intimate the packets to be dropped*/
 	rte_pipeline_ah_packet_drop(p, ~pkts_mask);
 
+	update_usage(pkts, n, &pkts_mask, pdr, DOWNLINK);
 	return 0;
 }
 
@@ -358,6 +583,15 @@ pgw_s5_s8_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts,
 		uint32_t n,	int wk_index)
 {
 	pdr_info_t *pdr[MAX_BURST_SZ] = {NULL};
+	struct rte_mbuf *tmp_pkts[n];
+
+	/* DUPLICATING PKTS for LI */
+     for(uint8_t itr = 0; itr < n; itr++){
+		tmp_pkts[itr] = rte_malloc(NULL, sizeof(struct rte_mbuf), 0);
+		if (tmp_pkts[itr] == NULL)
+			rte_panic("Out of memory\n");
+		rte_memcpy(tmp_pkts[itr], pkts[itr], sizeof(struct rte_mbuf));
+	}
 
 	uint64_t pkts_mask;
 	pkts_mask = (~0LLU) >> (64 - n);
@@ -367,6 +601,9 @@ pgw_s5_s8_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts,
 	/*Apply sdf filters on uplink traffic*/
 	filter_ul_traffic(p, pkts, n, wk_index, &pkts_mask, &pdr[0]);
 
+	update_usage(tmp_pkts, n, &pkts_mask, pdr, UPLINK);
+
+	enqueue_li_pkts(n, tmp_pkts, pdr, UPLINK);
 	/* Update nexthop L2 header*/
 	update_nexthop_info(pkts, n, &pkts_mask, app.sgi_port, &pdr[0]);
 
@@ -379,6 +616,16 @@ pgw_s5_s8_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts,
 	return 0;
 }
 
+/**
+ * @brief  : Filter downlink traffic
+ * @param  : p, rte pipeline data
+ * @param  : pkts, mbuf packets
+ * @param  : n, no of packets
+ * @param  : wk_index
+ * @param  : sess_data, session information
+ * @param  : pdr, structure to store pdr info
+ * @return : Returns packet mask value
+ */
 static uint64_t
 filter_dl_traffic(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
 		int wk_index,  pfcp_session_datat_t **sess_data, pdr_info_t **pdr)
@@ -420,6 +667,8 @@ sgi_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
 	uint64_t pkts_queue_mask = 0;
 	pdr_info_t *pdr[MAX_BURST_SZ] = {NULL};
 	pfcp_session_datat_t *sess_data[MAX_BURST_SZ] = {NULL};
+	struct rte_mbuf *tmp_pkts[n];
+
 
 	pkts_mask = (~0LLU) >> (64 - n);
 
@@ -430,6 +679,7 @@ sgi_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
 	 */
 	switch(app.spgw_cfg) {
 		case SAEGWU:
+
 			/* Filter Downlink traffic. Apply sdf*/
 			pkts_mask = filter_dl_traffic(p, pkts, n, wk_index, &sess_data[0], &pdr[0]);
 
@@ -444,9 +694,12 @@ sgi_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
 				rte_pipeline_ah_packet_hijack(p, pkts_queue_mask);
 				enqueue_dl_pkts(&pdr[0], &sess_data[0], pkts, pkts_queue_mask);
 			}
+			update_usage(pkts, n, &pkts_mask, pdr, DOWNLINK);
+
 			break;
 
 		case PGWU:
+
 			/*Filter downlink traffic. Apply adc, sdf, pcc*/
 			pkts_mask = filter_dl_traffic(p, pkts, n, wk_index, &sess_data[0], &pdr[0]);
 
@@ -455,6 +708,8 @@ sgi_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
 
 			/*Set next port to S5/S8*/
 			next_port = app.s5s8_pgwu_port;
+			update_usage(pkts, n, &pkts_mask, pdr, DOWNLINK);
+
 			break;
 
 		default:
@@ -462,6 +717,16 @@ sgi_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
 	}
 
 	update_nexthop_info(pkts, n, &pkts_mask, next_port, &pdr[0]);
+
+	/* DUPLICATING PKTS for LI */
+	for(uint8_t itr = 0; itr < n; itr++){
+		tmp_pkts[itr] = rte_malloc(NULL, sizeof(struct rte_mbuf), 0);
+		if (tmp_pkts[itr] == NULL)
+			rte_panic("Out of memory\n");
+		rte_memcpy(tmp_pkts[itr], pkts[itr], sizeof(struct rte_mbuf));
+	}
+
+	enqueue_li_pkts(n ,tmp_pkts, pdr, DOWNLINK);
 
 #ifdef PCAP_GEN
 	dump_pcap(pkts, n, pcap_dumper_east);

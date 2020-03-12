@@ -18,6 +18,7 @@
 #include "pfcp_util.h"
 #include "pfcp_set_ie.h"
 #include "pfcp_enum.h"
+#include "clogger.h"
 
 #ifdef CP_BUILD
 #include "cp.h"
@@ -28,10 +29,17 @@
 #endif /* CP_BUILD */
 
 #define RI_MAX 8
+
+/* size of user ip resource info ie will be 6 if teid_range is not included otherwise 7 */
+#define SIZE_IF_TEIDRI_PRESENT 7
+#define SIZE_IF_TEIDRI_NOT_PRESENT 6
+
 /* extern */
 uint32_t start_time;
 const uint32_t pfcp_base_seq_no = 0x00000000;
+const uint32_t pfcp_base_urr_seq_no = 0x00000000;
 static uint32_t pfcp_seq_no_offset;
+static uint32_t pfcp_seq_no_urr_offset;
 
 #ifdef CP_BUILD
 extern pfcp_config_t pfcp_config;
@@ -65,6 +73,14 @@ generate_seq_no(void){
 }
 
 uint32_t
+generate_seq_no_urr(void){
+	uint32_t id = 0;
+	id = pfcp_base_urr_seq_no + (++pfcp_seq_no_urr_offset);
+	return id;
+}
+
+
+uint32_t
 get_pfcp_sequence_number(uint8_t type, uint32_t seq){
 	switch(type){
 		case PFCP_HEARTBEAT_REQUEST :
@@ -91,7 +107,7 @@ get_pfcp_sequence_number(uint8_t type, uint32_t seq){
 		case PFCP_SESSION_REPORT_RESPONSE:
 			return seq;
 		default:
-			RTE_LOG_DP(DEBUG, DP, "Unknown pfcp msg type. \n");
+			clLog(clSystemLog, eCLSeverityDebug, "Unknown pfcp msg type. \n");
 			return 0;
 			break;
 	}
@@ -184,7 +200,23 @@ set_cpf_features(pfcp_cp_func_feat_ie_t *cpf_feat)
 	cpf_feat->sup_feat = 0;
 }
 
+void
+set_sess_report_type(pfcp_report_type_ie_t *rt)
+{
+	pfcp_set_ie_header(&(rt->header), PFCP_IE_REPORT_TYPE, UINT8_SIZE);
+	rt->rpt_type_spare = 0;
+	rt->upir  = 0;
+	rt->erir  = 0;
+	rt->usar  = 0;
+	rt->dldr  = 1;
+}
+
 #ifdef DP_BUILD
+/**
+ * @brief  : checks next available teid range for give teidri index
+ * @param  : val , teidri value , must be between 0 to 7
+ * @return : Returns teid range in case of success, -1 otherwise
+ */
 static uint8_t
 check_available_teid(uint8_t val){
 	uint8_t temp = 0;
@@ -197,23 +229,39 @@ check_available_teid(uint8_t val){
 	return temp;
 }
 
+/**
+ * @brief  : Assign teid range from next available teid ranges
+ * @param  : val , teidri value , must be between 0 to 7
+ * @return : Returns teid range in case of success, -1 otherwise
+ */
 static uint8_t
-assign_teid_range(uint8_t val){
+assign_teid_range(uint8_t val)
+{
 	if(val == 0){
 		return 0;
 	}else if (val > RI_MAX){
+		clLog(clSystemLog, eCLSeverityCritical, "Teid value is not between 0 to 7\n");
 		return -1;
+	}
+
+	if(app.num_cp != 0) {
+		/* Update teidri value for next peer */
+		curr_teid_index[val] = ++(app.teidri_info[(app.num_cp - 1)].teid_range);
 	}
 	return check_available_teid (val);
 }
 
 void
 set_up_ip_resource_info(pfcp_user_plane_ip_rsrc_info_ie_t *up_ip_resource_info,
-						uint8_t i)
+						uint8_t i, uint8_t teidri_gen_flag)
 {
-	/* length will be 6 if teid_range is not included otherwise 7 */
-	pfcp_set_ie_header(&(up_ip_resource_info->header),
-								PFCP_IE_USER_PLANE_IP_RSRC_INFO, 7);
+	if(app.teidri_val == 0){
+		pfcp_set_ie_header(&(up_ip_resource_info->header),
+				PFCP_IE_USER_PLANE_IP_RSRC_INFO, SIZE_IF_TEIDRI_NOT_PRESENT);
+	}else{
+		pfcp_set_ie_header(&(up_ip_resource_info->header),
+				PFCP_IE_USER_PLANE_IP_RSRC_INFO, SIZE_IF_TEIDRI_PRESENT);
+	}
 
 	up_ip_resource_info->user_plane_ip_rsrc_info_spare  = 0;
 	up_ip_resource_info->assosi = 1;
@@ -226,8 +274,9 @@ set_up_ip_resource_info(pfcp_user_plane_ip_rsrc_info_ie_t *up_ip_resource_info,
 
 	/* teid allocation logic */
 	up_ip_resource_info->teidri = app.teidri_val;
+
 	/* To ensure teid generated only once for one CP*/
-	if(i == 0){
+	if((i == 0) && (teidri_gen_flag == 0)){
 		up_ip_resource_info->teid_range  = assign_teid_range(up_ip_resource_info->teidri);
 	}
 
@@ -268,7 +317,7 @@ set_up_ip_resource_info(pfcp_user_plane_ip_rsrc_info_ie_t *up_ip_resource_info,
 				break;
 
 			default :
-				printf("default pfcp asso req\n");
+				clLog(clSystemLog, eCLSeverityDebug,"default pfcp asso req\n");
 				break;
 		}
 	}
@@ -332,11 +381,15 @@ set_far_id_mbr(pfcp_far_id_ie_t *far_id)
 
 }
 
-void
+int
 set_urr_id(pfcp_urr_id_ie_t *urr_id)
 {
+	int size = sizeof(pfcp_urr_id_ie_t);
+
+	urr_id->urr_id_value = 0;
 	pfcp_set_ie_header(&(urr_id->header), PFCP_IE_URR_ID, UINT32_SIZE);
-	urr_id->urr_id_value = 3;
+
+	return size;
 }
 int
 set_precedence(pfcp_precedence_ie_t *prec)
@@ -429,6 +482,9 @@ creating_pdr(pfcp_create_pdr_ie_t *create_pdr, int source_iface_value)
 	if (pfcp_config.cp_type != SGWC && source_iface_value == SOURCE_INTERFACE_VALUE_ACCESS)
 		size += set_outer_hdr_removal(&(create_pdr->outer_hdr_removal));
 	size += set_far_id(&(create_pdr->far_id));
+	for(int i=0; i < create_pdr->urr_id_count; i++ ) {
+		size += set_urr_id(&(create_pdr->urr_id[i]));
+	}
 #ifdef GX_BUILD
 	/* TODO: Revisit this for change in yang*/
 	if (pfcp_config.cp_type != SGWC){
@@ -469,6 +525,60 @@ creating_far(pfcp_create_far_ie_t *create_far)
 }
 
 void
+creating_urr(pfcp_create_urr_ie_t *create_urr)
+{
+	uint16_t len = 0;
+
+	len += set_urr_id(&(create_urr->urr_id));
+	len += set_measurement_method(&(create_urr->meas_mthd));
+	len += set_reporting_trigger(&(create_urr->rptng_triggers));
+	len += set_volume_threshold(&(create_urr->vol_thresh));
+	len += set_time_threshold(&(create_urr->time_threshold));
+	/* Currently take as hardcoded value */
+	//len += 4; /* Header Size of set_apply action ie */
+
+	pfcp_set_ie_header(&(create_urr->header), IE_CREATE_URR, len);
+}
+
+int
+updating_pdr(pfcp_update_pdr_ie_t *create_pdr, int source_iface_value)
+{
+	int size = 0;
+
+	size += set_pdr_id(&(create_pdr->pdr_id));
+	size += set_precedence(&(create_pdr->precedence));
+	size += set_pdi(&(create_pdr->pdi));
+#ifdef CP_BUILD
+	if (pfcp_config.cp_type != SGWC && source_iface_value == SOURCE_INTERFACE_VALUE_ACCESS)
+		size += set_outer_hdr_removal(&(create_pdr->outer_hdr_removal));
+	size += set_far_id(&(create_pdr->far_id));
+#ifdef _GX_BUILD
+	/*TODO : need to check this durinf UT */
+	if (pfcp_config.cp_type != SGWC){
+		for(int i=0; i < create_pdr->qer_id_count; i++ ) {
+			size += set_qer_id(&(create_pdr->qer_id[i]));
+		}
+	}
+#endif /* GX_BUILD*/
+#endif /* CP_BUILD */
+	/* TODO: Revisit this for change in yang
+	create_pdr->urr_id_count = 1;
+	for(int i=0; i < create_pdr->urr_id_count; i++ ) {
+		set_urr_id(&(create_pdr->urr_id[i]));
+	} */
+
+	/* TODO: Revisit this for change in yang
+	create_pdr->actvt_predef_rules_count = 1;
+	for(int i=0; i < create_pdr->actvt_predef_rules_count; i++ ) {
+		set_activate_predefined_rules(&(create_pdr->actvt_predef_rules[i]));
+	} */
+
+	pfcp_set_ie_header(&(create_pdr->header), IE_CREATE_PDR, size);
+
+	return size;
+}
+
+void
 creating_bar(pfcp_create_bar_ie_t *create_bar)
 {
 	pfcp_set_ie_header(&(create_bar->header), IE_CREATE_BAR,
@@ -496,6 +606,123 @@ set_apply_action(pfcp_apply_action_ie_t *apply_action)
 }
 
 uint16_t
+set_measurement_method(pfcp_meas_mthd_ie_t *meas_mt)
+{
+	pfcp_set_ie_header(&(meas_mt->header), PFCP_IE_MEAS_MTHD, UINT8_SIZE);
+	meas_mt->event = 0;
+	meas_mt->volum = 0;
+	meas_mt->durat = 0;
+
+	return sizeof(pfcp_meas_mthd_ie_t);
+}
+
+uint16_t
+set_reporting_trigger(pfcp_rptng_triggers_ie_t *rptng_triggers)
+{
+	pfcp_set_ie_header(&(rptng_triggers->header), PFCP_IE_RPTNG_TRIGGERS, UINT16_SIZE);
+	rptng_triggers->volth = 0;
+
+	return sizeof(pfcp_rptng_triggers_ie_t);
+
+}
+
+
+int
+set_volume_threshold(pfcp_vol_thresh_ie_t *vol_thresh)
+{
+	int size = sizeof(pfcp_vol_thresh_ie_t);
+
+	pfcp_set_ie_header(&(vol_thresh->header), PFCP_IE_VOL_THRESH,
+			sizeof(pfcp_vol_thresh_ie_t) - sizeof(pfcp_ie_header_t));
+	vol_thresh->tovol = 0;
+	vol_thresh->dlvol = 0;
+	vol_thresh->ulvol = 0;
+	vol_thresh->total_volume = 0;
+	vol_thresh->uplink_volume = 0;
+	vol_thresh->downlink_volume = 0;
+
+	return size;
+
+}
+
+int
+set_volume_measurment(pfcp_vol_meas_ie_t *vol_meas)
+{
+	int size = sizeof(pfcp_vol_meas_ie_t);
+
+	pfcp_set_ie_header(&(vol_meas->header), PFCP_IE_VOL_MEAS,
+			sizeof(pfcp_vol_meas_ie_t) - sizeof(pfcp_ie_header_t));
+	vol_meas->tovol = 1;
+	vol_meas->dlvol = 1;
+	vol_meas->ulvol = 1;
+	vol_meas->total_volume = 0;
+	vol_meas->uplink_volume = 0;
+	vol_meas->downlink_volume = 0;
+
+	return size;
+
+}
+
+int
+set_start_time(pfcp_start_time_ie_t *start_time)
+{
+	int size = sizeof(pfcp_start_time_ie_t);
+
+	pfcp_set_ie_header(&(start_time->header), PFCP_IE_START_TIME, sizeof(uint32_t));
+	start_time->start_time = 0;
+
+	return size;
+}
+
+int
+set_end_time(pfcp_end_time_ie_t *end_time)
+{
+	int size = sizeof(pfcp_end_time_ie_t);
+
+	pfcp_set_ie_header(&(end_time->header), PFCP_IE_END_TIME, sizeof(uint32_t));
+	end_time->end_time = 0;
+
+	return size;
+}
+
+int
+set_first_pkt_time(pfcp_time_of_frst_pckt_ie_t *first_pkt_time)
+{
+	int size = sizeof(pfcp_time_of_frst_pckt_ie_t);
+
+	pfcp_set_ie_header(&(first_pkt_time->header), PFCP_IE_TIME_OF_FRST_PCKT,
+														sizeof(uint32_t));
+	first_pkt_time->time_of_frst_pckt = 0;
+
+	return size;
+}
+
+int
+set_last_pkt_time(pfcp_time_of_lst_pckt_ie_t *last_pkt_time)
+{
+	int size = sizeof(pfcp_time_of_lst_pckt_ie_t);
+
+	pfcp_set_ie_header(&(last_pkt_time->header), PFCP_IE_TIME_OF_LST_PCKT,
+														sizeof(uint32_t));
+	last_pkt_time->time_of_lst_pckt = 0;
+
+	return size;
+}
+
+int
+set_time_threshold(pfcp_time_threshold_ie_t *time_thresh)
+{
+	int size = sizeof(pfcp_time_threshold_ie_t);
+
+	pfcp_set_ie_header(&(time_thresh->header), PFCP_IE_TIME_THRESHOLD,
+			sizeof(pfcp_time_threshold_ie_t) - sizeof(pfcp_ie_header_t));
+	time_thresh->time_threshold = 0;
+
+	return size;
+
+}
+
+uint16_t
 set_forwarding_param(pfcp_frwdng_parms_ie_t *frwdng_parms)
 {
 	uint16_t len = 0;
@@ -506,6 +733,42 @@ set_forwarding_param(pfcp_frwdng_parms_ie_t *frwdng_parms)
 	/* Currently take as hardcoded value */
 	len += 8; /* Header Size of set_destination_interface and set_outer_header_creation ie */
 	pfcp_set_ie_header(&(frwdng_parms->header), IE_FRWDNG_PARMS, len);
+
+	return len;
+}
+
+uint16_t
+set_duplicating_param(pfcp_dupng_parms_ie_t *dupng_parms)
+{
+	uint16_t len = 0;
+
+	len += set_destination_interface(&(dupng_parms->dst_intfc));
+	len += set_outer_header_creation(&(dupng_parms->outer_hdr_creation));
+	len += set_frwding_policy(&(dupng_parms->frwdng_plcy));
+	/* Currently take as hardcoded value */
+	len += 12; /* Header Size of set_destination_interface and
+				* set_outer_header_creation ie and
+				* set_frwding_policy*/
+
+	pfcp_set_ie_header(&(dupng_parms->header), IE_DUPNG_PARMS, len);
+
+	return len;
+}
+
+uint16_t
+set_upd_duplicating_param(pfcp_upd_dupng_parms_ie_t *dupng_parms)
+{
+	uint16_t len = 0;
+
+	len += set_destination_interface(&(dupng_parms->dst_intfc));
+	len += set_outer_header_creation(&(dupng_parms->outer_hdr_creation));
+	len += set_frwding_policy(&(dupng_parms->frwdng_plcy));
+	/* Currently take as hardcoded value */
+	len += 12; /* Header Size of set_destination_interface and
+				* set_outer_header_creation ie and
+				* set_frwding_policy*/
+
+	pfcp_set_ie_header(&(dupng_parms->header), IE_DUPNG_PARMS, len);
 
 	return len;
 }
@@ -523,6 +786,21 @@ set_upd_forwarding_param(pfcp_upd_frwdng_parms_ie_t *upd_frwdng_parms)
 
 	pfcp_set_ie_header(&(upd_frwdng_parms->header), IE_UPD_FRWDNG_PARMS, len);
 	return len;
+}
+
+uint16_t
+set_frwding_policy(pfcp_frwdng_plcy_ie_t *frwdng_plcy){
+
+	uint16_t len = 0;
+	frwdng_plcy->frwdng_plcy_ident_len = sizeof(uint8_t);
+	len += sizeof(uint8_t);
+	frwdng_plcy->frwdng_plcy_ident = 0;
+	len += sizeof(uint8_t);
+
+	pfcp_set_ie_header(&(frwdng_plcy->header), PFCP_IE_FRWDNG_PLCY, len);
+
+	return len;
+
 }
 
 uint16_t
@@ -610,8 +888,10 @@ set_up_inactivity_timer(pfcp_user_plane_inact_timer_ie_t *up_inact_timer)
 	//TODO , check the report from DP and value inact_timer accordingly 8.2.83
 	up_inact_timer->user_plane_inact_timer = 10;
 }
+
+#ifdef CP_BUILD
 void
-set_user_id(pfcp_user_id_ie_t *user_id)
+set_user_id(pfcp_user_id_ie_t *user_id, uint64_t imsi)
 {
 	user_id->user_id_spare   = 0;
 	user_id->naif    = 0;
@@ -623,18 +903,12 @@ set_user_id(pfcp_user_id_ie_t *user_id)
 	user_id->len_of_msisdn = 0;
 	user_id->length_of_nai    = 0;
 
-	user_id->imsi[0] = 0x77;
-	user_id->imsi[1] = 0x77;
-	user_id->imsi[2] = 0x77;
-	user_id->imsi[3] = 0x77;
-	user_id->imsi[4] = 0x77;
-	user_id->imsi[5] = 0x77;
-	user_id->imsi[6] = 0x77;
-	user_id->imsi[7] = 0xf7;
+	encode_imsi_to_bin(imsi, BINARY_IMSI_LEN , user_id->imsi);
 
 	//pfcp_set_ie_header(&(user_id->header),IE_USER_ID , length);
 	pfcp_set_ie_header(&(user_id->header), PFCP_IE_USER_ID , 10);
 }
+#endif /* CP_BUILD */
 
 void
 set_fseid(pfcp_fseid_ie_t *fseid,uint64_t seid, uint32_t nodeid_value)
@@ -671,11 +945,19 @@ set_cause(pfcp_cause_ie_t *cause, uint8_t cause_val)
 }
 
 void
+removing_pdr(pfcp_remove_pdr_ie_t *remove_pdr)
+{
+	pfcp_set_ie_header(&(remove_pdr->header), IE_REMOVE_PDR, sizeof(pfcp_pdr_id_ie_t));
+	set_pdr_id(&(remove_pdr->pdr_id));
+}
+
+void
 removing_bar( pfcp_remove_bar_ie_t *remove_bar)
 {
 	pfcp_set_ie_header(&(remove_bar->header), IE_REMOVE_BAR, sizeof(pfcp_bar_id_ie_t));
 	set_bar_id(&(remove_bar->bar_id));
 }
+
 void
 set_traffic_endpoint(pfcp_traffic_endpt_id_ie_t *traffic_endpoint_id)
 {
@@ -1492,10 +1774,10 @@ gx_context_entry_add(char *sess_id, gx_context_t *entry)
 			(const void *)sess_id , (void *)entry);
 
 	if (ret < 0) {
-		fprintf(stderr,
+		clLog(clSystemLog, eCLSeverityCritical,
 				"%s - Error on rte_hash_add_key_data add\n",
 				strerror(ret));
-		return -1;
+		return GTPV2C_CAUSE_SYSTEM_FAILURE;
 	}
 	return 0;
 }
@@ -1507,7 +1789,7 @@ gx_context_entry_lookup(char *sess_id, gx_context_t **entry)
 			(const void*) (sess_id), (void **) entry);
 
 	if (ret < 0) {
-		RTE_LOG_DP(DEBUG, DP, "NO ENTRY FOUND IN UPF HASH [%s]\n", sess_id);
+		clLog(clSystemLog, eCLSeverityDebug, "NO ENTRY FOUND IN UPF HASH [%s]\n", sess_id);
 		return -1;
 	}
 
@@ -1523,7 +1805,7 @@ upf_context_entry_add(uint32_t *upf_ip, upf_context_t *entry)
 			(const void *)upf_ip , (void *)entry);
 
 	if (ret < 0) {
-		fprintf(stderr,
+		clLog(clSystemLog, eCLSeverityCritical,
 				"%s - Error on rte_hash_add_key_data add\n",
 				strerror(ret));
 		return 1;
@@ -1538,7 +1820,7 @@ upf_context_entry_lookup(uint32_t upf_ip, upf_context_t **entry)
 			(const void*) &(upf_ip), (void **) entry);
 
 	if (ret < 0) {
-		fprintf(stderr, "%s:%d NO ENTRY FOUND IN UPF HASH [%u]\n",
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%d NO ENTRY FOUND IN UPF HASH [%u]\n",
 				__func__, __LINE__, upf_ip);
 		return -1;
 	}
@@ -1559,7 +1841,7 @@ add_node_id_hash(uint32_t *nodeid, uint64_t *data )
 	temp =(uint64_t *) rte_zmalloc_socket(NULL, sizeof(uint64_t),
 			RTE_CACHE_LINE_SIZE, rte_socket_id());
 	if (temp == NULL) {
-		fprintf(stderr, "Failure to allocate ue context "
+		clLog(clSystemLog, eCLSeverityCritical, "Failure to allocate ue context "
 				"structure: %s (%s:%d)\n",
 				rte_strerror(rte_errno),
 				__FILE__,
@@ -1570,7 +1852,7 @@ add_node_id_hash(uint32_t *nodeid, uint64_t *data )
 	ret = rte_hash_add_key_data(node_id_hash,
 			(const void *)&key , (void *)temp);
 	if (ret < 0) {
-		fprintf(stderr,
+		clLog(clSystemLog, eCLSeverityCritical,
 				"%s - Error on rte_hash_add_key_data add\n",
 				strerror(ret));
 		rte_free((temp));
@@ -1758,7 +2040,7 @@ add_data_to_heartbeat_hash_table(uint32_t *ip, uint32_t *recov_time)
 	temp = rte_zmalloc_socket(NULL, sizeof(uint32_t),
 			RTE_CACHE_LINE_SIZE, rte_socket_id());
 	if (temp == NULL) {
-		fprintf(stderr, "Failure to allocate fseid context "
+		clLog(clSystemLog, eCLSeverityCritical, "Failure to allocate fseid context "
 				"structure: %s (%s:%d)\n",
 				rte_strerror(rte_errno),
 				__FILE__,
@@ -1769,7 +2051,7 @@ add_data_to_heartbeat_hash_table(uint32_t *ip, uint32_t *recov_time)
 	ret = rte_hash_add_key_data(heartbeat_recovery_hash,
 			(const void *)&key, temp);
 	if (ret < 0) {
-		fprintf(stderr,"%s - Error on rte_hash_add_key_data add in heartbeat\n",
+		clLog(clSystemLog, eCLSeverityCritical,"%s - Error on rte_hash_add_key_data add in heartbeat\n",
 				strerror(ret));
 		free(temp);
 		return 1;
@@ -1784,7 +2066,7 @@ void add_ip_to_heartbeat_hash(struct sockaddr_in *peer_addr, uint32_t recovery_t
 			RTE_CACHE_LINE_SIZE, rte_socket_id());
 
 	if(default_recov_time == NULL) {
-		fprintf(stderr, "Failure to allocate memory in adding ip to heartbeat"
+		clLog(clSystemLog, eCLSeverityCritical, "Failure to allocate memory in adding ip to heartbeat"
 				"structure: %s (%s:%d)\n",
 				rte_strerror(rte_errno),
 				__FILE__,
@@ -1797,7 +2079,7 @@ void add_ip_to_heartbeat_hash(struct sockaddr_in *peer_addr, uint32_t recovery_t
 				default_recov_time);
 
 		if(ret !=0) {
-			fprintf(stderr,"%s - Error on rte_hash_add_key_data add in heartbeat\n",
+			clLog(clSystemLog, eCLSeverityCritical,"%s - Error on rte_hash_add_key_data add in heartbeat\n",
 					strerror(ret));
 		}
 	}
@@ -1809,7 +2091,7 @@ void delete_entry_heartbeat_hash(struct sockaddr_in *peer_addr)
 	int ret = rte_hash_del_key(heartbeat_recovery_hash,
 			(const void *)&(peer_addr->sin_addr.s_addr));
 	if (ret == -EINVAL || ret == -ENOENT) {
-		fprintf(stderr,"%s - Error on rte_delete_enrty_key_data add in heartbeat\n",
+		clLog(clSystemLog, eCLSeverityCritical,"%s - Error on rte_delete_enrty_key_data add in heartbeat\n",
 				strerror(ret));
 	}
 }
@@ -1910,7 +2192,7 @@ upflist_by_ue_hash_entry_add(uint64_t *imsi_val, uint16_t imsi_len,
 			entry);
 
 	if (ret < 0) {
-		RTE_LOG_DP(ERR, DP, "Failed to add entry in upflist_by_ue_hash"
+		clLog(clSystemLog, eCLSeverityCritical, "Failed to add entry in upflist_by_ue_hash"
 				"hash table");
 		return -1;
 	}
@@ -1930,10 +2212,37 @@ upflist_by_ue_hash_entry_lookup(uint64_t *imsi_val, uint16_t imsi_len,
 			(void **)entry);
 
 	if (ret < 0) {
-		RTE_LOG_DP(ERR, DP, "Failed to search entry in upflist_by_ue_hash"
+		clLog(clSystemLog, eCLSeverityCritical, "Failed to search entry in upflist_by_ue_hash"
 				"hash table");
 		return ret;
 	}
+
+	return 0;
+}
+
+int
+upflist_by_ue_hash_entry_delete(uint64_t *imsi_val, uint16_t imsi_len)
+{
+	uint64_t imsi = UINT64_MAX;
+	upfs_dnsres_t *entry = NULL;
+	memcpy(&imsi, imsi_val, imsi_len);
+
+	int ret = rte_hash_lookup_data(upflist_by_ue_hash, &imsi,
+			(void **)&entry);
+	if (ret) {
+		/* PDN Conn Entry is present. Delete PDN Conn Entry */
+		ret = rte_hash_del_key(upflist_by_ue_hash, &imsi);
+
+		if ( ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical, FORMAT"IMSI entry is not found:%lu...\n",
+						ERR_MSG, imsi);
+			return -1;
+		}
+	}
+
+	/* Free data from hash */
+	if (entry != NULL)
+		rte_free(entry);
 
 	return 0;
 }
@@ -1954,3 +2263,11 @@ get_rule_type(pfcp_pfd_contents_ie_t *pfd_conts, uint16_t *idx)
 	return atoi(Temp_buf);
 }
 
+int
+set_duration_measurment(pfcp_dur_meas_ie_t *dur_meas){
+
+		int size = sizeof(pfcp_dur_meas_ie_t);
+			pfcp_set_ie_header(&(dur_meas->header), PFCP_IE_DUR_MEAS, sizeof(uint32_t));
+				dur_meas->duration_value = 0;
+					return size;
+}

@@ -5,8 +5,9 @@
 THIRD_PARTY_SW_PATH="third_party"
 OSS_UTIL_DIR="oss-util"
 C3PO_OSS_DIR="oss_adapter/c3po_oss"
-OSS_UTIL_GIT_LINK="http://10.155.205.206/C3PO-NGIC/oss-util.git"
-FREEDIAMETER="http://10.155.205.206/C3PO-NGIC/freeDiameter.git"
+OSS_UTIL_GIT_LINK="http://gsgit.gslab.com/Sprint-Repos/oss-util.git"
+FREEDIAMETER="http://gsgit.gslab.com/Sprint-Repos/freediameter.git"
+HIREDIS="https://github.com/redis/hiredis.git"
 
 SERVICES="$1"
 SUDO=''
@@ -27,11 +28,11 @@ install_pkg_deps() {
 		libpcap0.8-dev \
 		libssl-dev \
 		libzmq3-dev \
-                libjson0-dev \
-	        libc6-dev \
-	        libcurl4-openssl-dev \
+        libjson0-dev \
+	    libc6-dev \
+	    libcurl4-openssl-dev \
 		libc6 \
-                g++ cmake ragel libboost-all-dev \
+        g++ cmake ragel libboost-all-dev \
 		wget
 
 
@@ -45,7 +46,7 @@ export RTE_SDK=${RTE_SDK:-$DEPS_DIR/dpdk}
 export RTE_TARGET=${RTE_TARGET:-'x86_64-native-linuxapp-gcc'}
 
 install_dpdk() {
-     
+
 	[ -d $RTE_SDK ] && echo "DPDK already exists at $RTE_SDK" && return
 
 	mkdir -p ${RTE_SDK} && cd ${RTE_SDK}/../
@@ -61,10 +62,10 @@ install_dpdk() {
 
 	cd ${RTE_SDK}
 	cp $CUR_DIR/dpdk-18.02_common_linuxapp config/common_linuxapp
-	sed -ri 's,(KNI_KMOD=).*,\1n,' config/common_linuxapp
+#	sed -ri 's,(KNI_KMOD=).*,\1n,' config/common_linuxapp
 	make -j $CPUS install T=${RTE_TARGET}
 	echo "Installed DPDK at $RTE_SDK"
-        
+
 }
 
 download_hyperscan()
@@ -72,7 +73,7 @@ download_hyperscan()
         [ -d $DEPS_DIR/hyperscan-4.1.0 ] && echo "Hyperscan already exists at $DEPS_DIR/hyperscan-4.1.0" && return
 
         cd $DEPS_DIR
-	
+
         echo "Downloading HS and dependent libraries"
         wget https://github.com/01org/hyperscan/archive/v4.1.0.tar.gz
         tar -xvf v4.1.0.tar.gz
@@ -101,6 +102,20 @@ download_freediameter()
                         echo "Failed to clone FreeDiameter, please check the errors."
                         return
         fi
+        popd
+
+}
+
+download_hiredis()
+{
+	echo "Download Highredis from git....."
+	[ -d $CUR_DIR/$THIRD_PARTY_SW_PATH/hiredis ] && echo "hiredis already exists" && return
+    pushd $CUR_DIR/$THIRD_PARTY_SW_PATH
+	git clone $HIREDIS
+	if [ $? -ne 0 ] ; then
+	                echo "Failed to clone hiredis, please check the errors."
+	                return
+	fi
         popd
 
 }
@@ -158,9 +173,34 @@ build_fd_gxapp()
 {
 	echo "Building FreeDiameter ..."
 	build_fd_lib
-        ldconfig 
+
 	echo "Building GxAPP ..."
 	build_gxapp
+}
+
+build_hiredis()
+{
+	pushd $CUR_DIR/$THIRD_PARTY_SW_PATH/hiredis
+	make
+	if [ $? -ne 0 ] ; then
+		echo "Failed to build Hiredis, please check the errors."
+		exit 1
+	fi
+	make install
+	if [ $? -ne 0 ] ; then
+		echo "Make install Failed in Hiredis, please check the errors."
+		exit 1
+	fi
+
+	libhrso="/usr/local/lib/libhiredis.so"
+	libhra="/usr/local/lib/libhiredis.a"
+
+	if [ ! -e "$libhrso" ] && ! [ -e "$libhra" ]; then
+		echo "libhiredis.so and libhiredis.a does not exist at /usr/local/lib"
+		return
+	fi
+	sudo ldconfig
+	popd
 }
 
 install_oss_util()
@@ -171,15 +211,15 @@ install_oss_util()
         OSS_DIR=$CUR_DIR/$C3PO_OSS_DIR/$OSS_UTIL_DIR
 
         echo "Checking OSS-UTIL-DIR $OSS_DIR"
-     
+
         if [ ! -d $OSS_DIR ]; then
        	     echo "Cloning OSS-UTIL repo ...$OSS_UTIL_GIT_LINK"
              git clone $OSS_UTIL_GIT_LINK
-#      	     mv oss_util_gslab oss-util     
+#      	     mv oss_util_gslab oss-util
         fi
 
         cp $CUR_DIR/oss-util.sh $OSS_DIR/
-       
+
 	pushd $OSS_DIR
 	./oss-util.sh | tee /var/log/oss-util.log
 	popd
@@ -191,20 +231,25 @@ install_build_deps() {
        install_pkg_deps
        install_dpdk
        if [[ $SERVICES == "CP" ]] || [[ $SERVICES == "cp" ]]; then
-	    install_oss_util
-#	    download_freediameter
-            build_libgtpcv2c 
-            build_fd_gxapp
+	     install_oss_util
+	     download_freediameter
+         build_libgtpcv2c
+         build_fd_gxapp
+         download_hiredis
+         build_hiredis
        elif [[ $SERVICES == "DP" ]] || [[ $SERVICES == "dp" ]]; then
-            download_hyperscan  
+	     install_oss_util
+         download_hyperscan
        else
-            download_hyperscan
-#            download_freediameter
-            install_oss_util
-            build_libgtpcv2c 
-            build_fd_gxapp
-       fi 
-       build_pfcp_lib  
+         download_hyperscan
+         download_freediameter
+         install_oss_util
+         build_libgtpcv2c
+         build_fd_gxapp
+	     download_hiredis
+         build_hiredis
+       fi
+       build_pfcp_lib
 }
 
 

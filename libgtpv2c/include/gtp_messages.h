@@ -25,7 +25,9 @@
 
 #include "gtp_ies.h"
 #include "sv_ies.h"
+#define MAX_BEARER  15
 #define CHAR_SIZE 8
+#define MAX_BEARERS  (15)
 #define ECHO_REQUEST (1)
 #define ECHO_RESPONSE (2)
 #define CREATE_SESS_REQ (32)
@@ -159,6 +161,7 @@
 #define MBMS_SESS_UPD_REQ (233)
 #define MBMS_SESS_UPD_RSP (234)
 #define MBMS_SESS_STOP_REQ (235)
+#define MAX_BEARERS_PER_UE (15)
 #pragma pack(1)
 /**
 Description -Create Session Request.Bearer Context to be created
@@ -492,14 +495,14 @@ typedef struct gtp_del_sess_response__overload_ctl_info_ie_t {
 /**
 Description -Delete Bearer Response.Bearer Context
 */
-typedef struct gtp_del_bearer_response__bearer_ctxt_ie_t {
+typedef struct gtp_del_bearer_response_bearer_ctxt_ie_t {
   ie_header_t header;
   gtp_eps_bearer_id_ie_t eps_bearer_id;
   gtp_cause_ie_t cause;
   gtp_prot_cfg_opts_ie_t pco;
   gtp_ran_nas_cause_ie_t ran_nas_cause;
   gtp_extnded_prot_cfg_opts_ie_t epco;
-} gtp_del_bearer_response__bearer_ctxt_ie_t;
+} gtp_del_bearer_response_bearer_ctxt_ie_t;
 
 /**
 Description -Delete Bearer Response.Overload Control Information
@@ -623,12 +626,12 @@ typedef struct gtp_upd_bearer_response__overload_ctl_info_ie_t {
 /**
 Description -Delete Bearer Command.Bearer Context
 */
-typedef struct gtp_del_bearer_command__bearer_ctxt_ie_t {
+typedef struct gtp_del_bearer_command_bearer_ctxt_ie_t {
   ie_header_t header;
   gtp_eps_bearer_id_ie_t eps_bearer_id;
   gtp_bearer_flags_ie_t bearer_flags;
   gtp_ran_nas_cause_ie_t ran_nas_release_cause;
-} gtp_del_bearer_command__bearer_ctxt_ie_t;
+} gtp_del_bearer_command_bearer_ctxt_ie_t;
 
 /**
 Description -Delete Bearer Command.Overload Control Information
@@ -952,7 +955,8 @@ typedef struct create_sess_req_t {
   gtp_eps_bearer_id_ie_t linked_eps_bearer_id;
   gtp_trstd_wlan_mode_indctn_ie_t trstd_wlan_mode_indctn;
   gtp_prot_cfg_opts_ie_t pco;
-  gtp_create_sess_request_bearer_ctxt_to_be_created_ie_t bearer_contexts_to_be_created;
+  uint8_t bearer_count;
+  gtp_create_sess_request_bearer_ctxt_to_be_created_ie_t bearer_contexts_to_be_created[MAX_BEARER];
   gtp_create_sess_request_bearer_ctxt_to_be_removed_ie_t bearer_contexts_to_be_removed;
   gtp_trc_info_ie_t trc_info;
   gtp_recovery_ie_t recovery;
@@ -1014,7 +1018,8 @@ typedef struct create_sess_rsp_t {
   gtp_agg_max_bit_rate_ie_t apn_ambr;
   gtp_eps_bearer_id_ie_t linked_eps_bearer_id;
   gtp_prot_cfg_opts_ie_t pco;
-  gtp_create_sess_response_bearer_ctxt_created_ie_t bearer_contexts_created;
+  uint8_t bearer_count;
+  gtp_create_sess_response_bearer_ctxt_created_ie_t bearer_contexts_created[MAX_BEARER];
   gtp_create_sess_response_bearer_ctxt_marked_removal_ie_t bearer_contexts_marked_removal;
   gtp_recovery_ie_t recovery;
   gtp_fully_qual_domain_name_ie_t chrgng_gateway_name;
@@ -1044,7 +1049,8 @@ typedef struct create_bearer_req_t {
   gtp_proc_trans_id_ie_t pti;
   gtp_eps_bearer_id_ie_t lbi;
   gtp_prot_cfg_opts_ie_t pco;
-  gtp_create_bearer_request_bearer_ctxt_ie_t bearer_contexts;
+  uint8_t bearer_cnt;
+  gtp_create_bearer_request_bearer_ctxt_ie_t bearer_contexts[MAX_BEARERS];
   gtp_fqcsid_ie_t pgw_fqcsid;
   gtp_fqcsid_ie_t sgw_fqcsid;
   gtp_chg_rptng_act_ie_t chg_rptng_act;
@@ -1064,7 +1070,8 @@ typedef struct create_bearer_req_t {
 typedef struct create_bearer_rsp_t {
   gtpv2c_header_t header;
   gtp_cause_ie_t cause;
-  gtp_create_bearer_response_bearer_ctxt_ie_t bearer_contexts;
+  uint8_t bearer_cnt;
+  gtp_create_bearer_response_bearer_ctxt_ie_t bearer_contexts[MAX_BEARERS];
   gtp_recovery_ie_t recovery;
   gtp_fqcsid_ie_t mme_fqcsid;
   gtp_fqcsid_ie_t sgw_fqcsid;
@@ -1129,11 +1136,13 @@ typedef struct mod_bearer_req_t {
   gtp_mbl_equip_idnty_ie_t mei;
   gtp_user_loc_info_ie_t uli;
   gtp_serving_network_ie_t serving_network;
+  gtp_selection_mode_ie_t selection_mode;
   gtp_indication_ie_t indctn_flgs;
   gtp_fully_qual_tunn_endpt_idnt_ie_t sender_fteid_ctl_plane;
   gtp_agg_max_bit_rate_ie_t apn_ambr;
   gtp_delay_value_ie_t delay_dnlnk_pckt_notif_req;
-  gtp_mod_bearer_request_bearer_ctxt_to_be_modified_ie_t bearer_contexts_to_be_modified;
+  uint8_t bearer_count;
+  gtp_mod_bearer_request_bearer_ctxt_to_be_modified_ie_t bearer_contexts_to_be_modified[MAX_BEARER];
   gtp_mod_bearer_request_bearer_ctxt_to_be_removed_ie_t bearer_contexts_to_be_removed;
   gtp_recovery_ie_t recovery;
   gtp_ue_time_zone_ie_t ue_time_zone;
@@ -1160,6 +1169,7 @@ typedef struct mod_bearer_req_t {
   gtp_twan_idnt_ts_ie_t wlan_loc_ts;
   gtp_secdry_rat_usage_data_rpt_ie_t secdry_rat_usage_data_rpt;
   gtp_priv_ext_ie_t priv_ext;
+  gtp_rat_type_ie_t rat_type;
 } mod_bearer_req_t;
 
 typedef struct mod_bearer_rsp_t {
@@ -1169,7 +1179,8 @@ typedef struct mod_bearer_rsp_t {
   gtp_eps_bearer_id_ie_t linked_eps_bearer_id;
   gtp_apn_restriction_ie_t apn_restriction;
   gtp_prot_cfg_opts_ie_t pco;
-  gtp_mod_bearer_response_bearer_ctxt_modified_ie_t bearer_contexts_modified;
+  uint8_t bearer_count;
+  gtp_mod_bearer_response_bearer_ctxt_modified_ie_t bearer_contexts_modified[MAX_BEARER];
   gtp_mod_bearer_response_bearer_ctxt_marked_removal_ie_t bearer_contexts_marked_removal;
   gtp_chg_rptng_act_ie_t chg_rptng_act;
   gtp_csg_info_rptng_act_ie_t csg_info_rptng_act;
@@ -1220,7 +1231,9 @@ typedef struct del_sess_req_t {
 
 typedef struct del_bearer_req_t {
   gtpv2c_header_t header;
-  gtp_eps_bearer_id_ie_t eps_bearer_ids;
+  gtp_eps_bearer_id_ie_t lbi;
+  uint8_t bearer_count;
+  gtp_eps_bearer_id_ie_t eps_bearer_ids[MAX_BEARER];
   gtp_bearer_context_ie_t failed_bearer_contexts;
   gtp_proc_trans_id_ie_t pti;
   gtp_prot_cfg_opts_ie_t pco;
@@ -1256,7 +1269,8 @@ typedef struct del_bearer_rsp_t {
   gtpv2c_header_t header;
   gtp_cause_ie_t cause;
   gtp_eps_bearer_id_ie_t lbi;
-  gtp_bearer_context_ie_t bearer_contexts;
+  uint8_t bearer_count;
+  gtp_del_bearer_response_bearer_ctxt_ie_t bearer_contexts[MAX_BEARER];
   gtp_recovery_ie_t recovery;
   gtp_fqcsid_ie_t mme_fqcsid;
   gtp_fqcsid_ie_t sgw_fqcsid;
@@ -1339,7 +1353,8 @@ typedef struct mod_bearer_fail_indctn_t {
 
 typedef struct upd_bearer_req_t {
   gtpv2c_header_t header;
-  gtp_bearer_context_ie_t bearer_contexts;
+  uint32_t bearer_context_count;
+  gtp_upd_bearer_request__bearer_ctxt_ie_t bearer_contexts[MAX_BEARERS_PER_UE];
   gtp_proc_trans_id_ie_t pti;
   gtp_prot_cfg_opts_ie_t pco;
   gtp_agg_max_bit_rate_ie_t apn_ambr;
@@ -1362,7 +1377,8 @@ typedef struct upd_bearer_req_t {
 typedef struct upd_bearer_rsp_t {
   gtpv2c_header_t header;
   gtp_cause_ie_t cause;
-  gtp_bearer_context_ie_t bearer_contexts;
+  uint32_t bearer_context_count;
+  gtp_upd_bearer_response__bearer_ctxt_ie_t bearer_contexts[MAX_BEARERS_PER_UE];
   gtp_prot_cfg_opts_ie_t pco;
   gtp_recovery_ie_t recovery;
   gtp_fqcsid_ie_t mme_fqcsid;
@@ -1389,7 +1405,8 @@ typedef struct upd_bearer_rsp_t {
 
 typedef struct del_bearer_cmd_t {
   gtpv2c_header_t header;
-  gtp_bearer_context_ie_t bearer_contexts;
+ uint8_t bearer_count;
+ gtp_del_bearer_command_bearer_ctxt_ie_t bearer_contexts[MAX_BEARER];
   gtp_user_loc_info_ie_t uli;
   gtp_uli_timestamp_ie_t uli_timestamp;
   gtp_ue_time_zone_ie_t ue_time_zone;
@@ -1755,6 +1772,16 @@ typedef struct create_fwdng_tunn_rsp_t {
   gtp_priv_ext_ie_t priv_ext;
 } create_fwdng_tunn_rsp_t;
 
+typedef struct del_pdn_conn_set_req_t {
+  gtpv2c_header_t header;
+  gtp_fqcsid_ie_t mme_fqcsid;
+  gtp_fqcsid_ie_t sgw_fqcsid;
+  gtp_fqcsid_ie_t pgw_fqcsid;
+  gtp_fqcsid_ie_t epdg_fqcsid;
+  gtp_fqcsid_ie_t twan_fqcsid;
+  gtp_priv_ext_ie_t priv_ext;
+} del_pdn_conn_set_req_t;
+
 typedef struct del_pdn_conn_set_rsp_t {
   gtpv2c_header_t header;
   gtp_cause_ie_t cause;
@@ -1879,6 +1906,24 @@ typedef struct mbms_sess_stop_req_t {
   gtp_mbms_flags_ie_t mbms_flags;
   gtp_priv_ext_ie_t priv_ext;
 } mbms_sess_stop_req_t;
+
+typedef struct change_noti_req_t {
+	gtpv2c_header_t header;
+	gtp_imsi_ie_t imsi;
+	gtp_rat_type_ie_t rat_type;
+	gtp_user_loc_info_ie_t uli;
+	gtp_user_csg_info_ie_t uci;
+	gtp_ip_address_ie_t ipv4_address; /*PGW IP Address*/
+	gtp_eps_bearer_id_ie_t lbi;
+	uint8_t second_rat_count;
+	gtp_secdry_rat_usage_data_rpt_ie_t secdry_rat_usage_data_rpt[MAX_BEARERS];
+} change_noti_req_t;
+
+typedef struct change_noti_rsp_t {
+	 gtpv2c_header_t header;
+	 gtp_imsi_ie_t imsi;
+	 gtp_cause_ie_t cause;
+} change_noti_rsp_t;
 
 #pragma pack()
 #endif

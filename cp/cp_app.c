@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 #include <stdlib.h>
+#include <math.h>
 #include "cp_app.h"
 #include "ipc_api.h"
 #include "sm_arr.h"
@@ -21,11 +22,20 @@
 #include "pfcp_association.h"
 #include "sm_pcnd.h"
 #include "ue.h"
+#include "clogger.h"
+#include "gw_adapter.h"
 
 static uint32_t cc_request_number = 0;
 extern pfcp_config_t pfcp_config;
-int g_cp_sock ;
-int gx_app_sock  ;
+
+/*Socket used by CP to listen for GxApp client connection */
+int g_cp_sock_read = 0;
+
+/*Socket used by CP to write CCR and RAA*/
+int gx_app_sock = 0;
+
+/*Socket used by CP to read CCR and RAA*/
+int gx_app_sock_read = 0;
 int ret ;
 
 /*
@@ -39,7 +49,7 @@ handle_gx_rar(unsigned char * recv_buf )
 
 	gx_rar_unpack((unsigned char *)recv_buf, gx_rar );
 
-	printf("Gx RAR : \n  Session Id [%s]  \n re_auth_request_type[%d]\n",
+	clLog(clSystemLog, eCLSeverityDebug,"Gx RAR : \n  Session Id [%s]  \n re_auth_request_type[%d]\n",
 			gx_rar->session_id.val,
 			gx_rar->re_auth_request_type );
 }
@@ -64,16 +74,31 @@ fill_rat_type_ie( int32_t *ccr_rat_type, uint8_t csr_rat_type )
 	}
 }
 
+/**
+ * @brief  : Fill qos information
+ * @param  : ccr_qos_info, structure to be filled
+ * @param  : bearer, bearer information
+ * @param  : apn_ambr, ambr details
+ * @return : Returns nothing
+ */
 static void
 fill_qos_info( GxQosInformation *ccr_qos_info,
 		eps_bearer *bearer, ambr_ie *apn_ambr)
 {
 
-	/* VS:TODO: Need to check the bearer identifier value */
+	/* VS: Fill the bearer identifier value */
 	ccr_qos_info->presence.bearer_identifier = PRESENT ;
 	ccr_qos_info->bearer_identifier.len =
-		int_to_str((char *)ccr_qos_info->bearer_identifier.val,
-				bearer->eps_bearer_id);
+		(1 + (uint32_t)log10(bearer->eps_bearer_id));
+	if (ccr_qos_info->bearer_identifier.len >= 255) {
+		clLog(clSystemLog, eCLSeverityCritical,
+				FORMAT"Error: Insufficient memory to copy bearer identifier\n", ERR_MSG);
+		return;
+	} else {
+		strncpy((char *)ccr_qos_info->bearer_identifier.val,
+				(char *)&bearer->eps_bearer_id,
+				ccr_qos_info->bearer_identifier.len);
+	}
 
 	ccr_qos_info->presence.apn_aggregate_max_bitrate_ul = PRESENT;
 	ccr_qos_info->presence.apn_aggregate_max_bitrate_dl = PRESENT;
@@ -97,6 +122,12 @@ fill_qos_info( GxQosInformation *ccr_qos_info,
 		bearer->qos.dl_gbr;
 }
 
+/**
+ * @brief  : fill default eps bearer qos
+ * @param  : ccr_default_eps_bearer_qos, structure to be filled
+ * @param  : bearer, bearer data
+ * @return : Returns Nothing
+ */
 static void
 fill_default_eps_bearer_qos( GxDefaultEpsBearerQos *ccr_default_eps_bearer_qos,
 		eps_bearer *bearer)
@@ -128,12 +159,12 @@ fill_default_eps_bearer_qos( GxDefaultEpsBearerQos *ccr_default_eps_bearer_qos,
 }
 
 /**
- * @brief convert binary value to string
- * Binary value is stored in 8 bytes, each nibble representing each char.
- * char binary stroes each char in 1 byte.
- * @param[in] b_val : Binary val
- * @param[out] s_val : Converted string val
- * @return void
+ * @brief  : convert binary value to string
+ *           Binary value is stored in 8 bytes, each nibble representing each char.
+ *           char binary stroes each char in 1 byte.
+ * @param  : [in] b_val : Binary val
+ * @param  : [out] s_val : Converted string val
+ * @return : void
  */
 void
 bin_to_str(unsigned char *b_val, char *s_val, int b_len, int s_len)
@@ -153,42 +184,60 @@ bin_to_str(unsigned char *b_val, char *s_val, int b_len, int s_len)
 	s_val[(b_len*2)-1] = '\0';
 }
 
+void
+encode_imsi_to_bin(uint64_t imsi, int imsi_len, uint8_t *bin_imsi){
+	uint8_t buf[32] = {0};
+	snprintf((char*)buf,32, "%" PRIu64, imsi);
+	for (int i=0; i < imsi_len; i++)
+		bin_imsi[i] = ((buf[i*2 + 1] & 0xF) << 4) | ((buf[i*2] & 0xF));
+	uint8_t odd = strnlen((const char *)buf,32)%2;
+	if (odd)
+		bin_imsi[imsi_len -1] = (0xF << 4) | ((buf[(imsi_len-1)*2] & 0xF));
+
+	return;
+}
 
 void
 fill_subscription_id( GxSubscriptionIdList *subs_id, uint64_t imsi, uint64_t msisdn )
 {
+	subs_id->count = 0;
+
 	if( imsi != 0 ) {
-		subs_id->count++;
 		subs_id->list = malloc(sizeof( GxSubscriptionId));
 		if(subs_id->list == NULL){
-			fprintf(stderr,"[%s]:[%s]:[%d] Memory allocation fails\n",
+			clLog(clSystemLog, eCLSeverityCritical,"[%s]:[%s]:[%d] Memory allocation fails\n",
 					__file__, __func__, __LINE__);
 		}
 
-		subs_id->list[0].presence.subscription_id_type = PRESENT;
-		subs_id->list[0].presence.subscription_id_data = PRESENT;
-		subs_id->list[0].subscription_id_type = END_USER_IMSI;
-		subs_id->list[0].subscription_id_data.len = STR_IMSI_LEN -1 ;
-		bin_to_str((unsigned char*) (&imsi),
-				(char *)(subs_id->list[0].subscription_id_data.val),
+		subs_id->list[subs_id->count].presence.subscription_id_type = PRESENT;
+		subs_id->list[subs_id->count].presence.subscription_id_data = PRESENT;
+		subs_id->list[subs_id->count].subscription_id_type = END_USER_IMSI;
+		subs_id->list[subs_id->count].subscription_id_data.len = STR_IMSI_LEN -1 ;
+		uint8_t bin_imsi[32] = {0};
+		encode_imsi_to_bin(imsi, BINARY_IMSI_LEN , bin_imsi);
+		uint64_t temp_imsi = 0;
+		memcpy(&temp_imsi, bin_imsi, BINARY_IMSI_LEN);
+		bin_to_str((unsigned char*) (&temp_imsi),
+				(char *)(subs_id->list[subs_id->count].subscription_id_data.val),
 				BINARY_IMSI_LEN, STR_IMSI_LEN);
 
-	} else 	if( msisdn != 0 ) {
 		subs_id->count++;
+	} else if( msisdn != 0 ) {
 
 		subs_id->list = malloc(sizeof( GxSubscriptionId));
 		if(subs_id->list == NULL){
-			fprintf(stderr,"[%s]:[%s]:[%d] Memory allocation fails\n",
+			clLog(clSystemLog, eCLSeverityCritical,"[%s]:[%s]:[%d] Memory allocation fails\n",
 					__file__, __func__, __LINE__);
 		}
 
-		subs_id->list[0].presence.subscription_id_type = PRESENT;
-		subs_id->list[0].presence.subscription_id_data = PRESENT;
-		subs_id->list[0].subscription_id_type = END_USER_E164;
-		subs_id->list[0].subscription_id_data.len = STR_MSISDN_LEN;
+		subs_id->list[subs_id->count].presence.subscription_id_type = PRESENT;
+		subs_id->list[subs_id->count].presence.subscription_id_data = PRESENT;
+		subs_id->list[subs_id->count].subscription_id_type = END_USER_E164;
+		subs_id->list[subs_id->count].subscription_id_data.len = STR_MSISDN_LEN;
 		bin_to_str((unsigned char*) (&msisdn),
-				(char *)(subs_id->list[0].subscription_id_data.val),
+				(char *)(subs_id->list[subs_id->count].subscription_id_data.val),
 				BINARY_MSISDN_LEN, STR_MSISDN_LEN);
+		subs_id->count++;
 	}
 }
 
@@ -227,7 +276,7 @@ fill_ccr_request(GxCCR *ccr, ue_context *context,
 	/* VS: Assign the Session ID in the request */
 	if (sess_id != NULL) {
 		ccr->presence.session_id = PRESENT;
-		ccr->session_id.len = strlen(sess_id);
+		ccr->session_id.len = strnlen(sess_id, MAX_LEN);
 		memcpy(ccr->session_id.val, sess_id, ccr->session_id.len);
 	}
 
@@ -258,13 +307,13 @@ fill_ccr_request(GxCCR *ccr, ue_context *context,
 			}
 			case UPDATE_REQUEST:
 				ccr->presence.cc_request_number = PRESENT;
-				ccr->cc_request_number = cc_request_number++ ;
+				ccr->cc_request_number = ++cc_request_number ;
 				break;
 
 			case TERMINATION_REQUEST:
 				ccr->presence.cc_request_number = PRESENT;
 				/* Make this number generic */
-				ccr->cc_request_number = 1 ;
+				ccr->cc_request_number =  ++cc_request_number ;
 
 				/* VS: TODO: Need to Check condition handling */
 				ccr->presence.ip_can_type = PRESENT;
@@ -272,7 +321,7 @@ fill_ccr_request(GxCCR *ccr, ue_context *context,
 				break;
 
 			default:
-				RTE_LOG_DP(ERR, CP, "%s : Error: %s \n", __func__,
+				clLog(clSystemLog, eCLSeverityCritical, "%s : Error: %s \n", __func__,
 						strerror(errno));
 				return -1;
 		}
@@ -299,7 +348,7 @@ fill_ccr_request(GxCCR *ccr, ue_context *context,
 			}
 		}
 
-		ccr->called_station_id.len = strlen(apn);
+		ccr->called_station_id.len = strnlen(apn, MAX_APN_LEN);
 		memcpy(ccr->called_station_id.val, apn, ccr->called_station_id.len);
 
 	}
@@ -334,13 +383,6 @@ fill_ccr_request(GxCCR *ccr, ue_context *context,
 		fill_user_equipment_info( &(ccr->user_equipment_info), context->mei );
 	}
 
-	///* VS: TODO Need to check later on */
-	//if( csr->ue_time_zone.header.len != 0 )
-	//{
-	//	ccr->presence.tgpp_ms_timezone = PRESENT;
-	//	fill_3gpp_ue_timezone( &(ccr->tgpp_ms_timezone), csr->ue_time_zone );
-	//}
-
 	return 0;
 }
 
@@ -369,7 +411,7 @@ process_create_bearer_resp_and_send_raa( int sock )
 	memcpy( send_buf, &resp->msg_type, sizeof(resp->msg_type));
 
 	if ( gx_raa_pack(&(resp->data.cp_raa), (unsigned char *)(send_buf + sizeof(resp->msg_type)), buflen ) == 0 )
-		printf("RAA Packing failure on sock [%d] \n", sock);
+		clLog(clSystemLog, eCLSeverityDebug,"RAA Packing failure on sock [%d] \n", sock);
 
 	//send_to_ipc_channel( sock, send_buf );
 }
@@ -382,18 +424,19 @@ msg_handler_gx( void )
 	gx_msg *gxmsg = NULL;
 	char recv_buf[BUFFSIZE] = {0};
 
-	bytes_rx = recv_from_ipc_channel(gx_app_sock, recv_buf);
+	bytes_rx = recv_from_ipc_channel(gx_app_sock_read, recv_buf);
 	if(bytes_rx <= 0 ){
-			close_ipc_channel(gx_app_sock);
+			close_ipc_channel(gx_app_sock_read);
 			/* Greacefull Exit */
 			exit(0);
 	}
 
 	gxmsg = (gx_msg *)recv_buf;
 
-	if ((ret = gx_pcnd_check(gxmsg, &msg)) != 0)
+	if ((ret = gx_pcnd_check(gxmsg, &msg)) != 0) {
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%d Failure in gx precondion check\n",__func__, __LINE__);
 		return -1;
-
+	}
 	if ((msg.proc < END_PROC) && (msg.state < END_STATE) && (msg.event < END_EVNT)) {
 		if (SGWC == pfcp_config.cp_type) {
 		    ret = (*state_machine_sgwc[msg.proc][msg.state][msg.event])(&msg, gxmsg);
@@ -402,20 +445,20 @@ msg_handler_gx( void )
 		} else if (SAEGWC == pfcp_config.cp_type) {
 		    ret = (*state_machine_saegwc[msg.proc][msg.state][msg.event])(&msg, gxmsg);
 		} else {
-			/* clLog(s11logger, eCLSeverityCritical, "%s : "
+			/* clLog(clSystemLog, eCLSeverityCritical, "%s : "
 					"Invalid Control Plane Type: %d \n",
 					__func__, pfcp_config.cp_type); */
 			return -1;
 		}
 
 		if (ret) {
-			/* clLog(s11logger, eCLSeverityCritical, "%s : "
+			/* clLog(clSystemLog, eCLSeverityCritical, "%s : "
 					"State_Machine Callback failed with Error: %d \n",
 					__func__, ret); */
 			return -1;
 		}
 	} else {
-		/* clLog(s11logger, eCLSeverityCritical, "%s : "
+		/* clLog(clSystemLog, eCLSeverityCritical, "%s : "
 					"Invalid Procedure or State or Event \n",
 					__func__); */
 		return -1;
@@ -427,20 +470,44 @@ msg_handler_gx( void )
 void
 start_cp_app(void )
 {
-	struct sockaddr_un cp_app_sockaddr = {0};
-	struct sockaddr_un gx_app_sockaddr = {0};
+	struct sockaddr_un cp_app_sockaddr_read = {0};
+	struct sockaddr_un gx_app_sockaddr_read = {0};
 
 	/* Socket Creation */
-	g_cp_sock = create_ipc_channel();
+	g_cp_sock_read = create_ipc_channel();
+	if (g_cp_sock_read < 0) {
+		/*Gracefully exit*/
+		exit(0);
+	}
 
 	/* Bind the socket*/
-	bind_ipc_channel(g_cp_sock, cp_app_sockaddr, SERVER_PATH);
+	bind_ipc_channel(g_cp_sock_read, cp_app_sockaddr_read, SERVER_PATH);
 
 	/* Mark the socket fd for listen */
-	listen_ipc_channel(g_cp_sock);
+	listen_ipc_channel(g_cp_sock_read);
 
 	/* Accept incomming connection request receive on socket */
-	gx_app_sock  = accept_from_ipc_channel( g_cp_sock, gx_app_sockaddr);
+	gx_app_sock_read  = accept_from_ipc_channel( g_cp_sock_read, gx_app_sockaddr_read);
+	if (g_cp_sock_read < 0) {
+		/*Gracefully exit*/
+		exit(0);
+	}
+	/* Wait for few seconds and connect to gx_app socket for sending CCR and RAA */
+	sleep(5);
+
+	int ret = -1;
+	while (ret) {
+		struct sockaddr_un app_sockaddr = {0};
+		gx_app_sock = create_ipc_channel();
+		ret = connect_to_ipc_channel(gx_app_sock, app_sockaddr, CLIENT_PATH );
+		if (ret < 0) {
+			printf("Trying to connect to GxApp...\n");
+		}
+		sleep(1);
+	}
+
+	printf("Succesfully connected to GxApp...!!!\n");
+
 }
 
 

@@ -18,27 +18,21 @@
 #include <rte_ip.h>
 #include "up_main.h"
 #include "gtpu.h"
-
+#include "clogger.h"
 int (*fp_decap_gtpu_hdr)(struct rte_mbuf *m);
 int (*fp_encap_gtpu_hdr)(struct rte_mbuf *m, uint32_t teid);
 uint32_t (*fp_gtpu_inner_src_ip)(struct rte_mbuf *m);
 void (*fp_gtpu_get_inner_src_dst_ip)(struct rte_mbuf *m, uint32_t *src_ip, uint32_t *dst_ip);
 
-/**
- * Function to construct gtpu header.
- *
- * @param m
- *  m - mbuf pointer
- * @param teid
- *  teid - tunnel endpoint id
- * @param tpdu_len
- *  tpdu_len - length of tunneled pdu
- *
- * @return
- *  None
- */
 static uint16_t gtpu_seqnb = 0;
 
+/**
+ * @brief  : Function to construct gtpu header.
+ * @param  : m,  mbuf pointer
+ * @param  : teid, tunnel endpoint id
+ * @param  : tpdu_len, length of tunneled pdu
+ * @return : Returns nothing
+ */
 static inline void
 construct_gtpu_hdr_with_seqnb(struct rte_mbuf *m, uint32_t teid, uint16_t tpdu_len)
 {
@@ -60,6 +54,13 @@ construct_gtpu_hdr_with_seqnb(struct rte_mbuf *m, uint32_t teid, uint16_t tpdu_l
 	gtpu_seqnb++;
 }
 
+/**
+ * @brief  : Function to construct gtpu header without sequence number
+ * @param  : m,  mbuf pointer
+ * @param  : teid, tunnel endpoint id
+ * @param  : tpdu_len, length of tunneled pdu
+ * @return : Returns nothing
+ */
 static inline void
 construct_gtpu_hdr_without_seqnb(struct rte_mbuf *m, uint32_t teid, uint16_t tpdu_len)
 {
@@ -85,11 +86,11 @@ int decap_gtpu_hdr_dynamic_seqnb(struct rte_mbuf *m)
 	pkt_ptr = (uint8_t *) get_mtogtpu(m);
 	ret = rte_pktmbuf_adj(m, GPDU_HDR_SIZE_DYNAMIC(*pkt_ptr) + UDP_HDR_SIZE + IPv4_HDR_SIZE);
 	if (ret == NULL) {
-		RTE_LOG_DP(ERR, DP, "Error: Failed to remove GTPU header\n");
+		clLog(clSystemLog, eCLSeverityCritical, "Error: Failed to remove GTPU header\n");
 		return -1;
 	}
 
-	RTE_LOG_DP(DEBUG, DP,
+	clLog(clSystemLog, eCLSeverityDebug,
 			"Decap: modified mbuf offset %d, data_len %d, pkt_len%u\n",
 			m->data_off, m->data_len, m->pkt_len);
 	return 0;
@@ -150,10 +151,10 @@ int encap_gtpu_hdr_with_seqnb(struct rte_mbuf *m, uint32_t teid)
 				GPDU_HDR_SIZE_WITH_SEQNB +
 				UDP_HDR_SIZE + IPv4_HDR_SIZE);
 	if (pkt_ptr == NULL) {
-		RTE_LOG_DP(ERR, DP, "Error: Failed to add GTPU header\n");
+		clLog(clSystemLog, eCLSeverityCritical, "Error: Failed to add GTPU header\n");
 		return -1;
 	}
-	RTE_LOG_DP(DEBUG, DP,
+	clLog(clSystemLog, eCLSeverityDebug,
 			"Encap: modified mbuf offset %d, data_len %d, pkt_len %u\n",
 			m->data_off, m->data_len, m->pkt_len);
 
@@ -195,7 +196,7 @@ uint32_t gtpu_inner_src_ip_dynamic_seqnb(struct rte_mbuf *m)
 	struct ipv4_hdr *inner_ipv4_hdr;
 
 	pkt_ptr = (uint8_t *) get_mtogtpu(m);
-	RTE_LOG_DP(DEBUG, DP, "VS-gtpu.c: GPDU_HDR_SIZE %u\n",
+	clLog(clSystemLog, eCLSeverityDebug, "VS-gtpu.c: GPDU_HDR_SIZE %u\n",
 			GPDU_HDR_SIZE_DYNAMIC(*pkt_ptr));
 
 	pkt_ptr += GPDU_HDR_SIZE_DYNAMIC(*pkt_ptr);

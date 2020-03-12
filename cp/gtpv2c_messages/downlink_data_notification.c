@@ -25,10 +25,7 @@
 #include "pfcp_association.h"
 #include "pfcp_messages_encoder.h"
 #include "../cp_dp_api/vepc_cp_dp_api.h"
-
-#ifdef C3PO_OSS
 #include"cp_config.h"
-#endif /* C3PO_OSS */
 
 extern int pfcp_fd;
 extern struct cp_stats_t cp_stats;
@@ -42,6 +39,9 @@ extern struct cp_stats_t cp_stats;
 };
 */
 
+/**
+ * @brief  : Maintains downlink data notification acknowledgement information
+ */
 struct downlink_data_notification_ack_t {
 	ue_context *context;
 
@@ -54,12 +54,11 @@ struct downlink_data_notification_ack_t {
 };
 
 /**
- * @brief callback to handle downlink data notification messages from the
- * data plane
- * @param msg_payload
- * message payload received by control plane from the data plane
- * @return
- * 0 inicates success, error otherwise
+ * @brief  : callback to handle downlink data notification messages from the
+ *           data plane
+ * @param  : msg_payload
+ *           message payload received by control plane from the data plane
+ * @return : 0 inicates success, error otherwise
  */
 int
 cb_ddn(struct msgbuf *msg_payload)
@@ -67,7 +66,7 @@ cb_ddn(struct msgbuf *msg_payload)
 	int ret = ddn_by_session_id(msg_payload->msg_union.sess_entry.sess_id);
 
 	if (ret) {
-		fprintf(stderr, "Error on DDN Handling %s: (%d) %s\n",
+		clLog(clSystemLog, eCLSeverityCritical, "Error on DDN Handling %s: (%d) %s\n",
 				gtp_type_str(ret), ret,
 				(ret < 0 ? strerror(-ret) : cause_str(ret)));
 	}
@@ -75,12 +74,11 @@ cb_ddn(struct msgbuf *msg_payload)
 }
 
 /**
- * @brief creates and sends downlink data notification according to session
- * identifier
- * @param session_id - session identifier pertaining to downlink data packets
- * arrived at data plane
- * @return
- * 0 - indicates success, failure otherwise
+ * @brief  : creates and sends downlink data notification according to session
+ *           identifier
+ * @param  : session_id - session identifier pertaining to downlink data packets
+ *           arrived at data plane
+ * @return : 0 - indicates success, failure otherwise
  */
 int
 ddn_by_session_id(uint64_t session_id)
@@ -128,7 +126,7 @@ ddn_by_session_id(uint64_t session_id)
 		    sizeof(mme_s11_sockaddr_in));
 
 		if (bytes_tx != (int) payload_length) {
-			fprintf(stderr, "Transmitted Incomplete GTPv2c Message:"
+			clLog(clSystemLog, eCLSeverityCritical, "Transmitted Incomplete GTPv2c Message:"
 					"%u of %u tx bytes\n",
 					payload_length, bytes_tx);
 		}
@@ -136,27 +134,24 @@ ddn_by_session_id(uint64_t session_id)
 	ddn_sequence += 2;
 	++cp_stats.ddn;
 
-	get_current_time(cp_stats.stat_timestamp);
 
 	update_cli_stats(mme_s11_sockaddr_in.sin_addr.s_addr,
-					gtpv2c_tx->gtpc.message_type,SENT,
-					cp_stats.stat_timestamp);
+					gtpv2c_tx->gtpc.message_type,SENT,S11);
 
 	return 0;
 }
 
 /**
- * parses gtpv2c message and populates downlink_data_notification_ack_t
- *   structure
- * @param gtpv2c_rx
- *   buffer containing received downlink data notification ack message
- * @param ddn_ack
- *   structure to contain parsed information from message
- * @return
- *   \- 0 if successful
- *   \- > 0 if error occurs during packet filter parsing corresponds to 3gpp
- *   specified cause error value
- *   \- < 0 for all other errors
+ * @brief  : parses gtpv2c message and populates downlink_data_notification_ack_t
+ *           structure
+ * @param  : gtpv2c_rx
+ *           buffer containing received downlink data notification ack message
+ * @param  : ddn_ack
+ *           structure to contain parsed information from message
+ * @return : - 0 if successful
+ *           - > 0 if error occurs during packet filter parsing corresponds to 3gpp
+ *             specified cause error value
+ *           - < 0 for all other errors
  */
 int
 parse_downlink_data_notification_ack(gtpv2c_header_t *gtpv2c_rx,
@@ -195,7 +190,7 @@ parse_downlink_data_notification_ack(gtpv2c_header_t *gtpv2c_rx,
 	if (IE_TYPE_PTR_FROM_GTPV2C_IE(cause_ie,
 			ddn_ack->cause_ie)->cause_ie_hdr.cause_value
 	    != GTPV2C_CAUSE_REQUEST_ACCEPTED) {
-		fprintf(stderr, "Cause not accepted for DDNAck\n");
+		clLog(clSystemLog, eCLSeverityCritical, "Cause not accepted for DDNAck\n");
 		return IE_TYPE_PTR_FROM_GTPV2C_IE(cause_ie,
 				ddn_ack->cause_ie)->cause_ie_hdr.cause_value;
 	}
@@ -203,25 +198,25 @@ parse_downlink_data_notification_ack(gtpv2c_header_t *gtpv2c_rx,
 }
 
 /**
- * from parameters, populates gtpv2c message 'downlink data notification' and
- * populates required information elements as defined by
- * clause 7.2.11 3gpp 29.274
- * @param gtpv2c_tx
- *   transmission buffer to contain 'modify bearer request' message
- * @param sequence
- *   sequence number as described by clause 7.6 3gpp 29.274
- * @param context
- *   UE Context data structure pertaining to the bearer to be modified
- * @param bearer
- *   bearer data structure to be modified
- *
+ * @brief  : from parameters, populates gtpv2c message 'downlink data notification' and
+ *           populates required information elements as defined by
+ *           clause 7.2.11 3gpp 29.274
+ * @param  : gtpv2c_tx
+ *           transmission buffer to contain 'modify bearer request' message
+ * @param  : sequence
+ *           sequence number as described by clause 7.6 3gpp 29.274
+ * @param  : context
+ *           UE Context data structure pertaining to the bearer to be modified
+ * @param  : bearer
+ *           bearer data structure to be modified
+ * @return : Returns nothing
  */
 static void
 set_downlink_data_notification(gtpv2c_header_t *gtpv2c_tx,
 		uint32_t sequence, ue_context *context, eps_bearer *bearer)
 {
 	set_gtpv2c_teid_header(gtpv2c_tx, GTP_DOWNLINK_DATA_NOTIFICATION,
-			htonl(context->s11_mme_gtpc_teid), sequence);
+			htonl(context->s11_mme_gtpc_teid), sequence, 0);
 	set_ebi_ie(gtpv2c_tx, IE_INSTANCE_ZERO, bearer->eps_bearer_id);
 	set_ar_priority_ie(gtpv2c_tx, IE_INSTANCE_ZERO, bearer);
 }
@@ -249,7 +244,7 @@ process_ddn_ack(downlink_data_notification_t ddn_ack, uint8_t *delay)
 	/* Lookup entry in hash table on the basis of session id*/
 	uint64_t ebi_index = 0;   /*ToDo : Need to revisit this.*/
 	if (get_sess_entry((ddn_ack.context)->pdns[ebi_index]->seid, &resp) != 0){
-		fprintf(stderr, "NO Session Entry Found for sess ID:%lu\n",
+		clLog(clSystemLog, eCLSeverityCritical, "NO Session Entry Found for sess ID:%lu\n",
 				(ddn_ack.context)->pdns[ebi_index]->seid);
 		return -1;
 	}
@@ -274,9 +269,9 @@ process_ddn_ack(downlink_data_notification_t ddn_ack, uint8_t *delay)
 
 	/* VS: Update the UE State */
 	ret = update_ue_state((ddn_ack.context)->s11_sgw_gtpc_teid,
-			DDN_ACK_RCVD_STATE);
+			DDN_ACK_RCVD_STATE ,ebi_index);
 	if (ret < 0) {
-		fprintf(stderr, "%s:Failed to update UE State for teid: %u\n", __func__,
+		clLog(clSystemLog, eCLSeverityCritical, "%s:Failed to update UE State for teid: %u\n", __func__,
 				(ddn_ack.context)->s11_sgw_gtpc_teid);
 	}
 	return 0;

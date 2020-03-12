@@ -18,21 +18,17 @@
 #include "gtp_ies.h"
 #include "gtpv2c_set_ie.h"
 #include "packet_filters.h"
+#include "clogger.h"
 
 /**
- * helper function to get the location of the next information element '*ie'
- * that the buffer located at '*header' may be used, in the case that the size
- * of the information element IS known ahead of time
- * @param header
- *   header pre-populated that contains transmission buffer for message
- * @param type
- *   information element type value as defined in 3gpp 29.274 table 8.1-1
- * @param instance
- *   Information element instance as specified by 3gpp 29.274 clause 6.1.3
- * @param length
- *   size of information element created in message
- * @return
- *   information element to be populated
+ * @brief  : helper function to get the location of the next information element '*ie'
+ *           that the buffer located at '*header' may be used, in the case that the size
+ *           of the information element IS known ahead of time
+ * @param  : header, header pre-populated that contains transmission buffer for message
+ * @param  : type, information element type value as defined in 3gpp 29.274 table 8.1-1
+ * @param  : instance, Information element instance as specified by 3gpp 29.274 clause 6.1.3
+ * @param  : length, size of information element created in message
+ * @return : information element to be populated
  */
 static gtpv2c_ie *
 set_next_ie(gtpv2c_header_t *header, uint8_t type,
@@ -58,17 +54,13 @@ set_next_ie(gtpv2c_header_t *header, uint8_t type,
 }
 
 /**
- * helper function to get the location of the next information element '*ie'
- * that the buffer located at '*header' may be used, in the case that the size
- * of the information element IS NOT known ahead of time
- * @param header
- *   header pre-populated that contains transmission buffer for message
- * @param type
- *   information element type value as defined in 3gpp 29.274 table 8.1-1
- * @param instance
- *   Information element instance as specified by 3gpp 29.274 clause 6.1.3
- * @return
- *   information element to be populated
+ * @brief  : helper function to get the location of the next information element '*ie'
+ *           that the buffer located at '*header' may be used, in the case that the size
+ *           of the information element IS NOT known ahead of time
+ * @param  : header, header pre-populated that contains transmission buffer for message
+ * @param  : type, information element type value as defined in 3gpp 29.274 table 8.1-1
+ * @param  : instance, Information element instance as specified by 3gpp 29.274 clause 6.1.3
+ * @return : information element to be populated
  */
 static gtpv2c_ie *
 set_next_unsized_ie(gtpv2c_header_t *header, uint8_t type,
@@ -85,15 +77,12 @@ set_next_unsized_ie(gtpv2c_header_t *header, uint8_t type,
 }
 
 /**
- * helper function to update the size of a gtp message header field within the
- * transmit buffer *header by the length of 'length' due to the length of the
- * information element 'ie'
- * @param header
- *   header pre-populated that contains transmission buffer for message
- * @param ie
- *   information element to be added to gtp message buffer
- * @param length
- *   size of information element created in message
+ * @brief  : helper function to update the size of a gtp message header field within the
+ *           transmit buffer *header by the length of 'length' due to the length of the
+ *           information element 'ie'
+ * @param  : header, header pre-populated that contains transmission buffer for message
+ * @param  : ie, information element to be added to gtp message buffer
+ * @param  : length, size of information element created in message
  */
 static void
 set_ie_size(gtpv2c_header_t *header, gtpv2c_ie *ie, uint16_t length)
@@ -108,12 +97,10 @@ set_ie_size(gtpv2c_header_t *header, gtpv2c_ie *ie, uint16_t length)
 }
 
 /**
- * helper function to get the information element length used to increment gtp
- * header length field
- * @param ie
- *   information element pointer
- * @return
- *   size of information element created in message
+ * @brief  : helper function to get the information element length used to increment gtp
+ *           header length field
+ * @param  : ie, information element pointer
+ * @return : size of information element created in message
  */
 static inline uint16_t
 get_ie_return(gtpv2c_ie *ie)
@@ -122,17 +109,12 @@ get_ie_return(gtpv2c_ie *ie)
 }
 
 /**
- * helper function to set general value within an inforation element of size
- * 1 byte
- * @param header
- *   header pre-populated that contains transmission buffer for message
- * @param type
- *   information element type value as defined in 3gpp 29.274 table 8.1-1
- * @param instance
- *   Information element instance as specified by 3gpp 29.274 clause 6.1.3
- * @param value
- *   value of information element
- * @return
+ * @brief  : helper function to set general value within an inforation element of size 1 byte
+ * @param  : header, header pre-populated that contains transmission buffer for message
+ * @param  : type, information element type value as defined in 3gpp 29.274 table 8.1-1
+ * @param  : instance, Information element instance as specified by 3gpp 29.274 clause 6.1.3
+ * @param  : value, value of information element
+ * @return : size of information element(return value of get_ie_return)
  */
 static uint16_t
 set_uint8_ie(gtpv2c_header_t *header, uint8_t type,
@@ -146,6 +128,14 @@ set_uint8_ie(gtpv2c_header_t *header, uint8_t type,
 	return get_ie_return(ie);
 }
 
+/**
+ * @brief  : helper function to set general value within an information element of size 4 bytes
+ * @param  : header, header pre-populated that contains transmission buffer for message
+ * @param  : type, information element type value as defined in 3gpp 29.274 table 8.1-1
+ * @param  : instance, Information element instance as specified by 3gpp 29.274 clause 6.1.3
+ * @param  : value, value of information element
+ * @return : size of information element(return value of get_ie_return)
+ */
 static uint16_t
 set_uint32_ie(gtpv2c_header_t *header, uint8_t type,
 		enum ie_instance instance, uint8_t value)
@@ -168,17 +158,12 @@ set_ie_copy(gtpv2c_header_t *header, gtpv2c_ie *src_ie)
 }
 
 /**
- * helper function to set ie header values
- * @param header
- *   ie header
- * @param type
- *   information element type value as defined in 3gpp 29.274 table 8.1-1
- * @param instance
- *   Information element instance as specified by 3gpp 29.274 clause 6.1.3
- * @param length
- *   size of information element created in message
- * @return
- *   void
+ * @brief  : helper function to set ie header values
+ * @param  : header, ie header
+ * @param  : type, information element type value as defined in 3gpp 29.274 table 8.1-1
+ * @param  : instance, Information element instance as specified by 3gpp 29.274 clause 6.1.3
+ * @param  : length, size of information element created in message
+ * @return : nothing
  */
 void
 set_ie_header(ie_header_t *header, uint8_t type,
@@ -342,6 +327,18 @@ set_apn_restriction(gtp_apn_restriction_ie_t *apn_restriction,
 	apn_restriction->rstrct_type_val = restriction_type;
 
 	return;
+}
+
+void
+set_change_reporting_action(gtp_chg_rptng_act_ie_t *chg_rptng_act,
+		 enum ie_instance instance, uint8_t action)
+{
+
+	set_ie_header(&chg_rptng_act->header, GTP_IE_CHG_RPTNG_ACT,
+		instance, sizeof(uint8_t));
+
+	chg_rptng_act->action = action;
+
 }
 
 uint16_t
@@ -527,7 +524,7 @@ uint16_t
 set_ebi_ie(gtpv2c_header_t *header, enum ie_instance instance, uint8_t ebi)
 {
 	if (ebi & 0xF0)
-		fprintf(stderr, "Invalid EBI used %"PRIu8"\n", ebi);
+		clLog(clSystemLog, eCLSeverityCritical, "Invalid EBI used %"PRIu8"\n", ebi);
 	return set_uint8_ie(header, GTP_IE_EPS_BEARER_ID, instance, ebi);
 }
 
@@ -790,42 +787,49 @@ decode_check_csr(gtpv2c_header_t *gtpv2c_rx,
 			csr);
 
 	if (!ret){
-		fprintf(stderr, "Decoding for csr req failed");
+		clLog(clSystemLog, eCLSeverityCritical, "Decoding for csr req failed");
 		return -1;
 	}
 
 	if (csr->indctn_flgs.header.len &&
 			csr->indctn_flgs.indication_uimsi) {
-		fprintf(stderr, "%s:%s:%d Unauthenticated IMSI Not Yet Implemented - "
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d Unauthenticated IMSI Not Yet Implemented - "
 				"Dropping packet\n", __file__, __func__, __LINE__);
 		return GTPV2C_CAUSE_IMSI_NOT_KNOWN;
 	}
 
 	if ((pfcp_config.cp_type == SGWC) &&
 			(!csr->pgw_s5s8_addr_ctl_plane_or_pmip.header.len)) {
-		fprintf(stderr, "%s:%s:%d Mandatory IE missing. Dropping packet len:%u\n",
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d Mandatory IE missing. Dropping packet len:%u\n",
 				__file__, __func__, __LINE__,
 				csr->pgw_s5s8_addr_ctl_plane_or_pmip.header.len);
 		return GTPV2C_CAUSE_MANDATORY_IE_MISSING;
 	}
 
 	if (/*!csr->max_apn_rstrct.header.len
-			||*/ !csr->bearer_contexts_to_be_created.header.len
-			|| !csr->sender_fteid_ctl_plane.header.len
+			||*/ !csr->sender_fteid_ctl_plane.header.len
 			|| !csr->imsi.header.len
 			|| !csr->apn_ambr.header.len
 			|| !csr->pdn_type.header.len
-			|| !csr->bearer_contexts_to_be_created.bearer_lvl_qos.header.len
 			|| !csr->rat_type.header.len
 			|| !(csr->pdn_type.pdn_type_pdn_type == PDN_IP_TYPE_IPV4) ) {
-		fprintf(stderr, "%s:%s:%d Mandatory IE missing. Dropping packet\n",
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d Mandatory IE missing. Dropping packet\n",
 				__file__, __func__, __LINE__);
 		return GTPV2C_CAUSE_MANDATORY_IE_MISSING;
 	}
 
+	for (uint8_t iCnt = 0; iCnt < csr->bearer_count; ++iCnt) {
+		if (!csr->bearer_contexts_to_be_created[iCnt].header.len
+			|| !csr->bearer_contexts_to_be_created[iCnt].bearer_lvl_qos.header.len) {
+			clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d Bearer Context IE missing. Dropping packet\n",
+					__file__, __func__, __LINE__);
+			return GTPV2C_CAUSE_MANDATORY_IE_MISSING;
+		}
+	}
+
 	if (csr->pdn_type.pdn_type_pdn_type == PDN_IP_TYPE_IPV6 ||
 			csr->pdn_type.pdn_type_pdn_type == PDN_IP_TYPE_IPV4V6) {
-		fprintf(stderr, "%s:%s:%d IPv6 Not Yet Implemented - Dropping packet\n",
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d IPv6 Not Yet Implemented - Dropping packet\n",
 				__file__, __func__, __LINE__);
 		return GTPV2C_CAUSE_PREFERRED_PDN_TYPE_UNSUPPORTED;
 	}

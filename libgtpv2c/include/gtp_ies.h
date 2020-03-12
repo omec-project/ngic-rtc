@@ -194,6 +194,7 @@
 #define INDICATION_OCT_10 6
 #define INDICATION_OCT_11 7
 
+#define START_REPORT_TAI_ECGI 6
 
 #pragma pack(1)
 
@@ -510,7 +511,9 @@ typedef struct gtp_eps_bearer_id_ie_t {
 
 typedef struct gtp_ip_address_ie_t {
   ie_header_t header;
-  uint8_t ipv4_ipv6_addr;
+  /* TODO: Need to check */
+  //uint8_t ipv4_ipv6_addr;
+  uint32_t ipv4_ipv6_addr;
 } gtp_ip_address_ie_t;
 
 typedef struct gtp_mbl_equip_idnty_ie_t {
@@ -1177,7 +1180,8 @@ typedef struct gtp_fqcsid_ie_t {
   ie_header_t header;
   uint8_t node_id_type :4;
   uint8_t number_of_csids :4;
-  uint8_t node_id;
+  /* VS: Need to validate */
+  uint32_t node_address;
   uint16_t pdn_csid[PDN_CSID_LEN];
 } gtp_fqcsid_ie_t;
 
@@ -1259,6 +1263,7 @@ typedef struct gtp_user_csg_info_ie_t {
   uint8_t mnc_digit_2 :4;
   uint8_t mnc_digit_1 :4;
   uint8_t spare2 :5;
+  uint32_t csg_id :3;
   uint32_t csg_id2 :24;
   uint8_t access_mode :2;
   uint8_t spare3 :4;
@@ -1680,16 +1685,16 @@ typedef struct gtp_secdry_rat_usage_data_rpt_ie_t {
   uint8_t secdry_rat_type;
   uint8_t spare3 :4;
   uint8_t ebi :4;
-  uint8_t start_timestamp;
-  uint8_t end_timestamp;
-  uint8_t usage_data_dl;
-  uint8_t usage_data_ul;
+  uint32_t start_timestamp;
+  uint32_t end_timestamp;
+  uint64_t usage_data_dl;
+  uint64_t usage_data_ul;
 } gtp_secdry_rat_usage_data_rpt_ie_t;
 
 typedef struct gtp_up_func_sel_indctn_flgs_ie_t {
-  ie_header_t header;
-  uint8_t spare2 :7;
-  uint8_t dcnr :1;
+	ie_header_t header;
+	uint8_t spare2 :7;
+	uint8_t dcnr :1;
 } gtp_up_func_sel_indctn_flgs_ie_t;
 
 typedef struct gtp_max_pckt_loss_rate_ie_t {

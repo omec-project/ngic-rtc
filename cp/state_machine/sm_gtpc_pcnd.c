@@ -21,35 +21,34 @@
 #include "pfcp_util.h"
 #include "gtp_messages_decoder.h"
 #include "gtpv2c_error_rsp.h"
-
+#include "cp_timer.h"
 
 #ifdef USE_REST
 #include "main.h"
 #endif
 
-#ifdef C3PO_OSS
 #include "cp_config.h"
-#include "cp_adapter.h"
-#endif /* C3PO_OSS */
+#include "gw_adapter.h"
 
 pfcp_config_t pfcp_config;
 extern struct cp_stats_t cp_stats;
 
 uint8_t
-gtpv2c_pcnd_check(gtpv2c_header_t *gtpv2c_rx, int bytes_rx)
+gtpv2c_pcnd_check(gtpv2c_header_t *gtpv2c_rx, int bytes_rx,
+		struct sockaddr_in *peer_addr)
 {
 	int ret = 0;
 
 	if ((unsigned)bytes_rx !=
 		 (ntohs(gtpv2c_rx->gtpc.message_len)
-		 + sizeof(gtpv2c_rx->gtpc))
+		 + sizeof(gtpv2c_rx->gtpc)) && gtpv2c_rx->gtpc.piggyback == 0
 		) {
 		ret = GTPV2C_CAUSE_INVALID_LENGTH;
 		/* According to 29.274 7.7.7, if message is request,
 		 * reply with cause = GTPV2C_CAUSE_INVALID_LENGTH
 		 *  should be sent - ignoring packet for now
 		 */
-		fprintf(stderr, "GTPv2C Received UDP Payload:"
+		clLog(clSystemLog, eCLSeverityCritical, "GTPv2C Received UDP Payload:"
 				"\n\t(%d bytes) with gtpv2c + "
 				"header (%u + %lu) = %lu bytes\n",
 				bytes_rx, ntohs(gtpv2c_rx->gtpc.message_len),
@@ -60,13 +59,29 @@ gtpv2c_pcnd_check(gtpv2c_header_t *gtpv2c_rx, int bytes_rx)
 	}
 
 	if(bytes_rx > 0){
-		if(gtpv2c_rx->gtpc.version < GTP_VERSION_GTPV2C) {
-			fprintf(stderr, "Discarding packet due to gtp version is not supported..");
+		if (gtpv2c_rx->gtpc.version < GTP_VERSION_GTPV2C) {
+			if (peer_addr != NULL) {
+				clLog(clSystemLog, eCLSeverityCritical,
+						FORMAT"ERROR: Discarding packet from "IPV4_ADDR" due to gtp version %u not supported..\n",
+						ERR_MSG, IPV4_ADDR_HOST_FORMAT(ntohl(peer_addr->sin_addr.s_addr)), gtpv2c_rx->gtpc.version);
+			} else {
+				clLog(clSystemLog, eCLSeverityCritical,
+						FORMAT"ERROR: Discarding packet due to gtp version %u not supported..\n",
+						ERR_MSG, gtpv2c_rx->gtpc.version);
+			}
 			return GTPV2C_CAUSE_VERSION_NOT_SUPPORTED;
-		}else if(gtpv2c_rx->gtpc.version > GTP_VERSION_GTPV2C){
+		}else if (gtpv2c_rx->gtpc.version > GTP_VERSION_GTPV2C){
 			send_version_not_supported(spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE,
 					gtpv2c_rx->teid.has_teid.seq);
-			fprintf(stderr, "Discarding packet due to gtp version is not supported..");
+			if (peer_addr != NULL) {
+				clLog(clSystemLog, eCLSeverityCritical,
+						FORMAT"ERROR: Discarding packet from "IPV4_ADDR" due to gtp version %u not supported..\n",
+						ERR_MSG, IPV4_ADDR_HOST_FORMAT(ntohl(peer_addr->sin_addr.s_addr)), gtpv2c_rx->gtpc.version);
+			} else {
+				clLog(clSystemLog, eCLSeverityCritical,
+						FORMAT"ERROR: Discarding packet due to gtp version %u not supported..\n",
+						ERR_MSG, gtpv2c_rx->gtpc.version);
+			}
 			return GTPV2C_CAUSE_VERSION_NOT_SUPPORTED;
 		}
 	}
@@ -75,17 +90,21 @@ gtpv2c_pcnd_check(gtpv2c_header_t *gtpv2c_rx, int bytes_rx)
 }
 
 uint8_t
-gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx)
+gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
+		struct sockaddr_in *peer_addr, uint8_t uiIntFc)
 {
 	int ret = 0;
 	ue_context *context = NULL;
+	pdn_connection *pdn = NULL;
 	msg->msg_type = gtpv2c_rx->gtpc.message_type;
+	uint8_t ebi_index = 0;
+	int i = 0;
 
+	if ((ret = gtpv2c_pcnd_check(gtpv2c_rx, bytes_rx, peer_addr)) != 0){
 
-	if ((ret = gtpv2c_pcnd_check(gtpv2c_rx, bytes_rx)) != 0){
-
-		if (ret == GTPV2C_CAUSE_VERSION_NOT_SUPPORTED)
+		if(ret == GTPV2C_CAUSE_VERSION_NOT_SUPPORTED) {
 			return ret;
+		}
 
 		switch(msg->msg_type) {
 
@@ -119,31 +138,98 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx)
 				}
 				break;
 
+
 			case GTP_MODIFY_BEARER_REQ:
 
 				if( decode_mod_bearer_req((uint8_t *) gtpv2c_rx, &msg->gtpc_msg.mbr) != 0) {
 					mbr_error_response(msg, ret, spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
 				}
 				break;
+
 			case GTP_MODIFY_BEARER_RSP:
 
 				if( decode_mod_bearer_rsp((uint8_t *) gtpv2c_rx, &msg->gtpc_msg.mb_rsp) != 0) {
 					mbr_error_response(msg, ret, spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
 				}
 				break;
+
 			case GTP_CREATE_BEARER_REQ:
 
 				if( decode_create_bearer_req((uint8_t *) gtpv2c_rx, &msg->gtpc_msg.cb_req) != 0) {
-					/* TODO for create bearer request error response */
+					cbr_error_response(msg, ret, spgw_cfg != PGWC ? S5S8_IFACE : GX_IFACE);
 				}
 				break;
+
 			case GTP_CREATE_BEARER_RSP:
 
 				if( decode_create_bearer_rsp((uint8_t *) gtpv2c_rx, &msg->gtpc_msg.cb_rsp) != 0) {
-					/* TODO for create bearer response error response */
+					cbr_error_response(msg, ret, spgw_cfg != PGWC ? S5S8_IFACE : GX_IFACE);
 				}
 				break;
 
+			case GTP_DELETE_BEARER_REQ:
+
+				if( decode_del_bearer_req((uint8_t *) gtpv2c_rx, &msg->gtpc_msg.db_req) != 0) {
+					delete_bearer_error_response(msg,ret,spgw_cfg !=  PGWC ? S5S8_IFACE:GX_IFACE);
+				}
+				break;
+
+			case GTP_DELETE_BEARER_RSP:
+
+				if( decode_del_bearer_rsp((uint8_t *) gtpv2c_rx, &msg->gtpc_msg.db_rsp) != 0) {
+					delete_bearer_error_response(msg,ret,spgw_cfg !=  PGWC ? S5S8_IFACE:GX_IFACE);
+				}
+				break;
+
+			case GTP_UPDATE_BEARER_REQ:
+
+				if((decode_upd_bearer_req((uint8_t *) gtpv2c_rx,
+											&msg->gtpc_msg.ub_req) != 0)){
+					ubr_error_response(msg, ret, S5S8_IFACE);
+
+				}
+				break;
+
+			case GTP_UPDATE_BEARER_RSP:
+
+				if((decode_upd_bearer_rsp((uint8_t *) gtpv2c_rx,
+											&msg->gtpc_msg.ub_rsp) != 0)){
+					ubr_error_response(msg, ret, S5S8_IFACE);
+
+				}
+				break;
+
+			case GTP_DELETE_PDN_CONNECTION_SET_REQ:
+				if( decode_del_pdn_conn_set_req((uint8_t *) gtpv2c_rx, &msg->gtpc_msg.del_pdn_req) != 0) {
+					/* TODO for delete pdn connection set request error response */
+				}
+				break;
+
+			case GTP_DELETE_PDN_CONNECTION_SET_RSP:
+				if( decode_del_pdn_conn_set_rsp((uint8_t *) gtpv2c_rx, &msg->gtpc_msg.del_pdn_rsp) != 0) {
+					/* TODO for delete pdn connection set response error response */
+				}
+				break;
+
+			case GTP_UPDATE_PDN_CONNECTION_SET_REQ:
+				if( decode_upd_pdn_conn_set_req((uint8_t *) gtpv2c_rx, &msg->gtpc_msg.upd_pdn_req) != 0) {
+					/* TODO for update pdn connection set request error response */
+				}
+				break;
+
+			case GTP_UPDATE_PDN_CONNECTION_SET_RSP:
+				if( decode_upd_pdn_conn_set_rsp((uint8_t *) gtpv2c_rx, &msg->gtpc_msg.upd_pdn_rsp) != 0) {
+					/* TODO for update pdn connection set response error response */
+				}
+				break;
+
+			case GTP_PGW_RESTART_NOTIFICATION_ACK:
+				if( decode_pgw_rstrt_notif_ack((uint8_t *) gtpv2c_rx, &msg->gtpc_msg.pgw_rstrt_notif_ack) != 0) {
+					/* TODO for PGW restart notification response error response */
+				}
+				break;
+			case GTP_IDENTIFICATION_RSP:
+				break;
 		}
 		return -1;
 
@@ -153,7 +239,7 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx)
 
 		case GTP_CREATE_SESSION_REQ: {
 
-			if ((ret = decode_check_csr(gtpv2c_rx, &msg->gtpc_msg.csr)) != 0){
+			if ((ret = decode_check_csr(gtpv2c_rx, &msg->gtpc_msg.csr)) != 0) {
 				if(ret != -1)
 					cs_error_response(msg, ret,
 							spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
@@ -162,8 +248,10 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx)
 
 			/*CLI*/
 			/*add entry of MME(if cp is SGWC) and SGWC (if cp PGWC)*/
-			add_node_conn_entry(ntohl(msg->gtpc_msg.csr.sender_fteid_ctl_plane.ipv4_address),
-										spgw_cfg != PGWC ? S11_SGW_PORT_ID : S5S8_PGWC_PORT_ID);
+			if (msg->gtpc_msg.csr.sender_fteid_ctl_plane.ipv4_address != 0) {
+				add_node_conn_entry(ntohl(msg->gtpc_msg.csr.sender_fteid_ctl_plane.ipv4_address),
+											spgw_cfg != PGWC ? S11_SGW_PORT_ID : S5S8_PGWC_PORT_ID);
+			}
 			msg->proc = get_procedure(msg);
 			if (INITIAL_PDN_ATTACH_PROC == msg->proc) {
 				/* VS: Set the initial state for initial PDN connection */
@@ -188,7 +276,7 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx)
 			/*Set the appropriate event type.*/
 			msg->event = CS_REQ_RCVD_EVNT;
 
-			clLog(s11logger, eCLSeverityDebug, "%s: Callback called for"
+			clLog(clSystemLog, eCLSeverityDebug, "%s: Callback called for"
 					"Msg_Type:%s[%u], Teid:%u, "
 					"Procedure:%s, State:%s, Event:%s\n",
 					__func__, gtp_type_str(msg->msg_type), msg->msg_type,
@@ -199,91 +287,104 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx)
 	}
 
 	case GTP_CREATE_SESSION_RSP: {
-
+			struct resp_info *resp = NULL;
 			ret = decode_create_sess_rsp((uint8_t *)gtpv2c_rx, &msg->gtpc_msg.cs_rsp);
 			if(!ret)
 				return -1;
+
+			delete_timer_entry(msg->gtpc_msg.cs_rsp.header.teid.has_teid.teid);
+
 			if(msg->gtpc_msg.cs_rsp.cause.cause_value != GTPV2C_CAUSE_REQUEST_ACCEPTED){
 				cs_error_response(msg, msg->gtpc_msg.cs_rsp.cause.cause_value,
 						        spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
 				return -1;
 			}
-			if (get_ue_context(msg->gtpc_msg.cs_rsp.header.teid.has_teid.teid, &context) != 0)
+
+			if(get_ue_context_by_sgw_s5s8_teid(msg->gtpc_msg.cs_rsp.header.teid.has_teid.teid, &context) != 0)
 			{
 				cs_error_response(msg, GTPV2C_CAUSE_CONTEXT_NOT_FOUND,
 							spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
 				return -1;
 			}
-
-			msg->state = context->state;
-			msg->proc = context->proc;
-
-			/*Set the appropriate event type.*/
-			msg->event = CS_RESP_RCVD_EVNT;
-
-			clLog(s11logger, eCLSeverityDebug, "%s: Callback called for"
-					"Msg_Type:%s[%u], Teid:%u, "
-					"Procedure:%s, State:%s, Event:%s\n",
-					__func__, gtp_type_str(msg->msg_type), msg->msg_type,
-					gtpv2c_rx->teid.has_teid.teid,
-					get_proc_string(msg->proc),
-					get_state_string(msg->state), get_event_string(msg->event));
-		break;
-	}
-
-	case GTP_MODIFY_BEARER_REQ: {
-			/*Decode the received msg and stored into the struct. */
-			if((ret = decode_mod_bearer_req((uint8_t *) gtpv2c_rx,
-							&msg->gtpc_msg.mbr) == 0)) {
+			for(uint8_t i = 0; i < msg->gtpc_msg.cs_rsp.bearer_count; i++) {
+				ebi_index = msg->gtpc_msg.cs_rsp.bearer_contexts_created[i].eps_bearer_id.ebi_ebi - 5;
+				if(ebi_index == 0)
+					break;
+			}
+			pdn = GET_PDN(context, ebi_index);
+			if(pdn == NULL){
+				clLog(clSystemLog, eCLSeverityCritical,
+						"%s:%d Failed to get pdn \n", __func__, __LINE__);
 				return -1;
 			}
-			if(pfcp_config.cp_type == PGWC) {
-				msg->proc = get_procedure(msg);
 
-				gtpv2c_rx->teid.has_teid.teid = ntohl(gtpv2c_rx->teid.has_teid.teid);//0xd0ffee;
+			msg->state = pdn->state;
 
+			if(msg->gtpc_msg.csr.header.gtpc.piggyback){
 
-				if (update_ue_proc(gtpv2c_rx->teid.has_teid.teid,
-							msg->proc) != 0) {
-					mbr_error_response(msg, GTPV2C_CAUSE_CONTEXT_NOT_FOUND,
-							    spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
-					return -1;
-				}
+				msg->proc = ATTACH_DEDICATED_PROC;
+				pdn->proc = ATTACH_DEDICATED_PROC;
 
-				if(get_ue_context(msg->gtpc_msg.mbr.header.teid.has_teid.teid, &context) != 0) {
-					mbr_error_response(msg, GTPV2C_CAUSE_CONTEXT_NOT_FOUND,
-							    spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
-					return -1;
-				}
-				msg->state = context->state;
-				msg->event = MB_REQ_RCVD_EVNT;
-				context->proc = msg->proc;
+				if(get_sess_entry(pdn->seid, &resp) == 0)
+					memcpy(&resp->gtpc_msg.cs_rsp, &msg->gtpc_msg.cs_rsp, sizeof(create_sess_rsp_t));
+
+				gtpv2c_rx = (gtpv2c_header_t *)((uint8_t *)gtpv2c_rx + ntohs(gtpv2c_rx->gtpc.message_len)
+						+ sizeof(gtpv2c_rx->gtpc));
+				msg->msg_type =  gtpv2c_rx->gtpc.message_type;
 
 			} else {
-			/*Retrive UE state. */
-			if(get_ue_context(msg->gtpc_msg.mbr.header.teid.has_teid.teid, &context) != 0) {
+				msg->proc = pdn->proc;
 
-				mbr_error_response(msg, GTPV2C_CAUSE_CONTEXT_NOT_FOUND,
-							    spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
+				/*Set the appropriate event type.*/
+				msg->event = CS_RESP_RCVD_EVNT;
+
+				update_sys_stat(number_of_users, INCREMENT);
+				update_sys_stat(number_of_active_session, INCREMENT);
+
+				clLog(clSystemLog, eCLSeverityDebug, "%s: Callback called for"
+						"Msg_Type:%s[%u], Teid:%u, "
+						"Procedure:%s, State:%s, Event:%s\n",
+						__func__, gtp_type_str(msg->msg_type), msg->msg_type,
+						gtpv2c_rx->teid.has_teid.teid,
+						get_proc_string(msg->proc),
+						get_state_string(msg->state), get_event_string(msg->event));
+				break;
+			}
+	}
+
+	case GTP_CREATE_BEARER_REQ:{
+
+			if((ret = decode_create_bearer_req((uint8_t *) gtpv2c_rx,
+							&msg->gtpc_msg.cb_req) == 0))
+					return -1;
+
+			gtpv2c_rx->teid.has_teid.teid = ntohl(gtpv2c_rx->teid.has_teid.teid);
+			ebi_index = msg->gtpc_msg.cb_req.lbi.ebi_ebi - 5;
+
+			if(get_ue_context_by_sgw_s5s8_teid(gtpv2c_rx->teid.has_teid.teid, &context) != 0) {
+				fprintf(stderr , "%s:%d UE Context not found... 0x%x\n",__func__,
+							__LINE__, gtpv2c_rx->teid.has_teid.teid);
 				return -1;
 			}
+			msg->state = context->eps_bearers[ebi_index]->pdn->state;
+			if(context->eps_bearers[ebi_index]->pdn->proc == ATTACH_DEDICATED_PROC){
+				msg->proc = context->eps_bearers[ebi_index]->pdn->proc;
+			}else {
+				msg->proc = get_procedure(msg);
+			}
 
-			msg->state = context->state;
-			msg->proc = context->proc;
+			msg->event = CREATE_BER_REQ_RCVD_EVNT;
 
-			/*Set the appropriate event type.*/
-			msg->event = MB_REQ_RCVD_EVNT;
-
-			clLog(s11logger, eCLSeverityDebug, "%s: Callback called for"
+			clLog(clSystemLog, eCLSeverityDebug, "%s: Callback called for"
 					"Msg_Type:%s[%u], Teid:%u, "
-					"Procedure:%s, State:%s, Event:%s\n",
+					"State:%s, Event:%s\n",
 					__func__, gtp_type_str(msg->msg_type), msg->msg_type,
 					gtpv2c_rx->teid.has_teid.teid,
-					get_proc_string(msg->proc),
 					get_state_string(msg->state), get_event_string(msg->event));
-			}
-			break;
+
+	   break;
 	}
+
 
 	case GTP_MODIFY_BEARER_RSP: {
 		if((ret = decode_mod_bearer_rsp((uint8_t *) gtpv2c_rx,
@@ -291,17 +392,55 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx)
 			return -1;
 		}
 
-		gtpv2c_rx->teid.has_teid.teid = ntohl(gtpv2c_rx->teid.has_teid.teid);
+		delete_timer_entry(msg->gtpc_msg.mb_rsp.header.teid.has_teid.teid);
 
-		if(get_ue_context(gtpv2c_rx->teid.has_teid.teid, &context) != 0) {
+		if(msg->gtpc_msg.mb_rsp.cause.cause_value != GTPV2C_CAUSE_REQUEST_ACCEPTED){
+			cs_error_response(msg, msg->gtpc_msg.mb_rsp.cause.cause_value,
+					spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
+			return -1;
+		}
+
+		if(get_ue_context_by_sgw_s5s8_teid(msg->gtpc_msg.mb_rsp.header.teid.has_teid.teid, &context) != 0)
+		{
 			cs_error_response(msg, GTPV2C_CAUSE_CONTEXT_NOT_FOUND,
 							spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
 			process_error_occured_handler(&msg, NULL);
 
 			return -1;
 		}
-		msg->state = context->state;
-		msg->proc = context->proc;
+
+		if (msg->gtpc_msg.mb_rsp.linked_eps_bearer_id.ebi_ebi == 0) {
+			if (msg->gtpc_msg.mb_rsp.bearer_contexts_modified[0].header.len != 0) {
+				ebi_index = msg->gtpc_msg.mb_rsp.bearer_contexts_modified[0].eps_bearer_id.ebi_ebi - 5;
+			}else{
+				struct eps_bearer_t *bearer_temp = NULL;
+				ret = get_bearer_by_teid(msg->gtpc_msg.mb_rsp.header.teid.has_teid.teid, &bearer_temp);
+				if(ret < 0) {
+					clLog(clSystemLog, eCLSeverityCritical, "%s:%d Entry not found for teid:%x...\n", __func__, __LINE__,
+							msg->gtpc_msg.mb_rsp.header.teid.has_teid.teid);
+					return -1;
+				}
+				ebi_index = UE_BEAR_ID(bearer_temp->pdn->seid) -5;
+			}
+		} else {
+			ebi_index = msg->gtpc_msg.mb_rsp.linked_eps_bearer_id.ebi_ebi - 5;
+		}
+
+		pdn = GET_PDN(context, ebi_index);
+		if(pdn == NULL){
+			clLog(clSystemLog, eCLSeverityCritical,
+					"%s:%d Failed to get pdn \n", __func__, __LINE__);
+			return -1;
+		}
+
+		msg->state = pdn->state;
+
+		if (pdn->proc == INITIAL_PDN_ATTACH_PROC) {
+			msg->proc = PARTIAL_FAILURE_PROC;
+		} else {
+			msg->proc = pdn->proc;
+		}
+
 		msg->event = MB_RESP_RCVD_EVNT;
 		break;
 	}
@@ -322,23 +461,29 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx)
 				return -1;
 			}
 
+			ebi_index = msg->gtpc_msg.dsr.lbi.ebi_ebi - 5;
 			msg->proc = get_procedure(msg);
 			if (DETACH_PROC == msg->proc) {
 				if (update_ue_proc(msg->gtpc_msg.dsr.header.teid.has_teid.teid,
-							msg->proc) != 0) {
+							msg->proc,ebi_index) != 0) {
 				ds_error_response(msg, GTPV2C_CAUSE_CONTEXT_NOT_FOUND,
 							spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
 					return -1;
 				}
-
-
-				msg->state = context->state;
 			}
+			pdn = GET_PDN(context, ebi_index);
+			if(pdn == NULL){
+				clLog(clSystemLog, eCLSeverityCritical,
+					"%s:%d Failed to get pdn \n", __func__, __LINE__);
+				return -1;
+			}
+
+			msg->state = pdn->state;
 
 			/*Set the appropriate event type.*/
 			msg->event = DS_REQ_RCVD_EVNT;
 
-			clLog(s11logger, eCLSeverityDebug, "%s: Callback called for"
+			clLog(clSystemLog, eCLSeverityDebug, "%s: Callback called for"
 					"Msg_Type:%s[%u], Teid:%u, "
 					"Procedure:%s, State:%s, Event:%s\n",
 					__func__, gtp_type_str(msg->msg_type), msg->msg_type,
@@ -354,7 +499,11 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx)
 		ret = decode_del_sess_rsp((uint8_t *) gtpv2c_rx, &msg->gtpc_msg.ds_rsp);
 		if(ret == 0)
 			return -1;
-		if(get_ue_context(msg->gtpc_msg.ds_rsp.header.teid.has_teid.teid, &context) != 0) {
+
+		delete_timer_entry(msg->gtpc_msg.ds_rsp.header.teid.has_teid.teid);
+
+		if(get_ue_context_by_sgw_s5s8_teid(msg->gtpc_msg.ds_rsp.header.teid.has_teid.teid, &context) != 0)
+		 {
 
 			ds_error_response(msg, GTPV2C_CAUSE_CONTEXT_NOT_FOUND,
 							spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
@@ -362,21 +511,20 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx)
 		}
 
 		if(msg->gtpc_msg.ds_rsp.cause.cause_value != GTPV2C_CAUSE_REQUEST_ACCEPTED){
-			fprintf(stderr, "Cause Req Error : (%s:%d)msg type :%u, cause ie : %u \n", __func__, __LINE__,
+			clLog(clSystemLog, eCLSeverityCritical, "Cause Req Error : (%s:%d)msg type :%u, cause ie : %u \n", __func__, __LINE__,
 					msg->msg_type, msg->gtpc_msg.ds_rsp.cause.cause_value);
 
 			 ds_error_response(msg, msg->gtpc_msg.ds_rsp.cause.cause_value,
 							spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
 			return -1;
 		}
-
 		/*Set the appropriate procedure and state.*/
-		msg->state = context->state;
-		msg->proc = context->proc;
+		msg->state = DS_REQ_SNT_STATE;
+		msg->proc = get_procedure(msg);
 		/*Set the appropriate event type.*/
 		msg->event = DS_RESP_RCVD_EVNT;
 
-		clLog(s5s8logger, eCLSeverityDebug, "%s: Callback called for"
+		clLog(clSystemLog, eCLSeverityDebug, "%s: Callback called for"
 			"Msg_Type:%s[%u], Teid:%u, "
 			"Procedure:%s, State:%s, Event:%s\n",
 			__func__, gtp_type_str(msg->msg_type), msg->msg_type,
@@ -396,8 +544,8 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx)
 			msg->proc = get_procedure(msg);
 			if (CONN_SUSPEND_PROC == msg->proc) {
 				if (update_ue_proc((msg->gtpc_msg.rel_acc_ber_req_t.context)->s11_sgw_gtpc_teid,
-							msg->proc) != 0) {
-					fprintf(stderr, "%s failed\n", __func__);
+							msg->proc ,ebi_index) != 0) {
+					clLog(clSystemLog, eCLSeverityCritical, "%s failed\n", __func__);
 					return -1;
 				}
 
@@ -406,14 +554,19 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx)
 							&context) != 0) {
 					return -1;
 				}
-
-				msg->state = context->state;
+				for(i=0; i < MAX_BEARERS; i++){
+					if(context->pdns[i] == NULL){
+						continue;
+					}
+					else
+					msg->state = context->pdns[i]->state;
+				}
 			}
 
 			/*Set the appropriate event type.*/
 			msg->event = REL_ACC_BER_REQ_RCVD_EVNT;
 
-			clLog(s11logger, eCLSeverityDebug, "%s: Callback called for"
+			clLog(clSystemLog, eCLSeverityDebug, "%s: Callback called for"
 					"Msg_Type:%s[%u], Teid:%u, "
 					"Procedure:%s, State:%s, Event:%s\n",
 					__func__, gtp_type_str(msg->msg_type), msg->msg_type,
@@ -435,13 +588,20 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx)
 				return -1;
 			}
 
-			msg->state = context->state;
-			msg->proc = context->proc;
+			for(i=0; i < MAX_BEARERS; i++){
+				if(context->pdns[i] == NULL){
+					continue;
+				}
+				else{
+					msg->state = context->pdns[i]->state;
+					msg->proc = context->pdns[i]->proc;
+				}
+			}
 
 			/*Set the appropriate event type.*/
 			msg->event = DDN_ACK_RESP_RCVD_EVNT;
 
-			clLog(s11logger, eCLSeverityDebug, "%s: Callback called for"
+			clLog(clSystemLog, eCLSeverityDebug, "%s: Callback called for"
 					"Msg_Type:%s[%u], Teid:%u, "
 					"Procedure:%s, State:%s, Event:%s\n",
 					__func__, gtp_type_str(msg->msg_type), msg->msg_type,
@@ -451,24 +611,228 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx)
 		break;
 	}
 
-	case GTP_CREATE_BEARER_REQ:{
 
-			if((ret = decode_create_bearer_req((uint8_t *) gtpv2c_rx,
-							&msg->gtpc_msg.cb_req) == 0))
-					return -1;
+	case GTP_CREATE_BEARER_RSP:{
+			struct resp_info *resp = NULL;
+			if((ret = decode_create_bearer_rsp((uint8_t *) gtpv2c_rx, &msg->gtpc_msg.cb_rsp) == 0))
+				return -1;
+
+			if(msg->gtpc_msg.cb_rsp.cause.cause_value != GTPV2C_CAUSE_REQUEST_ACCEPTED){
+				cbr_error_response(msg, msg->gtpc_msg.ds_rsp.cause.cause_value,spgw_cfg != PGWC ? S5S8_IFACE : GX_IFACE);
+			return -1;
+			}
 
 			gtpv2c_rx->teid.has_teid.teid = ntohl(gtpv2c_rx->teid.has_teid.teid);
+			/* TODO : need to revisit here */
 
-			if((ret = get_ue_state(gtpv2c_rx->teid.has_teid.teid)) > 0){
+			ebi_index = (MAX_BEARERS + 1) - 5;
+
+			delete_pfcp_if_timer_entry(gtpv2c_rx->teid.has_teid.teid, ebi_index);
+
+			if((ret = get_ue_state(gtpv2c_rx->teid.has_teid.teid ,ebi_index)) > 0){
 				msg->state = ret;
 			}else{
 				return -1;
 			}
+			if (get_ue_context(gtpv2c_rx->teid.has_teid.teid, &context) != 0) {
+				return -1;
+			}
+			if(msg->gtpc_msg.cb_rsp.header.gtpc.piggyback){
 
-			msg->proc = get_procedure(msg);
-			msg->event = CREATE_BER_REQ_RCVD_EVNT;
+				msg->proc = ATTACH_DEDICATED_PROC;
+				pdn->proc = ATTACH_DEDICATED_PROC;
 
-			clLog(s5s8logger, eCLSeverityDebug, "%s: Callback called for"
+				if(get_sess_entry(pdn->seid, &resp) == 0)
+					memcpy(&resp->gtpc_msg.cb_rsp, &msg->gtpc_msg.cb_rsp, sizeof(create_bearer_rsp_t));
+
+				gtpv2c_rx = (gtpv2c_header_t *)((uint8_t *)gtpv2c_rx + ntohs(gtpv2c_rx->gtpc.message_len)
+						+ sizeof(gtpv2c_rx->gtpc));
+				msg->msg_type =  gtpv2c_rx->gtpc.message_type;
+
+			} else {
+				msg->proc = get_procedure(msg);
+				msg->event = CREATE_BER_RESP_RCVD_EVNT;
+
+				clLog(clSystemLog, eCLSeverityDebug, "%s: Callback called for"
+						"Msg_Type:%s[%u], Teid:%u, "
+						"State:%s, Event:%s\n",
+						__func__, gtp_type_str(msg->msg_type), msg->msg_type,
+						gtpv2c_rx->teid.has_teid.teid,
+						get_state_string(msg->state), get_event_string(msg->event));
+
+				break;
+			}
+	}
+
+	case GTP_MODIFY_BEARER_REQ: {
+			/*Decode the received msg and stored into the struct. */
+			if((ret = decode_mod_bearer_req((uint8_t *) gtpv2c_rx,
+							&msg->gtpc_msg.mbr) == 0)) {
+				return -1;
+			}
+
+			/* update ue context info */
+			update_ue_context(&msg->gtpc_msg.mbr);
+
+			if(pfcp_config.cp_type == PGWC) {
+				gtpv2c_rx->teid.has_teid.teid = ntohl(gtpv2c_rx->teid.has_teid.teid);//0xd0ffee;
+
+				if(get_ue_context(msg->gtpc_msg.mbr.header.teid.has_teid.teid, &context) != 0) {
+					mbr_error_response(msg, GTPV2C_CAUSE_CONTEXT_NOT_FOUND,
+							    spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
+					return -1;
+				}
+				/*Extracting default bearer ID*/
+				for(int i = 0; i<  msg->gtpc_msg.mbr.bearer_count; i++) {
+					ebi_index = msg->gtpc_msg.mbr.bearer_contexts_to_be_modified[i].eps_bearer_id.ebi_ebi - 5;
+					if(ebi_index == 0)
+						break;
+				}
+
+				pdn = GET_PDN(context, ebi_index);
+				if(pdn == NULL){
+					clLog(clSystemLog, eCLSeverityCritical,
+							"%s:%d Failed to get pdn \n", __func__, __LINE__);
+					return -1;
+				}
+
+				if((context->uli_flag == TRUE) || (context->serving_nw_flag == TRUE) ||
+						(context->rat_type_flag == TRUE) || (context->ue_time_zone_flag == TRUE) ||
+						(context->uci_flag == TRUE) || (context->second_rat_flag == TRUE)){
+					msg->proc = MODIFICATION_PROC;
+					if (update_ue_proc(gtpv2c_rx->teid.has_teid.teid,
+								msg->proc ,ebi_index) != 0) {
+						mbr_error_response(msg, GTPV2C_CAUSE_CONTEXT_NOT_FOUND,
+								    spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
+						return -1;
+					}
+				}else if ((pdn->proc == INITIAL_PDN_ATTACH_PROC) &&
+						(msg->gtpc_msg.mbr.sender_fteid_ctl_plane.ipv4_address == 0)) {
+					/*Note  Above condition "msg->gtpc_msg.mbr.sender_fteid_ctl_plane.ipv4_address == 0"
+					 * is added to avoid  PARTIAL_FAILURE_PROC to set in SGW Reloction */
+					msg->proc = PARTIAL_FAILURE_PROC;
+				} else {
+					msg->proc = get_procedure(msg);
+					if (update_ue_proc(gtpv2c_rx->teid.has_teid.teid,
+								msg->proc ,ebi_index) != 0) {
+						mbr_error_response(msg, GTPV2C_CAUSE_CONTEXT_NOT_FOUND,
+								    spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
+						return -1;
+					}
+				}
+
+				msg->state = pdn->state;
+				msg->event = MB_REQ_RCVD_EVNT;
+				if (msg->gtpc_msg.mbr.sender_fteid_ctl_plane.ipv4_address != 0) {
+					add_node_conn_entry(ntohl(msg->gtpc_msg.mbr.sender_fteid_ctl_plane.ipv4_address),
+											S5S8_PGWC_PORT_ID);
+				}
+
+			} else {
+				/*Retrive UE state. */
+				if(get_ue_context(msg->gtpc_msg.mbr.header.teid.has_teid.teid, &context) != 0) {
+
+					mbr_error_response(msg, GTPV2C_CAUSE_CONTEXT_NOT_FOUND,
+								    spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
+					return -1;
+				}
+				for(uint8_t i = 0; i< msg->gtpc_msg.mbr.bearer_count; i++) {
+					ebi_index = msg->gtpc_msg.mbr.bearer_contexts_to_be_modified[i].eps_bearer_id.ebi_ebi - 5;
+					if(ebi_index == 0)
+						break;
+				}
+				pdn = GET_PDN(context, ebi_index);
+				if(pdn == NULL){
+					clLog(clSystemLog, eCLSeverityCritical,
+						"%s:%d Failed to get pdn \n", __func__, __LINE__);
+					return -1;
+				}
+
+				msg->state = pdn->state;
+
+				if((context->uli_flag == TRUE) || (context->serving_nw_flag == TRUE) ||
+						(context->rat_type_flag == TRUE) || (context->ue_time_zone_flag == TRUE) ||
+						(context->uci_flag == TRUE) || (context->second_rat_flag == TRUE)) {
+					msg->proc = MODIFICATION_PROC;
+					if (update_ue_proc(ntohl(gtpv2c_rx->teid.has_teid.teid),
+								msg->proc, ebi_index) != 0) {
+						mbr_error_response(msg, GTPV2C_CAUSE_CONTEXT_NOT_FOUND,
+								spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
+						return -1;
+					}
+					for(uint8_t i = 0; i< msg->gtpc_msg.mbr.bearer_count; i++) {
+						ebi_index = msg->gtpc_msg.mbr.bearer_contexts_to_be_modified[0].eps_bearer_id.ebi_ebi - 5;
+						if(ebi_index == 0)
+							break;
+					}
+					pdn = GET_PDN(context, ebi_index);
+					if(pdn == NULL){
+						clLog(clSystemLog, eCLSeverityCritical,
+							"%s:%d Failed to get pdn \n", __func__, __LINE__);
+						return -1;
+					}
+
+					msg->state = pdn->state;
+
+				} else if ((pdn->proc == INITIAL_PDN_ATTACH_PROC) ||
+						(CONN_SUSPEND_PROC == pdn->proc) || ATTACH_DEDICATED_PROC == pdn->proc) {
+						msg->proc = pdn->proc;
+				} else {
+						msg->proc = get_procedure(msg);
+						if (update_ue_proc(ntohl(gtpv2c_rx->teid.has_teid.teid),
+									msg->proc, ebi_index) != 0) {
+							mbr_error_response(msg, GTPV2C_CAUSE_CONTEXT_NOT_FOUND,
+									spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
+							return -1;
+						}
+						pdn->proc = msg->proc;
+				}
+			}
+
+			/*Set the appropriate event type.*/
+			msg->event = MB_REQ_RCVD_EVNT;
+
+			clLog(clSystemLog, eCLSeverityDebug, "%s: Callback called for"
+					"Msg_Type:%s[%u], Teid:%u, "
+					"Procedure:%s, State:%s, Event:%s\n",
+					__func__, gtp_type_str(msg->msg_type), msg->msg_type,
+					gtpv2c_rx->teid.has_teid.teid,
+					get_proc_string(msg->proc),
+					get_state_string(msg->state), get_event_string(msg->event));
+			break;
+	}
+	case GTP_DELETE_BEARER_REQ:{
+
+			if((ret = decode_del_bearer_req((uint8_t *) gtpv2c_rx,
+							&msg->gtpc_msg.db_req) == 0))
+				return -1;
+
+			gtpv2c_rx->teid.has_teid.teid = ntohl(gtpv2c_rx->teid.has_teid.teid);
+
+			if (msg->gtpc_msg.db_req.lbi.header.len) {
+				ebi_index = msg->gtpc_msg.db_req.lbi.ebi_ebi - 5;
+			} else {
+				ebi_index = msg->gtpc_msg.db_req.eps_bearer_ids[0].ebi_ebi - 5;
+			}
+			if(get_ue_context_by_sgw_s5s8_teid(gtpv2c_rx->teid.has_teid.teid, &context) != 0) {
+				clLog(clSystemLog, eCLSeverityCritical,
+					"%s:%d UE Context not found... 0x%x\n",__func__,__LINE__, gtpv2c_rx->teid.has_teid.teid);
+				delete_bearer_error_response(msg,GTPV2C_CAUSE_CONTEXT_NOT_FOUND,spgw_cfg !=  PGWC ? S5S8_IFACE:GX_IFACE);
+				return -1;
+			}
+
+			if(context->eps_bearers[ebi_index]->pdn->proc == MME_INI_DEDICATED_BEARER_DEACTIVATION_PROC){
+				msg->proc = context->eps_bearers[ebi_index]->pdn->proc;
+			}else{
+				msg->proc = get_procedure(msg);
+				context->eps_bearers[ebi_index]->pdn->proc = msg->proc;
+			}
+			msg->state = context->eps_bearers[ebi_index]->pdn->state;
+			msg->event = DELETE_BER_REQ_RCVD_EVNT;
+
+			context->eps_bearers[ebi_index]->pdn->proc = msg->proc;
+
+			clLog(clSystemLog, eCLSeverityDebug, "%s: Callback called for"
 					"Msg_Type:%s[%u], Teid:%u, "
 					"State:%s, Event:%s\n",
 					__func__, gtp_type_str(msg->msg_type), msg->msg_type,
@@ -478,30 +842,286 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx)
 	   break;
 	}
 
-	case GTP_CREATE_BEARER_RSP:{
-			if((ret = decode_create_bearer_rsp((uint8_t *) gtpv2c_rx,
-						&msg->gtpc_msg.cb_rsp) == 0))
+	case GTP_DELETE_BEARER_RSP:{
+			if((ret = decode_del_bearer_rsp((uint8_t *) gtpv2c_rx,
+						&msg->gtpc_msg.db_rsp) == 0))
 				return -1;
-
+			if(msg->gtpc_msg.db_rsp.cause.cause_value != GTPV2C_CAUSE_REQUEST_ACCEPTED){
+				delete_bearer_error_response(msg, msg->gtpc_msg.db_rsp.cause.cause_value,
+								spgw_cfg != PGWC ? S5S8_IFACE : GX_IFACE  );
+				return -1;
+			}
 			gtpv2c_rx->teid.has_teid.teid = ntohl(gtpv2c_rx->teid.has_teid.teid);
 
-			if((ret = get_ue_state(gtpv2c_rx->teid.has_teid.teid)) > 0){
+			if (msg->gtpc_msg.db_rsp.lbi.header.len) {
+				ebi_index = msg->gtpc_msg.db_rsp.lbi.ebi_ebi - 5;
+			} else {
+				ebi_index = msg->gtpc_msg.db_rsp.bearer_contexts[0].eps_bearer_id.ebi_ebi - 5;
+			}
+			delete_pfcp_if_timer_entry(gtpv2c_rx->teid.has_teid.teid, ebi_index);
+
+			if(get_ue_context(gtpv2c_rx->teid.has_teid.teid, &context) != 0) {
+				return -1;
+			}
+			if((ret = get_ue_state(gtpv2c_rx->teid.has_teid.teid, ebi_index)) > 0){
 				msg->state = ret;
 			}else{
 				return -1;
 			}
 
-			msg->proc = get_procedure(msg);
-			msg->event = CREATE_BER_RESP_RCVD_EVNT;
-
-			clLog(s5s8logger, eCLSeverityDebug, "%s: Callback called for"
+			if(context->eps_bearers[ebi_index]->pdn->proc == MME_INI_DEDICATED_BEARER_DEACTIVATION_PROC){
+				msg->proc = context->eps_bearers[ebi_index]->pdn->proc;
+			}else{
+				msg->proc = get_procedure(msg);
+				context->eps_bearers[ebi_index]->pdn->proc = msg->proc;
+			}
+			msg->event = DELETE_BER_RESP_RCVD_EVNT;
+			clLog(clSystemLog, eCLSeverityDebug, "%s: Callback called for"
 					"Msg_Type:%s[%u], Teid:%u, "
 					"State:%s, Event:%s\n",
 					__func__, gtp_type_str(msg->msg_type), msg->msg_type,
 					gtpv2c_rx->teid.has_teid.teid,
 					get_state_string(msg->state), get_event_string(msg->event));
 
+	 	  break;
+	}
+	case GTP_UPDATE_BEARER_REQ:{
+
+		if((ret = decode_upd_bearer_req((uint8_t *) gtpv2c_rx,
+						&msg->gtpc_msg.ub_req) == 0))
+			return -1;
+		ebi_index = msg->gtpc_msg.ub_req.bearer_contexts[0].eps_bearer_id.ebi_ebi - 5;
+		gtpv2c_rx->teid.has_teid.teid = ntohl(gtpv2c_rx->teid.has_teid.teid);
+
+		//Vikrant Which ebi to be selected as multiple bearer in request
+		if(get_ue_context_by_sgw_s5s8_teid(gtpv2c_rx->teid.has_teid.teid, &context) != 0) {
+				fprintf(stderr , "%s:%d UE Context not found... 0x%x\n",__func__,
+							__LINE__, gtpv2c_rx->teid.has_teid.teid);
+				ubr_error_response(msg, GTPV2C_CAUSE_CONTEXT_NOT_FOUND,
+																S5S8_IFACE);
+				return -1;
+		}
+		msg->state = context->eps_bearers[ebi_index]->pdn->state;
+		msg->proc = get_procedure(msg);
+		msg->event = UPDATE_BEARER_REQ_RCVD_EVNT;
+
+		break;
+
+	}
+
+	case GTP_UPDATE_BEARER_RSP:{
+
+		if((ret = decode_upd_bearer_rsp((uint8_t *) gtpv2c_rx,
+						&msg->gtpc_msg.ub_rsp) == 0))
+				return -1;
+
+		if(msg->gtpc_msg.ub_rsp.cause.cause_value != GTPV2C_CAUSE_REQUEST_ACCEPTED){
+				ubr_error_response(msg, msg->gtpc_msg.ub_rsp.cause.cause_value,
+										spgw_cfg == SGWC ? S5S8_IFACE : GX_IFACE);
+				return -1;
+		}
+
+		gtpv2c_rx->teid.has_teid.teid = ntohl(gtpv2c_rx->teid.has_teid.teid);
+
+		ebi_index = msg->gtpc_msg.ub_rsp.bearer_contexts[0].eps_bearer_id.ebi_ebi - 5;
+		//Vikrant Which ebi to be selected as multiple bearer in request
+		if((ret = get_ue_state(gtpv2c_rx->teid.has_teid.teid ,ebi_index)) > 0){
+				msg->state = ret;
+		}else{
+			return -1;
+		}
+		msg->proc = get_procedure(msg);
+		msg->event = UPDATE_BEARER_RSP_RCVD_EVNT;
+
+		if(get_ue_context(gtpv2c_rx->teid.has_teid.teid, &context) != 0) {
+				return -1;
+			}
+
+		break;
+	}
+
+	case GTP_DELETE_PDN_CONNECTION_SET_REQ: {
+			if ((ret = decode_del_pdn_conn_set_req((uint8_t *) gtpv2c_rx, &msg->gtpc_msg.del_pdn_req) == 0))
+			    return -1;
+
+			msg->state = DEL_PDN_CONN_SET_REQ_RCVD_STATE;
+			msg->proc = get_procedure(msg);
+			msg->event = DEL_PDN_CONN_SET_REQ_RCVD_EVNT;
+
+			clLog(clSystemLog, eCLSeverityDebug, "%s: Callback called for"
+					" Msg_Type:%s[%u],"
+					"State:%s, Event:%s\n",
+					__func__, gtp_type_str(msg->msg_type), msg->msg_type,
+					get_state_string(msg->state), get_event_string(msg->event));
+		break;
+	}
+
+	case GTP_DELETE_PDN_CONNECTION_SET_RSP: {
+			if ((ret = decode_del_pdn_conn_set_rsp((uint8_t *) gtpv2c_rx, &msg->gtpc_msg.del_pdn_rsp) == 0))
+			    return -1;
+
+			msg->state = DEL_PDN_CONN_SET_REQ_SNT_STATE;
+			msg->proc = get_procedure(msg);
+			msg->event = DEL_PDN_CONN_SET_RESP_RCVD_EVNT;
+
+			clLog(clSystemLog, eCLSeverityDebug, "%s: Callback called for"
+					" Msg_Type:%s[%u],"
+					"State:%s, Event:%s\n",
+					__func__, gtp_type_str(msg->msg_type), msg->msg_type,
+					get_state_string(msg->state), get_event_string(msg->event));
+		break;
+	}
+	case GTP_UPDATE_PDN_CONNECTION_SET_REQ: {
+			//if ((ret = decode_upd_pdn_conn_set_req((uint8_t *) gtpv2c_rx, &msg->gtpc_msg.upd_pdn_req) == 0))
+			//    return -1;
+
+			//TODO: TEID based lookup
+			//msg->state = ;
+			//msg->proc = get_procedure(msg);
+			//msg->event = UPD_PDN_CONN_SET_REQ_RCVD_EVNT;
+
+			//clLog(clSystemLog, eCLSeverityDebug, "%s: Callback called for"
+			//		" Msg_Type:%s[%u],"
+			//		"State:%s, Event:%s\n",
+			//		__func__, gtp_type_str(msg->msg_type), msg->msg_type,
+			//		get_state_string(msg->state), get_event_string(msg->event));
 	   break;
+	 }
+	case GTP_DELETE_BEARER_CMD: {
+
+			if((ret = decode_del_bearer_cmd((uint8_t *) gtpv2c_rx,
+					&msg->gtpc_msg.del_ber_cmd) == 0)) {
+					return -1;
+			}
+
+			gtpv2c_rx->teid.has_teid.teid = ntohl(gtpv2c_rx->teid.has_teid.teid);
+
+			ebi_index = msg->gtpc_msg.del_ber_cmd.bearer_contexts[0].eps_bearer_id.ebi_ebi - 5;
+
+			if(get_ue_context(gtpv2c_rx->teid.has_teid.teid, &context) != 0) {
+				return -1;
+			}
+			msg->proc = get_procedure(msg);
+			if (update_ue_proc(context->s11_sgw_gtpc_teid,
+							msg->proc ,ebi_index) != 0) {
+					clLog(clSystemLog, eCLSeverityCritical, "%s failed\n", __func__);
+					return -1;
+				}
+			context->eps_bearers[ebi_index]->pdn->proc =  msg->proc;
+
+	//		msg->state = context->eps_bearers[ebi_index]->pdn->state;
+			msg->state = CONNECTED_STATE;
+			msg->event = DELETE_BER_CMD_RCVD_EVNT;
+
+		break;
+	}
+	case GTP_UPDATE_PDN_CONNECTION_SET_RSP: {
+			//if ((ret = decode_upd_pdn_conn_set_rsp((uint8_t *) gtpv2c_rx, &msg->gtpc_msg.upd_pdn_rsp) == 0)))
+			//    return -1;
+
+			//TODO:TEID based lookup
+			//msg->state = ;
+			//msg->proc = get_procedure(msg);
+			//msg->event = UPD_PDN_CONN_SET_RESP_RCVD_EVNT;
+
+			//clLog(clSystemLog, eCLSeverityDebug, "%s: Callback called for"
+			//		" Msg_Type:%s[%u],"
+			//		"State:%s, Event:%s\n",
+			//		__func__, gtp_type_str(msg->msg_type), msg->msg_type,
+			//		get_state_string(msg->state), get_event_string(msg->event));
+		break;
+	}
+	case GTP_PGW_RESTART_NOTIFICATION_ACK: {
+			if ((ret = decode_pgw_rstrt_notif_ack((uint8_t *) gtpv2c_rx, &msg->gtpc_msg.pgw_rstrt_notif_ack) == 0))
+			    return -1;
+
+			msg->state = PGW_RSTRT_NOTIF_REQ_SNT_STATE;
+			msg->proc = get_procedure(msg);
+			msg->event = PGW_RSTRT_NOTIF_ACK_RCVD_EVNT;
+
+			clLog(clSystemLog, eCLSeverityDebug, "%s: Callback called for"
+					" Msg_Type:%s[%u],"
+					"State:%s, Event:%s\n",
+					__func__, gtp_type_str(msg->msg_type), msg->msg_type,
+					get_state_string(msg->state), get_event_string(msg->event));
+		break;
+	}
+	case GTP_IDENTIFICATION_RSP:{
+		clLog(clSystemLog, eCLSeverityInfo, FORMAT"Warning: Received GTP IDENTIFICATION RSP Message, i.e. Simulator"
+					" Not support Delete PDN connection Set request feature.\n", ERR_MSG);
+
+			/* TODO: Need to handle this message in state m/c*/
+			msg->state = END_STATE;
+			msg->proc = END_PROC;
+			msg->event = END_EVNT;
+
+		break;
+	}
+
+	case GTP_CHANGE_NOTIFICATION_REQ: {
+
+			if((ret = decode_change_noti_req((uint8_t *) gtpv2c_rx,
+				  &msg->gtpc_msg.change_not_req) == 0))
+				    return -1;
+
+			gtpv2c_rx->teid.has_teid.teid = ntohl(gtpv2c_rx->teid.has_teid.teid);
+
+
+			if (msg->gtpc_msg.change_not_req.lbi.header.len) {
+				  ebi_index = msg->gtpc_msg.change_not_req.lbi.ebi_ebi - 5;
+			}
+			/* else {
+				  ebi_index = msg->gtpc_msg.change_noti_req.eps_bearer_ids[0].ebi_ebi - 5;
+			}
+			*/
+
+			if(get_ue_context(msg->gtpc_msg.change_not_req.header.teid.has_teid.teid, &context)) {
+				  clLog(clSystemLog, eCLSeverityCritical,  "%s:%d UE Context not found... 0x%x\n",__func__,
+									 __LINE__, gtpv2c_rx->teid.has_teid.teid);
+					return -1;
+			}
+
+			msg->proc = get_procedure(msg);
+			msg->state = context->eps_bearers[ebi_index]->pdn->state;
+			//msg->event = DELETE_BER_REQ_RCVD_EVNT;
+			msg->event = CHANGE_NOTIFICATION_REQ_RCVD_EVNT;
+			context->eps_bearers[ebi_index]->pdn->proc = msg->proc;
+
+			clLog(clSystemLog, eCLSeverityDebug, "%s: Callback called for"
+						  "Msg_Type:%s[%u], Teid:%u, "
+						  "State:%s, Event:%s\n",
+						  __func__, gtp_type_str(msg->msg_type), msg->msg_type,
+						  gtpv2c_rx->teid.has_teid.teid,
+						  get_state_string(msg->state), get_event_string(msg->event));
+
+			 break;
+	}
+
+	case GTP_CHANGE_NOTIFICATION_RSP: {
+
+			if((ret = decode_change_noti_rsp((uint8_t *) gtpv2c_rx,
+					&msg->gtpc_msg.change_not_rsp) == 0)) {
+					return -1;
+			}
+
+			gtpv2c_rx->teid.has_teid.teid = ntohl(gtpv2c_rx->teid.has_teid.teid);
+
+			delete_timer_entry(msg->gtpc_msg.change_not_rsp.header.teid.has_teid.teid);
+
+			if(get_ue_context_by_sgw_s5s8_teid(msg->gtpc_msg.change_not_rsp.header.teid.has_teid.teid, &context) != 0)
+			{
+				cs_error_response(msg, GTPV2C_CAUSE_CONTEXT_NOT_FOUND,
+						spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
+				process_error_occured_handler(&msg, NULL);
+
+				return -1;
+			}
+
+			msg->proc = get_procedure(msg);
+			msg->state = CONNECTED_STATE;
+			msg->event = CHANGE_NOTIFICATION_RSP_RCVD_EVNT;
+
+		break;
 	}
 
 	default:
@@ -519,13 +1139,20 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx)
 #endif /* GX_BUILD */
 					}
 			} else {
-				msg->state = context->state;
-				msg->proc = context->proc;
+					pdn = GET_PDN(context, ebi_index);
+					if(pdn == NULL){
+						clLog(clSystemLog, eCLSeverityCritical,
+							"%s:%d Failed to get pdn \n", __func__, __LINE__);
+						return -1;
+					}
+
+					msg->state = pdn->state;
+					msg->proc = pdn->proc;
 			}
 
 			msg->event = NONE_EVNT;
-			/* HP: Remove extra print DONE */
-			fprintf(stderr, "%s::process_msgs-"
+
+			clLog(clSystemLog, eCLSeverityCritical, "%s::process_msgs-"
 					"\n\tcase: SAEGWC::spgw_cfg= %d;"
 					"\n\tReceived GTPv2c Message Type: "
 					"%s (%u) not supported... Discarding\n", __func__,
@@ -533,6 +1160,29 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx)
 					gtpv2c_rx->gtpc.message_type);
 			return -1;
 	}
+
+	if ((NULL != context) && (S11_INTFC == uiIntFc) && (GTP_CREATE_SESSION_REQ != msg->msg_type)) {
+		int bytes_rx_li = bytes_rx;
+		uint8_t gtpv2c_rx_li[MAX_GTPV2C_UDP_LEN] = {0};
+		memcpy(gtpv2c_rx_li, gtpv2c_rx, bytes_rx);
+
+		process_cp_li_msg_using_context(context, (uint8_t *)gtpv2c_rx_li, bytes_rx_li,
+			peer_addr->sin_addr.s_addr, pfcp_config.s11_ip.s_addr,
+			peer_addr->sin_port, pfcp_config.s11_port);
+	}
+
+	if ((NULL != context) && (S5S8_INTFC == uiIntFc)) {
+		int bytes_rx_li = bytes_rx;
+		uint8_t gtpv2c_rx_li[MAX_GTPV2C_UDP_LEN] = {0};
+		memcpy(gtpv2c_rx_li, gtpv2c_rx, bytes_rx);
+
+		process_cp_li_msg_using_context(context, (uint8_t *)gtpv2c_rx_li, bytes_rx_li,
+			peer_addr->sin_addr.s_addr, pfcp_config.s5s8_ip.s_addr,
+			peer_addr->sin_port, pfcp_config.s5s8_port);
+	}
+
+	RTE_SET_USED(peer_addr);
+	RTE_SET_USED(uiIntFc);
 
 	return 0;
 }

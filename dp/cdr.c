@@ -86,6 +86,12 @@ iptoa(struct ip_addr addr)
 	return buffer;
 }
 
+/**
+ * @brief  : Coverts CDR IP to string with added prefix
+ * @param  : addr, cdr ip addr
+ * @param  : prefix, prefix to be added
+ * @return : Returns converted string
+ */
 static const char *
 iptoa_prefix(struct ip_addr addr, uint16_t prefix)
 {
@@ -106,9 +112,16 @@ iptoa_prefix(struct ip_addr addr, uint16_t prefix)
 	return buffer;
 }
 
-
 /* begin static cdr callback fucntions */
 
+/**
+ * @brief  : Coverts current localtime to record time format
+ * @param  : session, dp session related information
+ * @param  : vol, Volume based Charging information
+ * @param  : pcc_rule, pcc rule information
+ * @param  : adc_rule, adc rule information
+ * @return : Returns converted string
+ */
 static const char *
 cdr_time_cb(struct dp_session_info *session,
 		struct chrg_data_vol *vol,
@@ -123,6 +136,14 @@ cdr_time_cb(struct dp_session_info *session,
 	return time_str;
 }
 
+/**
+ * @brief  : Retrives cdr state
+ * @param  : session, dp session related information
+ * @param  : vol, Volume based Charging information
+ * @param  : pcc_rule, pcc rule information
+ * @param  : adc_rule, adc rule information
+ * @return : Returns cdr state
+ */
 static const char *
 cdr_state_cb(struct dp_session_info *session,
 		struct chrg_data_vol *vol,
@@ -131,6 +152,14 @@ cdr_state_cb(struct dp_session_info *session,
 	return "EVENT";
 }
 
+/**
+ * @brief  : Coverts ue address to string
+ * @param  : session, dp session related information
+ * @param  : vol, Volume based Charging information
+ * @param  : pcc_rule, pcc rule information
+ * @param  : adc_rule, adc rule information
+ * @return : Returns converted string
+ */
 static const char *
 ue_ip_cb(struct dp_session_info *session,
 		struct chrg_data_vol *vol,
@@ -139,6 +168,14 @@ ue_ip_cb(struct dp_session_info *session,
 	return iptoa(session->ue_addr);
 }
 
+/**
+ * @brief  : Retrives downlink cdr packet count
+ * @param  : session, dp session related information
+ * @param  : vol, Volume based Charging information
+ * @param  : pcc_rule, pcc rule information
+ * @param  : adc_rule, adc rule information
+ * @return : Returns downlink cdr packet count
+ */
 static uint64_t
 dl_pkt_cnt_cb(struct dp_session_info *session,
 		struct chrg_data_vol *vol,
@@ -147,6 +184,14 @@ dl_pkt_cnt_cb(struct dp_session_info *session,
 	return vol->dl_cdr.pkt_count;
 }
 
+/**
+ * @brief  : Retrives downlink cdr bytes
+ * @param  : session, dp session related information
+ * @param  : vol, Volume based Charging information
+ * @param  : pcc_rule, pcc rule information
+ * @param  : adc_rule, adc rule information
+ * @return : Returns downlink cdr bytes
+ */
 static uint64_t
 dl_byptes_cb(struct dp_session_info *session,
 		struct chrg_data_vol *vol,
@@ -155,6 +200,14 @@ dl_byptes_cb(struct dp_session_info *session,
 	return vol->dl_cdr.bytes;
 }
 
+/**
+ * @brief  : Retrives downlink dropped cdr packet count
+ * @param  : session, dp session related information
+ * @param  : vol, Volume based Charging information
+ * @param  : pcc_rule, pcc rule information
+ * @param  : adc_rule, adc rule information
+ * @return : Returns downlink dropped cdr packet count
+ */
 static uint64_t
 dl_drop_pkt_cnt_cb(struct dp_session_info *session,
 		struct chrg_data_vol *vol,
@@ -163,6 +216,14 @@ dl_drop_pkt_cnt_cb(struct dp_session_info *session,
 	return vol->dl_drop.pkt_count;
 }
 
+/**
+ * @brief  : Retrives downlink dropped cdr bytes
+ * @param  : session, dp session related information
+ * @param  : vol, Volume based Charging information
+ * @param  : pcc_rule, pcc rule information
+ * @param  : adc_rule, adc rule information
+ * @return : Returns downlink dropped cdr bytes
+ */
 static uint64_t
 dl_drop_bytes_cb(struct dp_session_info *session,
 		struct chrg_data_vol *vol,
@@ -171,6 +232,14 @@ dl_drop_bytes_cb(struct dp_session_info *session,
 	return vol->dl_drop.bytes;
 }
 
+/**
+ * @brief  : Retrives uplink cdr packet count
+ * @param  : session, dp session related information
+ * @param  : vol, Volume based Charging information
+ * @param  : pcc_rule, pcc rule information
+ * @param  : adc_rule, adc rule information
+ * @return : Returns uplink cdr packet count
+ */
 static uint64_t
 ul_pkt_cnt_cb(struct dp_session_info *session,
 		struct chrg_data_vol *vol,
@@ -179,6 +248,14 @@ ul_pkt_cnt_cb(struct dp_session_info *session,
 	return vol->ul_cdr.pkt_count;
 }
 
+/**
+ * @brief  : Retrives uplink cdr bytes
+ * @param  : session, dp session related information
+ * @param  : vol, Volume based Charging information
+ * @param  : pcc_rule, pcc rule information
+ * @param  : adc_rule, adc rule information
+ * @return : Returns uplink cdr bytes
+ */
 static uint64_t
 ul_byptes_cb(struct dp_session_info *session,
 		struct chrg_data_vol *vol,
@@ -187,6 +264,17 @@ ul_byptes_cb(struct dp_session_info *session,
 	return vol->ul_cdr.bytes;
 }
 
+/**
+ * @brief  : Retruns rule id
+ * @param  : session, dp session related information
+ * @param  : vol, Volume based Charging information
+ * @param  : pcc_rule, pcc rule information
+ * @param  : adc_rule, adc rule information
+ * @return : Returns
+ *           - pcc rule id if pcc rule id defined
+ *           - adc rule id if pcc rule is not defined and adc rule is defined
+ *           - NULL otherwise
+ */
 static uint32_t
 rule_id_cb(struct dp_session_info *session,
 		struct chrg_data_vol *vol,
@@ -200,6 +288,17 @@ rule_id_cb(struct dp_session_info *session,
 	return 0;
 }
 
+/**
+ * @brief  : Retruns rule type
+ * @param  : session, dp session related information
+ * @param  : vol, Volume based Charging information
+ * @param  : pcc_rule, pcc rule information
+ * @param  : adc_rule, adc rule information
+ * @return : Returns
+ *           - pcc rule type if pcc rule id defined
+ *           - adc rule type if pcc rule is not defined and adc rule is defined
+ *           - NULL otherwise
+ */
 static const char *
 rule_type_cb(struct dp_session_info *session,
 		struct chrg_data_vol *vol,
@@ -213,6 +312,17 @@ rule_type_cb(struct dp_session_info *session,
 	return NULL;
 }
 
+/**
+ * @brief  : Retruns rule name
+ * @param  : session, dp session related information
+ * @param  : vol, Volume based Charging information
+ * @param  : pcc_rule, pcc rule information
+ * @param  : adc_rule, adc rule information
+ * @return : Returns
+ *           - pcc rule name if pcc rule id defined
+ *           - adc rule ip or domain name if pcc rule is not defined and adc rule is defined
+ *           - NULL otherwise
+ */
 static const char *
 rule_cb(struct dp_session_info *session,
 		struct chrg_data_vol *vol,
@@ -236,6 +346,16 @@ rule_cb(struct dp_session_info *session,
 	return NULL;
 }
 
+/**
+ * @brief  : Retruns gate status
+ * @param  : session, dp session related information
+ * @param  : vol, Volume based Charging information
+ * @param  : pcc_rule, pcc rule information
+ * @param  : adc_rule, adc rule information
+ * @return : Returns
+ *           - pcc rule gate status if pcc rule id defined
+ *           - NULL otherwise
+ */
 static const char *
 action_cb(struct dp_session_info *session,
 		struct chrg_data_vol *vol,
@@ -255,6 +375,16 @@ action_cb(struct dp_session_info *session,
 	return "ERROR IN ADC RULE";
 }
 
+/**
+ * @brief  : Retruns pcc rule sponsor id
+ * @param  : session, dp session related information
+ * @param  : vol, Volume based Charging information
+ * @param  : pcc_rule, pcc rule information
+ * @param  : adc_rule, adc rule information
+ * @return : Returns
+ *           - pcc rule sponser id if pcc rule id defined
+ *           - NULL otherwise
+ */
 static const char *
 sponsor_id_cb(struct dp_session_info *session,
 		struct chrg_data_vol *vol,
@@ -266,6 +396,16 @@ sponsor_id_cb(struct dp_session_info *session,
 	return 0;
 }
 
+/**
+ * @brief  : Retruns pcc rule sponsor id
+ * @param  : session, dp session related information
+ * @param  : vol, Volume based Charging information
+ * @param  : pcc_rule, pcc rule information
+ * @param  : adc_rule, adc rule information
+ * @return : Returns
+ *           - pcc rule sponser id if pcc rule id defined
+ *           - NULL otherwise
+ */
 static uint32_t
 service_id_cb(struct dp_session_info *session,
 		struct chrg_data_vol *vol,
@@ -277,6 +417,16 @@ service_id_cb(struct dp_session_info *session,
 	return 0;
 }
 
+/**
+ * @brief  : Retruns pcc rule rating group
+ * @param  : session, dp session related information
+ * @param  : vol, Volume based Charging information
+ * @param  : pcc_rule, pcc rule information
+ * @param  : adc_rule, adc rule information
+ * @return : Returns
+ *           - pcc rule rating group if pcc rule id defined
+ *           - NULL otherwise
+ */
 static uint32_t
 rate_group_cb(struct dp_session_info *session,
 		struct chrg_data_vol *vol,
@@ -288,6 +438,16 @@ rate_group_cb(struct dp_session_info *session,
 	return 0;
 }
 
+/**
+ * @brief  : Retruns pcc rule report level
+ * @param  : session, dp session related information
+ * @param  : vol, Volume based Charging information
+ * @param  : pcc_rule, pcc rule information
+ * @param  : adc_rule, adc rule information
+ * @return : Returns
+ *           - pcc rule report level if pcc rule id defined
+ *           - NULL otherwise
+ */
 static uint8_t
 report_level_cb(struct dp_session_info *session,
 		struct chrg_data_vol *vol,
@@ -301,6 +461,17 @@ report_level_cb(struct dp_session_info *session,
 
 #if 0
 /* TODO : Param is not present in pcc or adc rules file */
+/**
+ * @brief  : Retruns tarriff group in rule
+ * @param  : session, dp session related information
+ * @param  : vol, Volume based Charging information
+ * @param  : pcc_rule, pcc rule information
+ * @param  : adc_rule, adc rule information
+ * @return : Returns
+ *           - NULL if pcc rule id defined
+ *           - adc rule tarriff group if pcc rule is not defined and adc rule is defined
+ *           - NULL otherwise
+ */
 static const char *
 tarriff_group_cb(struct dp_session_info *session,
 		struct chrg_data_vol *vol,
@@ -314,6 +485,17 @@ tarriff_group_cb(struct dp_session_info *session,
 	return NULL;
 }
 
+/**
+ * @brief  : Retruns tarriff time in rule
+ * @param  : session, dp session related information
+ * @param  : vol, Volume based Charging information
+ * @param  : pcc_rule, pcc rule information
+ * @param  : adc_rule, adc rule information
+ * @return : Returns
+ *           - NULL if pcc rule id defined
+ *           - adc rule tarriff time if pcc rule is not defined and adc rule is defined
+ *           - NULL otherwise
+ */
 static const char *
 tarriff_time_cb(struct dp_session_info *session,
 		struct chrg_data_vol *vol,
@@ -354,7 +536,9 @@ tarriff_time_cb(struct dp_session_info *session,
 	.format_specifier = "%s,", \
 	.cb_str = func}
 
-/* define cdr fields */
+/**
+ * @brief  : define cdr fields
+ */
 struct cdr_field_t cdr_fields[NUM_CDR_FIELDS] = {
 		DEFINE_VALUE("record", &cdr_count),
 		[CDR_TIME_FIELD_INDEX] = DEFINE_CB_STR("time", cdr_time_cb),
@@ -380,6 +564,11 @@ struct cdr_field_t cdr_fields[NUM_CDR_FIELDS] = {
 		 */
 };
 
+/**
+ * @brief  : Add record to cdr file
+ * @param  : No param
+ * @return : Returns nothing
+ */
 static void
 write_to_cdr(void)
 {
@@ -406,9 +595,10 @@ write_to_cdr(void)
 	rewind(cdr_file_stream);
 }
 
-
 /**
- * Writes the CDR field headers to file
+ * @brief  : Writes the CDR field headers to file
+ * @param  : No param
+ * @return : Returns
  */
 static void
 export_cdr_field_headers(void)
@@ -423,18 +613,14 @@ export_cdr_field_headers(void)
 }
 
 /**
- * common function to export pcc & adc cdr
- * @param session
- *	session to charge
- * @param vol
- *	cdr volume
- * @param pcc_rule
- *	pcc_rule - must be NULL if CDR applies to ADC rule
- * @param adc_rule
- *	adc rule - nust be NULL if CDR applies to PCC rule
- *
- * NOTE: common function for both ADC and PCC rules. Either adc_rule OR pcc_rule
- * must be defined - not both.
+ * @brief  : common function to export pcc & adc cdr
+ *           NOTE: common function for both ADC and PCC rules. Either adc_rule OR pcc_rule
+ *           must be defined - not both.
+ * @param  : session, session to charge
+ * @param  : vol, cdr vol
+ * @param  : pcc_rule, must be NULL if CDR applies to ADC rule
+ * @param  : adc_rule, must be NULL if CDR applies to PCC rule
+ * @return : Returns nothing
  */
 static void
 export_record(struct dp_session_info *session,
@@ -494,6 +680,7 @@ export_record(struct dp_session_info *session,
 void
 set_cdr_path(const char *path)
 {
+	/*TODO : change strlen with strnlen with proper size (n)*/
 	size_t append_end_slash = path[strlen(path) - 1] == '/' ? 0 : 1;
 	size_t alloc_size = strlen(path) + 1 + append_end_slash;
 	if (alloc_size > PATH_MAX)
@@ -528,6 +715,11 @@ create_sys_path(char *path)
 				strerror(errno));
 }
 
+/**
+ * @brief  : Performs cdr filename creation
+ * @param  : filename, string to store filename
+ * @return : Returns nothing
+ */
 static void
 get_cdr_filename(char *filename) {
 
@@ -567,6 +759,11 @@ get_cdr_filename(char *filename) {
 
 }
 
+/**
+ * @brief  : Performs cdr file creation
+ * @param  : No param
+ * @return : Returns nothing
+ */
 static void
 create_new_cdr_file(void)
 {
@@ -627,7 +824,7 @@ void mtr_init(void)
 		}
 
 
-		printf("Logging MTR Records to %s\n", filename);
+		clLog(clSystemLog, eCLSeverityDebug,"Logging MTR Records to %s\n", filename);
 
 		mtr_file = fopen(filename, "w");
 		if (!mtr_file)
@@ -666,11 +863,11 @@ cdr_init(void)
 	char filename[PATH_MAX];
 
 	get_cdr_filename(filename);
-	printf("Identify/Filename is  %s\n", filename);
+	clLog(clSystemLog, eCLSeverityDebug,"Identify/Filename is  %s\n", filename);
 
 	if (ssl_handle != NULL) {
-			RTE_LOG_DP(DEBUG, DP, "SSLWrite filename :%s\n",filename);
-			sent = SSL_write(ssl_handle, filename, strlen(filename));
+			clLog(clSystemLog, eCLSeverityDebug, "SSLWrite filename :%s\n",filename);
+			sent = SSL_write(ssl_handle, filename, strnlen(filename,PATH_MAX));
 
 			if (sent <= 0) {
 				rte_panic("Error in sending filename to SGX DealerIn. Error %d\n",

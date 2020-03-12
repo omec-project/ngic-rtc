@@ -22,17 +22,12 @@
 #include <time.h>
 #include <string.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <signal.h>
 
-#include <rte_common.h>
-#include <rte_cfgfile.h>
 
 #include "up_main.h"
 #include "util.h"
 #include "interface.h"
 #include "dp_ipc_api.h"
-
 
 #ifdef PRINT_NEW_RULE_ENTRY
 /**
@@ -48,26 +43,26 @@ print_sel_type_val(struct adc_rules *adc)
 	struct in_addr addr = {0};
 		switch (adc->sel_type) {
 			case DOMAIN_NAME:
-				RTE_LOG_DP(NOTICE, DP, " ---> Domain Name :%s\n",
+				fprintf(stdout, " ---> Domain Name :%s\n",
 						adc->u.domain_name);
 				break;
 
 			case DOMAIN_IP_ADDR:
 				addr.s_addr = ntohl(adc->u.domain_ip.u.ipv4_addr);
-				RTE_LOG_DP(NOTICE, DP, " ---> Domain Ip :%s\n",
+				fprintf(stdout, " ---> Domain Ip :%s\n",
 						inet_ntoa(addr));
 				break;
 
 			case DOMAIN_IP_ADDR_PREFIX:
 				addr.s_addr = ntohl(adc->u.domain_ip.u.ipv4_addr);
-				RTE_LOG_DP(NOTICE, DP, " ---> Domain Ip :%s\n",
+				fprintf(stdout, " ---> Domain Ip :%s\n",
 						inet_ntoa(addr));
-				RTE_LOG_DP(NOTICE, DP, " ---> Domain Prefix :%u\n",
+				fprintf(stdout, " ---> Domain Prefix :%u\n",
 						adc->u.domain_prefix.prefix);
 				break;
 
 			default:
-				RTE_LOG_DP(ERR, DP, "UNKNOWN Selector Type: %d\n",
+				fprintf(stdout, "UNKNOWN Selector Type: %d\n",
 						adc->sel_type);
 				break;
 		}
@@ -84,14 +79,14 @@ void
 print_adc_val(struct adc_rules *adc)
 {
 	if (NULL != adc) {
-		RTE_LOG_DP(NOTICE, DP, "=========================================\n");
-		RTE_LOG_DP(NOTICE, DP, " ---> ADC Rule Method ::\n");
-		RTE_LOG_DP(NOTICE, DP, "=========================================\n");
-		RTE_LOG_DP(NOTICE, DP, " ---> Rule id : %d\n", adc->rule_id);
+		fprintf(stdout, "=========================================\n");
+		fprintf(stdout, " ---> ADC Rule Method ::\n");
+		fprintf(stdout, "=========================================\n");
+		fprintf(stdout, " ---> Rule id : %d\n", adc->rule_id);
 
 		print_sel_type_val(adc);
 
-		RTE_LOG_DP(NOTICE, DP, "=========================================\n\n");
+		fprintf(stdout, "=========================================\n\n");
 	}
 }
 
@@ -105,48 +100,48 @@ void
 print_pcc_val(struct pcc_rules *pcc)
 {
 	if (NULL != pcc) {
-		RTE_LOG_DP(NOTICE, DP, "=========================================\n");
-		RTE_LOG_DP(NOTICE, DP, " ---> PCC Rule Method ::\n");
-		RTE_LOG_DP(NOTICE, DP, "=========================================\n");
-		RTE_LOG_DP(NOTICE, DP, " ---> Rule id : %d\n", pcc->rule_id);
-		RTE_LOG_DP(NOTICE, DP, " ---> metering_method :%d\n",
+		fprintf(stdout, "=========================================\n");
+		fprintf(stdout, " ---> PCC Rule Method ::\n");
+		fprintf(stdout, "=========================================\n");
+		fprintf(stdout, " ---> Rule id : %d\n", pcc->rule_id);
+		fprintf(stdout, " ---> metering_method :%d\n",
 				pcc->metering_method);
-		RTE_LOG_DP(NOTICE, DP, " ---> charging_mode :%d\n",
+		fprintf(stdout, " ---> charging_mode :%d\n",
 				pcc->charging_mode);
-		RTE_LOG_DP(NOTICE, DP, " ---> rating_group :%d\n",
+		fprintf(stdout, " ---> rating_group :%d\n",
 				pcc->rating_group);
-		RTE_LOG_DP(NOTICE, DP, " ---> rule_status :%d\n",
+		fprintf(stdout, " ---> rule_status :%d\n",
 				pcc->rule_status);
-		RTE_LOG_DP(NOTICE, DP, " ---> gate_status :%d\n",
+		fprintf(stdout, " ---> gate_status :%d\n",
 				pcc->gate_status);
-		RTE_LOG_DP(NOTICE, DP, " ---> session_cont :%d\n",
+		fprintf(stdout, " ---> session_cont :%d\n",
 				pcc->session_cont);
-		RTE_LOG_DP(NOTICE, DP, " ---> monitoring_key :%d\n",
+		fprintf(stdout, " ---> monitoring_key :%d\n",
 				pcc->monitoring_key);
-		RTE_LOG_DP(NOTICE, DP, " ---> precedence :%d\n",
+		fprintf(stdout, " ---> precedence :%d\n",
 				pcc->precedence);
-		RTE_LOG_DP(NOTICE, DP, " ---> level_of_report :%d\n",
+		fprintf(stdout, " ---> level_of_report :%d\n",
 				pcc->report_level);
-		RTE_LOG_DP(NOTICE, DP, " ---> mute_status :%d\n",
+		fprintf(stdout, " ---> mute_status :%d\n",
 				pcc->mute_notify);
-		RTE_LOG_DP(NOTICE, DP, " ---> drop_pkt_count :%ld\n",
+		fprintf(stdout, " ---> drop_pkt_count :%ld\n",
 				pcc->drop_pkt_count);
-		RTE_LOG_DP(NOTICE, DP, " ---> redirect_info :%d\n",
+		fprintf(stdout, " ---> redirect_info :%d\n",
 				pcc->redirect_info.info);
-		RTE_LOG_DP(NOTICE, DP, " ---> ul_mbr_mtr_profile_idx :%d\n",
+		fprintf(stdout, " ---> ul_mbr_mtr_profile_idx :%d\n",
 				pcc->qos.ul_mtr_profile_index);
-		RTE_LOG_DP(NOTICE, DP, " ---> dl_mbr_mtr_profile_idx :%d\n",
+		fprintf(stdout, " ---> dl_mbr_mtr_profile_idx :%d\n",
 				pcc->qos.dl_mtr_profile_index);
-		RTE_LOG_DP(NOTICE, DP, " ---> ADC Index :%d\n",
+		fprintf(stdout, " ---> ADC Index :%d\n",
 				pcc->adc_idx);
-		RTE_LOG_DP(NOTICE, DP, " ---> SDF Index count:%d\n",
+		fprintf(stdout, " ---> SDF Index count:%d\n",
 				pcc->sdf_idx_cnt);
 		for(int i =0; i< pcc->sdf_idx_cnt; ++i)
-			RTE_LOG_DP(NOTICE, DP, " ---> SDF IDx [%d]:%d\n",
+			fprintf(stdout, " ---> SDF IDx [%d]:%d\n",
 					i, pcc->sdf_idx[i]);
-		RTE_LOG_DP(NOTICE, DP, " ---> rule_name:%s\n", pcc->rule_name);
-		RTE_LOG_DP(NOTICE, DP, " ---> sponsor_id:%s\n", pcc->sponsor_id);
-		RTE_LOG_DP(NOTICE, DP, "=========================================\n\n");
+		fprintf(stdout, " ---> rule_name:%s\n", pcc->rule_name);
+		fprintf(stdout, " ---> sponsor_id:%s\n", pcc->sponsor_id);
+		fprintf(stdout, "=========================================\n\n");
 	}
 }
 
@@ -160,20 +155,20 @@ void
 print_mtr_val(struct mtr_entry *mtr)
 {
 	if (NULL != mtr) {
-		RTE_LOG_DP(NOTICE, DP, "=========================================\n");
-		RTE_LOG_DP(NOTICE, DP, " ---> Meter Rule Method ::\n");
-		RTE_LOG_DP(NOTICE, DP, "=========================================\n");
-		RTE_LOG_DP(NOTICE, DP, " ---> Meter profile index :%d\n",
+		fprintf(stdout, "=========================================\n");
+		fprintf(stdout, " ---> Meter Rule Method ::\n");
+		fprintf(stdout, "=========================================\n");
+		fprintf(stdout, " ---> Meter profile index :%d\n",
 				mtr->mtr_profile_index);
-		RTE_LOG_DP(NOTICE, DP, " ---> Meter CIR :%ld\n",
+		fprintf(stdout, " ---> Meter CIR :%ld\n",
 				mtr->mtr_param.cir);
-		RTE_LOG_DP(NOTICE, DP, " ---> Meter CBS :%ld\n",
+		fprintf(stdout, " ---> Meter CBS :%ld\n",
 				mtr->mtr_param.cbs);
-		RTE_LOG_DP(NOTICE, DP, " ---> Meter EBS :%ld\n",
+		fprintf(stdout, " ---> Meter EBS :%ld\n",
 				mtr->mtr_param.ebs);
-		RTE_LOG_DP(NOTICE, DP, " ---> Metering Method :%d\n",
+		fprintf(stdout, " ---> Metering Method :%d\n",
 				mtr->metering_method);
-		RTE_LOG_DP(NOTICE, DP, "=========================================\n\n");
+		fprintf(stdout, "=========================================\n\n");
 	}
 }
 
@@ -187,19 +182,19 @@ void
 print_sdf_val(struct pkt_filter *sdf)
 {
 	if (NULL != sdf) {
-		RTE_LOG_DP(NOTICE, DP, "==========================================\n");
-		RTE_LOG_DP(NOTICE, DP, " ---> SDF Rule Method ::\n");
-		RTE_LOG_DP(NOTICE, DP, "==========================================\n");
+		fprintf(stdout, "==========================================\n");
+		fprintf(stdout, " ---> SDF Rule Method ::\n");
+		fprintf(stdout, "==========================================\n");
 
 		switch (sdf->sel_rule_type) {
 			case RULE_STRING:
-				RTE_LOG_DP(NOTICE, DP, " ---> pcc_rule_id :%d\n",
+				fprintf(stdout, " ---> pcc_rule_id :%d\n",
 						sdf->pcc_rule_id);
-				RTE_LOG_DP(NOTICE, DP, " ---> rule_type :%d\n",
+				fprintf(stdout, " ---> rule_type :%d\n",
 						sdf->sel_rule_type);
-				RTE_LOG_DP(NOTICE, DP, " ---> rule_str : %s\n",
+				fprintf(stdout, " ---> rule_str : %s\n",
 						sdf->u.rule_str);
-				RTE_LOG_DP(NOTICE, DP, "====================================\n\n");
+				fprintf(stdout, "====================================\n\n");
 				break;
 
 			case FIVE_TUPLE:
@@ -210,7 +205,7 @@ print_sdf_val(struct pkt_filter *sdf)
 				break;
 
 			default:
-				RTE_LOG_DP(ERR, DP, "UNKNOWN Rule Type: %d\n",
+				fprintf(stdout, "UNKNOWN Rule Type: %d\n",
 						sdf->sel_rule_type);
 				break;
 		}
@@ -269,7 +264,7 @@ parse_adc_buf(int sel_type, char *arm, struct adc_rules *adc)
 					return 0;
 
 				default:
-					RTE_LOG_DP(ERR, DP, "UNKNOWN Selector Type: %d\n",
+					fprintf(stdout, "UNKNOWN Selector Type: %d\n",
 							sel_type);
 					return -1;
 			}

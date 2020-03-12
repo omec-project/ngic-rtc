@@ -52,13 +52,13 @@
  */
 #define MAX_SDF_IDX_COUNT 16
 #define MAX_SDF_STR_LEN 4096
-
+#define MAX_LI_HDR_SIZE 2048
 /**
  * Maximum buffer/name length
  */
 #define MAX_LEN 128
 /**
- * @brief Defines number of entries in local database.
+ * @brief  : Defines number of entries in local database.
  *
  * Recommended local table size to remain within L2 cache: 64000 entries.
  * See README for detailed calculations.
@@ -82,9 +82,22 @@
 #define MAX_RATING_GRP 6
 
 /**
+ * Get pdn from context and bearer id.
+ */
+#define GET_PDN(x, i)                                                   \
+(								                                        \
+	((x != NULL)                                                        \
+	&& (i < MAX_BEARERS*2) && (x->eps_bearers[i] != NULL)) ? x->eps_bearers[i]->pdn : NULL     \
+)
+/**
  * default bearer session.
  */
 #define DEFAULT_BEARER 5
+
+/**
+ * get dupl flag (apply action) status
+ */
+#define GET_DUP_STATUS(context) (context->dupl)
 
 /**
  * get UE session id
@@ -106,7 +119,7 @@
  */
 #define MAX_DNS_SPON_ID_LEN 16
 /**
- *  Select IPv4 or IPv6.
+ * @brief  : Select IPv4 or IPv6.
  */
 enum iptype {
 	IPTYPE_IPV4 = 0,     /* IPv4. */
@@ -114,7 +127,7 @@ enum iptype {
 };
 
 /**
- * SDF Rule type field.
+ * @brief  : SDF Rule type field.
  */
 enum rule_type {
 	RULE_STRING = 0,
@@ -122,7 +135,7 @@ enum rule_type {
 };
 
 /**
- * Packet action  field.
+ * @brief  : Packet action  field.
  */
 enum sess_pkt_action {
 	ACTION_NONE = 0,
@@ -134,7 +147,7 @@ enum sess_pkt_action {
 };
 
 /**
- * IPv4 or IPv6 address configuration structure.
+ * @brief  : IPv4 or IPv6 address configuration structure.
  */
 struct ip_addr {
 	enum iptype iptype;			/* IP type: IPv4 or IPv6. */
@@ -145,7 +158,7 @@ struct ip_addr {
 } __attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
 
 /**
- * IPv4 5 tuple rule configuration structure.
+ * @brief  : IPv4 5 tuple rule configuration structure.
  */
 struct ipv4_5tuple_rule {
 	uint32_t ip_src;	/* Src IP address*/
@@ -161,7 +174,7 @@ struct ipv4_5tuple_rule {
 } __attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
 
 /**
- * IPv6 5 tuple rule configuration structure.
+ * @brief  : IPv6 5 tuple rule configuration structure.
  */
 struct ipv6_5tuple_rule {
 	uint8_t  ip_src[IPV6_ADDR_LEN];	/* Src IP address*/
@@ -177,7 +190,7 @@ struct ipv6_5tuple_rule {
 } __attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
 
 /**
- * 5 tuple rule configuration structure.
+ * @brief  : 5 tuple rule configuration structure.
  */
 struct  five_tuple_rule {
 	enum iptype iptype; /* IP type: IPv4 or IPv6. */
@@ -188,7 +201,7 @@ struct  five_tuple_rule {
 } __attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
 
 /**
- * Packet filter configuration structure.
+ * @brief  : Packet filter configuration structure.
  */
 struct service_data_list {
 	uint32_t	service[MAX_SERVICE];	/* list of service id*/
@@ -196,7 +209,7 @@ struct service_data_list {
 } ;
 
 /**
- * SDF Packet filter configuration structure.
+ * @brief  : SDF Packet filter configuration structure.
  */
 struct pkt_filter {
 	uint32_t pcc_rule_id;				/* PCC rule id*/
@@ -211,7 +224,7 @@ struct pkt_filter {
 } __attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
 
 /**
- *  DNS selector type.
+ * @brief  :  DNS selector type.
  */
 enum selector_type {
 	DOMAIN_NAME = 0,		/* Domain name. */
@@ -221,7 +234,7 @@ enum selector_type {
 };
 
 /**
- * IPv4 or IPv6 address configuration structure.
+ * @brief  : IPv4 or IPv6 address configuration structure.
  */
 struct ip_prefix {
 	struct ip_addr ip_addr;	/* IP address*/
@@ -229,14 +242,14 @@ struct ip_prefix {
 } __attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
 
 /**
- * Redirect configuration structure.
+ * @brief  : Redirect configuration structure.
  */
 struct  redirect_info {
 	uint32_t info;
 };
 
 /**
- * QoS parameters structure for DP
+ * @brief  : QoS parameters structure for DP
  */
 struct qos_info {
 	uint16_t ul_mtr_profile_index; /* index 0 to skip */
@@ -248,7 +261,7 @@ struct qos_info {
 };
 
 /**
- * Application Detection and Control Rule Filter config structure.
+ * @brief  : Application Detection and Control Rule Filter config structure.
  */
 struct adc_rules {
 	enum selector_type sel_type;	/* domain name, IP addr
@@ -263,7 +276,7 @@ struct adc_rules {
 
 
 /**
- *  Metering Methods.
+ * @brief  : Metering Methods.
  */
 enum mtr_mthds {
 	SRTCM_COLOR_BLIND = 0,	/* Single Rate Three Color Marker - Color blind*/
@@ -272,6 +285,9 @@ enum mtr_mthds {
 	TRTCM_COLOR_AWARE,	/* Two Rate Three Color Marker - Color aware*/
 };
 
+/**
+ * @brief  : Meter profile parameters
+ */
 struct mtr_params {
 	/* Committed Information Rate (CIR). Measured in bytes per second.*/
 	uint64_t cir;
@@ -283,7 +299,7 @@ struct mtr_params {
 } __attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
 
 /**
- * Meter Profile entry config structure.
+ * @brief  : Meter Profile entry config structure.
  */
 struct mtr_entry {
 	uint16_t mtr_profile_index;	/* Meter profile index*/
@@ -293,7 +309,7 @@ struct mtr_entry {
 } __attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
 
 /**
- *  Direction on which the session is applicable.
+ * @brief  : Direction on which the session is applicable.
  */
 enum sess_direction {
 	SESS_UPLINK = 0,/* rule applicable for Uplink. */
@@ -301,7 +317,7 @@ enum sess_direction {
 };
 
 /**
- * UpLink S1u interface config structure.
+ * @brief  : UpLink S1u interface config structure.
  */
 struct ul_s1_info {
 	uint32_t sgw_teid;		/* SGW teid*/
@@ -312,7 +328,7 @@ struct ul_s1_info {
 } __attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
 
 /**
- * DownLink S1u interface config structure.
+ * @brief  : DownLink S1u interface config structure.
  */
 struct dl_s1_info {
 	uint32_t enb_teid;		/* eNodeB teid*/
@@ -322,7 +338,7 @@ struct dl_s1_info {
 } __attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
 
 /**
- * Policy and Charging Control structure for DP
+ * @brief  : Policy and Charging Control structure for DP
  */
 struct pcc_rules {
 	uint32_t rule_id;			/* Rule ID*/
@@ -354,12 +370,15 @@ struct pcc_rules {
 	uint8_t  mute_notify;			/* Mute on/off*/
 } __attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
 
+/**
+ * @brief  : Maintains cdr details
+ */
 struct cdr {
 	uint64_t bytes;
 	uint64_t pkt_count;
 };
 /**
- * Volume based Charging
+ * @brief  : Volume based Charging
  */
 struct chrg_data_vol {
 	struct cdr ul_cdr;		/* Uplink cdr*/
@@ -369,7 +388,7 @@ struct chrg_data_vol {
 };
 
 /**
- * Rating group index mapping Data structure.
+ * @brief  : Rating group index mapping Data structure.
  */
 struct rating_group_index_map {
 	uint32_t rg_val;				/* Rating group*/
@@ -377,7 +396,7 @@ struct rating_group_index_map {
 };
 
 /**
- * IP-CAN Bearer Charging Data Records
+ * @brief  : IP-CAN Bearer Charging Data Records
  */
 struct ipcan_dp_bearer_cdr {
 	uint32_t charging_id;			/* Bearer Charging id*/
@@ -401,7 +420,7 @@ struct ipcan_dp_bearer_cdr {
 
 
 /**
- * Bearer Session information structure
+ * @brief  : Bearer Session information structure
  */
 struct session_info {
 	struct ip_addr ue_addr;						/* UE ip address*/
@@ -438,7 +457,7 @@ struct session_info {
 
 
 /**
- * DataPlane identifier information structure.
+ * @brief  : DataPlane identifier information structure.
  */
 struct dp_id {
 	uint64_t id;			/* table identifier.*/
@@ -446,7 +465,7 @@ struct dp_id {
 } __attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
 
 /**
- *  Type of CDR record to be flushed.
+ * @brief  : Type of CDR record to be flushed.
  */
 enum cdr_type {
     CDR_TYPE_BEARER,
@@ -456,7 +475,7 @@ enum cdr_type {
     CDR_TYPE_ALL
 };
 /**
- * Structure to flush different types of UE CDRs into file.
+ * @brief  : Structure to flush different types of UE CDRs into file.
  */
 struct msg_ue_cdr {
     uint64_t session_id;    /* session id of the bearer, this field
@@ -469,9 +488,29 @@ struct msg_ue_cdr {
 							 * write new logs into cdr log file.*/
 } __attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
 
+typedef struct li_header_t {
+	struct flags {
+		uint8_t type:1;
+		uint8_t src:1;
+		uint8_t dst:1;
+		uint8_t df2:1;
+		uint8_t df3:1;
+		uint8_t spare:3;
+	} flags;
+
+	uint16_t len;
+	uint64_t imsi;
+	uint32_t src_ip;
+	uint16_t src_port;
+	uint32_t dst_ip;
+	uint16_t dst_port;
+	uint32_t df2_ip;
+	uint32_t df3_ip;
+} li_header_t;
+
 #ifdef DP_BUILD
 /**
- * SDF Packet filter configuration structure.
+ * @brief  : SDF Packet filter configuration structure.
  */
 struct sdf_pkt_filter {
 	uint32_t precedence;				/* Precedence */
@@ -486,7 +525,7 @@ struct sdf_pkt_filter {
 } __attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
 
 /**
- * Structure to downlink data notification ack information struct.
+ * @brief  : Structure to downlink data notification ack information struct.
  */
 struct downlink_data_notification_ack_t {
 
@@ -498,12 +537,12 @@ struct downlink_data_notification_ack_t {
 	uint64_t dl_buff_cnt;
 	uint64_t dl_buff_duration;
 };
-/*
- * Structure to store information
- * for sending End Marker
- */
 
+/*
+ * @brief  : Structure to store information for sending End Marker
+ */
 struct sess_info_endmark {
+	uint32_t teid;
 	uint32_t dst_ip;
 	uint32_t src_ip;
 	uint8_t dst_port;
@@ -512,277 +551,234 @@ struct sess_info_endmark {
 	struct ether_addr destination_MAC;
 }__attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
 
+/**
+ * @brief  : Create and send endmarker packet
+ * @param  : edmk, holds information to fill in packet
+ * @return : Returns nothing
+ */
 void
 build_endmarker_and_send(struct sess_info_endmark *edmk);
 
 #endif 	/* DP_BUILD */
 
 #define MAX_NB_DPN	8  /* Note: MAX_NB_DPN <= 8 */
+#define PRESENT 		1
+#define NOT_PRESENT		0
 
 /********************* SDF Pkt filter table ****************/
 /**
- * @brief Function to create Service Data Flow (SDF) filter
- *	table. This table is used to detect SDFs that each packet belongs to.
- *	It allows to configure 5 tuple rules to classify
- *	incomming traffic.
- * @param dp_id
- *	table identifier.
- * @param max_elements
- *	max number of rules that can be configured
- *	in this table.
- *
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : Function to create Service Data Flow (SDF) filter
+ *           table. This table is used to detect SDFs that each packet belongs to.
+ *           It allows to configure 5 tuple rules to classify
+ *           incomming traffic.
+ * @param  : dp_id
+ *           table identifier.
+ * @param  : max_elements
+ *           max number of rules that can be configured
+ *           in this table.
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 sdf_filter_table_create(struct dp_id dp_id, uint32_t max_elements);
 
 /**
- * @brief Delete SDF filter table. For deleting this table,
- * make sure dp_id match with the one used when table created.
- * @param dp_id
- *	table identifier.
- *
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : Delete SDF filter table. For deleting this table,
+ *           make sure dp_id match with the one used when table created.
+ * @param  : dp_id
+ *           table identifier.
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 sdf_filter_table_delete(struct dp_id dp_id);
 
 /**
- * @brief Add SDF filter entry. This api allows to configure SDF filter.
- *	Each filters are 5 tuple based and should be configured with unique pcc_rule_id
- *	and precedence.
- *	Please refer test/simu_cp/simu_cp.c for an example.
- *
- * @param dp_id
- *	table identifier.
- * @param  pkt_filter_entry
- *	sdf packet filter entry structure
- *
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : Add SDF filter entry. This api allows to configure SDF filter.
+ *           Each filters are 5 tuple based and should be configured with unique pcc_rule_id
+ *           and precedence.
+ *           Please refer test/simu_cp/simu_cp.c for an example.
+ * @param  : dp_id
+ *           table identifier.
+ * @param  : pkt_filter_entry
+ *           sdf packet filter entry structure
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 sdf_filter_entry_add(struct dp_id dp_id, struct pkt_filter pkt_filter_entry);
 
 /**
- * @brief Delete SDF filter entry. For deleting an entry,
- * only pcc_rule_id is necessary. All other field can be left NULL.
- *
- * @param dp_id
- *	table identifier.
- * @param  pkt_filter_entry
- *	sdf packet filter entry structure
- *
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : Delete SDF filter entry. For deleting an entry,
+ *            only pcc_rule_id is necessary. All other field can be left NULL.
+ * @param  : dp_id
+ *           table identifier.
+ * @param  : pkt_filter_entry
+ *           sdf packet filter entry structure
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 sdf_filter_entry_delete(struct dp_id dp_id, struct pkt_filter pkt_filter_entry);
 
 /********************* ADC Rule Table ****************/
 /**
- * @brief Function to create Application Detection and
- *	Control (ADC) table.
- *	This table allow to configure ADC rules. Each rules
- *	will have unique ADC id.
- *
- * @param dp_id
- *	table identifier.
- * @param max_elements
- *	max number of elements in this table.
- *
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : Function to create Application Detection and
+ *           Control (ADC) table.
+ *           This table allow to configure ADC rules. Each rules
+ *           will have unique ADC id.
+ * @param  : dp_id
+ *           table identifier.
+ * @param  : max_elements
+ *           max number of elements in this table.
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int adc_table_create(struct dp_id dp_id, uint32_t max_elements);
+
 /**
- * @brief  Destroy ADC table. For deleting this table,
- * make sure dp_id match with the one used when table created.
- * @param dp_id
- *	table identifier.
- *
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : Destroy ADC table. For deleting this table,
+ *           make sure dp_id match with the one used when table created.
+ * @param  : dp_id
+ *           table identifier.
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int adc_table_delete(struct dp_id dp_id);
+
 /**
- * @brief Add entry in Application Detection and Control (ADC) table.
- *	This API allows to add an ADC rule. Each entry should have unique ADC rule_id.
- *	Please refer "struct adc_rules" for detailed information about the
- *	variabled that can be configured.
- * @param dp_id
- *	table identifier.
- * @param entry
- *	element to be added in this table.
- *
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : Add entry in Application Detection and Control (ADC) table.
+ *           This API allows to add an ADC rule. Each entry should have unique ADC rule_id.
+ *           Please refer "struct adc_rules" for detailed information about the
+ *           variabled that can be configured.
+ * @param  : dp_id
+ *           table identifier.
+ * @param  : entry
+ *           element to be added in this table.
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int adc_entry_add(struct dp_id dp_id, struct adc_rules entry);
+
 /**
- * Delete entry in ADC table. For deleting an entry,
- * only ADC id is necessary. All other field can be left NULL.
- * @param dp_id
- *	table identifier.
- * @param entry
- *	element to be deleted in this table.
- *
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : Delete entry in ADC table. For deleting an entry,
+ *            only ADC id is necessary. All other field can be left NULL.
+ * @param  : dp_id
+ *           table identifier.
+ * @param  : entry
+ *           element to be deleted in this table.
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int adc_entry_delete(struct dp_id dp_id, struct adc_rules entry);
 
 /********************* PCC Table ****************/
 /**
- * @brief Function to create Policy and Charging Control
- *	(PCC) table. This table allow to configure PCC rules.
- *	 Each rules must have unique PCC id.
- * @param dp_id
- *	table identifier.
- * @param max_elements
- *	max number of elements in this table.
- *
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : Function to create Policy and Charging Control
+ *           (PCC) table. This table allow to configure PCC rules.
+ *           Each rules must have unique PCC id.
+ * @param  : dp_id
+ *           table identifier.
+ * @param  : max_elements
+ *           max number of elements in this table.
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int pcc_table_create(struct dp_id dp_id, uint32_t max_elements);
+
 /**
- * @brief Delete PCC table. For deleting this table,
- * make sure dp_id match with the one used when table created.
- * @param dp_id
- *	table identifier.
- *
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : Delete PCC table. For deleting this table,
+ *           make sure dp_id match with the one used when table created.
+ * @param  : dp_id
+ *           table identifier.
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int pcc_table_delete(struct dp_id dp_id);
 
 /**
- * @brief Add entry in Policy and Charging Control
- *	(PCC) table. Each entry should have unique PCC ruleid.
- *	The purpose of the PCC rule is to identify the service the Service
- *	Data Flow (SDF) contributes to, provide applicable charging parameters
- *	for the SDF and provide policy control for the SDF.
- *
- * @param dp_id
- *	table identifier.
- * @param entry
- *	element to be added in this table.
- *
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : Add entry in Policy and Charging Control
+ *           (PCC) table. Each entry should have unique PCC ruleid.
+ *           The purpose of the PCC rule is to identify the service the Service
+ *           Data Flow (SDF) contributes to, provide applicable charging parameters
+ *           for the SDF and provide policy control for the SDF.
+ * @param  : dp_id
+ *           table identifier.
+ * @param  : entry
+ *           element to be added in this table.
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 pcc_entry_add(struct dp_id dp_id, struct pcc_rules entry);
 
 /**
- * @brief Delete entry in PCC table. For deleting an entry,
- * 	only PCC id is necessary. All other field can be left NULL.
- * @param dp_id
- *	table identifier.
- * @param entry
- *	element to be deleted in this table.
- *
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : Delete entry in PCC table. For deleting an entry,
+ *           only PCC id is necessary. All other field can be left NULL.
+ * @param  : dp_id
+ *           table identifier.
+ * @param  : entry
+ *           element to be deleted in this table.
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 pcc_entry_delete(struct dp_id dp_id, struct pcc_rules entry);
 
 /********************* Bearer Session ****************/
 /**
- * @brief Function to create Bearer Session table.
- *	This table allow to configure Bearer Sessions per UEs.
- *	Please refer "struct session_info" for the
- *	configurable parameters.
- * @param dp_id
- *	table identifier.
- * @param max_element
- *	max number of elements in this table.
- *
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : Function to create Bearer Session table.
+ *           This table allow to configure Bearer Sessions per UEs.
+ *           Please refer "struct session_info" for the
+ *           configurable parameters.
+ * @param  : dp_id
+ *           table identifier.
+ * @param  : max_element
+ *           max number of elements in this table.
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int session_table_create(struct dp_id dp_id, uint32_t max_elements);
+
 /**
- * @brief Destroy Bearer Session table. For deleting this table,
- * 	make sure dp_id match with the one used when table created.
- * @param dp_id
- *	table identifier.
- * @param max_element
- *	max number of elements in this table.
- *
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : Destroy Bearer Session table. For deleting this table,
+ *            make sure dp_id match with the one used when table created.
+ * @param  : dp_id
+ *           table identifier.
+ * @param  : max_element
+ *           max number of elements in this table.
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int session_table_delete(struct dp_id dp_id);
+
 /**
- * @brief Create UE Session.
- *	This API allows to create Bearer sessions of UEs.
- *	Bearer session can be either per UE or per Bearer per UE based.
- *	In case of per bearer per UE, the last 3 bits of sess_id
- *	maps to bearer id.
- *	To update downlink related params please refer session_modify().
- * @param dp_id
- *	table identifier.
- * @param  session
- *	Session information
- *
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : Create UE Session.
+ *           This API allows to create Bearer sessions of UEs.
+ *           Bearer session can be either per UE or per Bearer per UE based.
+ *           In case of per bearer per UE, the last 3 bits of sess_id
+ *           maps to bearer id.
+ *           To update downlink related params please refer session_modify().
+ * @param  : dp_id
+ *           table identifier.
+ * @param  : session
+ *           Session information
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 session_create(struct dp_id dp_id, struct session_info session);
 
 /**
- * @brief Modify Bearer Session per user.
- *	This API allows to modify Bearer sessions of UEs.
- *	The information regarding uplink and downlink should
- *	be updated when passing session.
- *	If there is mismatch in ul_s1_info this API overwrites
- *	the old rules which were set by session_create().
- *
- * @param dp_id
- *	table identifier.
- * @param  session
- *	Session information
- *
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : Modify Bearer Session per user.
+ *           This API allows to modify Bearer sessions of UEs.
+ *           The information regarding uplink and downlink should
+ *           be updated when passing session.
+ *           If there is mismatch in ul_s1_info this API overwrites
+ *           the old rules which were set by session_create().
+ * @param  : dp_id
+ *           table identifier.
+ * @param  : session
+ *           Session information
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 session_modify(struct dp_id dp_id, struct session_info session);
 
 #ifdef DP_BUILD
 /**
- * Downlink data notification ack information. The information
- * regarding downlink should be updated bearer info.
- * @param dp_id
- *	table identifier.
- * @param  ddn_ack
- *	Downlink data notification ack information
- *
- * @return
- *	- 0 - success
- *	- -1 - fail
+ * @brief  : Downlink data notification ack information. The information
+ *            regarding downlink should be updated bearer info.
+ * @param  : dp_id
+ *           table identifier.
+ * @param  : ddn_ack
+ *           Downlink data notification ack information
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 send_ddn_ack(struct dp_id dp_id,
@@ -792,104 +788,94 @@ send_ddn_ack(struct dp_id dp_id,
 #endif 	/* DP_BUILD */
 
 /**
- * @brief To Delete Bearer Session of user. For deleting session,
- *	sess_id must be updated and all other fields can be left NULL.
- * @param dp_id
- *	table identifier.
- * @param  session
- *	Session information
- *
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : To Delete Bearer Session of user. For deleting session,
+ *           sess_id must be updated and all other fields can be left NULL.
+ * @param  : dp_id
+ *           table identifier.
+ * @param  : session
+ *           Session information
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 session_delete(struct dp_id dp_id, struct session_info session);
 
 /********************* Meter Table ****************/
 /**
- * @brief Create Meter profile table.
- *	This API allows to create a standard meter profile table,
- *	The entries in this table can be used to configure metering
- *	across all UEs.
- * @param dp_id
- *	dp_id - table identifier.
- * @param max_element
- *	max_element - max number of elements in this table.
- *
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : Create Meter profile table.
+ *           This API allows to create a standard meter profile table,
+ *           The entries in this table can be used to configure metering
+ *           across all UEs.
+ * @param  : dp_id
+ *           dp_id - table identifier.
+ * @param  : max_element
+ *           max_element - max number of elements in this table.
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 meter_profile_table_create(struct dp_id dp_id, uint32_t max_elements);
 
 /**
- * @brief Delete Meter profile table. For deleting this table,
- * 	make sure dp_id match with the one used when table created.
- * @param dp_id
- *	table identifier.
- *
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : Delete Meter profile table. For deleting this table,
+ *            make sure dp_id match with the one used when table created.
+ * @param  : dp_id
+ *           table identifier.
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 meter_profile_table_delete(struct dp_id dp_id);
 
 /**
- * @brief Add Meter profile entry. Each entry should be configured
- *	with unique id i.e. mtr_profile_index and with configurable mtr_params.
- *	This meter profile index can be used for PCC metering and APN metering.
- *	When creating PCC rule, the mtr_profile_index has
- *	to be set as per requirement. And when creating Bearer Session
- *	with APN metering, apn_mtr_idx has to be set as per requirement.
- * @param dp_id
- *	table identifier.
- * @param  mtr_entry
- *	meter entry
- *
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : Add Meter profile entry. Each entry should be configured
+ *           with unique id i.e. mtr_profile_index and with configurable mtr_params.
+ *           This meter profile index can be used for PCC metering and APN metering.
+ *           When creating PCC rule, the mtr_profile_index has
+ *           to be set as per requirement. And when creating Bearer Session
+ *           with APN metering, apn_mtr_idx has to be set as per requirement.
+ * @param  : dp_id
+ *           table identifier.
+ * @param  : mtr_entry
+ *           meter entry
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 meter_profile_entry_add(struct dp_id dp_id, struct mtr_entry mtr_entry);
 
 /**
- * @brief Delete Meter profile entry. For deleting an entry,
- * 	only meter id is necessary. All other field can be left NULL.
- * @param dp_id
- *	table identifier.
- * @param  mtr_entry
- *	meter entry
- *
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : Delete Meter profile entry. For deleting an entry,
+ *            only meter id is necessary. All other field can be left NULL.
+ * @param  : dp_id
+ *           table identifier.
+ * @param  : mtr_entry
+ *           meter entry
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 meter_profile_entry_delete(struct dp_id dp_id, struct mtr_entry mtr_entry);
+
 /**
- * @brief Function to flush UE CDR records into file.
- *  The cdrs will be dumped on request without resetting
- *  counters in DP.
- *  cdr file is located at "/var/log/dpn/session_cdr.csv".
- *
- * @param dp_id
- *  table identifier.
- * @param ue_cdr
- *  structre to flush UE CDR. This structure include
- *  session id of the bearer, cdr_type to get the type
- *  of records (cdr_type can be bearer, adc, flow,
- *  rating group or all) and action field to append or
- *  replace the logs. .
- *
- * @return
- *  - 0 on success
- *  - -1 on failure
+ * @brief  : Function to flush UE CDR records into file.
+ *           The cdrs will be dumped on request without resetting
+ *           counters in DP.
+ *           cdr file is located at "/var/log/dpn/session_cdr.csv".
+ * @param  : dp_id
+ *           table identifier.
+ * @param  : ue_cdr
+ *           structre to flush UE CDR. This structure include
+ *           session id of the bearer, cdr_type to get the type
+ *           of records (cdr_type can be bearer, adc, flow,
+ *           rating group or all) and action field to append or
+ *           replace the logs. .
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 ue_cdr_flush(struct dp_id dp_id, struct msg_ue_cdr ue_cdr);
+
+int
+encode_li_header(li_header_t *header, uint8_t *buf);
+
+int8_t
+create_li_header(uint8_t *uiPayload, int *uiPayloadLen, uint8_t type,
+		uint64_t uiImsi, uint32_t uiSrcIp, uint32_t uiDstIp,
+		uint16_t uiSrcPort, uint16_t uiDstPort, uint32_t uiDdf2Ip, uint32_t uiDdf3Ip);
 
 #endif /* _CP_DP_API_H_ */

@@ -43,7 +43,7 @@ dp/main.c
 		...
   		if (NULL != ret_arp_data) {
     		if (ret_arp_data->status == INCOMPLETE) {
-      			printf("ARPICMP status INCOMPLETE for port %d, ip: ", phy_port);
+      			clLog(clSystemLog, eCLSeverityDebug,"ARPICMP status INCOMPLETE for port %d, ip: ", phy_port);
       			return 0;
     		}
     	ether_addr_copy(&ret_arp_data->eth_addr, hw_addr);
@@ -146,7 +146,7 @@ dp/pipeline/epc_packet_framework.c:
 	    addr[port_id].ip = htonl(app.sgi_ip);	//SK added htonl()
 	    addr[port_id].mac_addr = &app.sgi_ether_addr;
 	  } else {
-	    printf("Unknown input port\n");
+	    clLog(clSystemLog, eCLSeverityDebug,"Unknown input port\n");
 	  }
 	}
 
@@ -171,7 +171,7 @@ dp/pipeline/epc_packet_framework.c:
 				get_mac_ip_addr(arp_port_addresses, in_port_id);
       				if (arp_h->arp_data.arp_tip != arp_port_addresses[in_port_id].ip)
 					{
-						printf("ARP requested IP address mismatches interface IP - discarding\n");
+						clLog(clSystemLog, eCLSeverityDebug,"ARP requested IP address mismatches interface IP - discarding\n");
 					}
 					else if (arp_h->arp_op == rte_cpu_to_be_16(ARP_OP_REQUEST)) {
 						/* ASR- Send reply to ARP REQ */
@@ -200,7 +200,7 @@ dp/pipeline/epc_packet_framework.c:
 	int send_arp_req(unsigned port_id, uint32_t ip)
 	{
 		...
-		printf("Enter send_arp_req..\n");
+		clLog(clSystemLog, eCLSeverityDebug,"Enter send_arp_req..\n");
 		struct rte_mbuf *arp_pkt = rte_pktmbuf_alloc(arp_icmp_pktmbuf_tx_pool);
 		...
 	}
@@ -243,7 +243,7 @@ dp/pipeline/epc_packet_framework.c:
 		{
     		if (is_same_ether_addr(&arp_data->eth_addr, hw_addr))	{
 			...
-			printf("arp_entry exists ip%x, port %d\n", arp_key.ip, arp_key.port_id);
+			clLog(clSystemLog, eCLSeverityDebug,"arp_entry exists ip%x, port %d\n", arp_key.ip, arp_key.port_id);
 	      	return;
 			}
 			else
