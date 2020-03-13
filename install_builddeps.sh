@@ -5,8 +5,8 @@
 THIRD_PARTY_SW_PATH="third_party"
 OSS_UTIL_DIR="oss-util"
 C3PO_OSS_DIR="oss_adapter/c3po_oss"
-OSS_UTIL_GIT_LINK="http://gsgit.gslab.com/Sprint-Repos/oss-util.git"
-FREEDIAMETER="http://gsgit.gslab.com/Sprint-Repos/freediameter.git"
+OSS_UTIL_GIT_LINK="http://10.155.205.206/C3PO-NGIC/oss-util.git"
+FREEDIAMETER="http://10.155.205.206/C3PO-NGIC/freeDiameter.git"
 HIREDIS="https://github.com/redis/hiredis.git"
 
 SERVICES="$1"
@@ -28,11 +28,11 @@ install_pkg_deps() {
 		libpcap0.8-dev \
 		libssl-dev \
 		libzmq3-dev \
-        libjson0-dev \
-	    libc6-dev \
-	    libcurl4-openssl-dev \
+                libjson0-dev \
+	        libc6-dev \
+	        libcurl4-openssl-dev \
 		libc6 \
-        g++ cmake ragel libboost-all-dev \
+                g++ cmake ragel libboost-all-dev \
 		wget
 
 
@@ -97,7 +97,7 @@ download_freediameter()
              mkdir $THIRD_PARTY_SW_PATH
         fi
         pushd $THIRD_PARTY_SW_PATH
-        git clone $FREEDIAMETER
+        git clone $FREEDIAMETER -b delivery_1.5
         if [ $? -ne 0 ] ; then
                         echo "Failed to clone FreeDiameter, please check the errors."
                         return
@@ -173,6 +173,7 @@ build_fd_gxapp()
 {
 	echo "Building FreeDiameter ..."
 	build_fd_lib
+	//ldconfig
 
 	echo "Building GxAPP ..."
 	build_gxapp
@@ -214,8 +215,7 @@ install_oss_util()
 
         if [ ! -d $OSS_DIR ]; then
        	     echo "Cloning OSS-UTIL repo ...$OSS_UTIL_GIT_LINK"
-             git clone $OSS_UTIL_GIT_LINK
-#      	     mv oss_util_gslab oss-util
+             git clone $OSS_UTIL_GIT_LINK -b delivery_1.7
         fi
 
         cp $CUR_DIR/oss-util.sh $OSS_DIR/
@@ -231,23 +231,23 @@ install_build_deps() {
        install_pkg_deps
        install_dpdk
        if [[ $SERVICES == "CP" ]] || [[ $SERVICES == "cp" ]]; then
-	     install_oss_util
-	     download_freediameter
-         build_libgtpcv2c
-         build_fd_gxapp
-         download_hiredis
-         build_hiredis
+		install_oss_util
+		download_freediameter
+		build_libgtpcv2c
+		build_fd_gxapp
+		download_hiredis
+		build_hiredis
        elif [[ $SERVICES == "DP" ]] || [[ $SERVICES == "dp" ]]; then
-	     install_oss_util
-         download_hyperscan
+		install_oss_util
+		download_hyperscan
        else
-         download_hyperscan
-         download_freediameter
-         install_oss_util
-         build_libgtpcv2c
-         build_fd_gxapp
-	     download_hiredis
-         build_hiredis
+		download_hyperscan
+		download_freediameter
+		install_oss_util
+		build_libgtpcv2c
+		build_fd_gxapp
+		download_hiredis
+		build_hiredis
        fi
        build_pfcp_lib
 }
