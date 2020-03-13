@@ -535,6 +535,7 @@ download_freediameter()
 	                echo "Failed to clone FreeDiameter, please check the errors."
 	                return
 	fi
+	mv freeDiameter freediameter
         popd
 
 }

@@ -102,6 +102,7 @@ download_freediameter()
                         echo "Failed to clone FreeDiameter, please check the errors."
                         return
         fi
+	mv freeDiameter freediameter
         popd
 
 }
@@ -173,7 +174,7 @@ build_fd_gxapp()
 {
 	echo "Building FreeDiameter ..."
 	build_fd_lib
-	//ldconfig
+	#ldconfig
 
 	echo "Building GxAPP ..."
 	build_gxapp
