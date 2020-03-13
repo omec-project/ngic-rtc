@@ -13,6 +13,7 @@ build:
         - delivery_1.7
     before_script:
         - echo -e "*************************************\n\tNGIC Build Started\n*************************************"
+        - cd $CI_PROJECT_DIR && sudo rm -rf * 
     script:
         - echo "Git clone OSS util packages"
         - ssh-keyscan $GIT_IP >> ~/.ssh/known_hosts
