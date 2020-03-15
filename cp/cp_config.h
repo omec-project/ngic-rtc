@@ -48,6 +48,7 @@ struct dp_info
 	struct upf_context *upf;
 	struct in_addr dns_p, dns_s; 
     struct ip_table *static_pool_tree;
+	char   *static_pool;
 	LIST_ENTRY(dp_info) dpentries;
 };
 

@@ -24,7 +24,9 @@ struct rte_hash *ue_context_by_fteid_hash;
 
 static struct in_addr ip_pool_ip;
 static struct in_addr ip_pool_mask;
+#ifndef MULTI_UPFS
 struct ip_table *static_addr_pool = NULL;
+#endif
 
 apn apn_list[MAX_NB_DPN];
 
