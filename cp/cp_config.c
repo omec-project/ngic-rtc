@@ -225,24 +225,25 @@ init_spgwc_dynamic_config(struct app_config *cfg )
 	        RTE_LOG_DP(ERR, CP, "DP (%s) DNS_SECONDARY address is invalid %s \n",dpInfo->dpName, entry);
 		}
 
-        bool static_addr_pool_parsing_error = false;
+		bool static_addr_pool_parsing_error = false;
 		char err_str[128];
 		char *pool = NULL;
-		bool config_change = true;
+		bool static_pool_config_change = true;
 		bool first_time_pool_config = true;
 		entry = rte_cfgfile_get_entry(file, sectionname, "STATIC_IP_POOL");
 		if(dpInfo->static_pool != NULL) {
 			first_time_pool_config = false;
 			if(strcmp(dpInfo->static_pool, entry) == 0) {
-				config_change = false;
+				static_pool_config_change = false;
 			}
 		}
 		// Static pool update is bit risky, since it has possibly some active subscribers 
 		// which are using the address from the pool. If config is changed then we need to
-		if(config_change == true && first_time_pool_config == false) {
+		if(static_pool_config_change == true && first_time_pool_config == false) {
 			// Ignore config update. So new pool will not take effect. 
 			// If number of active users using pool are 0 then only 
 			// we can update the pool. 
+            // if we have 0 subscribers using the config then we can set first_time_pool_config = true;
 		}
 		while((entry != NULL) && first_time_pool_config == true) {
 			pool=(char *) calloc(1, 128); 
@@ -258,6 +259,7 @@ init_spgwc_dynamic_config(struct app_config *cfg )
             if(network_str == NULL){
 				static_addr_pool_parsing_error = true;
 				sprintf(err_str, " strtok failed to get network %s ", pool);
+                free(pool);
 				break;
 			}
 
@@ -267,6 +269,7 @@ init_spgwc_dynamic_config(struct app_config *cfg )
 			if(inet_aton(network_str, &network) == 0) {
 				sprintf(err_str, " inet_aton failed for %s ", network_str);
 				static_addr_pool_parsing_error = true;
+                free(pool);
 				break;
 			}			
 			network.s_addr = ntohl(network.s_addr); // host order 
@@ -275,6 +278,7 @@ init_spgwc_dynamic_config(struct app_config *cfg )
             if(mask_str == NULL){
 				static_addr_pool_parsing_error = true;
 				sprintf(err_str, " strtok failed to get mask %s ", pool);
+                free(pool);
 				break;
 			}
 
@@ -283,8 +287,11 @@ init_spgwc_dynamic_config(struct app_config *cfg )
 			if(mask > 23) { /* we dont want to allow big static block allocation */
            		dpInfo->static_pool_tree = calloc(1, sizeof(struct ip_table));
 				create_ue_pool(dpInfo->static_pool_tree, network, mask); 
-			} else
+			} else {
 				RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL %s configured with large size network. \n", pool);
+                free(pool);
+                break;
+            }
 		    	
 			// keep pool config with us..next time we can compare it to see if anything changed
         	dpInfo->static_pool = pool; 

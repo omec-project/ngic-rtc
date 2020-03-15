@@ -313,9 +313,9 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 #if defined(ZMQ_COMM) && defined(MULTI_UPFS)
       struct dp_info *dpInfo = fetch_dp_context(dataplane_id); 
       if(dpInfo)
-        found = find_ip_node(dpInfo->static_pool_tree, csr.paa.ip_type.ipv4);
+        found = reserve_ip_node(dpInfo->static_pool_tree, csr.paa.ip_type.ipv4);
 #else
-        found = find_ip_node(static_addr_pool, csr.paa.ip_type.ipv4);
+        found = reserve_ip_node(static_addr_pool, csr.paa.ip_type.ipv4);
 #endif
       if(found == false) {
 		RTE_LOG_DP(DEBUG, CP, "Received CSReq with static address %s"

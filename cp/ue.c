@@ -402,7 +402,7 @@ create_ue_pool(struct ip_table *addr_root, struct in_addr network, uint32_t mask
     {
        struct in_addr ue_ip;
        ue_ip.s_addr = network.s_addr + i; 
-       add_ip_node(addr_root, ue_ip);
+       add_ipaddr_in_pool(addr_root, ue_ip);
        ue_ip.s_addr = htonl(ue_ip.s_addr); // just for print purpose 
        printf("Add UE IP address = %s  in pool \n", inet_ntoa(ue_ip)); 
     }
@@ -412,7 +412,7 @@ create_ue_pool(struct ip_table *addr_root, struct in_addr network, uint32_t mask
 /* Add nodes in the m-trie. Duplicate elements overwrite old elements 
  * 4 comparisions to add the ip address 
  */
-void add_ip_node(struct ip_table *search_tree, struct in_addr host)
+void add_ipaddr_in_pool(struct ip_table *search_tree, struct in_addr host)
 {
    unsigned char byte;
    uint32_t addr = host.s_addr;
@@ -432,28 +432,34 @@ void add_ip_node(struct ip_table *search_tree, struct in_addr host)
    return;
 }
 
-bool find_ip_node(struct ip_table *search_tree , struct in_addr host)
+/* Check if given host is part of the tree */
+bool 
+reserve_ip_node(struct ip_table *search_tree , struct in_addr host)
 {
-  unsigned char byte;
-  uint32_t mask[] = {0xff000000, 0xff0000, 0xff00, 0xff};
-  uint32_t shift[]  = {24, 16, 8, 0};
+	unsigned char byte;
+	uint32_t mask[] = {0xff000000, 0xff0000, 0xff00, 0xff};
+	uint32_t shift[]  = {24, 16, 8, 0};
 
-  for(int i=0; i<=3; i++)
-  {
-    byte = ((host.s_addr) & mask[i])>> shift[i];
-    if(search_tree->octet[byte] == NULL)
-    {
-      return false;
-    }
-    search_tree = search_tree->octet[byte]; 
-  }
-  printf("Found address %s in static IP Pool \n", search_tree->ue_address);
-  /* Delete should free the flag.. Currently we are not taking care of hanging sessions. 
-   * hangign sessions at PDN GW + Static Address is already trouble. This also means that
-   * if new session comes to PDN GW and if old session found present then PDN GW should 
-   * delete old session. this is TODO.
-   */ 
-  search_tree->used = true; 
-  return true; 
+	for(int i=0; i<=3; i++)
+	{
+		byte = ((host.s_addr) & mask[i])>> shift[i];
+		if(search_tree->octet[byte] == NULL)
+		{
+			return false;
+		}
+		search_tree = search_tree->octet[byte]; 
+	}
+
+	if(search_tree->used == true) {
+		printf("Found address %s in static IP Pool. But this is already used. Rejecy call setup  \n", search_tree->ue_address);
+		return false;
+	}
+	printf("Found address %s in static IP Pool \n", search_tree->ue_address);
+	/* Delete should free the flag.. Currently we are not taking care of hanging sessions. 
+	 * hangign sessions at PDN GW + Static Address is already trouble. This also means that
+	 * if new session comes to PDN GW and if old session found present then PDN GW should 
+	 * delete old session. this is TODO.
+	 */ 
+	search_tree->used = true; 
+	return true; 
 }
-

@@ -272,8 +272,8 @@ struct ip_table
   bool used ; 
 };
 
-void add_ip_node(struct ip_table *addr_tree , struct in_addr addr);
-bool find_ip_node(struct ip_table *addr_tree , struct in_addr host);
+void add_ipaddr_in_pool(struct ip_table *addr_tree , struct in_addr addr);
+bool reserve_ip_node(struct ip_table *addr_tree , struct in_addr host);
 void create_ue_pool(struct ip_table *addr_tree, struct in_addr network, uint32_t mask);
 
 #endif /* UE_H */
