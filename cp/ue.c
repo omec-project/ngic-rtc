@@ -439,6 +439,12 @@ reserve_ip_node(struct ip_table *search_tree , struct in_addr host)
 	unsigned char byte;
 	uint32_t mask[] = {0xff000000, 0xff0000, 0xff00, 0xff};
 	uint32_t shift[]  = {24, 16, 8, 0};
+    if(search_tree == NULL)
+	{
+		host.s_addr = htonl(host.s_addr);
+		printf("Failed to reserve IP address %s. Static Pool not configured \n", inet_ntoa(host));
+		return false;
+	}
 
 	for(int i=0; i<=3; i++)
 	{
@@ -462,4 +468,39 @@ reserve_ip_node(struct ip_table *search_tree , struct in_addr host)
 	 */ 
 	search_tree->used = true; 
 	return true; 
+}
+
+/* Mark the host as free */
+bool 
+release_ip_node(struct ip_table *search_tree , struct in_addr host)
+{
+	unsigned char byte;
+	uint32_t mask[] = {0xff000000, 0xff0000, 0xff00, 0xff};
+	uint32_t shift[]  = {24, 16, 8, 0};
+
+    if(search_tree == NULL)
+	{
+		host.s_addr = htonl(host.s_addr);
+		printf("Failed to reserve IP address %s. Static Pool not configured \n", inet_ntoa(host));
+		return false;
+	}
+
+	for(int i=0; i<=3; i++)
+	{
+		byte = ((host.s_addr) & mask[i])>> shift[i];
+		if(search_tree->octet[byte] == NULL)
+		{
+			return false;
+		}
+		search_tree = search_tree->octet[byte]; 
+	}
+
+	if(search_tree->used == true) {
+		printf("Found address %s in static IP Pool. Freeing the addres \n", search_tree->ue_address);
+		search_tree->used = false; 
+		return true;
+	}
+
+	printf("address %s was not part of static pool \n", search_tree->ue_address);
+	return false; 
 }

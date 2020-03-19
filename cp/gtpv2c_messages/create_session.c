@@ -352,7 +352,7 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 		pdn->apn_ambr.ambr_downlink = csr.ambr.apn_ambr_dl;
 		pdn->apn_ambr.ambr_uplink = csr.ambr.apn_ambr_ul;
 		pdn->apn_restriction = csr.apn_restriction.restriction_type;
-		pdn->ipv4.s_addr = htonl(ue_ip.s_addr);
+		pdn->ipv4.s_addr = htonl(ue_ip.s_addr); // pdn ip is in network order 
 
 		if (csr.pdn_type.pdn_type == PDN_TYPE_IPV4)
 			pdn->pdn_type.ipv4 = 1;

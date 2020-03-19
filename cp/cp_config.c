@@ -219,7 +219,7 @@ init_spgwc_dynamic_config(struct app_config *cfg )
 		}
 		if (inet_aton(entry, &dpInfo->dns_s) == 1) {
  		    set_dp_dns_secondary(dpInfo);
-			RTE_LOG_DP(INFO, CP, "DP DNS_SECONDARY address is %s", inet_ntoa(dpInfo->dns_s));
+			RTE_LOG_DP(INFO, CP, "DP DNS_SECONDARY address is %s \n", inet_ntoa(dpInfo->dns_s));
 		} else {
 			//invalid address
 	        RTE_LOG_DP(ERR, CP, "DP (%s) DNS_SECONDARY address is invalid %s \n",dpInfo->dpName, entry);
@@ -244,7 +244,9 @@ init_spgwc_dynamic_config(struct app_config *cfg )
 			// If number of active users using pool are 0 then only 
 			// we can update the pool. 
             // if we have 0 subscribers using the config then we can set first_time_pool_config = true;
+			RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL %s change is not supported...Its experimental feature. \n", entry);
 		}
+
 		while((entry != NULL) && first_time_pool_config == true) {
 			pool=(char *) calloc(1, 128); 
             if(pool == NULL) {
@@ -284,11 +286,12 @@ init_spgwc_dynamic_config(struct app_config *cfg )
 
 			uint32_t mask;
 			mask = atoi(mask_str);
-			if(mask > 23) { /* we dont want to allow big static block allocation */
+			if(mask > 23 && mask <= 32) {  /* we dont want to allow big static block allocation */
            		dpInfo->static_pool_tree = calloc(1, sizeof(struct ip_table));
 				create_ue_pool(dpInfo->static_pool_tree, network, mask); 
 			} else {
-				RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL %s configured with large size network. \n", pool);
+				RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL %s configured with large size network. %d \n", pool, mask);
+				static_addr_pool_parsing_error = true;
                 free(pool);
                 break;
             }
@@ -298,7 +301,7 @@ init_spgwc_dynamic_config(struct app_config *cfg )
 			break;
 		}
         if(static_addr_pool_parsing_error == true) {
-			RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL %s Parsing failed \n", pool);
+			RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL %s Parsing failed. Error - %s  \n", entry, err_str);
 		}
  	}
   return;
