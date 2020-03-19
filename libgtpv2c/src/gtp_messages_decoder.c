@@ -4839,7 +4839,7 @@ int decode_gtp_mod_bearer_request_bearer_ctxt_to_be_modified_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return (count + sizeof(ie_header_t));
 }
 /**
 * Decodes ue_actvty_ack_t to buffer.

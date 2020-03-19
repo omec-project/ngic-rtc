@@ -717,7 +717,7 @@ fill_update_pdr(pfcp_sess_mod_req_t *pfcp_sess_mod_req, eps_bearer *bearer){
 			pfcp_sess_mod_req->update_pdr[i].pdi.ntwk_inst.header.len = 0;
 		}else{
 			pfcp_sess_mod_req->update_pdr[i].pdi.ue_ip_address.ipv4_address =
-				ntohl(bearer->pdrs[itr]->pdi.ue_addr.ipv4_address);
+				bearer->pdrs[itr]->pdi.ue_addr.ipv4_address;
 			strncpy((char *)pfcp_sess_mod_req->update_pdr[i].pdi.ntwk_inst.ntwk_inst,
 				(char *)&bearer->pdrs[itr]->pdi.ntwk_inst.ntwk_inst, 32);
 		}
@@ -739,7 +739,7 @@ fill_update_pdr(pfcp_sess_mod_req_t *pfcp_sess_mod_req, eps_bearer *bearer){
 
 		} else {
 			pfcp_sess_mod_req->update_pdr[i].pdi.local_fteid.ipv4_address =
-				ntohl(bearer->pdrs[itr]->pdi.local_fteid.ipv4_address);
+				bearer->pdrs[itr]->pdi.local_fteid.ipv4_address;
 		}
 
 		pfcp_sess_mod_req->update_pdr[i].pdi.src_intfc.interface_value =
@@ -2392,9 +2392,10 @@ fill_pdn_info(create_sess_req_t *csr, pdn_connection *pdn)
 				&csr->chrgng_char.chrgng_char_val,
 				sizeof(csr->chrgng_char.chrgng_char_val));
 
+	pdn->ue_time_zone_flag = FALSE;
 	if(csr->ue_time_zone.header.len)
 	{
-		pdn->ue_time_zone_flag = FALSE;
+		pdn->ue_time_zone_flag = TRUE;
 		pdn->ue_tz.tz = csr->ue_time_zone.time_zone;
 		pdn->ue_tz.dst = csr->ue_time_zone.daylt_svng_time;
 	}
@@ -2992,6 +2993,7 @@ gen_ccru_request(pdn_connection *pdn, eps_bearer *bearer , mod_bearer_req_t *mb_
 	int index = 0;
 	int len = 0;
 
+
 	if(pdn->context->old_uli_valid == TRUE) {
 
 		if(flag_check  == ECGI_AND_TAI_PRESENT) {
@@ -3006,7 +3008,7 @@ gen_ccru_request(pdn_connection *pdn, eps_bearer *bearer , mod_bearer_req_t *mb_
 			len  = fill_ecgi(&(ccr_request.data.ccr.tgpp_user_location_info.val[len + 1]), &(mb_req->uli.ecgi2));
 			ccr_request.data.ccr.tgpp_user_location_info.len += len;
 
-		} else if (((flag_check & (1< 0)) == 1) ) {
+		} else if (((flag_check & (1<< 0)) == TAI_PRESENT) ) {
 
 			ccr_request.data.ccr.presence.tgpp_user_location_info = PRESENT;
 			ccr_request.data.ccr.tgpp_user_location_info.val[index++] = GX_TAI_TYPE;
@@ -3017,7 +3019,7 @@ gen_ccru_request(pdn_connection *pdn, eps_bearer *bearer , mod_bearer_req_t *mb_
 
 			ccr_request.data.ccr.tgpp_user_location_info.len += len;
 
-		} else if (((flag_check & (1< 4)) == 1)) {
+		} else if (((flag_check & (1 << 4)) == ECGI_PRESENT)) {
 
 			ccr_request.data.ccr.presence.tgpp_user_location_info = PRESENT;
 			ccr_request.data.ccr.tgpp_user_location_info.val[index++] = GX_ECGI_TYPE;
@@ -3025,22 +3027,22 @@ gen_ccru_request(pdn_connection *pdn, eps_bearer *bearer , mod_bearer_req_t *mb_
 			len  = fill_ecgi(&(ccr_request.data.ccr.tgpp_user_location_info.val[index]), &(mb_req->uli.ecgi2));
 			ccr_request.data.ccr.tgpp_user_location_info.len += len;
 
-		} else if (((flag_check & (1< 2)) == 1)) {
+		} else if (((flag_check & (1 << 2)) == SAI_PRESENT)) {
 
 			ccr_request.data.ccr.presence.tgpp_user_location_info = PRESENT;
 			ccr_request.data.ccr.tgpp_user_location_info.val[index++] = GX_SAI_TYPE;
 			ccr_request.data.ccr.tgpp_user_location_info.len = index ;
 			len  = fill_sai(&(ccr_request.data.ccr.tgpp_user_location_info.val[index]), &(mb_req->uli.sai2));
 			ccr_request.data.ccr.tgpp_user_location_info.len += len;
-		} else if (((flag_check & (1< 3)) == 1)) {
 
+		} else if (((flag_check & (1 << 3)) == RAI_PRESENT)) {
 			ccr_request.data.ccr.presence.tgpp_user_location_info = PRESENT;
 			ccr_request.data.ccr.tgpp_user_location_info.val[index++] = GX_RAI_TYPE;
 			ccr_request.data.ccr.tgpp_user_location_info.len = index ;
 			len  = fill_rai(&(ccr_request.data.ccr.tgpp_user_location_info.val[index]), &(mb_req->uli.rai2));
 			ccr_request.data.ccr.tgpp_user_location_info.len += len;
 
-		} else if (((flag_check & (1< 1)) == 1)) {
+		} else if (((flag_check & (1 << 1)) == CGI_PRESENT)) {
 
 			ccr_request.data.ccr.presence.tgpp_user_location_info = PRESENT;
 			ccr_request.data.ccr.tgpp_user_location_info.val[index++] = GX_CGI_TYPE;
@@ -3048,15 +3050,14 @@ gen_ccru_request(pdn_connection *pdn, eps_bearer *bearer , mod_bearer_req_t *mb_
 			len  = fill_cgi(&(ccr_request.data.ccr.tgpp_user_location_info.val[index]), &(mb_req->uli.cgi2));
 			ccr_request.data.ccr.tgpp_user_location_info.len += len;
 
-		} else if (((flag_check & (1< 6)) == 1)) {
-
+		} else if (((flag_check & (1 << 6)) == 1)) {
 			len = fill_lai(&(ccr_request.data.ccr.tgpp_user_location_info.val[index]), &(mb_req->uli.lai2));
 		}
 
 	}
 
 	if( pdn->old_ue_tz_valid == TRUE ) {
-	//  fill_3gpp_ue_timezone( &(ccr_request.data.ccr.tgpp_ms_timezone), pdn->ue_tz);
+
 		index = 0;
 		ccr_request.data.ccr.presence.tgpp_ms_timezone = PRESENT;
 		ccr_request.data.ccr.tgpp_ms_timezone.val[index++] = GX_UE_TIMEZONE_TYPE;
@@ -3066,6 +3067,7 @@ gen_ccru_request(pdn_connection *pdn, eps_bearer *bearer , mod_bearer_req_t *mb_
 		ccr_request.data.ccr.tgpp_ms_timezone.len = index;
 
 	}
+
 
 	/* VS: Fill the Credit Crontrol Request to send PCRF */
 	if(fill_ccr_request(&ccr_request.data.ccr, pdn->context, (bearer->eps_bearer_id - 5), pdn->gx_sess_id) != 0) {
@@ -4341,7 +4343,7 @@ int process_pfcp_sess_mod_req_handover(mod_bearer_req_t *mb_req)
 				(mb_req->ue_time_zone.daylt_svng_time != pdn->ue_tz.dst))
 		{
 			pdn->old_ue_tz = pdn->ue_tz;
-			pdn->old_ue_tz_valid = TRUE;//true;
+			pdn->old_ue_tz_valid = TRUE;
 			pdn->ue_tz.tz = mb_req->ue_time_zone.time_zone;
 			pdn->ue_tz.dst = mb_req->ue_time_zone.daylt_svng_time;
 		}
@@ -5606,12 +5608,14 @@ process_pfcp_sess_del_resp(uint64_t sess_id, gtpv2c_header_t *gtpv2c_tx,
 					strerror(ret));
 		}
 
+#ifdef USE_DNS_QUERY
 		/* Delete UPFList entry from UPF Hash */
 		if ((upflist_by_ue_hash_entry_delete(&context->imsi, sizeof(context->imsi))) < 0){
 			clLog(clSystemLog, eCLSeverityCritical,
 					"%s %s - Error on upflist_by_ue_hash deletion of IMSI \n",__file__,
 					strerror(ret));
 		}
+#endif /* USE_DNS_QUERY */
 
 #ifdef USE_CSID
 		fqcsid_t *csids = context->pgw_fqcsid;
@@ -5723,12 +5727,15 @@ process_pfcp_sess_del_resp(uint64_t sess_id, gtpv2c_header_t *gtpv2c_tx,
 				"%s %s - Error on ue_context_by_fteid_hash del\n",__file__,
 				strerror(ret));
 	}
+
+#ifdef USE_DNS_QUERY
 	/* Delete UPFList entry from UPF Hash */
 	if ((upflist_by_ue_hash_entry_delete(&context->imsi, sizeof(context->imsi))) < 0){
 		clLog(clSystemLog, eCLSeverityCritical,
 				"%s %s - Error on upflist_by_ue_hash deletion of IMSI \n",__file__,
 				strerror(ret));
 	}
+#endif /* USE_DNS_QUERY */
 
 #ifdef USE_CSID
 	fqcsid_t *csids = context->sgw_fqcsid;
