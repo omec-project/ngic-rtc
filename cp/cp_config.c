@@ -30,8 +30,11 @@ config_change_cbk(char *config_file, uint32_t flags)
 
 	if (native_config_folder == false) {
 		/* Move the updated config to standard path */
+		char filename[256] = {'\0'};
+		sprintf(filename, "%s%s", config_update_base_folder, CP_CONFIG_APP);
+		RTE_LOG_DP(INFO, CP, "Destination filename  %s \n", filename);
 		static char cmd[256];
-		sprintf(cmd, "cp %s %s", config_file, CP_CONFIG_OPT_PATH);
+		sprintf(cmd, "cp %s %s", config_file, filename);
 		int ret = system(cmd);
 		RTE_LOG_DP(INFO, CP, "system call return value: %d \n", ret);
 	}

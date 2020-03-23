@@ -271,7 +271,7 @@ parse_arg(int argc, char **argv)
 		config_update_base_folder = (char *) calloc(1, 128);
 		if (config_update_base_folder == NULL)
 			rte_panic("Unable to allocate memory for config_update_base_folder!\n");
-		strcpy(config_update_base_folder, CP_CONFIG_FOLDER);
+		strcpy(config_update_base_folder, CONFIG_FOLDER);
 		native_config_folder = true;
 	}
 

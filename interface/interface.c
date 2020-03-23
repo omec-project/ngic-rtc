@@ -63,6 +63,7 @@
  */
 udp_sock_t my_sock;
 
+extern char *config_update_base_folder;
 /* VS: ROUTE DISCOVERY */
 extern int route_sock;
 
@@ -1331,7 +1332,7 @@ zmq_destroy(void)
 #endif		/* DP: SDN_ODL_BUILD */
 #endif /* !CP_BUILD*/
 
-#define IFACE_FILE "../config/interface.cfg"
+#define IFACE_FILE "interface.cfg"
 
 static void set_config_ip(struct in_addr *ip, const char *key,
                  struct rte_cfgfile *file, const char *section, const char *entry)
@@ -1360,12 +1361,14 @@ static void set_config_port(uint16_t *port, const char *key,
 
 static void read_interface_config(void)
 {
-	struct rte_cfgfile *file = rte_cfgfile_load(IFACE_FILE, 0);
+	char iface_file[128] = {'\0'}; 
+	sprintf(iface_file, "%s%s", config_update_base_folder, IFACE_FILE);
+	struct rte_cfgfile *file = rte_cfgfile_load(iface_file, 0);
 	char *file_entry = NULL;
 
 	if (file == NULL)
 		rte_exit(EXIT_FAILURE, "Cannot load configuration profile %s\n",
-				IFACE_FILE);
+				iface_file);
 
 #ifndef SDN_ODL_BUILD /* Communication over the UDP */
 	SET_CONFIG_IP(dp_comm_ip, file, "0", file_entry);
