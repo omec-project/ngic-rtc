@@ -261,16 +261,17 @@ parse_arg(int argc, char **argv)
 			{
 #ifndef MULTI_UPFS
 				char *pool = parse_create_static_ip_pool(&static_addr_pool, optarg);
-				if(pool != NULL)
+				if (pool != NULL)
 					RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL configured %s \n", pool);
 #else
-                RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL is for multi upf case should be provided in app_config.cfg \n");
+				RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL is for multi upf case should be provided in app_config.cfg \n");
 #endif
 			}
-            break;
-
+			break;
 		case 'f':
 			config_update_base_folder = calloc(1, 128);
+			if (config_update_base_folder == NULL)
+				rte_panic("Unable to allocate memory for config_update_base_folder var!\n");
 			strcpy(config_update_base_folder, optarg);
 			break;
 		default:

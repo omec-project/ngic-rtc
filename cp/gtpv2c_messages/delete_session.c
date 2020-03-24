@@ -80,15 +80,15 @@ delete_context(delete_session_request_t *ds_req,
 		return GTPV2C_CAUSE_MANDATORY_IE_INCORRECT;
 	}
 
-#if   defined(MULTI_UPFS)
-    struct dp_info *dp = fetch_dp_context(context->dpId); 
-    if(dp != NULL) {
+#if defined(MULTI_UPFS)
+	struct dp_info *dp = fetch_dp_context(context->dpId); 
+	if (dp != NULL) {
 		struct in_addr host = {0};
 		host.s_addr = ntohl(pdn->ipv4.s_addr);
-		release_ip_node(dp->static_pool_tree, host); 
+		release_ip_node(dp->static_pool_tree, host);
 	}
 #else
-    if(static_addr_pool != NULL) {
+	if (static_addr_pool != NULL) {
 		struct in_addr host = {0};
 		host.s_addr = ntohl(pdn->ipv4.s_addr);
 		release_ip_node(static_addr_pool, host); 
