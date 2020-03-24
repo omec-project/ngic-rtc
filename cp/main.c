@@ -188,6 +188,7 @@ parse_arg(int argc, char **argv)
 	  {"log_level",   required_argument, NULL, 'l'},
 	  {"pcap_file_in", required_argument, NULL, 'x'},
 	  {"pcap_file_out", required_argument, NULL, 'y'},
+	  {"static_pool", optional_argument, NULL, 'h'},
 	  {"config_update_base_folder",optional_argument, NULL, 'f'},
 	  {0, 0, 0, 0}
 	};
@@ -195,7 +196,7 @@ parse_arg(int argc, char **argv)
 	do {
 		int option_index = 0;
 
-		c = getopt_long(argc, argv, "d:m:s:r:g:w:v:u:i:p:a:l:x:y:f:", long_options,
+		c = getopt_long(argc, argv, "d:m:s:r:g:w:v:u:i:p:a:l:x:y:h:f:", long_options,
 		    &option_index);
 
 		if (c == -1)
@@ -256,6 +257,18 @@ parse_arg(int argc, char **argv)
 			pcap_dumper = pcap_dump_open(pcap, optarg);
 			s11_pcap_fd = pcap_fileno(pcap);
 			break;
+		case 'h':
+			{
+#ifndef MULTI_UPFS
+				char *pool = parse_create_static_ip_pool(&static_addr_pool, optarg);
+				if(pool != NULL)
+					RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL configured %s \n", pool);
+#else
+                RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL is for multi upf case should be provided in app_config.cfg \n");
+#endif
+			}
+            break;
+
 		case 'f':
 			config_update_base_folder = calloc(1, 128);
 			strcpy(config_update_base_folder, optarg);

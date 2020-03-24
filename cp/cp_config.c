@@ -14,6 +14,7 @@
 #include <rte_cfgfile.h>
 #include <rte_log.h>
 #include <rte_debug.h>
+#include "string.h"
 
 extern struct app_config *appl_config;
 extern char* config_update_base_folder; 
@@ -128,6 +129,8 @@ init_spgwc_dynamic_config(struct app_config *cfg )
 		RTE_LOG_DP(ERR, CP, "Global DNS_SECONDARY address is invalid %s \n", entry);
 	}
 
+
+
 	entry = rte_cfgfile_get_entry(file, "GLOBAL", "NUM_DP_SELECTION_RULES");
 	if (entry == NULL) {
        		RTE_LOG_DP(ERR, CP, "NUM_DP_SELECTION_RULES missing from app_config.cfg file, abort parsing\n");
@@ -215,13 +218,41 @@ init_spgwc_dynamic_config(struct app_config *cfg )
 			entry = secondary_dns;
 		}
 		if (inet_aton(entry, &dpInfo->dns_s) == 1) {
- 		    set_dp_dns_secondary(dpInfo);
-			RTE_LOG_DP(INFO, CP, "DP DNS_SECONDARY address is %s", inet_ntoa(dpInfo->dns_s));
+			set_dp_dns_secondary(dpInfo);
+			RTE_LOG_DP(INFO, CP, "DP DNS_SECONDARY address is %s \n", inet_ntoa(dpInfo->dns_s));
 		} else {
 			//invalid address
-	        RTE_LOG_DP(ERR, CP, "DP (%s) DNS_SECONDARY address is invalid %s \n",dpInfo->dpName, entry);
+			RTE_LOG_DP(ERR, CP, "DP (%s) DNS_SECONDARY address is invalid %s \n",dpInfo->dpName, entry);
 		}
-	}
+
+		bool static_pool_config_change = true;
+		bool first_time_pool_config = true;
+		entry = rte_cfgfile_get_entry(file, sectionname, "STATIC_IP_POOL");
+		if(dpInfo->static_pool != NULL) {
+			first_time_pool_config = false;
+			if(strcmp(dpInfo->static_pool, entry) == 0) {
+				static_pool_config_change = false;
+			}
+		}
+		// Static pool update is bit risky, since it has possibly some active subscribers 
+		// which are using the address from the pool. If config is changed then we need to
+		if(static_pool_config_change == true && first_time_pool_config == false) {
+			// Ignore config update. So new pool will not take effect. 
+			// If number of active users using pool are 0 then only 
+			// we can update the pool. 
+			// if we have 0 subscribers using the config then we can set first_time_pool_config = true;
+			RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL %s change is not supported...Its experimental feature. \n", entry);
+		}
+
+		if((entry != NULL) && first_time_pool_config == true) {
+			dpInfo->static_pool = NULL; 
+			char *pool_string = parse_create_static_ip_pool(&dpInfo->static_pool_tree, entry);
+			if(pool_string != NULL) {
+				dpInfo->static_pool = pool_string; 
+			} 
+		}
+ 	}
+	return;
 }
 
 /* Given key find the DP. Once DP is found then return its dpId */
@@ -278,6 +309,20 @@ fetch_s1u_sgw_ip(uint32_t dpId)
 	return a;
 }
 
+struct dp_info *
+fetch_dp_context(uint32_t dpId)
+{
+	struct dp_info *dp;
+	LIST_FOREACH(dp, &appl_config->dpList, dpentries) {
+		if (dpId == dp->dpId) {
+			return dp;
+		}
+	}
+	rte_panic("Could not find DP for dpid: %u\n", dpId);
+	/* control should never reach here */
+	return NULL;
+}
+
 struct upf_context *
 fetch_upf_context(uint32_t dpId)
 {
@@ -321,4 +366,62 @@ fetch_dns_secondary_ip(uint32_t dpId, bool *present)
 	}
 	*present = get_app_secondary_dns(appl_config, &dns_s);
 	return dns_s;
+}
+
+/* Parse the entry and create IP pool tree */
+char*
+parse_create_static_ip_pool(struct ip_table **addr_pool, const char *entry)
+{
+	char err_string[128];
+	char *pool=NULL;
+    *addr_pool = NULL;
+	
+	do {
+			pool=(char *) calloc(1, 128); 
+
+			if(pool == NULL) {
+      			sprintf(err_string, " Memory allocation failed ");
+				break;
+			}
+			strcpy(pool, entry); 
+			RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL %s parsing started \n", pool);
+
+ 			const char token[2] = "/";
+			char *network_str = strtok(pool, token);
+			if(network_str == NULL) {
+				sprintf(err_string, " STATIC_IP_POOL in bad format. It should be in a.b.c.d/mask format ");
+				free(pool);
+				break;
+			}
+			RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL Network %s \n", network_str);
+
+			struct in_addr network;
+			if(inet_aton(network_str, &network) == 0) {
+				sprintf(err_string, " Network %s in bad format ",  network_str);
+				free(pool);
+				break;
+			}
+			network.s_addr = ntohl(network.s_addr); // host order 
+
+			char *mask_str = strtok(NULL, token);
+			if(mask_str == NULL) {
+				sprintf(err_string, ". No mask configured ");
+				free(pool);
+				break;
+			}
+
+			uint32_t mask;
+			mask = atoi(mask_str);
+			if(mask > 23 && mask <=32 ) {
+				*addr_pool = create_ue_pool(network, mask); 
+			} else {
+				sprintf(err_string, " Bad Mask. Mask should be from /24 to /32 only - Its %u ", mask);
+				free(pool);
+				break;
+			}
+			RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL %s configured successfully \n", pool);
+			return pool;
+		} while(0);
+		RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL %s Parsing failed. Error - %s  \n", entry, err_string);
+		return NULL;
 }
