@@ -262,7 +262,7 @@ parse_arg(int argc, char **argv)
 #ifndef MULTI_UPFS
 				char *pool = parse_create_static_ip_pool(&static_addr_pool, optarg);
 				if(pool != NULL)
-                	RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL configured %s \n", pool);
+					RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL configured %s \n", pool);
 #else
                 RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL is for multi upf case should be provided in app_config.cfg \n");
 #endif
