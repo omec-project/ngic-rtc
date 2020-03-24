@@ -175,4 +175,8 @@ struct upf_context *fetch_upf_context(uint32_t dpId);
  */
 struct dp_info *fetch_dp_context(uint32_t dpId);
 
+/* Parse and create static ip pool */
+char*
+parse_create_static_ip_pool(struct ip_table **addr_pool, const char *entry);
+
 #endif

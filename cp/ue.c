@@ -384,52 +384,59 @@ acquire_ip(struct in_addr *ipv4)
 }
 
 //network address in host order 
-void
-create_ue_pool(struct ip_table *addr_root, struct in_addr network, uint32_t mask)
+struct ip_table *
+create_ue_pool(struct in_addr network, uint32_t mask)
 {
-   // create static pool 
-    uint32_t total_address = 1;
-    uint32_t i;
-    mask = 32 - mask;
-    while(mask)
-    {
-      total_address = total_address << 1; 
-      mask -=  1;
-    }
-    printf("\n Number of possible addresses = %d \n", total_address);
+		// create static pool 
+	uint32_t total_address = 1;
+	uint32_t i;
+	mask = 32 - mask;
+	while(mask)
+	{
+			total_address = total_address << 1; 
+			mask -=  1;
+	}
+	printf("\n Number of possible addresses = %d \n", total_address);
 
-    for(i=1; i <(total_address - 1); i++)
-    {
-       struct in_addr ue_ip;
-       ue_ip.s_addr = network.s_addr + i; 
-       add_ipaddr_in_pool(addr_root, ue_ip);
-       ue_ip.s_addr = htonl(ue_ip.s_addr); // just for print purpose 
-       printf("Add UE IP address = %s  in pool \n", inet_ntoa(ue_ip)); 
-    }
+	struct ip_table *addr_pool = calloc(1, sizeof(struct ip_table));
+	if(addr_pool == NULL) {
+		printf("\n Address pool allocation failed. \n");
+		return NULL;
+	}
+	for(i=1; i <(total_address - 1); i++)
+	{
+		struct in_addr ue_ip;
+		ue_ip.s_addr = network.s_addr + i; 
+		add_ipaddr_in_pool(addr_pool, ue_ip);
+		ue_ip.s_addr = htonl(ue_ip.s_addr); // just for print purpose 
+		printf("Add UE IP address = %s  in pool \n", inet_ntoa(ue_ip)); 
+	}
+	return addr_pool;
 }
 
 
 /* Add nodes in the m-trie. Duplicate elements overwrite old elements 
  * 4 comparisions to add the ip address 
  */
-void add_ipaddr_in_pool(struct ip_table *search_tree, struct in_addr host)
+void 
+add_ipaddr_in_pool(struct ip_table *search_tree, struct in_addr host)
 {
-   unsigned char byte;
-   uint32_t addr = host.s_addr;
-   uint32_t mask[] = {0xff000000, 0xff0000, 0xff00, 0xff};
-   uint32_t shift[]  = {24, 16, 8, 0};
+	unsigned char byte;
+	uint32_t addr = host.s_addr;
+	uint32_t mask[] = {0xff000000, 0xff0000, 0xff00, 0xff};
+	uint32_t shift[]  = {24, 16, 8, 0};
 
-   for(int i=0; i<=3; i++)
-   {
-       byte = (mask[i] & addr) >> shift[i];
-       if(search_tree->octet[byte] == NULL)
-         search_tree->octet[byte] = calloc(1, sizeof(struct ip_table));
-       search_tree = search_tree->octet[byte];
-   }
-   char *p = inet_ntoa(host);
-   search_tree->ue_address = calloc(1,20); /*abc.efg.hij.klm => 15 char */ 
-   strcpy(search_tree->ue_address, p);
-   return;
+	for(int i=0; i<=3; i++)
+	{
+			byte = (mask[i] & addr) >> shift[i];
+			if(search_tree->octet[byte] == NULL)
+					search_tree->octet[byte] = calloc(1, sizeof(struct ip_table));
+			search_tree = search_tree->octet[byte];
+	}
+	char *p = inet_ntoa(host);
+	search_tree->ue_address = calloc(1,20); /*abc.efg.hij.klm => 15 char */ 
+	strcpy(search_tree->ue_address, p);
+	return;
 }
 
 /* Check if given host is part of the tree */
@@ -439,7 +446,7 @@ reserve_ip_node(struct ip_table *search_tree , struct in_addr host)
 	unsigned char byte;
 	uint32_t mask[] = {0xff000000, 0xff0000, 0xff00, 0xff};
 	uint32_t shift[]  = {24, 16, 8, 0};
-    if(search_tree == NULL)
+	if(search_tree == NULL)
 	{
 		host.s_addr = htonl(host.s_addr);
 		printf("Failed to reserve IP address %s. Static Pool not configured \n", inet_ntoa(host));
@@ -478,7 +485,7 @@ release_ip_node(struct ip_table *search_tree , struct in_addr host)
 	uint32_t mask[] = {0xff000000, 0xff0000, 0xff00, 0xff};
 	uint32_t shift[]  = {24, 16, 8, 0};
 
-    if(search_tree == NULL)
+	if(search_tree == NULL)
 	{
 		host.s_addr = htonl(host.s_addr);
 		printf("Failed to reserve IP address %s. Static Pool not configured \n", inet_ntoa(host));

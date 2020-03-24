@@ -260,53 +260,9 @@ parse_arg(int argc, char **argv)
 		case 'h':
 			{
 #ifndef MULTI_UPFS
-				char *pool=(char *) calloc(1, 128); 
-                uint32_t mask;
-                struct in_addr network;
-                const char token[2] = "/";
-
-				if(pool == NULL) {
-                	RTE_LOG_DP(ERR, CP, "memory allocation failed. Skipping static pool config \n");
-					break;
-				}
-				strcpy(pool, optarg); 
-                RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL %s configured as program argument \n", pool);
-
-                char *network_str = strtok(pool, token);
-				if(network_str == NULL) {
-                	RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL %s - bad format. It should be in a.b.c.d/mask format \n", pool);
-					free(pool);
-					break;
-				}
-                RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL Network %s \n", network_str);
-                if(inet_aton(network_str, &network) == 0) {
-                	RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL %s - bad format. Network %s in bad format \n", pool, network_str);
-					free(pool);
-					break;
-				}
-
-                char *mask_str = strtok(NULL, token);
-				if(mask_str == NULL) {
-                	RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL %s - bad format. It should be in a.b.c.d/mask format. No mask \n", pool);
-					free(pool);
-					break;
-				}
-                mask = atoi(mask_str);
-				if(mask == 0 || mask > 32 ) {
-                	RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL %s - bad format. It should be in a.b.c.d/mask format. invalid mask found \n", pool);
-					free(pool);
-					break;
-				}
-                RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL %s configured with mask %d network %s\n", pool, mask, inet_ntoa(network));
-
-                network.s_addr = ntohl(network.s_addr); // host order 
-				if(mask > 23) { /* we dont want to allow big static block allocation */
-                  static_addr_pool = calloc(1, struct ip_table);
-                  create_ue_pool(static_addr_pool, network, mask); 
-                } else {
-                  RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL %s configured with large size network. \n", pool);
-				}
-				free(pool);
+				char *pool = parse_create_static_ip_pool(&static_addr_pool, optarg);
+				if(pool != NULL)
+                	RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL configured %s \n", pool);
 #else
                 RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL is for multi upf case should be provided in app_config.cfg \n");
 #endif

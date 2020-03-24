@@ -275,6 +275,6 @@ struct ip_table
 void add_ipaddr_in_pool(struct ip_table *addr_tree , struct in_addr addr);
 bool reserve_ip_node(struct ip_table *addr_tree , struct in_addr host);
 bool release_ip_node(struct ip_table *addr_tree , struct in_addr host);
-void create_ue_pool(struct ip_table *addr_tree, struct in_addr network, uint32_t mask);
+struct ip_table*create_ue_pool(struct in_addr network, uint32_t mask);
 
 #endif /* UE_H */
