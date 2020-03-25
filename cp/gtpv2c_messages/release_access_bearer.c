@@ -6,6 +6,8 @@
 #include "gtpv2c_set_ie.h"
 #include "../cp_dp_api/vepc_cp_dp_api.h"
 
+extern struct response_info resp_t;
+
 struct parse_release_access_bearer_request_t {
 	ue_context *context;
 };
@@ -76,9 +78,11 @@ process_release_access_bearer_request(gtpv2c_header *gtpv2c_rx,
 		return ret;
 
 	dp_id.id = release_access_bearer_request.context->dpId; 
+
 	set_release_access_bearer_response(gtpv2c_tx,
 			gtpv2c_rx->teid_u.has_teid.seq,
 			release_access_bearer_request.context);
+
 
 	for (i = 0; i < MAX_BEARERS; ++i) {
 		if (release_access_bearer_request.context->eps_bearers[i]
@@ -125,10 +129,15 @@ process_release_access_bearer_request(gtpv2c_header *gtpv2c_rx,
 			s11_sgw_gtpc_teid,
 			bearer->eps_bearer_id);
 
+		/* Set msg type.because this gets copied in the transaction while 
+			sending DP message */
+		resp_t.msg_type = GTP_RELEASE_ACCESS_BEARERS_REQ;
+
 		if (session_modify(dp_id, session) < 0)
 			rte_exit(EXIT_FAILURE,
 				"Bearer Session modify fail !!!");
-		return 0;
+
+		return 0; /* dedicated bearer support would need change here */
 	}
 	return 0;
 }

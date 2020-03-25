@@ -39,7 +39,8 @@ add_resp_op_id_hash(void)
 	switch (resp_t.msg_type) {
 		case GTP_CREATE_SESSION_REQ:
 		case GTP_MODIFY_BEARER_REQ:
-		case GTP_DELETE_SESSION_REQ: {
+		case GTP_DELETE_SESSION_REQ: 
+		case GTP_RELEASE_ACCESS_BEARERS_REQ: {
 			struct response_info *tmp = rte_zmalloc("test",
 					sizeof(struct response_info),
 					RTE_CACHE_LINE_SIZE);

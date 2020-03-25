@@ -7,6 +7,7 @@
 #include "gtpv2c_messages.h"
 #include "../cp_dp_api/vepc_cp_dp_api.h"
 #include "gtpv2c_set_ie.h"
+#include "ue.h"
 
 extern struct response_info resp_t;
 
@@ -78,6 +79,21 @@ delete_context(delete_session_request_t *ds_req,
 				"default EBI\n");
 		return GTPV2C_CAUSE_MANDATORY_IE_INCORRECT;
 	}
+
+#if defined(MULTI_UPFS)
+	struct dp_info *dp = fetch_dp_context(context->dpId); 
+	if (dp != NULL) {
+		struct in_addr host = {0};
+		host.s_addr = ntohl(pdn->ipv4.s_addr);
+		release_ip_node(dp->static_pool_tree, host);
+	}
+#else
+	if (static_addr_pool != NULL) {
+		struct in_addr host = {0};
+		host.s_addr = ntohl(pdn->ipv4.s_addr);
+		release_ip_node(static_addr_pool, host); 
+	}
+#endif
 
 #ifdef ZMQ_COMM
 	/*set the delete session response */

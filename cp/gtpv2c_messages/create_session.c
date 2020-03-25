@@ -269,6 +269,7 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 			|| !csr.pdn_type.header.len
 			|| !csr.bearer_context.bearer_qos.header.len
 			|| !csr.msisdn.header.len
+			|| !csr.paa.header.len
 			|| !(csr.pdn_type.pdn_type == PDN_IP_TYPE_IPV4) ) {
 		fprintf(stderr, "Mandatory IE missing. Dropping packet\n");
 		return -EPERM;
@@ -287,15 +288,47 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 
 	uint8_t ebi_index = csr.bearer_context.ebi.eps_bearer_id - 5;
 
-	ret = acquire_ip(&ue_ip);
-	if (ret)
-		return GTPV2C_CAUSE_ALL_DYNAMIC_ADDRESSES_OCCUPIED;
-
 	/* set s11_sgw_gtpc_teid= key->ue_context_by_fteid_hash */
 	ret = create_ue_context(csr.imsi.imsi, csr.imsi.header.len,
 			csr.bearer_context.ebi.eps_bearer_id, &context);
 	if (ret)
 		return ret;
+
+#if defined(ZMQ_COMM) && defined(MULTI_UPFS)
+		/* Take MCC/MNC from the CSReq ULI
+		 * Make subscriber key
+		 */
+	struct dp_key dpkey = {0};
+	dpkey.tac = csr.uli.tai.tac;
+	memcpy((void *)(&dpkey.mcc_mnc), (void *)(&csr.uli.tai.mcc_mnc), 3);
+
+	/* TODO : need to do similar things for PGW only */
+	dataplane_id = select_dp_for_key(&dpkey);
+	RTE_LOG_DP(INFO, CP, "dpid.%d imsi.%llu \n", dataplane_id, (long long unsigned int)context->imsi);
+#endif
+
+	if (csr.paa.pdn_type == PDN_IP_TYPE_IPV4 && csr.paa.ip_type.ipv4.s_addr != 0) {
+		bool found = false;
+#if defined(ZMQ_COMM) && defined(MULTI_UPFS)
+		struct dp_info *dpInfo = fetch_dp_context(dataplane_id); 
+		if (dpInfo)
+			found = reserve_ip_node(dpInfo->static_pool_tree, csr.paa.ip_type.ipv4);
+#else
+		found = reserve_ip_node(static_addr_pool, csr.paa.ip_type.ipv4);
+#endif
+		if (found == false) {
+			RTE_LOG_DP(DEBUG, CP, "Received CSReq with static address %s"
+				   " . Invalid address received \n",
+				   inet_ntoa(csr.paa.ip_type.ipv4));
+			return GTPV2C_CAUSE_REQUEST_REJECTED;
+		}
+		ue_ip = csr.paa.ip_type.ipv4;
+		ue_ip.s_addr = htonl(ue_ip.s_addr); /* ue_ip in network order. */
+	} else {
+		ret = acquire_ip(&ue_ip);
+		if (ret)
+			return GTPV2C_CAUSE_ALL_DYNAMIC_ADDRESSES_OCCUPIED;
+	}
 
 	if (csr.mei.header.len)
 		memcpy(&context->mei, csr.mei.mei, csr.mei.header.len);
@@ -317,7 +350,7 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 		pdn->apn_ambr.ambr_downlink = csr.ambr.apn_ambr_dl;
 		pdn->apn_ambr.ambr_uplink = csr.ambr.apn_ambr_ul;
 		pdn->apn_restriction = csr.apn_restriction.restriction_type;
-		pdn->ipv4.s_addr = htonl(ue_ip.s_addr);
+		pdn->ipv4.s_addr = htonl(ue_ip.s_addr); // pdn ip is in network order 
 
 		if (csr.pdn_type.pdn_type == PDN_TYPE_IPV4)
 			pdn->pdn_type.ipv4 = 1;
@@ -360,19 +393,9 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 		bearer->qos.qos.dl_gbr =
 			csr.bearer_context.bearer_qos.guaranteed_bit_rate_for_downlink;
 
+
+
 #if defined(ZMQ_COMM) && defined(MULTI_UPFS)
-		/* Take MCC/MNC from the CSReq ULI
-		 * Make subscriber key
-		 */
-		struct dp_key dpkey = {0};
-		dpkey.tac = csr.uli.tai.tac;
-		memcpy((void *)(&dpkey.mcc_mnc), (void *)(&csr.uli.tai.mcc_mnc), 3);
-
-		/* TODO : need to do similar things for PGW only */
-		dataplane_id = select_dp_for_key(&dpkey);
-		RTE_LOG_DP(INFO, CP, "dpid.%d imsi.%llu \n", dataplane_id, (long long unsigned int)context->imsi);
-
-        
 		bearer->s1u_sgw_gtpu_ipv4 = fetch_s1u_sgw_ip(dataplane_id);
 		RTE_LOG_DP(INFO, CP, "dpid.%d, s1uaddr %s \n", dataplane_id, inet_ntoa(bearer->s1u_sgw_gtpu_ipv4));
 #else

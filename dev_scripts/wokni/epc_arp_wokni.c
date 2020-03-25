@@ -31,6 +31,7 @@
 #include <rte_ethdev.h>
 #include <rte_port_ethdev.h>
 
+extern char* config_update_base_folder;
 #ifdef STATIC_ARP
 #include <rte_cfgfile.h>
 #endif	/* STATIC_ARP */
@@ -43,7 +44,7 @@
 #include "stats.h"
 
 #ifdef STATIC_ARP
-#define STATIC_ARP_FILE "../config/static_arp.cfg"
+#define STATIC_ARP_FILE "static_arp.cfg"
 #endif	/* STATIC_ARP */
 
 #if (RTE_BYTE_ORDER == RTE_LITTLE_ENDIAN)
@@ -1111,7 +1112,9 @@ add_static_arp_entry(struct rte_cfgfile_entry *entry,
 static void
 config_static_arp(void)
 {
-	struct rte_cfgfile *file = rte_cfgfile_load(STATIC_ARP_FILE, 0);
+	char static_arp_file[128] = {'\0'}; 
+	sprintf(static_arp_file, "%s%s", config_update_base_folder, STATIC_ARP_FILE);
+	struct rte_cfgfile *file = rte_cfgfile_load(static_arp_file, 0);
 	struct rte_cfgfile_entry *sgi_entries = NULL;
 	struct rte_cfgfile_entry *s1u_entries = NULL;
 	int num_sgi_entries;
@@ -1120,7 +1123,7 @@ config_static_arp(void)
 
 	if (file == NULL) {
 		printf("Cannot load configuration file %s\n",
-				STATIC_ARP_FILE);
+				static_arp_file);
 		return;
 	}
 

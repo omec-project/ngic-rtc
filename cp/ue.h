@@ -26,6 +26,8 @@
 #include "gtpv2c_ie.h"
 #include "packet_filters.h"
 #include "interface.h"
+#include "stdbool.h"
+#include "cp_config.h"
 
 #define SDF_FILTER_TABLE "sdf_filter_table"
 #define ADC_TABLE "adc_rule_table"
@@ -262,5 +264,17 @@ acquire_ip(struct in_addr *ipv4);
  */
 void
 print_ue_context_by(struct rte_hash *h, ue_context *context);
+
+struct ip_table
+{
+  struct ip_table *octet[256];
+  char *ue_address; // address 
+  bool used ; 
+};
+
+void add_ipaddr_in_pool(struct ip_table *addr_tree , struct in_addr addr);
+bool reserve_ip_node(struct ip_table *addr_tree , struct in_addr host);
+bool release_ip_node(struct ip_table *addr_tree , struct in_addr host);
+struct ip_table*create_ue_pool(struct in_addr network, uint32_t mask);
 
 #endif /* UE_H */
