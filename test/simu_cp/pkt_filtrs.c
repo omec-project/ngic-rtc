@@ -9,7 +9,6 @@
 #include "packet_filters.h"
 #include "util.h"
 
-extern char* config_update_base_folder;
 #ifdef SIMU_CP
 const char *direction_str[] = {
 		[TFT_DIRECTION_DOWNLINK_ONLY] = "DOWNLINK_ONLY ",
@@ -243,16 +242,14 @@ init_mtr_profile(void)
 {
 	unsigned no_of_idx = 0;
 	unsigned i = 0;
-	char meter_profile_file[128] =  {'\0'}; 
-	sprintf(meter_profile_file, "%s%s", config_update_base_folder, METER_PROFILE_FILE);
 	struct rte_cfgfile *file =
-			rte_cfgfile_load(meter_profile_file, 0);
+			rte_cfgfile_load(METER_PROFILE_FILE, 0);
 	const char *entry;
 	struct dp_id dp_id = { .id = DPN_ID };
 
 	if (file == NULL)
 		rte_panic("Cannot load configuration file %s\n",
-				meter_profile_file);
+				METER_PROFILE_FILE);
 
 	entry = rte_cfgfile_get_entry(file, "GLOBAL", "NUM_OF_IDX");
 	if (!entry)

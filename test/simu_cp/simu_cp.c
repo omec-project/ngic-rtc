@@ -20,7 +20,6 @@
 #include <rte_cfgfile.h>
 #include <math.h>
 
-extern char* config_update_base_folder;
 #include "interface.h"
 #include "main.h"
 #include "packet_filters.h"
@@ -28,7 +27,7 @@ extern char* config_update_base_folder;
 #include "cp_stats.h"
 
 #ifdef SIMU_CP
-#define SIMU_CP_FILE "simu_cp.cfg"
+#define SIMU_CP_FILE "../config/simu_cp.cfg"
 #define NG4T_SIMU
 
 extern char *dpn_id;
@@ -349,13 +348,11 @@ parse_agrs(struct simu_params *cfg)
 	struct in_addr addr;
 	const char *file_entry = NULL;
 	char *end = NULL;
-	char simu_cp_file[128] = {'\0'}; 
-	sprintf(simu_cp_file, "%s%s", config_update_base_folder, SIMU_CP_FILE);
 
-	struct rte_cfgfile *file = rte_cfgfile_load(simu_cp_file, 0);
+	struct rte_cfgfile *file = rte_cfgfile_load(SIMU_CP_FILE, 0);
 	if (file == NULL)
 		rte_exit(EXIT_FAILURE, "Cannot load configuration profile %s\n",
-				simu_cp_file);
+				SIMU_CP_FILE);
 
 	file_entry = rte_cfgfile_get_entry(file, "0", "S1U_SGW_IP");
 	if (file_entry) {
