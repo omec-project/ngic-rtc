@@ -18,8 +18,6 @@
 	#include "zmqsub.h"
 #endif		/* SDN_ODL_BUILD  */
 
-#define CONFIG_FOLDER	"../config/"
-
 #include "vepc_cp_dp_api.h"
 #include "vepc_udp.h"
 

@@ -19,8 +19,6 @@
 #include "session_cdr.h"
 #include "master_cdr.h"
 
-char *config_update_base_folder = NULL;
-
 /**
  * Main function.
  */
@@ -160,10 +158,6 @@ int main(int argc, char **argv)
 	extended_cdr_init();
 #endif /* EXTENDED_CDR */
 
-	config_update_base_folder = (char *) calloc(1, 128);
-	if (config_update_base_folder == NULL)
-		rte_panic("Unable to allocate memory for config_update_base_folder!\n");
-	strcpy(config_update_base_folder, CONFIG_FOLDER);
 	iface_module_constructor();
 	dp_table_init();
 
