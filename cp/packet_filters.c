@@ -19,8 +19,6 @@
 #include "nb.h"
 #endif
 
-extern char* config_update_base_folder;
-
 const char *direction_str[] = {
 		[TFT_DIRECTION_DOWNLINK_ONLY] = "DOWNLINK_ONLY ",
 		[TFT_DIRECTION_UPLINK_ONLY] = "UPLINK_ONLY   ",
@@ -317,16 +315,14 @@ init_mtr_profile(void)
 {
 	unsigned no_of_idx = 0;
 	unsigned i = 0;
-	char meter_profile_file[128] = {'\0'}; 
-	sprintf(meter_profile_file, "%s%s", config_update_base_folder, METER_PROFILE_FILE);
 	struct rte_cfgfile *file =
-			rte_cfgfile_load(meter_profile_file, 0);
+			rte_cfgfile_load(METER_PROFILE_FILE, 0);
 	const char *entry;
 	struct dp_id dp_id = { .id = DPN_ID };
 
 	if (file == NULL)
 		rte_panic("Cannot load configuration file %s\n",
-				meter_profile_file);
+				METER_PROFILE_FILE);
 
 	entry = rte_cfgfile_get_entry(file, "GLOBAL", "NUM_OF_IDX");
 	if (!entry)
@@ -375,13 +371,11 @@ init_sdf_rules(void)
 	unsigned num_sdf_rules = 0;
 	unsigned i = 0;
 	const char *entry = NULL;
-	char sdf_rule_file[128] = {'\0'}; 
-	sprintf(sdf_rule_file, "%s%s", config_update_base_folder, SDF_RULE_FILE);
-	struct rte_cfgfile *file = rte_cfgfile_load(sdf_rule_file, 0);
+	struct rte_cfgfile *file = rte_cfgfile_load(SDF_RULE_FILE, 0);
 
 	if (NULL == file)
 		rte_panic("Cannot load configuration file %s\n",
-				sdf_rule_file);
+				SDF_RULE_FILE);
 
 	entry = rte_cfgfile_get_entry(file, "GLOBAL", "NUM_SDF_FILTERS");
 
@@ -510,13 +504,11 @@ init_pcc_rules(void)
 	unsigned num_pcc_rules = 0;
 	unsigned i = 0;
 	const char *entry = NULL;
-	char pcc_rule_file[128] = {'\0'}; 
-	sprintf(pcc_rule_file, "%s%s", config_update_base_folder, PCC_RULE_FILE);
-	struct rte_cfgfile *file = rte_cfgfile_load(pcc_rule_file, 0);
+	struct rte_cfgfile *file = rte_cfgfile_load(PCC_RULE_FILE, 0);
 
 	if (NULL == file)
 		rte_panic("Cannot load configuration file %s\n",
-				pcc_rule_file);
+				PCC_RULE_FILE);
 
 	entry = rte_cfgfile_get_entry(file, "GLOBAL", "NUM_PCC_FILTERS");
 
@@ -721,13 +713,11 @@ parse_adc_rules(void)
 	uint32_t rule_id = 1;
 	const char *entry = NULL;
 	struct dp_id dp_id = { .id = DPN_ID };
-	char adc_rule_file[128] = {'\0'}; 
-	sprintf(adc_rule_file, "%s%s", config_update_base_folder, ADC_RULE_FILE);
 	struct rte_cfgfile *file = rte_cfgfile_load(ADC_RULE_FILE, 0);
 
 	if (file == NULL)
 		rte_panic("Cannot load configuration file %s\n",
-				adc_rule_file);
+				ADC_RULE_FILE);
 
 	entry = rte_cfgfile_get_entry(file, "GLOBAL", "NUM_ADC_RULES");
 

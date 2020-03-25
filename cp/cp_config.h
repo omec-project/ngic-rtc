@@ -12,7 +12,8 @@
 #include <sys/queue.h>
 #include "stdbool.h"
 
-#define CP_CONFIG_APP		"app_config.cfg"
+#define CP_CONFIG_OPT_PATH		"../config/app_config.cfg"
+#define CP_CONFIG_FOLDER		"../config/"
 
 extern struct app_config *appl_config;
 struct upf_context;

@@ -20,11 +20,11 @@
 
 #define FIRST_FILTER_ID 1
 
-#define METER_PROFILE_FILE "meter_profile.cfg"
-#define PCC_RULE_FILE "pcc_rules.cfg"
-#define SDF_RULE_FILE "sdf_rules.cfg"
-#define ADC_RULE_FILE "adc_rules.cfg"
-#define APP_CONFIG_FILE "app_config.cfg"
+#define METER_PROFILE_FILE "../config/meter_profile.cfg"
+#define PCC_RULE_FILE "../config/pcc_rules.cfg"
+#define SDF_RULE_FILE "../config/sdf_rules.cfg"
+#define ADC_RULE_FILE "../config/adc_rules.cfg"
+#define APP_CONFIG_FILE "../config/app_config.cfg"
 
 extern uint16_t ulambr_idx;
 extern uint16_t dlambr_idx;
