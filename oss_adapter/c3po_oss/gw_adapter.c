@@ -195,6 +195,8 @@ MessageType ossSxaMessageDefs[] = {
 MessageType ossSxbMessageDefs[] = {
         {	  1	  ,"PFCP Heartbeat Request",dNone		},
         {	  2	  ,"PFCP Heartbeat Response",dNone		},
+	{  	  3       ,"PFCP PFD Management Request",dOut           },
+	{         4       ,"PFCP PFD Management Response",dRespRcvd     },
         {	  5	  ,"PFCP Association Setup Request",dOut	},
         {	  6	  ,"PFCP Association Setup Response",dRespRcvd	},
         {	  7	  ,"PFCP Association Update Request",dNone	},
@@ -220,8 +222,8 @@ MessageType ossSxbMessageDefs[] = {
 MessageType ossSxaSxbMessageDefs[] = {
         {	  1	 ,"PFCP Heartbeat Request",dNone		},
         {	  2	 ,"PFCP Heartbeat Response",dNone		},
-        {	  3	 ,"PFCP PFD Management Request",dNone		},
-        {	  4	 ,"PFCP PFD Management Response",dNone		},
+        {	  3	 ,"PFCP PFD Management Request",dOut		},
+        {	  4	 ,"PFCP PFD Management Response",dRespRcvd	},
         {	  5	 ,"PFCP Association Setup Request",dOut		},
         {	  6	 ,"PFCP Association Setup Response",dRespRcvd	},
         {	  7	 ,"PFCP Association Update Request",dNone	},
@@ -273,6 +275,8 @@ MessageType ossSxaMessageDefs[] = {
 MessageType ossSxbMessageDefs[] = {
         {         1       ,"PFCP Heartbeat Request",dNone               },
         {         2       ,"PFCP Heartbeat Response",dNone              },
+	{         3       ,"PFCP PFD Management Request",dIn           },
+	{         4       ,"PFCP PFD Management Response",dRespSend    },
         {         5       ,"PFCP Association Setup Request",dIn        },
         {         6       ,"PFCP Association Setup Response",dRespSend  },
         {         7       ,"PFCP Association Update Request",dNone      },
@@ -297,8 +301,8 @@ MessageType ossSxbMessageDefs[] = {
 MessageType ossSxaSxbMessageDefs[] = {
         {         1      ,"PFCP Heartbeat Request",dNone                },
         {         2      ,"PFCP Heartbeat Response",dNone               },
-        {         3      ,"PFCP PFD Management Request",dNone           },
-        {         4      ,"PFCP PFD Management Response",dNone          },
+        {         3      ,"PFCP PFD Management Request",dIn             },
+        {         4      ,"PFCP PFD Management Response",dRespSend      },
         {         5      ,"PFCP Association Setup Request",dIn         },
         {         6      ,"PFCP Association Setup Response",dRespSend   },
         {         7      ,"PFCP Association Update Request",dNone       },
@@ -418,9 +422,9 @@ int sxaMessageTypes [] = {
 };
 
 int sxbMessageTypes [] = {
-    -1,0,1,-1,-1,2,3,4,5,6,7,8,9,10,11,12,-1,-1,-1,-1,
+    -1,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,-1,-1,-1,-1,
     -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,13,14,15,16,17,18,19,20
+    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,15,16,17,18,19,20,21,22
 };
 
 int sxasxbMessageTypes [] = {
