@@ -28,7 +28,7 @@
 #define LAST_TIMER_SIZE 128
 #define JSON_RESP_SIZE 512
 #define SXA_STATS_SIZE 21
-#define SXB_STATS_SIZE 21
+#define SXB_STATS_SIZE 23
 #define SXASXB_STATS_SIZE 23
 #define S11_STATS_SIZE 51
 #define S5S8_STATS_SIZE 37
@@ -83,7 +83,7 @@ extern _timer_t st_time;
 #define S11_MSG_TYPE_LEN       49
 #define S5S8_MSG_TYPE_LEN      35
 #define SXA_MSG_TYPE_LEN       21
-#define SXB_MSG_TYPE_LEN       21
+#define SXB_MSG_TYPE_LEN       23
 #define SXASXB_MSG_TYPE_LEN    23
 #define GX_MSG_TYPE_LEN        8
 #define SYSTEM_MSG_TYPE_LEN    4

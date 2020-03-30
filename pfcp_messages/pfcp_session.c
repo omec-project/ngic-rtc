@@ -2857,7 +2857,7 @@ fill_pdn_info(create_sess_req_t *csr, pdn_connection *pdn)
 	pdn->ue_time_zone_flag = FALSE;
 	if(csr->ue_time_zone.header.len)
 	{
-		pdn->ue_time_zone_flag = FALSE;
+		pdn->ue_time_zone_flag = TRUE;
 		pdn->ue_tz.tz = csr->ue_time_zone.time_zone;
 		pdn->ue_tz.dst = csr->ue_time_zone.daylt_svng_time;
 	}
@@ -5628,7 +5628,7 @@ int process_pfcp_sess_mod_req_handover(mod_bearer_req_t *mb_req)
 				(mb_req->ue_time_zone.daylt_svng_time != pdn->ue_tz.dst))
 		{
 			pdn->old_ue_tz = pdn->ue_tz;
-			pdn->old_ue_tz_valid = TRUE;//true;
+			pdn->old_ue_tz_valid = TRUE;
 			pdn->ue_tz.tz = mb_req->ue_time_zone.time_zone;
 			pdn->ue_tz.dst = mb_req->ue_time_zone.daylt_svng_time;
 		}

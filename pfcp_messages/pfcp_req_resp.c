@@ -494,7 +494,7 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 				RTE_LOG_DP(DEBUG, DP, "sending response of sess [%d] from dp\n",pfcp_hdr->message_type);
 				RTE_LOG_DP(DEBUG, DP, "length[%d]\n",htons(pfcp_hdr->message_len));
 
-				cli_cause = REQUESTACCEPTED;
+				cli_cause = cause_id;
 
 				/* Free the allocated memory  */
 				free(pfcp_pfd_mgmt_req);
