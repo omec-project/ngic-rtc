@@ -288,7 +288,7 @@ enqueue_dl_pkts(pdr_info_t **pdrs, pfcp_session_datat_t **sess_info,
 		}
 
 
-		if (((pdr->far)->actions.nocp) || ((pdr->far)->actions.buff)) {
+		if (((pdr->far)->actions.nocp) || ((pdr->far)->actions.buff) || ((pdr->far)->actions.forw)) {
 			if (rte_ring_enqueue(ring, (void *)pkts[i]) == -ENOBUFS) {
 				rte_pktmbuf_free(pkts[i]);
 				rte_ring_free(si->dl_ring);

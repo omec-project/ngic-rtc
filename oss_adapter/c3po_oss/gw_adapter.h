@@ -65,7 +65,7 @@ extern _timer_t st_time;
 #define S11_MSG_TYPE_LEN 49
 #define S5S8_MSG_TYPE_LEN 35
 #define SXA_MSG_TYPE_LEN 21
-#define SXB_MSG_TYPE_LEN 21
+#define SXB_MSG_TYPE_LEN 23
 #define SXASXB_MSG_TYPE_LEN 23
 #define GX_MSG_TYPE_LEN 8
 #define SYSTEM_MSG_TYPE_LEN 4
@@ -182,7 +182,7 @@ typedef struct {
 		Statistic s11[51];
 		Statistic s5s8[37];
 		Statistic sxa[21];
-		Statistic sxb[21];
+		Statistic sxb[23];
 		Statistic sxasxb[23];
 		Statistic gx[23];
 	} stats;

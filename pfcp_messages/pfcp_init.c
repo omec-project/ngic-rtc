@@ -30,6 +30,8 @@
 
 #define MAX_HASH_SIZE (1 << 15)
 #define MAX_PDN_HASH_SIZE (1 << 8)
+/* Number of Entries: 1023 can be stored */
+#define MAX_RULES_ENTRIES_HASH_SIZE (1 << 10)
 
 const uint8_t bar_base_rule_id = 0xFF;
 static uint8_t bar_rule_id_offset;
@@ -243,18 +245,22 @@ del_rule_name_entry(const rule_name_key_t rule_key)
 		/* Rule Name Entry is present. Delete Rule Name Entry */
 		ret = rte_hash_del_key(rule_name_bearer_id_map_hash, &rule_key);
 		if ( ret < 0) {
-			clLog(clSystemLog, eCLSeverityCritical, "%s:%d Entry not found for Rule_Name:%s...\n",
-						__func__, __LINE__, rule_key.rule_name);
+			clLog(clSystemLog, eCLSeverityCritical, FORMAT"Entry not found for Rule_Name:%s...\n",
+						ERR_MSG, rule_key.rule_name);
 			return -1;
 		}
+		clLog(clSystemLog, eCLSeverityDebug, FORMAT"Rule_Name:%s is found \n",
+				ERR_MSG, rule_key.rule_name);
+	} else {
+		clLog(clSystemLog, eCLSeverityDebug, FORMAT"Rule_Name:%s is not found \n",
+				ERR_MSG, rule_key.rule_name);
 	}
 
 	/* Free data from hash */
-	rte_free(bearer);
-	bearer = NULL;
-
-	clLog(clSystemLog, eCLSeverityDebug, "%s: Rule_Name:%s\n",
-			__func__, rule_key.rule_name);
+	if (bearer != NULL) {
+		rte_free(bearer);
+		bearer = NULL;
+	}
 
 	return 0;
 }
@@ -1002,7 +1008,7 @@ init_pfcp_tables(void)
 			.socket_id = rte_socket_id()
 		},
 		{	.name = "RULE_NAME_BEARER_ID_HASH",
-			.entries = MAX_PDN_HASH_SIZE,
+			.entries = MAX_RULES_ENTRIES_HASH_SIZE,
 			.key_len = sizeof(rule_name_key_t),
 			.hash_func = rte_hash_crc,
 			.hash_func_init_val = 0,

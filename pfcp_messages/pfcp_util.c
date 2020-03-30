@@ -69,7 +69,7 @@ add_canonical_result_upflist_entry(canonical_result_t *res,
 				sizeof(upfs_dnsres_t),
 				RTE_CACHE_LINE_SIZE, rte_socket_id());
 	if (NULL == upf_list) {
-		clLog(clSystemLog, eCLSeverityCritical, "Failure to allocate memeory for upf list "
+		clLog(clSystemLog, eCLSeverityCritical, "Failure to allocate memory for upf list "
 				"structure: %s (%s:%d)\n",
 				rte_strerror(rte_errno),
 				__FILE__,

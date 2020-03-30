@@ -578,8 +578,8 @@ check_for_rules_on_default_bearer(pdn_connection *pdn)
 						pdn->call_id);
 				if (add_rule_name_entry(key, id) != 0) {
 					clLog(sxlogger, eCLSeverityCritical,
-						"%s:%d Failed to add_rule_name_entry with rule_name\n",
-						__func__, __LINE__);
+						FORMAT"Failed to add_rule_name_entry with rule_name\n",
+						ERR_MSG);
 					return -1;
 				}
 			return 0;
