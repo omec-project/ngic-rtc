@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-DIRS-y =  lib cp dp test
+DIRS-y =  lib libgtpv2c libpfcp cp dp test
 
 #define targets
 CLEANDIRS-y = $(DIRS-y:%=clean-%)

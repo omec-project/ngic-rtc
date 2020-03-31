@@ -18,9 +18,10 @@
 #define CP_STATS_H
 
 #include <stdint.h>
-
+#include <time.h>
 #include <rte_common.h>
-
+#define LAST_TIMER_SIZE 80
+#define __file__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 /**
  * @file
  *
@@ -31,7 +32,10 @@
  * @brief counters used to display statistics on the control plane
  */
 struct cp_stats_t {
+
 	uint64_t time;
+	clock_t  execution_time;
+	clock_t  reset_time;
 
 	uint64_t create_session;
 	uint64_t delete_session;
@@ -47,6 +51,9 @@ struct cp_stats_t {
 	uint64_t tx;
 	uint64_t rx_last;
 	uint64_t tx_last;
+
+	char stat_timestamp[LAST_TIMER_SIZE];
+
 #ifdef SDN_ODL_BUILD
 	uint64_t nb_sent;
 	uint64_t nb_ok;
@@ -55,6 +62,13 @@ struct cp_stats_t {
 };
 
 extern struct cp_stats_t cp_stats;
+
+extern int s11logger;
+extern int s5s8logger;
+extern int sxlogger;
+extern int gxlogger;
+extern int apilogger;
+extern int epclogger;
 
 /**
  * Prints control plane signaling message statistics

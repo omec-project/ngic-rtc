@@ -44,7 +44,7 @@ struct parse_delete_bearer_rsp_t {
  *   \- < 0 for all other errors
  */
 static int
-parse_delete_bearer_response(gtpv2c_header *gtpv2c_rx,
+parse_delete_bearer_response(gtpv2c_header_t *gtpv2c_rx,
 		struct parse_delete_bearer_rsp_t *dbr)
 {
 	gtpv2c_ie *current_ie;
@@ -53,7 +53,7 @@ parse_delete_bearer_response(gtpv2c_header *gtpv2c_rx,
 	gtpv2c_ie *limit_group_ie;
 
 	int ret = rte_hash_lookup_data(ue_context_by_fteid_hash,
-	    (const void *) &gtpv2c_rx->teid_u.has_teid.teid,
+	    (const void *) &gtpv2c_rx->teid.has_teid.teid,
 	    (void **) &dbr->context);
 
 	if (ret < 0 || !dbr->context)
@@ -63,20 +63,20 @@ parse_delete_bearer_response(gtpv2c_header *gtpv2c_rx,
 	 *  message */
 	FOR_EACH_GTPV2C_IE(gtpv2c_rx, current_ie, limit_ie)
 	{
-		if (current_ie->type == IE_CAUSE &&
+		if (current_ie->type == GTP_IE_CAUSE &&
 				current_ie->instance == IE_INSTANCE_ZERO) {
 			dbr->cause_ie = current_ie;
-		} else if (current_ie->type == IE_BEARER_CONTEXT &&
+		} else if (current_ie->type == GTP_IE_BEARER_CONTEXT &&
 				current_ie->instance == IE_INSTANCE_ZERO) {
 			FOR_EACH_GROUPED_IE(current_ie, current_group_ie,
 					limit_group_ie)
 			{
-				if (current_group_ie->type == IE_EBI &&
+				if (current_group_ie->type == GTP_IE_EPS_BEARER_ID &&
 						current_group_ie->instance ==
 							IE_INSTANCE_ZERO) {
 					dbr->bearer_context_ebi_ie =
 							current_group_ie;
-				} else if (current_group_ie->type == IE_CAUSE &&
+				} else if (current_group_ie->type == GTP_IE_CAUSE &&
 						current_group_ie->instance ==
 							IE_INSTANCE_ZERO) {
 					dbr->bearer_context_cause_ie =
@@ -107,7 +107,7 @@ parse_delete_bearer_response(gtpv2c_header *gtpv2c_rx,
 
 
 int
-process_delete_bearer_response(gtpv2c_header *gtpv2c_rx)
+process_delete_bearer_response(gtpv2c_header_t *gtpv2c_rx)
 {
 	struct parse_delete_bearer_rsp_t delete_bearer_rsp = { 0 };
 	int ret = parse_delete_bearer_response(gtpv2c_rx, &delete_bearer_rsp);

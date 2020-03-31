@@ -19,8 +19,19 @@
 
 #include <pcap.h>
 #include <ue.h>
-
+#include <byteswap.h>
 #include <rte_version.h>
+#include <stdbool.h>
+#include <rte_ether.h>
+#include <rte_ethdev.h>
+
+#ifdef USE_REST
+#include "../restoration/restoration_timer.h"
+#endif /* USE_REST */
+
+#if defined(CP_BUILD)
+#include "../libgtpv2c/include/gtp_messages.h"
+#endif
 
 #ifndef PERF_TEST
 /** Temp. work around for support debug log level into DP, DPDK version 16.11.4 */
@@ -51,6 +62,7 @@
 #define ACK       1
 #define RESPONSE  2
 
+
 typedef long long int _timer_t;
 
 #define GET_CURRENT_TS(now)                                             \
@@ -62,6 +74,20 @@ typedef long long int _timer_t;
 })
 
 #endif /* SYNC_STATS */
+
+#define MAX_UPF 10
+
+#define DNSCACHE_CONCURRENT 2
+#define DNSCACHE_PERCENTAGE 70
+#define DNSCACHE_INTERVAL 4000
+#define DNS_PORT 53
+
+#define __file__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+
+/**
+ * Control-Plane rte logs.
+ */
+#define RTE_LOGTYPE_CP  RTE_LOGTYPE_USER1
 /**
  * @file
  *
@@ -72,12 +98,12 @@ typedef long long int _timer_t;
  * Define type of Control Plane (CP)
  * SGWC - Serving GW Control Plane
  * PGWC - PDN GW Control Plane
- * SPGWC - Combined SAEGW Control Plane
+ * SAEGWC - Combined SAEGW Control Plane
  */
 enum cp_config {
 	SGWC = 01,
 	PGWC = 02,
-	SPGWC = 03,
+	SAEGWC = 03,
 };
 extern enum cp_config spgw_cfg;
 
@@ -106,7 +132,6 @@ extern uint64_t entries;
  */
 struct cp_params {
 	unsigned stats_core_id;
-	unsigned nb_core_id;
 #ifdef SIMU_CP
 	unsigned simu_core_id;
 #endif
@@ -115,7 +140,7 @@ struct cp_params {
 /**
  * Structure to downlink data notification ack information struct.
  */
-struct downlink_data_notification {
+typedef struct downlink_data_notification {
 	ue_context *context;
 
 	gtpv2c_ie *cause_ie;
@@ -127,7 +152,7 @@ struct downlink_data_notification {
 	/* */
 	uint16_t dl_buff_cnt;
 	uint8_t dl_buff_duration;
-};
+}downlink_data_notification_t;
 
 extern pcap_dumper_t *pcap_dumper;
 extern pcap_t *pcap_reader;
@@ -136,12 +161,12 @@ extern int s11_fd;
 extern int s11_pcap_fd;
 extern int s5s8_sgwc_fd;
 extern int s5s8_pgwc_fd;
-
+extern int pfcp_sgwc_fd ;
 extern struct cp_params cp_params;
 
-#if defined(ZMQ_COMM) || defined(SDN_ODL_BUILD)
+#if defined (SYNC_STATS) || defined (SDN_ODL_BUILD)
 extern uint64_t op_id;
-#endif /* ZMQ_COMM */
+#endif /* SDN_ODL_BUILD */
 /**
  * @brief creates and sends downlink data notification according to session
  * identifier
@@ -160,48 +185,19 @@ ddn_by_session_id(uint64_t session_id);
 void
 initialize_tables_on_dp(void);
 
-/**
- * Central working function of the control plane. Reads message from s11/pcap,
- * calls appropriate function to handle message, writes response
- * message (if any) to s11/pcap
- */
-void
-control_plane(void);
-
-#ifdef ZMQ_COMM
-/**
- * @brief Adds the current op_id to the hash table used to account for NB
- * Messages
- */
-void
-add_resp_op_id_hash(void);
-
-/**
- * @brief Deletes the op_id from the hash table used to account for NB
- * Messages
- * @param nb_op_id
- * op_id received in process_resp_msg message to indicate message
- * was received and processed by the DPN
- */
-void
-del_resp_op_id(uint64_t resp_op_id);
-
-#endif  /* ZMQ_COMM */
-
 #ifdef CP_BUILD
-#ifdef ZMQ_COMM
-/**
- * @brief callback to handle downlink data notification messages from the
- * data plane
- * @param session id
- * session id received by control plane from the data plane
- * @return
- * 0 inicates success, error otherwise
- */
-int
-cb_ddn(uint64_t sess_id);
 
-#endif  /* ZMQ_COMM */
+void
+set_create_bearer_request(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
+			  ue_context *context, eps_bearer *bearer,
+			  uint8_t lbi, uint8_t pti, uint8_t eps_bearer_lvl_tft[],
+			  uint8_t tft_len);
+
+void
+set_create_bearer_response(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
+			  ue_context *context, eps_bearer *bearer,
+			  uint8_t lbi, uint8_t pti);
+
 
 /**
  * @brief To Downlink data notification ack of user.
@@ -286,4 +282,105 @@ void
 close_stats(void);
 #endif   /* SYNC_STATS */
 /* ================================================================================= */
+
+/*PFCP Config file*/
+#define STATIC_CP_FILE "../config/cp.cfg"
+
+#define MAX_DP_SIZE   5
+#define MAX_CP_SIZE   1
+#define MAX_NUM_MME   5
+#define MAX_NUM_SGWC  5
+#define MAX_NUM_PGWC  5
+#define MAX_NUM_SGWU  5
+#define MAX_NUM_PGWU  5
+#define MAX_NUM_SAEGWU 5
+
+#define MAX_NUM_APN   16
+
+#define MAX_NUM_NAMESERVER 8
+
+#define SGWU_PFCP_PORT   8805
+#define PGWU_PFCP_PORT   8805
+#define SAEGWU_PFCP_PORT   8805
+
+typedef struct dns_cache_params_t {
+	uint32_t concurrent;
+	uint32_t sec;
+	uint8_t percent;
+
+	unsigned long timeoutms;
+	uint32_t tries;
+} dns_cache_params_t;
+
+typedef struct dns_config_t {
+	uint8_t freq_sec;
+	char filename[PATH_MAX];
+	uint8_t nameserver_cnt;
+	char nameserver_ip[MAX_NUM_NAMESERVER][INET_ADDRSTRLEN];
+} dns_config_t;
+
+typedef struct pfcp_config_t {
+	/* CP Configuration : SGWC=01; PGWC=02; SAEGWC=03 */
+	uint8_t cp_type;
+
+	/* MME Params. */
+	uint16_t s11_mme_port;
+	struct in_addr s11_mme_ip;
+
+	/* Control-Plane IPs and Ports Params. */
+	uint16_t s11_port;
+	uint16_t s5s8_port;
+	uint16_t pfcp_port;
+	struct in_addr s11_ip;
+	struct in_addr s5s8_ip;
+	struct in_addr pfcp_ip;
+
+	/* User-Plane IPs and Ports Params. */
+	uint16_t upf_pfcp_port;
+	struct in_addr upf_pfcp_ip;
+
+	/* RESTORATION PARAMETERS */
+	uint8_t transmit_cnt;
+	int transmit_timer;
+	int periodic_timer;
+
+	/* logger parameter */
+	uint8_t cp_logger;
+
+	/* APN */
+	uint32_t num_apn;
+	/* apn apn_list[MAX_NUM_APN]; */
+
+	dns_cache_params_t dns_cache;
+	dns_config_t ops_dns;
+	dns_config_t app_dns;
+
+	/* IP_POOL_CONFIG Params */
+	struct in_addr ip_pool_ip;
+	struct in_addr ip_pool_mask;
+
+} pfcp_config_t;
+
+
+void
+init_pfcp(void);
+
+/**
+ * @brief
+ * Initializes Control Plane data structures, packet filters, and calls for the
+ * Data Plane to create required tables
+ */
+void
+init_cp(void);
+
+void
+init_dp_rule_tables(void);
+
+#ifdef SYNC_STATS
+void
+init_stats_hash(void);
+#endif /* SYNC_STATS */
+
+void received_create_session_request(void);
+
 #endif

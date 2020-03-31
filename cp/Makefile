@@ -24,7 +24,9 @@ RTE_TARGET ?= x86_64-native-linuxapp-gcc
 include $(RTE_SDK)/mk/rte.vars.mk
 include $(NG_CORE)/config/ng-core_cfg.mk
 
+OSS_UTIL_ROOT = $(NG_CORE)/oss_adapter/c3po_oss/oss-util
 LIBGTPV2C_ROOT = $(SRCDIR)/../libgtpv2c
+LIBPFCP_ROOT = $(SRCDIR)/../libpfcp
 
 # binary name
 APP = ngic_controlplane
@@ -32,12 +34,23 @@ APP = ngic_controlplane
 # all source are stored in SRCS-y
 
 SRCS-y := main.c
-SRCS-y += gtpv2c.c
-SRCS-y += gtpv2c_set_ie.c
-SRCS-y += debug_str.c
 SRCS-y += ue.c
+SRCS-y += cp.c
+SRCS-y += gtpv2c.c
+SRCS-y += cp_init.c
 SRCS-y += cp_stats.c
+SRCS-y += cp_config.c
+SRCS-y += debug_str.c
+SRCS-y += gtpv2c_set_ie.c
 SRCS-y += packet_filters.c
+SRCS-y += gtpc_session.c
+SRCS-y += gtpv2c_error_rsp.c
+
+SRCS-y += state_machine/sm_init.o
+SRCS-y += state_machine/sm_hand.o
+SRCS-y += state_machine/sm_gtpc_pcnd.o
+SRCS-y += state_machine/sm_s5s8_pcnd.o
+SRCS-y += state_machine/sm_pfcp_pcnd.o
 
 SRCS-y += gtpv2c_messages/bearer_resource_cmd.o
 SRCS-y += gtpv2c_messages/create_bearer.o
@@ -50,6 +63,13 @@ SRCS-y += gtpv2c_messages/gtpv2c_echo.o
 SRCS-y += gtpv2c_messages/modify_bearer.o
 SRCS-y += gtpv2c_messages/downlink_data_notification.o
 SRCS-y += gtpv2c_messages/release_access_bearer.o
+SRCS-y += $(SRCDIR)/../pfcp_messages/pfcp_association.o
+SRCS-y += $(SRCDIR)/../pfcp_messages/pfcp_req_resp.o
+SRCS-y += $(SRCDIR)/../pfcp_messages/pfcp_session.o
+SRCS-y += $(SRCDIR)/../pfcp_messages/pfcp_set_ie.o
+SRCS-y += $(SRCDIR)/../pfcp_messages/pfcp_util.o
+SRCS-y += $(SRCDIR)/../pfcp_messages/pfcp_init.o
+
 
 SRCS-y += $(SRCDIR)/../test/simu_cp/simu_cp.o
 SRCS-y += $(SRCDIR)/../interface/ipc/dp_ipc_api.o
@@ -58,9 +78,14 @@ SRCS-y += $(SRCDIR)/../interface/udp/vepc_udp.o
 
 SRCS-y += $(SRCDIR)/../cp_dp_api/vepc_cp_dp_api.o
 
+ifneq (,$(findstring C3PO_OSS, $(CFLAGS)))
+SRCS-y += $(SRCDIR)/../oss_adapter/c3po_oss/cp_adapter.o
+CFLAGS += -I$(SRCDIR)/../oss_adapter/c3po_oss
+endif
 
 CFLAGS += -Wno-psabi # suppress "The ABI for passing parameters with 64-byte alignment has changed in GCC 4.6"
 CFLAGS += -Werror
+CFLAGS += -Wunused-variable
 
 CFLAGS += -I$(SRCDIR)/../cp
 CFLAGS += -I$(SRCDIR)/../dp
@@ -72,6 +97,11 @@ CFLAGS += -I$(SRCDIR)/../interface/udp
 CFLAGS += -I$(SRCDIR)/../interface/sdn
 CFLAGS += -I$(SRCDIR)/../interface/zmq
 CFLAGS += -I$(LIBGTPV2C_ROOT)/include
+CFLAGS += -I$(LIBPFCP_ROOT)/include
+
+CFLAGS += -I$(SRCDIR)/..
+CFLAGS += -I$(SRCDIR)/../pfcp_messages
+CFLAGS += -I$(SRCDIR)/state_machine
 
 # Mandatory CFLAGS, LDFLAGS- DO NOT MODIFY
 # #############################################################
@@ -84,17 +114,12 @@ CFLAGS_controlplane.o += -Wno-return-type
 endif
 
 LDLIBS += -L$(LIBGTPV2C_ROOT)/lib -lgtpv2c
+LDLIBS += -L$(LIBPFCP_ROOT)/lib -lpfcp
 
 LDLIBS += -lpcap
 
 # ngic-cp application options CFLAGS
 # #############################################################
-#validate both SDN_ODL_BUILD and ZMQ_COMM flag are not defined
-ifneq (,$(findstring SDN_ODL_BUILD, $(CFLAGS)))
-ifneq (,$(findstring ZMQ_COMM, $(CFLAGS)))
-$(error "Both "SDN_ODL_BUILD" and "ZMQ_COMM" flags are defined. Exiting..")
-endif
-endif
 
 #For SDN NB interface enable SDN_ODL_BUILD OR SDN_ONOS_BUILD not both
 ifneq (,$(findstring SDN_ODL_BUILD, $(CFLAGS)))
@@ -103,16 +128,20 @@ ifneq (,$(findstring SDN_ODL_BUILD, $(CFLAGS)))
 	LDLIBS += -lcurl
 endif
 
-ifneq (,$(findstring ZMQ_COMM, $(CFLAGS)))
-	SRCS-y += cp_sync.c
-	SRCS-y += $(SRCDIR)/../interface/zmq/zmq_push_pull.o
-	LDFLAGS += -L/usr/local/lib -lzmq
-endif
+# OSS-UTIL
+CFLAGS +=  -I$(OSS_UTIL_ROOT)/include
+LDFLAGS += -lstdc++
+LDLIBS += -lstdc++
+#LDLIBS +=  -L$(OSS_UTIL_ROOT)/lib -loss-util
+LDLIBS += -lpthread
+LDLIBS += -lrt
+LDLIBS += -lpistache
+LDLIBS += -lm
 
 # ngic-cp debug/testing/profiling options CFLAGS
 # #############################################################
 #Enable'-g -O0' option for gdb
-CFLAGS += -O3
+CFLAGS += -O0
 #CFLAGS += -g -O0
 
 #un-comment below line to remove all log level for testing.
@@ -133,11 +162,44 @@ ifneq (,$(findstring SYNC_STATS, $(CFLAGS)))
 	SRCS-y += stats_sync.c
 endif
 
+#un-comment below line to enable check peer node heartbeat.
+CFLAGS += -DUSE_REST
+
+ifneq (,$(findstring USE_REST, $(CFLAGS)))
+	#VS: ECHO FILES
+	CFLAGS += -I$(SRCDIR)/../restoration
+	SRCS-y += $(SRCDIR)/../restoration/restoration_timer.o
+	SRCS-y += restoration_peer.c
+	SRCS-y += gtpv2c_echo_req.c
+endif
+
 # Un-comment below line to read fake cp config.
 #CFLAGS += -DSIMU_CP
 
 # Un-comment below line to send fake delete session request from simulator.
 #CFLAGS += -DDEL_SESS_REQ
+
+# Comment below line to read UPF ip from cp.cfg instead of DNS query.
+CFLAGS += -DUSE_DNS_QUERY
+
+#ifneq (,$(findstring USE_DNS_QUERY, $(CFLAGS)))
+	LIBDNSCLIENT_ROOT = $(SRCDIR)/../oss_adapter/c3po_oss/oss-util
+	CFLAGS += -I$(LIBDNSCLIENT_ROOT)/include
+	LDLIBS += $(LIBDNSCLIENT_ROOT)/lib/liboss-util.a -lstdc++ -lpistache
+	LDLIBS += -L$(LIBDNSCLIENT_ROOT)/modules/c-ares -lcares
+#endif
+
+# Comment below line to build cp without GxApp.
+CFLAGS += -DGX_BUILD
+
+ifneq (,$(findstring GX_BUILD, $(CFLAGS)))
+	SRCS-y += cp_app.c
+	SRCS-y += ipc_api.c
+	SRCS-y += state_machine/sm_gx_pcnd.o
+	SRCS-y += $(SRCDIR)/gx_app/src/gx_pack.o
+	SRCS-y += $(SRCDIR)/../pfcp_messages/pfcp_gx.o
+	CFLAGS += -I$(SRCDIR)/../cp/gx_app/include
+endif
 
 # ngic-cp application security check CFLAGS
 ###############################################################

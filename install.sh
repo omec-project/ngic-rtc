@@ -27,12 +27,18 @@ echo "--------------------------------------------------------------------------
 HUGEPGSZ=`cat /proc/meminfo  | grep Hugepagesize | cut -d : -f 2 | tr -d ' '`
 MODPROBE="/sbin/modprobe"
 INSMOD="/sbin/insmod"
+THIRD_PARTY_SW_PATH="third_party"
 DPDK_DOWNLOAD="https://fast.dpdk.org/rel/dpdk-18.02.tar.gz"
-DPDK_DIR=$NGIC_DIR/dpdk
+DPDK_DIR=$NGIC_DIR/$THIRD_PARTY_SW_PATH/dpdk
 LINUX_SGX_SDK="https://github.com/intel/linux-sgx.git"
 LINUX_SGX_SDK_BRANCH_TAG="sgx_1.9"
+FREEDIAMETER_DIR=$NGIC_DIR/$THIRD_PARTY_SW_PATH/
+FREEDIAMETER="http://gsgit.gslab.com/Sprint-Repos/freediameter.git"
 CP_NUMA_NODE=0
 DP_NUMA_NODE=0
+
+OSS_UTIL_GIT_LINK="http://gsgit.gslab.com/Sprint-Repos/oss-util_old.git"
+OSS_UTIL_DIR="oss_adapter/c3po_oss/"
 
 #
 # Sets QUIT variable so script will finish.
@@ -126,6 +132,14 @@ step_2()
 	FUNC[6]="download_linux_sgx"
 	fi
 	fi
+	if [ "$SERVICE" -ne 2 ] ; then
+	TEXT[5]="Download and install oss-util for DNS and cli"
+    FUNC[5]="install_oss_util"
+	fi
+	if [ "$SERVICE" -ne 2 ] ; then
+	TEXT[6]="Download FreeDiameter"
+	FUNC[6]="download_freediameter"
+	fi
 }
 
 get_agreement_download()
@@ -143,7 +157,8 @@ get_agreement_download()
 	echo "8.  hyperscan"
 	echo "9.  curl"
 	echo "10. openssl-dev"
-	echo "11. and other library dependencies"
+	echo "11. freediameter"
+	echo "12. and other library dependencies"
 	while true; do
 		read -p "We need download above mentioned package. Press (y/n) to continue? " yn
 		case $yn in
@@ -172,9 +187,7 @@ install_libs()
 	sudo apt-get update
 	sudo apt-get -y install curl build-essential linux-headers-$(uname -r) \
 		git unzip libpcap0.8-dev gcc libjson0-dev make libc6 libc6-dev \
-		g++-multilib libzmq3-dev libcurl4-openssl-dev libssl-dev python-pip
-
-	pip install zmq
+		g++-multilib libcurl4-openssl-dev libssl-dev python-pip
 
 	touch .download
 }
@@ -194,10 +207,14 @@ download_dpdk_zip()
 		return
 	fi
 
-	tar -xzvf "${DPDK_DOWNLOAD##*/}"
-	rm -rf "$NGIC_DIR"/dpdk/
+        tar -xzvf "${DPDK_DOWNLOAD##*/}"
+	if [ ! -d $THIRD_PARTY_SW_PATH ]; then
+	     mkdir $THIRD_PARTY_SW_PATH
+        fi
+
+	rm -rf "$NGIC_DIR/$THIRD_PARTY_SW_PATH"/dpdk/
 	rm -f "${DPDK_DOWNLOAD##*/}"
-	mv "$NGIC_DIR"/dpdk-*/ "$NGIC_DIR"/dpdk
+	mv "$NGIC_DIR"/dpdk-*/ "$NGIC_DIR/$THIRD_PARTY_SW_PATH"/dpdk
 
 	echo ""
 	echo "Applying AVX not supported patch for resolved dpdk-18.02 i40e driver issue.."
@@ -286,7 +303,7 @@ configure_services()
 				SERVICE=1
 				SERVICE_NAME="CP"
 				recom_memory=1024
-				memory=`cat config/cp_config.cfg  | grep "MEMORY=" | head -n 1 | cut -d '=' -f 2`
+				memory=`cat cp/run.sh  | grep "MEMORY=" | head -n 1 | cut -d '=' -f 2`
 				setup_memory
 				setup_numa_node
 				setup_hugepages
@@ -324,7 +341,7 @@ configure_services()
 
 setup_numa_node()
 {
-	if [ `cat config/cp_config.cfg  | grep "NUMA0_MEMORY=0" | wc -l` != 0 ]; then
+	if [ `cat cp/run.sh  | grep "NUMA0_MEMORY=0" | wc -l` != 0 ]; then
 		CP_NUMA_NODE=1
 	fi
 	if [ `cat config/dp_config.cfg  | grep "NUMA0_MEMORY=0" | wc -l` != 0 ]; then
@@ -341,7 +358,7 @@ setup_memory()
 			case $yn in
 				[Yy]* )	if [ $SERVICE == 1 ] || [ $SERVICE == 3 ] ; then
 							set_size CP
-							sed -i '/^MEMORY=/s/=.*/='$memory'/' config/cp_config.cfg
+							sed -i '/^MEMORY=/s/=.*/='$memory'/' cp/run.sh
 						fi
 
 						if [ $SERVICE == 2 ] || [ $SERVICE == 3 ] ; then
@@ -380,7 +397,7 @@ set_size()
 setup_collocated_memory()
 {
 	dp_memory=`cat config/dp_config.cfg  | grep "MEMORY=" | head -n 1 | cut -d '=' -f 2`
-	cp_memory=`cat config/cp_config.cfg  | grep "MEMORY=" | head -n 1 | cut -d '=' -f 2`
+	cp_memory=`cat cp/run.sh  | grep "MEMORY=" | head -n 1 | cut -d '=' -f 2`
 	memory=$(($cp_memory + $dp_memory))
 }
 
@@ -467,6 +484,10 @@ download_hyperscan()
 	fi
 	echo "Downloading HS and dependent libraries"
 	sudo apt-get install cmake ragel
+	if [ ! -d $THIRD_PARTY_SW_PATH ]; then
+	     mkdir $THIRD_PARTY_SW_PATH
+        fi
+        cd $THIRD_PARTY_SW_PATH
 	wget https://github.com/01org/hyperscan/archive/v4.1.0.tar.gz
 	tar -xvf v4.1.0.tar.gz
 	pushd hyperscan-4.1.0
@@ -476,11 +497,26 @@ download_hyperscan()
 	export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PWD/lib
 	popd
 	export HYPERSCANDIR=$PWD
-	echo "export HYPERSCANDIR=$PWD" >> ../setenv.sh
+	echo "export HYPERSCANDIR=$PWD" >> ../../setenv.sh
 	popd
 }
 
 
+download_freediameter()
+{
+	echo "Download FreeDiameter from sprint-repos....."
+	if [ ! -d $FREEDIAMETER_DIR ]; then
+	     mkdir $FREEDIAMETER_DIR
+        fi
+        pushd $FREEDIAMETER_DIR
+	git clone $FREEDIAMETER
+	if [ $? -ne 0 ] ; then
+	                echo "Failed to clone FreeDiameter, please check the errors."
+	                return
+	fi
+        popd
+
+}
 download_linux_sgx()
 {
 	echo "Download Linux SGX SDK....."
@@ -491,25 +527,105 @@ download_linux_sgx()
 	fi
 }
 
+build_fd_lib()
+{
+	pushd $FREEDIAMETER_DIR/freediameter
+	if [ ! -e "build" ]; then
+		mkdir build
+	fi
+	pushd build
+	cmake ../
+	make
+	if [ $? -ne 0 ] ; then
+		echo "Failed to build Freediameter, please check the errors."
+		return
+	fi
+	make install
+	if [ $? -ne 0 ] ; then
+		echo "Make install Failed in Freediameter, please check the errors."
+		return
+	fi
+
+	libfdproto="/usr/local/lib/libfdproto.so"
+	libfdcore="/usr/local/lib/libfdcore.so"
+
+	if [ ! -e "$libfdproto" ] && ! [ -e "$libfdcore" ]; then
+		echo "LibFdproto and LibfdCore.so does not exist at /usr/local/lib"
+		return
+	fi
+	popd
+	popd
+}
+
+build_gxapp()
+{
+	pushd $NGIC_DIR/cp/gx_app
+	make clean
+	make
+	if [ $? -ne 0 ] ; then
+		echo "Failed to build GxApp, please check the errors."
+		return
+	fi
+	popd
+}
+
+build_pfcp_lib()
+{
+	pushd $NGIC_DIR/libpfcp
+	make clean
+	make
+	if [ $? -ne 0 ] ; then
+		echo "Failed to build libpfcp, please check the errors."
+		return
+	fi
+	popd
+}
+
 step_3()
 {
         TITLE="Build NGIC"
         CONFIG_NUM=1
-        TEXT[1]="Build NGIC"
+		TEXT[1]="Build NGIC"
         FUNC[1]="build_ngic"
         sed -i '/SGX_BUILD/d' setenv.sh
-	if [ "$SGX_SERVICE" -eq 1 ] ; then
-		echo "export SGX_BUILD=1" >> setenv.sh
-		TEXT[1]="Build NGIC With SGX"
-		FUNC[1]="build_ngic"
-	fi
+		if [ "$SGX_SERVICE" -eq 1 ] ; then
+			echo "export SGX_BUILD=1" >> setenv.sh
+			TEXT[1]="Build NGIC With SGX"
+			FUNC[1]="build_ngic"
+		fi
 }
+
+install_oss_util()
+{
+   pushd $NGIC_DIR/$OSS_UTIL_DIR
+   git clone -b oss_util_dev $OSS_UTIL_GIT_LINK
+   mv oss-util_old oss-util
+   pushd oss-util
+   ./install.sh
+   popd
+   popd
+}
+
+build_fd_gxapp()
+{
+	echo "Building FreeDiameter ..."
+	build_fd_lib
+
+	echo "Building GxAPP ..."
+	build_gxapp
+}
+
 build_ngic()
 {
 	pushd $NGIC_DIR
 	source setenv.sh
+
+	echo "Building PFCP Libs ..."
+	build_pfcp_lib
+
 	if [ $SERVICE == 2 ] || [ $SERVICE == 3 ] ; then
-		make clean
+		make clean-lib
+		make clean-dp
 		echo "Building Libs..."
 		make build-lib || { echo -e "\nNG-CORE: Make lib failed\n"; }
 		echo "Building DP..."
@@ -519,12 +635,20 @@ build_ngic()
 		echo "Building libgtpv2c..."
 		pushd $NGIC_DIR/libgtpv2c
 			make clean
-			make || { echo -e "\nlibgtpv2c: Make failed\n"; }
+			make
+			if [ $? -ne 0 ] ; then
+				echo "Failed to build libgtpv2, please check the errors."
+				return
+			fi
 		popd
+
+		echo "Building FD and GxApp..."
+		build_fd_gxapp
 
 		echo "Building CP..."
 		make clean-cp
-		make build-cp || { echo -e "\nCP: Make failed\n"; }
+		make -j 10 build-cp || { echo -e "\nCP: Make failed\n"; }
+
 	fi
 	popd
 }

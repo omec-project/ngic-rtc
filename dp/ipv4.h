@@ -23,8 +23,10 @@
  */
 #include <stdint.h>
 #include <rte_ip.h>
-#include "main.h"
 #include "util.h"
+#ifdef DP_BUILD
+#include "up_main.h"
+#endif /* DP_BUILD */
 
 /**
  * Function to return pointer to ip headers, assuming ether header is untagged.

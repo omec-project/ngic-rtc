@@ -48,6 +48,12 @@
 #define GTPU_ECHO_REQUEST			(0x01)
 #define GTPU_ECHO_RESPONSE			(0x02)
 #define GTPU_HDR_SIZE				(8)
+#define GTPU_END_MARKER_REQUEST			(254)
+/* VS: TODO*/
+#define GTPU_HDR_LEN   8
+#define IPV4_HDR_LEN   20
+#define ETH_HDR_LEN    14
+#define UDP_HDR_LEN    8
 
 #define UDP_PORT_GTPU_NW_ORDER 26632 /* GTP UDP port(2152) in NW order */
 /**
@@ -65,9 +71,15 @@ struct gtpu_hdr {
 	uint8_t msgtype;	/**< message type */
 	uint16_t msglen;	/**< message length */
 	uint32_t teid;		/**< tunnel endpoint id */
-	uint32_t seqnb;		/**< sequence number */
+	uint16_t seqnb;		/**< sequence number */
 };
 #pragma pack()
+
+/* GTPU-Recovery Information Element */
+typedef struct gtpu_recovery_ie_t {
+    uint8_t type;
+    uint8_t restart_cntr;
+} gtpu_recovery_ie;
 
 /**
  * Function to return pointer to gtpu headers.
@@ -158,5 +170,5 @@ void gtpu_get_inner_src_dst_ip_without_seqnb(struct rte_mbuf *m, uint32_t *src_i
  * @return
  * void
  */
-void process_echo_request(struct rte_mbuf *echo_pkt);
+void process_echo_request(struct rte_mbuf *echo_pkt, uint8_t port_id);
 #endif	/* _GTPU_H_ */

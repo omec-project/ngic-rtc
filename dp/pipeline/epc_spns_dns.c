@@ -63,7 +63,7 @@
 
 #include <sponsdn.h>
 
-#include "main.h"
+#include "up_main.h"
 
 #define NB_CORE_MSGBUF 10000
 #define MAX_NAME_LEN    32
@@ -140,11 +140,11 @@ void scan_dns_ring(__rte_unused void *args)
 		++num_dns_processed;
 
 		for (i = 0; i < addr4_cnt; ++i) {
-			struct msg_adc msg = { .ipv4 = addr4[i].s_addr, .rule_id = match_id };
+			//struct msg_adc msg = { .ipv4 = addr4[i].s_addr, .rule_id = match_id };
 
 			RTE_LOG_DP(DEBUG, DP, "adding a rule with IP: %s, rule id %d\n",
 					inet_ntoa(addr4[i]), match_id);
-			adc_dns_entry_add(&msg);
+			//adc_dns_entry_add(&msg);
 		}
 		rte_pktmbuf_free(msg);
 	}

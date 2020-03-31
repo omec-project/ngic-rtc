@@ -29,17 +29,33 @@
 #include <rte_cfgfile.h>
 #include <rte_byteorder.h>
 
-#include "nb.h"
-#include "interface.h"
-#include "main.h"
+
 #include "util.h"
-#include "acl_dp.h"
-#include "meter.h"
+#include "pfcp_util.h"
+#include "interface.h"
+#include "pfcp_set_ie.h"
 #include "vepc_cp_dp_api.h"
+#include "pfcp_messages_encoder.h"
+
+
+#ifdef CP_BUILD
 #include "cp.h"
+#include "nb.h"
+#include "main.h"
+#include "cp_stats.h"
+#include "cp_config.h"
+#include "sm_struct.h"
+
+//TODO:Remove it
+#include "cdr.h"
+#include "meter.h"
+#endif /* CP_BUILD */
 
 /******************** IPC msgs **********************/
 #ifdef CP_BUILD
+extern int pfcp_fd;
+extern struct sockaddr_in upf_pfcp_sockaddr;
+
 /**
  * @brief Pack the message which has to be sent to DataPlane.
  * @param mtype
@@ -110,7 +126,7 @@ build_dp_msg(enum dp_msg_type mtype, struct dp_id dp_id,
 				*(struct downlink_data_notification *)param;
 		break;
 	default:
-		RTE_LOG_DP(ERR, API, "build_dp_msg: Invalid msg type\n");
+		clLog(apilogger, eCLSeverityCritical, "build_dp_msg: Invalid msg type\n");
 		return -1;
 	}
 	return 0;
@@ -129,13 +145,34 @@ static int
 send_dp_msg(struct dp_id dp_id, struct msgbuf *msg_payload)
 {
 	RTE_SET_USED(dp_id);
-	if (active_comm_msg->send((void *)msg_payload, sizeof(struct msgbuf)) < 0) {
-		perror("msgsnd");
+	pfcp_pfd_mgmt_req_t pfd_mgmt_req;
+	memset(&pfd_mgmt_req, 0, sizeof(pfcp_pfd_mgmt_req_t));
+	/* Fill pfd contents costum ie as rule  string */
+	set_pfd_contents(&pfd_mgmt_req.app_ids_pfds[0].pfd_context[0].pfd_contents[0], msg_payload);
+	/*Fill pfd request */
+	fill_pfcp_pfd_mgmt_req(&pfd_mgmt_req, 0);
+
+	uint8_t pfd_msg[512]={0};
+	uint16_t  pfd_msg_len=encode_pfcp_pfd_mgmt_req_t(&pfd_mgmt_req, pfd_msg);
+
+	pfcp_header_t *header=(pfcp_header_t *) pfd_msg;
+	header->message_len = htons(pfd_msg_len - 4);
+
+	if (pfcp_send(pfcp_fd, (char *)pfd_msg, pfd_msg_len, &upf_pfcp_sockaddr) < 0 ){
+		printf("Error sending: %i\n",errno);
+		free(pfd_mgmt_req.app_ids_pfds[0].pfd_context[0].pfd_contents[0].cstm_pfd_cntnt);
 		return -1;
 	}
+	else {
+		get_current_time(cp_stats.stat_timestamp);
+		update_cli_stats(upf_pfcp_sockaddr.sin_addr.s_addr,
+								PFCP_PFD_MGMT_REQ,
+								REQ,cp_stats.stat_timestamp);
+	}
+	free(pfd_mgmt_req.app_ids_pfds[0].pfd_context[0].pfd_contents[0].cstm_pfd_cntnt);
 	return 0;
 }
-#endif /* CP_BUILD*/
+//#endif /* CP_BUILD*/
 /******************** SDF Pkt filter **********************/
 int
 sdf_filter_table_create(struct dp_id dp_id, uint32_t max_elements)
@@ -310,11 +347,6 @@ session_create(struct dp_id dp_id,
 					struct session_info entry)
 {
 #ifdef CP_BUILD
-#ifdef ZMQ_COMM
-	entry.op_id = op_id;
-	add_resp_op_id_hash();
-#endif  /* ZMQ_COMM */
-
 	struct msgbuf msg_payload;
 	build_dp_msg(MSG_SESS_CRE, dp_id, (void *)&entry, &msg_payload);
 
@@ -330,7 +362,7 @@ session_create(struct dp_id dp_id,
 #ifdef SDN_ODL_BUILD
 	switch(spgw_cfg) {
 	case SGWC :
-	case SPGWC :
+	case SAEGWC :
 		return send_nb_create_modify(
 				JSON_OBJ_OP_TYPE_CREATE,
 				JSON_OBJ_INSTR_3GPP_MOB_CREATE,
@@ -377,10 +409,6 @@ session_modify(struct dp_id dp_id,
 					struct session_info entry)
 {
 #ifdef CP_BUILD
-#ifdef ZMQ_COMM
-	entry.op_id = op_id;
-	add_resp_op_id_hash();
-#endif  /* ZMQ_COMM */
 
 	struct msgbuf msg_payload;
 	build_dp_msg(MSG_SESS_MOD, dp_id, (void *)&entry, &msg_payload);
@@ -433,14 +461,12 @@ send_ddn_ack(struct dp_id dp_id,
 #endif		/* CP_BUILD */
 
 #ifdef DP_BUILD
-#ifdef DP_DDN
 int
 send_ddn_ack(struct dp_id dp_id,
 				struct downlink_data_notification_ack_t entry)
 {
 	return dp_ddn_ack(dp_id, &entry);
 }
-#endif		/* DP_DDN */
 #endif		/* DP_BUILD */
 
 int
@@ -448,11 +474,6 @@ session_delete(struct dp_id dp_id,
 					struct session_info entry)
 {
 #ifdef CP_BUILD
-#ifdef ZMQ_COMM
-	entry.op_id = op_id;
-	add_resp_op_id_hash();
-#endif  /* ZMQ_COMM */
-
 	struct msgbuf msg_payload;
 	build_dp_msg(MSG_SESS_DEL, dp_id, (void *)&entry, &msg_payload);
 
@@ -528,10 +549,11 @@ int
 ue_cdr_flush(struct dp_id dp_id, struct msg_ue_cdr ue_cdr)
 {
 #ifdef CP_BUILD
-    struct msgbuf msg_payload;
-    build_dp_msg(MSG_EXP_CDR, dp_id, (void *)&ue_cdr, &msg_payload);
-    return send_dp_msg(dp_id, &msg_payload);
+	struct msgbuf msg_payload;
+	build_dp_msg(MSG_EXP_CDR, dp_id, (void *)&ue_cdr, &msg_payload);
+	return send_dp_msg(dp_id, &msg_payload);
 #else
-    return dp_ue_cdr_flush(dp_id, &ue_cdr);
+	return dp_ue_cdr_flush(dp_id, &ue_cdr);
 #endif
 }
+#endif /* CP_BUILD*/

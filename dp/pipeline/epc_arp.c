@@ -59,13 +59,17 @@
 #include "net/route.h"
 
 
+#include "util.h"
+#include "gtpu.h"
+#include "ipv4.h"
+#include "stats.h"
+#include "up_main.h"
 #include "epc_arp.h"
 #include "epc_packet_framework.h"
-#include "util.h"
-#include "cdr.h"
-#include "main.h"
-#include "stats.h"
-#include "gtpu.h"
+
+#ifdef use_rest
+#include "../rest_timer/gstimer.h"
+#endif /* use_rest */
 
 #ifdef STATIC_ARP
 #define STATIC_ARP_FILE "../config/static_arp.cfg"
@@ -150,6 +154,8 @@ struct kni_port_params *kni_port_params_array[RTE_MAX_ETHPORTS];
 #define ARP_CACHE       "/proc/net/arp"
 #define ARP_BUFFER_LEN  1024
 #define ARP_DELIM       " "
+
+#define BUFFER_SIZE 4096
 
 /* VS: buffers */
 char ipAddr[128];
@@ -826,7 +832,70 @@ arp_send_buffered_pkts(struct rte_ring *queue,
 	}
 
 	rte_ring_free(queue);
+	//queue = NULL;
 }
+
+#ifdef USE_REST
+/* Brief: Function to process GTP-U echo response
+ * @ Input param: echo_pkt rte_mbuf pointer
+ * @ Output param: none
+ * Return: void
+ */
+static void
+process_echo_response(struct rte_mbuf *echo_pkt)
+{
+
+	int ret = 0;
+	peerData *conn_data = NULL;
+
+	//uint8_t rest_cnt = 0;
+	//struct ether_hdr *eth_h = rte_pktmbuf_mtod(echo_pkt, struct ether_hdr *);
+	//struct ether_addr tmp_mac;
+	//ether_addr_copy(&eth_h->s_addr, &tmp_mac);
+
+	/* Retrive src IP addresses */
+	struct ipv4_hdr *ip_hdr = get_mtoip(echo_pkt);
+
+	//struct gtpu_hdr *gtpu_hdr = get_mtogtpu(echo_pkt);
+	//gtpu_recovery_ie *recovery_ie = (gtpu_recovery_ie*)(rte_pktmbuf_mtod(echo_pkt, unsigned char *) +
+	//		ETH_HDR_LEN + IPV4_HDR_LEN + UDP_HDR_LEN + GTPU_HDR_SIZE);
+	//recovery_ie = (gtpu_recovery_ie*)((char*)gtpu_hdr+
+	//		GTPU_HDR_SIZE + ntohs(gtpu_hdr->msglen));
+	//rest_cnt = recovery_ie->restart_cntr;
+	//
+
+	/* VS: TODO */
+	ret = rte_hash_lookup_data(conn_hash_handle,
+				&ip_hdr->src_addr, (void **)&conn_data);
+
+	if ( ret < 0) {
+		RTE_LOG_DP(DEBUG, DP, " Entry not found for NODE :%s\n",
+							inet_ntoa(*(struct in_addr *)&ip_hdr->src_addr));
+		return;
+
+	} else {
+		conn_data->itr_cnt = 0;
+		/* Reset Activity flag */
+		conn_data->activityFlag = 0;
+		/* Stop transmit timer for specific Node */
+		stopTimer( &conn_data->tt );
+		/* Stop periodic timer for specific Node */
+		stopTimer( &conn_data->pt );
+		/* Reset Periodic Timer */
+		if ( startTimer( &conn_data->pt ) < 0)
+			RTE_LOG_DP(ERR, DP, "Periodic Timer failed to start...\n");
+	}
+
+	//if (rest_cnt < conn_data->rstCnt) {
+	//	flush_eNB_session(&data[inx]);
+	//	conn_data->rstCnt = 0;
+	//	return;
+	//}
+	//
+	//conn_data->rstCnt = rest_cnt;
+
+}
+#endif /* USE_REST */
 
 static
 void process_arp_msg(const struct ether_addr *hw_addr,
@@ -908,7 +977,7 @@ get_mac_ip_addr(struct arp_port_address *addr, uint8_t port_id)
 			}
 			break;
 
-		case SPGWU:
+		case SAEGWU:
 			if (app.s1u_port == port_id) {
 				addr[port_id].ip = app.s1u_ip;
 				addr[port_id].mac_addr = &app.s1u_ether_addr;
@@ -1058,7 +1127,7 @@ pkt_work_arp_key(
 		/* If UDP dest port is 2152, then pkt is GTPU-Echo request */
 		struct gtpu_hdr *gtpuhdr = get_mtogtpu(pkt);
 		if (gtpuhdr && gtpuhdr->msgtype == GTPU_ECHO_REQUEST) {
-			process_echo_request(pkt);
+			process_echo_request(pkt, in_port_id);
 			/* Send ECHO_RSP */
 			int pkt_size =
 				RTE_CACHE_LINE_ROUNDUP(sizeof(struct rte_mbuf));
@@ -1073,6 +1142,13 @@ pkt_work_arp_key(
 					return;
 				}
 			}
+		} else if (gtpuhdr && gtpuhdr->msgtype == GTPU_ECHO_RESPONSE) {
+#ifdef USE_REST
+			/*VS: TODO Add check for Restart counter */
+			/* If peer Restart counter value of peer node is less than privious value than start flusing session*/
+			RTE_LOG_DP(DEBUG, DP, "VS: GTP-U Echo Response Received\n");
+			process_echo_response(pkt);
+#endif /* USE_REST */
 		}
 	}
 }

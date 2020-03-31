@@ -63,7 +63,7 @@ void epc_tx_init(struct epc_tx_params *param, int core, uint8_t port)
 				rte_panic("%s: Unknown port no %d", __func__, port);
 			break;
 
-		case SPGWU:
+		case SAEGWU:
 			if (port != app.s1u_port && port != app.sgi_port)
 				rte_panic("%s: Unknown port no %d", __func__, port);
 			break;

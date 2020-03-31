@@ -55,6 +55,30 @@ int __create_udp_socket(struct in_addr send_ip, uint16_t send_port,
 }
 
 /**
+ * @brief API to create udp socket.
+ */
+int create_udp_socket(struct in_addr recv_ip, uint16_t recv_port,
+		udp_sock_t *sock)
+{
+	sock->sock_fd = socket(AF_INET, SOCK_DGRAM, 0);
+	if (sock->sock_fd == -1) {
+		perror("socket error: ");
+		close(sock->sock_fd);
+		return -1;
+	}
+
+	memset(&sock->my_addr, 0x0, sizeof(struct sockaddr_in));
+	sock->my_addr.sin_family = AF_INET;
+	sock->my_addr.sin_port = htons(recv_port);
+	sock->my_addr.sin_addr.s_addr = recv_ip.s_addr;
+	if (bind(sock->sock_fd, (struct sockaddr *)&sock->my_addr,
+			sizeof(struct sockaddr_in)) == -1)
+		return -1;
+
+	return 0;
+}
+
+/**
  * @brief API to send pkts over udp socket.
  */
 int __send_udp_packet(udp_sock_t *__sock, void *data, int size)

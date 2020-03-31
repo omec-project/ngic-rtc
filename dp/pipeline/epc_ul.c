@@ -19,6 +19,7 @@
 #include <sys/types.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <inttypes.h>
 
 #include <rte_string_fns.h>
@@ -43,10 +44,15 @@
 #include <rte_port_ring.h>
 #include <rte_kni.h>
 #include <rte_arp.h>
+#include <unistd.h>
 
-#include "epc_packet_framework.h"
-#include "main.h"
 #include "gtpu.h"
+#include "up_main.h"
+#include "epc_packet_framework.h"
+
+#ifdef USE_REST
+#include "../restoration/restoration_timer.h"
+#endif /* USE_REST */
 
 /* Borrowed from dpdk ip_frag_internal.c */
 #define PRIME_VALUE	0xeaad8405
@@ -54,14 +60,37 @@
 /* Generate new pcap for s1u port */
 #ifdef PCAP_GEN
 extern pcap_dumper_t *pcap_dumper_west;
+extern pcap_dumper_t *pcap_dumper_east;
 #endif /* PCAP_GEN */
 
 extern struct kni_port_params *kni_port_params_array[RTE_MAX_ETHPORTS];
+
 #ifdef TIMER_STATS
 #include "perf_timer.h"
 extern _timer_t _init_time;
 #endif /* TIMER_STATS */
 uint32_t ul_nkni_pkts = 0;
+
+#ifdef USE_REST
+static inline void check_activity(uint32_t srcIp)
+{
+	/* VS: TODO */
+	int ret = 0;
+	peerData *conn_data = NULL;
+
+	ret = rte_hash_lookup_data(conn_hash_handle,
+				&srcIp, (void **)&conn_data);
+	if ( ret < 0) {
+		RTE_LOG_DP(DEBUG, DP, "Entry not found for NODE :%s\n",
+							inet_ntoa(*(struct in_addr *)&srcIp));
+		return;
+	} else {
+		RTE_LOG_DP(DEBUG, DP, "Recv pkts from NODE :%s\n",
+						inet_ntoa(*(struct in_addr *)&srcIp));
+		conn_data->activityFlag = 1;
+	}
+}
+#endif /* USE_REST */
 
 static inline void epc_ul_set_port_id(struct rte_mbuf *m)
 {
@@ -82,16 +111,18 @@ static inline void epc_ul_set_port_id(struct rte_mbuf *m)
 
 	ipv4_packet = (eh->ether_type == htons(ETHER_TYPE_IPv4));
 
+
 	if (unlikely(
 		     (m->ol_flags & PKT_RX_IP_CKSUM_MASK) == PKT_RX_IP_CKSUM_BAD ||
 		     (m->ol_flags & PKT_RX_L4_CKSUM_MASK) == PKT_RX_L4_CKSUM_BAD)) {
-		RTE_LOG_DP(ERR, DP, "UL Bad checksum: %lu\n", m->ol_flags);
-		ipv4_packet = 0;
+		//RTE_LOG_DP(ERR, DP, "UL Bad checksum: %lu\n", m->ol_flags);
+		//ipv4_packet = 0;
 	}
 	*port_id_offset = 1;
 
 	/* Flag ARP pkt for linux handling */
-	if (eh->ether_type == rte_cpu_to_be_16(ETHER_TYPE_ARP))
+	if (eh->ether_type == rte_cpu_to_be_16(ETHER_TYPE_ARP) ||
+			ipv4_hdr->next_proto_id == IPPROTO_ICMP)
 	{
 		RTE_LOG_DP(DEBUG, DP, "epc_ul.c:%s::"
 				"\n\t@S1U:eh->ether_type==ETHER_TYPE_ARP= 0x%X\n",
@@ -138,8 +169,13 @@ static inline void epc_ul_set_port_id(struct rte_mbuf *m)
 			(struct udp_hdr *)&m_data[sizeof(struct ether_hdr) +
 			ip_len];
 		if (likely(udph->dst_port == UDP_PORT_GTPU_NW_ORDER)) {
+#ifdef USE_REST
+			/* VS: TODO Set activity flag if data receive from peer node */
+			check_activity(ipv4_hdr->src_addr);
+#endif /* USE_REST */
 			struct gtpu_hdr *gtpuhdr = get_mtogtpu(m);
-			if (gtpuhdr->msgtype == GTPU_ECHO_REQUEST && gtpuhdr->teid == 0) {
+			if ((gtpuhdr->msgtype == GTPU_ECHO_REQUEST && gtpuhdr->teid == 0) ||
+					gtpuhdr->msgtype == GTPU_ECHO_RESPONSE) {
 					return;
 			} else {
 				/* TODO: Inner could be ipv6 ? */
@@ -154,6 +190,7 @@ static inline void epc_ul_set_port_id(struct rte_mbuf *m)
 				*port_id_offset = 0;
 				ul_gtpu_pkt = 1;
 				ul_arp_pkt = 0;
+
 #ifdef SKIP_LB_HASH_CRC
 				*ue_ipv4_hash_offset = p[0] >> 24;
 #else
@@ -260,12 +297,12 @@ void epc_ul_init(struct epc_ul_params *param, int core, uint8_t in_port_id, uint
 	    case PGWU:
 	        if (in_port_id != app.sgi_port && in_port_id != app.s5s8_pgwu_port)
 				rte_exit(EXIT_FAILURE, "Wrong MAC configured for S5S8_PGWU/SGI interface\n");
-			break;
+		break;
 
-	    case SPGWU:
-	        if (in_port_id != app.sgi_port && in_port_id != app.s1u_port)
+	    case SAEGWU:
+		if (in_port_id != app.sgi_port && in_port_id != app.s1u_port)
 				rte_exit(EXIT_FAILURE, "Wrong MAC configured for S1U/SGI interface\n");
-	    	break;
+		break;
 
 	    default:
 	        rte_exit(EXIT_FAILURE, "Invalid DP type(SPGW_CFG).\n");
@@ -302,7 +339,7 @@ void epc_ul_init(struct epc_ul_params *param, int core, uint8_t in_port_id, uint
 		.arg_create = (void *)&port_ethdev_params,
 		.burst_size = epc_app.burst_size_rx_read,
 	};
-	if (in_port_id == app.s1u_port)	{
+	if (in_port_id == S1U_PORT_ID)	{
 		in_port_params.f_action = epc_ul_port_in_ah;
 		in_port_params.arg_ah = NULL;
 	}
@@ -437,6 +474,10 @@ void epc_ul(void *args)
 		uint32_t rx_cnt = rte_ring_dequeue_bulk(shared_ring[SGI_PORT_ID],
 				(void**)pkts, queued_cnt, NULL);
 		uint32_t pkt_indx = 0;
+/* Capture the echo packets.*/
+#ifdef PCAP_GEN
+		dump_pcap(pkts, rx_cnt, pcap_dumper_east);
+#endif /* PCAP_GEN */
 		while (rx_cnt) {
 			uint16_t pkt_cnt = PKT_BURST_SZ;
 			if (rx_cnt < PKT_BURST_SZ)

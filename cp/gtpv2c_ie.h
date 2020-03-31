@@ -34,7 +34,8 @@
 #include <netinet/in.h>
 
 #ifdef CP_BUILD
-#include "ie.h"
+#include "gtp_ies.h"
+#include "gtp_messages.h"
 #endif  /* CP_BUILD */
 
 #define IPV4_IE_LENGTH                                        (4)
@@ -51,6 +52,7 @@ enum cause_value {
 	GTPV2C_CAUSE_NEW_PDN_TYPE_SINGLE_ADDR_BEARER = 19,
 	GTPV2C_CAUSE_CONTEXT_NOT_FOUND = 64,
 	GTPV2C_CAUSE_INVALID_MESSAGE_FORMAT = 65,
+	GTPV2C_CAUSE_VERSION_NOT_SUPPORTED = 66,
 	GTPV2C_CAUSE_INVALID_LENGTH = 67,
 	GTPV2C_CAUSE_SERVICE_NOT_SUPPORTED = 68,
 	GTPV2C_CAUSE_MANDATORY_IE_INCORRECT = 69,
@@ -60,9 +62,13 @@ enum cause_value {
 	GTPV2C_CAUSE_MISSING_UNKNOWN_APN = 78,
 	GTPV2C_CAUSE_PREFERRED_PDN_TYPE_UNSUPPORTED = 83,
 	GTPV2C_CAUSE_ALL_DYNAMIC_ADDRESSES_OCCUPIED = 84,
+	GTPV2C_CAUSE_NO_MEMORY_AVAILABLE = 91,
 	GTPV2C_CAUSE_REQUEST_REJECTED = 94,
+	GTPV2C_CAUSE_IMSI_NOT_KNOWN = 96,
 	GTPV2C_CAUSE_REMOTE_PEER_NOT_RESPONDING = 100,
 	GTPV2C_CAUSE_CONDITIONAL_IE_MISSING = 103,
+	GTPV2C_CAUSE_INVALID_REPLY_FROM_REMOTE_PEER = 107,
+	GTPV2C_CAUSE_INVALID_PEER = 109
 };
 
 #define PDN_IP_TYPE_IPV4                                      (1)
@@ -70,6 +76,21 @@ enum cause_value {
 #define PDN_IP_TYPE_IPV4V6                                    (3)
 
 #pragma pack(1)
+
+
+/*TODO: Added this enum (Nikhil) */
+
+enum ie_instance {
+        IE_INSTANCE_ZERO = 0,
+        IE_INSTANCE_ONE = 1,
+        IE_INSTANCE_TWO = 2,
+        IE_INSTANCE_THREE = 3,
+        IE_INSTANCE_FOUR = 4,
+        IE_INSTANCE_FIVE = 5,
+        IE_INSTANCE_SIX = 6
+};
+
+//
 
 /**
  * Information Element structure as defined by 3GPP TS 29.274, clause 8.2.1, as
@@ -214,9 +235,30 @@ typedef struct ar_priority_ie_t {
  * which can not to be tested now.
  */
 typedef struct bearer_qos_ie {
+	/** QoS class identifier - defined by 3GPP TS 23.203 */
+	uint8_t qci;
+
+	/** Uplink Maximum Bit Rate in kilobits (1000bps) - for non-GBR
+	 * Bearers this field to be set to zero*/
+	uint64_t ul_mbr;
+
+	/** Downlink Maximum Bit Rate in kilobits (1000bps) - for non-GBR
+	 * Bearers this field to be set to zero*/
+	uint64_t dl_mbr;
+
+	/** Uplink Guaranteed Bit Rate in kilobits (1000bps) - for non-GBR
+	 * Bearers this field to be set to zero*/
+	uint64_t ul_gbr;
+
+	/** Downlink Guaranteed Bit Rate in kilobits (1000bps) - for non-GBR
+	 * Bearers this field to be set to zero*/
+	uint64_t dl_gbr;
+
 	/* First Byte: Allocation/Retention Priority (ARP) */
 	ar_priority_ie arp;
-	qos_segment qos;
+
+	/*VS: TODO: Remove this declaration of segment onces get code stable with updated structure */
+	/* qos_segment qos; */
 } bearer_qos_ie;
 
 #define BEARER_QOS_IE_PREMPTION_DISABLED (1)
@@ -250,6 +292,22 @@ typedef struct bearer_tft_ie_t {
 #define TFT_OP_REPLACE_FILTER_EXISTING   (4)
 #define TFT_OP_DELETE_FILTER_EXISTING    (5)
 #define TFT_OP_NO_OP                     (6)
+
+#define TFT_DOWNLINK							(16)
+#define TFT_UPLINK								(32)
+#define TFT_BIDIRECTIONAL						(48)
+
+#define TFT_CREATE_NEW							(32)
+#define TFT_PROTO_IDENTIFIER_NEXT_HEADER_TYPE	(48)
+#define TFT_SINGLE_SRC_PORT_TYPE				(64)
+#define TFT_SINGLE_REMOTE_PORT_TYPE				(80)
+#define TFT_IPV4_REMOTE_ADDR_TYPE				(16)
+#define TFT_IPV4_SRC_ADDR_TYPE					(17)
+//#define TFT_SINGLE_DEST_PORT_TYPE				(64)
+#define TFT_DEST_PORT_RANGE_TYPE				(65)
+//#define TFT_SINGLE_SRC_PORT_TYPE				(80)
+#define TFT_SRC_PORT_RANGE_TYPE					(81)
+
 
 /**
  * Packet filter list when the TFT operation is TFT_OP_DELETE_EXISTING
@@ -303,9 +361,19 @@ typedef struct create_pkt_filter_t {
 } create_pkt_filter;
 
 /* for use in create_pkt_filter.direction */
+#define TFT_DIRECTION_NONE      	 (0)
 #define TFT_DIRECTION_DOWNLINK_ONLY      (1)
 #define TFT_DIRECTION_UPLINK_ONLY        (2)
 #define TFT_DIRECTION_BIDIRECTIONAL      (3)
+
+/* Flow Status AVP describes whether the IP flow(s) are enabled or disabled.*/
+enum flow_status {
+        FL_ENABLED_UPLINK = 0,
+        FL_ENABLED_DOWNLINK = 1,
+        FL_ENABLED = 2,
+        FL_DISABLED = 3,
+        FL_REMOVED = 4
+};
 
 /* Packet filter component type identifiers. Following create_pkt_filter,
  * num_pkt_filters packet filter contents consist of a pair consisting of
@@ -429,6 +497,10 @@ typedef struct pdn_type_ie {
 	uint8_t ipv6 :1;
 	uint8_t spare :6;
 } pdn_type_ie;
+
+typedef struct fqdn_type_ie {
+	uint8_t fqdn[256];
+} fqdn_type_ie;
 
 #pragma pack()
 

@@ -1,0 +1,33 @@
+variables:
+    LOCAL_ARTIFACT_DIR: "/home/gitlab-runner/artifacts/"
+    GIT_IP: "10.155.205.206"
+    OSS_UTIL_BRANCH: "delivery_1.5"
+    FDM_BRANCH: "delivery_1.5"
+
+stages:
+    - build
+
+build:
+    stage: build
+    only:
+        - delivery_1.5
+    before_script:
+        - echo -e "*************************************\n\tNGIC Build Started\n*************************************"
+    script:
+        - echo "Git clone OSS util packages"
+        - ssh-keyscan $GIT_IP >> ~/.ssh/known_hosts
+        - cd $CI_PROJECT_DIR/oss_adapter/c3po_oss/  && git clone git@$GIT_IP:C3PO-NGIC/oss-util.git -b $OSS_UTIL_BRANCH
+        - sudo chown gitlab-runner:gitlab-runner -R $CI_PROJECT_DIR/oss_adapter/c3po_oss
+        - mkdir -p $CI_PROJECT_DIR/third_party && cd $CI_PROJECT_DIR/third_party && git clone git@$GIT_IP:C3PO-NGIC/freediameter.git -b $FDM_BRANCH
+        - sudo chown gitlab-runner:gitlab-runner -R $CI_PROJECT_DIR/third_party/freediameter
+        - cd $CI_PROJECT_DIR && chmod +x install_builddeps.sh && sudo ./install_builddeps.sh
+        - cd $CI_PROJECT_DIR && source setenv.sh && cd cp && make
+        - cd $CI_PROJECT_DIR && source setenv.sh && make build-lib && cd dp && make
+#        - cd $CI_PROJECT_DIR && chmod +x install_rundeps.sh && sudo ./install_rundeps.sh
+        - cd $CI_PROJECT_DIR && sudo chown gitlab-runner:gitlab-runner -R *
+    after_script:
+        - cd $CI_PROJECT_DIR && sudo tar -zcvf $LOCAL_ARTIFACT_DIR/ngic-prod-$TAG.tar.gz libgtpv2c/lib/libgtpv2c.so libpfcp/lib/libpfcp.so cp/build/ngic_controlplane dp/build/ngic_dataplane third_party/dpdk/usertools/ third_party/dpdk/x86_64-native-linuxapp-gcc/kmod/ config dp/run.sh  cp/run.sh cp/logs /usr/local/lib/lib* kni_ifcfg cp/gx_app
+        - echo "Uploading artifact to nexus artifactory" 
+        - cd $LOCAL_ARTIFACT_DIR && curl -v -F "asset1.filename=ngic-prod-$TAG.tar.gz" -F "directory=ngic_builds/$TAG" -F "asset1=@ngic-prod-$TAG.tar.gz" -u $NEXUS_USER:$NEXUS_PASS $NEXUS_URL/service/rest/v1/components?repository=raw-internal
+        #- rm -rf $LOCAL_ARTIFACT_DIR/*
+

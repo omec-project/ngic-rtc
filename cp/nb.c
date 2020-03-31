@@ -119,7 +119,7 @@ set_dpn_id(const char *dpn_id_from_json)
 	if (dpn_id == NULL && dpn_id_from_json == NULL)
 		return 0;
 	dpn_id = strdup(dpn_id_from_json);
-	printf("Configured to use %s\n", dpn_id);
+
 	return 0;
 }
 
@@ -160,7 +160,7 @@ consume_topology_output(char *ptr, size_t size, size_t nmemb,
 	if (jobj == NULL || error != json_tokener_success)
 		return size * nmemb;
 
-	RTE_LOG_DP(DEBUG, CP, "FPC Topology json obj:%s\n", \
+	clLog(clSystemLog, eCLSeverityDebug, "FPC Topology json obj:%s\n", \
 			json_object_to_json_string_ext(jobj, \
 				JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY));
 
@@ -176,7 +176,7 @@ consume_topology_output(char *ptr, size_t size, size_t nmemb,
 		return size * nmemb;
 	}
 
-	RTE_LOG_DP(DEBUG, CP, "Dpn-types json obj:%s\n", \
+	clLog(clSystemLog, eCLSeverityDebug, "Dpn-types json obj:%s\n", \
 			json_object_to_json_string_ext(dpn_types_jobj, \
 				JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY));
 
@@ -196,7 +196,7 @@ consume_topology_output(char *ptr, size_t size, size_t nmemb,
 				return size * nmemb;
 			}
 
-			RTE_LOG_DP(DEBUG, CP, "Dpns List json obj:%s\n", \
+			clLog(clSystemLog, eCLSeverityDebug, "Dpns List json obj:%s\n", \
 					json_object_to_json_string_ext(dpns_jobj, \
 						JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY));
 
@@ -259,7 +259,7 @@ init_curl(CURL **curl, struct curl_slist **list, const char *request,
 		const uint16_t port, curl_write_callback write_callback) {
 	char uri[256];
 
-	RTE_LOG_DP(DEBUG, CP, "get-topology URI PATH:%s\n", uri_path);
+	clLog(clSystemLog, eCLSeverityDebug, "get-topology URI PATH:%s\n", uri_path);
 
 	*curl = curl_easy_init();
 	if (!*curl)
@@ -311,7 +311,7 @@ get_topology(void) {
 					&consume_topology_output);
 			break;
 
-		case SPGWC:
+		case SAEGWC:
 			init_curl(&curl_topology, &topology_list, HTTP_METHOD_GET,
 					strcat(URI_PATH, "/dpn-types/spgw"),
 					fpc_ip, fpc_topology_port,
@@ -1449,7 +1449,7 @@ server(void)
 		if (s5s8_sgwc_fd != -1)
 			FD_SET(s5s8_sgwc_fd, &fd_set_active);
 
-	case SPGWC:
+	case SAEGWC:
 		if (s11_fd != -1)
 			FD_SET(s11_fd, &fd_set_active);
 		if (s11_pcap_fd != -1)
@@ -1484,7 +1484,7 @@ server(void)
 					control_plane();
 				}
 
-			case SPGWC:
+			case SAEGWC:
 				if (FD_ISSET(s11_fd, &fd_set_read)) {
 					FD_CLR(s11_fd, &fd_set_read);
 					control_plane();
@@ -1681,7 +1681,8 @@ send_nb_create_modify(const char *op_type, const char *instruction,
 			op_type);
 
 	add_nb_op_id_hash();
-	RTE_LOG_DP(DEBUG, CP, "SSE Json Stream :%s\n", json_buf);
+
+	clLog(clSystemLog, eCLSeverityDebug, "SSE Json Stream :%s\n", json_buf);
 
 #ifdef SYNC_STATS
 	struct sync_stats info = {0};
@@ -1754,7 +1755,8 @@ send_nb_ddn_ack(uint64_t dl_buffering_suggested_count,
 			dl_buffering_duration);
 
 	add_nb_op_id_hash();
-	RTE_LOG_DP(DEBUG, CP, "DDN_ACK: SSE Json Stream :%s\n", json_buf);
+
+	clLog(clSystemLog, eCLSeverityDebug, "DDN_ACK: SSE Json Stream :%s\n", json_buf);
 
 	return send_sse(request_fd, SSE_DDN_ACK_EVENT, json_buf, __func__);
 }

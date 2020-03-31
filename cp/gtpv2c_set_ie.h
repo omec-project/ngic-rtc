@@ -23,25 +23,18 @@
  * Helper functions to add Information Elements and their specific data to
  * a message buffer containing a GTP header.
  */
-
-#include "gtpv2c.h"
-#include "gtpv2c_ie.h"
 #include "ue.h"
+#include "gtpv2c.h"
+#include "gtp_ies.h"
+
+#include "gtp_messages_decoder.h" // Added new
+#include "gtp_messages_encoder.h" // Added new
 
 #define MAX_GTPV2C_LENGTH (MAX_GTPV2C_UDP_LEN-sizeof(struct gtpc_t))
 
-/**
- * Structure for handling synchronus Create/Modify/delete session response
- * table.
- */
-struct response_info {
-	struct gtpv2c_header gtpv2c_tx_t;
-	struct ue_context_t context_t;
-	struct pdn_connection_t pdn_t;
-	struct eps_bearer_t bearer_t;
-	uint32_t s5s8_sgw_gtpc_del_teid_ptr;
-	uint8_t msg_type;
-}__attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
+#ifdef USE_REST
+uint8_t rstCnt;
+#endif /* USE_REST */
 
 /**
  * Copies existing information element to gtp message
@@ -56,12 +49,29 @@ struct response_info {
  *   size of information element copied into message
  */
 uint16_t
-set_ie_copy(gtpv2c_header *header, gtpv2c_ie *src_ie);
+set_ie_copy(gtpv2c_header_t *header, gtpv2c_ie *src_ie);
 
 
 void
 set_ie_header(ie_header_t *header, uint8_t type,
 		enum ie_instance instance, uint16_t length);
+
+/**
+ * Populates cause information element with error cause value
+ *
+ * @param cause ie
+ *   cause ie
+ * @param instance
+ *   Information element instance as specified by 3gpp 29.274 clause 6.1.3
+ * @param cause value
+ *   cause value that we want to set on cause IE
+ * @param rsp_info
+ *  rsp_info specifies offending ie.
+ * @return
+ *   void
+ */
+void
+set_cause_error_value(gtp_cause_ie_t *cause, enum ie_instance instance, uint8_t cause_value);
 
 /**
  * Populates cause information element with accepted value
@@ -74,7 +84,7 @@ set_ie_header(ie_header_t *header, uint8_t type,
  *   void
  */
 void
-set_cause_accepted(cause_ie_t *cause, enum ie_instance instance);
+set_cause_accepted(gtp_cause_ie_t *cause, enum ie_instance instance);
 
 /**
  * Creates and populates cause information element with accepted value
@@ -89,7 +99,7 @@ set_cause_accepted(cause_ie_t *cause, enum ie_instance instance);
  *   size of information element created in message
  */
 uint16_t
-set_cause_accepted_ie(gtpv2c_header *header,
+set_cause_accepted_ie(gtpv2c_header_t *header,
 	enum ie_instance instance);
 
 /**
@@ -106,7 +116,7 @@ set_cause_accepted_ie(gtpv2c_header *header,
  *   size of information element created in message
  */
 uint16_t
-set_ar_priority_ie(gtpv2c_header *header, enum ie_instance instance,
+set_ar_priority_ie(gtpv2c_header_t *header, enum ie_instance instance,
 		eps_bearer *bearer);
 
 /**
@@ -126,7 +136,7 @@ set_ar_priority_ie(gtpv2c_header *header, enum ie_instance instance,
  *   void
  */
 void
-set_ipv4_fteid(fteid_ie_t *fteid,
+set_ipv4_fteid(gtp_fully_qual_tunn_endpt_idnt_ie_t *fteid,
 		enum gtpv2c_interfaces interface, enum ie_instance instance,
 		struct in_addr ipv4, uint32_t teid);
 
@@ -148,7 +158,7 @@ set_ipv4_fteid(fteid_ie_t *fteid,
  *   size of information element created in message
  */
 uint16_t
-set_ipv4_fteid_ie(gtpv2c_header *header,
+set_ipv4_fteid_ie(gtpv2c_header_t *header,
 	enum gtpv2c_interfaces interface, enum ie_instance instance,
 	struct in_addr ipv4, uint32_t teid);
 
@@ -166,7 +176,7 @@ set_ipv4_fteid_ie(gtpv2c_header *header,
  *   void
  */
 void
-set_ipv4_paa(paa_ie_t *paa, enum ie_instance instance,
+set_ipv4_paa(gtp_pdn_addr_alloc_ie_t *paa, enum ie_instance instance,
 	struct in_addr ipv4);
 
 /**
@@ -183,7 +193,7 @@ set_ipv4_paa(paa_ie_t *paa, enum ie_instance instance,
  *   size of information element created in message
  */
 uint16_t
-set_ipv4_paa_ie(gtpv2c_header *header, enum ie_instance instance,
+set_ipv4_paa_ie(gtpv2c_header_t *header, enum ie_instance instance,
 	struct in_addr ipv4);
 
 /**
@@ -212,7 +222,7 @@ get_ipv4_paa_ipv4(gtpv2c_ie *ie);
  *   size of information element created in message
  */
 uint16_t
-set_apn_restriction_ie(gtpv2c_header *header,
+set_apn_restriction_ie(gtpv2c_header_t *header,
 		enum ie_instance instance, uint8_t apn_restriction);
 
 /**
@@ -229,7 +239,7 @@ set_apn_restriction_ie(gtpv2c_header *header,
  *   void
  */
 void
-set_apn_restriction(apn_restriction_ie_t *apn_restriction,
+set_apn_restriction(gtp_apn_restriction_ie_t *apn_restriction,
 		enum ie_instance instance, uint8_t restriction_type);
 
 /**
@@ -245,8 +255,24 @@ set_apn_restriction(apn_restriction_ie_t *apn_restriction,
  *   void
  */
 void
-set_ebi(eps_bearer_id_ie_t *ebi, enum ie_instance instance,
+set_ebi(gtp_eps_bearer_id_ie_t *ebi, enum ie_instance instance,
 		uint8_t eps_bearer_id);
+
+/**
+ * Populates 'Proc Trans Identifier' information element
+ *
+ * @param pti
+ *		Proc Trans Identifier
+ * @param instance
+ *   Information element instance as specified by 3gpp 29.274 clause 6.1.3
+ * @param pti
+ *   value indicating the pti according to 3gpp 29.274 clause 8.8
+ * @return
+ *   void
+ */
+void
+set_pti(gtp_proc_trans_id_ie_t *pti, enum ie_instance instance,
+		uint8_t proc_trans_id);
 
 /**
  * Creates & populates 'Eps Bearer Identifier' information element
@@ -261,7 +287,7 @@ set_ebi(eps_bearer_id_ie_t *ebi, enum ie_instance instance,
  *   size of information element created in message
  */
 uint16_t
-set_ebi_ie(gtpv2c_header *header, enum ie_instance instance,
+set_ebi_ie(gtpv2c_header_t *header, enum ie_instance instance,
 	uint8_t ebi);
 
 /**
@@ -277,8 +303,15 @@ set_ebi_ie(gtpv2c_header *header, enum ie_instance instance,
  *   size of information element created in message
  */
 uint16_t
-set_pti_ie(gtpv2c_header *header, enum ie_instance instance,
+set_pti_ie(gtpv2c_header_t *header, enum ie_instance instance,
 	uint8_t pti);
+
+uint16_t
+set_charging_id_ie(gtpv2c_header_t *header, enum ie_instance instance, uint32_t charging_id);
+
+void
+set_charging_id(gtp_charging_id_ie_t *charging_id, enum ie_instance instance, uint32_t chrgng_id_val);
+
 
 /**
  * Creates & populates 'Bearer Quality of Service' information element
@@ -293,8 +326,12 @@ set_pti_ie(gtpv2c_header *header, enum ie_instance instance,
  *   size of information element created in message
  */
 uint16_t
-set_bearer_qos_ie(gtpv2c_header *header, enum ie_instance instance,
+set_bearer_qos_ie(gtpv2c_header_t *header, enum ie_instance instance,
 	eps_bearer *bearer);
+
+void
+set_bearer_qos(gtp_bearer_qlty_of_svc_ie_t *bqos, enum ie_instance instance,
+		eps_bearer *bearer);
 
 /**
  * Creates & populates 'Traffic Flow Template' information element
@@ -309,8 +346,13 @@ set_bearer_qos_ie(gtpv2c_header *header, enum ie_instance instance,
  *   size of information element created in message
  */
 uint16_t
-set_bearer_tft_ie(gtpv2c_header *header, enum ie_instance instance,
+set_bearer_tft_ie(gtpv2c_header_t *header, enum ie_instance instance,
 	eps_bearer *bearer);
+
+uint8_t
+set_bearer_tft(gtp_eps_bearer_lvl_traffic_flow_tmpl_ie_t *tft,
+		enum ie_instance instance, uint8_t eps_bearer_lvl_tft,
+		eps_bearer *bearer);
 
 /**
  * Creates & populates 'recovery/restart counter' information element
@@ -323,7 +365,7 @@ set_bearer_tft_ie(gtpv2c_header *header, enum ie_instance instance,
  *   size of information element created in message
  */
 uint16_t
-set_recovery_ie(gtpv2c_header *header, enum ie_instance instance);
+set_recovery_ie(gtpv2c_header_t *header, enum ie_instance instance);
 
 
 /* Group Information Element Setter & Builder Functions */
@@ -344,7 +386,7 @@ void
 add_grouped_ie_length(gtpv2c_ie *group_ie, uint16_t grouped_ie_length);
 
 void
-set_create_session_response(gtpv2c_header *gtpv2c_tx,
+set_create_session_response(gtpv2c_header_t *gtpv2c_tx,
 		uint32_t sequence, ue_context *context, pdn_connection *pdn,
 		eps_bearer *bearer);
 
@@ -363,9 +405,16 @@ set_create_session_response(gtpv2c_header *gtpv2c_tx,
  */
 
 void
-set_modify_bearer_response(gtpv2c_header *gtpv2c_tx,
+set_modify_bearer_response(gtpv2c_header_t *gtpv2c_tx,
 		uint32_t sequence, ue_context *context, eps_bearer *bearer);
 
+/*Function added to return Response in case of Handover
+ * It performs the same as the function set_modify_bearer_response
+ * */
+
+void
+set_modify_bearer_response_handover(gtpv2c_header_t *gtpv2c_tx,
+		uint32_t sequence, ue_context *context, eps_bearer *bearer);
 /**
  * Helper function to set the gtp header for a gtpv2c message.
  * @param gtpv2c_tx
@@ -379,9 +428,9 @@ set_modify_bearer_response(gtpv2c_header *gtpv2c_tx,
  *   sequence number as described by clause 7.6 3gpp 29.274
  */
 void
-set_gtpv2c_header(gtpv2c_header *gtpv2c_tx,
+set_gtpv2c_header(gtpv2c_header_t *gtpv2c_tx,
 				uint8_t teidFlg, uint8_t type,
-				uint32_t teid, uint32_t seq);
+				uint32_t has_teid, uint32_t seq);
 
 /**
  * Helper function to set the gtp header for a gtpv2c message with the
@@ -396,7 +445,7 @@ set_gtpv2c_header(gtpv2c_header *gtpv2c_tx,
  *    sequence number as described by clause 7.6 3gpp 29.274
  */
 void
-set_gtpv2c_teid_header(gtpv2c_header *gtpv2c_tx, uint8_t type,
+set_gtpv2c_teid_header(gtpv2c_header_t *gtpv2c_tx, uint8_t type,
 		uint32_t teid, uint32_t seq);
 
 /**
@@ -415,7 +464,7 @@ set_gtpv2c_teid_header(gtpv2c_header *gtpv2c_tx, uint8_t type,
  *   Default EPS Bearer corresponding to the PDN Connection to be created
  */
 void
-set_pgwc_s5s8_create_session_response(gtpv2c_header *gtpv2c_tx,
+set_pgwc_s5s8_create_session_response(gtpv2c_header_t *gtpv2c_tx,
 		uint32_t sequence, pdn_connection *pdn,
 		eps_bearer *bearer);
 
@@ -431,7 +480,51 @@ set_pgwc_s5s8_create_session_response(gtpv2c_header *gtpv2c_tx,
  *   bearer context created in 'header'
  */
 gtpv2c_ie *
-create_bearer_context_ie(gtpv2c_header *header,
+create_bearer_context_ie(gtpv2c_header_t *header,
 	enum ie_instance instance);
 
+void
+set_fqdn_ie(gtpv2c_header_t *header, char *fqdn);
+
+void
+set_indication(gtp_indication_ie_t *indic, enum ie_instance instance);
+
+void
+set_uli(gtp_user_loc_info_ie_t *uli, create_sess_req_t *csr,
+		               enum ie_instance instance);
+
+void
+set_serving_network(gtp_serving_network_ie_t *serving_nw,
+		               create_sess_req_t  *csr, enum ie_instance instance);
+
+void
+set_ue_timezone(gtp_ue_time_zone_ie_t *ue_timezone,
+		               create_sess_req_t *csr, enum ie_instance instance);
+
+/**
+ * from parameters, populates gtpv2c message 'release access bearer
+ * response' and populates required information elements as defined by
+ * clause 7.2.22 3gpp 29.274
+ * @param gtpv2c_tx
+ *   transmission buffer to contain 'release access bearer request' message
+ * @param sequence
+ *   sequence number as described by clause 7.6 3gpp 29.274
+ * @param context
+ *   UE Context data structure pertaining to the bearer to be modified
+ */
+
+/* TODO: Remove #if 0 before rollup */
+void
+set_release_access_bearer_response(gtpv2c_header_t *gtpv2c_tx,
+		uint32_t sequence, uint32_t s11_mme_gtpc_teid);
+
+void
+set_mapped_ue_usage_type(gtp_mapped_ue_usage_type_ie_t *ie, uint16_t usage_type_value);
+
+#ifdef CP_BUILD
+int
+decode_check_csr(gtpv2c_header_t *gtpv2c_rx,
+                create_sess_req_t *csr);
+
+#endif /*CP_BUILD*/
 #endif /* GTPV2C_SET_IE_H */

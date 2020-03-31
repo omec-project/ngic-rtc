@@ -19,7 +19,8 @@ if grep -q -e "^$dp_static_arp_flag" ../dp/Makefile; then
 fi
 
 ifconfig $DL_IFACE
-ifconfig $DL_IFACE $SGI_IP netmask $SGI_MASK
+#ifconfig $DL_IFACE $SGI_IP netmask $SGI_MASK
+ifconfig $DL_IFACE $SGI_IP/24
 ifconfig $DL_IFACE
 
 #Uncomment below to add route entry for GW_IP

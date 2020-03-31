@@ -28,6 +28,8 @@ typedef struct udp_sock_t {
 	struct sockaddr_in my_addr;
 	struct sockaddr_in other_addr;
 	int sock_fd;
+	int sock_fd_s11;
+	int sock_fd_s5s8;
 } udp_sock_t;
 
 /**
@@ -36,6 +38,13 @@ typedef struct udp_sock_t {
 int
 __create_udp_socket(struct in_addr send_ip, uint16_t send_port,
 		uint16_t recv_port, udp_sock_t *__sock);
+
+/**
+ * @brief API to create udp socket.
+ */
+int
+create_udp_socket(struct in_addr recv_ip, uint16_t recv_port,
+		udp_sock_t *sock);
 
 /**
  * @brief API to send pkts over udp socket.

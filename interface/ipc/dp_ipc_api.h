@@ -21,10 +21,12 @@
  * This file contains macros, data structure definitions and function
  * prototypes of Interface message parsing.
  */
-#include "main.h"
 #include "interface.h"
 #ifdef CP_BUILD
 #include "cp.h"
+#include "main.h"
+#else
+#include "up_main.h"
 #endif  /* CP_BUILD */
 
 /* message types */
@@ -70,20 +72,6 @@ struct cb_args_table {
 	uint32_t max_elements;	/* rule id */
 };
 
-#ifdef ZMQ_COMM
-/*
- * Response Message Structure
- */
-struct resp_msgbuf {
-	long mtype;
-	uint64_t op_id;
-	uint64_t sess_id;
-	struct dp_id dp_id;
-};
-
-struct resp_msgbuf r_buf;
-#endif /* ZMQ_COMM */
-
 /*
  * Message Structure
  */
@@ -102,14 +90,15 @@ struct msgbuf {
 #ifdef CP_BUILD
 		struct downlink_data_notification dl_ddn;	/** Downlink data notification info */
 #else
-#ifdef DP_DDN
 		struct downlink_data_notification_ack_t dl_ddn; /** Downlink data notification info */
-#endif  /* DP_DDN */
 #endif  /* CP_BUILD */
 	} msg_union;
 };
 struct msgbuf sbuf;
 struct msgbuf rbuf;
+
+uint8_t pfcp_rx[1024]; /* TODO: Decide size */
+
 /* IPC msg node */
 struct ipc_node {
 	int msg_id;	/*msg type*/
@@ -122,7 +111,10 @@ struct ipc_node *basenode;
  *
  * This function is not thread safe and should only be called once by DP.
  */
-int iface_process_ipc_msgs(void);
+//int iface_process_ipc_msgs(void);
+
+
+void iface_process_ipc_msgs(void);
 
 /**
  * @brief Function to Inilialize memory for IPC msg.
@@ -147,6 +139,11 @@ iface_ipc_register_msg_cb(int msg_id,
 		int (*msg_cb)(struct msgbuf *msg_payload));
 
 
+//#ifdef DP_BUILD
+int
+udp_recv(void *msg_payload, uint32_t size,
+			struct sockaddr_in *peer_addr);
+
 /**
  * @brief Functino to Process IPC msgs.
  *
@@ -155,6 +152,8 @@ iface_ipc_register_msg_cb(int msg_id,
  * 0 on success, -1 on failure
  */
 int iface_remove_que(enum cp_dp_comm id);
+void msg_handler_s11(void);
+void msg_handler_s5s8(void);
 
 #ifdef CP_BUILD
 /**
@@ -165,7 +164,20 @@ int iface_remove_que(enum cp_dp_comm id);
  *  None
  */
 
-	int simu_cp(__rte_unused void *ptr);
+int
+simu_cp(__rte_unused void *ptr);
+
+/**
+ * @brief callback to handle downlink data notification messages from the
+ * data plane
+ * @param msg_payload
+ * message payload received by control plane from the data plane
+ * @return
+ * 0 inicates success, error otherwise
+ */
+int
+cb_ddn(struct msgbuf *msg_payload);
+
 #else
 	int simu_cp(void);
 #endif /* CP_BUILD */

@@ -776,7 +776,7 @@ get_mac_ip_addr(struct arp_port_address *addr, uint8_t port_id)
 			}
 			break;
 
-		case SPGWU:
+		case SAEGWU:
 			if (app.s1u_port == port_id) {
 				addr[port_id].ip = app.s1u_ip;
 				addr[port_id].mac_addr = &app.s1u_ether_addr;

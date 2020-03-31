@@ -44,9 +44,9 @@
 #include <rte_kni.h>
 #include <rte_arp.h>
 
-#include "epc_packet_framework.h"
-#include "main.h"
 #include "gtpu.h"
+#include "up_main.h"
+#include "epc_packet_framework.h"
 
 #ifdef TIMER_STATS
 #include "perf_timer.h"
@@ -56,9 +56,31 @@ _timer_t _init_time = 0;
 extern struct kni_port_params *kni_port_params_array[RTE_MAX_ETHPORTS];
 /* Generate new pcap for sgi port. */
 #ifdef PCAP_GEN
+extern pcap_dumper_t *pcap_dumper_west;
 extern pcap_dumper_t *pcap_dumper_east;
 #endif /* PCAP_GEN */
 uint32_t dl_nkni_pkts = 0;
+
+#ifdef USE_REST
+static inline void check_activity(uint32_t srcIp)
+{
+	/* VS: TODO */
+	int ret = 0;
+	peerData *conn_data = NULL;
+
+	ret = rte_hash_lookup_data(conn_hash_handle,
+				&srcIp, (void **)&conn_data);
+	if ( ret < 0) {
+		RTE_LOG_DP(DEBUG, DP, "Entry not found for NODE :%s\n",
+							inet_ntoa(*(struct in_addr *)&srcIp));
+		return;
+	} else {
+		RTE_LOG_DP(DEBUG, DP, "Recv pkts from NODE :%s\n",
+						inet_ntoa(*(struct in_addr *)&srcIp));
+		conn_data->activityFlag = 1;
+	}
+}
+#endif /* USE_REST */
 
 static inline void epc_dl_set_port_id(struct rte_mbuf *m)
 {
@@ -81,13 +103,14 @@ static inline void epc_dl_set_port_id(struct rte_mbuf *m)
 			 	PKT_RX_IP_CKSUM_BAD ||
 		     (m->ol_flags & PKT_RX_L4_CKSUM_MASK)
 			 == PKT_RX_L4_CKSUM_BAD)) {
-		RTE_LOG_DP(ERR, DP, "DL Bad checksum: %lu\n", m->ol_flags);
-		ipv4_packet = 0;
+		//RTE_LOG_DP(ERR, DP, "DL Bad checksum: %lu\n", m->ol_flags);
+		//ipv4_packet = 0;
 	}
 	*port_id_offset = 1;
 
 	/* Flag ARP pkt for linux handling */
-	if (eh->ether_type == rte_cpu_to_be_16(ETHER_TYPE_ARP))
+	if (eh->ether_type == rte_cpu_to_be_16(ETHER_TYPE_ARP) ||
+			ipv4_hdr->next_proto_id == IPPROTO_ICMP)
 	{
 		RTE_LOG_DP(DEBUG, DP, "epc_dl.c:%s::"
 				"\n\t@SGI:eh->ether_type==ETHER_TYPE_ARP= 0x%X\n",
@@ -133,6 +156,22 @@ static inline void epc_dl_set_port_id(struct rte_mbuf *m)
 			((ipv4_hdr->next_proto_id == IPPROTO_UDP) ||
 			(ipv4_hdr->next_proto_id == IPPROTO_TCP)))) {
 			RTE_LOG_DP(DEBUG, DP, "SGI packet\n");
+#ifdef USE_REST
+			if (app.spgw_cfg == SGWU) {
+				/* VS: TODO Set activity flag if data receive from peer node */
+				check_activity(ipv4_hdr->src_addr);
+				struct udp_hdr *udph =
+					(struct udp_hdr *)&m_data[sizeof(struct ether_hdr) +
+					((ipv4_hdr->version_ihl & 0xf) << 2)];
+				if (likely(udph->dst_port == UDP_PORT_GTPU_NW_ORDER)) {
+					struct gtpu_hdr *gtpuhdr = get_mtogtpu(m);
+					if (gtpuhdr->msgtype == GTPU_ECHO_REQUEST ||
+						gtpuhdr->msgtype == GTPU_ECHO_RESPONSE) {
+							return;
+					}
+				}
+			}
+#endif /* USE_REST */
 			*port_id_offset = 0;
 			dl_sgi_pkt = 1;
 			dl_arp_pkt = 0;
@@ -228,25 +267,25 @@ void epc_dl_init(struct epc_dl_params *param, int core, uint8_t in_port_id, uint
 	dl_pkts_nbrst_prv = 0;
 
 	switch (app.spgw_cfg) {
-    case SGWU:
-        if (in_port_id != app.s5s8_sgwu_port && in_port_id != app.s1u_port)
-            rte_exit(EXIT_FAILURE, "Wrong MAC configured for S1U/S5S8_SGWU interface\n");
-        break;
+        case SGWU:
+            if (in_port_id != app.s5s8_sgwu_port && in_port_id != app.s1u_port)
+                rte_exit(EXIT_FAILURE, "Wrong MAC configured for S1U/S5S8_SGWU interface\n");
+            break;
 
-    case PGWU:
-        if (in_port_id != app.sgi_port && in_port_id != app.s5s8_pgwu_port)
-            rte_exit(EXIT_FAILURE, "Wrong MAC configured for S5S8_PGWU/SGI interface\n");
-		break;
+        case PGWU:
+            if (in_port_id != app.sgi_port && in_port_id != app.s5s8_pgwu_port)
+                rte_exit(EXIT_FAILURE, "Wrong MAC configured for S5S8_PGWU/SGI interface\n");
+            break;
 
-    case SPGWU:
-        if (in_port_id != app.sgi_port && in_port_id != app.s1u_port)
-            rte_exit(EXIT_FAILURE, "Wrong MAC configured for S1U/SGI interface\n");
-	    break;
+        case SAEGWU:
+            if (in_port_id != app.sgi_port && in_port_id != app.s1u_port)
+                rte_exit(EXIT_FAILURE, "Wrong MAC configured for S1U/SGI interface\n");
+            break;
 
-    default:
-        rte_exit(EXIT_FAILURE, "Invalid DP type(SPGW_CFG).\n");
+        default:
+            rte_exit(EXIT_FAILURE, "Invalid DP type(SPGW_CFG).\n");
 
-    }
+    	}
 
 	memset(param, 0, sizeof(*param));
 
@@ -279,7 +318,8 @@ void epc_dl_init(struct epc_dl_params *param, int core, uint8_t in_port_id, uint
 		.arg_create = (void *)&port_ethdev_params,
 		.burst_size = epc_app.burst_size_rx_read,
 	};
-	if (in_port_id == app.sgi_port)	{
+
+	if (in_port_id == SGI_PORT_ID)	{
 		in_port_params.f_action = epc_dl_port_in_ah;
 		in_port_params.arg_ah = NULL;
 	}
@@ -413,6 +453,10 @@ void epc_dl(void *args)
 		uint32_t rx_cnt = rte_ring_dequeue_bulk(shared_ring[S1U_PORT_ID],
 				(void**)pkts, queued_cnt, NULL);
 		uint32_t pkt_indx = 0;
+/* Capture the echo packets.*/
+#ifdef PCAP_GEN
+        	dump_pcap(pkts, rx_cnt, pcap_dumper_west);
+#endif /* PCAP_GEN */
 		while (rx_cnt) {
 			uint16_t pkt_cnt = PKT_BURST_SZ;
 			if (rx_cnt < PKT_BURST_SZ)
@@ -425,7 +469,6 @@ void epc_dl(void *args)
 		}
 	}
 
-#ifdef DP_DDN
 	uint32_t count = rte_ring_count(notify_ring);
 	if (count) {
 		struct rte_mbuf *pkts[count];
@@ -435,8 +478,6 @@ void epc_dl(void *args)
 		if (ret < 0)
 			printf("ERROR: notification handler failed..\n");
 	}
-
-#endif /* DP_DDN */
 
 }
 

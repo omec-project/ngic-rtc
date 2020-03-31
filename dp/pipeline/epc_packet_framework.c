@@ -41,13 +41,14 @@
 #include <cmdline_socket.h>
 #include <cmdline.h>
 
-#include "main.h"
 #include "stats.h"
-#include "epc_packet_framework.h"
-#include "interface.h"
-#include "meter.h"
-#include "acl_dp.h"
+#include "up_main.h"
+//#include "meter.h"
+//#include "acl_dp.h"
 #include "commands.h"
+#include "interface.h"
+#include "dp_ipc_api.h"
+#include "epc_packet_framework.h"
 
 struct rte_ring *epc_mct_spns_dns_rx;
 struct epc_app_params epc_app = {
@@ -79,6 +80,7 @@ struct epc_app_params epc_app = {
 	.dl_params[SGI_PORT_ID].pkts_in = 0,
 	.dl_params[SGI_PORT_ID].pkts_out = 0,
 	.dl_params[SGI_PORT_ID].ddn = 0,
+	.dl_params[SGI_PORT_ID].ddn_buf_pkts = 0,
 #endif
 #else
 	.core_rx[S1U_PORT_ID] = -1,
@@ -89,12 +91,14 @@ struct epc_app_params epc_app = {
 #endif	/* NGCORE_SHRINK */
 };
 
+#if defined(SDN_ODL_BUILD)
 static void *dp_zmq_thread(__rte_unused void *arg)
 {
 	while (1)
 		iface_remove_que(COMM_ZMQ);
 	return NULL; //GCC_Security flag
 }
+#endif  /* DP:(SDN_ODL_BUILD */
 
 static void epc_iface_core(__rte_unused void *args)
 {
@@ -128,12 +132,7 @@ static void epc_iface_core(__rte_unused void *args)
 	 * Poll message que. Populate hash table from que.
 	 */
 	while (1) {
-#ifdef ZMQ_COMM
-		iface_remove_que(COMM_ZMQ);
-#else
 		iface_process_ipc_msgs();
-#endif /* ZMQ_COMM */
-
 #ifdef NGCORE_SHRINK
 		scan_dns_ring();
 #endif
