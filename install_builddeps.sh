@@ -5,8 +5,8 @@
 THIRD_PARTY_SW_PATH="third_party"
 OSS_UTIL_DIR="oss-util"
 C3PO_OSS_DIR="oss_adapter/c3po_oss"
-OSS_UTIL_GIT_LINK="http://10.155.205.206/C3PO-NGIC/oss-util.git"
-FREEDIAMETER="http://10.155.205.206/C3PO-NGIC/freeDiameter.git"
+OSS_UTIL_GIT_LINK="https://github.com/omec-project/oss-util.git"
+FREEDIAMETER="https://github.com/omec-project/freediameter.git"
 
 SERVICES="$1"
 SUDO=''

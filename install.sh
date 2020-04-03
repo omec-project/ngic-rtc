@@ -33,11 +33,11 @@ DPDK_DIR=$NGIC_DIR/$THIRD_PARTY_SW_PATH/dpdk
 LINUX_SGX_SDK="https://github.com/intel/linux-sgx.git"
 LINUX_SGX_SDK_BRANCH_TAG="sgx_1.9"
 FREEDIAMETER_DIR=$NGIC_DIR/$THIRD_PARTY_SW_PATH/
-FREEDIAMETER="http://10.155.205.206/C3PO-NGIC/freeDiameter.git"
+FREEDIAMETER="https://github.com/omec-project/freediameter.git"
 CP_NUMA_NODE=0
 DP_NUMA_NODE=0
 
-OSS_UTIL_GIT_LINK="http://10.155.205.206/C3PO-NGIC/oss-util.git"
+OSS_UTIL_GIT_LINK="https://github.com/omec-project/oss-util.git"
 OSS_UTIL_DIR="oss_adapter/c3po_oss/"
 
 #
