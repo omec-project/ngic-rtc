@@ -177,6 +177,8 @@ decode_mcc_mnc_t(uint8_t *buf, mcc_mnc_t *val)
 	val->mcc_digit_2 = (buf[0] & 0xf0) >> 4;
 	val->mcc_digit_1 = (buf[0] & 0x0f);
 	val->mnc_digit_3 = (buf[1] & 0xf0) >> 4;
+	if(val->mnc_digit_3 == 0xf)
+		val->mnc_digit_3 = 0; 
 	val->mcc_digit_3 = (buf[1] & 0x0f);
 	val->mnc_digit_2 = (buf[2] & 0xf0) >> 4;
 	val->mnc_digit_1 = (buf[2] & 0x0f);
