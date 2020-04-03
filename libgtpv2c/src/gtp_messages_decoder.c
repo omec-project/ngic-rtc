@@ -18,6 +18,10 @@
 #include "../include/sv_ies_decoder.h"
 #include "../include/enc_dec_bits.h"
 #define IE_HEADER_SIZE sizeof(ie_header_t)
+
+int decode_gtp_del_bearer_response_bearer_ctxt_ie(uint8_t *buf,
+      gtp_del_bearer_response_bearer_ctxt_ie_t *value);
+
 /**
 * Decodes detach_ack_t to buffer.
 * @param buf
@@ -3278,6 +3282,7 @@ int decode_gtp_mod_bearer_response__overload_ctl_info_ie(uint8_t *buf,
       }
       return count;
 }
+#if 0
 /**
 * Decodes id_rsp_t to buffer.
 * @param buf
@@ -3323,6 +3328,7 @@ int decode_id_rsp(uint8_t *buf,
       }
       return count;
 }
+#endif
 /**
 * Decodes gtp_create_indir_data_fwdng_tunn_request__bearer_ctxt_ie_t to buffer.
 * @param buf
@@ -5227,6 +5233,7 @@ int decode_del_bearer_req(uint8_t *buf,
       }
       return count;
 }
+#if 0
 /**
 * Decodes fwd_reloc_req_t to buffer.
 * @param buf
@@ -5342,6 +5349,7 @@ int decode_fwd_reloc_req(uint8_t *buf,
       }
       return count;
 }
+#endif
 /**
 * Decodes gtp_mod_bearer_request_bearer_ctxt_to_be_removed_ie_t to buffer.
 * @param buf

@@ -17,6 +17,7 @@
 #include <unistd.h>
 #include <signal.h>
 
+#include "ipc_api.h"
 #include "gx.h"
 
 extern int gx_app_sock;
