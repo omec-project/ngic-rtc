@@ -1074,6 +1074,7 @@ int decode_gtp_rmt_ue_rpt_notification__remote_ue_ctxt_disconnected_ie(uint8_t *
 int decode_rmt_ue_rpt_ack(uint8_t *buf,
     rmt_ue_rpt_ack_t *value);
 
+#if 0
 /**
 * Decodes fwd_reloc_req_t to buffer.
 * @param value
@@ -1085,6 +1086,7 @@ int decode_rmt_ue_rpt_ack(uint8_t *buf,
 */
 int decode_fwd_reloc_req(uint8_t *buf,
     fwd_reloc_req_t *value);
+#endif
 
 /**
 * Decodes gtp_fwd_reloc_request__mmesgsnamf_ue_eps_pdn_connections_ie_t to buffer.
@@ -1278,6 +1280,7 @@ int decode_gtp_ctxt_acknowledge__bearer_ctxt_ie(uint8_t *buf,
 int decode_id_req(uint8_t *buf,
     id_req_t *value);
 
+#if 0
 /**
 * Decodes id_rsp_t to buffer.
 * @param value
@@ -1289,6 +1292,7 @@ int decode_id_req(uint8_t *buf,
 */
 int decode_id_rsp(uint8_t *buf,
     id_rsp_t *value);
+#endif
 
 /**
 * Decodes fwd_acc_ctxt_notif_t to buffer.
