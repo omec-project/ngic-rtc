@@ -268,7 +268,6 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 	int decoded = 0;
 	uint8_t pfcp_msg[1024]= {0};
 	struct msgbuf rule_msg = {0} ;
-
 	uint8_t cli_cause = 0;
 
 	clLog(clSystemLog, eCLSeverityDebug, "Bytes received is %d\n", bytes_rx);
@@ -280,7 +279,6 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 		update_cli_stats(peer_addr->sin_addr.s_addr,
 							pfcp_header->message_type,RCVD,SX);
 	}
-
 
 	/*Reset periodic timers*/
 	process_response(peer_addr->sin_addr.s_addr);
@@ -480,9 +478,8 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 					}
 				}
 				break;
-
-
 			}
+
 		case PFCP_SESSION_ESTABLISHMENT_REQUEST:
 			{
 				memset(pfcp_msg, 0, 1024);

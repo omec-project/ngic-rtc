@@ -23,7 +23,6 @@
 #include <string.h>
 #include <stdlib.h>
 
-
 #include "up_main.h"
 #include "util.h"
 #include "interface.h"
