@@ -64,11 +64,11 @@ static inline void epc_dl_set_port_id(struct rte_mbuf *m)
 
 	ipv4_packet = (eh->ether_type == htons(ETHER_TYPE_IPv4));
 
-	if (unlikely(
+	if (unlikely(ipv4_packet && (
 		     (m->ol_flags & PKT_RX_IP_CKSUM_MASK) ==
 			 	PKT_RX_IP_CKSUM_BAD ||
 		     (m->ol_flags & PKT_RX_L4_CKSUM_MASK)
-			 == PKT_RX_L4_CKSUM_BAD)) {
+		     == PKT_RX_L4_CKSUM_BAD))) {
 		RTE_LOG_DP(ERR, DP, "DL Bad checksum: %lu\n", m->ol_flags);
 		ipv4_packet = 0;
 	}
