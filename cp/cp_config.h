@@ -38,6 +38,8 @@ struct dp_key
 #define  CONFIG_DNS_PRIMARY  	0x00000001
 #define  CONFIG_DNS_SECONDARY   0x00000002
 
+#define DEFAULT_IPV4_MTU        (1350)
+
 struct dp_info
 {
 	uint32_t  flags;
@@ -49,6 +51,7 @@ struct dp_info
 	struct in_addr dns_p, dns_s; 
 	struct ip_table *static_pool_tree;
 	char   *static_pool;
+	uint16_t ip_mtu;
 	LIST_ENTRY(dp_info) dpentries;
 };
 
@@ -178,5 +181,11 @@ struct dp_info *fetch_dp_context(uint32_t dpId);
 /* Parse and create static ip pool */
 char*
 parse_create_static_ip_pool(struct ip_table **addr_pool, const char *entry);
+
+/**
+ * Given dpId, fetch configured MTU. If not configured, return default
+ */
+uint16_t fetch_dp_ip_mtu(uint32_t dpId);
+
 
 #endif

@@ -223,6 +223,14 @@ init_spgwc_dynamic_config(struct app_config *cfg )
 			RTE_LOG_DP(ERR, CP, "DP (%s) DNS_SECONDARY address is invalid %s \n",dpInfo->dpName, entry);
 		}
 
+        entry = rte_cfgfile_get_entry(file, sectionname , "IPV4_MTU");
+        if (entry == NULL) {
+                RTE_LOG_DP(INFO, CP, "DP IP_MTU default config is missing. Use default %d  \n",DEFAULT_IPV4_MTU);
+                dpInfo->ip_mtu = DEFAULT_IPV4_MTU;
+        } else {
+                dpInfo->ip_mtu = atoi(entry);
+        }
+ 
 		bool static_pool_config_change = true;
 		bool first_time_pool_config = true;
 		entry = rte_cfgfile_get_entry(file, sectionname, "STATIC_IP_POOL");
@@ -365,6 +373,19 @@ fetch_dns_secondary_ip(uint32_t dpId, bool *present)
 	*present = get_app_secondary_dns(appl_config, &dns_s);
 	return dns_s;
 }
+
+uint16_t
+fetch_dp_ip_mtu(uint32_t dpId)
+{
+       struct dp_info *dp;
+       LIST_FOREACH(dp, &appl_config->dpList, dpentries) {
+               if ((dpId == dp->dpId)) {
+                       return dp->ip_mtu;
+               }
+       }
+       return DEFAULT_IPV4_MTU; /* Lets not crash. Return default */
+}
+
 
 /* Parse the entry and create IP pool tree */
 char*
