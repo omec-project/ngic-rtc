@@ -26,6 +26,7 @@ install_pkg_deps() {
 }
 
 DEPS_DIR=${DEPS_DIR:-"$PWD/third_party"}
+PATCH_DIR=${PATCH_DIR:-"$PWD/patches"}
 CPUS=${CPUS:-''}
 
 # Install DPDK
@@ -39,6 +40,7 @@ install_dpdk() {
 	mkdir -p ${RTE_SDK} && cd ${RTE_SDK}/../
 	wget http://fast.dpdk.org/rel/dpdk-${DPDK_VER}.tar.xz
 	tar -xvf dpdk-${DPDK_VER}.tar.xz -C ${RTE_SDK} --strip-components 1
+	patch -d ${RTE_SDK} -p1 < ${PATCH_DIR}/v2-net-i40e-fix-avx2-driver-check-for-rx-rearm.diff
 	cd ${RTE_SDK}
 	sed -ri 's,(IGB_UIO=).*,\1n,' config/common_linuxapp
 	sed -ri 's,(KNI_KMOD=).*,\1n,' config/common_linuxapp
