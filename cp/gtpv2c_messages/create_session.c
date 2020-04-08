@@ -41,9 +41,13 @@ build_pco_response(char *pco_buf, pco_ie_t *req_pco, uint32_t dpId)
 	memcpy(&pco_buf[index], &byte, sizeof(byte));
 	index++;
 
-        dns_p = fetch_dns_primary_ip(dpId, &dns_pri_configured);
-        dns_s = fetch_dns_secondary_ip(dpId, &dns_secondary_configured);
-
+    /* May be we should fetch DP context once and then fetch individual fields ? */
+    dns_p = fetch_dns_primary_ip(dpId, &dns_pri_configured);
+    dns_s = fetch_dns_secondary_ip(dpId, &dns_secondary_configured);
+    uint16_t mtu_conf = fetch_dp_ip_mtu(dpId);
+ 
+    bool ipv4_link_mtu = false;
+ 
 	for (i = 0; i < req_pco->num_of_opt; i++) {
 		uint16_t pco_type = htons(req_pco->ids[i].type);
 		uint8_t total_len;
@@ -123,12 +127,37 @@ build_pco_response(char *pco_buf, pco_ie_t *req_pco, uint32_t dpId)
 				// allocation is always through NAS as of now 
 				break;
 			case PCO_ID_IPV4_LINK_MTU_REQUEST:
-				// we dont do MTU discovery. Should we send something ?	
-				break;
+            {
+                    ipv4_link_mtu=true;
+                    memcpy(&pco_buf[index], &pco_type, sizeof(pco_type));
+                    index += sizeof(pco_type);
+                    uint16_t mtu = htons(mtu_conf);
+                    uint8_t len = 2;
+                    memcpy(&pco_buf[index], &len, sizeof(len));
+                    index += sizeof(len);
+                    memcpy(&pco_buf[index], &mtu, 2);
+                    index += 2;
+            }
+			break;
 			default:
 				RTE_LOG_DP(INFO, CP, "Unknown PCO ID:(0x%x) received ", req_pco->ids[i].type);
 		}
 	}
+    // Lets add some additional parameters even if UE has requested for it
+    if(ipv4_link_mtu == false)
+    {
+            uint16_t pco_type = htons(PCO_ID_IPV4_LINK_MTU_REQUEST);
+            ipv4_link_mtu=true;
+            memcpy(&pco_buf[index], &pco_type, sizeof(pco_type));
+            index += sizeof(pco_type);
+            uint16_t mtu = htons(mtu_conf);
+            uint8_t len = 2;
+            memcpy(&pco_buf[index], &len, sizeof(len));
+            index += sizeof(len);
+            memcpy(&pco_buf[index], &mtu, 2);
+            index += 2;
+    }
+
 	return index;
 }
 
@@ -453,7 +482,7 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 		resp_t.bearer_t = *bearer;
 		resp_t.gtpv2c_tx_t.teid_u.has_teid.seq = csr.header.teid.has_teid.seq;
 		resp_t.msg_type = GTP_CREATE_SESSION_REQ;
-                resp_t.pco = csr.pco;
+		resp_t.pco = csr.pco;
 		/*resp_t.msg_type = csr.header.gtpc.type;
 		 * TODO: Revisit this for to handle type received from message*/
 #endif
