@@ -67,7 +67,22 @@ config_change_cbk(char *config_file, uint32_t flags)
 	 * For now I am just going to switch to new config. Anyway its just selection of DPs 
 	 */
 	struct app_config *old_config = appl_config;
-	appl_config = new_cfg; 
+    /* Copy resource pointers from old config to new config */
+	struct dp_info *dpNew; 
+	struct dp_info *dpOld; 
+	LIST_FOREACH(dpNew, &new_cfg->dpList, dpentries) {
+		LIST_FOREACH(dpOld, &old_config->dpList, dpentries) {
+			if(dpOld->dpId == dpNew->dpId) {
+                dpNew->s1u_sgw_ip = dpOld->s1u_sgw_ip;
+				dpNew->upf = dpOld->upf;
+				dpNew->static_pool_tree = dpOld->static_pool_tree;
+				dpNew->static_pool = dpOld->static_pool;
+				break;
+			}
+		}	
+	}
+
+	appl_config = new_cfg; /* switch to new config */ 
 	struct dp_info *np; 
 	np = LIST_FIRST(&old_config->dpList);
 	while (np != NULL) {
@@ -187,27 +202,19 @@ init_spgwc_dynamic_config(struct app_config *cfg )
 			RTE_LOG_DP(ERR, CP, "TAC not found in the configuration file\n");
 		}
 		LIST_INSERT_HEAD(&cfg->dpList, dpInfo, dpentries);
+
 		entry = rte_cfgfile_get_entry(file, sectionname , "DNS_PRIMARY");
 		if (entry == NULL) {
 			RTE_LOG_DP(INFO, CP, "DP (%s) DNS_PRIMARY default config is missing. \n", dpInfo->dpName);
 			entry = primary_dns;
 		}
+
 		if (inet_aton(entry, &dpInfo->dns_p) == 1) {
 			set_dp_dns_primary(dpInfo);
 			RTE_LOG_DP(INFO, CP, "DP (%s) DNS_PRIMARY address is %s \n", dpInfo->dpName, inet_ntoa(dpInfo->dns_p));
 		} else {
 			//invalid address
 			RTE_LOG_DP(ERR, CP, "DP (%s) DNS_PRIMARY address is invalid %s \n",dpInfo->dpName, entry);
-		}
-
-		entry = rte_cfgfile_get_entry(file, sectionname , "DNS_SECONDARY");
-		if (entry == NULL) {
-			RTE_LOG_DP(INFO, CP, "DP (%s)  DNS_SECONDARY default config is missing. \n", dpInfo->dpName);
-			entry = secondary_dns;
-		}
-		if (inet_aton(entry, &dpInfo->dns_s) == 1) {
-			set_dp_dns_secondary(dpInfo);
-			RTE_LOG_DP(INFO, CP, "DP (%s) DNS_SECONDARY address is %s \n", dpInfo->dpName, inet_ntoa(dpInfo->dns_s));
 		}
 
 		entry = rte_cfgfile_get_entry(file, sectionname , "DNS_SECONDARY");
@@ -229,6 +236,7 @@ init_spgwc_dynamic_config(struct app_config *cfg )
                 dpInfo->ip_mtu = DEFAULT_IPV4_MTU;
         } else {
                 dpInfo->ip_mtu = atoi(entry);
+                RTE_LOG_DP(INFO, CP, "DP IP_MTU set to  %d  \n",dpInfo->ip_mtu);
         }
  
 		bool static_pool_config_change = true;
