@@ -75,8 +75,6 @@ config_change_cbk(char *config_file, uint32_t flags)
 			if(dpOld->dpId == dpNew->dpId) {
                 dpNew->s1u_sgw_ip = dpOld->s1u_sgw_ip;
 				dpNew->upf = dpOld->upf;
-				dpNew->static_pool_tree = dpOld->static_pool_tree;
-				dpNew->static_pool = dpOld->static_pool;
 				break;
 			}
 		}	
@@ -143,12 +141,21 @@ init_spgwc_dynamic_config(struct app_config *cfg )
 		// invalid address 
 		RTE_LOG_DP(ERR, CP, "Global DNS_SECONDARY address is invalid %s \n", entry);
 	}
+	uint16_t ip_mtu = DEFAULT_IPV4_MTU;
+	entry = rte_cfgfile_get_entry(file, "GLOBAL", "IPV4_MTU");
+	if (entry == NULL) {
+		RTE_LOG_DP(INFO, CP, "Global DP IP_MTU default global config is missing. Use default %d  \n",DEFAULT_IPV4_MTU);
+	} else {
+		ip_mtu = atoi(entry);
+		RTE_LOG_DP(INFO, CP, "Global DP IP_MTU set to  %d  \n",ip_mtu);
+	}
 
 	entry = rte_cfgfile_get_entry(file, "GLOBAL", "NUM_DP_SELECTION_RULES");
 	if (entry == NULL) {
        		RTE_LOG_DP(ERR, CP, "NUM_DP_SELECTION_RULES missing from app_config.cfg file, abort parsing\n");
        		return;
 	}
+   	RTE_LOG_DP(ERR, CP, "NUM_DP_SELECTION_RULES %s \n", entry);
 	num_dp_selection_rules = atoi(entry);
 
 	for (index = 0; index < num_dp_selection_rules; index++) {
@@ -175,6 +182,13 @@ init_spgwc_dynamic_config(struct app_config *cfg )
 		} else {
 			RTE_LOG_DP(ERR, CP, "DPNAME not found in the configuration file\n");
 		}
+		struct dp_info *dpOld = NULL;
+		LIST_FOREACH(dpOld, &appl_config->dpList, dpentries) {
+			if ((dpOld->dpId == dpInfo->dpId)) {
+				break;
+			}
+		}
+ 
 
 		entry = rte_cfgfile_get_entry(file, sectionname, "MCC");
 		if (entry) {
@@ -205,13 +219,13 @@ init_spgwc_dynamic_config(struct app_config *cfg )
 
 		entry = rte_cfgfile_get_entry(file, sectionname , "DNS_PRIMARY");
 		if (entry == NULL) {
-			RTE_LOG_DP(INFO, CP, "DP (%s) DNS_PRIMARY default config is missing. \n", dpInfo->dpName);
+			RTE_LOG_DP(INFO, CP, "DP(%s) DNS_PRIMARY default config is missing. \n", dpInfo->dpName);
 			entry = primary_dns;
 		}
 
 		if (inet_aton(entry, &dpInfo->dns_p) == 1) {
 			set_dp_dns_primary(dpInfo);
-			RTE_LOG_DP(INFO, CP, "DP (%s) DNS_PRIMARY address is %s \n", dpInfo->dpName, inet_ntoa(dpInfo->dns_p));
+			RTE_LOG_DP(INFO, CP, "DP(%s) DNS_PRIMARY address is %s \n", dpInfo->dpName, inet_ntoa(dpInfo->dns_p));
 		} else {
 			//invalid address
 			RTE_LOG_DP(ERR, CP, "DP (%s) DNS_PRIMARY address is invalid %s \n",dpInfo->dpName, entry);
@@ -219,51 +233,68 @@ init_spgwc_dynamic_config(struct app_config *cfg )
 
 		entry = rte_cfgfile_get_entry(file, sectionname , "DNS_SECONDARY");
 		if (entry == NULL) {
-			RTE_LOG_DP(INFO, CP, "DP DNS_SECONDARY default config is missing. \n");
+			RTE_LOG_DP(INFO, CP, "DP(%s) DNS_SECONDARY default config is missing. \n",dpInfo->dpName);
 			entry = secondary_dns;
 		}
 		if (inet_aton(entry, &dpInfo->dns_s) == 1) {
 			set_dp_dns_secondary(dpInfo);
-			RTE_LOG_DP(INFO, CP, "DP DNS_SECONDARY address is %s \n", inet_ntoa(dpInfo->dns_s));
+			RTE_LOG_DP(INFO, CP, "DP(%s) DNS_SECONDARY address is %s \n", dpInfo->dpName, inet_ntoa(dpInfo->dns_s));
 		} else {
 			//invalid address
-			RTE_LOG_DP(ERR, CP, "DP (%s) DNS_SECONDARY address is invalid %s \n",dpInfo->dpName, entry);
+			RTE_LOG_DP(ERR, CP, "DP(%s) DNS_SECONDARY address is invalid %s \n",dpInfo->dpName, entry);
 		}
 
         entry = rte_cfgfile_get_entry(file, sectionname , "IPV4_MTU");
         if (entry == NULL) {
-                RTE_LOG_DP(INFO, CP, "DP IP_MTU default config is missing. Use default %d  \n",DEFAULT_IPV4_MTU);
-                dpInfo->ip_mtu = DEFAULT_IPV4_MTU;
+                RTE_LOG_DP(INFO, CP, "DP(%s) IP_MTU default config is missing.  Use  %d  \n",dpInfo->dpName, ip_mtu);
+                dpInfo->ip_mtu = ip_mtu;
         } else {
                 dpInfo->ip_mtu = atoi(entry);
-                RTE_LOG_DP(INFO, CP, "DP IP_MTU set to  %d  \n",dpInfo->ip_mtu);
+                RTE_LOG_DP(INFO, CP, "DP(%s) IP_MTU set to  %d \n",dpInfo->dpName, dpInfo->ip_mtu);
         }
  
-		bool static_pool_config_change = true;
-		bool first_time_pool_config = true;
+		bool static_pool_config_change = false;
+		bool first_time_pool_config = false;
 		entry = rte_cfgfile_get_entry(file, sectionname, "STATIC_IP_POOL");
-		if (dpInfo->static_pool != NULL) {
-			first_time_pool_config = false;
-			if (strcmp(dpInfo->static_pool, entry) == 0) {
-				static_pool_config_change = false;
+		if(dpOld != NULL) {
+			if(entry == NULL) { 
+				if(dpOld->static_pool == NULL) {
+					//No old config, no new config.. 
+					RTE_LOG_DP(INFO, CP, "DP(%s) STATIC_IP_POOL is not configured \n", dpInfo->dpName);
+				} else if (dpOld->static_pool != NULL) {
+					// No new config but old config exist 
+					static_pool_config_change = true;
+					RTE_LOG_DP(ERR, CP, "DP(%s) STATIC_IP_POOL config removal not supported. Old config will be used = %s \n", dpInfo->dpName, dpOld->static_pool);
+				}
+			} else if (entry != NULL) {  
+				if(dpOld->static_pool == NULL) {
+					first_time_pool_config = true;
+				} else if (dpOld->static_pool != NULL) { 
+					if(strcmp(dpOld->static_pool, entry) != 0) {
+						static_pool_config_change = true;
+						RTE_LOG_DP(ERR, CP, "DP(%s) STATIC_IP_POOL config modification not supported. Old config(%s) New Config (%s). Continue to use old config \n",dpInfo->dpName, dpOld->static_pool, entry);
+					} else {
+						//no change in the pool config  
+						RTE_LOG_DP(INFO, CP, "DP(%s) STATIC_IP_POOL configuration not changed %s \n",dpInfo->dpName, entry);
+					}
+				}
 			}
-		}
-		// Static pool update is bit risky, since it has possibly some active subscribers 
-		// which are using the address from the pool. If config is changed then we need to
-		if (static_pool_config_change == true && first_time_pool_config == false) {
-			// Ignore config update. So new pool will not take effect. 
-			// If number of active users using pool are 0 then only 
-			// we can update the pool. 
-			// if we have 0 subscribers using the config then we can set first_time_pool_config = true;
-			RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL %s change is not supported...Its experimental feature. \n", entry);
+			//Lets take old static config to new as is 
+			dpInfo->static_pool_tree = dpOld->static_pool_tree; // pointer copy 
+			dpInfo->static_pool = dpOld->static_pool; // pointer copy
+		} else if(entry != NULL){
+			first_time_pool_config = true;
+			RTE_LOG_DP(INFO, CP, "DP(%s) STATIC_IP_POOL configured  %s \n",dpInfo->dpName, entry);
 		}
 
-		if ((entry != NULL) && first_time_pool_config == true) {
+		if(first_time_pool_config == true && static_pool_config_change == false) {
+			// first time edge configuration 
 			dpInfo->static_pool = NULL; 
 			char *pool_string = parse_create_static_ip_pool(&dpInfo->static_pool_tree, entry);
 			if (pool_string != NULL) {
 				dpInfo->static_pool = pool_string; 
 			} 
+			RTE_LOG_DP(INFO, CP, "DP(%s) STATIC_IP_POOL %s initialized  \n", dpInfo->dpName, dpInfo->static_pool);
 		}
  	}
 	return;
@@ -447,6 +478,7 @@ parse_create_static_ip_pool(struct ip_table **addr_pool, const char *entry)
 			break;
 		}
 		RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL %s configured successfully \n", pool);
+		strcpy(pool, entry); /* recopy entry into pool. we need pool in a.b.c.d/mask format  */ 
 		return pool;
 	} while (0);
 	RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL %s Parsing failed. Error - %s  \n", entry, err_string);
