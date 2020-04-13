@@ -311,6 +311,7 @@ create_ue_context(uint8_t *imsi_val, uint16_t imsi_len,
 			(*context)->num_pdns++;
 			pdn->eps_bearers[ebi_index] = bearer;
 			pdn->default_bearer_id = ebi;
+			pdn->pdn_flags = 0; 
 		}
 	} else {
 		bearer = rte_zmalloc_socket(NULL, sizeof(eps_bearer),
@@ -339,6 +340,7 @@ create_ue_context(uint8_t *imsi_val, uint16_t imsi_len,
 		(*context)->bearer_bitmap |= (1 << ebi_index);
 		pdn->eps_bearers[ebi_index] = bearer;
 		pdn->default_bearer_id = ebi;
+		pdn->pdn_flags = 0; 
 	}
 
 	for (i = 0; i < MAX_FILTERS_PER_UE; ++i)
@@ -482,8 +484,9 @@ release_ip_node(struct ip_table *search_tree , struct in_addr host)
 	uint32_t shift[]  = {24, 16, 8, 0};
 
 	if (search_tree == NULL) {
-		host.s_addr = htonl(host.s_addr);
-		printf("Failed to reserve IP address %s. Static Pool not configured \n", inet_ntoa(host));
+        struct in_addr printHost = {0};
+		printHost.s_addr = htonl(host.s_addr); // Changing just for print purpoise 
+		printf("Failed to release IP address %s. Static Pool not configured \n", inet_ntoa(printHost));
 		return false;
 	}
 
