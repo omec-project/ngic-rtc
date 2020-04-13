@@ -175,7 +175,7 @@ push_sdf_rules(uint16_t index
 			sdf_filters[index]->proto, sdf_filters[index]->proto_mask);
 	}
 
-	printf("Installing %s pkt_filter #%"PRIu16" : %s",
+	printf("DP %d Installing %s pkt_filter #%"PRIu16" : %s",dp_id.id,  
 	    direction_str[sdf_filters[index]->direction], index,
 		pktf.u.rule_str);
 

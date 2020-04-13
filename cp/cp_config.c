@@ -160,6 +160,7 @@ init_spgwc_dynamic_config(struct app_config *cfg )
 		} else {
 			RTE_LOG_DP(ERR, CP, "DPNAME not found in the configuration file\n");
 		}
+		RTE_LOG_DP(ERR, CP, "DPNAME %s configured \n", dpInfo->dpName);
 
 		entry = rte_cfgfile_get_entry(file, sectionname, "MCC");
 		if (entry) {
