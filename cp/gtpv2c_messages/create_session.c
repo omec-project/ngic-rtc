@@ -352,7 +352,12 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 			return GTPV2C_CAUSE_REQUEST_REJECTED;
 		}
 		ue_ip = csr.paa.ip_type.ipv4;
-		ue_ip.s_addr = htonl(ue_ip.s_addr); /* ue_ip in network order. */
+
+        /* we want ue_ip in network order. To keep code aligned with dynamic
+         * allocation  */
+		ue_ip.s_addr = htonl(ue_ip.s_addr); 
+		pdn = context->pdns[ebi_index];
+		SET_PDN_ADDR_STATIC(pdn);
 	} else {
 		ret = acquire_ip(&ue_ip);
 		if (ret)
@@ -379,7 +384,7 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 		pdn->apn_ambr.ambr_downlink = csr.ambr.apn_ambr_dl;
 		pdn->apn_ambr.ambr_uplink = csr.ambr.apn_ambr_ul;
 		pdn->apn_restriction = csr.apn_restriction.restriction_type;
-		pdn->ipv4.s_addr = htonl(ue_ip.s_addr); // pdn ip is in network order 
+		pdn->ipv4.s_addr = htonl(ue_ip.s_addr); // pdn ip is now in host byte 
 
 		if (csr.pdn_type.pdn_type == PDN_TYPE_IPV4)
 			pdn->pdn_type.ipv4 = 1;

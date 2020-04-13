@@ -82,15 +82,15 @@ delete_context(delete_session_request_t *ds_req,
 
 #if defined(MULTI_UPFS)
 	struct dp_info *dp = fetch_dp_context(context->dpId); 
-	if (dp != NULL) {
+	if (dp != NULL && (IF_PDN_ADDR_STATIC(pdn))) {
 		struct in_addr host = {0};
-		host.s_addr = ntohl(pdn->ipv4.s_addr);
+		host.s_addr = pdn->ipv4.s_addr;
 		release_ip_node(dp->static_pool_tree, host);
 	}
 #else
-	if (static_addr_pool != NULL) {
+	if (static_addr_pool != NULL && (IF_PDN_ADDR_STATIC(pdn))) {
 		struct in_addr host = {0};
-		host.s_addr = ntohl(pdn->ipv4.s_addr);
+		host.s_addr = pdn->ipv4.s_addr;
 		release_ip_node(static_addr_pool, host); 
 	}
 #endif

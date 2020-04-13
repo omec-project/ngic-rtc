@@ -88,6 +88,11 @@ typedef struct ue_context_t {
 
 } ue_context;
 
+#define PDN_STATIC_ADDR  0x00000001
+
+#define SET_PDN_ADDR_STATIC(pdn)  ((pdn->pdn_flags = pdn->pdn_flags | PDN_STATIC_ADDR)) 
+#define IF_PDN_ADDR_STATIC(pdn)   ((pdn->pdn_flags & PDN_STATIC_ADDR)== PDN_STATIC_ADDR)
+
 typedef struct pdn_connection_t {
 	apn *apn_in_use;
 	ambr_ie apn_ambr;
@@ -114,6 +119,7 @@ typedef struct pdn_connection_t {
 	struct eps_bearer_t *eps_bearers[MAX_BEARERS]; /* index by ebi - 5 */
 
 	struct eps_bearer_t *packet_filter_map[MAX_FILTERS_PER_UE];
+    uint32_t pdn_flags; 
 } pdn_connection;
 
 typedef struct eps_bearer_t {

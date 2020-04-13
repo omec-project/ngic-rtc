@@ -38,7 +38,7 @@ struct dp_key
 #define  CONFIG_DNS_PRIMARY  	0x00000001
 #define  CONFIG_DNS_SECONDARY   0x00000002
 
-#define DEFAULT_IPV4_MTU        (1350)
+#define DEFAULT_IPV4_MTU        (1450)
 
 struct dp_info
 {
@@ -84,7 +84,7 @@ struct app_config
 	 * SGW : DDN profile, APN (optional) etc..
 	 * PGW : APN, IP Pool etc..
 	 */
-         struct in_addr dns_p, dns_s; 
+	struct in_addr dns_p, dns_s; 
 };
 
 /*
