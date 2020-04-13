@@ -182,6 +182,8 @@ init_spgwc_dynamic_config(struct app_config *cfg )
 		} else {
 			RTE_LOG_DP(ERR, CP, "DPNAME not found in the configuration file\n");
 		}
+		RTE_LOG_DP(ERR, CP, "DPNAME %s configured \n", dpInfo->dpName);
+
 		struct dp_info *dpOld = NULL;
 		LIST_FOREACH(dpOld, &appl_config->dpList, dpentries) {
 			if ((dpOld->dpId == dpInfo->dpId)) {
@@ -193,6 +195,7 @@ init_spgwc_dynamic_config(struct app_config *cfg )
 		entry = rte_cfgfile_get_entry(file, sectionname, "MCC");
 		if (entry) {
 			// TODO : handle 2 digit mcc, mnc
+			RTE_LOG_DP(ERR, CP, "MCC length %lu found in the configuration file\n", strlen(entry));
 			dpInfo->key.mcc_mnc.mcc_digit_1 = (unsigned char )entry[0];
 			dpInfo->key.mcc_mnc.mcc_digit_2 = (unsigned char )entry[1];
 			dpInfo->key.mcc_mnc.mcc_digit_3 = (unsigned char )entry[2];
@@ -205,6 +208,8 @@ init_spgwc_dynamic_config(struct app_config *cfg )
 			dpInfo->key.mcc_mnc.mnc_digit_1 = (unsigned char )entry[0];
 			dpInfo->key.mcc_mnc.mnc_digit_2 = (unsigned char )entry[1];
 			dpInfo->key.mcc_mnc.mnc_digit_3 = (unsigned char )entry[2];
+			RTE_LOG_DP(INFO, CP, "MNC length %lu found in the configuration file\n", strlen(entry));
+			RTE_LOG_DP(INFO, CP, "MNC %d %d %d \n", dpInfo->key.mcc_mnc.mnc_digit_1, dpInfo->key.mcc_mnc.mnc_digit_2, dpInfo->key.mcc_mnc.mnc_digit_3);
 		} else {
 			RTE_LOG_DP(ERR, CP, "MNC not found in the configuration file\n");
 		}
@@ -310,10 +315,11 @@ select_dp_for_key(struct dp_key *key)
 
 	struct dp_info *np;
 	LIST_FOREACH(np, &appl_config->dpList, dpentries) {
-#if 0
+	RTE_LOG_DP(INFO, CP, "dp Key - MCC = %d%d%d MNC %d%d%d TAC = %d\n", np->key.mcc_mnc.mcc_digit_1,
+		   np->key.mcc_mnc.mcc_digit_2, np->key.mcc_mnc.mcc_digit_3, np->key.mcc_mnc.mnc_digit_1,
+		   np->key.mcc_mnc.mnc_digit_2, np->key.mcc_mnc.mnc_digit_3, np->key.tac);
 		if(bcmp((void *)(&np->key.mcc_mnc), (void *)(&key->mcc_mnc), 3) != 0)
 			continue;
-#endif
 		if(np->key.tac != key->tac)
 			continue;
 		return np->dpId;
