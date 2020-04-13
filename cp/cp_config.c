@@ -113,6 +113,7 @@ init_spgwc_dynamic_config(struct app_config *cfg )
 	struct rte_cfgfile *file = rte_cfgfile_load(APP_CONFIG_FILE, 0);
 	if (NULL == file) {
 		RTE_LOG_DP(ERR, CP, "App config file is missing, ignore error...\n");
+        printf("App config file %s is missing\n", APP_CONFIG_FILE);
 		return;
 	}
 
