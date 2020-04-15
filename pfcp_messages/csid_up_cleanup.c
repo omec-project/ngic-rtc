@@ -123,17 +123,18 @@ cleanup_sess_by_csid_entry(fqcsid_t *csids)
 
 			/* MME FQ-CSID */
 			if(sess->mme_fqcsid != 0) {
-				uint8_t match = 0;
 				for(uint8_t itr = 0; itr < (sess->mme_fqcsid)->num_csid; itr++) {
+					uint8_t match = 0;
 					for(uint8_t itr1 = 0; itr1 < mme_fqcsid.num_csid; itr1++) {
-						if (mme_fqcsid.local_csid[itr1] == (sess->mme_fqcsid)->local_csid[itr])
+						if (mme_fqcsid.local_csid[itr1] == (sess->mme_fqcsid)->local_csid[itr]) {
 							match = 1;
+							break;
+						}
 					}
 
 					if (!match) {
 						mme_fqcsid.local_csid[mme_fqcsid.num_csid++] =
 							sess->mme_fqcsid->local_csid[itr];
-						match = 0;
 					}
 				}
 				/* Node Addr */
@@ -142,17 +143,18 @@ cleanup_sess_by_csid_entry(fqcsid_t *csids)
 
 			/* MME FQ-CSID */
 			if((PGWU != app.spgw_cfg) && (sess->enb_fqcsid != 0)) {
-				uint8_t match = 0;
 				for(uint8_t itr = 0; itr < (sess->enb_fqcsid)->num_csid; itr++) {
+					uint8_t match = 0;
 					for(uint8_t itr1 = 0; itr1 < enb_fqcsid.num_csid; itr1++) {
-						if (enb_fqcsid.local_csid[itr1] == (sess->enb_fqcsid)->local_csid[itr])
+						if (enb_fqcsid.local_csid[itr1] == (sess->enb_fqcsid)->local_csid[itr]) {
 							match = 1;
+							break;
+						}
 					}
 
 					if (!match) {
 						enb_fqcsid.local_csid[enb_fqcsid.num_csid++] =
 							sess->enb_fqcsid->local_csid[itr];
-						match = 0;
 					}
 				}
 				/* Node Addr */
@@ -167,17 +169,18 @@ cleanup_sess_by_csid_entry(fqcsid_t *csids)
 			/* Cleanup Peer node CSID with are associated with the local CSID */
 			/* SGWC FQ-CSID */
 			if (sess->sgw_fqcsid != 0) {
-				uint8_t match = 0;
 				for(uint8_t itr = 0; itr < sess->sgw_fqcsid->num_csid; itr++ ) {
+					uint8_t match = 0;
 					for(uint8_t itr1 = 0; itr1 < sgwc_fqcsid.num_csid; itr1++) {
-						if(sgwc_fqcsid.local_csid[itr1] == sess->sgw_fqcsid->local_csid[itr])
+						if(sgwc_fqcsid.local_csid[itr1] == sess->sgw_fqcsid->local_csid[itr]) {
 							match = 1;
+							break;
+						}
 					}
 
 					if(!match) {
 						sgwc_fqcsid.local_csid[sgwc_fqcsid.num_csid++] =
 							sess->sgw_fqcsid->local_csid[itr];
-						match = 0;
 					}
 				}
 				/* Node Addr */
@@ -186,17 +189,18 @@ cleanup_sess_by_csid_entry(fqcsid_t *csids)
 
 			/* SGWU FQ-CSID */
 			if ((PGWU == app.spgw_cfg) && (sess->sgwu_fqcsid != 0)) {
-				uint8_t match = 0;
 				for(uint8_t itr = 0; itr < sess->sgwu_fqcsid->num_csid; itr++ ) {
+					uint8_t match = 0;
 					for(uint8_t itr1 = 0; itr1 < sgwu_fqcsid.num_csid; itr1++) {
-						if(sgwu_fqcsid.local_csid[itr1] == sess->sgwu_fqcsid->local_csid[itr])
+						if(sgwu_fqcsid.local_csid[itr1] == sess->sgwu_fqcsid->local_csid[itr]) {
 							match = 1;
+							break;
+						}
 					}
 
 					if(!match) {
 						sgwu_fqcsid.local_csid[sgwu_fqcsid.num_csid++] =
 							sess->sgwu_fqcsid->local_csid[itr];
-						match = 0;
 					}
 				}
 				/* Node Addr */
@@ -205,17 +209,18 @@ cleanup_sess_by_csid_entry(fqcsid_t *csids)
 
 			/* PGWC FQ-CSID */
 			if (sess->pgw_fqcsid != 0) {
-				uint8_t match = 0;
 				for(uint8_t itr = 0; itr < sess->pgw_fqcsid->num_csid; itr++ ) {
+					uint8_t match = 0;
 					for(uint8_t itr1 = 0; itr1 < pgwc_fqcsid.num_csid; itr1++) {
-						if(pgwc_fqcsid.local_csid[itr1] == sess->pgw_fqcsid->local_csid[itr])
+						if(pgwc_fqcsid.local_csid[itr1] == sess->pgw_fqcsid->local_csid[itr]) {
 							match = 1;
+							break;
+						}
 					}
 
 					if(!match) {
 						pgwc_fqcsid.local_csid[pgwc_fqcsid.num_csid++] =
 							sess->pgw_fqcsid->local_csid[itr];
-						match = 0;
 					}
 				}
 				/* Node Addr */
@@ -224,17 +229,18 @@ cleanup_sess_by_csid_entry(fqcsid_t *csids)
 
 			/* PGWU FQ-CSID */
 			if ((SGWU == app.spgw_cfg) && (sess->pgwu_fqcsid != 0)) {
-				uint8_t match = 0;
 				for(uint8_t itr = 0; itr < sess->pgwu_fqcsid->num_csid; itr++ ) {
+					uint8_t match = 0;
 					for(uint8_t itr1 = 0; itr1 < pgwu_fqcsid.num_csid; itr1++) {
-						if(pgwu_fqcsid.local_csid[itr1] == sess->pgwu_fqcsid->local_csid[itr])
+						if(pgwu_fqcsid.local_csid[itr1] == sess->pgwu_fqcsid->local_csid[itr]) {
 							match = 1;
+							break;
+						}
 					}
 
 					if(!match) {
 						pgwu_fqcsid.local_csid[pgwu_fqcsid.num_csid++] =
 							sess->pgwu_fqcsid->local_csid[itr];
-						match = 0;
 					}
 				}
 				/* Node Addr */
@@ -242,8 +248,10 @@ cleanup_sess_by_csid_entry(fqcsid_t *csids)
 			}
 
 			/* Cleanup the session */
-			rte_free(sess);
-			sess = NULL;
+			if (sess != NULL) {
+				rte_free(sess);
+				sess = NULL;
+			}
 
 			tmp = current->next;
 			current->next = NULL;
@@ -326,7 +334,7 @@ up_del_pfcp_peer_node_sess(uint32_t node_addr, uint8_t iface)
 			"UP Cleanup Internal data Structures For peer node \n");
 	/* Get peer CSID associated with node */
 	peer_csids = get_peer_addr_csids_entry(ntohl(node_addr),
-			MOD);
+			UPDATE_NODE);
 	if (peer_csids == NULL) {
 		clLog(clSystemLog, eCLSeverityCritical,
 				FORMAT"Peer CSIDs are already cleanup, Node_Addr:"IPV4_ADDR"\n",

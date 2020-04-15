@@ -185,6 +185,8 @@
 #define GTP_IE_SECDRY_RAT_USAGE_DATA_RPT (201)
 #define GTP_IE_UP_FUNC_SEL_INDCTN_FLGS (202)
 #define GTP_IE_MAX_PCKT_LOSS_RATE (206)
+/* TODO: No type defined in Spec, need to revisit */
+#define GTP_IE_MM_CTXT_TYPE (225)
 /*Indication Flag Length*/
 #define INDICATION_OCT_5  1
 #define INDICATION_OCT_6  2

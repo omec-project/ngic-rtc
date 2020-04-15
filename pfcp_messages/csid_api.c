@@ -165,8 +165,10 @@ fill_peer_node_info(pdn_connection *pdn,
 	uint8_t match = 0;
 	if ((pfcp_config.cp_type == SGWC) || (pfcp_config.cp_type == SAEGWC)) {
 		for(uint8_t itr = 0; itr < ((pdn->context)->sgw_fqcsid)->num_csid; itr++) {
-			if (((pdn->context)->sgw_fqcsid)->local_csid[itr] == local_csid)
+			if (((pdn->context)->sgw_fqcsid)->local_csid[itr] == local_csid) {
 				match = 1;
+				break;
+			}
 		}
 
 		if (!match) {
@@ -176,8 +178,10 @@ fill_peer_node_info(pdn_connection *pdn,
 		}
 	} else {
 		for(uint8_t itr = 0; itr < ((pdn->context)->pgw_fqcsid)->num_csid; itr++) {
-			if (((pdn->context)->pgw_fqcsid)->local_csid[itr] == local_csid)
+			if (((pdn->context)->pgw_fqcsid)->local_csid[itr] == local_csid) {
 				match = 1;
+				break;
+			}
 		}
 
 		if (!match) {
@@ -213,8 +217,10 @@ fill_peer_node_info(pdn_connection *pdn,
 				} else {
 					uint8_t match = 0;
 					for (uint8_t itr1 = 0; itr1 < tmp->num_csid; itr1++) {
-							if (tmp->local_csid[itr1] == local_csid)
-								match = 1;
+						if (tmp->local_csid[itr1] == local_csid) {
+							match = 1;
+							break;
+						}
 					}
 
 					if (!match) {
@@ -255,8 +261,10 @@ fill_peer_node_info(pdn_connection *pdn,
 					} else {
 						uint8_t match = 0;
 						for (uint8_t itr1 = 0; itr1 < tmp->num_csid; itr1++) {
-								if (tmp->local_csid[itr1] == local_csid)
-									match = 1;
+							if (tmp->local_csid[itr1] == local_csid) {
+								match = 1;
+								break;
+							}
 						}
 
 						if (!match) {
@@ -294,8 +302,10 @@ fill_peer_node_info(pdn_connection *pdn,
 					} else {
 						uint8_t match = 0;
 						for (uint8_t itr1 = 0; itr1 < tmp->num_csid; itr1++) {
-								if (tmp->local_csid[itr1] == local_csid)
-									match = 1;
+							if (tmp->local_csid[itr1] == local_csid) {
+								match = 1;
+								break;
+							}
 						}
 
 						if (!match) {
@@ -584,7 +594,7 @@ del_pfcp_peer_node_sess(uint32_t node_addr, uint8_t iface)
 	fqcsid_t csids = {0};
 
 	/* Get local CSID associated with node */
-	local_csids = get_peer_addr_csids_entry(node_addr, MOD);
+	local_csids = get_peer_addr_csids_entry(node_addr, UPDATE_NODE);
 	if (local_csids == NULL) {
 		clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
 				strerror(errno));
@@ -714,7 +724,7 @@ del_csid_entry_hash(fqcsid_t *peer_csids,
 				}
 
 				fqcsid_t *tmp = NULL;
-				tmp = get_peer_addr_csids_entry(peer_csids->node_addr, MOD);
+				tmp = get_peer_addr_csids_entry(peer_csids->node_addr, UPDATE_NODE);
 				if (tmp != NULL) {
 					for (uint8_t itr3 = 0; itr3 < tmp->num_csid; itr3++) {
 						if (tmp->local_csid[itr3] == peer_csids->local_csid[itr]) {

@@ -28,6 +28,7 @@
 #include "../cp_dp_api/vepc_cp_dp_api.h"
 #include "cp_config.h"
 #include "cdr.h"
+#include "cp_timer.h"
 
 extern int s5s8_fd;
 extern socklen_t s5s8_sockaddr_len;
@@ -393,6 +394,12 @@ set_change_notification_request(gtpv2c_header_t *gtpv2c_tx,
 	gtpv2c_send(s5s8_fd, tx_buf, payload_length,
 			(struct sockaddr *) &s5s8_recv_sockaddr,
 			s5s8_sockaddr_len,SENT);
+
+	add_gtpv2c_if_timer_entry(
+			change_not_req->header.teid.has_teid.teid,
+			&s5s8_recv_sockaddr, tx_buf, payload_length,
+			ebi_index, S5S8_IFACE);
+
 
 	process_cp_li_msg_using_context(
 			context, tx_buf, payload_length,

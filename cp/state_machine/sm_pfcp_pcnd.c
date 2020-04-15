@@ -122,7 +122,10 @@ pfcp_pcnd_check(uint8_t *pfcp_rx, msg_info *msg, int bytes_rx, struct sockaddr_i
 				stoptimer(&upf_context->timer_entry->pt.ti_id);
 				deinittimer(&upf_context->timer_entry->pt.ti_id);
 				/* free peer data when timer is de int */
-				rte_free(upf_context->timer_entry);
+				if(upf_context->timer_entry){
+					rte_free(upf_context->timer_entry);
+					upf_context->timer_entry = NULL;
+				}
 			}
 			if(msg->pfcp_msg.pfcp_ass_resp.cause.cause_value != REQUESTACCEPTED){
 

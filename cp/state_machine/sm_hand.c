@@ -564,8 +564,8 @@ process_sess_del_resp_handler(void *data, void *unused_param)
 				msg->pfcp_msg.pfcp_sess_del_resp.header.seid_seqno.has_seid.seid,
 				gtpv2c_tx, &ccr_request, &msglen, &uiImsi, &li_sock_fd);
 
-		buffer = rte_zmalloc_socket(NULL, msglen + sizeof(ccr_request.msg_type),
-				RTE_CACHE_LINE_SIZE, rte_socket_id());
+		buffer = rte_zmalloc_socket(NULL, msglen + GX_HEADER_LEN,
+									RTE_CACHE_LINE_SIZE, rte_socket_id());
 		if (buffer == NULL) {
 			clLog(clSystemLog, eCLSeverityCritical, "Failure to allocate CCR Buffer memory"
 					"structure: %s (%s:%d)\n",
@@ -575,13 +575,19 @@ process_sess_del_resp_handler(void *data, void *unused_param)
 			ds_error_response(msg, GTPV2C_CAUSE_SYSTEM_FAILURE,spgw_cfg != PGWC ? S11_IFACE :S5S8_IFACE);
 			return -1;
 		}
-
 		memcpy(buffer, &ccr_request.msg_type, sizeof(ccr_request.msg_type));
+		memcpy(buffer + sizeof(ccr_request.msg_type),
+								&ccr_request.msg_len,
+						sizeof(ccr_request.msg_len));
 
 		if (gx_ccr_pack(&(ccr_request.data.ccr),
-					(unsigned char *)(buffer + sizeof(ccr_request.msg_type)), msglen) == 0) {
+					(unsigned char *)(buffer + GX_HEADER_LEN), msglen) == 0) {
 			clLog(clSystemLog, eCLSeverityCritical, "ERROR:%s:%d Packing CCR Buffer... \n", __func__, __LINE__);
 			ds_error_response(msg, GTPV2C_CAUSE_SYSTEM_FAILURE,spgw_cfg != PGWC ? S11_IFACE :S5S8_IFACE);
+			if(buffer != NULL){
+				rte_free(buffer);
+				buffer = NULL;
+			}
 			return -1;
 		}
 #else
@@ -602,6 +608,10 @@ process_sess_del_resp_handler(void *data, void *unused_param)
 				spgw_cfg != PGWC ? S11_IFACE :S5S8_IFACE);
 		clLog(clSystemLog, eCLSeverityCritical, "%s:%d Error: %d \n",
 				__func__, __LINE__, ret);
+		if(buffer != NULL){
+			rte_free(buffer);
+			buffer = NULL;
+		}
 		return -1;
 	}
 
@@ -641,7 +651,7 @@ process_sess_del_resp_handler(void *data, void *unused_param)
 	/* VS: Write or Send CCR -T msg to Gx_App */
 	if ( pfcp_config.cp_type != SGWC) {
 		send_to_ipc_channel(gx_app_sock, buffer,
-				msglen + sizeof(ccr_request.msg_type));
+				msglen + GX_HEADER_LEN);
 	}
 
 	struct sockaddr_in saddr_in;
@@ -649,7 +659,10 @@ process_sess_del_resp_handler(void *data, void *unused_param)
 	inet_aton("127.0.0.1", &(saddr_in.sin_addr));
 	update_cli_stats(saddr_in.sin_addr.s_addr, OSS_CCR_TERMINATE, SENT, GX);
 #endif
-
+	if(buffer != NULL){
+		rte_free(buffer);
+		buffer = NULL;
+	}
 	RTE_SET_USED(unused_param);
 	return 0;
 }
@@ -792,8 +805,10 @@ cca_t_msg_handler(void *data, void *unused_param)
 				"%s %s - Error on gx_context_by_sess_id_hash deletion\n",__file__,
 				strerror(ret));
 	}
-
-	rte_free(gx_context);
+	if(gx_context != NULL){
+		rte_free(gx_context);
+		gx_context = NULL;
+	}
 	return 0;
 }
 
@@ -872,29 +887,32 @@ int cca_u_msg_handler_handover(void *data, void *unused)
 	context = pdn->context;
 	mb_req = &resp->gtpc_msg.mbr;
 
-	if((context->second_rat_flag == TRUE) && (PGWC == pfcp_config.cp_type)) {
-		set_modify_bearer_response_handover(gtpv2c_tx, mb_req->header.teid.has_teid.seq, context,
-				bearer, mb_req);
+	if(PGWC == pfcp_config.cp_type){
+		if((context->second_rat_flag == TRUE) || (context->sgwu_not_changed == TRUE)) {
 
-		int payload_length = ntohs(gtpv2c_tx->gtpc.message_len)
-			+ sizeof(gtpv2c_tx->gtpc);
+			set_modify_bearer_response_handover(gtpv2c_tx, mb_req->header.teid.has_teid.seq, context,
+					bearer, mb_req);
 
-		s5s8_recv_sockaddr.sin_addr.s_addr =
-			htonl(pdn->s5s8_sgw_gtpc_ipv4.s_addr);
+			int payload_length = ntohs(gtpv2c_tx->gtpc.message_len)
+				+ sizeof(gtpv2c_tx->gtpc);
 
-		gtpv2c_send(s5s8_fd, tx_buf, payload_length,
-				(struct sockaddr *) &s5s8_recv_sockaddr,
-				s5s8_sockaddr_len, SENT);
+			s5s8_recv_sockaddr.sin_addr.s_addr =
+				htonl(pdn->s5s8_sgw_gtpc_ipv4.s_addr);
 
-		process_cp_li_msg_using_context(
-				context, tx_buf, payload_length,
-				pfcp_config.s5s8_ip.s_addr, s5s8_recv_sockaddr.sin_addr.s_addr,
-				pfcp_config.s5s8_port, s5s8_recv_sockaddr.sin_port);
+			gtpv2c_send(s5s8_fd, tx_buf, payload_length,
+					(struct sockaddr *) &s5s8_recv_sockaddr,
+					s5s8_sockaddr_len, SENT);
 
-		context->second_rat_flag = FALSE;
-		pdn->state =  CONNECTED_STATE;
+			process_cp_li_msg_using_context(
+					context, tx_buf, payload_length,
+					pfcp_config.s5s8_ip.s_addr, s5s8_recv_sockaddr.sin_addr.s_addr,
+					pfcp_config.s5s8_port, s5s8_recv_sockaddr.sin_port);
 
-		return 0;
+			context->second_rat_flag = FALSE;
+			pdn->state =  CONNECTED_STATE;
+
+			return 0;
+		}
 	} else {
 
 		context->second_rat_flag = FALSE;
@@ -942,7 +960,8 @@ cca_msg_handler(void *data, void *unused_param)
 				gx_type_str(msg->msg_type), ebi_index,
 				(ebi_index < 0 ? strerror(-ebi_index) : cause_str(ebi_index)));
 		clLog(clSystemLog, eCLSeverityCritical, "Failed to establish session on PGWU, Send Failed CSResp back to SGWC\n");
-		return ret;
+		gx_cca_error_response(ret, msg);
+		return -1;
 	}
 	/*update proc if there are two rules*/
 	if(pdn->policy.num_charg_rule_install != 1)
@@ -2094,7 +2113,7 @@ void
 get_info_filled(msg_info *msg, err_rsp_info *info_resp , uint8_t index)
 {
 	struct resp_info *resp = NULL;
-	//pdn_connection *pdn = NULL;
+	pdn_connection *pdn = NULL;
 
 	switch(msg->msg_type){
 		case GTP_CREATE_SESSION_REQ:
@@ -2161,6 +2180,35 @@ get_info_filled(msg_info *msg, err_rsp_info *info_resp , uint8_t index)
 			break;
 		}
 
+#ifdef GX_BUILD
+		case GX_CCA_MSG: {
+			uint32_t call_id = 0;
+
+			/* Extract the call id from session id */
+			ret = retrieve_call_id((char *)msg->gx_msg.cca.session_id.val, &call_id);
+			if (ret < 0) {
+			        clLog(clSystemLog, eCLSeverityCritical, "%s:No Call Id "
+						"found from session id:%s\n", __func__,
+				        msg->gx_msg.cca.session_id.val);
+				return;
+			}
+			/* Retrieve PDN context based on call id */
+			pdn = get_pdn_conn_entry(call_id);
+			if (pdn == NULL) {
+				clLog(clSystemLog, eCLSeverityCritical, "%s:No valid pdn "
+					"cntxt found for CALL_ID:%u\n", __func__, call_id);
+				return;
+			}
+
+			if (msg->gx_msg.cca.cc_request_type == INITIAL_REQUEST) {
+				if(pdn != NULL && pdn->context != NULL ) {
+					info_resp->ebi_index = pdn->default_bearer_id;
+					info_resp->teid = pdn->context->s11_sgw_gtpc_teid;
+				}
+			}
+			break;
+		}
+#endif /*GX_BUILD*/
 	}
 }
 
@@ -2502,17 +2550,28 @@ process_error_occured_handler(void *data, void *unused_param)
 					rte_hash_del_key(upf_context_by_ip_hash, (const void *) &pdn->upf_ipv4.s_addr);
 
 					for (i = 0; i < upf_ctx->csr_cnt; i++) {
-						rte_free(upf_ctx->pending_csr[i]);
-						rte_free(upf_ctx->pending_csr_teid[i]);
+						if(upf_ctx->pending_csr[i] != NULL){
+							rte_free(upf_ctx->pending_csr[i]);
+							upf_ctx->pending_csr[i] = NULL;
+						}
+						if(upf_ctx->pending_csr_teid[i] != NULL){
+							rte_free(upf_ctx->pending_csr_teid[i]);
+							upf_ctx->pending_csr_teid[i] = NULL;
+						}
 						upf_ctx->csr_cnt--;
 					}
-					rte_free(upf_ctx);
-					upf_ctx = NULL;
+					if(upf_ctx != NULL){
+						rte_free(upf_ctx);
+						upf_ctx = NULL;
+					}
 				}
 			}
 			if (get_sess_entry(pdn->seid, &resp) == 0) {
 				rte_hash_del_key(sm_hash, (const void *) &(pdn->seid));
-				rte_free(resp);
+				if(resp != NULL){
+					rte_free(resp);
+					resp = NULL;
+				}
 			}
 			for(int8_t idx = 0; idx < MAX_BEARERS; idx++) {
 				if(context->eps_bearers[idx] == NULL) {
@@ -2537,15 +2596,18 @@ process_error_occured_handler(void *data, void *unused_param)
 				}
 				if(pdn != NULL) {
 					rte_free(pdn);
+					pdn = NULL;
 					context->num_pdns --;
 				}
 			}
 			if (context->num_pdns == 0){
 				rte_hash_del_key(ue_context_by_imsi_hash,(const void *) &(*context).imsi);
 				rte_hash_del_key(ue_context_by_fteid_hash,(const void *) &teid);
-				if(context != NULL )
+
+				if(context != NULL ){
 					rte_free(context);
-				context = NULL;
+					context = NULL;
+				}
 			}
 
 

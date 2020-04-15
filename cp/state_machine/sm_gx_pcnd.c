@@ -39,10 +39,9 @@ gx_pcnd_check(gx_msg *gx_rx, msg_info *msg)
 	inet_aton("127.0.0.1", &(saddr_in.sin_addr));
 
 	msg->msg_type = gx_rx->msg_type;
-
 	switch(msg->msg_type) {
 		case GX_CCA_MSG: {
-			if (gx_cca_unpack((unsigned char *)gx_rx + sizeof(gx_rx->msg_type),
+			if (gx_cca_unpack((unsigned char *)gx_rx + GX_HEADER_LEN,
 						&msg->gx_msg.cca) <= 0) {
 				clLog(clSystemLog, eCLSeverityCritical, "Failure in gx cca unpacking\n");
 			    return -1;
@@ -67,14 +66,14 @@ gx_pcnd_check(gx_msg *gx_rx, msg_info *msg)
 			if (ret < 0) {
 			    clLog(clSystemLog, eCLSeverityCritical, "%s: NO ENTRY FOUND IN Gx HASH [%s]\n", __func__,
 						msg->gx_msg.cca.session_id.val);
-			    return -1;
+			    return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 			}
 
 			if(msg->gx_msg.cca.presence.result_code &&
 					msg->gx_msg.cca.result_code != 2001){
 				clLog(clSystemLog, eCLSeverityCritical, "%s:Received CCA with DIAMETER Failure [%d]\n", __func__,
 						msg->gx_msg.cca.result_code);
-				return -1;
+				return GTPV2C_CAUSE_INVALID_REPLY_FROM_REMOTE_PEER;
 			}
 
 			/* Extract the call id from session id */
@@ -82,7 +81,7 @@ gx_pcnd_check(gx_msg *gx_rx, msg_info *msg)
 			if (ret < 0) {
 			        clLog(clSystemLog, eCLSeverityCritical, "%s:No Call Id found from session id:%s\n", __func__,
 			                        msg->gx_msg.cca.session_id.val);
-			        return -1;
+			        return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 			}
 
 			/* Retrieve PDN context based on call id */
@@ -91,7 +90,7 @@ gx_pcnd_check(gx_msg *gx_rx, msg_info *msg)
 			{
 			      clLog(clSystemLog, eCLSeverityCritical, "%s:No valid pdn cntxt found for CALL_ID:%u\n",
 			                          __func__, call_id);
-			      return -1;
+			      return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 			}
 
 			/* Retrive the Session state and set the event */
@@ -114,7 +113,7 @@ gx_pcnd_check(gx_msg *gx_rx, msg_info *msg)
 			update_cli_stats(saddr_in.sin_addr.s_addr, OSS_RAR, RCVD, GX);
 
 
-			if (gx_rar_unpack((unsigned char *)gx_rx + sizeof(gx_rx->msg_type),
+			if (gx_rar_unpack((unsigned char *)gx_rx + GX_HEADER_LEN,
 						&msg->gx_msg.rar) <= 0) {
 				clLog(clSystemLog, eCLSeverityCritical, "Failure in gx rar unpacking\n");
 			    return -1;
@@ -148,7 +147,7 @@ gx_pcnd_check(gx_msg *gx_rx, msg_info *msg)
 			/* Reteive the rqst ptr for RAA */
 			buflen = gx_rar_calc_length (&msg->gx_msg.rar);
 			//gx_context->rqst_ptr = (uint64_t *)(((unsigned char *)gx_rx + sizeof(gx_rx->msg_type) + buflen));
-			memcpy( &gx_context->rqst_ptr ,((unsigned char *)gx_rx + sizeof(gx_rx->msg_type) + buflen),
+			memcpy( &gx_context->rqst_ptr ,((unsigned char *)gx_rx + GX_HEADER_LEN + buflen),
 					sizeof(unsigned long));
 
 			pdn_cntxt->rqst_ptr = gx_context->rqst_ptr;

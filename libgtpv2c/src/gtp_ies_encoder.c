@@ -238,12 +238,12 @@ void
 encode_imsi(uint64_t val, int len, uint8_t *imsi)
 {
     uint8_t buf[32] = {0};
-    snprintf(buf, 32, "%" PRIu64, val);
+    snprintf((char *)buf, 32, "%" PRIu64, val);
 
     for (int i=0; i<len; i++)
          imsi[i] = ((buf[i*2 + 1] & 0xF) << 4) | ((buf[i*2] & 0xF));
 
-    uint8_t odd = strlen(buf)%2;
+    uint8_t odd = strlen((const char *)buf)%2;
     if (odd)
         imsi[len -1] = (0xF << 4) | ((buf[(len-1)*2] & 0xF));
 

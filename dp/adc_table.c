@@ -242,6 +242,7 @@ dp_adc_entry_delete(struct dp_id dp_id, struct adc_rules *adc_filter_entry)
 		return -1;
 	}
 	rte_free(*p);
+	p = NULL;
 	adc_table.num_entries--;
 	clLog(clSystemLog, eCLSeverityInfo, "ADC filter entry with rule_id %d deleted\n",
 					adc_filter_entry->rule_id);

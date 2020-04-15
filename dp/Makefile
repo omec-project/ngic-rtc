@@ -96,6 +96,7 @@ CFLAGS += -I$(LIBDNSCLIENT_ROOT)/include
 LDLIBS += $(LIBDNSCLIENT_ROOT)/lib/liboss-util.a -lstdc++ -lpistache
 LDLIBS += -L$(LIBDNSCLIENT_ROOT)/modules/c-ares -lcares
 
+CFLAGS += -Wall
 CFLAGS += -Werror
 CFLAGS += -Wunused-variable
 

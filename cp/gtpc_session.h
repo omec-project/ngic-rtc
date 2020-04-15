@@ -38,6 +38,7 @@
 #ifndef GTPC_SESSION_H
 #define GTPC_SESSION_H
 
+#define DYN_RULE_CNT  (16)
 /**
  * @brief  : Maintains seid, bearer id, sgw teid , pgw ip for cp
  */
@@ -252,6 +253,14 @@ process_s11_upd_bearer_response(upd_bearer_rsp_t *ub_rsp);
  */
 int
 process_s5s8_upd_bearer_response(upd_bearer_rsp_t *ub_rsp);
+
+/**
+ * @brief  : Process CSR request for Context Replacement.
+ * @param  : csr, Received CSR request.
+ * @return : Returns 0 on success, -1 otherwise
+ */
+int
+gtpc_context_replace_check(create_sess_req_t *csr);
 
 #endif /*CP_BUILD*/
 #endif

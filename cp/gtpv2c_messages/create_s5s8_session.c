@@ -450,6 +450,7 @@ process_sgwc_s5s8_modify_bearer_response(mod_bearer_rsp_t *mb_rsp, gtpv2c_header
 
 		pdn->state =  CONNECTED_STATE;
 		pdn->proc = INITIAL_PDN_ATTACH_PROC;
+		pdn->csr_sequence =0;
 	}
 	return 0;
 }

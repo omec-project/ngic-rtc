@@ -1099,7 +1099,10 @@ up_sdf_filter_table_delete(uint32_t indx)
 	acl_table_indx = 0;
 	clLog(clSystemLog, eCLSeverityDebug, "ACL table %s deleted", ctx->name);
 
-	rte_free(ctx);
+	if(ctx){
+		rte_free(ctx);
+		ctx = NULL;
+	}
 	return 0;
 }
 

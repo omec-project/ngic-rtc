@@ -1676,4 +1676,10 @@ int decode_change_noti_req(uint8_t *buf,
 int decode_change_noti_rsp(uint8_t *buf,
 		change_noti_rsp_t *value);
 
+
+/*
+ *	TODO: ADD descreption
+ */
+int decode_gtp_del_bearer_response_bearer_ctxt_ie(uint8_t *buf,
+		 gtp_del_bearer_response_bearer_ctxt_ie_t *value);
 #endif /*__GTP_MESSAGES_DECODE_H__*/

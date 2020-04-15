@@ -75,6 +75,8 @@ enum cause_value {
 #define PDN_IP_TYPE_IPV4                                      (1)
 #define PDN_IP_TYPE_IPV6                                      (2)
 #define PDN_IP_TYPE_IPV4V6                                    (3)
+/* Custom error code */
+#define GTPC_RE_TRANSMITTED_CSR                              (-2)
 
 #pragma pack(1)
 

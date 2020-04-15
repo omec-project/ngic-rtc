@@ -713,7 +713,7 @@ create_peer_node_sess(uint32_t node_addr, uint8_t iface) {
 	/* Get peer CSID associated with node */
 	/*ntohl()*/
 	peer_csids = get_peer_addr_csids_entry(ntohl(node_addr),
-			MOD);
+			UPDATE_NODE);
 	if (peer_csids == NULL) {
 		/* Delete UPF hash entry */
 		if (iface == SX_PORT_ID) {
@@ -982,7 +982,7 @@ process_sess_est_resp(pfcp_sess_estab_rsp_t *pfcp_sess_est_rsp)
 		if (pfcp_sess_est_rsp->sgw_u_fqcsid.number_of_csids) {
 			/* Stored the SGW CSID by SGW Node address */
 			tmp = get_peer_addr_csids_entry(pfcp_sess_est_rsp->sgw_u_fqcsid.node_address,
-					ADD);
+					ADD_NODE);
 
 			if (tmp == NULL) {
 				clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
@@ -997,6 +997,7 @@ process_sess_est_resp(pfcp_sess_estab_rsp_t *pfcp_sess_est_rsp)
 				for (uint8_t itr1 = 0; itr1 < tmp->num_csid; itr1++) {
 					if (tmp->local_csid[itr1] == pfcp_sess_est_rsp->sgw_u_fqcsid.pdn_conn_set_ident[itr]) {
 						match = 1;
+						break;
 					}
 				}
 				if (!match) {
@@ -1027,7 +1028,7 @@ process_sess_est_resp(pfcp_sess_estab_rsp_t *pfcp_sess_est_rsp)
 		if (pfcp_sess_est_rsp->pgw_u_fqcsid.number_of_csids) {
 			/* Stored the PGW CSID by PGW Node address */
 			tmp = get_peer_addr_csids_entry(pfcp_sess_est_rsp->pgw_u_fqcsid.node_address,
-					ADD);
+					ADD_NODE);
 
 			if (tmp == NULL) {
 				clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,

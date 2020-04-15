@@ -356,6 +356,7 @@ create_ue_context(uint64_t *imsi_val, uint16_t imsi_len,
 				"%s - Error on rte_hash_add_key_data add\n",
 				strerror(ret));
 			rte_free((*context));
+			*context = NULL;
 			return GTPV2C_CAUSE_SYSTEM_FAILURE;
 		}
 	} else {
@@ -417,6 +418,7 @@ create_ue_context(uint64_t *imsi_val, uint16_t imsi_len,
 				strerror(ret));
 		}
 		rte_free((*context));
+		*context = NULL;
 		return GTPV2C_CAUSE_SYSTEM_FAILURE;
 	}
 
@@ -483,7 +485,7 @@ create_ue_context(uint64_t *imsi_val, uint16_t imsi_len,
 		/* NOTE : APN comparison has been done to handle
 		 * the  case of multiple PDN;
 		 * In mutiple PDN, each PDN will have a unique apn*/
-		if((ret < 0) ||
+		if((ret < 0) || (pdn->apn_in_use == NULL) ||
 				(strncmp(pdn->apn_in_use->apn_name_label,
 						 apn_requested->apn_name_label,
 						 apn_requested->apn_name_length) != 0 )) {
@@ -526,6 +528,7 @@ create_ue_context(uint64_t *imsi_val, uint16_t imsi_len,
 							strerror(ret));
 				}
 				rte_free((*context));
+				*context = NULL;
 				return GTPV2C_CAUSE_SYSTEM_FAILURE;
 			}
 

@@ -44,11 +44,8 @@ int gx_send_ccr(void *data)
 
 	int rval = FD_REASON_OK;
 	struct msg *msg = NULL;
-	char *current =  NULL;;
 	struct avp *avp_ptr = NULL;;
 	union avp_value val;
-	int32_t offset;
-
 	GxCCR gx_ccr = {0};
 
 	gx_ccr_unpack((unsigned char *)data, &gx_ccr );
@@ -195,7 +192,7 @@ int gx_send_ccr(void *data)
 	if( gx_ccr.presence.access_network_charging_address)
 		FDCHECK_MSG_ADD_AVP_OSTR( gxDict.avp_access_network_charging_address, msg, MSG_BRW_LAST_CHILD,
 				gx_ccr.access_network_charging_address.address,
-				strnlen(gx_ccr.access_network_charging_address.address,MAX_FD_ADDRESS_LEN), rval, goto err );
+				strnlen((char *)gx_ccr.access_network_charging_address.address,MAX_FD_ADDRESS_LEN), rval, goto err );
 
 	if( gx_ccr.presence.bearer_identifier)
 		FDCHECK_MSG_ADD_AVP_OSTR( gxDict.avp_bearer_identifier, msg, MSG_BRW_LAST_CHILD, gx_ccr.bearer_identifier.val,
@@ -1032,8 +1029,8 @@ int gx_send_ccr(void *data)
 			}
 
 			if( gx_ccr.event_report_indication.trace_data.presence.trace_collection_entity){
-				/*TODO :need to addres on the basis of type in Fdaddress  */
-				val.os.len = strnlen(gx_ccr.event_report_indication.trace_data.trace_collection_entity.address,MAX_FD_ADDRESS_LEN);
+				/*TODO :need to addres on the basis of type in Fdaddress  *//* TODO: Pls check typecast */
+				val.os.len = strnlen((char *)gx_ccr.event_report_indication.trace_data.trace_collection_entity.address,MAX_FD_ADDRESS_LEN);
 				val.os.data = gx_ccr.event_report_indication.trace_data.trace_collection_entity.address;
 				add_fd_msg(&val,gxDict.avp_trace_collection_entity, (struct msg**)&avp_ptr);
 
@@ -1238,20 +1235,20 @@ int gx_send_ccr(void *data)
 			add_fd_msg(&val,gxDict.avp_3gpp_ms_timezone, (struct msg**)&avp_ptr);
 		}
 		if( gx_ccr.event_report_indication.presence.routing_ip_address){
-			/*TODO :Need to fill according to type*/
-			val.os.len = strnlen( gx_ccr.event_report_indication.routing_ip_address.address,MAX_FD_ADDRESS_LEN);
+			/*TODO :Need to fill according to type*/ /* TODO: Pls check typecast */
+			val.os.len = strnlen((char *)gx_ccr.event_report_indication.routing_ip_address.address,MAX_FD_ADDRESS_LEN);
 			val.os.data = gx_ccr.event_report_indication.routing_ip_address.address;
 			add_fd_msg(&val,gxDict.avp_routing_ip_address, (struct msg**)&avp_ptr);
 		}
 		if( gx_ccr.event_report_indication.presence.ue_local_ip_address){
-			/*TODO :Need to fill according to type*/
-			val.os.len = strnlen( gx_ccr.event_report_indication.ue_local_ip_address.address,MAX_FD_ADDRESS_LEN);
+			/*TODO :Need to fill according to type*/ /* TODO: Pls check typecast */
+			val.os.len = strnlen((char *) gx_ccr.event_report_indication.ue_local_ip_address.address,MAX_FD_ADDRESS_LEN);
 			val.os.data = gx_ccr.event_report_indication.ue_local_ip_address.address;
 			add_fd_msg(&val,gxDict.avp_ue_local_ip_address, (struct msg**)&avp_ptr);
 		}
 		if( gx_ccr.event_report_indication.presence.henb_local_ip_address){
-			/*TODO :Need to fill according to type*/
-			val.os.len = strnlen( gx_ccr.event_report_indication.henb_local_ip_address.address,MAX_FD_ADDRESS_LEN);
+			/*TODO :Need to fill according to type*/ /* TODO: Pls check typecast */
+			val.os.len = strnlen((char *) gx_ccr.event_report_indication.henb_local_ip_address.address,MAX_FD_ADDRESS_LEN);
 			val.os.data = gx_ccr.event_report_indication.henb_local_ip_address.address;
 			add_fd_msg(&val,gxDict.avp_henb_local_ip_address, (struct msg**)&avp_ptr);
 		}
@@ -1380,8 +1377,8 @@ int gx_send_ccr(void *data)
 			}
 
 			if( gx_ccr.coa_information.list[i].presence.coa_ip_address ){
-				/*TODO address need to fill on the basis of type */
-				val.os.len = strnlen(gx_ccr.coa_information.list[i].coa_ip_address.address,MAX_FD_ADDRESS_LEN);
+				/*TODO address need to fill on the basis of type */ /* TODO: Pls check typecast */
+				val.os.len = strnlen((char *)gx_ccr.coa_information.list[i].coa_ip_address.address,MAX_FD_ADDRESS_LEN);
 				val.os.data = gx_ccr.coa_information.list[i].coa_ip_address.address;
 				add_fd_msg(&val,gxDict.avp_coa_ip_address, (struct msg**)&avp_ptr);
 			}
@@ -1688,8 +1685,8 @@ int gx_send_ccr(void *data)
 				}
 
 				if( gx_ccr.routing_rule_install.routing_rule_definition.list[i].presence.routing_ip_address ){
-					/*TODO address need to fill on the basis of type */
-					val.os.len = strnlen( gx_ccr.routing_rule_install.routing_rule_definition.
+					/*TODO address need to fill on the basis of type *//* TODO: Pls check typecast */
+					val.os.len = strnlen((char *) gx_ccr.routing_rule_install.routing_rule_definition.
 							list[i].routing_ip_address.address,MAX_FD_ADDRESS_LEN);
 					val.os.data = gx_ccr.routing_rule_install.routing_rule_definition.
 						list[i].routing_ip_address.address;

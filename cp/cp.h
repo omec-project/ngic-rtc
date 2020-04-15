@@ -520,6 +520,16 @@ cleanup_session_entries(uint16_t local_csid, ue_context *context);
  */
 int
 remove_peer_temp_csid(fqcsid_t *peer_fqcsid, uint16_t tmp_csid, uint8_t iface);
+
+/*
+ * @brief  : Remove Session entry linked with Local CSID .
+ * @param  : seid, session id .
+ * @param  : peer_fqcsid, st1ructure to store peer node fqcsid info.
+ * @param  : context, Structure to store UE context,
+ * @return : Returns 0 in case of success ,-1 or cause value otherwise.
+ */
+int
+cleanup_csid_entry(uint64_t seid, fqcsid_t *peer_fqcsid, ue_context *context);
 #endif /* USE_CSID */
 
 #endif

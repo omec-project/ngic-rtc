@@ -451,6 +451,7 @@ typedef struct ue_context_t {
 	uint8_t msisdn_len;
 
 	ambr_ie mn_ambr;
+	bool sgwu_not_changed;
 	/*TODO: Move below 3 lines into PDN*/
 	bool uli_flag;
 	user_loc_info_t uli;

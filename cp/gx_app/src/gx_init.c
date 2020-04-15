@@ -32,7 +32,7 @@ int gxInit(void)
 
     application_id_t app_gx = 16777238;
 
-    TRC2(gxInit);
+   // TRC2(gxInit);  /*TODO: Check if required*/
 
     memset(&gxDict, 0, sizeof(gxDict));
 
@@ -647,7 +647,7 @@ int gxInit(void)
 
 err:
 
-fini:
+//fini:				/* TODO: Not used */
     return rval;
 }
 
@@ -671,6 +671,6 @@ int gxRegister(void)
 
 err:
 
-fini:
+//fini:			/*TODO: Not used */
     return rval;
 }

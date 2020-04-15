@@ -18,6 +18,7 @@
 #include <signal.h>
 
 #include "gx.h"
+#include "ipc_api.h"
 
 extern int gx_app_sock;
 extern int g_gx_client_sock;

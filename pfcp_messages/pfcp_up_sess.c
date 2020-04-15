@@ -223,11 +223,13 @@ fill_peer_node_info_t(pfcp_session_t *sess)
 
 	/* TODO: Optimized the code */
 	/* Update the local csid into the UE context */
-	uint8_t match = 0;
 	if ((app.spgw_cfg == SGWU) || (app.spgw_cfg == SAEGWU)) {
+		uint8_t match = 0;
 		for(uint8_t itr = 0; itr < (sess->sgwu_fqcsid)->num_csid; itr++) {
-			if ((sess->sgwu_fqcsid)->local_csid[itr] == csid)
+			if ((sess->sgwu_fqcsid)->local_csid[itr] == csid) {
 				match = 1;
+				break;
+			}
 		}
 
 		if (!match) {
@@ -236,9 +238,12 @@ fill_peer_node_info_t(pfcp_session_t *sess)
 			match = 0;
 		}
 	} else {
+		uint8_t match = 0;
 		for(uint8_t itr = 0; itr < (sess->pgwu_fqcsid)->num_csid; itr++) {
-			if ((sess->pgwu_fqcsid)->local_csid[itr] == csid)
+			if ((sess->pgwu_fqcsid)->local_csid[itr] == csid) {
 				match = 1;
+				break;
+			}
 		}
 
 		if (!match) {
@@ -257,7 +262,7 @@ fill_peer_node_info_t(pfcp_session_t *sess)
 					ERR_MSG, IPV4_ADDR_HOST_FORMAT(peer_info_t.enodeb_ip));
 			/* Stored the SGW CSID by eNB Node address */
 			tmp = get_peer_addr_csids_entry(peer_info_t.enodeb_ip,
-					ADD);
+					ADD_NODE);
 
 			if (tmp == NULL) {
 				clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
@@ -270,14 +275,16 @@ fill_peer_node_info_t(pfcp_session_t *sess)
 					tmp->local_csid[tmp->num_csid++] = csid;
 			}
 
+			uint8_t match = 0;
 			for (uint8_t itr = 0; itr < tmp->num_csid; itr++) {
-				uint8_t match = 0;
-				if (tmp->local_csid[itr] == csid)
+				if (tmp->local_csid[itr] == csid) {
 					match = 1;
-
-				if (!match) {
-					tmp->local_csid[tmp->num_csid++] = csid;
+					break;
 				}
+			}
+
+			if (!match) {
+				tmp->local_csid[tmp->num_csid++] = csid;
 			}
 
 			if (sess->enb_fqcsid == NULL) {
@@ -314,8 +321,10 @@ fill_peer_node_info_t(pfcp_session_t *sess)
 					} else {
 						uint8_t match = 0;
 						for (uint8_t itr2 = 0; itr2 < tmp1->num_csid; itr2++) {
-								if (tmp1->local_csid[itr2] == csid)
+								if (tmp1->local_csid[itr2] == csid) {
 									match = 1;
+									break;
+								}
 						}
 
 						if (!match) {
@@ -336,7 +345,7 @@ fill_peer_node_info_t(pfcp_session_t *sess)
 
 			/* Stored the SGW CSID by eNB Node address */
 			tmp = get_peer_addr_csids_entry(peer_info_t.pgwu_ip,
-					ADD);
+					ADD_NODE);
 
 			if (tmp == NULL) {
 				clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
@@ -349,14 +358,16 @@ fill_peer_node_info_t(pfcp_session_t *sess)
 					tmp->local_csid[tmp->num_csid++] = csid;
 			}
 
+			uint8_t match = 0;
 			for(uint8_t itr = 0; itr < tmp->num_csid; itr++) {
-				uint8_t match = 0;
-				if (tmp->local_csid[itr] == csid)
+				if (tmp->local_csid[itr] == csid) {
 					match = 1;
-
-				if (!match) {
-					tmp->local_csid[tmp->num_csid++] = csid;
+					break;
 				}
+			}
+
+			if (!match) {
+				tmp->local_csid[tmp->num_csid++] = csid;
 			}
 
 			if (sess->pgwu_fqcsid == NULL) {
@@ -393,8 +404,10 @@ fill_peer_node_info_t(pfcp_session_t *sess)
 					} else {
 						uint8_t match = 0;
 						for (uint8_t itr1 = 0; itr1 < tmp1->num_csid; itr1++) {
-								if (tmp1->local_csid[itr1] == csid)
-									match = 1;
+							if (tmp1->local_csid[itr1] == csid) {
+								match = 1;
+								break;
+							}
 						}
 
 						if (!match) {
@@ -413,7 +426,7 @@ fill_peer_node_info_t(pfcp_session_t *sess)
 
 			/* Stored the SGW CSID by eNB Node address */
 			tmp = get_peer_addr_csids_entry(peer_info_t.sgwu_ip,
-					ADD);
+					ADD_NODE);
 
 			if (tmp == NULL) {
 				clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
@@ -426,14 +439,16 @@ fill_peer_node_info_t(pfcp_session_t *sess)
 					tmp->local_csid[tmp->num_csid++] = csid;
 			}
 
+			uint8_t match = 0;
 			for(uint8_t itr = 0; itr < tmp->num_csid; itr++) {
-				uint8_t match = 0;
-				if (tmp->local_csid[itr] == csid)
+				if (tmp->local_csid[itr] == csid) {
 					match = 1;
-
-				if (!match) {
-					tmp->local_csid[tmp->num_csid++] = csid;
+					break;
 				}
+			}
+
+			if (!match) {
+				tmp->local_csid[tmp->num_csid++] = csid;
 			}
 
 			if (sess->sgwu_fqcsid == NULL) {
@@ -470,8 +485,10 @@ fill_peer_node_info_t(pfcp_session_t *sess)
 					} else {
 						uint8_t match = 0;
 						for (uint8_t itr1 = 0; itr1 < tmp1->num_csid; itr1++) {
-								if (tmp1->local_csid[itr1] == csid)
-									match = 1;
+							if (tmp1->local_csid[itr1] == csid) {
+								match = 1;
+								break;
+							}
 						}
 
 						if (!match) {
@@ -506,8 +523,10 @@ fill_peer_node_info_t(pfcp_session_t *sess)
 				} else {
 					uint8_t match = 0;
 					for (uint8_t itr1 = 0; itr1 < tmp1->num_csid; itr1++) {
-							if (tmp1->local_csid[itr1] == csid)
-								match = 1;
+						if (tmp1->local_csid[itr1] == csid) {
+							match = 1;
+							break;
+						}
 					}
 
 					if (!match) {
@@ -541,8 +560,10 @@ fill_peer_node_info_t(pfcp_session_t *sess)
 				} else {
 					uint8_t match = 0;
 					for (uint8_t itr1 = 0; itr1 < tmp1->num_csid; itr1++) {
-							if (tmp1->local_csid[itr1] == csid)
-								match = 1;
+						if (tmp1->local_csid[itr1] == csid) {
+							match = 1;
+							break;
+						}
 					}
 
 					if (!match) {
@@ -576,8 +597,10 @@ fill_peer_node_info_t(pfcp_session_t *sess)
 				} else {
 					uint8_t match = 0;
 					for (uint8_t itr1 = 0; itr1 < tmp1->num_csid; itr1++) {
-							if (tmp1->local_csid[itr1] == csid)
-								match = 1;
+						if (tmp1->local_csid[itr1] == csid) {
+							match = 1;
+							break;
+						}
 					}
 
 					if (!match) {
@@ -1657,7 +1680,7 @@ process_up_session_estab_req(pfcp_sess_estab_req_t *sess_req,
 
 			/* Stored the MME CSID by MME Node address */
 			tmp = get_peer_addr_csids_entry(sess_req->mme_fqcsid.node_address,
-					ADD);
+					ADD_NODE);
 
 			if (tmp == NULL) {
 				clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
@@ -1669,8 +1692,10 @@ process_up_session_estab_req(pfcp_sess_estab_req_t *sess_req,
 			for(uint8_t itr = 0; itr < sess_req->mme_fqcsid.number_of_csids; itr++) {
 				uint8_t match = 0;
 				for (uint8_t itr1 = 0; itr1 < tmp->num_csid; itr1++) {
-					if (tmp->local_csid[itr1] == sess_req->mme_fqcsid.pdn_conn_set_ident[itr])
+					if (tmp->local_csid[itr1] == sess_req->mme_fqcsid.pdn_conn_set_ident[itr]) {
 						match = 1;
+						break;
+					}
 				}
 
 				if (!match) {
@@ -1693,7 +1718,7 @@ process_up_session_estab_req(pfcp_sess_estab_req_t *sess_req,
 			fqcsid_t *tmp = NULL;
 			/* Stored the SGW CSID by SGW Node address */
 			tmp = get_peer_addr_csids_entry(sess_req->sgw_c_fqcsid.node_address,
-					ADD);
+					ADD_NODE);
 
 			if (tmp == NULL) {
 				clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
@@ -1706,8 +1731,10 @@ process_up_session_estab_req(pfcp_sess_estab_req_t *sess_req,
 			for(uint8_t itr = 0; itr < sess_req->sgw_c_fqcsid.number_of_csids; itr++) {
 				uint8_t match = 0;
 				for (uint8_t itr1 = 0; itr1 < tmp->num_csid; itr1++) {
-					if (tmp->local_csid[itr1] == sess_req->sgw_c_fqcsid.pdn_conn_set_ident[itr])
+					if (tmp->local_csid[itr1] == sess_req->sgw_c_fqcsid.pdn_conn_set_ident[itr]) {
 						match = 1;
+						break;
+					}
 				}
 
 				if (!match) {
@@ -1725,7 +1752,7 @@ process_up_session_estab_req(pfcp_sess_estab_req_t *sess_req,
 			if ((app.spgw_cfg == SGWU) || (app.spgw_cfg == SAEGWU)) {
 				fqcsid_t *tmp = NULL;
 				tmp = get_peer_addr_csids_entry(cp_comm_ip.s_addr,
-						ADD);
+						ADD_NODE);
 				if (tmp == NULL) {
 					clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
 							strerror(errno));
@@ -1739,7 +1766,7 @@ process_up_session_estab_req(pfcp_sess_estab_req_t *sess_req,
 		if ((app.spgw_cfg == SGWU) || (app.spgw_cfg == SAEGWU)) {
 			fqcsid_t *tmp = NULL;
 			tmp = get_peer_addr_csids_entry(cp_comm_ip.s_addr,
-					ADD);
+					ADD_NODE);
 			if (tmp == NULL) {
 				clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
 						strerror(errno));
@@ -1756,7 +1783,7 @@ process_up_session_estab_req(pfcp_sess_estab_req_t *sess_req,
 			fqcsid_t *tmp = NULL;
 			/* Stored the PGW CSID by PGW Node address */
 			tmp = get_peer_addr_csids_entry(sess_req->pgw_c_fqcsid.node_address,
-					ADD);
+					ADD_NODE);
 
 			if (tmp == NULL) {
 				clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
@@ -1769,8 +1796,10 @@ process_up_session_estab_req(pfcp_sess_estab_req_t *sess_req,
 			for(uint8_t itr = 0; itr < sess_req->pgw_c_fqcsid.number_of_csids; itr++) {
 				uint8_t match = 0;
 				for (uint8_t itr1 = 0; itr1 < tmp->num_csid; itr1++) {
-					if (tmp->local_csid[itr1] == sess_req->pgw_c_fqcsid.pdn_conn_set_ident[itr])
+					if (tmp->local_csid[itr1] == sess_req->pgw_c_fqcsid.pdn_conn_set_ident[itr]) {
 						match = 1;
+						break;
+					}
 				}
 
 				if (!match) {
@@ -1787,7 +1816,7 @@ process_up_session_estab_req(pfcp_sess_estab_req_t *sess_req,
 			if (app.spgw_cfg == PGWU)  {
 				fqcsid_t *tmp = NULL;
 				tmp = get_peer_addr_csids_entry(cp_comm_ip.s_addr,
-						ADD);
+						ADD_NODE);
 				if (tmp == NULL) {
 					clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
 							strerror(errno));
@@ -1801,7 +1830,7 @@ process_up_session_estab_req(pfcp_sess_estab_req_t *sess_req,
 		if (app.spgw_cfg == PGWU)  {
 			fqcsid_t *tmp = NULL;
 			tmp = get_peer_addr_csids_entry(cp_comm_ip.s_addr,
-					ADD);
+					ADD_NODE);
 			if (tmp == NULL) {
 				clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
 						strerror(errno));
@@ -1837,7 +1866,7 @@ process_up_session_estab_req(pfcp_sess_estab_req_t *sess_req,
 	/* TODO: Optimized the code */
 	if (app.spgw_cfg != PGWU) {
 		tmp_t = get_peer_addr_csids_entry(dp_comm_ip.s_addr,
-				ADD);
+				ADD_NODE);
 		if (tmp_t == NULL) {
 			clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
 					strerror(errno));
@@ -1848,7 +1877,7 @@ process_up_session_estab_req(pfcp_sess_estab_req_t *sess_req,
 
 	} else {
 		tmp_t = get_peer_addr_csids_entry(dp_comm_ip.s_addr,
-				ADD);
+				ADD_NODE);
 		if (tmp_t == NULL) {
 			clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
 					strerror(errno));
@@ -2285,7 +2314,10 @@ fill_sess_mod_usage_report(pfcp_usage_rpt_sess_mod_rsp_ie_t *usage_report,
 					return -1;
 				}
 
-				rte_free(data);
+				if (data != NULL) {
+					rte_free(data);
+					data = NULL;
+				}
 			}
 		}
 	}
@@ -2623,7 +2655,7 @@ process_up_session_modification_req(pfcp_sess_mod_req_t *sess_mod_req,
 			uint16_t old_csid = (sess->sgw_fqcsid)->local_csid[(sess->sgw_fqcsid)->num_csid - 1];
 			/* Stored the SGW CSID by SGW Node address */
 			tmp = get_peer_addr_csids_entry(sess_mod_req->sgw_c_fqcsid.node_address,
-					ADD);
+					ADD_NODE);
 
 			if (tmp == NULL) {
 				clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
@@ -2636,8 +2668,10 @@ process_up_session_modification_req(pfcp_sess_mod_req_t *sess_mod_req,
 			for(uint8_t itr = 0; itr < sess_mod_req->sgw_c_fqcsid.number_of_csids; itr++) {
 				uint8_t match = 0;
 				for (uint8_t itr1 = 0; itr1 < tmp->num_csid; itr1++) {
-					if (tmp->local_csid[itr1] == sess_mod_req->sgw_c_fqcsid.pdn_conn_set_ident[itr])
+					if (tmp->local_csid[itr1] == sess_mod_req->sgw_c_fqcsid.pdn_conn_set_ident[itr]) {
 						match = 1;
+						break;
+					}
 				}
 
 				if (!match) {
@@ -2701,6 +2735,7 @@ process_up_session_modification_req(pfcp_sess_mod_req_t *sess_mod_req,
 										if (tmp1->local_csid[itr1] ==
 												(sess->pgwu_fqcsid)->local_csid[(sess->pgwu_fqcsid)->num_csid - 1]) {
 											match = 1;
+											break;
 										}
 								}
 
@@ -2721,7 +2756,7 @@ process_up_session_modification_req(pfcp_sess_mod_req_t *sess_mod_req,
 		if (sess_mod_req->pgw_c_fqcsid.number_of_csids) {
 			/* Stored the SGW CSID by SGW Node address */
 			tmp = get_peer_addr_csids_entry(sess_mod_req->pgw_c_fqcsid.node_address,
-					ADD);
+					ADD_NODE);
 
 			if (tmp == NULL) {
 				clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
@@ -2734,8 +2769,10 @@ process_up_session_modification_req(pfcp_sess_mod_req_t *sess_mod_req,
 			for(uint8_t itr = 0; itr < sess_mod_req->pgw_c_fqcsid.number_of_csids; itr++) {
 				uint8_t match = 0;
 				for (uint8_t itr1 = 0; itr1 < tmp->num_csid; itr1++) {
-					if (tmp->local_csid[itr1] == sess_mod_req->pgw_c_fqcsid.pdn_conn_set_ident[itr])
+					if (tmp->local_csid[itr1] == sess_mod_req->pgw_c_fqcsid.pdn_conn_set_ident[itr]) {
 						match = 1;
+						break;
+					}
 				}
 
 				if (!match) {
@@ -2986,7 +3023,10 @@ fill_sess_del_usage_report(pfcp_usage_rpt_sess_del_rsp_ie_t *usage_report,
 					return -1;
 				}
 
-				rte_free(data);
+				if (data != NULL) {
+					rte_free(data);
+					data = NULL;
+				}
 			}
 		}
 	}
@@ -3239,8 +3279,10 @@ process_up_session_deletion_req(pfcp_sess_del_req_t *sess_del_req,
 #endif /* USE_CSID */
 
 	/* Cleanup the session */
-	rte_free(sess);
-	sess = NULL;
+	if (sess != NULL) {
+		rte_free(sess);
+		sess = NULL;
+	}
 
 	clLog(clSystemLog, eCLSeverityDebug, "PFCP Session Deletion Request :: END \n\n");
 	return 0;
@@ -3335,7 +3377,10 @@ timer_callback(gstimerinfo_t *ti, const void *data_t )
 					return;
 				}
 
-				rte_free(data);
+				if (data != NULL) {
+					rte_free(data);
+					data = NULL;
+				}
 			}
 		}
 	}

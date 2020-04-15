@@ -68,6 +68,10 @@ timer_callback(gstimerinfo_t *ti, const void *data_t )
 		ret = get_ue_context(data->teid, &context);
 		if ( ret < 0) {
 			clLog(clSystemLog, eCLSeverityCritical, "%s:Entry not found for teid:%x...\n", __func__, data->teid);
+			stoptimer(&data->pt.ti_id);
+			deinittimer(&data->pt.ti_id);
+			rte_free(data);
+			data = NULL;
 			return;
 		}
 		if(context != NULL && context->eps_bearers[data->ebi_index] != NULL
@@ -121,9 +125,10 @@ timer_callback(gstimerinfo_t *ti, const void *data_t )
 			stoptimer(&data->pt.ti_id);
 			deinittimer(&data->pt.ti_id);
 			/* free peer data when timer is de int */
-			rte_free(data);
-			data = NULL;
-			pdn->timer_entry =  NULL;
+			if(data != NULL){
+				rte_free(data);
+				data = NULL;
+			}
 		}
 		return;
 	}
@@ -207,8 +212,10 @@ association_timer_callback(gstimerinfo_t *ti, const void *data_t )
 			stoptimer(&data->pt.ti_id);
 			deinittimer(&data->pt.ti_id);
 			/* free peer data when timer is de int */
-			rte_free(data);
-			data = NULL;
+			if(data != NULL){
+				rte_free(data);
+				data = NULL;
+			}
 		}
 		return;
 	}
@@ -315,8 +322,10 @@ delete_pfcp_if_timer_entry(uint32_t teid, uint8_t ebi_index)
 			stoptimer(&data->pt.ti_id);
 			deinittimer(&data->pt.ti_id);
 			/* free peer data when timer is de int */
-			rte_free(data);
-			data = NULL;
+			if(data != NULL){
+				rte_free(data);
+				data = NULL;
+			}
 			context->eps_bearers[ebi_index]->pdn->timer_entry = NULL;
 		}
 	}
@@ -343,8 +352,10 @@ delete_gtpv2c_if_timer_entry(uint32_t teid)
 			stoptimer(&data->pt.ti_id);
 			deinittimer(&data->pt.ti_id);
 			/* free peer data when timer is de int */
-			rte_free(data);
-			data = NULL;
+			if(data != NULL){
+				rte_free(data);
+				data = NULL;
+			}
 		}
 	}
 	return;
@@ -370,8 +381,10 @@ delete_timer_entry(uint32_t teid)
 			stoptimer(&data->pt.ti_id);
 			deinittimer(&data->pt.ti_id);
 			/* free peer data when timer is de int */
-			rte_free(data);
-			data = NULL;
+			if(data != NULL){
+				rte_free(data);
+				data = NULL;
+			}
 			bearer->pdn->timer_entry = NULL;
 		}
 	}

@@ -160,4 +160,12 @@ void send_version_not_supported(int iface, uint32_t seq);
 void
 pfcp_modification_error_response(struct resp_info *resp, msg_info *msg, uint8_t cause_value);
 
+/**
+ * @brief  : Select respective error response function as cca request type
+ * @param  : cause, cause value
+ * @param  : msg, message info
+ * @return : Returns nothing
+ */
+void
+gx_cca_error_response(uint8_t cause, msg_info *msg);
 #endif

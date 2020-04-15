@@ -1847,7 +1847,7 @@ int decode_mod_bearer_rsp(uint8_t *buf,
       }  else if (ie_header->type == GTP_IE_PROT_CFG_OPTS && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
             count += decode_gtp_prot_cfg_opts_ie(buf + count, &value->pco);
       }  else if (ie_header->type == GTP_IE_MOD_BEARER_RESPONSE_BEARER_CTXT_MODIFIED && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_mod_bearer_response_bearer_ctxt_modified_ie(buf + count, &value->bearer_contexts_modified);
+            count += decode_gtp_mod_bearer_response_bearer_ctxt_modified_ie(buf + count, &value->bearer_contexts_modified[value->bearer_count++]);
       }  else if (ie_header->type == GTP_IE_MOD_BEARER_RESPONSE_BEARER_CTXT_MARKED_REMOVAL && ie_header->instance == GTP_IE_INSTANCE_ONE) {
             count += decode_gtp_mod_bearer_response_bearer_ctxt_marked_removal_ie(buf + count, &value->bearer_contexts_marked_removal);
       }  else if (ie_header->type == GTP_IE_CHG_RPTNG_ACT && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
@@ -3311,8 +3311,8 @@ int decode_id_rsp(uint8_t *buf,
             count += decode_gtp_cause_ie(buf + count, &value->cause);
       }  else if (ie_header->type == GTP_IE_IMSI && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
             count += decode_gtp_imsi_ie(buf + count, &value->imsi);
-      }  else if (ie_header->type == 'CTXT') {
-            count += decode_gtp_mm_context(buf + count, &value->mmesgsn_ue_mm_ctxt);
+      }  else if (ie_header->type == GTP_IE_MM_CTXT_TYPE) {  /* TODO Confirm Once */
+            /* count += decode_gtp_mm_context(buf + count, &value->mmesgsn_ue_mm_ctxt); */
       }  else if (ie_header->type == GTP_IE_TRC_INFO && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
             count += decode_gtp_trc_info_ie(buf + count, &value->trc_info);
       }  else if (ie_header->type == GTP_IE_INTEGER_NUMBER && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
@@ -5267,8 +5267,8 @@ int decode_fwd_reloc_req(uint8_t *buf,
             count += decode_gtp_fully_qual_tunn_endpt_idnt_ie(buf + count, &value->sgw_s11s4_ip_addr_and_teid_ctl_plane);
       }  else if (ie_header->type == GTP_IE_FULLY_QUAL_DOMAIN_NAME && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
             count += decode_gtp_fully_qual_domain_name_ie(buf + count, &value->sgw_node_name);
-      }  else if (ie_header->type == 'CTXT') {
-            count += decode_gtp_mm_context(buf + count, &value->mmesgsnamf_ue_mm_ctxt);
+      }  else if (ie_header->type == GTP_IE_FWD_RELOC_REQUEST__MMESGSNAMF_UE_EPS_PDN_CONNECTIONS) { /*TODO: Confirm once*/
+            /* count += decode_gtp_mm_context(buf + count, &value->mmesgsnamf_ue_mm_ctxt); */
       }  else if (ie_header->type == GTP_IE_INDICATION && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
             count += decode_gtp_indication_ie(buf + count, &value->indctn_flgs);
       }  else if (ie_header->type == GTP_IE_FULL_QUAL_CNTNR && ie_header->instance == GTP_IE_INSTANCE_ZERO) {

@@ -74,8 +74,10 @@ recv_msg_handler( int sock )
 {
 
 	int bytes_recv = 0;
-	gx_msg *req = NULL;
+	int msg_len = 0;
 	char buf[BUFFSIZE] = {0};
+	gx_msg *req = NULL;
+
 
 	bytes_recv = recv_from_ipc_channel(sock, buf);
 #ifdef GX_DEBUG
@@ -83,24 +85,29 @@ recv_msg_handler( int sock )
 #endif
 
 	if(bytes_recv > 0){
-		//REVIEW: Need to check this.
-		gx_msg *req = (gx_msg*)buf;
-		//switch (req->msg_type){
-		switch (*(uint8_t*)buf){
-			case GX_CCR_MSG:
-				gx_send_ccr(&(req->data.ccr));
-				break;
+		while(bytes_recv > 0){
+			//REVIEW: Need to check this.
+			req = (gx_msg*)(buf + msg_len) ;
+			switch (req->msg_type){
+			//switch (*(uint8_t*)buf){
+				case GX_CCR_MSG:
+					gx_send_ccr(&(req->data.ccr));
+					break;
 
-			case GX_RAA_MSG:
-				//gx_send_raa(&(req->data.cp_raa));
-				gx_send_raa(&buf[1]);
-				break;
+				case GX_RAA_MSG:
+					gx_send_raa(&(req->data.cp_raa));
+					//gx_send_raa(&buf[3]);
+					break;
 
-			default:
-				printf( "Unknown message received from CP app - %d\n",
-						req->msg_type);
+				default:
+					printf( "Unknown message received from CP app - %d\n",
+							req->msg_type);
+			}
+			msg_len = req->msg_len;
+			bytes_recv = bytes_recv - msg_len;
 		}
 	}
+	return 0;
 }
 
 void
@@ -139,7 +146,6 @@ int unixsock()
 	/* clear the set ahead of time */
 	FD_ZERO(&readfds);
 
-	struct sockaddr_un gx_app_sockaddr = {0};
 	struct sockaddr_un cp_app_sockaddr = {0};
 
 	g_gx_client_sock = create_ipc_channel();

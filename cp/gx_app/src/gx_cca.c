@@ -37,7 +37,6 @@ extern int g_gx_client_sock;
 int gx_send_cca(struct msg *rqst, void *data)
 {
    int ret = FD_REASON_OK;
-   struct avp *avp = NULL;
    struct msg *ans = rqst;
 
    /* construct the message */
@@ -162,26 +161,30 @@ int gx_cca_cb
 	}
 	/* Cal the length of buffer needed */
 	buflen = gx_cca_calc_length (&gx_resp.data.cp_cca);
-	send_buf = malloc(buflen + sizeof(gx_resp.msg_type));
+  gx_resp.msg_len = buflen + GX_HEADER_LEN;
+	send_buf = malloc(buflen + GX_HEADER_LEN);
 	if( send_buf == NULL){
  			printf("SendBuff memory fails\n");
 			return 1;
 	}
-	memset(send_buf, 0, buflen);
+	memset(send_buf, 0, buflen + GX_HEADER_LEN);
 	/* encoding the cca header value to buffer */
 	memcpy( send_buf, &gx_resp.msg_type, sizeof(gx_resp.msg_type));
-	if ( gx_cca_pack( &(gx_resp.data.cp_cca), (unsigned char *)(send_buf + sizeof(gx_resp.msg_type)), buflen ) == 0 )
+  memcpy( send_buf + sizeof(gx_resp.msg_type), &gx_resp.msg_len,
+                                    sizeof(gx_resp.msg_len));
+	if ( gx_cca_pack( &(gx_resp.data.cp_cca), (unsigned char *)(send_buf + GX_HEADER_LEN),
+                                                                        buflen ) == 0)
 	{
 		printf("CCA Packing failure \n");
 		goto err;
 	}
 
-	send_to_ipc_channel(g_gx_client_sock, send_buf, buflen + sizeof(gx_resp.msg_type) );
+	send_to_ipc_channel(g_gx_client_sock, send_buf, buflen + GX_HEADER_LEN);
 	goto fini2;
 err:
 	goto fini2;
 
-fini1:
+//fini1:	/*TODO: check if require*/
 
 fini2:
 	free(send_buf);

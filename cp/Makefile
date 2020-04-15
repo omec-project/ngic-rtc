@@ -92,6 +92,7 @@ CFLAGS += -I$(SRCDIR)/../oss_adapter/c3po_oss
 #endif
 
 CFLAGS += -Wno-psabi # suppress "The ABI for passing parameters with 64-byte alignment has changed in GCC 4.6"
+CFLAGS += -Wall
 CFLAGS += -Werror
 CFLAGS += -Wunused-variable
 
