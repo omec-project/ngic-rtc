@@ -514,7 +514,7 @@ start_cp_app(void )
 		exit(0);
 	}
 	/* Wait for few seconds and connect to gx_app socket for sending CCR and RAA */
-	sleep(5);
+	/*sleep(5);*/
 
 	int ret = -1;
 	while (ret) {

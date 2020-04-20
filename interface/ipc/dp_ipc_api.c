@@ -132,7 +132,6 @@ void iface_process_ipc_msgs(void)
 {
 	int n = 0, rv = 0;
 	fd_set readfds = {0};
-	struct timeval tv = {0};
 	struct sockaddr_in peer_addr = {0};
 
 	FD_ZERO(&readfds);
@@ -188,17 +187,7 @@ void iface_process_ipc_msgs(void)
 	n = my_sock.sock_fd + 1;
 
 #endif
-	/* wait until either socket has data
-	 *  ready to be recv()d (timeout 10.5 secs)
-	 */
-#ifdef NGCORE_SHRINK
-	tv.tv_sec = 1;
-	tv.tv_usec = 500000;
-#else
-	tv.tv_sec = 10;
-	tv.tv_usec = 500000;
-#endif
-	rv = select(n, &readfds, NULL, NULL, &tv);
+	rv = select(n, &readfds, NULL, NULL, NULL);
 	if (rv == -1) {
 		/*TODO: Need to Fix*/
 		//perror("select"); /* error occurred in select() */
