@@ -887,32 +887,30 @@ int cca_u_msg_handler_handover(void *data, void *unused)
 	context = pdn->context;
 	mb_req = &resp->gtpc_msg.mbr;
 
-	if(PGWC == pfcp_config.cp_type){
-		if((context->second_rat_flag == TRUE) || (context->sgwu_not_changed == TRUE)) {
+	if((PGWC == pfcp_config.cp_type) && ((context->second_rat_flag == TRUE) || (context->sgwu_not_changed == TRUE))) {
 
-			set_modify_bearer_response_handover(gtpv2c_tx, mb_req->header.teid.has_teid.seq, context,
-					bearer, mb_req);
+		set_modify_bearer_response_handover(gtpv2c_tx, mb_req->header.teid.has_teid.seq, context,
+				bearer, mb_req);
 
-			int payload_length = ntohs(gtpv2c_tx->gtpc.message_len)
-				+ sizeof(gtpv2c_tx->gtpc);
+		int payload_length = ntohs(gtpv2c_tx->gtpc.message_len)
+			+ sizeof(gtpv2c_tx->gtpc);
 
-			s5s8_recv_sockaddr.sin_addr.s_addr =
-				htonl(pdn->s5s8_sgw_gtpc_ipv4.s_addr);
+		s5s8_recv_sockaddr.sin_addr.s_addr =
+			htonl(pdn->s5s8_sgw_gtpc_ipv4.s_addr);
 
-			gtpv2c_send(s5s8_fd, tx_buf, payload_length,
-					(struct sockaddr *) &s5s8_recv_sockaddr,
-					s5s8_sockaddr_len, SENT);
+		gtpv2c_send(s5s8_fd, tx_buf, payload_length,
+				(struct sockaddr *) &s5s8_recv_sockaddr,
+				s5s8_sockaddr_len, SENT);
 
-			process_cp_li_msg_using_context(
-					context, tx_buf, payload_length,
-					pfcp_config.s5s8_ip.s_addr, s5s8_recv_sockaddr.sin_addr.s_addr,
-					pfcp_config.s5s8_port, s5s8_recv_sockaddr.sin_port);
+		process_cp_li_msg_using_context(
+				context, tx_buf, payload_length,
+				pfcp_config.s5s8_ip.s_addr, s5s8_recv_sockaddr.sin_addr.s_addr,
+				pfcp_config.s5s8_port, s5s8_recv_sockaddr.sin_port);
 
-			context->second_rat_flag = FALSE;
-			pdn->state =  CONNECTED_STATE;
+		context->second_rat_flag = FALSE;
+		pdn->state =  CONNECTED_STATE;
 
-			return 0;
-		}
+		return 0;
 	} else {
 
 		context->second_rat_flag = FALSE;

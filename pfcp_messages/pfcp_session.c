@@ -5472,7 +5472,7 @@ update_ue_context(mod_bearer_req_t *mb_req)
 						if(mb_req->bearer_contexts_to_be_modified[i].eps_bearer_id.ebi_ebi ==
 								temp_bearer->eps_bearer_id){
 							if((temp_bearer->s5s8_sgw_gtpu_ipv4.s_addr ==
-										mb_req->bearer_contexts_to_be_modified[i].s58_u_sgw_fteid.ipv4_address) ||
+										mb_req->bearer_contexts_to_be_modified[i].s58_u_sgw_fteid.ipv4_address) &&
 									(temp_bearer->s5s8_sgw_gtpu_teid ==
 									 mb_req->bearer_contexts_to_be_modified[i].s58_u_sgw_fteid.teid_gre_key)){
 								context->sgwu_not_changed = TRUE;
@@ -5822,34 +5822,32 @@ int process_pfcp_sess_mod_req_handover(mod_bearer_req_t *mb_req)
 
 
 #endif /* GX_BUILD */
-	if(PGWC == pfcp_config.cp_type){
-		if((context->second_rat_flag == TRUE) || (context->sgwu_not_changed == TRUE)) {
+	if((PGWC == pfcp_config.cp_type) && ((context->second_rat_flag == TRUE) || (context->sgwu_not_changed == TRUE))) {
 
-			uint8_t payload_length = 0;
-			bzero(&tx_buf, sizeof(tx_buf));
-			gtpv2c_header_t *gtpv2c_tx = (gtpv2c_header_t *)tx_buf;
-			set_modify_bearer_response_handover(gtpv2c_tx, mb_req->header.teid.has_teid.seq, context,
-					bearer, mb_req);
+		uint8_t payload_length = 0;
+		bzero(&tx_buf, sizeof(tx_buf));
+		gtpv2c_header_t *gtpv2c_tx = (gtpv2c_header_t *)tx_buf;
+		set_modify_bearer_response_handover(gtpv2c_tx, mb_req->header.teid.has_teid.seq, context,
+				bearer, mb_req);
 
-			payload_length = ntohs(gtpv2c_tx->gtpc.message_len)
-				+ sizeof(gtpv2c_tx->gtpc);
+		payload_length = ntohs(gtpv2c_tx->gtpc.message_len)
+			+ sizeof(gtpv2c_tx->gtpc);
 
-			s5s8_recv_sockaddr.sin_addr.s_addr =
-				htonl(pdn->s5s8_sgw_gtpc_ipv4.s_addr);
+		s5s8_recv_sockaddr.sin_addr.s_addr =
+			htonl(pdn->s5s8_sgw_gtpc_ipv4.s_addr);
 
-			gtpv2c_send(s5s8_fd, tx_buf, payload_length,
-					(struct sockaddr *) &s5s8_recv_sockaddr,
-					s5s8_sockaddr_len, SENT);
+		gtpv2c_send(s5s8_fd, tx_buf, payload_length,
+				(struct sockaddr *) &s5s8_recv_sockaddr,
+				s5s8_sockaddr_len, SENT);
 
-			process_cp_li_msg_using_context(
-					context, tx_buf, payload_length,
-					pfcp_config.s5s8_ip.s_addr, s5s8_recv_sockaddr.sin_addr.s_addr,
-					pfcp_config.s5s8_port, s5s8_recv_sockaddr.sin_port);
+		process_cp_li_msg_using_context(
+				context, tx_buf, payload_length,
+				pfcp_config.s5s8_ip.s_addr, s5s8_recv_sockaddr.sin_addr.s_addr,
+				pfcp_config.s5s8_port, s5s8_recv_sockaddr.sin_port);
 
 
-			context->second_rat_flag = FALSE;
-			return 0;
-		}
+		context->second_rat_flag = FALSE;
+		return 0;
 	} else {
 		context->second_rat_flag = FALSE;
 		ret = send_pfcp_sess_mod_req_handover(pdn, bearer, mb_req);
@@ -7409,7 +7407,7 @@ process_change_noti_request(change_noti_req_t *change_not_req)
 		}
 	}
 #ifdef GX_BUILD
-	if(flag_check != 0 ) {
+	if(flag_check != 0 || change_not_req->rat_type.header.len != 0){
 		ret = gen_ccru_request(pdn, bearer, flag_check);
 		return 0;
 	}

@@ -297,7 +297,8 @@ main(int argc, char **argv)
 			pfcp_config.dadmf_port, pfcp_config.pfcp_ip,
 			li_df_config, &uiLiCntr);
 	if (ret < 0) {
-		/* Error Condition Handling*/
+		clLog(clSystemLog, eCLSeverityCritical,
+				"Failed to register Control Plane on D-AMDF");
 	}
 
 	ret = fillup_li_df_hash(li_df_config, uiLiCntr);
