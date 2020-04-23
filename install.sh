@@ -19,6 +19,7 @@ SERVICE=3
 SGX_SERVICE=0
 SERVICE_NAME="Collocated CP and DP"
 source ./services.cfg
+source ./git_url.cfg
 export NGIC_DIR=$PWD
 echo "------------------------------------------------------------------------------"
 echo " NGIC_DIR exported as $NGIC_DIR"
@@ -30,14 +31,11 @@ INSMOD="/sbin/insmod"
 THIRD_PARTY_SW_PATH="third_party"
 DPDK_DOWNLOAD="https://fast.dpdk.org/rel/dpdk-18.02.tar.gz"
 DPDK_DIR=$NGIC_DIR/$THIRD_PARTY_SW_PATH/dpdk
-LINUX_SGX_SDK="https://github.com/intel/linux-sgx.git"
 LINUX_SGX_SDK_BRANCH_TAG="sgx_1.9"
 FREEDIAMETER_DIR=$NGIC_DIR/$THIRD_PARTY_SW_PATH/
-FREEDIAMETER="http://10.155.205.206/C3PO-NGIC/freeDiameter.git"
 CP_NUMA_NODE=0
 DP_NUMA_NODE=0
 
-OSS_UTIL_GIT_LINK="http://10.155.205.206/C3PO-NGIC/oss-util.git"
 OSS_UTIL_DIR="oss_adapter/c3po_oss/"
 
 #
@@ -502,7 +500,7 @@ download_hyperscan()
 	     mkdir $THIRD_PARTY_SW_PATH
         fi
         cd $THIRD_PARTY_SW_PATH
-	wget https://github.com/01org/hyperscan/archive/v4.1.0.tar.gz
+	wget $HYPERSCAN_GIT_LINK
 	tar -xvf v4.1.0.tar.gz
 	pushd hyperscan-4.1.0
 	mkdir build; pushd build
@@ -523,7 +521,7 @@ download_freediameter()
 	     mkdir $FREEDIAMETER_DIR
         fi
         pushd $FREEDIAMETER_DIR
-	git clone $FREEDIAMETER -b delivery_1.5
+	git clone $FREEDIAMETER
 	if [ $? -ne 0 ] ; then
 	                echo "Failed to clone FreeDiameter, please check the errors."
 	                return
@@ -612,7 +610,7 @@ step_3()
 install_oss_util()
 {
    pushd $NGIC_DIR/$OSS_UTIL_DIR
-   git clone -b delivery_1.6 $OSS_UTIL_GIT_LINK
+   git clone $OSS_UTIL_GIT_LINK
    pushd oss-util
    ./install.sh
    popd

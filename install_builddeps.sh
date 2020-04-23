@@ -2,11 +2,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2019 Intel Corporation
 
+source ./git_url.cfg
 THIRD_PARTY_SW_PATH="third_party"
 OSS_UTIL_DIR="oss-util"
 C3PO_OSS_DIR="oss_adapter/c3po_oss"
-OSS_UTIL_GIT_LINK="http://10.155.205.206/C3PO-NGIC/oss-util.git"
-FREEDIAMETER="http://10.155.205.206/C3PO-NGIC/freeDiameter.git"
 
 SERVICES="$1"
 SUDO=''
@@ -74,7 +73,7 @@ download_hyperscan()
         cd $DEPS_DIR
 	
         echo "Downloading HS and dependent libraries"
-        wget https://github.com/01org/hyperscan/archive/v4.1.0.tar.gz
+        wget $HYPERSCAN_GIT_LINK
         tar -xvf v4.1.0.tar.gz
         pushd hyperscan-4.1.0
         mkdir build; pushd build
@@ -96,7 +95,7 @@ download_freediameter()
              mkdir $THIRD_PARTY_SW_PATH
         fi
         pushd $THIRD_PARTY_SW_PATH
-        git clone $FREEDIAMETER -b delivery_1.5
+        git clone $FREEDIAMETER
         if [ $? -ne 0 ] ; then
                         echo "Failed to clone FreeDiameter, please check the errors."
                         return
@@ -175,7 +174,7 @@ install_oss_util()
      
         if [ ! -d $OSS_DIR ]; then
        	     echo "Cloning OSS-UTIL repo ...$OSS_UTIL_GIT_LINK"
-             git clone $OSS_UTIL_GIT_LINK -b delivery_1.6
+             git clone $OSS_UTIL_GIT_LINK
         fi
 
         cp $CUR_DIR/oss-util.sh $OSS_DIR/
