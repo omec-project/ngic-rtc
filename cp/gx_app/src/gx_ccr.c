@@ -234,10 +234,25 @@ int gx_send_ccr(void *data)
 		FDCHECK_MSG_ADD_AVP_OSTR( gxDict.avp_3gpp_ms_timezone, msg, MSG_BRW_LAST_CHILD, gx_ccr.tgpp_ms_timezone.val,
 				gx_ccr.tgpp_ms_timezone.len, rval, goto err );
 
+	/* VS: test selection mode AVP */
+//	if( gx_ccr.presence.tgpp_selection_mode)
+//		FDCHECK_MSG_ADD_AVP_OSTR( gxDict.avp_3gpp_selection_mode, msg,
+//				MSG_BRW_LAST_CHILD, gx_ccr.tgpp_selection_mode.val,
+//				gx_ccr.tgpp_selection_mode.len, rval, goto err );
+
+	/*AALI: Test Serving Network*/
+
+
 	if( gx_ccr.presence.tgpp_user_location_info)
 		FDCHECK_MSG_ADD_AVP_OSTR( gxDict.avp_3gpp_user_location_info, msg,
 				MSG_BRW_LAST_CHILD, gx_ccr.tgpp_user_location_info.val,
 				gx_ccr.tgpp_user_location_info.len, rval, goto err );
+
+
+//	if( gx_ccr.presence.tgpp_sgsn_mcc_mnc)
+//		FDCHECK_MSG_ADD_AVP_OSTR( gxDict.avp_3gpp_sgsn_mcc_mnc, msg,
+//				MSG_BRW_LAST_CHILD, gx_ccr.tgpp_sgsn_mcc_mnc.val,
+//				gx_ccr.tgpp_sgsn_mcc_mnc.len, rval, goto err );
 
 	if(gx_ccr.presence.fixed_user_location_info ){
 

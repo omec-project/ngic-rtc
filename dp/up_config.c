@@ -14,6 +14,11 @@
  * limitations under the License.
  */
 
+/*
+ * NOTE: clLogger initalization happens after parsing of configuration file,
+ *       thus clLog cannot be used here, instead printf is used.
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <getopt.h>
@@ -26,7 +31,11 @@
 #include "up_main.h"
 #include "pipeline/epc_packet_framework.h"
 
-/* prints the usage statement and quits with an error message */
+/**
+ * @brief  : prints the usage statement and quits with an error message
+ * @param  : No param
+ * @return : Returns nothing
+ */
 static inline void dp_print_usage(void)
 {
 	printf("\nDataplane supported command line arguments are:\n\n");
@@ -192,7 +201,12 @@ static inline void dp_print_usage(void)
 	exit(0);
 }
 
-/* parse ethernet address */
+/**
+ * @brief  : parse ethernet address
+ * @param  : hwaddr, structure to parsed ethernet address
+ * @param  : str, input string
+ * @return : Returns 0 in case of success , 1 otherwise
+ */
 static inline int parse_ether_addr(struct ether_addr *hwaddr, const char *str)
 {
 	/* 01 34 67 90 23 56 */
@@ -228,6 +242,12 @@ static inline int parse_ether_addr(struct ether_addr *hwaddr, const char *str)
 	return 1;
 }
 
+/**
+ * @brief  : Set unused core
+ * @param  : core
+ * @param  : used_coremask
+ * @return : Returns nothing
+ */
 static inline void set_unused_lcore(int *core, uint64_t *used_coremask)
 {
 	if (*core != -1) {
@@ -248,18 +268,11 @@ static inline void set_unused_lcore(int *core, uint64_t *used_coremask)
 }
 
 /**
- * Function to parse command line config.
- *
- * @param app
- *	global app config structure.
- * @param argc
- *	number of arguments.
- * @param argv
- *	list of arguments.
- *
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : Function to parse command line config.
+ * @param  : app, global app config structure.
+ * @param  : argc, number of arguments.
+ * @param  : argv, list of arguments.
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 static inline int
 parse_config_args(struct app_params *app, int argc, char **argv)
@@ -305,12 +318,13 @@ parse_config_args(struct app_params *app, int argc, char **argv)
 		{"periodic_timer", required_argument, 0, 'P'},
 		{"transmit_count", required_argument, 0, 'Q'},
 		{"teidri", required_argument, 0, 'R'},
+		{"dp_logger", required_argument, 0, 'L'},
 		{NULL, 0, 0, 0}
 	};
 
 	optind = 0;/* reset getopt lib */
 
-	while ((opt = getopt_long(argc, argv, "i:m:s:n:w:l:f:h:a:e:I:O:T:P:Q:R:",
+	while ((opt = getopt_long(argc, argv, "i:m:s:n:w:l:f:h:a:e:I:O:T:P:Q:R:L:",
 					spgw_opts, &option_index)) != EOF) {
 		switch (opt) {
 		case 'h':
@@ -609,8 +623,17 @@ parse_config_args(struct app_params *app, int argc, char **argv)
 			/* Configure TEIDRI val */
 		case 'R':
 			app->teidri_val = atoi(optarg);
+			if( app->teidri_val < 0 || app->teidri_val > 7 ){
+				printf("Invalid TEIDRI value %d. Please configure TEIDRI value between 0 to 7\n",
+						app->teidri_val);
+				dp_print_usage();
+				app->teidri_val = 0;
+				return -1;
+			}
 			break;
-
+		case 'L':
+			app->dp_logger = atoi(optarg);
+			break;
 		default:
 			dp_print_usage();
 			return -1;
@@ -678,20 +701,10 @@ parse_config_args(struct app_params *app, int argc, char **argv)
 
 
 	RTE_LOG(NOTICE, DP, "TEIDRI :  %d\n",app->teidri_val);
+	RTE_LOG(NOTICE, DP, "DP_LOGGER :  %d\n",app->dp_logger);
 	return 0;
 }
 
-/**
- * Function to initialize the dp config.
- *
- * @param argc
- *	number of arguments.
- * @param argv
- *	list of arguments.
- *
- * @return
- *	None
- */
 void dp_init(int argc, char **argv)
 {
 	if (parse_config_args(&app, argc, argv) < 0)

@@ -19,6 +19,7 @@ SERVICE=3
 SGX_SERVICE=0
 SERVICE_NAME="Collocated CP and DP"
 source ./services.cfg
+source ./git_url.cfg
 export NGIC_DIR=$PWD
 echo "------------------------------------------------------------------------------"
 echo " NGIC_DIR exported as $NGIC_DIR"
@@ -30,14 +31,11 @@ INSMOD="/sbin/insmod"
 THIRD_PARTY_SW_PATH="third_party"
 DPDK_DOWNLOAD="https://fast.dpdk.org/rel/dpdk-18.02.tar.gz"
 DPDK_DIR=$NGIC_DIR/$THIRD_PARTY_SW_PATH/dpdk
-LINUX_SGX_SDK="https://github.com/intel/linux-sgx.git"
 LINUX_SGX_SDK_BRANCH_TAG="sgx_1.9"
 FREEDIAMETER_DIR=$NGIC_DIR/$THIRD_PARTY_SW_PATH/
-FREEDIAMETER="http://gsgit.gslab.com/Sprint-Repos/freediameter.git"
 CP_NUMA_NODE=0
 DP_NUMA_NODE=0
 
-OSS_UTIL_GIT_LINK="http://gsgit.gslab.com/Sprint-Repos/oss-util_old.git"
 OSS_UTIL_DIR="oss_adapter/c3po_oss/"
 
 #
@@ -116,29 +114,43 @@ step_2()
 {
 	TITLE="Download and Install"
 	CONFIG_NUM=1
-	TEXT[1]="Agree to download"
-	FUNC[1]="get_agreement_download"
-	TEXT[2]="Download packages"
-	FUNC[2]="install_libs"
-	TEXT[3]="Download DPDK zip"
-	FUNC[3]="download_dpdk_zip"
-	TEXT[4]="Install DPDK"
-	FUNC[4]="install_dpdk"
+	INDEX_CNT=1
+
+	TEXT[INDEX_CNT]="Agree to download"
+	FUNC[INDEX_CNT]="get_agreement_download"
+	((INDEX_CNT++))
+
+	TEXT[INDEX_CNT]="Download packages"
+	FUNC[INDEX_CNT]="install_libs"
+	((INDEX_CNT++))
+
+        TEXT[INDEX_CNT]="Download and install oss-util for cli"
+        FUNC[INDEX_CNT]="install_oss_util"
+	((INDEX_CNT++))
+
+	TEXT[INDEX_CNT]="Download DPDK zip"
+	FUNC[INDEX_CNT]="download_dpdk_zip"
+	((INDEX_CNT++))
+
+	TEXT[INDEX_CNT]="Install DPDK"
+	FUNC[INDEX_CNT]="install_dpdk"
+	((INDEX_CNT++))
+
 	if [ "$SERVICE" -ne 1 ] ; then
-	TEXT[5]="Download hyperscan"
-	FUNC[5]="download_hyperscan"
-	if [ "$SGX_SERVICE" -eq 1 ] ; then
-	TEXT[6]="Download Intel(R) SGX SDK"
-	FUNC[6]="download_linux_sgx"
-	fi
+		TEXT[INDEX_CNT]="Download hyperscan"
+		FUNC[INDEX_CNT]="download_hyperscan"
+		((INDEX_CNT++))
+
+		if [ "$SGX_SERVICE" -eq 1 ] ; then
+			TEXT[INDEX_CNT]="Download Intel(R) SGX SDK"
+			FUNC[INDEX_CNT]="download_linux_sgx"
+			((INDEX_CNT++))
+		fi
 	fi
 	if [ "$SERVICE" -ne 2 ] ; then
-	TEXT[5]="Download and install oss-util for DNS and cli"
-    FUNC[5]="install_oss_util"
-	fi
-	if [ "$SERVICE" -ne 2 ] ; then
-	TEXT[6]="Download FreeDiameter"
-	FUNC[6]="download_freediameter"
+		TEXT[INDEX_CNT]="Download FreeDiameter"
+		FUNC[INDEX_CNT]="download_freediameter"
+		((INDEX_CNT++))
 	fi
 }
 
@@ -488,7 +500,7 @@ download_hyperscan()
 	     mkdir $THIRD_PARTY_SW_PATH
         fi
         cd $THIRD_PARTY_SW_PATH
-	wget https://github.com/01org/hyperscan/archive/v4.1.0.tar.gz
+	wget $HYPERSCAN_GIT_LINK
 	tar -xvf v4.1.0.tar.gz
 	pushd hyperscan-4.1.0
 	mkdir build; pushd build
@@ -598,8 +610,7 @@ step_3()
 install_oss_util()
 {
    pushd $NGIC_DIR/$OSS_UTIL_DIR
-   git clone -b oss_util_dev $OSS_UTIL_GIT_LINK
-   mv oss-util_old oss-util
+   git clone $OSS_UTIL_GIT_LINK
    pushd oss-util
    ./install.sh
    popd

@@ -39,6 +39,12 @@
 #define OFFSET_PORT_ID	0
 
 
+/**
+ * @brief  : Set port id
+ * @param  : m, rte mbuf pointer
+ * @param  : port_id, port number
+ * @return : Returns nothing
+ */
 static inline void epc_lb_set_port_id(struct rte_mbuf *m, uint32_t port_id)
 {
 	struct epc_meta_data *meta_data =
@@ -51,6 +57,15 @@ static inline void epc_lb_set_port_id(struct rte_mbuf *m, uint32_t port_id)
 
 	*offset_port_id = port_id + (core_id << 1);
 }
+
+/**
+ * @brief  : EPC action handler
+ * @param  : p, rte pipeline pointer
+ * @param  : pkts, rte mbuf
+ * @param  : n, number of packets
+ * @param  : arg, unused param
+ * @return : Returns 0 on success
+ */
 static int
 epc_lb_action_handler(struct rte_pipeline *p, struct rte_mbuf **pkts,
 			uint32_t n, void *arg)

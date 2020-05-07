@@ -43,6 +43,14 @@
 
 static epc_packet_handler epc_worker_func[NUM_SPGW_PORTS];
 
+/**
+ * @brief  : Packet handler for epc
+ * @param  : p, rte pipeline pointer
+ * @param  : pkts, rte mbuf
+ * @param  : n, number of packets
+ * @param  : arg_p, wk_index
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 static inline int port_in_func(struct rte_pipeline *p, struct rte_mbuf **pkts,
 		uint32_t n, void *arg_p)
 {

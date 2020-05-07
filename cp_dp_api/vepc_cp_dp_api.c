@@ -57,18 +57,16 @@ extern int pfcp_fd;
 extern struct sockaddr_in upf_pfcp_sockaddr;
 
 /**
- * @brief Pack the message which has to be sent to DataPlane.
- * @param mtype
- *	mtype - Message type.
- * @param dp_id
- *	dp_id - identifier which is unique across DataPlanes.
- * @param param
- *	param - parameter to be parsed based on msg type.
- * @param  msg_payload
- *	msg_payload - message payload to be sent.
- * @return
- *	0 - success
- *	-1 - fail
+ * @brief  : Pack the message which has to be sent to DataPlane.
+ * @param  : mtype
+ *           mtype - Message type.
+ * @param  : dp_id
+ *           dp_id - identifier which is unique across DataPlanes.
+ * @param  : param
+ *           param - parameter to be parsed based on msg type.
+ * @param  : msg_payload
+ *           msg_payload - message payload to be sent.
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 static int
 build_dp_msg(enum dp_msg_type mtype, struct dp_id dp_id,
@@ -132,14 +130,12 @@ build_dp_msg(enum dp_msg_type mtype, struct dp_id dp_id,
 	return 0;
 }
 /**
- * Send message to DP.
- * @param dp_id
- *	dp_id - identifier which is unique across DataPlanes.
- * @param  msg_payload
- *	msg_payload - message payload to be sent.
- * @return
- *	0 - success
- *	-1 - fail
+ * @brief  : Send message to DP.
+ * @param  : dp_id
+ *           dp_id - identifier which is unique across DataPlanes.
+ * @param  : msg_payload
+ *           msg_payload - message payload to be sent.
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 static int
 send_dp_msg(struct dp_id dp_id, struct msgbuf *msg_payload)
@@ -159,15 +155,13 @@ send_dp_msg(struct dp_id dp_id, struct msgbuf *msg_payload)
 	header->message_len = htons(pfd_msg_len - 4);
 
 	if (pfcp_send(pfcp_fd, (char *)pfd_msg, pfd_msg_len, &upf_pfcp_sockaddr) < 0 ){
-		printf("Error sending: %i\n",errno);
+		clLog(sxlogger, eCLSeverityCritical,"Error sending: %i\n",errno);
 		free(pfd_mgmt_req.app_ids_pfds[0].pfd_context[0].pfd_contents[0].cstm_pfd_cntnt);
 		return -1;
 	}
 	else {
-		get_current_time(cp_stats.stat_timestamp);
 		update_cli_stats(upf_pfcp_sockaddr.sin_addr.s_addr,
-								PFCP_PFD_MGMT_REQ,
-								REQ,cp_stats.stat_timestamp);
+								PFCP_PFD_MGMT_REQ,SENT,SX);
 	}
 	free(pfd_mgmt_req.app_ids_pfds[0].pfd_context[0].pfd_contents[0].cstm_pfd_cntnt);
 	return 0;

@@ -54,15 +54,11 @@
 uint64_t acl_rule_stats[MAX_SDF_RULE_NUM];
 
 /**
- * Function for SDF lookup.
- *
- * @param m
- *	pointer to pkts.
- * @param nb_rx
- *	num. of pkts.
- *
- * @return
- *	array containing search results for each input buf
+ * @brief  : Function for SDF lookup.
+ * @param  : m, pointer to pkts.
+ * @param  : nb_rx, num. of pkts.
+ * @param  : indx, acl table index
+ * @return : Returns array containing search results for each input buf
  */
 uint32_t *
 sdf_lookup(struct rte_mbuf **m, int nb_rx, uint32_t indx);
@@ -71,96 +67,63 @@ sdf_lookup(struct rte_mbuf **m, int nb_rx, uint32_t indx);
 /******************** UP SDF functions **********************/
 
 /**
- * Get ACL Table index for SDF entry
- *
- * @param  pkt_filter_entry
- *	sdf packet filter entry structure
- *
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : Get ACL Table index for SDF entry
+ * @param  : pkt_filter_entry, sdf packet filter entry structure
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 get_acl_table_indx(struct sdf_pkt_filter *pkt_filter);
 
 /**
- *  Add SDF rules
- *
- * @param  pkt_filter
- *	sdf packet filter entry structure
- *
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : Add SDF rules
+ * @param  : pkt_filter, sdf packet filter entry structure
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 up_sdf_filter_entry_add(uint32_t indx, struct sdf_pkt_filter *pkt_filter);
 
 /**
- *  Create the ACL table and add SDF rules
- *
- *
- * @return
- *    ACL Table index
+ * @brief  : Create the ACL table and add SDF rules
+ * @param  : precedence, PDR precedence
+ * @param  : direction, uplink or downlink
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 default_up_filter_entry_add(uint32_t precedence, uint8_t direction);
 
 /**
- * Delete SDF rules.
- *
- * @param  ACL Table Index
- *
- * @param  pkt_filter_entry
- *	sdf packet filter entry structure
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : Delete sdf filter rules in acl table. The entries are
+ *           first removed in local memory and then updated on ACL table.
+ * @param  : indx, ACL Table Index
+ * @param  : pkt_filter_entry, sdf packet filter entry structure
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 up_sdf_filter_entry_delete(uint32_t indx,
 		struct sdf_pkt_filter *pkt_filter_entry);
 
-
 /**
- * Delete SDF ACL table.
- *
- * @param  ACL Table Index
- *
- * @param  pkt_filter_entry
- *	sdf packet filter entry structure
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : Delete SDF rules table
+ * @param  : indx, Acl table index
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 up_sdf_filter_table_delete(uint32_t indx);
 
 /**
- * Add default SDF entry
- *
- * @param Index
- *      ACL Table index
- *
- * @param precedence
- *     PDR precedence
- *
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : Add default SDF entry
+ * @param  : indx, Acl table index
+ * @param  : precedence, PDR precedence
+ * @param  : direction, uplink or downlink
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 up_sdf_default_entry_add(uint32_t indx, uint32_t precedence, uint8_t direction);
 
 /**
- * Modify default SDF entry action
- *
- * @param rule_id
- *      sdf rule_id
- *
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : Modify default SDF entry action
+ * @param  : rule_id, sdf rule_id
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 //int
 //up_sdf_default_entry_action_modify(uint32_t rule_id);
@@ -169,12 +132,33 @@ up_sdf_default_entry_add(uint32_t indx, uint32_t precedence, uint8_t direction);
 //int
 //cb_sdf_filter_entry_add(struct msgbuf *msg_payload);
 
+/**
+ * @brief  : Check Gate Status
+ * @param  : pdr, pdr information
+ * @param  : n, number of packets
+ * @param  : pkts_mask
+ * @param  : pkts_queue_mask
+ * @param  : direction, uplink or downlink
+ * @return : Returns nothing
+ */
 void
 qer_gating(pdr_info_t **pdr, uint32_t n, uint64_t *pkts_mask,
 			uint64_t *pkts_queue_mask, uint8_t direction);
 
 
-/* swap the src and dst address for DL traffic.*/
+/**
+ * @brief  : swap the src and dst address for DL traffic.
+ * @param  : str, ip address in string format
+ * @return : Returns nothing
+ */
 void swap_src_dst_ip(char *str);
+
+int
+remove_rule_entry_acl(uint32_t indx,
+			struct sdf_pkt_filter *pkt_filter_entry);
+
+int
+sdf_table_delete(uint32_t indx,
+				struct sdf_pkt_filter *pkt_filter_entry);
 #endif /* _UP_ACL_H_ */
 

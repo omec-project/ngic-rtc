@@ -42,10 +42,11 @@
 #define IPV6_IE_LENGTH                                        (16)
 
 /**
- * Partial list of cause values from 3GPP TS 29.274, Table 8.4-1 containing
- * values currently used by Control Plane.
+ * @brief  : Partial list of cause values from 3GPP TS 29.274, Table 8.4-1 containing
+ *           values currently used by Control Plane.
  */
 enum cause_value {
+	GTPV2C_CAUSE_PGW_NOT_RESPONDING = 12,
 	GTPV2C_CAUSE_REQUEST_ACCEPTED = 16,
 	GTPV2C_CAUSE_REQUEST_ACCEPTED_PARTIALLY = 17,
 	GTPV2C_CAUSE_NEW_PDN_TYPE_NETWORK_PREFERENCE = 18,
@@ -100,6 +101,9 @@ enum ie_instance {
  *
  * IE Type extension is not currently supported.
  */
+/**
+ * @brief  : Maintains information about gtpv2c ie
+ */
 typedef struct gtpv2c_ie_t {
 	uint8_t type;
 	uint16_t length;
@@ -115,6 +119,9 @@ typedef struct gtpv2c_ie_t {
  * libgtpv2c header file.
  * Following structure has dependency on functionality
  * which can not to be tested now.
+ */
+/**
+ * @brief  : Maintains information of cause ie
  */
 typedef struct cause_ie {
 	struct cause_ie_hdr_t {
@@ -142,6 +149,9 @@ typedef struct cause_ie {
  * Following structure has dependency on functionality
  * which can not to be tested now.
  */
+/**
+ * @brief  : Maintains information of ambr ie
+ */
 typedef struct ambr_ie {
 	uint32_t ambr_uplink;
 	uint32_t ambr_downlink;
@@ -155,6 +165,9 @@ typedef struct ambr_ie {
  * libgtpv2c header file.
  * Following structure has dependency on functionality
  * which can not to be tested now.
+ */
+/**
+ * @brief  : Maintains information of emp bearer id ie
  */
 typedef struct eps_bearer_id_ie {
 	uint8_t ebi :4;
@@ -170,6 +183,9 @@ typedef struct eps_bearer_id_ie {
  * libgtpv2c header file.
  * Following structure has dependency on functionality
  * which can not to be tested now.
+ */
+/**
+ * @brief  : Maintains information of paa ie
  */
 typedef struct paa_ie {
 	struct paa_ie_hdr_t {
@@ -195,6 +211,9 @@ typedef struct paa_ie {
  *
  * Definition used by bearer_qos_ie and flow_qos_ie.
  */
+/**
+ * @brief  : Maintains information  about Quality of Service data segment
+ */
 typedef struct qos_segment_t {
 	/** QoS class identifier - defined by 3GPP TS 23.203 */
 	uint8_t qci;
@@ -217,6 +236,9 @@ typedef struct qos_segment_t {
  * IE specific data for Bearer Quality of Service (QoS) as defined by
  * 3GPP TS 29.274, clause 8.15 for the IE type value 80.
  */
+/**
+ * @brief  : Maintains information of ar priority ie
+ */
 typedef struct ar_priority_ie_t {
 	uint8_t preemption_vulnerability :1;
 	uint8_t spare1 :1;
@@ -233,6 +255,9 @@ typedef struct ar_priority_ie_t {
  * libgtpv2c header file.
  * Following structure has dependency on functionality
  * which can not to be tested now.
+ */
+/**
+ * @brief  : Maintains information of bearer qos ie
  */
 typedef struct bearer_qos_ie {
 	/** QoS class identifier - defined by 3GPP TS 23.203 */
@@ -269,6 +294,9 @@ typedef struct bearer_qos_ie {
  * IE specific data for Flow Quality of Service (QoS) as defined by
  * 3GPP TS 29.274, clause 8.16 for the IE type value 81.
  */
+/**
+ * @brief  : Maintains information of flow qos ie
+ */
 typedef struct flow_qos_ie_t {
 	qos_segment qos;
 } flow_qos_ie;
@@ -276,6 +304,9 @@ typedef struct flow_qos_ie_t {
 /**
  * IE specific data for Bearer Traffic Flow Template (TFT) as defined by
  * 3GPP TS 24.008, clause 10.5.6.12 for the IE type value 84.
+ */
+/**
+ * @brief  : Maintains information of bearer tft ie
  */
 typedef struct bearer_tft_ie_t {
 	/* For the TFT_OP_DELETE_EXISTING operation and TFT_OP_NO_OP,
@@ -298,6 +329,7 @@ typedef struct bearer_tft_ie_t {
 #define TFT_BIDIRECTIONAL						(48)
 
 #define TFT_CREATE_NEW							(32)
+#define TFT_REPLACE_FILTER_EXISTING				(128)
 #define TFT_PROTO_IDENTIFIER_NEXT_HEADER_TYPE	(48)
 #define TFT_SINGLE_SRC_PORT_TYPE				(64)
 #define TFT_SINGLE_REMOTE_PORT_TYPE				(80)
@@ -313,6 +345,9 @@ typedef struct bearer_tft_ie_t {
  * Packet filter list when the TFT operation is TFT_OP_DELETE_EXISTING
  * From Figure 10.5.144a/3GPP TS 24.008
  */
+/**
+ * @brief  : Maintains information of packet filter for delete operation
+ */
 typedef struct delete_pkt_filter_t {
 	uint8_t pkt_filter_id :4;
 	uint8_t spare :4;
@@ -320,6 +355,9 @@ typedef struct delete_pkt_filter_t {
 
 /**
  * Packet filter component from Table 10.5.162/3GPP TS 24.008
+ */
+/**
+ * @brief  : Maintains information packet filter component
  */
 typedef struct packet_filter_component_t {
 	uint8_t type;
@@ -352,6 +390,9 @@ typedef struct packet_filter_component_t {
  * For future use with operations TFT_OP_ADD_FILTER_EXISTING and
  * TFT_OP_REPLACE_FILTER_EXISTING - not currently supported by Control Plane
  */
+/**
+ * @brief  : Maintains information packet filter to be created
+ */
 typedef struct create_pkt_filter_t {
 	uint8_t pkt_filter_id :4;
 	uint8_t direction :2;
@@ -366,7 +407,9 @@ typedef struct create_pkt_filter_t {
 #define TFT_DIRECTION_UPLINK_ONLY        (2)
 #define TFT_DIRECTION_BIDIRECTIONAL      (3)
 
-/* Flow Status AVP describes whether the IP flow(s) are enabled or disabled.*/
+/**
+ * @brief  : Flow Status AVP describes whether the IP flow(s) are enabled or disabled.
+ */
 enum flow_status {
         FL_ENABLED_UPLINK = 0,
         FL_ENABLED_DOWNLINK = 1,
@@ -430,6 +473,9 @@ typedef struct bearer_tft_ie_t traffic_aggregation_description;
  * Following structure has dependency on functionality
  * which can not to be tested now.
  */
+/**
+ * @brief  : Maintains information of fteid ie
+ */
 typedef struct fteid_ie {
 	struct fteid_ie_hdr_t {
 		uint8_t interface_type :6;
@@ -451,6 +497,9 @@ typedef struct fteid_ie {
  * IE specific data for Delay Value as definedby 3GPP TS 29.274, clause 8.27
  * for the IE type value 92.
  */
+/**
+ * @brief  : Maintains information delay ie
+ */
 typedef struct delay_ie_t {
 	uint8_t delay_value;
 } delay_ie;
@@ -462,6 +511,9 @@ typedef struct delay_ie_t {
  * Charging characteristics information element is defined in 3GPP TS 32.251
  *
  * For the encoding of this information element see 3GPP TS 32.298
+ */
+/**
+ * @brief  : Maintains information of charging characteristics ie
  */
 typedef struct charging_characteristics_ie_t {
 	uint8_t b0 :1;
@@ -492,12 +544,18 @@ typedef struct charging_characteristics_ie_t {
  * Following structure has dependency on functionality
  * which can not to be tested now.
  */
+/**
+ * @brief  : Maintains information of pdn type ie
+ */
 typedef struct pdn_type_ie {
 	uint8_t ipv4 :1;
 	uint8_t ipv6 :1;
 	uint8_t spare :6;
 } pdn_type_ie;
 
+/**
+ * @brief  : Maintains information of fqdn type ie
+ */
 typedef struct fqdn_type_ie {
 	uint8_t fqdn[256];
 } fqdn_type_ie;

@@ -2365,11 +2365,12 @@ int encode_pfcp_fqcsid_ie_t(pfcp_fqcsid_ie_t *value,
 
 	/*TODO: Revisit this for change in yang */
 	ENCODE_NODE_ADDRESS_COND_1(value, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
+	//ENCODE_IPV4_ADDRESS_COND_2(value, 32, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
 
 	//TODO: Revisit this for change in yang
 
-	for(int i =0; i < value->number_of_csids ;i++)
-		encoded += encode_bits(value-> pdn_conn_set_ident[i], 16, buf + (encoded/8), encoded % CHAR_SIZE);
+	for(int i = 0; i < value->number_of_csids; i++)
+		encoded += encode_bits(value->pdn_conn_set_ident[i], 16, buf + (encoded/8), encoded % CHAR_SIZE);
 
 	//ENCODE_PDN_CONN_SET_IDENT_COND(value, 16, buf+(encoded)/8, encoded % CHAR_SIZE, encoded);
 

@@ -39,6 +39,9 @@
 
 #define CONN_ENTRIY_FILE "../config/static_arp.cfg"
 
+/**
+ * @brief  : Maintains gtpu header info
+ */
 typedef struct gtpuHdr_s {
 	uint8_t version_flags;
 	uint8_t msg_type;
@@ -48,12 +51,22 @@ typedef struct gtpuHdr_s {
 } __attribute__((__packed__)) gtpuHdr_t;
 
 
-/* GTPU-Recovery Information Element */
+/**
+ * @brief  : Maintains GTPU-Recovery Information Element
+ */
 typedef struct gtpu_recovery_ie_t {
     uint8_t type;
     uint8_t restart_cntr;
 } gtpu_recovery_ie;
 
+/**
+ * @brief  : Set values in recovery ie
+ * @param  : recovery, ie structure to be filled
+ * @param  : type, ie type
+ * @param  : length, total length
+ * @param  : instance, instance value
+ * @return : Returns nothing
+ */
 static void
 set_recovery_ie_t(gtp_recovery_ie_t *recovery, uint8_t type, uint16_t length,
 					uint8_t instance)
@@ -65,10 +78,11 @@ set_recovery_ie_t(gtp_recovery_ie_t *recovery, uint8_t type, uint16_t length,
 	recovery->recovery = rstCnt;
 
 }
-/* Brief: Function to build GTP-U echo request
- * @ Input param: echo_pkt rte_mbuf pointer
- * @ Output param: none
- * Return: void
+/**
+ * @brief  : Function to build GTP-U echo request
+ * @param  : echo_pkt rte_mbuf pointer
+ * @param  : gtpu_seqnb, sequence number
+ * @return : void
  */
 void
 build_gtpv2_echo_request(gtpv2c_header_t *echo_pkt, uint16_t gtpu_seqnb)

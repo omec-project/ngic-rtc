@@ -42,6 +42,7 @@ SRCS-y += cp_stats.c
 SRCS-y += cp_config.c
 SRCS-y += debug_str.c
 SRCS-y += gtpv2c_set_ie.c
+SRCS-y += cp_timer.c
 SRCS-y += packet_filters.c
 SRCS-y += gtpc_session.c
 SRCS-y += gtpv2c_error_rsp.c
@@ -78,10 +79,13 @@ SRCS-y += $(SRCDIR)/../interface/udp/vepc_udp.o
 
 SRCS-y += $(SRCDIR)/../cp_dp_api/vepc_cp_dp_api.o
 
-ifneq (,$(findstring C3PO_OSS, $(CFLAGS)))
-SRCS-y += $(SRCDIR)/../oss_adapter/c3po_oss/cp_adapter.o
+SRCS-y += $(SRCDIR)/../oss_adapter/c3po_oss/gw_adapter.o
 CFLAGS += -I$(SRCDIR)/../oss_adapter/c3po_oss
-endif
+
+#ifneq (,$(findstring C3PO_OSS, $(CFLAGS)))
+#SRCS-y += $(SRCDIR)/../oss_adapter/c3po_oss/cp_adapter.o
+#CFLAGS += -I$(SRCDIR)/../oss_adapter/c3po_oss
+#endif
 
 CFLAGS += -Wno-psabi # suppress "The ABI for passing parameters with 64-byte alignment has changed in GCC 4.6"
 CFLAGS += -Werror
@@ -171,6 +175,17 @@ ifneq (,$(findstring USE_REST, $(CFLAGS)))
 	SRCS-y += $(SRCDIR)/../restoration/restoration_timer.o
 	SRCS-y += restoration_peer.c
 	SRCS-y += gtpv2c_echo_req.c
+endif
+
+#un-comment below line to enable FQ-CSID support in the control-plane
+CFLAGS += -DUSE_CSID
+
+ifneq (,$(findstring USE_CSID, $(CFLAGS)))
+ #VS:Support partial failure FQ-CSID m/c
+ SRCS-y += $(SRCDIR)/../pfcp_messages/csid_init.o
+ SRCS-y += $(SRCDIR)/../pfcp_messages/csid_api.o
+ SRCS-y += $(SRCDIR)/../pfcp_messages/csid_peer_init.o
+ SRCS-y += $(SRCDIR)/../pfcp_messages/csid_cp_cleanup.o
 endif
 
 # Un-comment below line to read fake cp config.

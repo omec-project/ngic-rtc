@@ -21,6 +21,7 @@
 #include "util.h"
 #include "packet_filters.h"
 #include "vepc_cp_dp_api.h"
+#include "clogger.h"
 #ifdef SDN_ODL_BUILD
 #include "nb.h"
 #endif
@@ -69,6 +70,11 @@ uint64_t ebs;
 uint16_t ulambr_idx;
 uint16_t dlambr_idx;
 
+/**
+ * @brief  : Converts char string to number
+ * @param  : name , char string to be converted
+ * @return : Returns converted number
+ */
 static uint32_t name_to_num(const char *name)
 {
 	uint32_t num = 0;
@@ -154,7 +160,7 @@ push_sdf_rules(uint16_t index)
 			sdf_filters[index]->proto, sdf_filters[index]->proto_mask);
 		if (sdf_filters[index]->direction ==
 				TFT_DIRECTION_BIDIRECTIONAL)
-			fprintf(stderr, "Ignoring uplink portion of packet "
+			clLog(clSystemLog, eCLSeverityCritical, "Ignoring uplink portion of packet "
 					"filter for now\n");
 	} else if (sdf_filters[index]->direction & TFT_DIRECTION_UPLINK_ONLY) {
 		snprintf(pktf.u.rule_str, MAX_LEN, "%s/%"PRIu8" %s/%"PRIu8" %"
@@ -169,7 +175,7 @@ push_sdf_rules(uint16_t index)
 			sdf_filters[index]->proto, sdf_filters[index]->proto_mask);
 	}
 
-	printf("Installing %s pkt_filter #%"PRIu16" : %s",
+	clLog(clSystemLog, eCLSeverityDebug,"Installing %s pkt_filter #%"PRIu16" : %s",
 	    direction_str[sdf_filters[index]->direction], index,
 		pktf.u.rule_str);
 
@@ -178,13 +184,12 @@ push_sdf_rules(uint16_t index)
 }
 
 /**
-*Installs a sdf rules in the CP & DP.
-*@param new_packet_filter
-*  A sdf rules yet to be installed
-*@return
-*  \- >= 0 - on success - indicates index of sdf rules
-*  \- < 0 - on error
-*/
+ * @brief  : Installs a sdf rules in the CP & DP.
+ * @param  : new_packet_filter
+ *           A sdf rules yet to be installed
+ * @return : - >= 0 - on success - indicates index of sdf rules
+ *           - < 0 - on error
+ */
 static int
 install_sdf_rules(const pkt_fltr *new_packet_filter)
 {
@@ -194,7 +199,7 @@ install_sdf_rules(const pkt_fltr *new_packet_filter)
 	pkt_fltr *filter = rte_zmalloc_socket(NULL, sizeof(pkt_fltr),
 	    RTE_CACHE_LINE_SIZE, rte_socket_id());
 	if (filter == NULL) {
-		fprintf(stderr, "Failure to allocate dedicated packet filter "
+		clLog(clSystemLog, eCLSeverityCritical, "Failure to allocate dedicated packet filter "
 				"structure: %s (%s:%d)\n",
 				rte_strerror(rte_errno),
 				__FILE__,
@@ -218,13 +223,12 @@ install_sdf_rules(const pkt_fltr *new_packet_filter)
 }
 
 /**
-*Installs a pcc rules in the CP & DP.
-*@param new_pcc_entry
-*  A pcc rules yet to be installed
-*@return
-*  \- >= 0 - on success - indicates num_pcc_filter of pcc rules
-*  \- < 0 - on error
-*/
+ * @brief  : Installs a pcc rules in the CP & DP.
+ * @param  : new_pcc_entry
+ *           A pcc rules yet to be installed
+ * @return : - >= 0 - on success - indicates num_pcc_filter of pcc rules
+ *           - < 0 - on error
+ */
 static int
 install_pcc_rules(struct pcc_rules new_pcc_entry)
 {
@@ -237,7 +241,7 @@ install_pcc_rules(struct pcc_rules new_pcc_entry)
 			sizeof(new_pcc_entry),
 			RTE_CACHE_LINE_SIZE, rte_socket_id());
 	if (NULL == pcc_filter) {
-		fprintf(stderr, "Failure to allocate memeory for pcc filter "
+		clLog(clSystemLog, eCLSeverityCritical, "Failure to allocate memeory for pcc filter "
 				"structure: %s (%s:%d)\n",
 				rte_strerror(rte_errno),
 				__FILE__,
@@ -262,6 +266,12 @@ install_pcc_rules(struct pcc_rules new_pcc_entry)
 	return num_pcc_filter;
 }
 
+/**
+ * @brief  : Creates and adds meter profile entries
+ * @param  : dp_id , dp id
+ * @param  : new_mtr_entry, meter entry to be added
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 static int
 install_meter_profiles(struct dp_id dp_id, struct mtr_entry new_mtr_entry)
 {
@@ -272,7 +282,7 @@ install_meter_profiles(struct dp_id dp_id, struct mtr_entry new_mtr_entry)
 			sizeof(new_mtr_entry),
 			RTE_CACHE_LINE_SIZE, rte_socket_id());
 	if (mtr_profile == NULL) {
-		fprintf(stderr, "Failure to allocate memeory for meter profile "
+		clLog(clSystemLog, eCLSeverityCritical, "Failure to allocate memeory for meter profile "
 				"structure: %s (%s:%d)\n",
 				rte_strerror(rte_errno),
 				__FILE__,
@@ -294,6 +304,11 @@ install_meter_profiles(struct dp_id dp_id, struct mtr_entry new_mtr_entry)
 	return num_mtr_profiles;
 }
 
+/**
+ * @brief  : Initialize meter profiles
+ * @param  : No param
+ * @return : Returns nothing
+ */
 static void
 init_mtr_profile(void)
 {
@@ -349,6 +364,11 @@ init_mtr_profile(void)
 	}
 }
 
+/**
+ * @brief  : Initialize sdf rules
+ * @param  : No param
+ * @return : Returns nothing
+ */
 static void
 init_sdf_rules(void)
 {
@@ -412,7 +432,7 @@ init_sdf_rules(void)
 				/*rte_panic("Invalid address %s in section %s "
 						"sdf config file %s\n",
 						entry, sectionname, SDF_RULE_FILE);*/
-				fprintf(stderr, "Invalid address %s in section %s "
+				clLog(clSystemLog, eCLSeverityCritical, "Invalid address %s in section %s "
 						"sdf config file %s. Setting to default 32.\n",
 						entry, sectionname, SDF_RULE_FILE);
 				 pf.remote_ip_mask = 32;
@@ -455,7 +475,7 @@ init_sdf_rules(void)
 				/*rte_panic("Invalid address %s in section %s "
 						"sdf config file %s\n",
 						entry, sectionname, SDF_RULE_FILE);*/
-				fprintf(stderr, "Invalid address %s in section %s "
+				clLog(clSystemLog, eCLSeverityCritical, "Invalid address %s in section %s "
 						"sdf config file %s. Setting to default 32.\n",
 						entry, sectionname, SDF_RULE_FILE);
 				pf.remote_ip_mask = 32;
@@ -484,6 +504,11 @@ init_sdf_rules(void)
 	num_sdf_filters = FIRST_FILTER_ID; /*Reset num_sdf_filters*/
 }
 
+/**
+ * @brief  : Initialize pcc rules
+ * @param  : No param
+ * @return : Returns nothing
+ */
 static void
 init_pcc_rules(void)
 {
@@ -666,24 +691,29 @@ init_packet_filters(void)
 	init_sdf_rules();
 }
 
+/**
+ * @brief  : Prints adc rule info
+ * @param  : adc_rule, rule info to be printed
+ * @return : Returns nothing
+ */
 static void print_adc_rule(struct adc_rules adc_rule)
 {
-	printf("%-8u ", adc_rule.rule_id);
+	clLog(clSystemLog, eCLSeverityDebug,"%-8u ", adc_rule.rule_id);
 	switch (adc_rule.sel_type) {
 	case DOMAIN_IP_ADDR:
-		printf("%-10s " IPV4_ADDR, "IP",
+		clLog(clSystemLog, eCLSeverityDebug,"%-10s " IPV4_ADDR, "IP",
 			IPV4_ADDR_HOST_FORMAT(adc_rule.u.domain_ip.u.ipv4_addr));
 		break;
 	case DOMAIN_IP_ADDR_PREFIX:
-		printf("%-10s " IPV4_ADDR"/%d ", "IP_PREFIX",
+		clLog(clSystemLog, eCLSeverityDebug,"%-10s " IPV4_ADDR"/%d ", "IP_PREFIX",
 			IPV4_ADDR_HOST_FORMAT(adc_rule.u.domain_prefix.ip_addr.u.ipv4_addr),
 			adc_rule.u.domain_prefix.prefix);
 		break;
 	case DOMAIN_NAME:
-		printf("%-10s %-35s ", "DOMAIN", adc_rule.u.domain_name);
+		clLog(clSystemLog, eCLSeverityDebug,"%-10s %-35s ", "DOMAIN", adc_rule.u.domain_name);
 		break;
 	default:
-		printf("ERROR IN ADC RULE");
+		clLog(clSystemLog, eCLSeverityCritical,"ERROR IN ADC RULE");
 	}
 }
 

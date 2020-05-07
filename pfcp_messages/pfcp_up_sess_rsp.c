@@ -17,6 +17,7 @@
 #include "epc_arp.h"
 #include "pfcp_enum.h"
 #include "pfcp_set_ie.h"
+#include "clogger.h"
 
 extern struct rte_hash *arp_hash_handle[NUM_SPGW_PORTS];
 
@@ -29,7 +30,7 @@ fill_pfcp_session_est_resp(pfcp_sess_estab_rsp_t *pfcp_sess_est_resp,
 	uint32_t seq  = 0;
 	uint32_t node_value = 0;
 
-	memset(pfcp_sess_est_resp, 0, sizeof(pfcp_sess_estab_rsp_t)) ;
+	//memset(pfcp_sess_est_resp, 0, sizeof(pfcp_sess_estab_rsp_t)) ;
 
 	set_pfcp_seid_header((pfcp_header_t *) &(pfcp_sess_est_resp->header),
 			PFCP_SESSION_ESTABLISHMENT_RESPONSE, HAS_SEID, seq);
@@ -122,26 +123,6 @@ fill_pfcp_session_modify_resp(pfcp_sess_mod_rsp_t *pfcp_sess_modify_resp,
 }
 
 void
-fill_pfcp_sess_set_del_resp(pfcp_sess_set_del_rsp_t *pfcp_sess_set_del_resp)
-{
-
-	uint32_t seq  = 1;
-	uint32_t node_value = 0 ;
-
-	memset(pfcp_sess_set_del_resp, 0, sizeof(pfcp_sess_set_del_rsp_t));
-
-	set_pfcp_seid_header((pfcp_header_t *) &(pfcp_sess_set_del_resp->header),
-		PFCP_SESSION_SET_DELETION_RESPONSE, NO_SEID, seq);
-
-	set_node_id(&(pfcp_sess_set_del_resp->node_id), node_value);
-	// TODO : REmove the CAUSE_VALUES_REQUESTACCEPTEDSUCCESS in set_cause
-	set_cause(&(pfcp_sess_set_del_resp->cause), REQUESTACCEPTED);
-	//TODO Replace IE_NODE_ID with the  real offendID
-	set_offending_ie(&(pfcp_sess_set_del_resp->offending_ie), PFCP_IE_NODE_ID );
-
-}
-
-void
 fill_pfcp_sess_del_resp(pfcp_sess_del_rsp_t *
 		pfcp_sess_del_resp, uint8_t cause, int offend)
 {
@@ -175,11 +156,13 @@ int sess_modify_with_endmarker(far_info_t *far)
 
 	/*Retrieve the destination MAC*/
 	edmk.dst_ip = htonl(far->frwdng_parms.outer_hdr_creation.ipv4_address);
+	edmk.teid = far->frwdng_parms.outer_hdr_creation.teid;
+
 	ret = rte_hash_lookup_data(arp_hash_handle[S1U_PORT_ID],
 			&edmk.dst_ip, (void **)&ret_arp_data);
 
 	if (ret < 0) {
-		RTE_LOG_DP(DEBUG, DP, "IP is not resolved for sending endmarker:%u\n",
+		clLog(clSystemLog, eCLSeverityDebug, "IP is not resolved for sending endmarker:%u\n",
 				edmk.dst_ip);
 		return -1;
 	}

@@ -50,7 +50,8 @@ if [ "${SPGW_CFG}" == "01" ]; then
 				--teidri $TEIDRI \
 				--transmit_timer $TRANSMIT_TIMER	\
 				--periodic_timer $PERIODIC_TIMER \
-				--transmit_count $TRANSMIT_COUNT"
+				--transmit_count $TRANSMIT_COUNT \
+				--dp_logger $DP_LOGGER"
 elif [ "${SPGW_CFG}" == "02" ]; then
 	ARGS="-l $CORELIST -n 4 --socket-mem $NUMA0_MEMORY,$NUMA1_MEMORY 	\
 				--file-prefix dp	\
@@ -71,7 +72,8 @@ elif [ "${SPGW_CFG}" == "02" ]; then
 				--teidri $TEIDRI \
 				--transmit_timer $TRANSMIT_TIMER	\
 				--periodic_timer $PERIODIC_TIMER \
-				--transmit_count $TRANSMIT_COUNT"
+				--transmit_count $TRANSMIT_COUNT \
+				--dp_logger $DP_LOGGER"
 elif [ "${SPGW_CFG}" == "03" ]; then
 	ARGS="-l $CORELIST -n 4 --socket-mem $NUMA0_MEMORY,$NUMA1_MEMORY 	\
 				--file-prefix dp	\
@@ -94,7 +96,8 @@ elif [ "${SPGW_CFG}" == "03" ]; then
 				--teidri $TEIDRI \
 				--transmit_timer $TRANSMIT_TIMER	\
 				--periodic_timer $PERIODIC_TIMER \
-				--transmit_count $TRANSMIT_COUNT"
+				--transmit_count $TRANSMIT_COUNT \
+				--dp_logger $DP_LOGGER"
 fi
 
 

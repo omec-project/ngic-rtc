@@ -29,6 +29,9 @@
 #define MASTER_FILE_ENTRY_POSTFIX   "\n"
 #define DEFAULT_MASTER_FILENAME DEFAULT_CDR_PATH"master.csv"
 
+/**
+ * @brief  : Maintains information related to master file
+ */
 struct master_file_entry_t {
 	unsigned char md5_digest[MD5_DIGEST_LENGTH];
 	char *absolute_filename;
@@ -37,6 +40,9 @@ struct master_file_entry_t {
 	uint32_t num_entries;
 };
 
+/**
+ * @brief  : Maintains information related to master file and header
+ */
 struct master_field_t {
 	const char *header;
 	void (*print_value)(FILE *file, struct master_file_entry_t *entry);
@@ -44,12 +50,24 @@ struct master_field_t {
 
 static char *master_cdr_filename;
 
+/**
+ * @brief  : Writes absolute filename in file entry
+ * @param  : file, filename
+ * @param  : entry, master file entry
+ * @return : Returns nothing
+ */
 static void
 filename_master_cb(FILE *file, struct master_file_entry_t *entry)
 {
 	fprintf(file, "%s", entry->absolute_filename);
 }
 
+/**
+ * @brief  : Writes time in file
+ * @param  : file, filename
+ * @param  : t, time
+ * @return : Returns nothing
+ */
 static void
 time_master_helper(FILE *file, struct tm *t) {
 	char time_str[RECORD_TIME_LENGTH];
@@ -57,6 +75,12 @@ time_master_helper(FILE *file, struct tm *t) {
 	fprintf(file, "%s", time_str);
 }
 
+/**
+ * @brief  : Writes start time in file or NULL if file dose not have any entry
+ * @param  : file, filename
+ * @param  : entry, master file entry
+ * @return : Returns nothing
+ */
 static void start_time_cb(FILE *file, struct master_file_entry_t *entry)
 {
 	if (entry->num_entries == 0)
@@ -65,6 +89,12 @@ static void start_time_cb(FILE *file, struct master_file_entry_t *entry)
 		time_master_helper(file, &entry->start_tm);
 }
 
+/**
+ * @brief  : Writes end time in file or NULL if file dose not have any entry
+ * @param  : file, filename
+ * @param  : entry, master file entry
+ * @return : Returns nothing
+ */
 static void end_time_cb(FILE *file, struct master_file_entry_t *entry)
 {
 	if (entry->num_entries == 0)
@@ -73,11 +103,23 @@ static void end_time_cb(FILE *file, struct master_file_entry_t *entry)
 		time_master_helper(file, &entry->end_tm);
 }
 
+/**
+ * @brief  : Writes total count of entries
+ * @param  : file, filename
+ * @param  : entry, master file entry
+ * @return : Returns nothing
+ */
 static void num_entries_cb(FILE *file, struct master_file_entry_t *entry)
 {
 	fprintf(file, "%"PRIu32, entry->num_entries);
 }
 
+/**
+ * @brief  : Writes md5 sum
+ * @param  : file, filename
+ * @param  : entry, master file entry
+ * @return : Returns nothing
+ */
 static void md5_cb(FILE *file, struct master_file_entry_t *entry)
 {
 	unsigned i;
@@ -94,6 +136,13 @@ struct master_field_t master_fields[] = {
 		{"MD5", md5_cb}
 };
 
+/**
+ * @brief  : calculates md5 sum for file
+ * @param  : file, filename
+ * @param  : filesize, filesize
+ * @param  : entry, master file entry
+ * @return : Returns 0 in case of success , 1 otherwise
+ */
 static int
 calc_md5(FILE *file, off_t filesize, struct master_file_entry_t *master_entry)
 {
@@ -104,7 +153,7 @@ calc_md5(FILE *file, off_t filesize, struct master_file_entry_t *master_entry)
 	int ret;
 	ret = MD5_Init(&md5_context);
 	if (ret != 1) {
-		printf("MD5 Init failed for file - ");
+		clLog(clSystemLog, eCLSeverityCritical,"MD5 Init failed for file - ");
 		return EXIT_FAILURE;
 	}
 	rewind(file);
@@ -113,25 +162,31 @@ calc_md5(FILE *file, off_t filesize, struct master_file_entry_t *master_entry)
 				sizeof(buffer), file);
 		read += r;
 		if (r < sizeof(buffer) && read != filesize) {
-			fprintf(stderr, "Read error on %s - %s - ", __func__,
+			clLog(clSystemLog, eCLSeverityCritical, "Read error on %s - %s - ", __func__,
 					strerror(errno));
 			return EXIT_FAILURE;
 		}
 
 		ret = MD5_Update(&md5_context, buffer, r);
 		if (ret != 1) {
-			fprintf(stderr, "MD5 Update failed for file - ");
+			clLog(clSystemLog, eCLSeverityCritical, "MD5 Update failed for file - ");
 			return EXIT_FAILURE;
 		}
 	} while (read < filesize);
 	ret = MD5_Final(master_entry->md5_digest, &md5_context);
 	if (ret != 1) {
-		fprintf(stderr, "MD5 Final failed for file - ");
+		clLog(clSystemLog, eCLSeverityCritical, "MD5 Final failed for file - ");
 		return EXIT_FAILURE;
 	}
 	return EXIT_SUCCESS;
 }
 
+/**
+ * @brief  : Parse records in file
+ * @param  : file, filename
+ * @param  : entry, master file entry
+ * @return : Returns 0 in case of success , 1 otherwise
+ */
 static int
 parse_records(FILE *file,
 		struct master_file_entry_t *master_entry)
@@ -150,7 +205,7 @@ parse_records(FILE *file,
 	/* get header */
 	ret = fgets(buffer, BUFFER_SIZE, file);
 	if (ret == NULL) {
-		fprintf(stderr, "Unable to read header - ");
+		clLog(clSystemLog, eCLSeverityCritical, "Unable to read header - ");
 		return EXIT_FAILURE;
 	}
 
@@ -162,13 +217,13 @@ parse_records(FILE *file,
 				MASTER_FILE_ENTRY_POSTFIX
 				MASTER_FILE_ENTRY_SEPARATOR, &tok);
 		if (entry_values[i] == NULL) {
-			fprintf(stderr, "Failed to tokenize record - ");
+			clLog(clSystemLog, eCLSeverityCritical, "Failed to tokenize record - ");
 			return EXIT_FAILURE;
 		}
 
 		res = strcmp(entry_values[i], cdr_fields[i].header);
 		if (res) {
-			fprintf(stderr, "Header mismatch - ");
+			clLog(clSystemLog, eCLSeverityCritical, "Header mismatch - ");
 			return EXIT_FAILURE;
 		}
 	}
@@ -187,7 +242,7 @@ parse_records(FILE *file,
 					MASTER_FILE_ENTRY_POSTFIX
 					MASTER_FILE_ENTRY_SEPARATOR);
 			if (entry_values[i] == NULL) {
-				fprintf(stderr, "Failed to tokenize record - ");
+				clLog(clSystemLog, eCLSeverityCritical, "Failed to tokenize record - ");
 				return EXIT_FAILURE;
 			}
 		}
@@ -195,7 +250,7 @@ parse_records(FILE *file,
 		ret = strptime(entry_values[CDR_TIME_FIELD_INDEX],
 				RECORD_TIME_FORMAT, &entry_tm);
 		if (ret == NULL) {
-			fprintf(stderr, "Failed to parse time format - ");
+			clLog(clSystemLog, eCLSeverityCritical, "Failed to parse time format - ");
 			return EXIT_FAILURE;
 		}
 
@@ -215,6 +270,13 @@ parse_records(FILE *file,
 	return EXIT_SUCCESS;
 }
 
+/**
+ * @brief  : Creates master file entry
+ * @param  : master_file, master filename
+ * @param  : old_filename, old filename
+ * @param  : new_filename, new filename
+ * @return : Returns nothing
+ */
 static void
 create_master_entry(FILE *master_file,
 		const char *old_filename,
@@ -228,19 +290,19 @@ create_master_entry(FILE *master_file,
 	ret = stat(old_filename, &statbuf);
 	FILE *file = fopen(old_filename, "r");
 	if (file == NULL) {
-		printf("Unable to open %s to finalize record\n", old_filename);
+		clLog(clSystemLog, eCLSeverityDebug,"Unable to open %s to finalize record\n", old_filename);
 		return;
 	}
 	ret = parse_records(file, &master_entry);
 	if (ret != EXIT_SUCCESS) {
-		fprintf(stderr, "Failed to parse records of %s "
+		clLog(clSystemLog, eCLSeverityCritical, "Failed to parse records of %s "
 				"(%s:%d)\n",
 				old_filename, __FILE__, __LINE__);
 		return;
 	}
 	ret = calc_md5(file, statbuf.st_size, &master_entry);
 	if (ret != EXIT_SUCCESS) {
-		fprintf(stderr, "Failed to calculate MD5 of %s "
+		clLog(clSystemLog, eCLSeverityCritical, "Failed to calculate MD5 of %s "
 				"(%s:%d)\n",
 				old_filename, __FILE__, __LINE__);
 		return;
@@ -250,11 +312,11 @@ create_master_entry(FILE *master_file,
 
 	ret = rename(old_filename, new_filename);
 	if (ret)
-		fprintf(stderr, "Failed to rename %s (%s:%d)\n",
+		clLog(clSystemLog, eCLSeverityCritical, "Failed to rename %s (%s:%d)\n",
 				old_filename, __FILE__, __LINE__);
 	master_entry.absolute_filename = realpath(new_filename, NULL);
 	if (ret)
-		fprintf(stderr, "Failed to retrieve realpath of %s "
+		clLog(clSystemLog, eCLSeverityCritical, "Failed to retrieve realpath of %s "
 				"(%s:%d)\n",
 				new_filename, __FILE__, __LINE__);
 
@@ -265,6 +327,11 @@ create_master_entry(FILE *master_file,
 	fprintf(master_file, MASTER_FILE_ENTRY_POSTFIX);
 }
 
+/**
+ * @brief  : Creates master directory
+ * @param  : No param
+ * @return : Returns nothing
+ */
 static void
 create_master_dir(void)
 {
@@ -318,13 +385,13 @@ finalize_cur_cdrs(const char *cdr_path)
 		ret = snprintf(old_filename, PATH_MAX, "%s%s",
 				cdr_path, dir_entry->d_name);
 		if (ret > PATH_MAX || ret < 0)
-			fprintf(stderr, "Failed to finalize %s (%s:%d)\n",
+			clLog(clSystemLog, eCLSeverityCritical, "Failed to finalize %s (%s:%d)\n",
 					dir_entry->d_name, __FILE__, __LINE__);
 		memcpy(dot, CDR_CSV_EXTENSION, sizeof(CDR_CSV_EXTENSION));
 		ret = snprintf(new_filename, PATH_MAX, "%s%s",
 				cdr_path, dir_entry->d_name);
 		if (ret > PATH_MAX || ret < 0)
-			fprintf(stderr, "Failed to finalize %s (%s:%d)\n",
+			clLog(clSystemLog, eCLSeverityCritical, "Failed to finalize %s (%s:%d)\n",
 					dir_entry->d_name, __FILE__, __LINE__);
 		create_master_entry(master_file, old_filename, new_filename);
 	}

@@ -53,15 +53,18 @@ extern uint16_t cp_nb_port;
 
 extern udp_sock_t my_sock;
 
-/* CP DP communication message type*/
+/**
+ * @brief  : CP DP communication message type
+ */
 enum cp_dp_comm {
 	COMM_QUEUE,
 	COMM_SOCKET,
 	COMM_ZMQ,
 	COMM_END,
 };
+
 /**
- * CP DP Communication message structure.
+ * @brief  : CP DP Communication message structure.
  */
 struct comm_node {
 	int status;					/*set if initialized*/
@@ -73,22 +76,19 @@ struct comm_node {
 struct comm_node comm_node[COMM_END];
 struct comm_node *active_comm_msg;
 
-
 /**
- * Registor CP DP Communication message type.
- * @param id
- *	id - identifier for type of communication.
- * @param  init
- *	init - initialize function.
- * @param  send
- *	send - send function.
- * @param  recv
- *	recv - receive function.
- * @param  destroy
- *	destroy - destroy function.
- *
- * @return
- *	None
+ * @brief  : Registor CP DP Communication message type.
+ * @param  : id
+ *           id - identifier for type of communication.
+ * @param  : init
+ *           init - initialize function.
+ * @param  : send
+ *           send - send function.
+ * @param  : recv
+ *           recv - receive function.
+ * @param  : destroy
+ *           destroy - destroy function.
+ * @return : Returns nothing
  */
 void register_comm_msg_cb(enum cp_dp_comm id,
 		int (*init)(void),
@@ -97,69 +97,61 @@ void register_comm_msg_cb(enum cp_dp_comm id,
 		int (*destroy)(void));
 
 /**
- * Set CP DP Communication type.
- * @param id
- *	id - identifier for type of communication.
- *
- * @return
- *	0 - success
- *	-1 - fail
+ * @brief  : Set CP DP Communication type.
+ * @param  : id
+ *           id - identifier for type of communication.
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int set_comm_type(enum cp_dp_comm id);
+
 /**
- * Unset CP DP Communication type.
- * @param id
- *	id - identifier for type of communication.
- *
- * @return
- *	0 - success
- *	-1 - fail
+ * @brief  : Unset CP DP Communication type.
+ * @param  : id
+ *           id - identifier for type of communication.
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int unset_comm_type(enum cp_dp_comm id);
+
 /**
- * Process CP DP Communication msg type.
- * @param buf
- *	buf - message buffer.
- *
- * @return
- *	0 - success
- *	-1 - fail
+ * @brief  : Process CP DP Communication msg type.
+ * @param  : buf
+ *           buf - message buffer.
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int process_comm_msg(void *buf);
 
-
 /**
- * Process PFCP message.
- * @param buf_rx
- *	buf - message buffer.
- * @param bytes_rx
- *  received message buffer size
- * @return
- *	0 - success
- *	-1 - fail
+ * @brief  : Process PFCP message.
+ * @param  : buf_rx
+ *           buf - message buffer.
+ * @param  : bytes_rx
+ *           received message buffer size
+ * @return : Returns 0 in case of success , -1 otherwise
  */
-
 int process_pfcp_msg(uint8_t *buf_rx,
 		struct sockaddr_in *peer_addr);
+
 /**
- * Process DP CP Response
- * @param buf
- *	buf - message buffer.
- *
- * @return
- *	0 - success
- *	-1 - fail
+ * @brief  : Process DP CP Response
+ * @param  : buf
+ *           buf - message buffer.
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int process_resp_msg(void *buf);
+
 /**
- * @brief Initialize iface message passing
- *
- * This function is not thread safe and should only be called once by DP.
+ * @brief  : Initialize iface message passing
+ *           This function is not thread safe and should only be called once by DP.
+ * @param  : No param
+ * @return : Returns nothing
  */
 void iface_module_constructor(void);
 
 /**
- * @brief Functino to handle signals.
+ * @brief  : Functino to handle signals.
+ * @param  : signo
+ *           signal number signal to be handled
+ * @return : Returns nothing
  */
 void sig_handler(int signo);
 

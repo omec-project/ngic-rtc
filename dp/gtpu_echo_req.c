@@ -22,6 +22,7 @@
 #include "ipv4.h"
 #include "gtpu.h"
 #include "util.h"
+#include "clogger.h"
 
 #define IP_PROTO_UDP   17
 #define UDP_PORT_GTPU  2152
@@ -35,6 +36,9 @@
 
 #define PKT_SIZE    54
 
+/**
+ * @brief  : Maintains data of gtpu header
+ */
 typedef struct gtpuHdr_s {
 	uint8_t version_flags;
 	uint8_t msg_type;
@@ -43,10 +47,10 @@ typedef struct gtpuHdr_s {
 	uint16_t seq_no;		/**< Optional fields if E, S or PN flags set */
 } __attribute__((__packed__)) gtpuHdr_t;
 
-/* Brief: Function to set checksum of IPv4 and UDP header
- * @ Input param: echo_pkt rte_mbuf pointer
- * @ Output param: none
- * Return: void
+/**
+ * @brief  : Function to set checksum of IPv4 and UDP header
+ * @param  : echo_pkt rte_mbuf pointer
+ * @return : Returns nothing
  */
 static void set_checksum(struct rte_mbuf *echo_pkt) {
 	struct ipv4_hdr *ipv4hdr = get_mtoip(echo_pkt);
@@ -57,6 +61,13 @@ static void set_checksum(struct rte_mbuf *echo_pkt) {
 	ipv4hdr->hdr_checksum = rte_ipv4_cksum(ipv4hdr);
 }
 
+/**
+ * @brief  : Encapsulate gtpu header
+ * @param  : m, rte_mbuf pointer
+ * @param  : gtpu_seqnb, sequence number
+ * @param  : type, message type
+ * @return : Returns nothing
+ */
 static __inline__ void encap_gtpu_hdr(struct rte_mbuf *m, uint16_t gtpu_seqnb, uint8_t type)
 {
 	uint32_t teid = 0;
@@ -76,6 +87,12 @@ static __inline__ void encap_gtpu_hdr(struct rte_mbuf *m, uint16_t gtpu_seqnb, u
 }
 
 
+/**
+ * @brief  : Create and initialize udp header
+ * @param  : m, rte_mbuf pointer
+ * @param  : entry, peer node information
+ * @return : Returns nothing
+ */
 static __inline__ void create_udp_hdr(struct rte_mbuf *m, peerData *entry)
 {
 	uint16_t len = rte_pktmbuf_data_len(m)- ETH_HDR_LEN - IPV4_HDR_LEN;
@@ -89,6 +106,12 @@ static __inline__ void create_udp_hdr(struct rte_mbuf *m, peerData *entry)
 }
 
 
+/**
+ * @brief  : Create and initialize ipv4 header
+ * @param  : m, rte_mbuf pointer
+ * @param  : entry, peer node information
+ * @return : Returns nothing
+ */
 static __inline__ void create_ipv4_hdr(struct rte_mbuf *m, peerData *entry)
 {
 	uint16_t len = rte_pktmbuf_data_len(m)- ETH_HDR_LEN;
@@ -106,6 +129,12 @@ static __inline__ void create_ipv4_hdr(struct rte_mbuf *m, peerData *entry)
 }
 
 
+/**
+ * @brief  : Create and initialize ether header
+ * @param  : m, rte_mbuf pointer
+ * @param  : entry, peer node information
+ * @return : Returns nothing
+ */
 static __inline__ void create_ether_hdr(struct rte_mbuf *m, peerData *entry)
 {
 	struct ether_hdr *eth_hdr = (struct ether_hdr*)rte_pktmbuf_mtod(m, void*);
@@ -115,11 +144,6 @@ static __inline__ void create_ether_hdr(struct rte_mbuf *m, peerData *entry)
 }
 
 
-/* Brief: Function to build GTP-U echo request
- * @ Input param: echo_pkt rte_mbuf pointer
- * @ Output param: none
- * Return: void
- */
 void build_echo_request(struct rte_mbuf *echo_pkt, peerData *entry, uint16_t gtpu_seqnb)
 {
 	echo_pkt->pkt_len = PKT_SIZE;
@@ -151,8 +175,19 @@ void build_endmarker_and_send(struct sess_info_endmark *edmk)
 	endmk_pkt->pkt_len = PKT_SIZE;
 	endmk_pkt->data_len = PKT_SIZE;
 
-	
-	encap_gtpu_hdr(endmk_pkt, ++seq, GTPU_END_MARKER_REQUEST);
+	uint16_t len = rte_pktmbuf_data_len(endmk_pkt) - (ETH_HDR_LEN + IPV4_HDR_LEN + UDP_HDR_LEN);
+
+	len -= GTPU_HDR_LEN;
+
+	gtpuHdr_t  *gtpu_hdr = (gtpuHdr_t*)(rte_pktmbuf_mtod(endmk_pkt, unsigned char *) +
+			ETH_HDR_LEN + IPV4_HDR_LEN + UDP_HDR_LEN);
+
+	gtpu_hdr->version_flags = (GTPU_VERSION << 5) | (GTP_PROTOCOL_TYPE_GTP << 4) | (GTP_FLAG_SEQNB);
+	gtpu_hdr->msg_type = GTPU_END_MARKER_REQUEST;
+	gtpu_hdr->teid = htonl(edmk->teid);
+	gtpu_hdr->seq_no = htons(++seq);
+	gtpu_hdr->tot_len = htons(len);
+
 	create_udp_hdr(endmk_pkt, &entry);
 	create_ipv4_hdr(endmk_pkt, &entry);
 	create_ether_hdr(endmk_pkt, &entry);
@@ -162,7 +197,7 @@ void build_endmarker_and_send(struct sess_info_endmark *edmk)
 
 	if (rte_ring_enqueue(shared_ring[S1U_PORT_ID], endmk_pkt) == -ENOBUFS) {
 		rte_pktmbuf_free(endmk_pkt);
-		RTE_LOG_DP(ERR, DP, "%s::Can't queue endmarker pkt- ring full..."
+		clLog(clSystemLog, eCLSeverityCritical, "%s::Can't queue endmarker pkt- ring full..."
 				" Dropping pkt\n", __func__);
 
 	}

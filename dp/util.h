@@ -77,6 +77,9 @@
 				(uint8_t)(((a) & 0x0000ff00) >> 8), \
 				(uint8_t)((a) & 0x000000ff)
 
+/**
+ * @brief  : Maintains table information
+ */
 struct table {
 	char name[MAX_LEN];
 	void *root;
@@ -88,13 +91,9 @@ struct table {
 };
 
 /**
- * Function to return pointer to udp headers.
- *
- * @param m
- *	mbuf pointer
- *
- * @return
- *	pointer to udp headers
+ * @brief  : Function to return pointer to udp headers.
+ * @param  : m, mbuf pointer
+ * @return : Returns pointer to udp headers
  */
 static inline struct udp_hdr *get_mtoudp(struct rte_mbuf *m)
 {
@@ -103,19 +102,12 @@ static inline struct udp_hdr *get_mtoudp(struct rte_mbuf *m)
 }
 
 /**
- * Function to construct udp header.
- *
- * @param m
- *	mbuf pointer
- * @param len
- *	len of header
- * @param sport
- *	src port
- * @param dport
- *	dst port
- *
- * @return
- *	None
+ * @brief  : Function to construct udp header.
+ * @param  : m, mbuf pointer
+ * @param  : len, len of header
+ * @param  : sport, src port
+ * @param  : dport, dst port
+ * @return : Returns nothing
  */
 void
 construct_udp_hdr(struct rte_mbuf *m, uint16_t len,

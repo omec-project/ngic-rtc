@@ -25,31 +25,29 @@
 
 
 /**
- * Open Session Charging data record file.
+ * @brief  : Open Session Charging data record file.
+ * @param  : No param
+ * @return : Returns nothing
  */
 void
 sess_cdr_init(void);
 
 /**
- * Clear the record file content.
+ * @brief  : Clear the record file content.
+ * @param  : No param
+ * @return : Returns nothing
  */
 void
 sess_cdr_reset(void);
 
 /**
- * Export CDR record to file.
- * @param session
- *	dp bearer session.
- * @param name
- *	string to identify the type of CDR.
- * @param id
- *	identification number based on cdr type. It can be
- *	either bearerid, adc rule id, flow id or rating group.
- * @param charge_record
- *	cdr structure which holds the pkt counts and bytes.
- *
- * @return
- * Void
+ * @brief  : Export CDR record to file.
+ * @param  : session, dp bearer session.
+ * @param  : name, string to identify the type of CDR.
+ * @param  : id, identification number based on cdr type. It can be
+ *           either bearerid, adc rule id, flow id or rating group.
+ * @param  : charge_record, cdr structure which holds the pkt counts and bytes.
+ * @return : Returns nothing
  */
 void
 export_cdr_record(struct dp_session_info *session, char *name,

@@ -2,11 +2,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2019 Intel Corporation
 
+source ./git_url.cfg
 THIRD_PARTY_SW_PATH="third_party"
 OSS_UTIL_DIR="oss-util"
 C3PO_OSS_DIR="oss_adapter/c3po_oss"
-OSS_UTIL_GIT_LINK="http://10.155.205.206/C3PO-NGIC/oss-util.git"
-FREEDIAMETER="http://10.155.205.206/C3PO-NGIC/freeDiameter.git"
 
 SERVICES="$1"
 SUDO=''
@@ -61,7 +60,7 @@ install_dpdk() {
 
 	cd ${RTE_SDK}
 	cp $CUR_DIR/dpdk-18.02_common_linuxapp config/common_linuxapp
-	sed -ri 's,(KNI_KMOD=).*,\1n,' config/common_linuxapp
+#	sed -ri 's,(KNI_KMOD=).*,\1n,' config/common_linuxapp
 	make -j $CPUS install T=${RTE_TARGET}
 	echo "Installed DPDK at $RTE_SDK"
         
@@ -74,7 +73,7 @@ download_hyperscan()
         cd $DEPS_DIR
 	
         echo "Downloading HS and dependent libraries"
-        wget https://github.com/01org/hyperscan/archive/v4.1.0.tar.gz
+        wget $HYPERSCAN_GIT_LINK
         tar -xvf v4.1.0.tar.gz
         pushd hyperscan-4.1.0
         mkdir build; pushd build
@@ -158,7 +157,8 @@ build_fd_gxapp()
 {
 	echo "Building FreeDiameter ..."
 	build_fd_lib
-        ldconfig 
+	ldconfig
+
 	echo "Building GxAPP ..."
 	build_gxapp
 }
@@ -175,7 +175,6 @@ install_oss_util()
         if [ ! -d $OSS_DIR ]; then
        	     echo "Cloning OSS-UTIL repo ...$OSS_UTIL_GIT_LINK"
              git clone $OSS_UTIL_GIT_LINK
-#      	     mv oss_util_gslab oss-util     
         fi
 
         cp $CUR_DIR/oss-util.sh $OSS_DIR/
@@ -192,14 +191,15 @@ install_build_deps() {
        install_dpdk
        if [[ $SERVICES == "CP" ]] || [[ $SERVICES == "cp" ]]; then
 	    install_oss_util
-#	    download_freediameter
+	    download_freediameter
             build_libgtpcv2c 
             build_fd_gxapp
        elif [[ $SERVICES == "DP" ]] || [[ $SERVICES == "dp" ]]; then
+	    install_oss_util
             download_hyperscan  
        else
             download_hyperscan
-#            download_freediameter
+            download_freediameter
             install_oss_util
             build_libgtpcv2c 
             build_fd_gxapp

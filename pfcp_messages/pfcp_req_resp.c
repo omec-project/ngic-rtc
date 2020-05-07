@@ -22,7 +22,8 @@
 #include "pfcp_association.h"
 #include "pfcp_messages_encoder.h"
 #include "pfcp_messages_decoder.h"
-#include "interface.h"
+#include "gw_adapter.h"
+#include "clogger.h"
 
 #ifdef CP_BUILD
 #include "pfcp.h"
@@ -63,6 +64,12 @@ extern struct rte_hash *node_id_hash;
 
 #if defined(CP_BUILD) || defined(DP_BUILD)
 
+/**
+ * @brief  : Process incoming heartbeat request and send response
+ * @param  : buf_rx holds data from incoming request
+ * @param  : peer_addr used to pass address of peer node
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 static int
 process_heartbeat_request(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 {
@@ -90,7 +97,10 @@ process_heartbeat_request(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 
 #ifdef CP_BUILD
 	if ( pfcp_send(my_sock.sock_fd, pfcp_msg, encoded, peer_addr) < 0 ) {
-		RTE_LOG_DP(DEBUG, DP, "Error sending in heartbeat request: %i\n",errno);
+		clLog(clSystemLog, eCLSeverityDebug, "Error sending in heartbeat request: %i\n",errno);
+	} else {
+		update_cli_stats(peer_addr->sin_addr.s_addr,
+						PFCP_HEARTBEAT_RESPONSE,SENT,SX);
 	}
 #endif /* CP_BUILD */
 	free(pfcp_heartbeat_req);
@@ -102,13 +112,25 @@ process_heartbeat_request(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 					encoded,
 					MSG_DONTWAIT,
 					(struct sockaddr *)peer_addr,
-					sizeof(struct sockaddr_in)) < 0)
-			RTE_LOG_DP(DEBUG, DP, "Error sending: %i\n",errno);
+					sizeof(struct sockaddr_in)) < 0) {
+
+clLog(clSystemLog, eCLSeverityDebug, "Error sending: %i\n",errno);
+		} else {
+
+		update_cli_stats(peer_addr->sin_addr.s_addr,
+				PFCP_HEARTBEAT_RESPONSE,SENT,SX);
+		}
 	}
 #endif /* DP_BUILD */
 	return 0;
 }
 
+/**
+ * @brief  : Process hearbeat response message
+ * @param  : buf_rx holds data from incoming request
+ * @param  : peer_addr used to pass address of peer node
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 static int
 process_heartbeat_response(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 {
@@ -125,7 +147,7 @@ process_heartbeat_response(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 			(void **) &(recov_time));
 
 	if (ret == -ENOENT) {
-		RTE_LOG_DP(DEBUG, DP, "No entry found for the heartbeat!!\n");
+		clLog(clSystemLog, eCLSeverityDebug, "No entry found for the heartbeat!!\n");
 
 	} else {
 		/*TODO: Restoration part to be added if recovery time is found greater*/
@@ -155,22 +177,6 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 
 #ifdef CP_BUILD
 
-	/*CLI*/
-	EInterfaceType it;
-
-	if (pfcp_config.cp_type == SGWC)
-	{
-		it = itSxa;
-
-	} else if (pfcp_config.cp_type == PGWC)
-	{
-		it = itSxb;
-	} else
-	{
-		it = itSxaSxb;
-	}
-
-
 	/* TODO: Move this rx */
 	if ((bytes_rx = pfcp_recv(pfcp_rx, 512,
 					peer_addr)) < 0) {
@@ -181,90 +187,46 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 	msg_info msg = {0};
 	if(pfcp_header->message_type == PFCP_HEARTBEAT_REQUEST){
 
-		/*CLI:add DP as a peer,status FALSE*/
-		add_cli_peer(peer_addr->sin_addr.s_addr,it);
-		get_current_time(cp_stats.stat_timestamp);
 		update_cli_stats(peer_addr->sin_addr.s_addr,
-				pfcp_header->message_type,RCVD,
-				cp_stats.stat_timestamp);
-
-		update_last_activity(peer_addr->sin_addr.s_addr, cp_stats.stat_timestamp);
-
+				pfcp_header->message_type,RCVD,SX);
 
 		ret = process_heartbeat_request(buf_rx, peer_addr);
 		if(ret != 0){
-			fprintf(stderr, "%s: Failed to process pfcp heartbeat request\n", __func__);
+			clLog(clSystemLog, eCLSeverityCritical, "%s: Failed to process pfcp heartbeat request\n", __func__);
 			return -1;
-		} else {
-
-		/*CLI:pfcp_hrtb_resp sent count*/
-		add_cli_peer(peer_addr->sin_addr.s_addr,it);
-		get_current_time(cp_stats.stat_timestamp);
-		update_cli_stats(peer_addr->sin_addr.s_addr,
-				PFCP_HEARTBEAT_RESPONSE,SENT,
-				cp_stats.stat_timestamp);
-
 		}
 		return 0;
 	}else if(pfcp_header->message_type == PFCP_HEARTBEAT_RESPONSE){
 		ret = process_heartbeat_response(buf_rx, peer_addr);
 		if(ret != 0){
-			fprintf(stderr, "%s: Failed to process pfcp heartbeat response\n", __func__);
+			clLog(clSystemLog, eCLSeverityCritical, "%s: Failed to process pfcp heartbeat response\n", __func__);
 			return -1;
 		} else {
 
-			/*CLI:pfcp hrtbt response rcvd count*/
-			add_cli_peer(peer_addr->sin_addr.s_addr,it);
-			get_current_time(cp_stats.stat_timestamp);
 			update_cli_stats(peer_addr->sin_addr.s_addr,
-					PFCP_HEARTBEAT_RESPONSE,RCVD,
-					cp_stats.stat_timestamp);
-
-			update_last_activity(peer_addr->sin_addr.s_addr, cp_stats.stat_timestamp);
+					PFCP_HEARTBEAT_RESPONSE,RCVD,SX);
 
 		}
 		return 0;
 	}else {
 		/*Reset periodic timers*/
 		process_response(peer_addr->sin_addr.s_addr);
-		get_current_time(cp_stats.stat_timestamp);
-		update_last_activity(peer_addr->sin_addr.s_addr, cp_stats.stat_timestamp);
 
 		if ((ret = pfcp_pcnd_check(buf_rx, &msg, bytes_rx)) != 0) {
-			fprintf(stderr, "%s: Failed to process pfcp precondition check\n", __func__);
+			clLog(clSystemLog, eCLSeverityCritical, "%s: Failed to process pfcp precondition check\n", __func__);
 
-		get_current_time(cp_stats.stat_timestamp);
-
-		if(pfcp_header->message_type == PFCP_SESSION_REPORT_REQUEST)
 			update_cli_stats(peer_addr->sin_addr.s_addr,
-							pfcp_header->message_type, REJ,
-							cp_stats.stat_timestamp);
-		else
-			update_cli_stats(peer_addr->sin_addr.s_addr,
-							pfcp_header->message_type, REJ,
-							cp_stats.stat_timestamp);
+							pfcp_header->message_type, REJ,SX);
 			return -1;
 		}
 
 		if(pfcp_header->message_type == PFCP_SESSION_REPORT_REQUEST)
 			update_cli_stats(peer_addr->sin_addr.s_addr,
-							pfcp_header->message_type, REQ,
-							cp_stats.stat_timestamp);
+							pfcp_header->message_type, RCVD,SX);
 		else
 			update_cli_stats(peer_addr->sin_addr.s_addr,
-							pfcp_header->message_type, ACC,
-							cp_stats.stat_timestamp);
+							pfcp_header->message_type, ACC,SX);
 
-		switch(pfcp_header->message_type)
-		{
-			case PFCP_ASSOCIATION_SETUP_RESPONSE :
-				/*CLI:add DP as a peer when ASSTN resp is rcvd,status:TRUE*/
-				update_peer_status(peer_addr->sin_addr.s_addr, TRUE);
-
-				break;
-			default :
-				break;
-		}
 
 		if ((msg.proc < END_PROC) && (msg.state < END_STATE) && (msg.event < END_EVNT)) {
 			if (SGWC == pfcp_config.cp_type) {
@@ -307,8 +269,18 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 	uint8_t pfcp_msg[1024]= {0};
 	struct msgbuf rule_msg = {0} ;
 
-	RTE_LOG_DP(DEBUG, DP, "Bytes received is %d\n", bytes_rx);
-	RTE_LOG_DP(DEBUG, DP, "IPADDR [%u]\n", peer_addr->sin_addr.s_addr);
+	uint8_t cli_cause = 0;
+
+	clLog(clSystemLog, eCLSeverityDebug, "Bytes received is %d\n", bytes_rx);
+	clLog(clSystemLog, eCLSeverityDebug, "IPADDR [%u]\n", peer_addr->sin_addr.s_addr);
+
+
+	if( pfcp_header->message_type != PFCP_SESSION_REPORT_RESPONSE)
+	{
+		update_cli_stats(peer_addr->sin_addr.s_addr,
+							pfcp_header->message_type,RCVD,SX);
+	}
+
 
 	/*Reset periodic timers*/
 	process_response(peer_addr->sin_addr.s_addr);
@@ -319,15 +291,16 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 		case PFCP_HEARTBEAT_REQUEST:
 			ret = process_heartbeat_request(buf_rx, peer_addr);
 			if(ret != 0){
-				fprintf(stderr, "%s: Failed to process pfcp heartbeat request\n", __func__);
+				clLog(clSystemLog, eCLSeverityCritical, "%s: Failed to process pfcp heartbeat request\n", __func__);
 				return -1;
 			}
 			break;
 		case PFCP_HEARTBEAT_RESPONSE:
 			ret = process_heartbeat_response(buf_rx, peer_addr);
 			if(ret != 0){
-				fprintf(stderr, "%s: Failed to process pfcp heartbeat response\n", __func__);
+				clLog(clSystemLog, eCLSeverityCritical, "%s: Failed to process pfcp heartbeat response\n", __func__);
 				return -1;
+
 			}
 			break;
 		case PFCP_ASSOCIATION_SETUP_REQUEST:
@@ -338,8 +311,8 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 
 				/* TODO: Error Handling */
 				decoded = decode_pfcp_assn_setup_req_t(buf_rx, &pfcp_ass_setup_req);
-				RTE_LOG_DP(DEBUG, DP, "[DP] Decoded bytes [%d]\n", decoded);
-				RTE_LOG_DP(DEBUG, DP, "recover_time[%d],cpf[%d] from CP \n\n",
+				clLog(clSystemLog, eCLSeverityDebug, "[DP] Decoded bytes [%d]\n", decoded);
+				clLog(clSystemLog, eCLSeverityDebug, "recover_time[%d],cpf[%d] from CP \n\n",
 						(pfcp_ass_setup_req.rcvry_time_stmp.rcvry_time_stmp_val),
 						(pfcp_ass_setup_req.cp_func_feat.sup_feat));
 
@@ -353,6 +326,9 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 				cause_check_association(&pfcp_ass_setup_req, &cause_id, &offend_id);
 				// TODO: /handle hash error handling
 				//fill_pfcp_association_setup_resp(&pfcp_ass_setup_resp);
+
+				cli_cause = cause_id;
+
 				if (cause_id == REQUESTACCEPTED)
 				{
 					//Adding NODE ID into nodeid hash in DP
@@ -369,8 +345,8 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 					*data = NODE_ID_TYPE_TYPE_IPV4ADDRESS;
 					memcpy(&value, &pfcp_ass_setup_req.node_id.node_id_value,IPV4_SIZE);
 					uint32_t nodeid =(ntohl(value));
-					RTE_LOG_DP(DEBUG, DP, "NODEID in INTERRFACE [%u]\n",nodeid);
-					RTE_LOG_DP(DEBUG, DP, "DATA[%lu]\n",*data);
+					clLog(clSystemLog, eCLSeverityDebug, "NODEID in INTERRFACE [%u]\n",nodeid);
+					clLog(clSystemLog, eCLSeverityDebug, "DATA[%lu]\n",*data);
 
 					ret = rte_hash_lookup_data(node_id_hash,(const void*) &(nodeid),
 							(void **) &(data));
@@ -385,7 +361,7 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 
 #ifdef USE_REST
 				if ((add_node_conn_entry((uint32_t)peer_addr->sin_addr.s_addr, 0, SX_PORT_ID)) != 0) {
-					RTE_LOG_DP(ERR, DP, "Failed to add connection entry for SGWU/SAEGWU");
+					clLog(clSystemLog, eCLSeverityCritical, "Failed to add connection entry for SGWU/SAEGWU");
 				}
 #endif
 
@@ -400,8 +376,8 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 
 				pfcp_header_t *pfcp_hdr = (pfcp_header_t *) pfcp_msg;
 				pfcp_hdr->message_len = htons(encoded - 4);
-				RTE_LOG_DP(DEBUG, DP, "sending response of sess [%d] from dp\n", pfcp_hdr->message_type);
-				RTE_LOG_DP(DEBUG, DP, "length[%d]\n", htons(pfcp_hdr->message_len));
+				clLog(clSystemLog, eCLSeverityDebug, "sending response of sess [%d] from dp\n", pfcp_hdr->message_type);
+				clLog(clSystemLog, eCLSeverityDebug, "length[%d]\n", htons(pfcp_hdr->message_len));
 
 				break;
 			}
@@ -490,6 +466,9 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 
 				RTE_LOG_DP(DEBUG, DP, "sending response of sess [%d] from dp\n",pfcp_hdr->message_type);
 				RTE_LOG_DP(DEBUG, DP, "length[%d]\n",htons(pfcp_hdr->message_len));
+
+				cli_cause = cause_id;
+
 				/* Free the allocated memory  */
 				free(pfcp_pfd_mgmt_req);
 				for (int itr_1 = 0; itr_1 < pfcp_pfd_mgmt_req->app_ids_pfds_count; itr_1++) {
@@ -501,6 +480,8 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 					}
 				}
 				break;
+
+
 			}
 
 		case PFCP_SESSION_ESTABLISHMENT_REQUEST:
@@ -511,8 +492,15 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 				pfcp_sess_estab_rsp_t pfcp_session_response = {0};
 
 				decoded = decode_pfcp_sess_estab_req_t(buf_rx, pfcp_session_request);
-				RTE_LOG_DP(DEBUG, DP, "DECOED bytes in sesson is %d\n\n", decoded);
+				clLog(clSystemLog, eCLSeverityDebug, "DECOED bytes in sesson is %d\n\n", decoded);
 
+#ifdef USE_CSID
+				if (app.spgw_cfg == PGWU) {
+					memcpy(&pfcp_session_request->pgw_c_fqcsid,
+						&pfcp_session_request->sgw_c_fqcsid, sizeof(pfcp_fqcsid_ie_t));
+					memset(&pfcp_session_request->sgw_c_fqcsid, 0, sizeof(pfcp_fqcsid_ie_t));
+				}
+#endif /* USE_CSID */
 				if (process_up_session_estab_req(pfcp_session_request, &pfcp_session_response)) {
 					/* TODO: ERROR HANDLING */
 					return -1;
@@ -521,6 +509,8 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 				uint8_t cause_id = 0;
 				int offend_id = 0 ;
 				cause_check_sess_estab(pfcp_session_request, &cause_id, &offend_id);
+
+				cli_cause = cause_id;
 
 				fill_pfcp_session_est_resp(&pfcp_session_response, cause_id,
 						offend_id, dp_comm_ip, pfcp_session_request);
@@ -533,6 +523,9 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 				memcpy(&(pfcp_session_response.up_fseid.ipv4_address),
 						&(dp_comm_ip.s_addr), IPV4_SIZE);
 
+				/*CLI:increment active-session count*/
+				if (cause_id == REQUESTACCEPTED)
+					update_sys_stat(number_of_active_session,INCREMENT);
 
 				encoded = encode_pfcp_sess_estab_rsp_t(&pfcp_session_response,
 						pfcp_msg);
@@ -559,7 +552,14 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 				pfcp_sess_mod_rsp_t pfcp_sess_mod_res = {0};
 
 				decoded = decode_pfcp_sess_mod_req_t(buf_rx, &pfcp_session_mod_req);
-				RTE_LOG_DP(DEBUG, DP, "DECOED bytes in sesson modification is %d\n\n", decoded);
+				clLog(clSystemLog, eCLSeverityDebug, "DECOED bytes in sesson modification is %d\n\n", decoded);
+#ifdef USE_CSID
+				if (app.spgw_cfg == SGWU) {
+					memcpy(&pfcp_session_mod_req.pgw_c_fqcsid,
+						&pfcp_session_mod_req.sgw_c_fqcsid, sizeof(pfcp_fqcsid_ie_t));
+					memset(&pfcp_session_mod_req.sgw_c_fqcsid, 0, sizeof(pfcp_fqcsid_ie_t));
+				}
+#endif /* USE_CSID */
 
 				if (process_up_session_modification_req(&pfcp_session_mod_req,
 						&pfcp_sess_mod_res)) {
@@ -571,6 +571,8 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 	      			if (ret == SESSIONCONTEXTNOTFOUND ){
 					cause_id = SESSIONCONTEXTNOTFOUND;
 				} */
+
+				cli_cause = cause_id;
 
 				fill_pfcp_session_modify_resp(&pfcp_sess_mod_res,
 					&pfcp_session_mod_req, cause_id, offend_id);
@@ -586,9 +588,9 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 
 				pfcp_header_t *pfcp_hdr = (pfcp_header_t *) pfcp_msg;
 				pfcp_hdr->message_len = htons(encoded - 4);
-				RTE_LOG_DP(DEBUG, DP, "sending response of sess [%d] from dp\n",
+				clLog(clSystemLog, eCLSeverityDebug, "sending response of sess [%d] from dp\n",
 							pfcp_hdr->message_type);
-				RTE_LOG_DP(DEBUG, DP, "length[%d]\n",
+				clLog(clSystemLog, eCLSeverityDebug, "length[%d]\n",
 							htons(pfcp_hdr->message_len));
 
 				break;
@@ -607,7 +609,7 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 				//memset(pfcp_session_del_req, 0, sizeof(pfcp_sess_del_req_t));
 				pfcp_sess_del_rsp_t  pfcp_sess_del_res = {0};
 				decoded = decode_pfcp_sess_del_req_t(buf_rx, pfcp_session_del_req);
-				RTE_LOG_DP(DEBUG, DP, "DECOED bytes in sesson deletion is %d\n\n", decoded);
+				clLog(clSystemLog, eCLSeverityDebug, "DECOED bytes in sesson deletion is %d\n\n", decoded);
 
 				if (process_up_session_deletion_req(pfcp_session_del_req,
 						&pfcp_sess_del_res)) {
@@ -623,6 +625,8 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 				/* TODO: Need to be remove */
 				cp_seid = pfcp_sess_del_res.header.seid_seqno.has_seid.seid;
 
+				cli_cause = cause_id;
+
 				fill_pfcp_sess_del_resp(&pfcp_sess_del_res, cause_id, offend_id);
 
 				/* TODO: Need to be remove */
@@ -636,7 +640,7 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 
 				pfcp_header_t *pfcp_hdr = (pfcp_header_t *) pfcp_msg;
 				pfcp_hdr->message_len = htons(encoded - 4);
-				RTE_LOG_DP(DEBUG, DP, "sending response of sess [%d] from dp\n",pfcp_hdr->message_type);
+				clLog(clSystemLog, eCLSeverityDebug, "sending response of sess [%d] from dp\n",pfcp_hdr->message_type);
 
 				free(pfcp_session_del_req);
 				break;
@@ -651,9 +655,13 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 				decoded = decode_pfcp_sess_rpt_rsp_t(buf_rx,
 						&pfcp_sess_rep_resp);
 
+				update_cli_stats(peer_addr->sin_addr.s_addr,
+						pfcp_header->message_type,
+						(pfcp_sess_rep_resp.cause.cause_value = REQUESTACCEPTED) ? ACC:REJ, SX);
+
 				if(pfcp_sess_rep_resp.cause.cause_value !=
 						REQUESTACCEPTED){
-							fprintf(stderr, "Cause received Report response is %d\n",
+							clLog(clSystemLog, eCLSeverityCritical, "Cause received Report response is %d\n",
 							pfcp_sess_rep_resp.cause.cause_value);
 
 					/* TODO: Add handling to send association to next upf
@@ -661,14 +669,89 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 					return -1;
 				}
 
-				RTE_LOG_DP(DEBUG, DP, "Received Report Response for sess_id:%lu\n\n",
+
+				clLog(clSystemLog, eCLSeverityDebug, "Received Report Response for sess_id:%lu\n\n",
 						pfcp_sess_rep_resp.header.seid_seqno.has_seid.seid);
 
 				break;
 			}
+		case PFCP_SESSION_SET_DELETION_REQUEST:
+			{
+#ifdef USE_CSID
+				int offend_id = 0;
+				uint8_t cause_id = 0;
+				memset(pfcp_msg, 0, 1024);
 
+				/* Handle PFCP Session SET Deletion Response */
+				pfcp_sess_set_del_req_t pfcp_sess_set_del_req = {0};
+
+				pfcp_sess_set_del_rsp_t pfcp_sess_set_del_rsp = {0};
+
+				/*Decode the received msg and stored into the struct. */
+				decoded = decode_pfcp_sess_set_del_req_t(buf_rx,
+						&pfcp_sess_set_del_req);
+
+				clLog(clSystemLog, eCLSeverityDebug, "DECOED bytes in sesson set deletion req is %d\n\n",
+						 decoded);
+
+				if (app.spgw_cfg == PGWU) {
+					memcpy(&pfcp_sess_set_del_req.pgw_c_fqcsid,
+						&pfcp_sess_set_del_req.sgw_c_fqcsid, sizeof(pfcp_fqcsid_ie_t));
+					memset(&pfcp_sess_set_del_req.sgw_c_fqcsid, 0, sizeof(pfcp_fqcsid_ie_t));
+				}
+
+				if (process_up_sess_set_del_req(&pfcp_sess_set_del_req)) {
+					/* TODO: Handling ERROR */
+					return -1;
+				}
+
+				/* Fill PFCP SESS SET DEL RESP */
+				cause_id = REQUESTACCEPTED;
+				fill_pfcp_sess_set_del_resp(&pfcp_sess_set_del_rsp,
+								cause_id, offend_id);
+
+				if (pfcp_sess_set_del_req.header.s) {
+					pfcp_sess_set_del_rsp.header.seid_seqno.no_seid.seq_no =
+						pfcp_sess_set_del_req.header.seid_seqno.has_seid.seq_no;
+				} else {
+					pfcp_sess_set_del_rsp.header.seid_seqno.no_seid.seq_no =
+						pfcp_sess_set_del_req.header.seid_seqno.no_seid.seq_no;
+				}
+
+				encoded = encode_pfcp_sess_set_del_rsp_t(&pfcp_sess_set_del_rsp, pfcp_msg);
+
+				pfcp_header_t *pfcp_hdr = (pfcp_header_t *) pfcp_msg;
+				pfcp_hdr->message_len = htons(encoded - 4);
+
+				clLog(clSystemLog, eCLSeverityDebug, "Sending response for [%d] from dp\n", pfcp_hdr->message_type);
+
+#endif /* USE_CSID */
+				break;
+			}
+		case PFCP_SESSION_SET_DELETION_RESPONSE:
+			{
+				/* Handle PFCP Session SET Deletion Response */
+				pfcp_sess_set_del_rsp_t pfcp_sess_set_del_rsp = {0};
+
+				/*Decode the received msg and stored into the struct. */
+				decoded = decode_pfcp_sess_set_del_rsp_t(buf_rx,
+						&pfcp_sess_set_del_rsp);
+
+				if(pfcp_sess_set_del_rsp.cause.cause_value !=
+						REQUESTACCEPTED){
+							clLog(clSystemLog, eCLSeverityCritical, "Cause received pfcp session set deletion response is %d\n",
+							pfcp_sess_set_del_rsp.cause.cause_value);
+
+					/* TODO: Add handling to send association to next upf
+					 * for each buffered CSR */
+					return -1;
+				}
+
+				clLog(clSystemLog, eCLSeverityDebug, FORMAT"Received PFCP Session Set Deletion Response\n", ERR_MSG);
+				break;
+			}
 		default:
-				RTE_LOG_DP(DEBUG, DP, "No Data received\n");
+				clLog(clSystemLog, eCLSeverityDebug, "No Data received\n");
 			break;
 		}
 		if (encoded != 0) {
@@ -677,8 +760,14 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 				encoded,
 				MSG_DONTWAIT,
 				(struct sockaddr *)peer_addr,
-				sizeof(struct sockaddr_in)) < 0)
-				RTE_LOG_DP(DEBUG, DP, "Error sending: %i\n",errno);
+				sizeof(struct sockaddr_in)) < 0) {
+				clLog(clSystemLog, eCLSeverityDebug, "Error sending: %i\n",errno);
+			} else {
+				pfcp_header_t *pfcp_hdr = (pfcp_header_t *) pfcp_msg;
+				update_cli_stats(peer_addr->sin_addr.s_addr,
+						pfcp_hdr->message_type,
+				(cli_cause == REQUESTACCEPTED) ? ACC:REJ, SX);
+			}
 		}
 #endif /* DP_BUILD */
 		return 0;

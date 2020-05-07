@@ -21,10 +21,7 @@
 #include "pfcp_util.h"
 #include "pfcp.h"
 #include "gtp_messages_decoder.h"
-
-#ifdef C3PO_OSS
 #include "cp_config.h"
-#endif /* C3PO_OSS */
 
 pfcp_config_t pfcp_config;
 extern struct cp_stats_t cp_stats;
@@ -37,6 +34,9 @@ gx_pcnd_check(gx_msg *gx_rx, msg_info *msg)
 	gx_context_t *gx_context = NULL;
 	pdn_connection *pdn_cntxt = NULL;
 
+	struct sockaddr_in saddr_in;
+	saddr_in.sin_family = AF_INET;
+	inet_aton("127.0.0.1", &(saddr_in.sin_addr));
 
 	msg->msg_type = gx_rx->msg_type;
 
@@ -47,19 +47,31 @@ gx_pcnd_check(gx_msg *gx_rx, msg_info *msg)
 			    return -1;
 			}
 
+			switch(msg->gx_msg.cca.cc_request_type) {
+				case INITIAL_REQUEST:
+					update_cli_stats(saddr_in.sin_addr.s_addr, OSS_CCA_INITIAL, RCVD, GX);
+					break;
+				case UPDATE_REQUEST:
+					update_cli_stats(saddr_in.sin_addr.s_addr, OSS_CCA_UPDATE, RCVD, GX);
+					break;
+				case TERMINATION_REQUEST:
+					update_cli_stats(saddr_in.sin_addr.s_addr, OSS_CCA_TERMINATE, RCVD, GX);
+					break;
+			}
+
 			/* Retrive Gx_context based on Sess ID. */
 			ret = rte_hash_lookup_data(gx_context_by_sess_id_hash,
 					(const void*)(msg->gx_msg.cca.session_id.val),
 					(void **)&gx_context);
 			if (ret < 0) {
-			    RTE_LOG_DP(ERR, CP, "%s: NO ENTRY FOUND IN Gx HASH [%s]\n", __func__,
+			    clLog(clSystemLog, eCLSeverityCritical, "%s: NO ENTRY FOUND IN Gx HASH [%s]\n", __func__,
 						msg->gx_msg.cca.session_id.val);
 			    return -1;
 			}
 
 			if(msg->gx_msg.cca.presence.result_code &&
 					msg->gx_msg.cca.result_code != 2001){
-				RTE_LOG_DP(ERR, CP, "%s:Received CCA without DIAMETER Success [%d]\n", __func__,
+				clLog(clSystemLog, eCLSeverityCritical, "%s:Received CCA with DIAMETER Failure [%d]\n", __func__,
 						msg->gx_msg.cca.result_code);
 				return -1;
 			}
@@ -67,7 +79,7 @@ gx_pcnd_check(gx_msg *gx_rx, msg_info *msg)
 			/* Extract the call id from session id */
 			ret = retrieve_call_id((char *)msg->gx_msg.cca.session_id.val, &call_id);
 			if (ret < 0) {
-			        fprintf(stderr, "%s:No Call Id found from session id:%s\n", __func__,
+			        clLog(clSystemLog, eCLSeverityCritical, "%s:No Call Id found from session id:%s\n", __func__,
 			                        msg->gx_msg.cca.session_id.val);
 			        return -1;
 			}
@@ -76,7 +88,7 @@ gx_pcnd_check(gx_msg *gx_rx, msg_info *msg)
 			pdn_cntxt = get_pdn_conn_entry(call_id);
 			if (pdn_cntxt == NULL)
 			{
-			      fprintf(stderr, "%s:No valid pdn cntxt found for CALL_ID:%u\n",
+			      clLog(clSystemLog, eCLSeverityCritical, "%s:No valid pdn cntxt found for CALL_ID:%u\n",
 			                          __func__, call_id);
 			      return -1;
 			}
@@ -96,19 +108,37 @@ gx_pcnd_check(gx_msg *gx_rx, msg_info *msg)
 		}
 		case GX_RAR_MSG: {
 
+			uint32_t call_id = 0;
 			uint32_t buflen ;
+			update_cli_stats(saddr_in.sin_addr.s_addr, OSS_RAR, RCVD, GX);
+
 
 			if (gx_rar_unpack((unsigned char *)gx_rx + sizeof(gx_rx->msg_type),
 						&msg->gx_msg.rar) <= 0) {
 			    return -1;
 			}
 
+			ret = retrieve_call_id((char *)&msg->gx_msg.rar.session_id.val, &call_id);
+			if (ret < 0) {
+	        	clLog(clSystemLog, eCLSeverityCritical, "%s:No Call Id found from session id:%s\n", __func__,
+	        	                msg->gx_msg.rar.session_id.val);
+	       	 	return -1;
+			}
+			pdn_connection *pdn_cntxt = NULL;
+			/* Retrieve PDN context based on call id */
+			pdn_cntxt = get_pdn_conn_entry(call_id);
+			if (pdn_cntxt == NULL)
+			{
+	     		 clLog(clSystemLog, eCLSeverityCritical, "%s:No valid pdn cntxt found for CALL_ID:%u\n",
+	                								          __func__, call_id);
+	     		 return -1;
+			}
 			/* Retrive Gx_context based on Sess ID. */
 			ret = rte_hash_lookup_data(gx_context_by_sess_id_hash,
 					(const void*)(msg->gx_msg.rar.session_id.val),
 					(void **)&gx_context);
 			if (ret < 0) {
-			    RTE_LOG_DP(ERR, CP, "%s: NO ENTRY FOUND IN Gx HASH [%s]\n", __func__,
+			    clLog(clSystemLog, eCLSeverityCritical, "%s: NO ENTRY FOUND IN Gx HASH [%s]\n", __func__,
 						msg->gx_msg.rar.session_id.val);
 			    return -1;
 			}
@@ -119,7 +149,7 @@ gx_pcnd_check(gx_msg *gx_rx, msg_info *msg)
 			memcpy( &gx_context->rqst_ptr ,((unsigned char *)gx_rx + sizeof(gx_rx->msg_type) + buflen),
 					sizeof(unsigned long));
 
-
+			pdn_cntxt->rqst_ptr = gx_context->rqst_ptr;
 			/* Retrive the Session state and set the event */
 			msg->state = CONNECTED_STATE;
 			msg->event = RE_AUTH_REQ_RCVD_EVNT;
@@ -134,7 +164,7 @@ gx_pcnd_check(gx_msg *gx_rx, msg_info *msg)
 			break;
 		}
 	default:
-				fprintf(stderr, "%s::process_msgs-"
+				clLog(clSystemLog, eCLSeverityCritical, "%s::process_msgs-"
 					"\n\tcase: SAEGWC::spgw_cfg= %d;"
 					"\n\tReceived Gx Message : "
 					"%d not supported... Discarding\n", __func__,

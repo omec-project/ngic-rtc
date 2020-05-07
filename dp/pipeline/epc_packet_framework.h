@@ -69,7 +69,9 @@ extern uint64_t num_dns_processed;
 /* Borrowed from dpdk ip_frag_internal.c */
 #define PRIME_VALUE	0xeaad8405
 
-/** DL Bearer Map key for hash lookup */
+/**
+ * @brief  : DL Bearer Map key for hash lookup
+ */
 struct dl_bm_key {
 	/** Ue ip */
 	uint32_t ue_ipv4;
@@ -77,7 +79,9 @@ struct dl_bm_key {
 	uint32_t rid;
 };
 
-/** Meta data used for directing packets to cores */
+/**
+ * @brief  : Meta data used for directing packets to cores
+ */
 struct epc_meta_data {
 	/** pipeline output port ID */
 	uint32_t port_id;
@@ -123,6 +127,9 @@ uint32_t ul_gtpu_pkt;
 uint32_t ul_pkts_nbrst;
 uint32_t ul_pkts_nbrst_prv;
 
+/**
+ * @brief  : Maintains epc uplink parameters
+ */
 struct epc_ul_params {
 	/** Count since last flush */
 	int flush_count;
@@ -172,6 +179,9 @@ uint32_t dl_sgi_pkt;
 uint32_t dl_pkts_nbrst;
 uint32_t dl_pkts_nbrst_prv;
 
+/**
+ * @brief  : Maintains epc downlink parameters
+ */
 struct epc_dl_params {
 	/** Count since last flush */
 	int flush_count;
@@ -216,7 +226,10 @@ struct epc_dl_params {
 typedef int (*epc_dl_handler) (struct rte_pipeline*, struct rte_mbuf **pkts,
 		uint32_t n, int wk_index);
 #else
-/** Rx pipeline parameters - Per input port */
+
+/**
+ * @brief  : Maintains Rx pipeline parameters - Per input port
+ */
 struct epc_rx_params {
 	/** Count since last flush */
 	int flush_count;
@@ -238,7 +251,9 @@ struct epc_rx_params {
 	char name[PIPE_NAME_SIZE];
 } __rte_cache_aligned;
 
-/** Tx pipeline parameters - Per output port */
+/**
+ * @brief  : Maintains Tx pipeline parameters - Per output port
+ */
 struct epc_tx_params {
 	/** Count since last flush */
 	int flush_count;
@@ -258,7 +273,9 @@ struct epc_tx_params {
 	char name[PIPE_NAME_SIZE];
 } __rte_cache_aligned;
 
-/** Load Balance pipeline parameters - Per output port */
+/**
+ * @brief  : Maintains load Balance pipeline parameters - Per output port
+ */
 struct epc_load_balance_params {
 	/** Count since last flush */
 	int flush_count;
@@ -280,7 +297,9 @@ struct epc_load_balance_params {
 	char name[PIPE_NAME_SIZE];
 } __rte_cache_aligned;
 
-/** Worker pipeline parameters - Per output port */
+/**
+ * @brief  : Maintains worker pipeline parameters - Per output port
+ */
 struct epc_worker_params {
 	/** Count since last flush */
 	int flush_count;
@@ -323,18 +342,33 @@ typedef int (*epc_packet_handler) (struct rte_pipeline*, struct rte_mbuf **pkts,
 
 /* defines max number of pipelines per core */
 #define EPC_PIPELINE_MAX	4
+
+/**
+ * @brief  : pipeline function
+ * @param  : No param
+ * @return : Returns nothing
+ */
 typedef void pipeline_func_t(void *param);
 
+/**
+ * @brief  : Maintains pipeline function pointer and argument
+ */
 struct pipeline_launch {
 	pipeline_func_t *func;	/* pipeline function called */
 	void *arg;		/* pipeline function argument */
 };
 
+/**
+ * @brief  : Maintains epc lcore configuration parameter
+ */
 struct epc_lcore_config {
 	int allocated;		/* indicates a number of pipelines enebled */
 	struct pipeline_launch launch[EPC_PIPELINE_MAX];
 };
 
+/**
+ * @brief  : Maintains epc parameter
+ */
 struct epc_app_params {
 	/* CPU cores */
 	struct epc_lcore_config lcores[DP_MAX_LCORE];
@@ -399,236 +433,201 @@ struct epc_app_params {
 extern struct epc_app_params epc_app;
 
 /**
- * Adds pipeline function to core's list of pipelines to run
- *
- * @param func
- *	Function to run
- *
- * @param arg
- *	Argument to pipeline function
- *
- * @param core
- *	Core to run pipeline function on
+ * @brief  : Adds pipeline function to core's list of pipelines to run
+ * @param  : func, Function to run
+ * @param  : arg, Argument to pipeline function
+ * @param  : core, Core to run pipeline function on
+ * @return : Returns nothing
  */
 void epc_alloc_lcore(pipeline_func_t func, void *arg, int core);
 
 /**
- * Initializes arp icmp pipeline
+ * @brief  : Initializes arp icmp pipeline
+ * @param  : No param
+ * @return : Returns nothing
  */
 void epc_arp_init(void);
 
 /**
- * Returns the mac address for an IP address, currently works only for directly
- * connected neighbours
- *
- * @param ipaddr
- *	IP address to lookup
- *
- * @param phy_port
- *	Identifies the port to which the IP address is connected to
- *
- * @param hw_addr
- *	Ethernet address returned
- *
- * @param nhip
- *	next-hop IP address
- *	Same as ip addr (for now)
- *
+ * @brief  : Returns the mac address for an IP address, currently works only for directly
+ *           connected neighbours
+ * @param  : ipaddr, IP address to lookup
+ * @param  : phy_port, Identifies the port to which the IP address is connected to
+ * @param  : hw_addr, Ethernet address returned
+ * @param  : nhip, next-hop IP address
+ *           Note - Same as ip addr (for now)
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int arp_icmp_get_dest_mac_address(const uint32_t ipaddr,
 		const uint32_t phy_port,
 		struct ether_addr *hw_addr, uint32_t *nhip);
 
 /**
- * ARP/ICMP pipeline function
+ * @brief  : ARP/ICMP pipeline function
+ * @param  : arg, unused parameter
+ * @return : Returns nothing
  */
 void epc_arp(__rte_unused void *arg);
 
 /**
- * Initializes DNS processing resources
- *
+ * @brief  : Initializes DNS processing resources
+ * @param  : No param
+ * @return : Returns nothing
  */
 void epc_spns_dns_init(void);
 
 /**
- * Initialize EPC packet framework
- *
- * @param s1u_port_id
- *	Port id for s1u interface assigned by rte
- * @param sgi_port_id
- *	Port id for sgi interface assigned by rte
+ * @brief  : Initialize EPC packet framework
+ * @param  : s1u_port_id, Port id for s1u interface assigned by rte
+ * @param  : sgi_port_id, Port id for sgi interface assigned by rte
+ * @return : Returns nothing
  */
 void epc_init_packet_framework(uint8_t east_port_id, uint8_t west_port_id);
 
 /**
- * Launches data plane threads to execute pipeline funcs
+ * @brief  : Launches data plane threads to execute pipeline funcs
+ * @param  : No param
+ * @return : Returns nothing
  */
 void packet_framework_launch(void);
 
 #ifdef NGCORE_SHRINK
 /**
- * Initializes UL pipeline
- *
- * @param param
- *	Pipeline parameters passed on to pipeline at runtime
- *
- * @param core
- *	Core to run Rx pipeline, used to warn if this core and the NIC port_id
- *	are in different NUMA domains
- *
- * @param port_id
- *	Input Port ID & Output Port ID
- *
+ * @brief  : Initializes UL pipeline
+ * @param  : param, Pipeline parameters passed on to pipeline at runtime
+ * @param  : core, Core to run Rx pipeline, used to warn if this core and the NIC port_id
+ *           are in different NUMA domains
+ * @param  : in_port_id, Input Port ID
+ * @param  : out_port_id, Input Port ID & Output Port ID
+ * @return : Returns nothing
  */
 void epc_ul_init(struct epc_ul_params *param, int core, uint8_t in_port_id, uint8_t out_port_id);
 
 /**
- * Initializes DL pipeline
- *
- * @param param
- *	Pipeline parameters passed on to pipeline at runtime
- *
- * @param core
- *	Core to run Rx pipeline, used to warn if this core and the NIC port_id
- *	are in different NUMA domains
- *
- * @param port_id
- *	Input Port ID & Output Port ID
+ * @brief  : Initializes DL pipeline
+ * @param  : param, Pipeline parameters passed on to pipeline at runtime
+ * @param  : core, Core to run Rx pipeline, used to warn if this core and the NIC port_id
+ *           are in different NUMA domains
+ * @param  : in_port_id, Input Port ID
+ * @param  : out_port_id, Input Port ID & Output Port ID
+ * @return : Returns nothing
  *
  */
 void epc_dl_init(struct epc_dl_params *param, int core, uint8_t in_port_id, uint8_t out_port_id);
 
 /**
- * UL pipeline function
- *
- * @param args
- *	Pipeline parameters
+ * @brief  : UL pipeline function
+ * @param  : args, Pipeline parameters
+ * @return : Returns nothing
  */
 void epc_ul(void *args);
 
 /**
- * DL pipeline function
- *
- * @param args
- *	Pipeline parameters
+ * @brief  : DL pipeline function
+ * @param  : args, Pipeline parameters
+ * @return : Returns nothing
  */
 void epc_dl(void *args);
 
 /**
- * Registers UL worker function that is executed from the pipeline
- *
- * @param f
- *	Function handler for packet processing
- * @param port
- *	Port to register the worker function for
+ * @brief  : Registers uplink worker function that is executed from the pipeline
+ * @param  : f, Function handler for packet processing
+ * @param  : port, Port to register the worker function for
+ * @return : Returns nothing
  */
 void register_ul_worker(epc_ul_handler f, int port);
+
+/**
+ * @brief  : Registers downlink worker function that is executed from the pipeline
+ * @param  : f, Function handler for packet processing
+ * @param  : port, Port to register the worker function for
+ * @return : Returns nothing
+ */
 void register_dl_worker(epc_dl_handler f, int port);
 
 #else
 /**
- * Initializes Rx pipeline
- *
- * @param param
- *	Pipeline parameters passed on to pipeline at runtime
- *
- * @param core
- *	Core to run Rx pipeline, used to warn if this core and the NIC port_id
- *	are in different NUMA domains
- *
- * @param port_id
- *	Rx Port ID
- *
+ * @brief  : Initializes Rx pipeline
+ * @param  : param, Pipeline parameters passed on to pipeline at runtime
+ * @param  : core, Core to run Rx pipeline, used to warn if this core and the NIC port_id
+ *           are in different NUMA domains
+ * @param  : port_id, Rx Port ID
+ * @return : Returns nothing
  */
 void epc_rx_init(struct epc_rx_params *param, int core, uint8_t port_id);
 
 /**
- * Initializes Tx pipeline
- *
- * @param param
- *	Pipeline parameters passed on to pipeline at runtime
- *
- * @param core
- *	Core to run the Tx pipeline, used to warn if this core
- * and the NIC port_id
- *	are in different NUMA domains
- *
- * @param port_id
- *	Tx Port ID
- *
+ * @brief  : Initializes Tx pipeline
+ * @param  : param, Pipeline parameters passed on to pipeline at runtime
+ * @param  : core, Core to run the Tx pipeline, used to warn if this core
+ *           and the NIC port_id are in different NUMA domains
+ * @param  : port_id, Tx Port ID
+ * @return : Returns nothing
  */
 void epc_tx_init(struct epc_tx_params *param, int core, uint8_t port_id);
 
 /**
- *  Initialize the load balance pipeline
- *
- *  @param param
- *	Pipeline parameters passed on to pipeline at runtime
+ * @brief  :  Initialize the load balance pipeline
+ * @param  : param, Pipeline parameters passed on to pipeline at runtime
+ * @return : Returns nothing
  */
 void epc_load_balance_init(struct epc_load_balance_params *param);
 
 /**
- * Initializes a worker pipeline
- *
- * @param worker_params
- *	pipeline parameters
- *
- * @param core
- *	core to run the pipeline, this parameter is used to identify the input
- *	queue for the pipeline
- *
- * @param wk_index
- *  Identify which worker param instance this worker will deal with
- *
+ * @brief  : Initializes a worker pipeline
+ * @param  : worker_params, pipeline parameters
+ * @param  : core, core to run the pipeline, this parameter is used to identify
+ *           the input queue for the pipeline
+ * @param  : wk_index, Identify which worker param instance this worker will deal with
+ * @return : Returns nothing
  */
 void epc_worker_core_init(struct epc_worker_params *worker_params, int core,
 		int wk_index);
 
 /**
- * Rx pipeline function
- *
- * @param args
- *	Pipeline parameters
+ * @brief  : Rx pipeline function
+ * @param  : args, Pipeline parameters
+ * @return : Returns nothing
  */
 void epc_rx(void *args);
 
 /**
- * Tx pipeline function
- *
- * @param args
- *	pipeline parameters
+ * @brief  : Tx pipeline function
+ * @param  : args, pipeline parameters
+ * @return : Returns nothing
  */
 void epc_tx(void *args);
 
 /**
- * Load balance pipeline function
- *
- * @param args
- *	Pipeline parameters
+ * @brief  : Load balance pipeline function
+ * @param  : args, Pipeline parameters
+ * @return : Returns nothing
  */
 void epc_load_balance(void *args);
 
 /**
- * Worker core function
- *
- * @param args
- *	Pipeline parameters
- *
+ * @brief  : Worker core function
+ * @param  : args, Pipeline parameters
+ * @return : Returns nothing
  */
 void epc_worker_core(void *args);
 
 /**
- * Registers a worker function that is executed from the pipeline
- *
- * @param f
- *	Function handler for packet processing
- * @param port
- *	Port to register the worker function for
+ * @brief  : Registers a worker function that is executed from the pipeline
+ * @param  : f, Function handler for packet processing
+ * @param  : port, Port to register the worker function for
+ * @return : Returns nothing
  */
 void register_worker(epc_packet_handler f, int port);
 
 #endif	/* NGCORE_SHRINK */
 
+/**
+ * @brief  : Calculate hash value for given ue_ip
+ * @param  : hash, variable to store calculated hash
+ * @param  : ue_ip, ue ip address
+ * @return : Returns nothing
+ */
 static inline void set_ue_ipv4_hash(uint32_t *hash, const uint32_t *ue_ip)
 {
 #ifdef SKIP_LB_HASH_CRC
@@ -638,6 +637,12 @@ static inline void set_ue_ipv4_hash(uint32_t *hash, const uint32_t *ue_ip)
 #endif
 }
 
+/**
+ * @brief  : Set worker core id
+ * @param  : worker_core_id, variable to store worker core id
+ * @param  : hash, variable to store output
+ * @return : Returns nothing
+ */
 static inline void
 set_worker_core_id(uint32_t *worker_core_id, uint32_t *hash)
 {

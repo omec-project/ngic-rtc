@@ -37,7 +37,7 @@ retrive_stats_entry(void)
 		ret = rte_hash_lookup_data(stats_hash, (void *)&key,
 				(void **)&stats);
 		if (ret < 0) {
-			fprintf(stderr, "%s:rte_hash_lookup_data failed for"
+			clLog(clSystemLog, eCLSeverityCritical, "%s:rte_hash_lookup_data failed for"
 					"key %lu: %s (%d)\n", __func__,
 					key, rte_strerror(abs(ret)), ret);
 			continue;
@@ -46,7 +46,7 @@ retrive_stats_entry(void)
 		export_stats_report(*stats);
 	}
 
-	fprintf(stderr, "\nStatstics export in file completed.\n");
+	clLog(clSystemLog, eCLSeverityCritical, "\nStatstics export in file completed.\n");
 	rte_hash_free(stats_hash);
 
 }
@@ -114,7 +114,7 @@ stats_init(void)
 	snprintf(filename, PATH_MAX, "%sCP_Sync_Stats_%s"
 			CSV_EXTENSION, DEFAULT_STATS_PATH, timestamp);
 
-	fprintf(stderr, "\nLogging Sync Statistics Records to %s\n", filename);
+	clLog(clSystemLog, eCLSeverityCritical, "\nLogging Sync Statistics Records to %s\n", filename);
 
 	stats_file = fopen(filename, "w");
 	if (!stats_file)
@@ -168,7 +168,7 @@ stats_init(void)
 }
 
 /**
- * @brief maintain request statstics in hash table.
+ * @brief  : maintain request statstics in hash table.
  */
 void
 add_stats_entry(struct sync_stats *stats)
@@ -195,7 +195,7 @@ add_stats_entry(struct sync_stats *stats)
 	ret = rte_hash_add_key_data(stats_hash, (void *)&tmp->op_id,
 			(void *)tmp);
 	if (ret) {
-		fprintf(stderr, "%s:rte_hash_add_key_data failed for"
+		clLog(clSystemLog, eCLSeverityCritical, "%s:rte_hash_add_key_data failed for"
 				" op_id %"PRIu64": %s (%u)\n", __func__,
 				tmp->op_id, rte_strerror(abs(ret)), ret);
 	}
@@ -211,7 +211,7 @@ update_stats_entry(uint64_t key, uint8_t type)
 	ret = rte_hash_lookup_data(stats_hash, (void *)&key,
 			(void **)&stats);
 	if (ret < 0) {
-		fprintf(stderr, "%s:rte_hash_lookup_data failed for"
+		clLog(clSystemLog, eCLSeverityCritical, "%s:rte_hash_lookup_data failed for"
 				"key %"PRIu64": %s (%u)\n", __func__,
 				key, rte_strerror(abs(ret)), ret);
 		return;

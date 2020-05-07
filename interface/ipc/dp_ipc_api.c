@@ -78,7 +78,7 @@ udp_recv(void *msg_payload, uint32_t size,
 	int bytes = recvfrom(my_sock.sock_fd, msg_payload, size, 0,
 			(struct sockaddr *)peer_addr, &addr_len);
 	/*if (bytes < size) {
-		RTE_LOG_DP(ERR, DP, "Failed recv msg !!!\n");
+		clLog(clSystemLog, eCLSeverityCritical, "Failed recv msg !!!\n");
 		return -1;
 	}*/
 	return bytes;

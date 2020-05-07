@@ -98,12 +98,10 @@ struct sse_handle_message_event_map {
 
 
 /**
- * @brief Sets the DPN for use on incoming session creation and management
- * messages
- * @param dpn_id_from_json
- * Data Plane Node Identifier string
- * @return
- * 0 on success, error otherwise
+ * @brief  : Sets the DPN for use on incoming session creation and management messages
+ * @param  : dpn_id_from_json
+ *           Data Plane Node Identifier string
+ * @return : 0 on success, error otherwise
  */
 static int
 set_dpn_id(const char *dpn_id_from_json)
@@ -125,16 +123,16 @@ set_dpn_id(const char *dpn_id_from_json)
 
 
 /**
- * @brief Processes response from a get topology request made over HTTP with
- * CURL calls - callback used by CURL
- * @param ptr
- * data received
- * @param size
- * size of data members received
- * @param nmemb
- * number of members received
- * @return
- * number of bytes processed - 0 if partial message received
+ * @brief  : Processes response from a get topology request made over HTTP with
+ *           CURL calls - callback used by CURL
+ * @param  : ptr
+ *           data received
+ * @param  : size
+ *           size of data members received
+ * @param  : nmemb
+ *           number of members received
+ * @param  : userdata
+ * @return : number of bytes processed - 0 if partial message received
  */
 static size_t
 consume_topology_output(char *ptr, size_t size, size_t nmemb,
@@ -237,21 +235,22 @@ consume_topology_output(char *ptr, size_t size, size_t nmemb,
 }
 
 /**
- * @brief Initalizes curl handle for get topology request
- * @param curl
- * CURL handle to be used
- * @param list
- * List of headers to be populated
- * @param request
- * HTTP request method
- * @param uri_path
- * URI of request
- * @param ip
- * IP of server to handle request
- * @param port
- * Port of server to handle request
- * @param write_callback
- * Callback function to process response
+ * @brief  : Initalizes curl handle for get topology request
+ * @param  : curl
+ *           CURL handle to be used
+ * @param  : list
+ *           List of headers to be populated
+ * @param  : request
+ *           HTTP request method
+ * @param  : uri_path
+ *           URI of request
+ * @param  : ip
+ *           IP of server to handle request
+ * @param  : port
+ *           Port of server to handle request
+ * @param  : write_callback
+ *           Callback function to process response
+ * @return : Returns nothing
  */
 static void
 init_curl(CURL **curl, struct curl_slist **list, const char *request,
@@ -284,7 +283,9 @@ init_curl(CURL **curl, struct curl_slist **list, const char *request,
 
 
 /**
- * @brief Function to request toplology from the FPC ODL plugin
+ * @brief  : Function to request toplology from the FPC ODL plugin
+ * @param  : No param
+ * @return : Returns nothing
  */
 static void
 get_topology(void) {
@@ -324,7 +325,7 @@ get_topology(void) {
 
 	ret = curl_easy_perform(curl_topology);
 	if (ret != CURLE_OK) {
-		fprintf(stderr, "curl_easy_perform Error: %s\n",
+		clLog(clSystemLog, eCLSeverityCritical, "curl_easy_perform Error: %s\n",
 				curl_easy_strerror(ret));
 		return;
 	}
@@ -332,14 +333,16 @@ get_topology(void) {
 	curl_easy_getinfo(curl_topology, CURLINFO_RESPONSE_CODE, &res_code);
 	if (res_code != HTTP_CONTINUE &&
 			res_code != HTTP_OK) {
-		fprintf(stderr, "CURL response %ld\n",
+		clLog(clSystemLog, eCLSeverityCritical, "CURL response %ld\n",
 				res_code);
 	}
 }
 
 
 /**
- * @brief Initializes the hash table used to account for NB messages by op_id
+ * @brief  : Initializes the hash table used to account for NB messages by op_id
+ * @param  : No param
+ * @return : Returns nothing
  */
 static void
 init_nb_op_id(void)
@@ -362,8 +365,9 @@ init_nb_op_id(void)
 }
 
 /**
- * @brief Adds the current op_id to the hash table used to account for NB
- * Messages
+ * @brief  : Adds the current op_id to the hash table used to account for NB Messages
+ * @param  : No param
+ * @return : Returns nothing
  */
 static void
 add_nb_op_id_hash(void)
@@ -372,7 +376,7 @@ add_nb_op_id_hash(void)
 
 	ret = rte_hash_add_key_data(nb_op_id_hash, (void *)&op_id, NULL);
 	if (ret) {
-		fprintf(stderr, "rte_hash_add_key_data failed for"
+		clLog(clSystemLog, eCLSeverityCritical, "rte_hash_add_key_data failed for"
 				" op_id %"PRIu64": %s (%u)\n",
 				op_id, rte_strerror(abs(ret)), ret);
 	} else {
@@ -392,11 +396,11 @@ add_nb_op_id_hash(void)
  * entries, but rather those that do not get deleted.
  */
 /**
- * @brief Deletes the op_id from the hash table used to account for NB
- * Messages
- * @param nb_op_id
- * op_id received in a config-result-notification message to indicate message
- * was received and processed by the FPC agent and DPN
+ * @brief  : Deletes the op_id from the hash table used to account for NB Messages
+ * @param  : nb_op_id
+ *           op_id received in a config-result-notification message to indicate message
+ *           was received and processed by the FPC agent and DPN
+ * @return : Returns nothing
  */
 static void
 del_nb_op_id(uint64_t nb_op_id)
@@ -406,7 +410,7 @@ del_nb_op_id(uint64_t nb_op_id)
 	DEBUG_PRINTF("Deleting op_id; %"PRIu64"\n", nb_op_id);
 
 	if (ret < 0) {
-		fprintf(stderr, "rte_hash_del_key failed for op_id %"PRIu64
+		clLog(clSystemLog, eCLSeverityCritical, "rte_hash_del_key failed for op_id %"PRIu64
 				": %s (%u)\n",
 				nb_op_id,
 				rte_strerror(abs(ret)), ret);
@@ -420,11 +424,12 @@ del_nb_op_id(uint64_t nb_op_id)
 
 
 /**
- * @brief verifies that an op_id received within a response message on the NB
- * was in fact used in the original request message on the NB interface
- * @param nb_op_id
- * op_id received in a config-result-notification message to indicate message
- * was received and processed by the FPC agent and DPN
+ * @brief  : verifies that an op_id received within a response message on the NB
+ *           was in fact used in the original request message on the NB interface
+ * @param  : nb_op_id
+ *           op_id received in a config-result-notification message to indicate message
+ *           was received and processed by the FPC agent and DPN
+ * @return : Returns nothing
  */
 static void
 check_nb_op_id(uint64_t nb_op_id)
@@ -434,7 +439,7 @@ check_nb_op_id(uint64_t nb_op_id)
 	DEBUG_PRINTF("Checked op_id; %"PRIu64"\n", nb_op_id);
 
 	if (ret == -ENOENT) {
-		fprintf(stderr, "rte_hash_lookup failed for op_id %"PRIu64
+		clLog(clSystemLog, eCLSeverityCritical, "rte_hash_lookup failed for op_id %"PRIu64
 				": %s (%u)\n",
 				nb_op_id,
 				rte_strerror(abs(ret)), ret);
@@ -448,8 +453,9 @@ check_nb_op_id(uint64_t nb_op_id)
 
 
 /**
- * @brief creates a json_object for use in the notification stream request
- * message
+ * @brief  : creates a json_object for use in the notification stream request message
+ * @param  : No param
+ * @return : Returns created json object, NULL otherwise
  */
 static json_object *
 notification_stream_req_json(void)
@@ -473,8 +479,9 @@ notification_stream_req_json(void)
 
 
 /**
- * @brief creates a json_object for use in the response stream response
- * message
+ * @brief  : creates a json_object for use in the response stream response message
+ * @param  : No param
+ * @return : Returns created json object, NULL otherwise
  */
 static json_object *
 response_stream_req_json(void)
@@ -506,13 +513,11 @@ response_stream_req_json(void)
 }
 
 /**
- * @brief sends a stream request message
- * @param fd
- * socket file descriptor used to send the request
- * @param path
- * URL path of request
- * @param jobj
- * json_object of the HTTP request message contents
+ * @brief  : sends a stream request message
+ * @param  : fd, socket file descriptor used to send the request
+ * @param  : path, URL path of request
+ * @param  : jobj, json_object of the HTTP request message contents
+ * @return : Returns nothing
  */
 static void
 request_stream(int fd, const char *path, json_object *jobj)
@@ -550,12 +555,12 @@ request_stream(int fd, const char *path, json_object *jobj)
 	tx_bytes = send(fd, message_buffer, buffer_len, 0);
 
 	if (tx_bytes < 0)
-		fprintf(stderr, "%d\tSending stream request failed: %s\n", fd,
+		clLog(clSystemLog, eCLSeverityCritical, "%d\tSending stream request failed: %s\n", fd,
 				strerror(errno));
 
 
 	if ((size_t)tx_bytes < buffer_len)
-		fprintf(stderr, "%d\tSending stream request error - "
+		clLog(clSystemLog, eCLSeverityCritical, "%d\tSending stream request error - "
 				"sent less than expected: %s\n", fd,
 				strerror(errno));
 
@@ -564,9 +569,9 @@ request_stream(int fd, const char *path, json_object *jobj)
 }
 
 /**
- * @brief handles the processing of a bind client response message
- * @param jobj
- * json_object contents from a bind client HTTP response
+ * @brief  : handles the processing of a bind client response message
+ * @param  : jobj, json_object contents from a bind client HTTP response
+ * @return : Returns nothing
  */
 static void
 sse_handle_message_bind_client(json_object *jobj)
@@ -579,7 +584,7 @@ sse_handle_message_bind_client(json_object *jobj)
 	ret = json_object_object_get_ex(jobj, "output", &output_jobj);
 	if (ret == FALSE ||
 			json_object_get_type(output_jobj) != json_type_object) {
-		fprintf(stderr, "Error parsing bind client response:\n%s\n",
+		clLog(clSystemLog, eCLSeverityCritical, "Error parsing bind client response:\n%s\n",
 				json_object_to_json_string(jobj));
 		return;
 	}
@@ -588,7 +593,7 @@ sse_handle_message_bind_client(json_object *jobj)
 			&client_id_jobj);
 	if (ret == FALSE || json_object_get_type(client_id_jobj) !=
 			json_type_string) {
-		fprintf(stderr, "Error parsing bind client response:\n%s\n",
+		clLog(clSystemLog, eCLSeverityCritical, "Error parsing bind client response:\n%s\n",
 				json_object_to_json_string(jobj));
 		return;
 	}
@@ -598,11 +603,11 @@ sse_handle_message_bind_client(json_object *jobj)
 
 	client_id = strdup(json_object_get_string(client_id_jobj));
 	if (client_id == NULL) {
-		fprintf(stderr, "Error setting client id: %s\n",
+		clLog(clSystemLog, eCLSeverityCritical, "Error setting client id: %s\n",
 				strerror(errno));
 		return;
 	}
-	printf("Established client_id as '%s'\n", client_id);
+	clLog(clSystemLog, eCLSeverityDebug,"Established client_id as '%s'\n", client_id);
 
 	notification_obj = notification_stream_req_json();
 	if (notification_obj == NULL)
@@ -617,9 +622,9 @@ sse_handle_message_bind_client(json_object *jobj)
 }
 
 /**
- * Creates and connects a socket to the FPC ODL plugin for use of a SSE stream
- * @param fd
- * file descriptor variable to be used for the socket to be created/connected
+ * @brief  : Creates and connects a socket to the FPC ODL plugin for use of a SSE stream
+ * @param  : fd, file descriptor variable to be used for the socket to be created/connected
+ * @return : Returns nothing
  */
 static void
 connect_stream(int *fd)
@@ -651,15 +656,12 @@ connect_stream(int *fd)
 
 
 /**
- * @brief creates the HTTP chunk containing an event_data pair message to be
- * sent to the FPC ODL plugin
- * @param event
- * event string
- * @param data
- * data string
- * @return
- * A statically allocaed buffer containing the event/data pair encoded as a
- * HTTP chuncked message
+ * @brief  : creates the HTTP chunk containing an event_data pair message to be
+ *           sent to the FPC ODL plugin
+ * @param  : event, event string
+ * @param  : data, data string
+ * @return : A statically allocaed buffer containing the event/data pair encoded as a
+ *           HTTP chuncked message
  */
 static const char *
 set_message_sse(const char *event, const char *data)
@@ -689,12 +691,10 @@ set_message_sse(const char *event, const char *data)
 
 
 /**
- * @brief sends a zero-sized HTTP chunk message to indicate the closing of a
- * SSE connection
- * @param fd
- * file descriptor to send the message on
- * @return
- * 0 on success, error otherwise
+ * @brief  : sends a zero-sized HTTP chunk message to indicate the closing of a
+ *           SSE connection
+ * @param  : fd, file descriptor to send the message on
+ * @return : 0 on success, error otherwise
  */
 static int
 close_sse(int fd)
@@ -704,13 +704,13 @@ close_sse(int fd)
 	int tx_bytes = send(fd, end_chunked_msg, len, 0);
 
 	if (tx_bytes < 0) {
-		fprintf(stderr, "Sending of %s failed: %s\n",
+		clLog(clSystemLog, eCLSeverityCritical, "Sending of %s failed: %s\n",
 				__func__, strerror(errno));
 		return EXIT_FAILURE;
 	}
 
 	if ((size_t)tx_bytes < len) {
-		fprintf(stderr, "Sending of %s error - "
+		clLog(clSystemLog, eCLSeverityCritical, "Sending of %s error - "
 				"sent less than expected: %s\n",
 				__func__, strerror(errno));
 		return EXIT_FAILURE;
@@ -725,17 +725,12 @@ close_sse(int fd)
 
 
 /**
- * @brief wrapper to conduct error handling on sent SSE messages
- * @param fd
- * file descriptor to use for sending SSE message on NB interface
- * @param event
- * event string
- * @param data
- * data string
- * @param calling_func
- * function called - used to determine message type for debugging purposes
- * @return
- * 0 on success, error otherwise
+ * @brief  : wrapper to conduct error handling on sent SSE messages
+ * @param  : fd, file descriptor to use for sending SSE message on NB interface
+ * @param  : event, event string
+ * @param  : data, data string
+ * @param  : calling_func, function called - used to determine message type for debugging purposes
+ * @return : 0 on success, error otherwise
  */
 static int
 send_sse(int fd, const char *event, const char *data, const char *calling_func)
@@ -753,13 +748,13 @@ send_sse(int fd, const char *event, const char *data, const char *calling_func)
 	tx_bytes = send(fd, buffer, len, 0);
 
 	if (tx_bytes < 0) {
-		fprintf(stderr, "Sending of %s failed: %s\n",
+		clLog(clSystemLog, eCLSeverityCritical, "Sending of %s failed: %s\n",
 				calling_func, strerror(errno));
 		return EXIT_FAILURE;
 	}
 
 	if ((size_t)tx_bytes < len) {
-		fprintf(stderr, "Sending of %s error - "
+		clLog(clSystemLog, eCLSeverityCritical, "Sending of %s error - "
 				"sent less than expected: %s\n",
 				calling_func, strerror(errno));
 		return EXIT_FAILURE;
@@ -773,9 +768,9 @@ send_sse(int fd, const char *event, const char *data, const char *calling_func)
 
 
 /**
- * @brief sends bind client as an SSE message
- * @return
- * 0 on success, error otherwise
+ * @brief  : sends bind client as an SSE message
+ * @param  : No param
+ * @return : 0 on success, error otherwise
  */
 static int
 bind_client_request(void)
@@ -785,9 +780,9 @@ bind_client_request(void)
 }
 
 /**
- * @brief sends HTTP response message indicating success - HTTP OK
- * @return
- * 0 on success, error otherwise
+ * @brief  : sends HTTP response message indicating success - HTTP OK
+ * @param  : fd, file descriptor to send the message on
+ * @return : 0 on success, error otherwise
  */
 static int
 send_stream_response_ok(int fd)
@@ -797,7 +792,7 @@ send_stream_response_ok(int fd)
 	tx_bytes = send(fd, HTTP_REQUEST_STREAM_RESPONSE,
 			strlen(HTTP_REQUEST_STREAM_RESPONSE), 0);
 	if (tx_bytes < 0) {
-		fprintf(stderr, "%d\t%s send error: %s\n", fd, __func__,
+		clLog(clSystemLog, eCLSeverityCritical, "%d\t%s send error: %s\n", fd, __func__,
 				strerror(errno));
 		FD_CLR(fd, &fd_set_active);
 		close(fd);
@@ -809,24 +804,22 @@ send_stream_response_ok(int fd)
 }
 
 /**
- * @brief sends HTTP response message some error condition
- * @param fd
- * file descriptor to send response
- * @param error
- * HTTP Error code  and description as a string
- * @param rx
- * message received causing the error
+ * @brief  : sends HTTP response message some error condition
+ * @param  : fd, file descriptor to send response
+ * @param  : error, HTTP Error code  and description as a string
+ * @param  : rx, message received causing the error
+ * @return : Returns nothing
  */
 static void
 send_stream_response_error(int fd, const char *error, const char *rx)
 {
 	int tx_bytes;
 
-	fprintf(stderr, "\n\n%d\tUnexpected request: %s\n", fd, rx);
+	clLog(clSystemLog, eCLSeverityCritical, "\n\n%d\tUnexpected request: %s\n", fd, rx);
 
 	tx_bytes = send(fd, error, strlen(error), 0);
 	if (tx_bytes < 0) {
-		fprintf(stderr, "%d\t%s send error: %s\n", fd, __func__,
+		clLog(clSystemLog, eCLSeverityCritical, "%d\t%s send error: %s\n", fd, __func__,
 				strerror(errno));
 		FD_CLR(fd, &fd_set_active);
 		close(fd);
@@ -836,11 +829,9 @@ send_stream_response_error(int fd, const char *error, const char *rx)
 }
 
 /**
- * @brief server helper function to receive message and respond accordingly
- * @param fd
- * file descriptor to receive message
- * @return
- * 0 on success, error otherwise
+ * @brief  : server helper function to receive message and respond accordingly
+ * @param  : fd, file descriptor to receive message
+ * @return : 0 on success, error otherwise
  */
 static int
 serve_client_with_response(int fd)
@@ -853,7 +844,7 @@ serve_client_with_response(int fd)
 	ret = recv(fd, buf, MESSAGE_BUFFER_SIZE - 1, 0);
 
 	if (ret < 0) {
-		fprintf(stderr, "%d\t%s recv error: %s\n", fd, __func__,
+		clLog(clSystemLog, eCLSeverityCritical, "%d\t%s recv error: %s\n", fd, __func__,
 				strerror(errno));
 		return ret;
 	}
@@ -862,7 +853,7 @@ serve_client_with_response(int fd)
 		FD_CLR(fd, &fd_set_active);
 		if (request_fd == fd) {
 			request_fd = -1;
-			fprintf(stderr, "%d\tConnection to request stream "
+			clLog(clSystemLog, eCLSeverityCritical, "%d\tConnection to request stream "
 					"closed by peer\n", fd);
 		}
 		close(fd);
@@ -919,13 +910,11 @@ serve_client_with_response(int fd)
 }
 
 /**
- * @brief server helper function to receive message and respond accordingly -
- * as we do not expect any data on this connection, we log and discard it
- * without response
- * @param fd
- * file descriptor to receive message
- * @return
- * 0 on success, error otherwise
+ * @brief  : server helper function to receive message and respond accordingly -
+ *           as we do not expect any data on this connection, we log and discard it
+ *           without response
+ * @param  : fd, file descriptor to receive message
+ * @return : 0 on success, error otherwise
  */
 static int
 serve_client(int fd)
@@ -935,7 +924,7 @@ serve_client(int fd)
 	int ret = recv(fd, rx_buffer, MESSAGE_BUFFER_SIZE - 1, 0);
 
 	if (ret < 0) {
-		fprintf(stderr, "%d\tListener recv error: %s\n", fd,
+		clLog(clSystemLog, eCLSeverityCritical, "%d\tListener recv error: %s\n", fd,
 				strerror(errno));
 		FD_CLR(fd, &fd_set_active);
 		return EXIT_FAILURE;
@@ -945,22 +934,22 @@ serve_client(int fd)
 		FD_CLR(fd, &fd_set_active);
 		if (request_fd == fd) {
 			request_fd = -1;
-			fprintf(stderr, "%d\tConnection to request stream "
+			clLog(clSystemLog, eCLSeverityCritical, "%d\tConnection to request stream "
 					"closed by peer\n", fd);
 		}
 		close(fd);
 		return EXIT_SUCCESS;
 	}
 
-	fprintf(stderr, "%d\tUnexpected request: %s\n", fd, rx_buffer);
+	clLog(clSystemLog, eCLSeverityCritical, "%d\tUnexpected request: %s\n", fd, rx_buffer);
 	return EXIT_SUCCESS;
 }
 
 /**
- * @brief handler function to process 'configure' messages that are received on
- * the response stream
- * @param jobj
- * the json object data contained within the response message
+ * @brief  : handler function to process 'configure' messages that are received on
+ *           the response stream
+ * @param  : jobj, the json object data contained within the response message
+ * @return : Returns nothing
  */
 static void
 sse_handle_message_configure(json_object *jobj)
@@ -972,13 +961,13 @@ sse_handle_message_configure(json_object *jobj)
 	ret = json_object_object_get_ex(jobj, "output",
 			&output_jobj);
 	if (ret == FALSE || output_jobj == NULL) {
-		fprintf(stderr, "Received unhandled JSON object "
+		clLog(clSystemLog, eCLSeverityCritical, "Received unhandled JSON object "
 			"(no output object):\n%s\n",
 			json_object_to_json_string(jobj));
 		return;
 	}
 	if (!json_object_is_type(output_jobj, json_type_object)) {
-		fprintf(stderr, "Received unhandled JSON object "
+		clLog(clSystemLog, eCLSeverityCritical, "Received unhandled JSON object "
 			"(output value not an object):\n%s\n",
 			json_object_to_json_string(jobj));
 		return;
@@ -988,14 +977,14 @@ sse_handle_message_configure(json_object *jobj)
 	ret = json_object_object_get_ex(output_jobj, "op-id",
 			&op_id_jobj);
 	if (ret == FALSE || op_id_jobj == NULL) {
-		fprintf(stderr, "Received unhandled JSON object "
+		clLog(clSystemLog, eCLSeverityCritical, "Received unhandled JSON object "
 			"(no op_id object):\n%s\n",
 			json_object_to_json_string(jobj));
 		return;
 	}
 
 	if (!json_object_is_type(op_id_jobj, json_type_int)) {
-		fprintf(stderr, "Received unhandled JSON object "
+		clLog(clSystemLog, eCLSeverityCritical, "Received unhandled JSON object "
 			"(op_id not int):\n%s\n",
 			json_object_to_json_string(jobj));
 		return;
@@ -1006,15 +995,16 @@ sse_handle_message_configure(json_object *jobj)
 
 
 /**
- * @brief handler function to process  messages that are received on
- * the notification stream
- * @param jobj
- * complete json object data contained within the notification message
- * @param notify_jobj
- * json sub-object data contained within the notification message containing the
- * notification
- * @param message_type
- * The value (to the notify key) that describes the notification *
+ * @brief  : handler function to process  messages that are received on
+ *           the notification stream
+ * @param  : jobj
+ *           complete json object data contained within the notification message
+ * @param  : notify_jobj
+ *           json sub-object data contained within the notification message containing the
+ *           notification
+ * @param  : message_type
+ *           The value (to the notify key) that describes the notification *
+ * @return : Returns nothing
  */
 static void
 nb_json_notify_parser(json_object *jobj,
@@ -1027,7 +1017,7 @@ nb_json_notify_parser(json_object *jobj,
 				"dpn-status", &dpn_status_jobj);
 		if (ret == FALSE ||  !json_object_is_type(dpn_status_jobj,
 				json_type_string)) {
-			fprintf(stderr, "Received unhandled JSON object "
+			clLog(clSystemLog, eCLSeverityCritical, "Received unhandled JSON object "
 					"(no dpn-status):\n%s\n",
 					json_object_to_json_string(jobj));
 			return;
@@ -1040,13 +1030,13 @@ nb_json_notify_parser(json_object *jobj,
 					&dpn_id_jobj);
 			if (ret == FALSE || !json_object_is_type(dpn_id_jobj,
 					json_type_string)) {
-				fprintf(stderr, "Received unhandled JSON object"
+				clLog(clSystemLog, eCLSeverityCritical, "Received unhandled JSON object"
 					" (no dpn-id):\n%s\n",
 					json_object_to_json_string(jobj));
 				return;
 			}
 			if (!set_dpn_id(json_object_get_string(dpn_id_jobj))) {
-				printf("dpn id set to %s\n",
+				clLog(clSystemLog, eCLSeverityDebug,"dpn id set to %s\n",
 					json_object_get_string(dpn_id_jobj));
 			}
 			return;
@@ -1056,14 +1046,14 @@ nb_json_notify_parser(json_object *jobj,
 					&dpn_id_jobj);
 			if (ret == FALSE || !json_object_is_type(dpn_id_jobj,
 					json_type_string)) {
-				fprintf(stderr, "Received unhandled JSON object"
+				clLog(clSystemLog, eCLSeverityCritical, "Received unhandled JSON object"
 					" (no dpn-id):\n%s\n",
 					json_object_to_json_string(jobj));
 				return;
 			}
 			if (dpn_id != NULL && !strcmp(dpn_id,
 					json_object_get_string(dpn_id_jobj))) {
-				printf("dpn_id currently in use "
+				clLog(clSystemLog, eCLSeverityDebug,"dpn_id currently in use "
 						"is no longer available:\n");
 				DEBUG_PRINTF("%s\n",
 					json_object_get_string(dpn_id_jobj));
@@ -1079,7 +1069,7 @@ nb_json_notify_parser(json_object *jobj,
 					&session_id_jobj);
 		if (ret == FALSE || !json_object_is_type(session_id_jobj,
 				json_type_int)) {
-			fprintf(stderr, "Received unhandled JSON object "
+			clLog(clSystemLog, eCLSeverityCritical, "Received unhandled JSON object "
 					"(no session-id):\n%s\n",
 					json_object_get_string(jobj));
 			return;
@@ -1091,15 +1081,16 @@ nb_json_notify_parser(json_object *jobj,
 		return;
 	}
 
-	fprintf(stderr, "Received unhandled JSON object "
+	clLog(clSystemLog, eCLSeverityCritical, "Received unhandled JSON object "
 			"(unknown message-type):\n%s\n",
 			json_object_get_string(jobj));
 }
 
 /**
- * @brief handles messages on the notification stream
- * @param jobj
- * json object received in the data portion of the message-
+ * @brief  : handles messages on the notification stream
+ * @param  : jobj
+ *           json object received in the data portion of the message-
+ * @return : Returns nothing
  */
 static void
 sse_handle_message_notification(json_object *jobj)
@@ -1115,7 +1106,7 @@ sse_handle_message_notification(json_object *jobj)
 				&message_type_jobj);
 		if (ret == FALSE || !json_object_is_type(message_type_jobj,
 				json_type_string)) {
-			fprintf(stderr, "Received unhandled JSON object "
+			clLog(clSystemLog, eCLSeverityCritical, "Received unhandled JSON object "
 					"(no message-type):\n%s\n",
 					json_object_get_string(jobj));
 			return;
@@ -1131,7 +1122,7 @@ sse_handle_message_notification(json_object *jobj)
 	if (ret == TRUE && config_result_notification_jobj != NULL) {
 		if (!json_object_is_type(config_result_notification_jobj,
 				json_type_object)) {
-			fprintf(stderr, "Received unhandled JSON object "
+			clLog(clSystemLog, eCLSeverityCritical, "Received unhandled JSON object "
 					"(no config-result-notification "
 					"object):\n%s\n",
 					json_object_get_string(jobj));
@@ -1142,7 +1133,7 @@ sse_handle_message_notification(json_object *jobj)
 					"op-id", &op_id_jobj);
 		if (ret == FALSE || !json_object_is_type(op_id_jobj,
 				json_type_int)) {
-			fprintf(stderr, "Received unhandled JSON object"
+			clLog(clSystemLog, eCLSeverityCritical, "Received unhandled JSON object"
 				" (no dpn-id):\n%s\n",
 				json_object_to_json_string(jobj));
 			return;
@@ -1153,19 +1144,20 @@ sse_handle_message_notification(json_object *jobj)
 	}
 
 
-	fprintf(stderr, "Received unhandled JSON object "
+	clLog(clSystemLog, eCLSeverityCritical, "Received unhandled JSON object "
 			"(Unknown message):\n%s\n",
 			json_object_get_string(jobj));
 }
 
 
 /**
- * @brief message hanlder for the sse messages received on the
- * request or notification streams
- * @param msg
- * message received
- * @param map
- * used to map the message contents to a handler function
+ * @brief  : message hanlder for the sse messages received on the
+ *           request or notification streams
+ * @param  : msg
+ *           message received
+ * @param  : map
+ *           used to map the message contents to a handler function
+ * @return : Returns nothing
  */
 static void
 sse_handle_message(const char *msg,
@@ -1186,14 +1178,14 @@ sse_handle_message(const char *msg,
 	}
 
 	if (map[i].event == NULL) {
-		fprintf(stderr, "Unexpected Message: SSE Event:\n%s\n", msg);
+		clLog(clSystemLog, eCLSeverityCritical, "Unexpected Message: SSE Event:\n%s\n", msg);
 		return;
 	}
 
 	ptr += strlen(map[i].event);
 
 	if (strncmp(ptr, SSE_DATA, strlen(SSE_DATA))) {
-		fprintf(stderr, "Unexpected Message: Missing Data:\n%s\n", msg);
+		clLog(clSystemLog, eCLSeverityCritical, "Unexpected Message: Missing Data:\n%s\n", msg);
 		return;
 	}
 	ptr += strlen(SSE_DATA);
@@ -1201,7 +1193,7 @@ sse_handle_message(const char *msg,
 	jobj = json_tokener_parse_verbose(ptr, &error);
 
 	if (jobj == NULL || error != json_tokener_success) {
-		fprintf(stderr, "SSE Data JSON parsing error: %s\n",
+		clLog(clSystemLog, eCLSeverityCritical, "SSE Data JSON parsing error: %s\n",
 				json_tokener_error_desc(error));
 		return;
 	}
@@ -1212,13 +1204,12 @@ sse_handle_message(const char *msg,
 }
 
 /**
- * @brief parses a message expected to contain a HTTP header
- * @param fd
- * file descriptor used to receive the message
- * @param rx_buffer
- * message contents
- * @return
- * number of bytes processed
+ * @brief  : parses a message expected to contain a HTTP header
+ * @param  : fd
+ *           file descriptor used to receive the message
+ * @param  : rx_buffer
+ *           message contents
+ * @return : number of bytes processed
  */
 static size_t
 check_header(const int fd, const char *rx_buffer)
@@ -1248,14 +1239,14 @@ check_header(const int fd, const char *rx_buffer)
 }
 
 /**
- * @brief parses an expected  HTTP chunk message
- * @param fd
- * file descriptor on the received message
- * @param rx_buffer
- * message contents received
- * @param map
- * used to map the message contents to a handler function
- * @return
+ * @brief  : parses an expected  HTTP chunk message
+ * @param  : fd
+ *           file descriptor on the received message
+ * @param  : rx_buffer
+ *           message contents received
+ * @param  : map
+ *           used to map the message contents to a handler function
+ * @return : Returns number of processes bytes
  */
 static size_t
 check_chunk(const int fd, const char *rx_buffer,
@@ -1268,7 +1259,7 @@ check_chunk(const int fd, const char *rx_buffer,
 
 	ret = sscanf(rx_buffer, "%x" CRLF "%n", &chunk_size, &n);
 	if (ret != 1) {
-		fprintf(stderr, "%d\tMissing chunk size:\n%s\n", fd, rx_buffer);
+		clLog(clSystemLog, eCLSeverityCritical, "%d\tMissing chunk size:\n%s\n", fd, rx_buffer);
 		return 0;
 	}
 
@@ -1296,20 +1287,19 @@ check_chunk(const int fd, const char *rx_buffer,
 
 
 /**
- * @brief receives messages (and bufferes if partial message is received).
- * Messages are expected to be HTTP chunked encoded SSE event-data pairs
- * @param fd
- * file descriptor on the received message
- * @param active
- * active buffer to be used on message receipt
- * @param inactive
- * inactive buffer to be used if buffer swapping is required
- * @param buf_size
- * buffer size remaining in active buffer
- * @param map
- * used to map the message contents to a handler function
- * @return
- * number bytes received, or error if negative
+ * @brief  : receives messages (and bufferes if partial message is received).
+ *           Messages are expected to be HTTP chunked encoded SSE event-data pairs
+ * @param  : fd
+ *           file descriptor on the received message
+ * @param  : active
+ *           active buffer to be used on message receipt
+ * @param  : inactive
+ *           inactive buffer to be used if buffer swapping is required
+ * @param  : buf_size
+ *           buffer size remaining in active buffer
+ * @param  : map
+ *           used to map the message contents to a handler function
+ * @return : number bytes received, or error if negative
  */
 static inline int
 rec_stream(int fd, char **active, char **inactive, size_t *buf_size,
@@ -1324,7 +1314,7 @@ rec_stream(int fd, char **active, char **inactive, size_t *buf_size,
 			MESSAGE_BUFFER_SIZE - *buf_size - 1, 0);
 
 	if (rx_bytes < 0) {
-		fprintf(stderr, "%d\%s recv error: %s\n", fd, __func__,
+		clLog(clSystemLog, eCLSeverityCritical, "%d\%s recv error: %s\n", fd, __func__,
 				strerror(errno));
 		return rx_bytes;
 	}
@@ -1353,7 +1343,7 @@ rec_stream(int fd, char **active, char **inactive, size_t *buf_size,
 		*buf_size -= consumed;
 		memcpy(*inactive, &(*active)[consumed], *buf_size);
 		if ((*inactive)[0] == '\n' || (*inactive)[0] == '\r')
-			printf("Error switching between inactive & active\n");
+			clLog(clSystemLog, eCLSeverityDebug,"Error switching between inactive & active\n");
 		char *swap = *active;
 		*active = *inactive;
 		*inactive = swap;
@@ -1364,7 +1354,9 @@ rec_stream(int fd, char **active, char **inactive, size_t *buf_size,
 }
 
 /**
- * @brief wrapper function to receive a message on the response stream
+ * @brief  : wrapper function to receive a message on the response stream
+ * @param  : No param
+ * @return : Returns nothing
  */
 static void
 rec_response_stream(void)
@@ -1387,7 +1379,7 @@ rec_response_stream(void)
 			&buf_pos, response_map);
 
 	if (rx_bytes == 0) {
-		fprintf(stderr, "%d\tResponse stream closed.\n", response_fd);
+		clLog(clSystemLog, eCLSeverityCritical, "%d\tResponse stream closed.\n", response_fd);
 		FD_CLR(response_fd, &fd_set_active);
 		close(response_fd);
 
@@ -1398,7 +1390,9 @@ rec_response_stream(void)
 }
 
 /**
- * @brief wrapper function to receive a message on the notification stream
+ * @brief  : wrapper function to receive a message on the notification stream
+ * @param  : No param
+ * @return : Returns nothing
  */
 static void
 rec_notification_stream(void)
@@ -1420,7 +1414,7 @@ rec_notification_stream(void)
 			&buf_pos, notification_map);
 
 	if (rx_bytes == 0) {
-		fprintf(stderr, "%d\tNotification stream closed.\n",
+		clLog(clSystemLog, eCLSeverityCritical, "%d\tNotification stream closed.\n",
 				notification_fd);
 		FD_CLR(notification_fd, &fd_set_active);
 		close(notification_fd);
@@ -1544,7 +1538,7 @@ server(void)
 				}
 
 				if (ret) {
-					fprintf(stderr,
+					clLog(clSystemLog, eCLSeverityCritical,
 						"%d\tClosing connection", i);
 					close(i);
 					FD_CLR(i, &fd_set_active);
@@ -1558,7 +1552,9 @@ server(void)
 
 
 /**
- * server intialiation function
+ * @brief  : server intialiation function
+ * @param  : No param
+ * @return : Returns nothing
  */
 static void
 init_server(void)
@@ -1578,7 +1574,7 @@ init_server(void)
 			sizeof(so_linger));
 
 	if (ret)
-		fprintf(stderr, "Linger Error: %s\n", strerror(errno));
+		clLog(clSystemLog, eCLSeverityCritical, "Linger Error: %s\n", strerror(errno));
 
 	struct sockaddr_in local_addr = {
 			.sin_family = AF_INET,
@@ -1654,7 +1650,7 @@ send_nb_create_modify(const char *op_type, const char *instruction,
 		inet_ntoa(*((struct in_addr *)&local_address)));
 
 	if (dpn_id == NULL) {
-		fprintf(stderr, "NO DPN INSTALLED!!!!\n");
+		clLog(clSystemLog, eCLSeverityCritical, "NO DPN INSTALLED!!!!\n");
 		return EXIT_FAILURE;
 	}
 
@@ -1709,7 +1705,7 @@ send_nb_delete(uint64_t sess_id)
 	static char json_buf[MESSAGE_BUFFER_SIZE];
 
 	if (dpn_id == NULL) {
-		fprintf(stderr, "NO DPN INSTALLED!!!!");
+		clLog(clSystemLog, eCLSeverityCritical, "NO DPN INSTALLED!!!!");
 		return EXIT_FAILURE;
 	}
 
@@ -1741,7 +1737,7 @@ send_nb_ddn_ack(uint64_t dl_buffering_suggested_count,
 	static char json_buf[MESSAGE_BUFFER_SIZE];
 
 	if (dpn_id == NULL) {
-		fprintf(stderr, "NO DPN INSTALLED!!!!");
+		clLog(clSystemLog, eCLSeverityCritical, "NO DPN INSTALLED!!!!");
 		return EXIT_FAILURE;
 	}
 
@@ -1773,7 +1769,7 @@ close_nb(void)
 	ret = snprintf(buffer, MESSAGE_BUFFER_SIZE,
 			SSE_UNBIND_CLIENT_DATA_FORMAT, client_id);
 	if (ret < 0 || ret > MESSAGE_BUFFER_SIZE)
-		fprintf(stderr, "Error in generating unbind client message");
+		clLog(clSystemLog, eCLSeverityCritical, "Error in generating unbind client message");
 	else
 		send_sse(request_fd, SSE_UNBIND_CLIENT_EVENT, buffer, __func__);
 

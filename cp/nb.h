@@ -216,6 +216,9 @@
 //#define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
 
 /* From rfc2616 */
+/**
+ * @brief  : Http error codes
+ */
 enum http_status {
 	HTTP_CONTINUE = 100,
 	HTTP_SWITCHING_PROTOCOLS = 101,
@@ -262,48 +265,46 @@ enum http_status {
 extern char *dpn_id;
 
 /**
- * @brief Initalizes northbound interface
- * @return
- * 0 on success, error otherwise
+ * @brief  : Initalizes northbound interface
+ * @param  : No param
+ * @return : 0 on success, error otherwise
  */
 int
 init_nb(void);
 
 /**
- * @brief closes the northbound interface connections
- * @return
- * 0 on success, error otherwise
+ * @brief  : closes the northbound interface connections
+ * @param  : No param
+ * @return : 0 on success, error otherwise
  */
 int
 close_nb(void);
 
 /**
- * @brief used to send create session or modify bearer (updates) to the FPC ODL
- * plugin.
- * @param op_type
- * operation type - either JSON_OBJ_OP_TYPE_CREATE or JSON_OBJ_OP_TYPE_UPDATE
- * @param instruction
- * either JSON_OBJ_INSTR_3GPP_MOB_CREATE or JSON_OBJ_INSTR_3GPP_MOB_MODIFY
- * @param sess_id
- * session identifier
- * @param assigned_ip
- * Assigned UE IP in network byte order
- * @param remote_address
- * eNB IP - in network byte order
- * @param s5s8_address
- * SGWU(in case of PGWC) or PGWU (in case of SGWC)address. Unused for SPGW.
- * @param local_address
- * SGW IP - in network byte order
- * @param remote_teid
- * eNB GTP Tunnel Endpoint Identifier - in network byte order
- * @param local_teid
- * SGW GTP Tunnel Endpoint Identifier - in network byte order
- * @param imsi
- * Subscriber identifier - Currently same as assigned_ip
- * @param ebi
- * EPS Bearer Identifier *
- * @return
- * 0 on success, error otherwise
+ * @brief  : used to send create session or modify bearer (updates) to the FPC ODL plugin.
+ * @param  : op_type
+ *           operation type - either JSON_OBJ_OP_TYPE_CREATE or JSON_OBJ_OP_TYPE_UPDATE
+ * @param  : instruction
+ *           either JSON_OBJ_INSTR_3GPP_MOB_CREATE or JSON_OBJ_INSTR_3GPP_MOB_MODIFY
+ * @param  : sess_id
+ *           session identifier
+ * @param  : assigned_ip
+ *           Assigned UE IP in network byte order
+ * @param  : remote_address
+ *           eNB IP - in network byte order
+ * @param  : s5s8_address
+ *           SGWU(in case of PGWC) or PGWU (in case of SGWC)address. Unused for SPGW.
+ * @param  : local_address
+ *           SGW IP - in network byte order
+ * @param  : remote_teid
+ *           eNB GTP Tunnel Endpoint Identifier - in network byte order
+ * @param  : local_teid
+ *           SGW GTP Tunnel Endpoint Identifier - in network byte order
+ * @param  : imsi
+ *           Subscriber identifier - Currently same as assigned_ip
+ * @param  : ebi
+ *           EPS Bearer Identifier *
+ * @return :  0 on success, error otherwise
  */
 int
 send_nb_create_modify(const char *op_type, const char *instruction,
@@ -313,30 +314,30 @@ send_nb_create_modify(const char *op_type, const char *instruction,
 		uint64_t imsi, uint8_t ebi);
 
 /**
- * @brief used to send ddn ack messages to the FPC OLD plugin
- * @param dl-buffering-suggested-count, dl-buffering-duration
- * downlink_data_notification_ack_t downlink data notification
- * information element
- * @return
- * 0 on success, error otherwise
+ * @brief  : used to send ddn ack messages to the FPC OLD plugin
+ * @param  : dl-buffering-suggested-count, dl-buffering-duration
+ *           downlink_data_notification_ack_t downlink data notification
+ *           information element
+ * @return : 0 on success, error otherwise
  */
 int
 send_nb_ddn_ack(uint64_t buff_count, uint64_t buff_delay);
 
 /**
- * @brief used to send delete session messages to the FPC OLD plugin
- * @param sess_id
- * session identifier
- * @return
- * 0 on success, error otherwise
+ * @brief  : used to send delete session messages to the FPC OLD plugin
+ * @param  : sess_id
+ *           session identifier
+ * @return : 0 on success, error otherwise
  */
 int
 send_nb_delete(uint64_t sess_id);
 
 /**
- * @brief Acts as a server on incoming connection requests and manages handling
- * of messages as they arrive on other established conenctions. These other
- * connections include the S11 interface and notification & response SSE streams
+ * @brief  : Acts as a server on incoming connection requests and manages handling
+ *           of messages as they arrive on other established conenctions. These other
+ *           connections include the S11 interface and notification & response SSE streams
+ * @param  : No param
+ * @return : Returns nothing
  */
 void
 server(void);

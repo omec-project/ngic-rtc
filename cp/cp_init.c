@@ -18,6 +18,7 @@
 #include <rte_ip.h>
 #include <rte_udp.h>
 #include <rte_hash_crc.h>
+#include <errno.h>
 
 #include "ue.h"
 #include "pfcp.h"
@@ -26,10 +27,10 @@
 #include "pfcp_set_ie.h"
 #include "pfcp_session.h"
 #include "pfcp_association.h"
-
-#ifdef C3PO_OSS
+#include "restoration_timer.h"
+#include "sm_struct.h"
+#include "cp_timer.h"
 #include"cp_config.h"
-#endif /* C3PO_OSS */
 
 #ifdef USE_DNS_QUERY
 #include "cdnshelper.h"
@@ -88,7 +89,9 @@ uint8_t s5s8_tx_buf[MAX_GTPV2C_UDP_LEN];
 
 #ifdef SYNC_STATS
 /**
- * @brief Initializes the hash table used to account for statstics of req and resp time.
+ * @brief  : Initializes the hash table used to account for statstics of req and resp time.
+ * @param  : void
+ * @return : void
  */
 void
 init_stats_hash(void)
@@ -215,8 +218,42 @@ dump_pcap(uint16_t payload_length, uint8_t *tx_buf)
 }
 
 /**
- * @brief
- * Util to send or dump gtpv2c messages
+ * @brief  : Util to send or dump gtpv2c messages
+ * @param  : fd, interface indentifier
+ * @param  : t_tx, buffer to store data for peer node
+ * @return : void
+ */
+void
+timer_retry_send(int fd, peerData *t_tx)
+{
+	int bytes_tx;
+	struct sockaddr_in tx_sockaddr;
+	tx_sockaddr.sin_addr.s_addr = t_tx->dstIP;
+	tx_sockaddr.sin_port = t_tx->dstPort;
+	if (pcap_dumper) {
+		dump_pcap(t_tx->buf_len, t_tx->buf);
+	} else {
+		bytes_tx = sendto(fd, t_tx->buf, t_tx->buf_len, 0,
+			(struct sockaddr *)&tx_sockaddr, sizeof(struct sockaddr_in));
+
+		clLog(clSystemLog, eCLSeverityDebug, "NGIC- main.c::gtpv2c_send()""\n\tgtpv2c_if_fd= %d\n",fd);
+
+	if (bytes_tx != (int) t_tx->buf_len) {
+			clLog(clSystemLog, eCLSeverityCritical, "Transmitted Incomplete Timer Retry Message:"
+					"%u of %d tx bytes : %s\n",
+					t_tx->buf_len, bytes_tx, strerror(errno));
+		}
+	}
+}
+
+/**
+ * @brief  : Util to send or dump gtpv2c messages
+ * @param  : gtpv2c_if_fd, interface indentifier
+ * @param  : gtpv2c_tx_buf, buffer to store data for peer node
+ * @param  : gtpv2c_pyld_len, data length
+ * @param  : dest_addr, destination address
+ * @param  : dest_addr_len, destination address length
+ * @return : Void
  */
 void
 gtpv2c_send(int gtpv2c_if_fd, uint8_t *gtpv2c_tx_buf,
@@ -233,7 +270,7 @@ gtpv2c_send(int gtpv2c_if_fd, uint8_t *gtpv2c_tx_buf,
 		clLog(clSystemLog, eCLSeverityDebug, "NGIC- main.c::gtpv2c_send()""\n\tgtpv2c_if_fd= %d\n", gtpv2c_if_fd);
 
 	if (bytes_tx != (int) gtpv2c_pyld_len) {
-			fprintf(stderr, "Transmitted Incomplete GTPv2c Message:"
+			clLog(clSystemLog, eCLSeverityCritical, "Transmitted Incomplete GTPv2c Message:"
 					"%u of %d tx bytes\n",
 					gtpv2c_pyld_len, bytes_tx);
 		}
@@ -241,6 +278,11 @@ gtpv2c_send(int gtpv2c_if_fd, uint8_t *gtpv2c_tx_buf,
 }
 
 #ifdef USE_DNS_QUERY
+/**
+ * @brief  : Set dns configurations parameters
+ * @param  : void
+ * @return : void
+ */
 static void
 set_dns_config(void)
 {
@@ -320,7 +362,9 @@ init_pfcp(void)
 
 
 /**
- * @brief Initalizes S11 interface if in use
+ * @brief  : Initalizes S11 interface if in use
+ * @param  : void
+ * @return : void
  */
 static void
 init_s11(void)
@@ -362,7 +406,9 @@ init_s11(void)
 }
 
 /**
- * @brief Initalizes s5s8_sgwc interface if in use
+ * @brief  : Initalizes s5s8_sgwc interface if in use
+ * @param  : void
+ * @return : void
  */
 static void
 init_s5s8(void)
@@ -447,9 +493,8 @@ init_dp_rule_tables(void)
 
 }
 /**
- * @brief
- * Initializes Control Plane data structures, packet filters, and calls for the
- * Data Plane to create required tables
+ * @brief  : Initializes Control Plane data structures, packet filters, and calls for the
+ *           Data Plane to create required tables
  */
 void
 init_cp(void)

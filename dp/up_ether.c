@@ -22,22 +22,18 @@
 #include "ipv4.h"
 #include "up_ether.h"
 #include "pipeline/epc_arp.h"
-
+#include "clogger.h"
 extern unsigned int fd_array[2];
 
 #ifndef STATIC_ARP
 static struct sockaddr_in dest_addr[2];
 #endif /* STATIC_ARP */
+
 /**
- * Function to set ethertype.
- *
- * @param m
- *	mbuf pointer
- * @param type
- *	type
- *
- * @return
- *	None
+ * @brief  : Function to set ethertype.
+ * @param  : m, mbuf pointer
+ * @param  : type, type
+ * @return : Returns nothing
  */
 static inline void set_ether_type(struct rte_mbuf *m, uint16_t type)
 {
@@ -46,16 +42,6 @@ static inline void set_ether_type(struct rte_mbuf *m, uint16_t type)
 	eth_hdr->ether_type = htons(type);
 }
 
-/**
- * Function to construct L2 headers.
- *
- * @param m
- *	mbuf pointer
- *
- * @return
- *	- 0  on success
- *	- -1 on failure (ARP lookup fail)
- */
 int construct_ether_hdr(struct rte_mbuf *m, uint8_t portid,
 			pdr_info_t **pdr)
 {
@@ -114,13 +100,13 @@ int construct_ether_hdr(struct rte_mbuf *m, uint8_t portid,
 
 	struct arp_entry_data *ret_arp_data = NULL;
 	if (ARPICMP_DEBUG)
-		printf("%s::"
+		clLog(clSystemLog, eCLSeverityDebug,"%s::"
 				"\n\tretrieve_arp_entry for ip 0x%x\n",
 				__func__, tmp_arp_key.ip);
 	ret_arp_data = retrieve_arp_entry(tmp_arp_key, portid);
 
 	if (ret_arp_data == NULL) {
-		RTE_LOG_DP(DEBUG, DP, "%s::"
+		clLog(clSystemLog, eCLSeverityDebug, "%s::"
 				"\n\tretrieve_arp_entry failed for ip 0x%x\n",
 				__func__, tmp_arp_key.ip);
 		return -1;
@@ -130,7 +116,7 @@ int construct_ether_hdr(struct rte_mbuf *m, uint8_t portid,
 	if (ret_arp_data->status == INCOMPLETE)	{
 
 #ifndef STATIC_ARP
-		RTE_LOG_DP(INFO, DP, "Sendto:: ret_arp_data->ip= %s\n",
+		clLog(clSystemLog, eCLSeverityInfo, "Sendto:: ret_arp_data->ip= %s\n",
 					inet_ntoa(*(struct in_addr *)&ret_arp_data->ip));
 
 		/* setting sendto destination addr */
@@ -149,7 +135,7 @@ int construct_ether_hdr(struct rte_mbuf *m, uint8_t portid,
 		if (portid == app.sgi_port) {
 
 			if (arp_qunresolved_ulpkt(ret_arp_data, m, portid) == 0) {
-				RTE_LOG_DP(DEBUG, DP, "%s::arp_queue_unresolved_packet::"
+				clLog(clSystemLog, eCLSeverityDebug, "%s::arp_queue_unresolved_packet::"
 						"\n\treturn -1; arp_key.ip= 0x%X\n",
 						__func__, tmp_arp_key.ip);
 				return -1;
@@ -158,7 +144,7 @@ int construct_ether_hdr(struct rte_mbuf *m, uint8_t portid,
 		if (portid == app.s1u_port) {
 
 			if (arp_qunresolved_dlpkt(ret_arp_data, m, portid) == 0) {
-				RTE_LOG_DP(DEBUG, DP, "%s::arp_queue_unresolved_packet::"
+				clLog(clSystemLog, eCLSeverityDebug, "%s::arp_queue_unresolved_packet::"
 						"\n\treturn -1; arp_key.ip= 0x%X\n",
 						__func__, tmp_arp_key.ip);
 				return -1;
@@ -168,7 +154,7 @@ int construct_ether_hdr(struct rte_mbuf *m, uint8_t portid,
 
 	}
 
-	RTE_LOG_DP(DEBUG, DP,
+	clLog(clSystemLog, eCLSeverityDebug,
 			"MAC found for ip %s"
 			", port %d - %02x:%02x:%02x:%02x:%02x:%02x\n",
 			inet_ntoa(*(struct in_addr *)&tmp_arp_key.ip), portid,

@@ -33,7 +33,10 @@
 struct table adc_table;
 
 /**
- * Compare ADC Rule entries.
+ * @brief  : Compare ADC Rule entries.
+ * @param  : r1p, rule entry to compare
+ * @param  : r2p, rule entry to compare
+ * @return : Returns 0 if same rule id, -1 if first rule id is less than second, 1 otherwise
  */
 static int adc_rule_id_compare(const void *r1p, const void *r2p)
 {
@@ -53,7 +56,11 @@ static int adc_rule_id_compare(const void *r1p, const void *r2p)
 }
 
 /**
- * Print the ADC Rule entry.
+ * @brief  : Print the ADC Rule entry.
+ * @param  : nodep, holds adc rule info
+ * @param  : which, type of tsearch
+ * @param  : depth, depth of entry
+ * @return : Returns nothing
  */
 static void adc_print_rule(const void *nodep, const VISIT which, const int depth)
 {
@@ -66,7 +73,7 @@ static void adc_print_rule(const void *nodep, const VISIT which, const int depth
 	switch (which) {
 	case leaf:
 	case postorder:
-		printf("Depth: %d, Rule ID: %d\n",
+		clLog(clSystemLog, eCLSeverityDebug,"Depth: %d, Rule ID: %d\n",
 				depth, r->rule_id);
 		break;
 	default:
@@ -75,12 +82,9 @@ static void adc_print_rule(const void *nodep, const VISIT which, const int depth
 }
 
 /**
- * Dump the table entries.
- * @param table
- *	table - table pointer whose entries to dumb.
- *
- * @return
- *	void
+ * @brief  : Dump the table entries.
+ * @param  : table, table pointer whose entries to dumb.
+ * @return : Returns nothing
  */
 __rte_unused static void dump_table(struct table *t)
 {
@@ -89,21 +93,18 @@ __rte_unused static void dump_table(struct table *t)
 
 
 /**
- * Create ADC filter table.
- * @param dp_id
- *	identifier which is unique across DataPlanes.
- * @param max_element
- *	max number of elements in this table.
- *
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : Create ADC filter table.
+ * @param  : dp_id
+ *           identifier which is unique across DataPlanes.
+ * @param  : max_element
+ *           max number of elements in this table.
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 dp_adc_table_create(struct dp_id dp_id, uint32_t max_elements)
 {
 	if (adc_table.root != NULL) {
-		RTE_LOG_DP(INFO, DP, "ADC filter table: \"%s\" exist\n", dp_id.name);
+		clLog(clSystemLog, eCLSeverityInfo, "ADC filter table: \"%s\" exist\n", dp_id.name);
 		return -1;
 	}
 	adc_table.num_entries = 0;
@@ -112,69 +113,59 @@ dp_adc_table_create(struct dp_id dp_id, uint32_t max_elements)
 	adc_table.active = 1;
 	adc_table.compare = adc_rule_id_compare;
 	adc_table.print_entry = adc_print_rule;
-	RTE_LOG_DP(INFO, DP, "ADC filter table: \"%s\" created\n", dp_id.name);
+	clLog(clSystemLog, eCLSeverityInfo, "ADC filter table: \"%s\" created\n", dp_id.name);
 	return 0;
 }
 
 /**
- * Free the memory allocated for node.
- * @param p
- *	void pointer to be free.
- *
- * @return
- *	None
+ * @brief  : Free the memory allocated for node.
+ * @param  : p, void pointer to be free.
+ * @return : Returns nothing
  */
 static void free_node(void *p)
 {
 	rte_free(p);
 }
+
 /**
- * Delete ADC filter table.
- * @param dp_id
- *	identifier which is unique across DataPlanes.
- *
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : Delete ADC filter table.
+ * @param  : dp_id
+ *           identifier which is unique across DataPlanes.
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 dp_adc_table_delete(struct dp_id dp_id)
 {
 	tdestroy(&adc_table.root, free_node);
 	memset(&adc_table, 0, sizeof(struct table));
-	RTE_LOG_DP(INFO, DP, "ADC filter table: \"%s\" destroyed\n", dp_id.name);
+	clLog(clSystemLog, eCLSeverityInfo, "ADC filter table: \"%s\" destroyed\n", dp_id.name);
 	return 0;
 }
 
 /**
- * Add ADC filter entry.
- * @param dp_id
- *	identifier which is unique across DataPlanes.
- * @param entry
- *	element to be added in this table.
- *
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : Add ADC filter entry.
+ * @param  : dp_id, identifier which is unique across DataPlanes.
+ * @param  : adc_filter_entry, element to be added in this table.
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 dp_adc_entry_add(struct dp_id dp_id, struct adc_rules *adc_filter_entry)
 {
 	if (IS_MAX_REACHED(adc_table)) {
-		RTE_LOG_DP(INFO, DP, "Reached max ADC filter entries\n");
+		clLog(clSystemLog, eCLSeverityInfo, "Reached max ADC filter entries\n");
 		return -1;
 	}
 
 	struct adc_rules *new = rte_malloc("adc_filter", sizeof(struct adc_rules),
 			RTE_CACHE_LINE_SIZE);
 	if (new == NULL) {
-		RTE_LOG_DP(INFO, DP, "ADC: Failed to allocate memory\n");
+		clLog(clSystemLog, eCLSeverityInfo, "ADC: Failed to allocate memory\n");
 		return -1;
 	}
 	*new = *adc_filter_entry;
 	/* put node into the tree */
 	if (tsearch(new, &adc_table.root, adc_table.compare) == 0) {
-		RTE_LOG_DP(INFO, DP, "Fail to add adc rule_id %d\n",
+		clLog(clSystemLog, eCLSeverityInfo, "Fail to add adc rule_id %d\n",
 				adc_filter_entry->rule_id);
 		return -1;
 	}
@@ -195,7 +186,7 @@ dp_adc_entry_add(struct dp_id dp_id, struct adc_rules *adc_filter_entry)
 				IPV4_ADDR_HOST_FORMAT(ipv4));
 		dp_adc_filter_entry_add(dp_id, &msg_payload);
 
-		RTE_LOG_DP(INFO, DP, "ADC_TBL ADD: rule_id:%d, domain_ip:"\
+		clLog(clSystemLog, eCLSeverityInfo, "ADC_TBL ADD: rule_id:%d, domain_ip:"\
 				IPV4_ADDR"\n", adc_filter_entry->rule_id,
 				IPV4_ADDR_HOST_FORMAT(\
 					adc_filter_entry->u.domain_ip.u.ipv4_addr));
@@ -214,7 +205,7 @@ dp_adc_entry_add(struct dp_id dp_id, struct adc_rules *adc_filter_entry)
 				IPV4_ADDR_HOST_FORMAT(ipv4), prefix);
 		dp_adc_filter_entry_add(dp_id, &msg_payload);
 
-		RTE_LOG_DP(INFO, DP, "ADC_TBL ADD: rule_id:%d, domain_ip:"\
+		clLog(clSystemLog, eCLSeverityInfo, "ADC_TBL ADD: rule_id:%d, domain_ip:"\
 				IPV4_ADDR"\n",
 				adc_filter_entry->rule_id,
 				IPV4_ADDR_HOST_FORMAT(\
@@ -225,23 +216,18 @@ dp_adc_entry_add(struct dp_id dp_id, struct adc_rules *adc_filter_entry)
 
 		ret = epc_sponsdn_dn_add_single(adc_filter_entry->u.domain_name, adc_filter_entry->rule_id);
 		if (ret)
-			RTE_LOG_DP(DEBUG, DP, "failed to add DN error code %d\n", ret);
-		RTE_LOG_DP(INFO, DP, "Spons DN ADD: rule_id:%d, domain_name:%s\n",
+			clLog(clSystemLog, eCLSeverityDebug, "failed to add DN error code %d\n", ret);
+		clLog(clSystemLog, eCLSeverityInfo, "Spons DN ADD: rule_id:%d, domain_name:%s\n",
 				adc_filter_entry->rule_id, adc_filter_entry->u.domain_name);
 	}
 	return 0;
 }
 
 /**
- * Delete ADC filter entry.
- * @param dp_id
- *	identifier which is unique across DataPlanes.
- * @param entry
- *	element to be added in this table.
- *
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : Delete ADC filter entry.
+ * @param  : dp_id, identifier which is unique across DataPlanes.
+ * @param  : adc_filter_entry, element to be added in this table.
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 dp_adc_entry_delete(struct dp_id dp_id, struct adc_rules *adc_filter_entry)
@@ -251,13 +237,13 @@ dp_adc_entry_delete(struct dp_id dp_id, struct adc_rules *adc_filter_entry)
 	/* delete node from the tree */
 	p = tdelete(adc_filter_entry, &adc_table.root, adc_rule_id_compare);
 	if (p == NULL) {
-		RTE_LOG_DP(INFO, DP, "Fail to delete rule_id %d\n",
+		clLog(clSystemLog, eCLSeverityInfo, "Fail to delete rule_id %d\n",
 						adc_filter_entry->rule_id);
 		return -1;
 	}
 	rte_free(*p);
 	adc_table.num_entries--;
-	RTE_LOG_DP(INFO, DP, "ADC filter entry with rule_id %d deleted\n",
+	clLog(clSystemLog, eCLSeverityInfo, "ADC filter entry with rule_id %d deleted\n",
 					adc_filter_entry->rule_id);
 	return 0;
 }
@@ -283,7 +269,7 @@ adc_rule_info_get(uint32_t *rid, uint32_t n, uint64_t *pkts_mask, void **adc_inf
 			/* adc rule not found, drop the pkt*/
 			RESET_BIT(*pkts_mask, i);
 			adc_info[i] = NULL;
-			RTE_LOG_DP(DEBUG, DP, "ADC rule not found for id %u\n", rid[i]);
+			clLog(clSystemLog, eCLSeverityDebug, "ADC rule not found for id %u\n", rid[i]);
 		} else
 			adc_info[i] = *p;
 	}
@@ -291,20 +277,13 @@ adc_rule_info_get(uint32_t *rid, uint32_t n, uint64_t *pkts_mask, void **adc_inf
 }
 
 /**
- * Gate ADC filter entry.
- * @param rid
- *	ADC rule id.
- * @param adc_info
- *	ADC information.
- * @param  n
- *	num. of rule ids.
- * @param  adc_pkts_mask
- *     set the adc pkt mask only if adc gate is open.
- * @param  pkts_mask
- *	bit mask to process the pkts, reset bit to free the pkt.
- *
- * @return
- * Void
+ * @brief  : Gate ADC filter entry.
+ * @param  : rid, ADC rule id.
+ * @param  : adc_info, ADC information.
+ * @param  : n, num. of rule ids.
+ * @param  : adc_pkts_mask, set the adc pkt mask only if adc gate is open.
+ * @param  : pkts_mask, bit mask to process the pkts, reset bit to free the pkt.
+ * @return : Returns nothing
  */
 void
 adc_gating(uint32_t *rid, void **adc_ue_info, uint32_t n,
@@ -329,14 +308,9 @@ adc_gating(uint32_t *rid, void **adc_ue_info, uint32_t n,
 
 /******************** Callback functions **********************/
 /**
- *  Callback to parse msg to create adc rules table
- *
- * @param msg_payload
- *	payload from CP
- *
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : Callback to parse msg to create adc rules table
+ * @param  : msg_payload, payload from CP
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 static int
 cb_adc_table_create(struct msgbuf *msg_payload)
@@ -346,14 +320,9 @@ cb_adc_table_create(struct msgbuf *msg_payload)
 }
 
 /**
- *  Callback to parse msg to delete table
- *
- * @param msg_payload
- *	payload from CP
- *
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : Callback to parse msg to delete table
+ * @param  : msg_payload, payload from CP
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 static int
 cb_adc_table_delete(struct msgbuf *msg_payload)
@@ -362,14 +331,9 @@ cb_adc_table_delete(struct msgbuf *msg_payload)
 }
 
 /**
- *  Callback to parse msg to add adc rules
- *
- * @param msg_payload
- *	payload from CP
- *
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : Callback to parse msg to add adc rules
+ * @param  : msg_payload, payload from CP
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 //static
 int cb_adc_entry_add(struct msgbuf *msg_payload)
@@ -379,14 +343,9 @@ int cb_adc_entry_add(struct msgbuf *msg_payload)
 }
 
 /**
- * Delete adc rules.
- *
- * @param msg_payload
- *	payload from CP
- *
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : Delete adc rules.
+ * @param  : msg_payload, payload from CP
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 static int
 cb_adc_entry_delete(struct msgbuf *msg_payload)
@@ -396,7 +355,9 @@ cb_adc_entry_delete(struct msgbuf *msg_payload)
 }
 
 /**
- * Initialization of ADC Table Callback functions.
+ * @brief  : Initialization of ADC Table Callback functions.
+ * @param  : No param
+ * @return : Returns nothing
  */
 void app_adc_tbl_init(void)
 {

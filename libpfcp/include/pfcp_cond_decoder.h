@@ -240,7 +240,7 @@
 #define DECODE_NODE_ADDRESS_COND_1(buf, total_decoded, bit_count, decoded, value) \
 	if(value->fqcsid_node_id_type == IPV4_GLOBAL_UNICAST ) \
 { \
-	memcpy(value->node_address, buf, 4); \
+	memcpy(&value->node_address, buf, 4); \
 	decoded = 4 * CHAR_SIZE; \
 }
 

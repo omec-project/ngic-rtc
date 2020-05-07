@@ -64,6 +64,7 @@
 #include <sponsdn.h>
 
 #include "up_main.h"
+#include "clogger.h"
 
 #define NB_CORE_MSGBUF 10000
 #define MAX_NAME_LEN    32
@@ -91,13 +92,13 @@ int push_dns_ring(struct rte_mbuf *pkts)
 
 	msg = (void *)rte_pktmbuf_clone(pkts, message_pool);
 	if (msg == NULL) {
-		RTE_LOG_DP(DEBUG, DP, "Error to get message buffer\n");
+		clLog(clSystemLog, eCLSeverityDebug, "Error to get message buffer\n");
 		return -1;
 	}
 
 	ret = rte_ring_mp_enqueue(epc_mct_spns_dns_rx, (void *)msg);
 	if (ret != 0) {
-		RTE_LOG_DP(DEBUG, DP, "DNS ring: error enqueuing\n");
+		clLog(clSystemLog, eCLSeverityDebug, "DNS ring: error enqueuing\n");
 		rte_pktmbuf_free(msg);
 		return -1;
 	}
@@ -142,7 +143,7 @@ void scan_dns_ring(__rte_unused void *args)
 		for (i = 0; i < addr4_cnt; ++i) {
 			//struct msg_adc msg = { .ipv4 = addr4[i].s_addr, .rule_id = match_id };
 
-			RTE_LOG_DP(DEBUG, DP, "adding a rule with IP: %s, rule id %d\n",
+			clLog(clSystemLog, eCLSeverityDebug, "adding a rule with IP: %s, rule id %d\n",
 					inet_ntoa(addr4[i]), match_id);
 			//adc_dns_entry_add(&msg);
 		}

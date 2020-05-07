@@ -17,9 +17,14 @@
 #include <rte_debug.h>
 
 #include "gtpv2c.h"
+#include "gtpv2c_set_ie.h"
 #include "ue.h"
 #include "../cp_dp_api/vepc_cp_dp_api.h"
+#include "clogger.h"
 
+/**
+ * @brief  : Maintatins data from parsed delete bearer response
+ */
 struct parse_delete_bearer_rsp_t {
 	ue_context *context;
 	pdn_connection *pdn;
@@ -31,17 +36,16 @@ struct parse_delete_bearer_rsp_t {
 };
 
 /**
- * parses gtpv2c message and populates parse_delete_bearer_rsp_t structure
- * @param gtpv2c_rx
- *   buffer containing delete bearer response message
- * @param dbr
- *   data structure to contain required information elements from parsed
- *   delete bearer response
- * @return
- *   \- 0 if successful
- *   \- > 0 if error occurs during packet filter parsing corresponds to 3gpp
- *   specified cause error value
- *   \- < 0 for all other errors
+ * @brief  : parses gtpv2c message and populates parse_delete_bearer_rsp_t structure
+ * @param  : gtpv2c_rx
+ *           buffer containing delete bearer response message
+ * @param  : dbr
+ *           data structure to contain required information elements from parsed
+ *           delete bearer response
+ * @return : - 0 if successful
+ *           - > 0 if error occurs during packet filter parsing corresponds to 3gpp
+ *             specified cause error value
+ *           - < 0 for all other errors
  */
 static int
 parse_delete_bearer_response(gtpv2c_header_t *gtpv2c_rx,
@@ -89,7 +93,7 @@ parse_delete_bearer_response(gtpv2c_header_t *gtpv2c_rx,
 
 	if (!dbr->cause_ie || !dbr->bearer_context_ebi_ie
 	    || !dbr->bearer_context_cause_ie) {
-		fprintf(stderr, "Received Delete Bearer Response without "
+		clLog(clSystemLog, eCLSeverityCritical, "Received Delete Bearer Response without "
 				"mandatory IEs\n");
 		return -EPERM;
 	}
@@ -123,7 +127,7 @@ process_delete_bearer_response(gtpv2c_header_t *gtpv2c_rx)
 	    delete_bearer_rsp.context->eps_bearers[ebi_index];
 
 	if (delete_bearer_rsp.ded_bearer == NULL) {
-		fprintf(stderr,
+		clLog(clSystemLog, eCLSeverityCritical,
 		    "Received Delete Bearer Response for"
 		    " non-existant EBI: %"PRIu8"\n",
 		    ebi);
@@ -164,5 +168,74 @@ process_delete_bearer_response(gtpv2c_header_t *gtpv2c_rx)
 	}
 
 	return 0;
+}
+
+
+void
+set_delete_bearer_request(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
+	ue_context *context, uint8_t linked_eps_bearer_id,
+	uint8_t ded_eps_bearer_ids[], uint8_t ded_bearer_counter)
+{
+	del_bearer_req_t db_req = {0};
+
+	set_gtpv2c_teid_header((gtpv2c_header_t *) &db_req, GTP_DELETE_BEARER_REQ,
+	    context->s11_mme_gtpc_teid, sequence);
+
+	if (linked_eps_bearer_id > 0) {
+		set_ebi(&db_req.lbi, IE_INSTANCE_ZERO, linked_eps_bearer_id);
+	} else {
+		for (uint8_t iCnt = 0; iCnt < ded_bearer_counter; ++iCnt) {
+			set_ebi(&db_req.eps_bearer_ids[iCnt], IE_INSTANCE_ONE,
+				ded_eps_bearer_ids[iCnt]);
+		}
+
+		db_req.bearer_count = ded_bearer_counter;
+	}
+
+	uint16_t msg_len = 0;
+	msg_len = encode_del_bearer_req(&db_req, (uint8_t *)gtpv2c_tx);
+	gtpv2c_tx->gtpc.message_len = htons(msg_len - 4);
+}
+
+void
+set_delete_bearer_response(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
+	uint8_t linked_eps_bearer_id, uint8_t ded_eps_bearer_ids[],
+	uint8_t ded_bearer_counter, uint32_t s5s8_pgw_gtpc_teid)
+{
+	del_bearer_rsp_t db_resp = {0};
+
+	set_gtpv2c_teid_header((gtpv2c_header_t *) &db_resp, GTP_DELETE_BEARER_RSP,
+		s5s8_pgw_gtpc_teid , sequence);
+
+	set_cause_accepted(&db_resp.cause, IE_INSTANCE_ZERO);
+
+	//db_resp..header.gtpc.message_len += db_resp.cause.header.len + sizeof(ie_header_t);
+	if (linked_eps_bearer_id > 0) {
+		set_ebi(&db_resp.lbi, IE_INSTANCE_ZERO, linked_eps_bearer_id);
+	} else {
+		for (uint8_t iCnt = 0; iCnt < ded_bearer_counter; ++iCnt) {
+			set_ie_header(&db_resp.bearer_contexts[iCnt].header,
+				GTP_IE_BEARER_CONTEXT, IE_INSTANCE_ZERO, 0);
+
+			set_ebi(&db_resp.bearer_contexts[iCnt].eps_bearer_id,
+				IE_INSTANCE_ZERO, ded_eps_bearer_ids[iCnt]);
+			db_resp.bearer_contexts[iCnt].header.len +=
+				sizeof(uint8_t) + IE_HEADER_SIZE;
+
+			set_cause_accepted(&db_resp.bearer_contexts[iCnt].cause,
+				IE_INSTANCE_ZERO);
+			db_resp.bearer_contexts[iCnt].header.len +=
+				sizeof(uint16_t) + IE_HEADER_SIZE;
+	//		db_resp..header.gtpc.message_len += db_resp.bearer_contexts[iCnt].header.len +
+	//					sizeof(ie_header_t);
+
+		}
+
+		db_resp.bearer_count = ded_bearer_counter;
+	}
+
+	uint16_t msg_len = 0;
+	msg_len = encode_del_bearer_rsp(&db_resp, (uint8_t *)gtpv2c_tx);
+	gtpv2c_tx->gtpc.message_len = htons(msg_len - 4);
 }
 
