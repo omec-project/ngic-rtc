@@ -100,7 +100,7 @@ set_create_session_response(gtpv2c_header_t *gtpv2c_tx,
 
 		for(uint8_t i= 0; i< MAX_BEARERS; i++) {
 
-			bearer = context->eps_bearers[i];
+			bearer = pdn->eps_bearers[i];
 			if(bearer == NULL)
 				continue;
 

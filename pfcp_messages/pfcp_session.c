@@ -4147,7 +4147,7 @@ process_create_sess_req(create_sess_req_t *csr,
 		}
 	} /*Check UE Exist*/
 
-	if (fill_bearer_info(csr, bearer, context, pdn, ebi_index) != 0)
+	if (fill_bearer_info(csr, bearer, context, pdn, i) != 0)
 		return -1;
 
 	/* SGW Handover Storage */
