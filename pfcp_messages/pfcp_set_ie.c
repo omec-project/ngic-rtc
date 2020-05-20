@@ -449,14 +449,12 @@ creating_pdr(pfcp_create_pdr_ie_t *create_pdr, int source_iface_value)
 	if (pfcp_config.cp_type != SGWC && source_iface_value == SOURCE_INTERFACE_VALUE_ACCESS)
 		size += set_outer_hdr_removal(&(create_pdr->outer_hdr_removal));
 	size += set_far_id(&(create_pdr->far_id));
-#ifdef GX_BUILD
 	/* TODO: Revisit this for change in yang*/
 	if (pfcp_config.cp_type != SGWC){
 		for(int i=0; i < create_pdr->qer_id_count; i++ ) {
 			size += set_qer_id(&(create_pdr->qer_id[i]));
 		}
 	}
-#endif /* GX_BUILD*/
 #endif /* CP_BUILD */
 	/* TODO: Revisit this for change in yang
 	create_pdr->urr_id_count = 1;
