@@ -1,5 +1,8 @@
-/* SPDX-License-Identifier: Apache-2.0
+/* 
+ * Copyright 2019-present Open Networking Foundation
  * Copyright(c) 2017 Intel Corporation
+ *
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 /**
@@ -60,7 +63,7 @@ notification_handler(struct rte_pipeline *p,
 	struct dp_session_info *sess_info[MAX_BURST_SZ];
 	unsigned int *ring_entry = NULL;
 	uint64_t pkt_mask = 0, pkts_queue_mask = 0;
-	int64_t *sess = NULL;
+	uint64_t *sess = NULL;
 	unsigned int ret = 32, num = 32, i;
 
 #ifndef NGCORE_SHRINK
