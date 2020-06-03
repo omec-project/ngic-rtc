@@ -6,7 +6,6 @@
 #include <errno.h>
 #include <limits.h>
 #include <stdlib.h>
-#include <assert.h>
 #include <string.h>
 #include <unistd.h>
 #include <ctype.h>
@@ -21,8 +20,6 @@
 
 #include "gtpv2c_set_ie.h"
 #include "gtpv2c.h"
-
-#define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
 
 extern struct rte_hash *resp_op_id_hash;
 extern struct response_info resp_t;
@@ -42,7 +39,8 @@ add_resp_op_id_hash(void)
 	switch (resp_t.msg_type) {
 		case GTP_CREATE_SESSION_REQ:
 		case GTP_MODIFY_BEARER_REQ:
-		case GTP_DELETE_SESSION_REQ: {
+		case GTP_DELETE_SESSION_REQ: 
+		case GTP_RELEASE_ACCESS_BEARERS_REQ: {
 			struct response_info *tmp = rte_zmalloc("test",
 					sizeof(struct response_info),
 					RTE_CACHE_LINE_SIZE);
@@ -122,7 +120,7 @@ del_resp_op_id(uint64_t resp_op_id)
 					set_create_session_response(&(tmp->gtpv2c_tx_t),
 							tmp->gtpv2c_tx_t.teid_u.has_teid.seq,
 							&(tmp->context_t), &(tmp->pdn_t),
-							&(tmp->bearer_t));
+							&(tmp->bearer_t), &(tmp->pco));
 
 					payload_length = ntohs(tmp->gtpv2c_tx_t.gtpc.length)
 						+ sizeof(tmp->gtpv2c_tx_t.gtpc);

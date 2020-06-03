@@ -7,8 +7,7 @@
 #include "gtpv2c_messages.h"
 #include "../cp_dp_api/vepc_cp_dp_api.h"
 #include "gtpv2c_set_ie.h"
-
-#define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
+#include "ue.h"
 
 extern struct response_info resp_t;
 
@@ -81,6 +80,21 @@ delete_context(delete_session_request_t *ds_req,
 		return GTPV2C_CAUSE_MANDATORY_IE_INCORRECT;
 	}
 
+#if defined(MULTI_UPFS)
+	struct dp_info *dp = fetch_dp_context(context->dpId); 
+	if (dp != NULL && (IF_PDN_ADDR_STATIC(pdn))) {
+		struct in_addr host = {0};
+		host.s_addr = pdn->ipv4.s_addr;
+		release_ip_node(dp->static_pool_tree, host);
+	}
+#else
+	if (static_addr_pool != NULL && (IF_PDN_ADDR_STATIC(pdn))) {
+		struct in_addr host = {0};
+		host.s_addr = pdn->ipv4.s_addr;
+		release_ip_node(static_addr_pool, host); 
+	}
+#endif
+
 #ifdef ZMQ_COMM
 	/*set the delete session response */
 	/*TODO: Revisit this for to handle type received from message*/
@@ -109,7 +123,7 @@ delete_context(delete_session_request_t *ds_req,
 			si.sess_id = SESS_ID(
 					context->s11_sgw_gtpc_teid,
 					si.bearer_id);
-			struct dp_id dp_id = { .id = DPN_ID };
+			struct dp_id dp_id = { .id = context->dpId };
 			session_delete(dp_id, si);
 
 			rte_free(pdn->eps_bearers[i]);

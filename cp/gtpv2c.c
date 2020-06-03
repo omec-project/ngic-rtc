@@ -5,7 +5,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include <assert.h>
 #include <errno.h>
 
 #include <rte_lcore.h>
@@ -18,9 +17,6 @@
 #include "ue.h"
 #include "interface.h"
 
-#define RTE_LOGTYPE_CP RTE_LOGTYPE_USER1
-
-struct in_addr s11_mme_ip;
 struct sockaddr_in s11_mme_sockaddr;
 
 struct in_addr s11_sgw_ip;

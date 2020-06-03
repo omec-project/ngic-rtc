@@ -32,6 +32,10 @@
 #endif
 #endif /* PERF_TEST */
 
+#ifndef RTE_LOGTYPE_CP
+#define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
+#endif
+
 #ifdef SYNC_STATS
 #include <time.h>
 #define DEFAULT_STATS_PATH  "./logs/"
@@ -273,5 +277,21 @@ export_stats_report(struct sync_stats stats_info);
 void
 close_stats(void);
 #endif   /* SYNC_STATS */
+
+/* Callback function which is received when config file is updated 
+ * may be through helm Charts or any other means. 
+ */
+void config_change_cbk(char *config_file, uint32_t flags);
+
+/**
+ * Register for the watcher for the config update
+ * @param file
+ * filename
+ *
+ * @return
+ * Void
+ */
+void register_config_updates(char *file);
+
 /* ================================================================================= */
 #endif

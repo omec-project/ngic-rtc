@@ -26,6 +26,8 @@
 #include "gtpv2c_ie.h"
 #include "packet_filters.h"
 #include "interface.h"
+#include "stdbool.h"
+#include "cp_config.h"
 
 #define SDF_FILTER_TABLE "sdf_filter_table"
 #define ADC_TABLE "adc_rule_table"
@@ -81,7 +83,15 @@ typedef struct ue_context_t {
 	 * create/deletee bearer req - rsp */
 	struct eps_bearer_t *ded_bearer;
 
+	/* dpId tells which DP is holding the data bearers for this user context */ 
+	uint64_t	dpId;
+
 } ue_context;
+
+#define PDN_STATIC_ADDR  0x00000001
+
+#define SET_PDN_ADDR_STATIC(pdn)  ((pdn->pdn_flags = pdn->pdn_flags | PDN_STATIC_ADDR)) 
+#define IF_PDN_ADDR_STATIC(pdn)   ((pdn->pdn_flags & PDN_STATIC_ADDR)== PDN_STATIC_ADDR)
 
 typedef struct pdn_connection_t {
 	apn *apn_in_use;
@@ -109,6 +119,7 @@ typedef struct pdn_connection_t {
 	struct eps_bearer_t *eps_bearers[MAX_BEARERS]; /* index by ebi - 5 */
 
 	struct eps_bearer_t *packet_filter_map[MAX_FILTERS_PER_UE];
+    uint32_t pdn_flags; 
 } pdn_connection;
 
 typedef struct eps_bearer_t {
@@ -259,5 +270,17 @@ acquire_ip(struct in_addr *ipv4);
  */
 void
 print_ue_context_by(struct rte_hash *h, ue_context *context);
+
+struct ip_table
+{
+  struct ip_table *octet[256];
+  char *ue_address; // address 
+  bool used ; 
+};
+
+void add_ipaddr_in_pool(struct ip_table *addr_tree , struct in_addr addr);
+bool reserve_ip_node(struct ip_table *addr_tree , struct in_addr host);
+bool release_ip_node(struct ip_table *addr_tree , struct in_addr host);
+struct ip_table*create_ue_pool(struct in_addr network, uint32_t mask);
 
 #endif /* UE_H */

@@ -112,6 +112,10 @@ static void epc_iface_core(__rte_unused void *args)
 		RTE_LOG_DP(INFO, API, "\n ZMQ read thread created successfully\n");
 #endif  /* DP:(SDN_ODL_BUILD */
 
+#if defined (DP_BUILD) && defined (ZMQ_COMM) && defined (MULTI_UPFS)
+	/* try to connect to the nearest CP. TODO - XXX: Currently only 1 CP */
+	send_dp_credentials();
+#endif /* (DP_BUILD) && (ZMQ_COMM) */
 	/*
 	 * Poll message que. Populate hash table from que.
 	 */

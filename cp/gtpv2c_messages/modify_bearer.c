@@ -57,7 +57,11 @@ set_modify_bearer_response(gtpv2c_header *gtpv2c_tx,
 	mb_resp.bearer_context.header.len += sizeof(uint8_t) + IE_HEADER_SIZE;
 
 	struct in_addr ip;
+#if defined(ZMQ_COMM) && defined(MULTI_UPFS)
+	ip.s_addr = htonl(fetch_s1u_sgw_ip(context->dpId).s_addr);
+#else
 	ip.s_addr = htonl(s1u_sgw_ip.s_addr);
+#endif
 	set_ipv4_fteid(&mb_resp.bearer_context.s1u_sgw_ftied,
 			GTPV2C_IFTYPE_S1U_SGW_GTPU, IE_INSTANCE_ZERO, ip,
 			htonl(bearer->s1u_sgw_gtpu_teid));
@@ -90,6 +94,7 @@ process_modify_bearer_request(gtpv2c_header *gtpv2c_rx,
 	if (ret < 0 || !context)
 		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 
+	dp_id.id = context->dpId;
 	if (!mb_req.bearer_context.ebi.header.len
 			|| !mb_req.bearer_context.s1u_enodeb_ftied.header.len) {
 			fprintf(stderr, "Dropping packet\n");
@@ -179,7 +184,12 @@ process_modify_bearer_request(gtpv2c_header *gtpv2c_rx,
 			context->s11_sgw_gtpc_teid,
 			bearer->eps_bearer_id);
 
+	/* Fetch subscriber using teid and then find the dpId */
 	if (session_modify(dp_id, session) < 0)
+#if defined(ZMQ_COMM) && defined(MULTI_UPFS)
+		RTE_LOG_DP(INFO, CP, "Bearer Session modify fail !!!\n");
+#else
 		rte_exit(EXIT_FAILURE, "Bearer Session modify fail !!!");
+#endif
 	return 0;
 }

@@ -10,17 +10,161 @@
 #include "gtpv2c_messages.h"
 #include "gtpv2c_set_ie.h"
 #include "../cp_dp_api/vepc_cp_dp_api.h"
+#if defined(ZMQ_COMM) && defined(MULTI_UPFS)
+#include "cp_config.h"
+#endif
+#include "stdint.h"
+#include "stdbool.h"
+ 
 
-#define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
 
 extern uint32_t num_adc_rules;
 extern uint32_t adc_rule_id[];
 struct response_info resp_t;
 
+/*
+ * @param: req_pco : this is the received PCO in the Request message (e.g. CSReq)
+ * @dpId : This is DP id of the user context. 
+ * @pco_buf : should have encoded pco which can be sent towards UE in GTP message (e.g. CSRsp)
+ @ return : length of the PCO buf 
+ */
+static int16_t 
+build_pco_response(char *pco_buf, pco_ie_t *req_pco, uint32_t dpId)
+{
+	uint16_t index = 0;
+	int i = 0;
+	struct in_addr dns_p, dns_s;
+	bool dns_pri_configured = false;
+	bool dns_secondary_configured = false;
+	uint8_t byte;
+	byte = (req_pco->ext<<7) | (req_pco->config_proto & 0x03);
+	memcpy(&pco_buf[index], &byte, sizeof(byte));
+	index++;
+
+    /* May be we should fetch DP context once and then fetch individual fields ? */
+    dns_p = fetch_dns_primary_ip(dpId, &dns_pri_configured);
+    dns_s = fetch_dns_secondary_ip(dpId, &dns_secondary_configured);
+    uint16_t mtu_conf = fetch_dp_ip_mtu(dpId);
+ 
+    bool ipv4_link_mtu = false;
+ 
+	for (i = 0; i < req_pco->num_of_opt; i++) {
+		uint16_t pco_type = htons(req_pco->ids[i].type);
+		uint8_t total_len;
+		switch(req_pco->ids[i].type) {
+			case PCO_ID_INTERNET_PROTOCOL_CONTROL_PROTOCOL:
+				if (req_pco->ids[i].data[0] == 1) { /* Code : Configuration Request */
+					total_len = 0;
+					if(dns_pri_configured == true)
+						total_len = 10;
+					if(dns_secondary_configured == true)
+						total_len = 16;
+					if(total_len == 0)
+						break; // nothing configured 
+					memcpy(&pco_buf[index], &pco_type, sizeof(pco_type));
+					index += sizeof(pco_type);
+
+					uint8_t len = total_len; 
+					memcpy(&pco_buf[index], &len, sizeof(len));
+					index += sizeof(len);
+
+					uint8_t code=3;
+					memcpy(&pco_buf[index], &code, sizeof(code));
+					index += sizeof(code);
+
+					uint8_t id=0;
+					memcpy(&pco_buf[index], &id, sizeof(id));
+					index += sizeof(id);
+
+					uint16_t ppp_len = htons(total_len); 
+					memcpy(&pco_buf[index], &ppp_len, sizeof(ppp_len));
+					index += sizeof(ppp_len);
+
+					/* Primary DNS Server IP Address */
+					if (dns_pri_configured == true ) {
+						uint8_t type=129; /* RFC 1877 Section 1.1  */
+						memcpy(&pco_buf[index], &type, sizeof(type));
+						index += sizeof(type);
+
+						uint8_t len = 6; 
+						memcpy(&pco_buf[index], &len, sizeof(len));
+						index += sizeof(len);
+
+						memcpy(&pco_buf[index], &dns_p.s_addr, 4);
+						index += 4;
+					}
+
+					/* Secondary DNS Server IP Address */
+					if (dns_secondary_configured == true) {
+						uint8_t type=131; /* RFC 1877 Section 1.3 */
+						memcpy(&pco_buf[index], &type, sizeof(type));
+						index += sizeof(type);
+
+						uint8_t len = 6; 
+						memcpy(&pco_buf[index], &len, sizeof(len));
+						index += sizeof(len);
+
+						memcpy(&pco_buf[index], &dns_s.s_addr, 4);
+						index += 4;
+					}
+				}
+				break;
+			case PCO_ID_DNS_SERVER_IPV4_ADDRESS_REQUEST:
+				if (dns_pri_configured) {
+					memcpy(&pco_buf[index], &pco_type, sizeof(pco_type));
+					index += sizeof(pco_type);
+				}
+				if (dns_pri_configured == true) {
+					uint8_t len = 4; 
+					memcpy(&pco_buf[index], &len, sizeof(len));
+					index += sizeof(len);
+
+					memcpy(&pco_buf[index], &dns_p.s_addr, 4);
+					index += 4;
+				}
+				break;
+			case PCO_ID_IP_ADDRESS_ALLOCATION_VIA_NAS_SIGNALLING:
+				// allocation is always through NAS as of now 
+				break;
+			case PCO_ID_IPV4_LINK_MTU_REQUEST:
+            {
+                    ipv4_link_mtu=true;
+                    memcpy(&pco_buf[index], &pco_type, sizeof(pco_type));
+                    index += sizeof(pco_type);
+                    uint16_t mtu = htons(mtu_conf);
+                    uint8_t len = 2;
+                    memcpy(&pco_buf[index], &len, sizeof(len));
+                    index += sizeof(len);
+                    memcpy(&pco_buf[index], &mtu, 2);
+                    index += 2;
+            }
+			break;
+			default:
+				RTE_LOG_DP(INFO, CP, "Unknown PCO ID:(0x%x) received ", req_pco->ids[i].type);
+		}
+	}
+    // Lets add some additional parameters even if UE has requested for it
+    if(ipv4_link_mtu == false)
+    {
+            uint16_t pco_type = htons(PCO_ID_IPV4_LINK_MTU_REQUEST);
+            ipv4_link_mtu=true;
+            memcpy(&pco_buf[index], &pco_type, sizeof(pco_type));
+            index += sizeof(pco_type);
+            uint16_t mtu = htons(mtu_conf);
+            uint8_t len = 2;
+            memcpy(&pco_buf[index], &len, sizeof(len));
+            index += sizeof(len);
+            memcpy(&pco_buf[index], &mtu, 2);
+            index += 2;
+    }
+
+	return index;
+}
+
 void
 set_create_session_response(gtpv2c_header *gtpv2c_tx,
 		uint32_t sequence, ue_context *context, pdn_connection *pdn,
-		eps_bearer *bearer)
+		eps_bearer *bearer, pco_ie_t *pco)
 {
 
 	create_session_response_t cs_resp = {0};
@@ -41,6 +185,14 @@ set_create_session_response(gtpv2c_header *gtpv2c_tx,
 			pdn->s5s8_pgw_gtpc_ipv4, pdn->s5s8_pgw_gtpc_teid);
 
 	set_ipv4_paa(&cs_resp.paa, IE_INSTANCE_ZERO, pdn->ipv4);
+	if (pco != NULL) {
+		char *pco_buf = calloc(1, 260);
+		if (pco_buf != NULL) {
+			//Should we even pass the CSReq in case of PCO not able to allocate ?
+			uint16_t len = build_pco_response(pco_buf, pco, (uint32_t) context->dpId);
+			set_pco(&cs_resp.pco, IE_INSTANCE_ZERO, pco_buf, len);
+		}
+	}
 
 	set_apn_restriction(&cs_resp.apn_restriction, IE_INSTANCE_ZERO,
 			pdn->apn_restriction);
@@ -80,7 +232,11 @@ set_create_session_response(gtpv2c_header *gtpv2c_tx,
 
 		} else {
 //			ip.s_addr = ntohl(s1u_sgw_ip.s_addr);
+#if defined(ZMQ_COMM) && defined(MULTI_UPFS)
+			ip.s_addr = htonl(bearer->s1u_sgw_gtpu_ipv4.s_addr);
+#else
 			ip.s_addr = htonl(s1u_sgw_ip.s_addr);
+#endif
 		    set_ipv4_fteid(&cs_resp.bearer_context.s1u_sgw_ftied,
 			GTPV2C_IFTYPE_S1U_SGW_GTPU,
 				IE_INSTANCE_ZERO, ip,
@@ -117,6 +273,8 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 	int ret;
 	static uint32_t process_sgwc_s5s8_cs_req_cnt;
 	static uint32_t process_spgwc_s11_cs_res_cnt;
+	uint32_t dataplane_id = 0;
+	struct dp_id dp_id = { .id = DPN_ID };
 
 	ret = decode_create_session_request_t((uint8_t *) gtpv2c_rx,
 			&csr);
@@ -140,6 +298,7 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 			|| !csr.pdn_type.header.len
 			|| !csr.bearer_context.bearer_qos.header.len
 			|| !csr.msisdn.header.len
+			|| !csr.paa.header.len
 			|| !(csr.pdn_type.pdn_type == PDN_IP_TYPE_IPV4) ) {
 		fprintf(stderr, "Mandatory IE missing. Dropping packet\n");
 		return -EPERM;
@@ -158,15 +317,52 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 
 	uint8_t ebi_index = csr.bearer_context.ebi.eps_bearer_id - 5;
 
-	ret = acquire_ip(&ue_ip);
-	if (ret)
-		return GTPV2C_CAUSE_ALL_DYNAMIC_ADDRESSES_OCCUPIED;
-
 	/* set s11_sgw_gtpc_teid= key->ue_context_by_fteid_hash */
 	ret = create_ue_context(csr.imsi.imsi, csr.imsi.header.len,
 			csr.bearer_context.ebi.eps_bearer_id, &context);
 	if (ret)
 		return ret;
+
+#if defined(ZMQ_COMM) && defined(MULTI_UPFS)
+		/* Take MCC/MNC from the CSReq ULI
+		 * Make subscriber key
+		 */
+	struct dp_key dpkey = {0};
+	dpkey.tac = csr.uli.tai.tac;
+	memcpy((void *)(&dpkey.mcc_mnc), (void *)(&csr.uli.tai.mcc_mnc), 3);
+
+	/* TODO : need to do similar things for PGW only */
+	dataplane_id = select_dp_for_key(&dpkey);
+	RTE_LOG_DP(INFO, CP, "dpid.%d imsi.%llu \n", dataplane_id, (long long unsigned int)context->imsi);
+#endif
+
+	if (csr.paa.pdn_type == PDN_IP_TYPE_IPV4 && csr.paa.ip_type.ipv4.s_addr != 0) {
+		bool found = false;
+#if defined(ZMQ_COMM) && defined(MULTI_UPFS)
+		struct dp_info *dpInfo = fetch_dp_context(dataplane_id); 
+		if (dpInfo)
+			found = reserve_ip_node(dpInfo->static_pool_tree, csr.paa.ip_type.ipv4);
+#else
+		found = reserve_ip_node(static_addr_pool, csr.paa.ip_type.ipv4);
+#endif
+		if (found == false) {
+			RTE_LOG_DP(DEBUG, CP, "Received CSReq with static address %s"
+				   " . Invalid address received \n",
+				   inet_ntoa(csr.paa.ip_type.ipv4));
+			return GTPV2C_CAUSE_REQUEST_REJECTED;
+		}
+		ue_ip = csr.paa.ip_type.ipv4;
+
+        /* we want ue_ip in network order. To keep code aligned with dynamic
+         * allocation  */
+		ue_ip.s_addr = htonl(ue_ip.s_addr); 
+		pdn = context->pdns[ebi_index];
+		SET_PDN_ADDR_STATIC(pdn);
+	} else {
+		ret = acquire_ip(&ue_ip);
+		if (ret)
+			return GTPV2C_CAUSE_ALL_DYNAMIC_ADDRESSES_OCCUPIED;
+	}
 
 	if (csr.mei.header.len)
 		memcpy(&context->mei, csr.mei.mei, csr.mei.header.len);
@@ -174,8 +370,13 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 	memcpy(&context->msisdn, &csr.msisdn.msisdn, csr.msisdn.header.len);
 
 	context->s11_sgw_gtpc_ipv4 = s11_sgw_ip;
+	// host order ...htonl done before encoding
 	context->s11_mme_gtpc_teid = csr.sender_ftied.teid_gre;
-	context->s11_mme_gtpc_ipv4 = s11_mme_ip;
+	// keeping address in network order. address just filled in dest address while
+	// sending messages out
+	context->s11_mme_gtpc_ipv4.s_addr = htonl(csr.sender_ftied.ip.ipv4.s_addr);
+	RTE_LOG_DP(INFO, CP, "Context has MME IP set to %x , %s \n",
+		   context->s11_mme_gtpc_ipv4.s_addr, inet_ntoa(csr.sender_ftied.ip.ipv4));
 
 	pdn = context->pdns[ebi_index];
 	{
@@ -183,7 +384,7 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 		pdn->apn_ambr.ambr_downlink = csr.ambr.apn_ambr_dl;
 		pdn->apn_ambr.ambr_uplink = csr.ambr.apn_ambr_ul;
 		pdn->apn_restriction = csr.apn_restriction.restriction_type;
-		pdn->ipv4.s_addr = htonl(ue_ip.s_addr);
+		pdn->ipv4.s_addr = htonl(ue_ip.s_addr); // pdn ip is now in host byte 
 
 		if (csr.pdn_type.pdn_type == PDN_TYPE_IPV4)
 			pdn->pdn_type.ipv4 = 1;
@@ -226,7 +427,20 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 		bearer->qos.qos.dl_gbr =
 			csr.bearer_context.bearer_qos.guaranteed_bit_rate_for_downlink;
 
+
+
+#if defined(ZMQ_COMM) && defined(MULTI_UPFS)
+		bearer->s1u_sgw_gtpu_ipv4 = fetch_s1u_sgw_ip(dataplane_id);
+		RTE_LOG_DP(INFO, CP, "dpid.%d, s1uaddr %s \n", dataplane_id, inet_ntoa(bearer->s1u_sgw_gtpu_ipv4));
+#else
 		bearer->s1u_sgw_gtpu_ipv4 = s1u_sgw_ip;
+#endif
+		if (dataplane_id > 0) {
+			/* We want to attach subscriber to this DP */
+			dp_id.id  = dataplane_id;
+		}
+		context->dpId = dp_id.id;
+
 		set_s1u_sgw_gtpu_teid(bearer, context);
 		bearer->s5s8_sgw_gtpu_ipv4 = s5s8_sgwu_ip;
 		/* Note: s5s8_sgw_gtpu_teid based s11_sgw_gtpc_teid
@@ -236,15 +450,15 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 		bearer->pdn = pdn;
 
 		/*
-		if (create_session_request.s11u_mme_fteid) {
-			bearer->s11u_mme_gtpu_ipv4 =
-				IE_TYPE_PTR_FROM_GTPV2C_IE(fteid_ie,
-						create_session_request.s11u_mme_fteid)->ip_u.ipv4;
-			bearer->s11u_mme_gtpu_teid =
-				IE_TYPE_PTR_FROM_GTPV2C_IE(fteid_ie,
-						create_session_request.s11u_mme_fteid)->
-				fteid_ie_hdr.teid_or_gre;
-		}*/
+		  if (create_session_request.s11u_mme_fteid) {
+		  bearer->s11u_mme_gtpu_ipv4 =
+		  IE_TYPE_PTR_FROM_GTPV2C_IE(fteid_ie,
+		  create_session_request.s11u_mme_fteid)->ip_u.ipv4;
+		  bearer->s11u_mme_gtpu_teid =
+		  IE_TYPE_PTR_FROM_GTPV2C_IE(fteid_ie,
+		  create_session_request.s11u_mme_fteid)->
+		  fteid_ie_hdr.teid_or_gre;
+		  }*/
 	}
 
 	if (spgw_cfg == SGWC) {
@@ -263,7 +477,7 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 #ifndef ZMQ_COMM
 	set_create_session_response(
 			gtpv2c_s11_tx, csr.header.teid.has_teid.seq,
-			context, pdn, bearer);
+			context, pdn, bearer, &csr.pco);
 
 #else
 		/* Set create session response */
@@ -273,6 +487,7 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 		resp_t.bearer_t = *bearer;
 		resp_t.gtpv2c_tx_t.teid_u.has_teid.seq = csr.header.teid.has_teid.seq;
 		resp_t.msg_type = GTP_CREATE_SESSION_REQ;
+		resp_t.pco = csr.pco;
 		/*resp_t.msg_type = csr.header.gtpc.type;
 		 * TODO: Revisit this for to handle type received from message*/
 #endif
@@ -334,10 +549,13 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 	session.sess_id = SESS_ID(context->s11_sgw_gtpc_teid,
 						bearer->eps_bearer_id);
 
-	struct dp_id dp_id = { .id = DPN_ID };
-
-	if (session_create(dp_id, session) < 0)
+	if (session_create(dp_id, session) < 0) {
+#if defined(ZMQ_COMM) && defined(MULTI_UPFS)
+		RTE_LOG_DP(INFO, CP, "Bearer session create failed!\n");
+#else
 		rte_exit(EXIT_FAILURE,"Bearer Session create fail !!!");
+#endif
+	}
 	if (bearer->s11u_mme_gtpu_teid) {
 		session.num_dl_pcc_rules = 1;
 		session.dl_pcc_rule_id[0] = FIRST_FILTER_ID;
@@ -347,8 +565,13 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 		for (i = 0; i < num_adc_rules; ++i)
 			        session.adc_rule_id[i] = adc_rule_id[i];
 
-		if (session_modify(dp_id, session) < 0)
+		if (session_modify(dp_id, session) < 0) {
+#if defined(ZMQ_COMM) && defined(MULTI_UPFS)
+			RTE_LOG_DP(INFO, CP, "Bearer session create CIOT implicit modify failed !!!\n");
+#else
 			rte_exit(EXIT_FAILURE, "Bearer Session create CIOT implicit modify fail !!!");
+#endif
+		}
 	}
 	return 0;
 }

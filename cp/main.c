@@ -43,9 +43,14 @@
 #include "dp_ipc_api.h"
 #include "cp.h"
 #include "cp_stats.h"
+#include "cp_config.h"
 
 #ifdef ZMQ_COMM
 #include "gtpv2c_set_ie.h"
+#ifdef MULTI_UPFS
+#include "interface.h"
+#include "zmq_push_pull.h"
+#endif /* MULTI_UPFS */
 #endif  /* ZMQ_COMM */
 
 #ifdef SDN_ODL_BUILD
@@ -55,7 +60,7 @@
 #define PCAP_TTL                     (64)
 #define PCAP_VIHL                    (0x0045)
 
-#define S11_MME_IP_SET			(0x0001)
+#define SGW_CONFIG_SET			(0x0001)
 #define S11_SGW_IP_SET			(0x0002)
 #define S5S8_SGWC_IP_SET		(0x0004)
 #define S5S8_PGWC_IP_SET		(0x0008)
@@ -67,13 +72,11 @@
 #define APN_NAME_SET			(0x0200)
 #define LOG_LEVEL_SET			(0x0300)
 
-#define REQ_ARGS				(S11_MME_IP_SET | \
+#define REQ_ARGS				(SGW_CONFIG_SET | \
 								S11_SGW_IP_SET | \
 								S1U_SGW_IP_SET | IP_POOL_IP_SET | \
 								IP_POOL_MASK_SET | APN_NAME_SET | \
 								LOG_LEVEL_SET)
-
-#define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
 
 #ifdef ZMQ_COMM
 #define OP_ID_HASH_SIZE     (1 << 18)
@@ -87,6 +90,13 @@ int s11_fd = -1;
 int s11_pcap_fd = -1;
 int s5s8_sgwc_fd = -1;
 int s5s8_pgwc_fd = -1;
+char *config_update_base_folder = NULL;
+bool native_config_folder = false;
+
+/* We should move all the config inside this structure eventually 
+ * config is scattered all across the place as of now 
+ */
+struct app_config *appl_config = NULL;
 
 pcap_dumper_t *pcap_dumper;
 pcap_t *pcap_reader;
@@ -166,7 +176,6 @@ parse_arg(int argc, char **argv)
 
 	const struct option long_options[] = {
 	  {"spgw_cfg",  required_argument, NULL, 'd'},
-	  {"s11_mme_ip",  required_argument, NULL, 'm'},
 	  {"s11_sgw_ip",  required_argument, NULL, 's'},
 	  {"s5s8_sgwc_ip", optional_argument, NULL, 'r'},
 	  {"s5s8_pgwc_ip",  optional_argument, NULL, 'g'},
@@ -179,13 +188,15 @@ parse_arg(int argc, char **argv)
 	  {"log_level",   required_argument, NULL, 'l'},
 	  {"pcap_file_in", required_argument, NULL, 'x'},
 	  {"pcap_file_out", required_argument, NULL, 'y'},
+	  {"static_pool", optional_argument, NULL, 'h'},
+	  {"config_update_base_folder",optional_argument, NULL, 'f'},
 	  {0, 0, 0, 0}
 	};
 
 	do {
 		int option_index = 0;
 
-		c = getopt_long(argc, argv, "d:m:s:r:g:w:v:u:i:p:a:l:x:y:", long_options,
+		c = getopt_long(argc, argv, "d:m:s:r:g:w:v:u:i:p:a:l:x:y:h:f:", long_options,
 		    &option_index);
 
 		if (c == -1)
@@ -194,11 +205,7 @@ parse_arg(int argc, char **argv)
 		switch (c) {
 		case 'd':
 			spgw_cfg = (uint8_t)atoi(optarg);
-			args_set |= S11_MME_IP_SET;
-			break;
-		case 'm':
-			parse_arg_host(optarg, &s11_mme_ip);
-			args_set |= S11_MME_IP_SET;
+			args_set |= SGW_CONFIG_SET;
 			break;
 		case 's':
 			parse_arg_host(optarg, &s11_sgw_ip);
@@ -250,11 +257,38 @@ parse_arg(int argc, char **argv)
 			pcap_dumper = pcap_dump_open(pcap, optarg);
 			s11_pcap_fd = pcap_fileno(pcap);
 			break;
+		case 'h':
+			{
+#ifndef MULTI_UPFS
+				char *pool = parse_create_static_ip_pool(&static_addr_pool, optarg);
+				if (pool != NULL)
+					RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL configured %s \n", pool);
+#else
+				RTE_LOG_DP(ERR, CP, "STATIC_IP_POOL is for multi upf case should be provided in app_config.cfg \n");
+#endif
+			}
+			break;
+		case 'f':
+			config_update_base_folder = calloc(1, 128);
+			if (config_update_base_folder == NULL)
+				rte_panic("Unable to allocate memory for config_update_base_folder var!\n");
+			strcpy(config_update_base_folder, optarg);
+			break;
 		default:
 			rte_panic("Unknown argument - %s.", argv[optind]);
 			break;
 		}
 	} while (c != -1);
+
+	/* Lets put default values if some configuration is missing */
+	if (config_update_base_folder == NULL) {
+		config_update_base_folder = (char *) calloc(1, 128);
+		if (config_update_base_folder == NULL)
+			rte_panic("Unable to allocate memory for config_update_base_folder!\n");
+		strcpy(config_update_base_folder, CP_CONFIG_FOLDER);
+		native_config_folder = true;
+	}
+
 	if ((args_set & REQ_ARGS) != REQ_ARGS) {
 		fprintf(stderr, "Usage: %s\n", argv[0]);
 		for (c = 0; long_options[c].name; ++c) {
@@ -267,6 +301,8 @@ parse_arg(int argc, char **argv)
 	}
 }
 
+/* TODO : we should get dp_id as argument. CP_DP_TABLE_CONFIG is never enabled */
+/* XXX: need to figure out whether this can be deleted */
 void
 initialize_tables_on_dp(void)
 {
@@ -455,6 +491,9 @@ init_cp(void)
 
 	iface_module_constructor();
 
+#if defined (ZMQ_COMM) && defined (MULTI_UPFS)
+	init_dp_sock();
+#endif
 	if (signal(SIGINT, sig_handler) == SIG_ERR)
 		rte_exit(EXIT_FAILURE, "Error:can't catch SIGINT\n");
 	if (signal(SIGSEGV, sig_handler) == SIG_ERR)
@@ -467,6 +506,21 @@ init_cp(void)
 	init_packet_filters();
 	parse_adc_rules();
 #endif
+
+	appl_config = (struct app_config *) calloc(1, sizeof(struct app_config));
+	if (appl_config == NULL) {
+		rte_exit(EXIT_FAILURE, "Can't allocate memory for appl_config!\n");
+	}
+
+	/* Parse initial configuration file */
+	init_spgwc_dynamic_config(appl_config);
+
+	/* Lets register config change hook */
+	char file[128] = {'\0'};
+	strcat(file, config_update_base_folder);
+	strcat(file, "app_config.cfg");
+	RTE_LOG_DP(DEBUG, CP, "Config file to monitor %s ", file);
+	register_config_updates(file);
 
 	create_ue_hash();
 }
@@ -482,7 +536,7 @@ gtpv2c_send(int gtpv2c_if_fd, uint8_t *gtpv2c_tx_buf,
 {
 	int bytes_tx;
 	if (pcap_dumper) {
-		dump_pcap(gtpv2c_pyld_len, gtpv2c_tx_buf);
+		dump_pcap(gtpv2c_pyld_len, gtpv2c_tx_buf, dest_addr);
 	} else {
 		bytes_tx = sendto(gtpv2c_if_fd, gtpv2c_tx_buf, gtpv2c_pyld_len, 0,
 			(struct sockaddr *) dest_addr, dest_addr_len);
@@ -498,7 +552,7 @@ gtpv2c_send(int gtpv2c_if_fd, uint8_t *gtpv2c_tx_buf,
 }
 
 void
-dump_pcap(uint16_t payload_length, uint8_t *tx_buf)
+dump_pcap(uint16_t payload_length, uint8_t *tx_buf, struct sockaddr *dest_addr)
 {
 	static struct pcap_pkthdr pcap_tx_header;
 	gettimeofday(&pcap_tx_header.ts, NULL);
@@ -522,7 +576,8 @@ dump_pcap(uint16_t payload_length, uint8_t *tx_buf)
 
 	struct ipv4_hdr *ih = (struct ipv4_hdr *) &eh[1];
 
-	ih->dst_addr = s11_mme_ip.s_addr;
+	struct sockaddr_in *mme_addr = (struct sockaddr_in *)dest_addr;
+	ih->dst_addr = mme_addr->sin_addr.s_addr;
 	ih->src_addr = s11_sgw_ip.s_addr;
 	ih->next_proto_id = IPPROTO_UDP;
 	ih->version_ihl = PCAP_VIHL;
@@ -689,15 +744,14 @@ control_plane(void)
 				 ((spgw_cfg == SGWC) || (spgw_cfg == SPGWC)) &&
 				 (bytes_s11_rx > 0) &&
 				 (
-				  (s11_mme_sockaddr.sin_addr.s_addr != s11_mme_ip.s_addr) ||
 				  (gtpv2c_s11_rx->gtpc.version != GTP_VERSION_GTPV2C)
 				 )
 				) {
 				fprintf(stderr, "Discarding packet from %s:%u - "
-						"Expected S11_MME_IP = %s\n",
+						"Expected GTPv2 packet but received gtp version  = %d\n",
 						inet_ntoa(s11_mme_sockaddr.sin_addr),
 						ntohs(s11_mme_sockaddr.sin_port),
-						inet_ntoa(s11_mme_ip));
+						gtpv2c_s11_rx->gtpc.version);
 				return;
 			} else if (
 						 ((spgw_cfg == PGWC) && (bytes_s5s8_rx > 0)) &&
@@ -1212,7 +1266,7 @@ ddn_by_session_id(uint64_t session_id) {
 			+ sizeof(gtpv2c_tx->gtpc);
 
 	if (pcap_dumper) {
-		dump_pcap(payload_length, tx_buf);
+		dump_pcap(payload_length, tx_buf, (struct sockaddr *)&mme_s11_sockaddr_in);
 	} else {
 		uint32_t bytes_tx = sendto(s11_fd, tx_buf, payload_length, 0,
 		    (struct sockaddr *) &mme_s11_sockaddr_in,
@@ -1392,7 +1446,6 @@ main(int argc, char **argv)
 
 	parse_arg(argc - ret, argv + ret);
 	printf("spgw_cfg:  %d\n", spgw_cfg);
-	printf("s11_mme_ip:  %s\n", inet_ntoa(s11_mme_ip));
 	printf("s11_sgw_ip:  %s\n", inet_ntoa(s11_sgw_ip));
 	printf("s5s8_sgwc_ip:  %s\n", inet_ntoa(s5s8_sgwc_ip));
 	printf("s5s8_pgwc_ip:  %s\n", inet_ntoa(s5s8_pgwc_ip));

@@ -132,6 +132,7 @@ process_delete_bearer_response(gtpv2c_header *gtpv2c_rx)
 		delete_bearer_rsp.context->teid_bitmap &= ~(0x01 << index);
 
 		struct dp_id dp_id = { .id = DPN_ID };
+		dp_id.id = delete_bearer_rsp.context->dpId; 
 
 		struct session_info si;
 		memset(&si, 0, sizeof(si));

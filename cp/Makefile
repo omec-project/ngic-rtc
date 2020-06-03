@@ -12,6 +12,7 @@ RTE_TARGET ?= x86_64-native-linuxapp-gcc
 
 include $(RTE_SDK)/mk/rte.vars.mk
 include $(dir $(realpath $(firstword $(MAKEFILE_LIST))))/*.mk
+include $(dir $(realpath $(firstword $(MAKEFILE_LIST))))/../interface/*.mk
 
 LIBGTPV2C_ROOT = $(SRCDIR)/../libgtpv2c
 
@@ -27,6 +28,8 @@ SRCS-y += debug_str.c
 SRCS-y += ue.c
 SRCS-y += cp_stats.c
 SRCS-y += packet_filters.c
+SRCS-y += monitor_config.c
+SRCS-y += cp_config.c
 
 SRCS-y += gtpv2c_messages/bearer_resource_cmd.c
 SRCS-y += gtpv2c_messages/create_bearer.c

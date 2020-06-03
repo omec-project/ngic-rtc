@@ -177,6 +177,8 @@ decode_mcc_mnc_t(uint8_t *buf, mcc_mnc_t *val)
 	val->mcc_digit_2 = (buf[0] & 0xf0) >> 4;
 	val->mcc_digit_1 = (buf[0] & 0x0f);
 	val->mnc_digit_3 = (buf[1] & 0xf0) >> 4;
+	if(val->mnc_digit_3 == 0xf)
+		val->mnc_digit_3 = 0; 
 	val->mcc_digit_3 = (buf[1] & 0x0f);
 	val->mnc_digit_2 = (buf[2] & 0xf0) >> 4;
 	val->mnc_digit_1 = (buf[2] & 0x0f);
@@ -836,6 +838,43 @@ decode_bearer_context_modified_ie_t(uint8_t *buf,
 }
 
 /**
+ * decodes buffer to PCO IE
+ * 29.274 - 8.13 Protocol Configuration Options (PCO) 
+ * 24.008 - 10.5.6.3 Protocol configuration options 
+ * @param buf
+ *   buffer to be decoded
+ * @param val
+ *   protocol configuration option IE pointer  
+ * @return
+ *   number of decoded bytes.
+ */
+static int 
+decode_pco_ie_t(uint8_t *buf, pco_ie_t *val)
+{
+	int i = 0;
+	uint16_t count = 0;
+	decode_ie_header_t(buf, &(val->header), IE_HEADER_SIZE);
+	count += IE_HEADER_SIZE;
+	uint8_t byte = buf[count]; // Read 1 byte 
+	val->ext = (byte & 0x80) >> 7; // Check if MSB is set. MSB bit is to indicate extension 
+	val->config_proto = (byte & 0x07); // configuration protocol is set in lsb 3 bits.  
+	count++;
+
+	while (count < val->header.len && i < MAX_PCO_CONTAINERS) {
+		pco_opt_t *id = &val->ids[i];
+		memcpy(&id->type, &buf[count], sizeof(id->type));
+		id->type = ntohs(id->type);
+		count += sizeof(id->type);
+		memcpy(&id->len, &buf[count], sizeof(id->len));
+		count += sizeof(id->len);
+		memcpy(&id->data[0], &buf[count], id->len);
+		count += id->len;
+		i++;
+	}
+	val->num_of_opt = i;
+	return IE_HEADER_SIZE + val->header.len;
+}
+/**
  * decodes buffer to gtpv2c header.
  * @param buf
  *   buffer to be decoded
@@ -976,6 +1015,9 @@ decode_create_session_request_t(uint8_t *msg,
 				ie_header->instance == IE_INSTANCE_ZERO) {
 			count += decode_ue_timezone_ie_t(msg + count,
 								&cs_req->ue_timezone);
+		} else if (ie_header->type == IE_PCO &&
+				ie_header->instance == IE_INSTANCE_ZERO) {
+                        count += decode_pco_ie_t(msg + count, &cs_req->pco);
 		} else {
 			count += sizeof(ie_header_t) + ntohs(ie_header->len);
 		}

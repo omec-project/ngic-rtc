@@ -129,10 +129,19 @@ static int
 send_dp_msg(struct dp_id dp_id, struct msgbuf *msg_payload)
 {
 	RTE_SET_USED(dp_id);
+#if defined (CP_BUILD) && defined (MULTI_UPFS)
+	struct upf_context *upf = NULL;
+	upf = fetch_upf_context(dp_id.id);
+	if (upf == NULL || active_comm_msg->send(upf, (void *)msg_payload, sizeof(struct msgbuf)) < 0) {
+		perror("msgsnd");
+		return -1;
+	}
+#else
 	if (active_comm_msg->send((void *)msg_payload, sizeof(struct msgbuf)) < 0) {
 		perror("msgsnd");
 		return -1;
 	}
+#endif
 	return 0;
 }
 #endif /* CP_BUILD*/

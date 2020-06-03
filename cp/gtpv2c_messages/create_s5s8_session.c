@@ -8,8 +8,6 @@
 #include "gtpv2c_set_ie.h"
 #include "../cp_dp_api/vepc_cp_dp_api.h"
 
-#define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
-
 /* PGWC S5S8 handlers:
  * static int parse_pgwc_s5s8_create_session_request(...)
  * int process_pgwc_s5s8_create_session_request(...)
@@ -633,7 +631,7 @@ process_sgwc_s5s8_create_session_response(gtpv2c_header *gtpv2c_s5s8_rx,
 #ifndef ZMQ_COMM
 	set_create_session_response(
 			gtpv2c_s11_tx, gtpv2c_s5s8_rx->teid_u.has_teid.seq,
-			context, pdn, bearer);
+			context, pdn, bearer, NULL);
 
 #else
 		/* Set create session response */

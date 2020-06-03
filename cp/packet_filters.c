@@ -52,6 +52,13 @@ packet_filter *packet_filters[SDF_FILTER_TABLE_SIZE] = {
 		[0] = NULL, /* index = 0 is invalid */
 };
 
+#if defined(CP_BUILD) && defined(MULTI_UPFS)
+/* logic to store ADC table also added, since each DP can be registered dynamically now */
+struct adc_rules *adc_table[MAX_ADC_RULES] = {
+		[0] = NULL, /* index = 0 is invalid */
+};
+#endif /* CP_BUILD && MULTI_UPFS */
+
 uint16_t num_mtr_profiles;
 uint16_t num_packet_filters = FIRST_FILTER_ID;
 uint16_t num_sdf_filters = FIRST_FILTER_ID;
@@ -119,10 +126,15 @@ int meter_profile_index_get(uint64_t cir)
 }
 
 void
-push_sdf_rules(uint16_t index)
+push_sdf_rules(uint16_t index
+#ifdef MULTI_UPFS
+	       , struct dp_id dp_id
+#endif
+	       )
 {
+#ifndef MULTI_UPFS
 	struct dp_id dp_id = { .id = DPN_ID };
-
+#endif
 	char local_ip[INET_ADDRSTRLEN];
 	char remote_ip[INET_ADDRSTRLEN];
 
@@ -163,7 +175,7 @@ push_sdf_rules(uint16_t index)
 			sdf_filters[index]->proto, sdf_filters[index]->proto_mask);
 	}
 
-	printf("Installing %s pkt_filter #%"PRIu16" : %s",
+	printf("DP %lu Installing %s pkt_filter #%"PRIu16" : %s",dp_id.id,  
 	    direction_str[sdf_filters[index]->direction], index,
 		pktf.u.rule_str);
 
@@ -206,7 +218,10 @@ install_sdf_rules(const pkt_fltr *new_packet_filter)
 	if (dpn_id)
 		push_sdf_rules(index);
 #else
+#ifndef MULTI_UPFS
+	/* suspend initialization till UPF registers */
 	push_sdf_rules(index);
+#endif /* !MULTI_UPFS */
 #endif
 	return index;
 }
@@ -239,10 +254,9 @@ install_pcc_rules(struct pcc_rules new_pcc_entry)
 		return -ENOMEM;
 	}
 
-	memcpy(pcc_filter, &new_pcc_entry, sizeof(new_pcc_entry));
-
-	pcc_filters[num_pcc_filter] = pcc_filter;
 	new_pcc_entry.rule_id = num_pcc_filter;
+	memcpy(pcc_filter, &new_pcc_entry, sizeof(new_pcc_entry));
+	pcc_filters[num_pcc_filter] = pcc_filter;
 	num_pcc_filter++;
 
 #ifdef SDN_ODL_BUILD
@@ -250,9 +264,13 @@ install_pcc_rules(struct pcc_rules new_pcc_entry)
 		if (pcc_entry_add(dp_id, new_pcc_entry) < 0 )
 			rte_exit(EXIT_FAILURE,"PCC entry add fail !!!");
 #else
+#ifdef MULTI_UPFS
+	RTE_SET_USED(dp_id);
+#else
 	if (pcc_entry_add(dp_id, new_pcc_entry) < 0 )
 		rte_exit(EXIT_FAILURE,"PCC entry add fail !!!");
-#endif
+#endif /* MULTI_UPFS */
+#endif /* SDN_ODL_BUILD */
 	return num_pcc_filter;
 }
 
@@ -283,8 +301,12 @@ install_meter_profiles(struct dp_id dp_id, struct mtr_entry new_mtr_entry)
 	if (dpn_id)
 		meter_profile_entry_add(dp_id, new_mtr_entry);
 #else
+#ifdef MULTI_UPFS
+	RTE_SET_USED(dp_id);
+#else
 	meter_profile_entry_add(dp_id, new_mtr_entry);
-#endif
+#endif /* MULTI_UPFS */
+#endif /* SDN_ODL_BUILD */
 	return num_mtr_profiles;
 }
 
@@ -766,11 +788,68 @@ parse_adc_rules(void)
 		/* Add Default rule */
 		adc_rule_id[rule_id - 1] = rule_id;
 		tmp_adc.rule_id = rule_id++;
+#ifdef MULTI_UPFS
+		/* store ADC rules also now */
+		RTE_SET_USED(dp_id);
+		struct adc_rules *adc = rte_zmalloc_socket(NULL, sizeof(struct adc_rules),
+							   RTE_CACHE_LINE_SIZE, rte_socket_id());
+		if (adc == NULL) {
+			rte_exit(EXIT_FAILURE, "Failure to allocate dedicated adc rule "
+				 "structure: %s (%s:%d)\n",
+				 rte_strerror(rte_errno),
+				 __FILE__,
+				 __LINE__);
+			return;
+		}
+
+		memcpy(adc, &tmp_adc, sizeof(tmp_adc));
+		adc_table[tmp_adc.rule_id] = adc;
+#else
 		if (adc_entry_add(dp_id, tmp_adc) < 0)
 			rte_exit(EXIT_FAILURE, "ADC entry add fail !!!");
+#endif /* MULTI_UPFS */
 		print_adc_rule(tmp_adc);
 
 	}
 	num_adc_rules = rule_id - 1;
 
 }
+#if defined(CP_BUILD) && defined(MULTI_UPFS)
+void
+init_pkt_filter_for_dp(uint32_t dpId)
+{
+	uint32_t i;
+	struct dp_id dp_id = { .id = dpId };
+
+	/* send pcc entries first */
+	for (i = 0; i < PCC_TABLE_SIZE; i++) {
+		if (pcc_filters[i] != NULL) {
+			if (pcc_entry_add(dp_id, *pcc_filters[i]) < 0)
+				rte_exit(EXIT_FAILURE, "PCC entry add fail!!!\n");
+		}
+	}
+
+	sleep(1);
+
+	/* send mtr entries */
+	for (i = 0; i < METER_PROFILE_SDF_TABLE_SIZE; i++) {
+		if (mtr_profiles[i] != NULL) {
+			meter_profile_entry_add(dp_id, *mtr_profiles[i]);
+		}
+	}
+
+	/* send sdf entries */
+	for (i = 0; i < SDF_FILTER_TABLE_SIZE; i++) {
+		if (sdf_filters[i] != NULL) {
+			push_sdf_rules(i, dp_id);
+		}
+	}
+
+	/* send adc entries */
+	for (i = 0; i < MAX_ADC_RULES; i++) {
+		if (adc_table[i] != NULL) {
+			adc_entry_add(dp_id, *adc_table[i]);
+		}
+	}
+}
+#endif /* CP_BUILD && MULTI_UPFS */

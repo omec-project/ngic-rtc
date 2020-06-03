@@ -27,7 +27,7 @@
 #include "interface.h"
 
 /* ZMQ_DIRECT enable the direct communication between CP-DP. */
-#define ZMQ_DIRECT 0
+#define ZMQ_DIRECT 1
 
 struct zmqbuf;
 
@@ -44,6 +44,14 @@ enum s11_msgtype {
 	SDF_RULE = 20,
 };
 
+#if defined (CP_BUILD) && defined (MULTI_UPFS)
+int zmq_push_create(void);
+int zmq_pull_create(void);
+void zmq_push_pull_destroy(struct upf_context *upf);
+int zmq_mbuf_push(struct upf_context *upf, void *mbuf, uint32_t zmqbufsz);
+int zmq_mbuf_pull(struct upf_context *upf, void *mbuf, uint32_t zmqbufsz);
+extern zmq_pollitem_t zmq_items[MAX_UPFS];
+#else
 /**
  * @brief
  * creates zmq server(PUSH) message socket
@@ -89,5 +97,5 @@ int zmq_mbuf_push(void *mbuf, uint32_t zmqbufsz);
  * size of zmq message recieved
  */
 int zmq_mbuf_pull(void *mbuf, uint32_t zmqbufsz);
-
+#endif /* MULTI_UPFS */
 #endif

@@ -9,6 +9,7 @@
 #include "req_resp.h"
 #include "util.h"
 #include "gtpv2c_messages.h"
+#include "assert.h"
 
 /**
  * Encodes uint8_t value to buffer.
@@ -810,6 +811,16 @@ encode_bearer_context_modified_ie_t(bearer_context_modified_ie_t *val,
 	return enc_len;
 }
 
+static int
+encode_pco_ie_t(pco_ie_t *val, gtpv2c_buffer_t *buf)
+{
+	uint16_t enc_len = 0;
+	enc_len += encode_ie_header_t(&val->header, buf);
+	gtpv2c_buf_memcpy(buf, &val->pco[0], val->pco_len);
+        enc_len += val->pco_len;
+	free(val->pco); 
+        return enc_len;
+}
 /**
  * Encodes create session request to buffer.
  * @param val
@@ -926,8 +937,13 @@ encode_create_session_response_t(create_session_response_t *val,
 	if (val->apn_restriction.header.len)
 		enc_len += encode_apn_restriction_ie_t(&(val->apn_restriction), &buf);
 
+
 	if (val->bearer_context.header.len)
 		enc_len += encode_bearer_context_created_ie_t(&(val->bearer_context), &buf);
+
+
+	if (val->pco.header.len)
+		enc_len += encode_pco_ie_t(&(val->pco), &buf);
 
 	*msg_len = enc_len;
 	memcpy(msg, buf.val, buf.len);

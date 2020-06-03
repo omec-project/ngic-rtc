@@ -12,6 +12,7 @@ RTE_TARGET ?= x86_64-native-linuxapp-gcc
 
 include $(RTE_SDK)/mk/rte.vars.mk
 include $(dir $(realpath $(firstword $(MAKEFILE_LIST))))/*.mk
+include $(dir $(realpath $(firstword $(MAKEFILE_LIST))))/../interface/*.mk
 
 #DIRS-y += pipeline
 # binary name
@@ -147,7 +148,7 @@ endif
 # ngic-dp debug/testing/profiling options CFLAGS
 # #############################################################
 # gdb: un-comment 'CFLAGS += -g -O0' comment 'CFLAGS += -O3'
-CFLAGS += -O3
+CFLAGS += -O2
 #CFLAGS += -g -O0
 
 # Un-comment to enable USE_AF_PACKET

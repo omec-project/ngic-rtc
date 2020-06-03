@@ -140,6 +140,8 @@ process_ddn_ack(gtpv2c_header *gtpv2c_rx, uint8_t *delay)
 
 	struct dp_id dp_id = { .id = DPN_ID };
 
+	dp_id.id = downlink_data_notification_ack.context->dpId;
+	/* Fetch user context and then use the same DP id to send the message  */
 	if (send_ddn_ack(dp_id, downlink_data_notification_ack) < 0)
 		rte_exit(EXIT_FAILURE, "Downlink data notification ack fail !!!");
 	return 0;
