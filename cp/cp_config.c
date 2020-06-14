@@ -220,6 +220,12 @@ init_spgwc_dynamic_config(struct app_config *cfg )
 		} else {
 			RTE_LOG_DP(ERR, CP, "TAC not found in the configuration file\n");
 		}
+		entry = rte_cfgfile_get_entry(file, sectionname, "IMSI");
+        if(entry) {
+			dpInfo->key.imsi=atol(entry);
+		} else {
+			RTE_LOG_DP(INFO, CP, "DP(%s) IMSI is missing, it will be ignored in the selection criteria \n", dpInfo->dpName);
+		}
 		LIST_INSERT_HEAD(&cfg->dpList, dpInfo, dpentries);
 
 		entry = rte_cfgfile_get_entry(file, sectionname , "DNS_PRIMARY");
@@ -321,6 +327,9 @@ select_dp_for_key(struct dp_key *key)
 		if(bcmp((void *)(&np->key.mcc_mnc), (void *)(&key->mcc_mnc), 3) != 0)
 			continue;
 		if(np->key.tac != key->tac)
+			continue;
+		//we compare imsi only if it is present in the key otherwise ignore it
+		if(np->key.imsi && key->imsi!= np->key.imsi)
 			continue;
 		return np->dpId;
 	}
