@@ -33,7 +33,9 @@ struct dp_key
 {
 	struct mcc_mnc_key mcc_mnc;
 	uint16_t tac;
-	uint64_t imsi;
+	unsigned int num_imsis ;
+	uint64_t imsi_to_compare;
+    uint64_t imsis[];
 };
 
 #define  CONFIG_DNS_PRIMARY  	0x00000001

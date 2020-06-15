@@ -329,7 +329,7 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 		 */
 	struct dp_key dpkey = {0};
 	dpkey.tac = csr.uli.tai.tac;
-	dpkey.imsi = context->imsi;
+	dpkey.imsi_to_compare = context->imsi;
 	memcpy((void *)(&dpkey.mcc_mnc), (void *)(&csr.uli.tai.mcc_mnc), 3);
 
 	/* TODO : need to do similar things for PGW only */

@@ -220,12 +220,32 @@ init_spgwc_dynamic_config(struct app_config *cfg )
 		} else {
 			RTE_LOG_DP(ERR, CP, "TAC not found in the configuration file\n");
 		}
-		entry = rte_cfgfile_get_entry(file, sectionname, "IMSI");
-        if(entry) {
-			dpInfo->key.imsi=atol(entry);
-		} else {
-			RTE_LOG_DP(INFO, CP, "DP(%s) IMSI is missing, it will be ignored in the selection criteria \n", dpInfo->dpName);
-		}
+		entry=rte_cfgfile_get_entry(file, sectionname, "NUM_IMSIs");
+        if (entry)
+        {            
+            dpInfo->key.num_imsis = atoi(entry);
+            entry = rte_cfgfile_get_entry(file, sectionname, "IMSIs");
+            if(entry)
+            {   
+                char * imsis = "";             
+                memcpy(&imsis, &entry, sizeof(entry));
+                char * token = strtok(imsis, " ");
+                int imsis_counter=0;
+                while( token != NULL && imsis_counter<dpInfo->key.num_imsis) {
+                    dpInfo->key.imsis[imsis_counter]=atol(token);
+                    imsis_counter++;
+                    token = strtok(NULL, " ");
+                }
+            }
+            else
+            {
+                RTE_LOG_DP(ERR, CP, "DP(%s) NUM_IMSIs exists but there is no IMSIs entries speccified \n", dpInfo->dpName);
+            }
+        }
+        else
+        {
+            RTE_LOG_DP(INFO, CP, "DP(%s) NUM_IMSIs is missing, IMSI will be ignored in the selection criteria \n", dpInfo->dpName);
+        }
 		LIST_INSERT_HEAD(&cfg->dpList, dpInfo, dpentries);
 
 		entry = rte_cfgfile_get_entry(file, sectionname , "DNS_PRIMARY");
@@ -329,8 +349,19 @@ select_dp_for_key(struct dp_key *key)
 		if(np->key.tac != key->tac)
 			continue;
 		//we compare imsi only if it is present in the key otherwise ignore it
-		if(np->key.imsi && key->imsi!= np->key.imsi)
-			continue;
+		if(np->key.num_imsis) {
+			bool imsifound=false;
+            for (int ind = 0; ind < dpInfo->key.num_imsis; ind++) {                
+                if (key->imsi_to_compare==dpInfo->key.imsis[ind])
+                {
+                    imsifound=true;
+                    break;
+                }
+                
+            }
+			if(!imsifound)
+				continue;
+		}
 		return np->dpId;
 	}
 	return DPN_ID; /* 0 is invalid DP */ 
