@@ -211,7 +211,7 @@ CFLAGS += -DSTATS
 # ngic-dp inter-op/functional options CFLAGS
 # #############################################################
 # Un-comment below line to enable DDN(Downlink data notification)
-#CFLAGS += -DDP_DDN
+CFLAGS += -DDP_DDN
 
 # Un-comment below line to enable Rating group CDRs.
 # Disable/Comment out  RATING_GRP_CDR for performance profiling.
