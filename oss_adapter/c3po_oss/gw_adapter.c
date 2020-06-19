@@ -52,6 +52,10 @@
 
 #include "../../pfcp_messages/pfcp_set_ie.h"
 
+#ifdef USE_DNS_QUERY
+#include "cdnshelper.h"
+#endif
+
 //////////////////////////////////////////////////////////////////////////////////
 
 
@@ -948,6 +952,26 @@ get_current_time_oss(char *last_time_stamp)
         strftime (last_time_stamp,LAST_TIMER_SIZE,"%FT%T",last_timer);
 }
 
+static int
+post_dnscache_refresh(const char *request_body, char **response_body)
+{
+	int iRet;
+
+	clLog(clSystemLog, eCLSeverityInfo, "post_dnscache_refresh() body=[%s]",
+			request_body);
+
+#ifdef USE_DNS_QUERY
+	dnscache_refresh(NS_OPS);
+	dnscache_refresh(NS_APP);
+	*response_body = strdup("{\"result\": \"OK\"}");
+	iRet = 200;
+#else
+	*response_body = strdup("{\"result\": \"ERROR - DNS not enabled\"}");
+	iRet = 403;
+#endif
+
+	return iRet;
+}
 
 /////////////////////////////////////////////////////////////////////////////////
 
@@ -974,6 +998,8 @@ init_rest_methods(int port_no, size_t thread_count)
 
 	crRegisterStaticHandler(eCRCommandGet, "/statlive", get_stat_live);
 	crRegisterStaticHandler(eCRCommandGet, "/statliveall", get_stat_live_all);
+
+	crRegisterStaticHandler(eCRCommandPost, "/dnscache_refresh", post_dnscache_refresh);
 
 	crStart();
 
