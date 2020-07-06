@@ -151,11 +151,11 @@ endif
 # ngic-dp debug/testing/profiling options CFLAGS
 # #############################################################
 # gdb: un-comment 'CFLAGS += -g -O0' comment 'CFLAGS += -O3'
-CFLAGS += -O0
-#CFLAGS += -g -O0
+#CFLAGS += -O0
+CFLAGS += -g -O0
 
 #un-comment below line to remove all log level for preformance testing.
-CFLAGS += -DPERF_TEST
+#CFLAGS += -DPERF_TEST
 
 #un-comment below line to generate pcap on east-west interfaces
 CFLAGS += -DPCAP_GEN

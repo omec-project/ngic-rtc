@@ -483,6 +483,7 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 
 
 			}
+
 		case PFCP_SESSION_ESTABLISHMENT_REQUEST:
 			{
 				memset(pfcp_msg, 0, 1024);
