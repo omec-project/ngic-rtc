@@ -24,6 +24,7 @@
 #include "pfcp_set_ie.h"
 #include "pfcp_messages_encoder.h"
 #include "clogger.h"
+#include "seid_llist.h"
 
 #ifdef GX_BUILD
 #include "cp_app.h"
@@ -230,8 +231,8 @@ fill_ccr_t_request(pdn_connection *pdn, uint8_t ebi_index)
 
 	/* VS: Calculate the max size of CCR msg to allocate the buffer */
 	msglen = gx_ccr_calc_length(&ccr_request.data.ccr);
-
-	buffer = rte_zmalloc_socket(NULL, msglen + sizeof(ccr_request.msg_type),
+	ccr_request.msg_len = msglen + GX_HEADER_LEN;
+	buffer = rte_zmalloc_socket(NULL, msglen + GX_HEADER_LEN,
 			RTE_CACHE_LINE_SIZE, rte_socket_id());
 	if (buffer == NULL) {
 		clLog(clSystemLog, eCLSeverityCritical, "Failure to allocate CCR Buffer memory"
@@ -243,22 +244,33 @@ fill_ccr_t_request(pdn_connection *pdn, uint8_t ebi_index)
 	}
 
 	memcpy(buffer, &ccr_request.msg_type, sizeof(ccr_request.msg_type));
+	memcpy(buffer + sizeof(ccr_request.msg_type),
+							&ccr_request.msg_len,
+					sizeof(ccr_request.msg_len));
 
 	if (gx_ccr_pack(&(ccr_request.data.ccr),
-				(unsigned char *)(buffer + sizeof(ccr_request.msg_type)), msglen) == 0) {
+				(unsigned char *)(buffer + GX_HEADER_LEN), msglen) == 0) {
 		clLog(clSystemLog, eCLSeverityCritical,
 				"ERROR:%s:%d Packing CCR Buffer... \n", __func__, __LINE__);
+		if(buffer != NULL){
+			rte_free(buffer);
+			buffer = NULL;
+		}
 		return -1;
 	}
 
 	/* VS: Write or Send CCR -T msg to Gx_App */
-	send_to_ipc_channel(gx_app_sock, buffer, msglen + sizeof(ccr_request.msg_type));
+	send_to_ipc_channel(gx_app_sock, buffer, msglen + GX_HEADER_LEN);
 	clLog(clSystemLog, eCLSeverityDebug, FORMAT"Send CCR-T to PCRF \n", ERR_MSG);
 
 	struct sockaddr_in saddr_in;
 	saddr_in.sin_family = AF_INET;
 	inet_aton("127.0.0.1", &(saddr_in.sin_addr));
 	update_cli_stats(saddr_in.sin_addr.s_addr, OSS_CCR_TERMINATE, SENT, GX);
+	if(buffer != NULL){
+		rte_free(buffer);
+		buffer = NULL;
+	}
 
 	return 0;
 }
@@ -340,12 +352,17 @@ del_sess_by_csid_entry(uint32_t teid, uint8_t iface)
 					/* TODO: Error Handling */
 					return -1;
 				}
-				rte_free(context->eps_bearers[i]);
+				if(context->eps_bearers[i] != NULL){
+					rte_free(context->eps_bearers[i]);
+					context->eps_bearers[i] = NULL;
+				}
 			}
 		}
 
-		rte_free(pdn);
-		pdn = NULL;
+		if (pdn != NULL) {
+			rte_free(pdn);
+			pdn = NULL;
+		}
 	}
 
 	/* Delete UE context entry from IMSI Hash */
@@ -354,9 +371,10 @@ del_sess_by_csid_entry(uint32_t teid, uint8_t iface)
 				"%s %s - Error on ue_context_by_imsi_hash del\n",__file__,
 				strerror(ret));
 	}
-	rte_free(context);
-	context = NULL;
-
+	if (context != NULL) {
+		rte_free(context);
+		context = NULL;
+	}
 	update_sys_stat(number_of_users, DECREMENT);
 	update_sys_stat(number_of_active_session, DECREMENT);
 
@@ -463,9 +481,12 @@ cleanup_sess_by_csid_entry(fqcsid_t *csids, uint8_t iface)
 			/* MME FQ-CSID */
 			if((context)->mme_fqcsid != 0) {
 				for (uint8_t itr2 = 0; itr2 < ((context)->mme_fqcsid)->num_csid; itr2++) {
+					match = 0;
 					for (uint8_t itr3 = 0; itr3 < mme_csids.num_csid; itr3++) {
-						if(mme_csids.local_csid[itr3] == ((context)->mme_fqcsid)->local_csid[itr2])
+						if(mme_csids.local_csid[itr3] == ((context)->mme_fqcsid)->local_csid[itr2]) {
 							match = 1;
+							break;
+						}
 					}
 
 					if(!match) {
@@ -486,9 +507,12 @@ cleanup_sess_by_csid_entry(fqcsid_t *csids, uint8_t iface)
 			/* SGWC FQ-CSID */
 			if(PGWC == pfcp_config.cp_type && (context)->sgw_fqcsid != 0 ) {
 				for (uint8_t itr2 = 0; itr2 < ((context)->sgw_fqcsid)->num_csid; itr2++) {
+					match = 0;
 					for (uint8_t itr3 = 0; itr3 < tmp1.num_csid; itr3++) {
-						if(tmp1.local_csid[itr3] == ((context)->sgw_fqcsid)->local_csid[itr2])
+						if(tmp1.local_csid[itr3] == ((context)->sgw_fqcsid)->local_csid[itr2]) {
 							match = 1;
+							break;
+						}
 					}
 
 					if(!match) {
@@ -507,9 +531,12 @@ cleanup_sess_by_csid_entry(fqcsid_t *csids, uint8_t iface)
 			/* PGWC FQ-CSID */
 			if(SGWC == pfcp_config.cp_type && (context)->pgw_fqcsid != 0 ) {
 				for (uint8_t itr2 = 0; itr2 < ((context)->pgw_fqcsid)->num_csid; itr2++) {
+					match = 0;
 					for (uint8_t itr3 = 0; itr3 < tmp1.num_csid; itr3++) {
-						if(tmp1.local_csid[itr3] == ((context)->pgw_fqcsid)->local_csid[itr2])
+						if(tmp1.local_csid[itr3] == ((context)->pgw_fqcsid)->local_csid[itr2]) {
 							match = 1;
+							break;
+						}
 
 					}
 
@@ -532,10 +559,12 @@ cleanup_sess_by_csid_entry(fqcsid_t *csids, uint8_t iface)
 				/* UP FQ-CSID */
 				if((context)->up_fqcsid != 0 ) {
 					for (uint8_t itr2 = 0; itr2 < ((context)->up_fqcsid)->num_csid; itr2++) {
+						match = 0;
 						for (uint8_t itr3 = 0; itr3 < up_csids.num_csid; itr3++) {
-							if(up_csids.local_csid[itr3] == ((context)->up_fqcsid)->local_csid[itr2])
+							if(up_csids.local_csid[itr3] == ((context)->up_fqcsid)->local_csid[itr2]) {
 								match = 1;
-
+								break;
+							}
 						}
 
 						if(!match) {
@@ -564,8 +593,10 @@ cleanup_sess_by_csid_entry(fqcsid_t *csids, uint8_t iface)
 			tmp = current->next;
 
 			/* free csid linked list node */
-			if(current != NULL)
+			if(current != NULL){
 				rte_free(current);
+				current = NULL;
+			}
 
 			current = tmp;
 		}
@@ -622,7 +653,7 @@ del_peer_node_sess(uint32_t node_addr, uint8_t iface)
 
 	/* Get peer CSID associated with node */
 	peer_csids = get_peer_addr_csids_entry(ntohl(node_addr),
-			MOD);
+			UPDATE_NODE);
 
 	if (peer_csids == NULL) {
 		/* Delete UPF hash entry */
@@ -1262,5 +1293,62 @@ remove_peer_temp_csid(fqcsid_t *peer_fqcsid, uint16_t tmp_csid, uint8_t iface) {
 		return 0;
 	}
 
+	return -1;
+}
+
+int
+cleanup_csid_entry(uint64_t seid,
+		fqcsid_t *peer_fqcsid, ue_context *context) {
+
+	uint8_t ret = 0;
+	uint16_t csid = 0;
+	sess_csid *sess_list = NULL;
+
+	if (peer_fqcsid != NULL) {
+
+		for (uint8_t itr = 0; itr < peer_fqcsid->num_csid; itr++) {
+
+			csid = peer_fqcsid->local_csid[itr];
+			/* Remove the session link from CSID */
+			sess_list = get_sess_csid_entry(csid, REMOVE_NODE);
+
+			if (sess_list == NULL)
+				continue;
+
+
+			/* Remove node from csid linked list */
+			sess_list = remove_sess_csid_data_node(sess_list, seid);
+
+			/* Update CSID Entry in table */
+			ret = rte_hash_add_key_data(seids_by_csid_hash,
+					&csid, sess_list);
+
+			if (ret) {
+				clLog(clSystemLog, eCLSeverityCritical,
+						FORMAT"Failed to remove Session IDs entry for CSID = %u"
+						"\n\tError= %s\n",
+						ERR_MSG, csid,
+						rte_strerror(abs(ret)));
+				return GTPV2C_CAUSE_SYSTEM_FAILURE;
+			}
+
+			if (sess_list == NULL) {
+				ret = del_sess_csid_entry(csid);
+				if (ret) {
+					clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error : While Delete Session CSID entry \n", ERR_MSG);
+					return GTPV2C_CAUSE_SYSTEM_FAILURE;
+				}
+
+				ret = cleanup_session_entries(csid, context);
+				if (ret) {
+					clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error : While Cleanup session entries \n", ERR_MSG);
+					return GTPV2C_CAUSE_SYSTEM_FAILURE;
+				}
+			}
+		}
+		return 0;
+	}
+
+	clLog(clSystemLog, eCLSeverityDebug, FORMAT"fqcsid not found  \n", ERR_MSG);
 	return -1;
 }

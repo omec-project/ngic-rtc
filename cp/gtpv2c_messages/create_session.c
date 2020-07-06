@@ -100,7 +100,7 @@ set_create_session_response(gtpv2c_header_t *gtpv2c_tx,
 
 		for(uint8_t i= 0; i< MAX_BEARERS; i++) {
 
-			bearer = context->eps_bearers[i];
+			bearer = pdn->eps_bearers[i];
 			if(bearer == NULL)
 				continue;
 
@@ -208,7 +208,7 @@ set_create_session_response(gtpv2c_header_t *gtpv2c_tx,
 	fqcsid_t *csid = NULL;
 	/* Get peer CSID associated with node */
 	csid = get_peer_addr_csids_entry(context->s11_mme_gtpc_ipv4.s_addr,
-			MOD);
+			UPDATE_NODE);
 	if ((csid != NULL) && (csid->num_csid)) {
 		/* Set the SGW FQ-CSID */
 		if ((context->sgw_fqcsid)->num_csid) {

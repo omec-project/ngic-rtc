@@ -228,7 +228,20 @@ generate_cdr_info(cdr *fill_cdr)
 	}
 
 	ebi_index = UE_BEAR_ID(fill_cdr->seid) - 5;
-	pdn = context->eps_bearers[ebi_index]->pdn;
+
+	if((context == NULL) ||
+		(context->eps_bearers[ebi_index] == NULL) ||
+		(context->eps_bearers[ebi_index]->pdn == NULL)){
+
+		clLog(clSystemLog, eCLSeverityCritical,
+				"%s:%d Conext not available to generate CDR so rejecting",
+													__FUNCTION__, __LINE__);
+		return 0;
+	}
+
+	if (context->eps_bearers[ebi_index] != 0) {
+		pdn = context->eps_bearers[ebi_index]->pdn;
+	}
 
 	if (fill_cdr->cdr_type == CDR_BY_URR) {
 		bearer_index = get_bearer_index_by_urr_id(fill_cdr->urr_id,pdn);
@@ -391,14 +404,16 @@ generate_cdr_seq_no(void)
 int
 get_bearer_index_by_urr_id(uint32_t urr_id, pdn_connection *pdn)
 {
-	for ( int i = 0; i < MAX_BEARERS; i++ )
-	{
-		if (pdn->eps_bearers[i]!= NULL) {
-			for (int j = 0 ; j < pdn->eps_bearers[i]->pdr_count; j++)
-			{
-				if (urr_id ==
-						pdn->eps_bearers[i]->pdrs[j]->urr.urr_id_value)
-					return i;
+	if (pdn != NULL) {
+		for ( int i = 0; i < MAX_BEARERS; i++ )
+		{
+			if (pdn->eps_bearers[i]!= NULL) {
+				for (int j = 0 ; j < pdn->eps_bearers[i]->pdr_count; j++)
+				{
+					if (urr_id ==
+							pdn->eps_bearers[i]->pdrs[j]->urr.urr_id_value)
+						return i;
+				}
 			}
 		}
 	}

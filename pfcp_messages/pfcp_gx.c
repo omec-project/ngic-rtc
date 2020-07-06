@@ -51,6 +51,30 @@ extern int s5s8_fd;
 extern socklen_t s5s8_sockaddr_len;
 extern socklen_t s11_mme_sockaddr_len;
 
+/* Assign the UE requested qos to default bearer*/
+static int
+check_ue_requested_qos(pdn_connection *pdn) {
+
+	if (pdn == NULL) {
+		clLog(clSystemLog, eCLSeverityCritical,
+			FORMAT"pdn_connection node is NULL\n", ERR_MSG);
+			return -1;
+		}
+
+	eps_bearer *bearer = NULL;
+	bearer = pdn->eps_bearers[pdn->default_bearer_id - 5];
+
+	if (bearer->qos.qci != 0) {
+		pdn->policy.default_bearer_qos_valid = TRUE;
+		memcpy(&pdn->policy.default_bearer_qos, &bearer->qos, sizeof(bearer_qos_ie));
+	} else {
+		clLog(clSystemLog, eCLSeverityCritical,
+				FORMAT"UE requested bearer qos is NULL\n", ERR_MSG);
+		return -1;
+	}
+	return 0;
+}
+
 /**
  * @brief  : Fill UE context default bearer information of default_eps_bearer_qos from CCA
  * @param  : context , eps bearer context
@@ -65,7 +89,7 @@ store_default_bearer_qos_in_policy(pdn_connection *pdn, GxDefaultEpsBearerQos qo
 	if (pdn == NULL) {
 		clLog(clSystemLog, eCLSeverityCritical,
 				"%s:%d pdn_connection node is NULL\n",__func__, __LINE__);
-		return -1;
+		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 	}
 	ebi_index = pdn->default_bearer_id - 5;
 	bearer = pdn->eps_bearers[ebi_index];
@@ -496,7 +520,7 @@ store_dynamic_rules_in_policy(pdn_connection *pdn, GxChargingRuleInstallList * c
 					{
 						//TODO: Rule without name not possible; Log IT ?
 						clLog(clSystemLog, eCLSeverityCritical, "%s:%d Charging rule name is not present\n",__func__, __LINE__);
-						return -1;
+						return GTPV2C_CAUSE_INVALID_REPLY_FROM_REMOTE_PEER;
 					}
 				}
 			}
@@ -601,13 +625,13 @@ check_for_rules_on_default_bearer(pdn_connection *pdn)
 					clLog(clSystemLog, eCLSeverityCritical,
 						FORMAT"Failed to add_rule_name_entry with rule_name\n",
 						ERR_MSG);
-					return -1;
+					return GTPV2C_CAUSE_SYSTEM_FAILURE;
 				}
 			return 0;
 		}
 	}
 	clLog(clSystemLog, eCLSeverityCritical, "%s:%d Rules not found for default bearer\n",__func__, __LINE__);
-	return -1;
+	return GTPV2C_CAUSE_INVALID_REPLY_FROM_REMOTE_PEER;
 }
 
 #if 0
@@ -672,7 +696,7 @@ parse_gx_cca_msg(GxCCA *cca, pdn_connection **_pdn)
 	if (ret < 0) {
 	        clLog(clSystemLog, eCLSeverityCritical, "%s:No Call Id found from session id:%s\n", __func__,
 	                        cca->session_id.val);
-	        return -1;
+	        return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 	}
 
 	/* Retrieve PDN context based on call id */
@@ -681,7 +705,7 @@ parse_gx_cca_msg(GxCCA *cca, pdn_connection **_pdn)
 	{
 	      clLog(clSystemLog, eCLSeverityCritical, "%s:No valid pdn cntxt found for CALL_ID:%u\n",
 	                          __func__, call_id);
-	      return -1;
+	      return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 	}
 	*_pdn = pdn_cntxt;
 
@@ -691,28 +715,42 @@ parse_gx_cca_msg(GxCCA *cca, pdn_connection **_pdn)
 
 
 	/* VS: Overwirte the CSR qos values with CCA default eps bearer qos values */
-	if(cca->cc_request_type != UPDATE_REQUEST) {
-		if (cca->presence.default_eps_bearer_qos != PRESENT) {
+	if(cca->cc_request_type == INITIAL_REQUEST) {
+		/* Check for implimentation wise Mandotory AVP */
+		if ( cca->presence.charging_rule_install != PRESENT ) {
 			clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d AVP:default_eps_bearer_qos is missing \n",
 					__file__, __func__, __LINE__);
-			return -1;
+			return GTPV2C_CAUSE_INVALID_REPLY_FROM_REMOTE_PEER;
 		}
-		ret = store_default_bearer_qos_in_policy(pdn_cntxt, cca->default_eps_bearer_qos);
-		if (ret)
-			return ret;
 
+		/* Check for Default bearer QOS recevied from PCRF */
+		if (cca->presence.default_eps_bearer_qos != PRESENT) {
+			ret = check_ue_requested_qos(pdn_cntxt);
+			if (ret) {
+				clLog(clSystemLog, eCLSeverityCritical, FORMAT"AVP:default_eps_bearer_qos is missing \n",
+																								ERR_MSG);
+				return GTPV2C_CAUSE_INVALID_REPLY_FROM_REMOTE_PEER;
+			}
+		} else {
+			ret = store_default_bearer_qos_in_policy(pdn_cntxt, cca->default_eps_bearer_qos);
+			if (ret)
+				return GTPV2C_CAUSE_INVALID_REPLY_FROM_REMOTE_PEER;
+		}
 
 		/* VS: Compare the default qos and CCA charging rule qos info and retrieve the bearer identifier */
 		//bearer_id = retrieve_bearer_id(pdn_cntxt, cca);
 		//if (bearer_id)
 		//      return bearer_id;
 
-
 		/* VS: Fill the dynamic rule from rule install structure of cca to policy */
 		ret = store_dynamic_rules_in_policy(pdn_cntxt, &(cca->charging_rule_install), &(cca->charging_rule_remove));
 		if (ret)
 			return ret;
 
+		/* No rule to install nor to remove */
+		if(pdn_cntxt->policy.count == 0){
+			return GTPV2C_CAUSE_INVALID_REPLY_FROM_REMOTE_PEER;
+		}
 		ret = check_for_rules_on_default_bearer(pdn_cntxt);
 		if (ret)
 			return ret;
@@ -723,7 +761,7 @@ parse_gx_cca_msg(GxCCA *cca, pdn_connection **_pdn)
 	if (ret)
 	        return ret;
 
-	return ret;
+	return 0;
 }
 
 int16_t
@@ -969,7 +1007,7 @@ parse_gx_rar_msg(GxRAR *rar)
 	/*Retrive the session information based on session id. */
 	if (get_sess_entry(pdn_cntxt->seid, &resp) != 0){
 		clLog(clSystemLog, eCLSeverityCritical, "%s:%d NO Session Entry Found for sess ID:%lu\n",
-				__func__, __LINE__, (pdn_cntxt->context)->pdns[bearer_id]->seid);
+				__func__, __LINE__, pdn_cntxt->seid);
 		return -1;
 	}
 

@@ -24,6 +24,7 @@
 #include "ue.h"
 #include "clogger.h"
 #include "gw_adapter.h"
+#include "gtpv2c_error_rsp.h"
 
 static uint32_t cc_request_number = 0;
 extern pfcp_config_t pfcp_config;
@@ -403,17 +404,24 @@ process_create_bearer_resp_and_send_raa( int sock )
 
 	/* Cal the length of buffer needed */
 	buflen = gx_raa_calc_length (&resp->data.cp_raa);
+	resp->msg_len = buflen + GX_HEADER_LEN;
 
-	send_buf = malloc( buflen );
-	memset(send_buf, 0, buflen);
+	send_buf = malloc(resp->msg_len);
+	memset(send_buf, 0, resp->msg_len);
 
 	/* encoding the raa header value to buffer */
 	memcpy( send_buf, &resp->msg_type, sizeof(resp->msg_type));
+	memcpy( send_buf + sizeof(resp->msg_type),
+							&resp->msg_len,
+						sizeof(resp->msg_len));
 
-	if ( gx_raa_pack(&(resp->data.cp_raa), (unsigned char *)(send_buf + sizeof(resp->msg_type)), buflen ) == 0 )
+	if ( gx_raa_pack(&(resp->data.cp_raa),
+			(unsigned char *)(send_buf + GX_HEADER_LEN),
+			buflen ) == 0 ){
 		clLog(clSystemLog, eCLSeverityDebug,"RAA Packing failure on sock [%d] \n", sock);
-
+	}
 	//send_to_ipc_channel( sock, send_buf );
+	free(send_buf);
 }
 
 int
@@ -423,6 +431,7 @@ msg_handler_gx( void )
 	msg_info msg = {0};
 	gx_msg *gxmsg = NULL;
 	char recv_buf[BUFFSIZE] = {0};
+	uint16_t msg_len = 0;
 
 	bytes_rx = recv_from_ipc_channel(gx_app_sock_read, recv_buf);
 	if(bytes_rx <= 0 ){
@@ -430,40 +439,52 @@ msg_handler_gx( void )
 			/* Greacefull Exit */
 			exit(0);
 	}
+	while(bytes_rx > 0){
+		gxmsg = (gx_msg *)(recv_buf + msg_len);
 
-	gxmsg = (gx_msg *)recv_buf;
+		clLog(clSystemLog, eCLSeverityDebug, "%s:%d Btyes Recevied to process is [%d]"
+			"and GX msg len is %u\n",__func__, __LINE__, bytes_rx, gxmsg->msg_len);
 
-	if ((ret = gx_pcnd_check(gxmsg, &msg)) != 0) {
-		clLog(clSystemLog, eCLSeverityCritical, "%s:%d Failure in gx precondion check\n",__func__, __LINE__);
-		return -1;
-	}
-	if ((msg.proc < END_PROC) && (msg.state < END_STATE) && (msg.event < END_EVNT)) {
-		if (SGWC == pfcp_config.cp_type) {
-		    ret = (*state_machine_sgwc[msg.proc][msg.state][msg.event])(&msg, gxmsg);
-		} else if (PGWC == pfcp_config.cp_type) {
-		    ret = (*state_machine_pgwc[msg.proc][msg.state][msg.event])(&msg, gxmsg);
-		} else if (SAEGWC == pfcp_config.cp_type) {
-		    ret = (*state_machine_saegwc[msg.proc][msg.state][msg.event])(&msg, gxmsg);
-		} else {
-			/* clLog(clSystemLog, eCLSeverityCritical, "%s : "
-					"Invalid Control Plane Type: %d \n",
-					__func__, pfcp_config.cp_type); */
-			return -1;
+		if ((ret = gx_pcnd_check(gxmsg, &msg)) != 0) {
+			clLog(clSystemLog, eCLSeverityCritical, "%s:%d Failure in gx "
+									"precondion check\n",__func__, __LINE__);
+				gx_cca_error_response(ret, &msg);
+			if(bytes_rx == gxmsg->msg_len)
+				return -1;
+		}else{
+			if ((msg.proc < END_PROC) && (msg.state < END_STATE) && (msg.event < END_EVNT)) {
+				if (SGWC == pfcp_config.cp_type) {
+				    ret = (*state_machine_sgwc[msg.proc][msg.state][msg.event])(&msg, gxmsg);
+				} else if (PGWC == pfcp_config.cp_type) {
+				    ret = (*state_machine_pgwc[msg.proc][msg.state][msg.event])(&msg, gxmsg);
+				} else if (SAEGWC == pfcp_config.cp_type) {
+				    ret = (*state_machine_saegwc[msg.proc][msg.state][msg.event])(&msg, gxmsg);
+				} else {
+					/* clLog(clSystemLog, eCLSeverityCritical, "%s : "
+							"Invalid Control Plane Type: %d \n",
+							__func__, pfcp_config.cp_type); */
+					if(bytes_rx == gxmsg->msg_len)
+						return -1;
+				}
+
+				if (ret) {
+					/* clLog(clSystemLog, eCLSeverityCritical, "%s : "
+							"State_Machine Callback failed with Error: %d \n",
+							__func__, ret); */
+					if(bytes_rx == gxmsg->msg_len)
+						return -1;
+				}
+			} else {
+				/* clLog(clSystemLog, eCLSeverityCritical, "%s : "
+							"Invalid Procedure or State or Event \n",
+							__func__); */
+				if(bytes_rx == gxmsg->msg_len)
+						return -1;
+			}
 		}
-
-		if (ret) {
-			/* clLog(clSystemLog, eCLSeverityCritical, "%s : "
-					"State_Machine Callback failed with Error: %d \n",
-					__func__, ret); */
-			return -1;
-		}
-	} else {
-		/* clLog(clSystemLog, eCLSeverityCritical, "%s : "
-					"Invalid Procedure or State or Event \n",
-					__func__); */
-		return -1;
+		msg_len = gxmsg->msg_len;
+		bytes_rx = bytes_rx - msg_len;
 	}
-
 	return 0;
 }
 
@@ -493,7 +514,7 @@ start_cp_app(void )
 		exit(0);
 	}
 	/* Wait for few seconds and connect to gx_app socket for sending CCR and RAA */
-	sleep(5);
+	/*sleep(5);*/
 
 	int ret = -1;
 	while (ret) {

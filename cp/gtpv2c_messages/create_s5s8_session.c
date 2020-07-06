@@ -450,6 +450,7 @@ process_sgwc_s5s8_modify_bearer_response(mod_bearer_rsp_t *mb_rsp, gtpv2c_header
 
 		pdn->state =  CONNECTED_STATE;
 		pdn->proc = INITIAL_PDN_ATTACH_PROC;
+		pdn->csr_sequence =0;
 	}
 	return 0;
 }
@@ -494,6 +495,10 @@ process_sgwc_s5s8_mbr_for_mod_proc(mod_bearer_rsp_t *mb_rsp, gtpv2c_header_t *gt
 	resp->state = CONNECTED_STATE;
 	/* Update the UE state */
 	pdn->state = CONNECTED_STATE;
+
+	s11_mme_sockaddr.sin_addr.s_addr =
+		htonl(context->s11_mme_gtpc_ipv4.s_addr);
+
 	return 0;
 }
 

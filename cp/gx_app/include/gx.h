@@ -61,6 +61,8 @@
 #define GX_CGI_TYPE                 0x00
 #define EVENT_TRIGGER_LIST           64
 
+#define GX_HEADER_LEN sizeof(uint8_t) + sizeof(uint16_t)
+
 enum diameter_error {
     DIAMETER_UNKNOWN_SESSION_ID = 5002,
 	DIAMETER_MISSING_AVP = 5005,

@@ -1180,6 +1180,7 @@ config_static_arp(void)
 			add_static_arp_entry(&s1u_entries[i], S1U_PORT_ID);
 		}
 		rte_free(s1u_entries);
+		s1u_entries = NULL;
 	}
 
 	if (ARPICMP_DEBUG)

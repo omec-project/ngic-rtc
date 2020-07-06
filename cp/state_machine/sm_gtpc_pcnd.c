@@ -478,7 +478,9 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 				return -1;
 			}
 
-			msg->state = pdn->state;
+			/* Handling DSR for generic way */
+			msg->state = CONNECTED_STATE;
+			pdn->state = CONNECTED_STATE;
 
 			/*Set the appropriate event type.*/
 			msg->event = DS_REQ_RCVD_EVNT;

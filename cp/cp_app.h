@@ -77,6 +77,7 @@ enum e_BUF_HDR {
  */
 typedef struct Gx_msg {
 	uint8_t msg_type;
+	uint16_t msg_len;
 	union data_t {
 		GxRAR cp_rar;
 		GxRAA cp_raa;

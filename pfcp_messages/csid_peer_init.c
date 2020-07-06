@@ -208,7 +208,10 @@ del_peer_csid_entry(csid_key_t *key, uint8_t iface)
 	ret = rte_hash_del_key(hash, key);
 
 	/* Free data from hash */
-	rte_free(csid);
+	if (csid != NULL) {
+		rte_free(csid);
+		csid = NULL;
+	}
 
 	clLog(clSystemLog, eCLSeverityDebug,
 			FORMAT"Peer node CSID entry deleted, CSID:%u, Node_Addr:"IPV4_ADDR", IFACE:%u\n",
@@ -291,7 +294,7 @@ get_peer_addr_csids_entry(uint32_t node_addr, uint8_t is_mod)
 				&node_addr, (void **)&tmp);
 
 	if ( ret < 0) {
-		if (is_mod != ADD) {
+		if (is_mod != ADD_NODE) {
 			clLog(clSystemLog, eCLSeverityDebug,
 					FORMAT"Entry not found for Node addrees :"IPV4_ADDR"\n",
 					ERR_MSG, IPV4_ADDR_HOST_FORMAT(node_addr));

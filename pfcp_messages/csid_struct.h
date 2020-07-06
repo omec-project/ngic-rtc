@@ -19,8 +19,6 @@
 
 #include "pfcp_messages.h"
 
-#define ADD 1
-#define MOD 0
 
 #define ADD_NODE    0
 #define UPDATE_NODE 1

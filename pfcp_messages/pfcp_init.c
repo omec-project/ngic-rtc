@@ -150,7 +150,10 @@ del_pdn_conn_entry(uint32_t call_id)
 	}
 
 	/* Free data from hash */
-	rte_free(pdn);
+	if(pdn){
+		rte_free(pdn);
+		pdn = NULL;
+	}
 
 	clLog(clSystemLog, eCLSeverityDebug, "%s: CALL_ID:%u",
 			__func__, call_id);
@@ -241,7 +244,7 @@ del_rule_name_entry(const rule_name_key_t rule_key)
 	/* Check Rule Name entry is present or Not */
 	ret = rte_hash_lookup_data(rule_name_bearer_id_map_hash,
 					&rule_key, (void **)bearer);
-	if (ret) {
+	if (ret >= 0) {
 		/* Rule Name Entry is present. Delete Rule Name Entry */
 		ret = rte_hash_del_key(rule_name_bearer_id_map_hash, &rule_key);
 		if ( ret < 0) {
@@ -363,7 +366,10 @@ del_pfcp_cntxt_entry(uint64_t sess_id)
 	}
 
 	/* Free data from hash */
-	rte_free(cntxt);
+	if(cntxt){
+		rte_free(cntxt);
+		cntxt = NULL;
+	}
 
 	clLog(clSystemLog, eCLSeverityDebug, "%s: Sess_Id:%lu\n",
 			__func__, sess_id);
@@ -476,7 +482,7 @@ del_pdr_entry(uint16_t rule_id)
 	/* Check PDR entry is present or Not */
 	ret = rte_hash_lookup_data(pdr_entry_hash,
 					&rule_id, (void **)cntxt);
-	if (ret) {
+	if (ret >= 0 ) {
 		/* PDR Entry is present. Delete PDR Entry */
 		ret = rte_hash_del_key(pdr_entry_hash, &rule_id);
 
@@ -486,10 +492,11 @@ del_pdr_entry(uint16_t rule_id)
 			return -1;
 		}
 	}
-
-	/* Free data from hash */
-	rte_free(cntxt);
-	cntxt = NULL;
+	if(cntxt != NULL){
+		/* Free data from hash */
+		rte_free(cntxt);
+		cntxt = NULL;
+	}
 
 	clLog(clSystemLog, eCLSeverityDebug, "%s: PDR_ID:%u\n",
 			__func__, rule_id);
@@ -582,7 +589,7 @@ del_qer_entry(uint32_t qer_id)
 	/* Check QER entry is present or Not */
 	ret = rte_hash_lookup_data(qer_entry_hash,
 					&qer_id, (void **)cntxt);
-	if (ret) {
+	if (ret >= 0) {
 		/* QER Entry is present. Delete Session Entry */
 		ret = rte_hash_del_key(qer_entry_hash, &qer_id);
 
@@ -594,8 +601,10 @@ del_qer_entry(uint32_t qer_id)
 	}
 
 	/* Free data from hash */
-	if (cntxt != NULL)
+	if (cntxt != NULL){
 		rte_free(cntxt);
+		cntxt = NULL;
+	}
 
 	clLog(clSystemLog, eCLSeverityDebug, "%s: QER_ID:%u\n",
 			__func__, qer_id);
@@ -700,7 +709,10 @@ del_urr_entry(uint32_t urr_id)
 	}
 
 	/* Free data from hash */
-	rte_free(cntxt);
+	if(cntxt != NULL){
+		rte_free(cntxt);
+		cntxt = NULL;
+	}
 
 	clLog(clSystemLog, eCLSeverityDebug, "%s: URR_ID:%u\n",
 			__func__, urr_id);

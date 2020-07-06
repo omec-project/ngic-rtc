@@ -47,73 +47,6 @@ add_fd_msg(union avp_value *val, struct dict_object * obj,
 	return 0;
 }
 
-void
-prep_rar_for_cp(gx_msg *req, struct session *sess, struct msg *rqst)
-{
-	struct avp *avp_ptr = NULL;
-	struct avp_hdr *avp_hdr = NULL;
-	unsigned char *sess_id= NULL;
-	int sess_id_len;
-	int ret = FD_REASON_OK;
-
-	req->msg_type = GX_RAR_MSG;
-	fd_sess_getsid(sess, &sess_id, (size_t*)&sess_id_len);
-	req->data.cp_rar.session_id.len = sess_id_len;
-	memcpy(&req->data.cp_rar.session_id.val, sess_id, sess_id_len);
-
-	fd_msg_search_avp(rqst, gxDict.avp_re_auth_request_type, &avp_ptr);
-	if (NULL != avp_ptr) {
-		fd_msg_avp_hdr(avp_ptr, &avp_hdr);
-		req->data.cp_rar.re_auth_request_type = avp_hdr->avp_value->i32;
-	}
-
-	fd_msg_search_avp(rqst, gxDict.avp_origin_state_id, &avp_ptr);
-	if (NULL != avp_ptr) {
-		fd_msg_avp_hdr(avp_ptr, &avp_hdr);
-		req->data.cp_rar.origin_state_id = avp_hdr->avp_value->u32;
-	}
-
-	fd_msg_search_avp(rqst, gxDict.avp_default_qos_information, &avp_ptr);
-	if (NULL != avp_ptr) {
-
-		struct avp *sub_avp = NULL;
-		struct avp_hdr *element = NULL;
-
-		CHECK_FCT_DO(fd_msg_avp_hdr(avp_ptr, &element), ret = -1);
-
-		/*Find first sub child of Default Qos info*/
-		CHECK_FCT_DO(fd_msg_browse(avp_ptr, MSG_BRW_FIRST_CHILD, &sub_avp, NULL),ret = -1);
-
-		/*Lookup for sub element "Max Request Bandwidth UL/DL etc" in loop*/
-		while (NULL != sub_avp) {
-
-			fd_msg_avp_hdr(sub_avp, &element);
-
-			if (NULL != element) {
-				if(element->avp_code == 516) {
-				/* Max BW UL*/
-					req->data.cp_rar.default_qos_information.max_requested_bandwidth_ul =
-						element->avp_value->u32;
-
-				} else if (element->avp_code == 515){
-				     /* Max BW DL*/
-					req->data.cp_rar.default_qos_information.max_requested_bandwidth_dl =
-						element->avp_value->u32;
-				} else if (element->avp_code ==1028){
-				     /* QCI*/
-					req->data.cp_rar.default_qos_information.qos_class_identifier =
-						element->avp_value->i32;
-				}
-
-				/*Iterate sub entries*/
-				CHECK_FCT_DO(fd_msg_browse(sub_avp, MSG_BRW_NEXT, &sub_avp, NULL), ret=-1);
-			}
-		}
-	}
-	/*printf("ULBW [%u] DLBW[%u] \n", req->data.cp_rar.default_qos_information.max_requested_bandwidth_ul,
-			req->data.cp_rar.default_qos_information.max_requested_bandwidth_dl);*/
-}
-
 /*
  *
  *       Fun:    gx_send_rar
@@ -130,7 +63,6 @@ prep_rar_for_cp(gx_msg *req, struct session *sess, struct msg *rqst)
 int gx_send_rar(void *data)
 {
 	int rval = FD_REASON_OK;
-	struct avp *avp = NULL;
 	struct msg *msg = NULL;
 
 #if 0
@@ -242,7 +174,7 @@ enum disp_action * act
 	if(gx_req == NULL)
 		printf("Memory Allocation fails for gx_req\n");
 
-	memset( gx_req, 0, sizeof(gx_req) );
+	memset( gx_req, 0, (sizeof(gx_req)) );
 
 	gx_req->msg_type = GX_RAR_MSG;
 
@@ -254,22 +186,26 @@ enum disp_action * act
 	/* Cal the length of buffer needed */
 	buflen = gx_rar_calc_length (&gx_req->data.cp_rar);
 
-	send_buf = malloc(sizeof(gx_req->msg_type) + buflen + sizeof(rqst));
+	send_buf = malloc(GX_HEADER_LEN + buflen + sizeof(rqst));
 	if(send_buf == NULL)
 		printf("Memory Allocation fails for send_buf\n");
 
-	memset(send_buf, 0, (sizeof(gx_req->msg_type) + buflen + sizeof(rqst)));
+	memset(send_buf, 0, (GX_HEADER_LEN + buflen + sizeof(rqst)));
+
+	gx_req->msg_len = buflen + GX_HEADER_LEN + sizeof(rqst);
 
 	/* encoding the rar header value to buffer */
 	memcpy( send_buf, &gx_req->msg_type, sizeof(gx_req->msg_type));
-
-	if ( gx_rar_pack( &(gx_req->data.cp_rar), (unsigned char *)(send_buf + sizeof(gx_req->msg_type)), buflen ) == 0 )
+	memcpy( send_buf + sizeof(gx_req->msg_type), &gx_req->msg_len,
+											sizeof(gx_req->msg_len));
+	if ( gx_rar_pack( &(gx_req->data.cp_rar),
+			(unsigned char *)(send_buf + GX_HEADER_LEN), buflen ) == 0 )
 		printf("RAR Packing failure \n");
 
 
-	memcpy((unsigned char *)(send_buf + sizeof(gx_req->msg_type) + buflen), &rqst, sizeof(rqst));
+	memcpy((unsigned char *)(send_buf + GX_HEADER_LEN + buflen), &rqst, sizeof(rqst));
 
-	send_to_ipc_channel(g_gx_client_sock, send_buf, buflen + sizeof(gx_req->msg_type) + sizeof(rqst));
+	send_to_ipc_channel(g_gx_client_sock, send_buf, buflen + GX_HEADER_LEN + sizeof(rqst));
 
 	/* Free the memory sender buffer */
 	free(send_buf);

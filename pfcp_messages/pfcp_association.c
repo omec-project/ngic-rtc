@@ -512,7 +512,7 @@ process_pfcp_assoication_request(pdn_connection *pdn, uint8_t ebi_index)
 			if (ret) {
 				clLog(clSystemLog, eCLSeverityCritical, "%s:%d Error: %d \n",
 						__func__, __LINE__, ret);
-				return -1;
+				return GTPV2C_CAUSE_SYSTEM_FAILURE;
 			}
 		}
 	} else {

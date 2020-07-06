@@ -42,7 +42,10 @@ del_li_imsi_entry(uint64_t uiImsi)
 		}
 
 		/* Free data from hash */
-		rte_free(li_df_config);
+		if(li_df_config != NULL){
+			rte_free(li_df_config);
+			li_df_config = NULL;
+		}
 
 		return 0;
 	}
@@ -94,7 +97,10 @@ fillup_li_df_hash(struct li_df_config_t *li_df_config_data, uint16_t uiCntr) {
 					rte_panic("%s - Error on "
 						"li_df_by_imsi_hash del\n", strerror(ret));
 				}
-				rte_free(li_df_config);
+				if(li_df_config != NULL){
+					rte_free(li_df_config);
+					li_df_config = NULL;
+				}
 				return GTPV2C_CAUSE_SYSTEM_FAILURE;
 			}
 		} else {

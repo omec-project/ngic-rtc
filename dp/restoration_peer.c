@@ -376,6 +376,10 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 
 	}
 
+	if(pkt == NULL) {
+		return;
+	}
+
 	//struct rte_mbuf *mt = pkt;
 	//struct ipv4_hdr *ipv4_hdr_t = (struct ipv4_hdr*)(rte_pktmbuf_mtod(mt, unsigned char*) + 14);
 	//clLog(clSystemLog, eCLSeverityDebug,"**** portId:%u : Enqueu IP DST:%s\n", md->portId, inet_ntoa(*(struct in_addr *)&ipv4_hdr_t->dst_addr));
@@ -500,8 +504,10 @@ flush_eNB_session(peerData *data_t)
 
 	/* VS: delete entry from connection hash table */
 	del_entry_from_hash(data_t->dstIP);
-	rte_free(data_t);
-	data_t = NULL;
+	if(data_t != NULL){
+		rte_free(data_t);
+		data_t = NULL;
+	}
 
 }
 

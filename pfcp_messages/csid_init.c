@@ -238,7 +238,10 @@ del_csid_entry(csid_key *key)
 	ret = rte_hash_del_key(csid_by_peer_node_hash, key);
 
 	/* Free data from hash */
-	rte_free(csid);
+	if (csid != NULL) {
+		rte_free(csid);
+		csid = NULL;
+	}
 
 	clLog(clSystemLog, eCLSeverityDebug, FORMAT"Peer node CSID entry deleted\n", ERR_MSG);
 
@@ -338,8 +341,10 @@ del_peer_csids_entry(uint16_t csid)
 	ret = rte_hash_del_key(peer_csids_by_csid_hash, &csid);
 
 	/* Free data from hash */
-	rte_free(tmp);
-	tmp = NULL;
+	if (tmp != NULL) {
+		rte_free(tmp);
+		tmp = NULL;
+	}
 
 	clLog(clSystemLog, eCLSeverityDebug, FORMAT"Entry deleted for CSID:%u\n",
 			ERR_MSG, csid);
@@ -477,6 +482,7 @@ del_sess_csid_entry(uint16_t csid)
 	if (tmp != NULL) {
 		if ((tmp->up_seid != 0) && (tmp->next !=0)) {
 			rte_free(tmp);
+			tmp = NULL;
 		}
 	}
 

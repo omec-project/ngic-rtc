@@ -147,20 +147,28 @@ del_sess_entry(uint64_t sess_id)
 
 	/* Check Session Entry is present or Not */
 	ret = rte_hash_lookup_data(sm_hash,
-					&sess_id, (void **)resp);
-	if (ret) {
-		/* Session Entry is present. Delete Session Entry */
-		ret = rte_hash_del_key(sm_hash, &sess_id);
+			&sess_id, (void **)resp);
 
-		if ( ret < 0) {
-			clLog(clSystemLog, eCLSeverityCritical, "%s %s %d:Entry not found for sess_id:%lu...\n",
-						__func__, __file__, __LINE__, sess_id);
-			return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
-		}
+	if ( ret < 0) {
+		clLog(clSystemLog, eCLSeverityCritical, "%s %s %d:Entry not found for sess_id:%lu...\n",
+				__func__, __file__, __LINE__, sess_id);
+		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+	}
+
+	/* Session Entry is present. Delete Session Entry */
+	ret = rte_hash_del_key(sm_hash, &sess_id);
+
+	if ( ret < 0) {
+		clLog(clSystemLog, eCLSeverityCritical, "%s %s %d:Entry not found for sess_id:%lu...\n",
+				__func__, __file__, __LINE__, sess_id);
+		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 	}
 
 	/* Free data from hash */
-	rte_free(resp);
+	if(resp != NULL){
+		rte_free(resp);
+		resp = NULL;
+	}
 
 	clLog(clSystemLog, eCLSeverityDebug, "%s: Sess ID:%lu\n",
 			__func__, sess_id);

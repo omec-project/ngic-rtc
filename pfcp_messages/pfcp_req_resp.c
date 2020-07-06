@@ -233,8 +233,14 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 		if ((ret = pfcp_pcnd_check(buf_rx, &msg, bytes_rx, peer_addr)) != 0) {
 			clLog(clSystemLog, eCLSeverityCritical, "%s: Failed to process pfcp precondition check\n", __func__);
 
-			update_cli_stats(peer_addr->sin_addr.s_addr,
-							pfcp_header->message_type, REJ,SX);
+			if(msg.pfcp_msg.pfcp_sess_del_resp.cause.cause_value != REQUESTACCEPTED){
+				update_cli_stats(peer_addr->sin_addr.s_addr,
+						pfcp_header->message_type, REJ,SX);
+			}
+			else {
+				update_cli_stats(peer_addr->sin_addr.s_addr,
+						pfcp_header->message_type, ACC,SX);
+			}
 			return -1;
 		}
 

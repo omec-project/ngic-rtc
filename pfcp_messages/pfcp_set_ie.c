@@ -2184,17 +2184,25 @@ int
 upflist_by_ue_hash_entry_add(uint64_t *imsi_val, uint16_t imsi_len,
 		upfs_dnsres_t *entry)
 {
+	int ret = 0;
 	uint64_t imsi = UINT64_MAX;
+	upfs_dnsres_t *temp = NULL;
 	memcpy(&imsi, imsi_val, imsi_len);
 
-	/* TODO: Check before adding */
-	int ret = rte_hash_add_key_data(upflist_by_ue_hash, &imsi,
-			entry);
-
+	ret = rte_hash_lookup_data(upflist_by_ue_hash, &imsi,
+			(void **)&temp);
 	if (ret < 0) {
-		clLog(clSystemLog, eCLSeverityCritical, "Failed to add entry in upflist_by_ue_hash"
-				"hash table");
-		return -1;
+		/* TODO: Check before adding */
+		ret = rte_hash_add_key_data(upflist_by_ue_hash, &imsi,
+				entry);
+
+		if (ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical, "Failed to add entry in upflist_by_ue_hash"
+					"hash table");
+			return -1;
+		}
+	} else {
+		memcpy(temp, entry, sizeof(upfs_dnsres_t));
 	}
 
 	return 0;
@@ -2229,7 +2237,7 @@ upflist_by_ue_hash_entry_delete(uint64_t *imsi_val, uint16_t imsi_len)
 
 	int ret = rte_hash_lookup_data(upflist_by_ue_hash, &imsi,
 			(void **)&entry);
-	if (ret) {
+	if (ret >= 0) {
 		/* PDN Conn Entry is present. Delete PDN Conn Entry */
 		ret = rte_hash_del_key(upflist_by_ue_hash, &imsi);
 
@@ -2241,8 +2249,10 @@ upflist_by_ue_hash_entry_delete(uint64_t *imsi_val, uint16_t imsi_len)
 	}
 
 	/* Free data from hash */
-	if (entry != NULL)
+	if (entry != NULL){
 		rte_free(entry);
+		entry  = NULL;
+	}
 
 	return 0;
 }
