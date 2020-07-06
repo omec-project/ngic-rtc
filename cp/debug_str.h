@@ -32,36 +32,30 @@
 #include "gtpv2c_ie.h"
 
 /**
- * Returns cause string from code value as defined by 3gpp TS 29.274.
- *
- * @param cause
- *   The cause coded value as specified by Table 8.4-1, TS 29.274.
- * @return
- *   String describing cause code value.
+ * @brief  : Returns cause string from code value as defined by 3gpp TS 29.274.
+ * @param  : cause
+ *           The cause coded value as specified by Table 8.4-1, TS 29.274.
+ * @return : String describing cause code value.
  */
 const char *
 cause_str(enum cause_value cause);
 
 /**
- * Returns gtp message type string from type code value as defined by 3gpp TS
- * 29.274. Messages supported by this function may be incomplete.
- *
- * @param type
- *   GTPv2 message type value as specified by table 6.1-1 in 3gpp TS 29.274.
- * @return
- *   String describing GTPv2 message type.
+ * @brief  : Returns gtp message type string from type code value as defined by 3gpp TS
+ *           29.274. Messages supported by this function may be incomplete.
+ * @param  : type
+ *           GTPv2 message type value as specified by table 6.1-1 in 3gpp TS 29.274.
+ * @return : String describing GTPv2 message type.
  */
 const char *
 gtp_type_str(uint8_t type);
 
 /**
- * Returns Gx message type string from type code value as defined by 3gpp TS
- * 29.212. Messages supported by this function may be incomplete.
- *
- * @param type
- *   Gx message type value as specified by seaction 5.6 in 3gpp TS 29.212.
- * @return
- *   String describing Gx message type.
+ * @brief  : Returns Gx message type string from type code value as defined by 3gpp TS
+ *           29.212. Messages supported by this function may be incomplete.
+ * @param  : type
+ *           Gx message type value as specified by seaction 5.6 in 3gpp TS 29.212.
+ * @return : String describing Gx message type.
  */
 const char *
 gx_type_str(uint8_t type);

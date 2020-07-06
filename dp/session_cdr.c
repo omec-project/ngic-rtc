@@ -45,7 +45,7 @@ sess_cdr_init(void)
 		mkdir("/var/log/dpn/", S_IRWXU);
 	}
 
-	printf("Logging Session ID based CDR Records to %s\n", filename);
+	clLog(clSystemLog, eCLSeverityDebug,"Logging Session ID based CDR Records to %s\n", filename);
 
 	sess_cdr_file = fopen(filename, "w");
 	if (!sess_cdr_file)
@@ -84,7 +84,9 @@ sess_cdr_reset(void)
 }
 
 /**
- * @brief Function to update timestamp of records to file.
+ * @brief  : Function to update timestamp of records to file.
+ * @param  : cfile, filename
+ * @return : Returns nothing
  */
 static void
 update_timestamp(FILE *cfile)
@@ -100,7 +102,10 @@ update_timestamp(FILE *cfile)
 }
 
 /**
- * @brief Function to update Uplink and downlink records to file.
+ * @brief  : Function to update Uplink and downlink records to file.
+ * @param  : cfile, filename
+ * @param  : charge_record, cdr information
+ * @return : Returns nothing
  */
 static void
 update_pkt_counts(FILE *cfile,

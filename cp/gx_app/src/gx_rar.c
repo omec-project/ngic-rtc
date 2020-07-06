@@ -25,12 +25,11 @@ int unixsock();
 
 /*TBD need to move this in freediameter generated code*/
 /**
- * @brief Add element to freediameter message
- * ready
- * @param[in] val - AVP value to be added
- * @param[in] obj - Disctionary object
- * @param[in/out] msg_buf
- * @return int Sucess or failure code
+ * @brief  : Add element to freediameter message ready
+ * @param  : [in] val - AVP value to be added
+ * @param  : [in] obj - Disctionary object
+ * @param  : [in/out] msg_buf
+ * @return : int Sucess or failure code
  */
 int
 add_fd_msg(union avp_value *val, struct dict_object * obj,

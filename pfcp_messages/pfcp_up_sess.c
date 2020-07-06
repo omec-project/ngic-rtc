@@ -15,11 +15,213 @@
  */
 
 #include "up_acl.h"
+#include "pfcp_enum.h"
 #include "pfcp_set_ie.h"
 #include "pfcp_up_llist.h"
 #include "pfcp_association.h"
+#include "clogger.h"
+#include "gw_adapter.h"
 
+extern struct in_addr dp_comm_ip;
+extern struct in_addr cp_comm_ip;
 extern struct rte_hash *node_id_hash;
+
+#ifdef USE_CSID
+/* TEMP fill the FQ-CSID form here */
+/* PFCP: Create and Fill the FQ-CSIDs */
+static void
+est_set_fq_csid_t(pfcp_fqcsid_ie_t *fq_csid, fqcsid_t *csids)
+{
+	fq_csid->fqcsid_node_id_type = IPV4_GLOBAL_UNICAST;
+
+	fq_csid->number_of_csids = 1;
+
+	fq_csid->node_address = csids->node_addr;
+	fq_csid->pdn_conn_set_ident[0] = csids->local_csid[csids->num_csid - 1];
+
+	pfcp_set_ie_header(&(fq_csid->header),
+			PFCP_IE_FQCSID, (2 * (fq_csid->number_of_csids)) + 5);
+
+}
+
+int8_t
+fill_fqcsid_sess_est_rsp(pfcp_sess_estab_rsp_t *pfcp_sess_est_rsp, pfcp_session_t *sess)
+{
+
+	/* Set SGW FQ-CSID */
+	if (sess->sgwu_fqcsid) {
+		if ((sess->sgwu_fqcsid)->num_csid) {
+			est_set_fq_csid_t(&pfcp_sess_est_rsp->sgw_u_fqcsid, sess->sgwu_fqcsid);
+			(pfcp_sess_est_rsp->sgw_u_fqcsid).node_address = dp_comm_ip.s_addr;
+		}
+	}
+
+	/* Set PGW FQ-CSID */
+	if (app.spgw_cfg == PGWU) {
+		if (sess->pgwu_fqcsid) {
+			if ((sess->pgwu_fqcsid)->num_csid) {
+				est_set_fq_csid_t(&pfcp_sess_est_rsp->pgw_u_fqcsid, sess->pgwu_fqcsid);
+				(pfcp_sess_est_rsp->pgw_u_fqcsid).node_address = dp_comm_ip.s_addr;
+			}
+		}
+	}
+
+	return 0;
+}
+
+int
+fill_peer_node_info_t(pfcp_session_t *sess)
+{
+	int16_t csid = 0;
+	csid_key peer_info_t = {0};
+
+	/* MME FQ-CSID */
+	if (sess->mme_fqcsid) {
+		if ((sess->mme_fqcsid)->num_csid) {
+			peer_info_t.mme_ip = (sess->mme_fqcsid)->node_addr;
+		}
+	}
+
+	/* SGWC FQ-CSID */
+	if (sess->sgw_fqcsid) {
+		if ((sess->sgw_fqcsid)->num_csid) {
+			peer_info_t.sgwc_ip = (sess->sgw_fqcsid)->node_addr;
+		}
+	} else {
+		/* IF SGWC not support partial failure */
+		if (app.spgw_cfg != PGWU) {
+			peer_info_t.sgwc_ip = (sess->sgw_fqcsid)->node_addr;
+		}
+	}
+
+	/* PGWC FQ-CSID */
+	if (sess->pgw_fqcsid) {
+		if ((sess->pgw_fqcsid)->num_csid) {
+			peer_info_t.pgwc_ip = (sess->pgw_fqcsid)->node_addr;
+		}
+	} else {
+		/* IF PGWC not support partial failure */
+		if (app.spgw_cfg == PGWU) {
+			peer_info_t.pgwc_ip = (sess->pgw_fqcsid)->node_addr;
+		}
+	}
+
+	/* Fill the enodeb ID */
+	peer_info_t.enodeb_ip = 0;
+
+	/* SGW and PGW peer node info */
+	if (app.spgw_cfg == SGWU) {
+		peer_info_t.pgwc_ip = 0;
+		peer_info_t.peer_csid =
+			(sess->sgw_fqcsid)->local_csid[(sess->sgw_fqcsid)->num_csid - 1];
+	} else if (app.spgw_cfg == PGWU) {
+		peer_info_t.sgwc_ip = 0;
+		peer_info_t.peer_csid =
+			(sess->pgw_fqcsid)->local_csid[(sess->pgw_fqcsid)->num_csid - 1];
+	}
+
+	/* SGWU and PGWU peer node info */
+	if (app.spgw_cfg != PGWU) {
+		peer_info_t.sgwu_ip = dp_comm_ip.s_addr;
+		peer_info_t.pgwu_ip = 0;
+	} else {
+		peer_info_t.sgwu_ip = 0;
+		peer_info_t.pgwu_ip = dp_comm_ip.s_addr;
+	}
+
+	/* Get local csid for set of peer node */
+	csid = get_csid_entry(&peer_info_t);
+	if (csid < 0) {
+		clLog(apilogger, eCLSeverityCritical, FORMAT"Failed to assinged CSID..\n", ERR_MSG);
+		return -1;
+	}
+
+	/* Update the local csid into the UE context */
+	uint8_t match = 0;
+	if ((app.spgw_cfg == SGWU) || (app.spgw_cfg == SAEGWU)) {
+		for(uint8_t itr = 0; itr < (sess->sgwu_fqcsid)->num_csid; itr++) {
+			if ((sess->sgwu_fqcsid)->local_csid[itr] == csid)
+				match = 1;
+		}
+
+		if (!match) {
+			(sess->sgwu_fqcsid)->local_csid[(sess->sgwu_fqcsid)->num_csid++] =
+				csid;
+			match = 0;
+		}
+	} else {
+		for(uint8_t itr = 0; itr < (sess->pgwu_fqcsid)->num_csid; itr++) {
+			if ((sess->pgwu_fqcsid)->local_csid[itr] == csid)
+				match = 1;
+		}
+
+		if (!match) {
+			(sess->pgwu_fqcsid)->local_csid[(sess->pgwu_fqcsid)->num_csid++] =
+				csid;
+			match = 0;
+		}
+	}
+
+	/* LINK SGW or PGW CSID with local CSID */
+	if (sess->sgw_fqcsid) {
+		if ((sess->sgw_fqcsid)->num_csid) {
+			csid_t *tmp1 = NULL;
+			if (app.spgw_cfg != PGWU) {
+				tmp1 = get_peer_csid_entry(
+						&(sess->sgw_fqcsid)->local_csid[(sess->sgw_fqcsid)->num_csid - 1],
+						SX_PORT_ID);
+			} else {
+				tmp1 = get_peer_csid_entry(
+						&(sess->pgw_fqcsid)->local_csid[(sess->pgw_fqcsid)->num_csid - 1],
+						SX_PORT_ID);
+			}
+			if (tmp1 == NULL) {
+				clLog(apilogger, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
+						strerror(errno));
+				return -1;
+			}
+
+			/* Link local csid with SGW and PGW CSID */
+			if (tmp1->local_csid == 0) {
+				/* Update csid by mme csid */
+				tmp1->local_csid = csid;
+			} else if (tmp1->local_csid != csid) {
+				/* TODO: handle condition like single MME CSID link with multiple local CSID  */
+			}
+		}
+	}
+
+	/* LINK SGW or PGW CSID with local CSID */
+	if (sess->pgw_fqcsid) {
+		if ((sess->pgw_fqcsid)->num_csid) {
+			csid_t *tmp1 = NULL;
+			if (app.spgw_cfg != PGWU) {
+				tmp1 = get_peer_csid_entry(
+						&(sess->sgw_fqcsid)->local_csid[(sess->sgw_fqcsid)->num_csid - 1],
+						SX_PORT_ID);
+			} else {
+				tmp1 = get_peer_csid_entry(
+						&(sess->pgw_fqcsid)->local_csid[(sess->pgw_fqcsid)->num_csid - 1],
+						SX_PORT_ID);
+			}
+			if (tmp1 == NULL) {
+				clLog(apilogger, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
+						strerror(errno));
+				return -1;
+			}
+
+			/* Link local csid with SGW and PGW CSID */
+			if (tmp1->local_csid == 0) {
+				/* Update csid by mme csid */
+				tmp1->local_csid = csid;
+			} else if (tmp1->local_csid != csid) {
+				/* TODO: handle condition like single MME CSID link with multiple local CSID  */
+			}
+		}
+	}
+	return 0;
+}
+#endif /* USE_CSID */
 
 int8_t
 process_up_assoc_req(pfcp_assn_setup_req_t *ass_setup_req,
@@ -49,8 +251,8 @@ process_up_assoc_req(pfcp_assn_setup_req_t *ass_setup_req,
 		memcpy(&value, ass_setup_req->node_id.node_id_value, IPV4_SIZE);
 
 		uint32_t nodeid = (ntohl(value));
-		RTE_LOG_DP(DEBUG, DP, "NODEID in INTERRFACE [%u]\n", nodeid);
-		RTE_LOG_DP(DEBUG, DP, "DATA[%lu]\n", *data);
+		clLog(clSystemLog, eCLSeverityDebug, "NODEID in INTERRFACE [%u]\n", nodeid);
+		clLog(clSystemLog, eCLSeverityDebug, "DATA[%lu]\n", *data);
 
 		ret = rte_hash_lookup_data(node_id_hash, (const void*) &(nodeid),
 				(void **) &(data));
@@ -67,6 +269,12 @@ process_up_assoc_req(pfcp_assn_setup_req_t *ass_setup_req,
 	return 0;
 }
 
+/**
+ * @brief  : Process sdf filters
+ * @param  : sdf_fltr_t , holds sdf filter data
+ * @param  : sdf_fltr , update this strucutre using sdf filter data
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 static int8_t
 process_pdi_sdf_filters(pfcp_sdf_filter_ie_t *sdf_fltr_t, sdf_filter_t *sdf_fltr)
 {
@@ -74,6 +282,7 @@ process_pdi_sdf_filters(pfcp_sdf_filter_ie_t *sdf_fltr_t, sdf_filter_t *sdf_fltr
 		/* len of flow description */
 		sdf_fltr->len_of_flow_desc = sdf_fltr_t->len_of_flow_desc;
 
+		sdf_fltr->fd = sdf_fltr_t->fd;
 		/* flow description */
 		memcpy(&sdf_fltr->flow_desc, sdf_fltr_t->flow_desc,
 				sdf_fltr->len_of_flow_desc);
@@ -90,6 +299,13 @@ process_pdi_sdf_filters(pfcp_sdf_filter_ie_t *sdf_fltr_t, sdf_filter_t *sdf_fltr
 	return 0;
 }
 
+/**
+ * @brief  : Process ueip information
+ * @param  : ue_addr, holds ue ip information
+ * @param  : ue_addr_t, update this structure with ue ip info
+ * @param  : ue_ip, copy ue ip address to this variable
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 static int8_t
 process_pdi_ueip_info(pfcp_ue_ip_address_ie_t *ue_addr, ue_ip_addr_t *ue_addr_t,
 				uint32_t *ue_ip)
@@ -108,6 +324,12 @@ process_pdi_ueip_info(pfcp_ue_ip_address_ie_t *ue_addr, ue_ip_addr_t *ue_addr_t,
 	return 0;
 }
 
+/**
+ * @brief  : Process pdi local teid info
+ * @param  : lo_tied, hold information about local teid
+ * @param  : f_teid, update this structure using local teid info
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 static int8_t
 process_pdi_local_teid_info(pfcp_fteid_ie_t *lo_teid, fteid_ie_t *f_teid)
 {
@@ -138,6 +360,14 @@ process_pdi_local_teid_info(pfcp_fteid_ie_t *lo_teid, fteid_ie_t *f_teid)
 	return 0;
 }
 
+/**
+ * @brief  : Process pdi info
+ * @param  : pdi_ie_t, holds pdi information
+ * @param  : pdi, structure to be updated
+ * @param  : session, session information
+ * @param  : prcdnc_val , precondition value
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 static int8_t
 process_pdr_pdi_info(pfcp_pdi_ie_t *pdi_ie_t, pdi_t *pdi,
 			pfcp_session_datat_t **session, uint32_t prcdnc_val)
@@ -172,7 +402,7 @@ process_pdr_pdi_info(pfcp_pdi_ie_t *pdi_ie_t, pdi_t *pdi,
 	/* SDF Filters */
 	if (pdi_ie_t->sdf_filter_count > 0) {
 
-		RTE_LOG_DP(DEBUG, DP, "Number of SDF Rule Rcv:%u\n",
+		clLog(clSystemLog, eCLSeverityDebug, "Number of SDF Rule Rcv:%u\n",
 				pdi_ie_t->sdf_filter_count);
 
 		for (int itr = 0; itr < pdi_ie_t->sdf_filter_count; itr++) {
@@ -209,7 +439,7 @@ process_pdr_pdi_info(pfcp_pdi_ie_t *pdi_ie_t, pdi_t *pdi,
 					}
 					if ((*session)->acl_table_indx <= 0) {
 						/* TODO: ERROR Handling */
-						RTE_LOG_DP(ERR, DP, FORMAT"ACL table creation failed\n", ERR_MSG);
+						clLog(clSystemLog, eCLSeverityCritical, FORMAT"ACL table creation failed\n", ERR_MSG);
 						(*session)->acl_table_indx = 0;
 					}
 				}
@@ -225,13 +455,14 @@ process_pdr_pdi_info(pfcp_pdi_ie_t *pdi_ie_t, pdi_t *pdi,
 
 		if (up_sdf_default_entry_add((*session)->acl_table_indx, prcdnc_val, dir)) {
 			/* TODO: ERROR Handling */
-			RTE_LOG_DP(ERR, DP, FORMAT"Failed to add default rule \n", ERR_MSG);
+			clLog(clSystemLog, eCLSeverityCritical, FORMAT"Failed to add default rule \n", ERR_MSG);
 		}
 		pdi->sdf_filter_cnt++;
 #endif /* DEFAULT_ACL_RULE_ADD */
 
 		/* Update the SDF RULE COUNTER */
-		pdi->sdf_filter_cnt += pdi_ie_t->sdf_filter_count;
+		//Commenting As this is incresing count by sdf_filter_count(No need)
+		//pdi->sdf_filter_cnt += pdi_ie_t->sdf_filter_count;
 	} else {
 
 #ifdef DEFAULT_ACL_TABLE
@@ -247,7 +478,7 @@ process_pdr_pdi_info(pfcp_pdi_ie_t *pdi_ie_t, pdi_t *pdi,
 
 			if (!(*session)->acl_table_indx) {
 				/* TODO: ERROR Handling */
-				RTE_LOG_DP(ERR, DP, FORMAT"ACL table creation failed indx:%u\n", ERR_MSG,
+				clLog(clSystemLog, eCLSeverityCritical, FORMAT"ACL table creation failed indx:%u\n", ERR_MSG,
 					(*session)->acl_table_indx);
 			}
 			pdi->sdf_filter_cnt++;
@@ -257,6 +488,12 @@ process_pdr_pdi_info(pfcp_pdi_ie_t *pdi_ie_t, pdi_t *pdi,
 	return 0;
 }
 
+/**
+ * @brief  : Process create urr info
+ * @param  : urr, hold create urr info
+ * @param  : urr_t, structure to be updated
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 static int8_t
 process_create_urr_info(pfcp_create_urr_ie_t *urr, urr_info_t *urr_t)
 {
@@ -267,6 +504,12 @@ process_create_urr_info(pfcp_create_urr_ie_t *urr, urr_info_t *urr_t)
 	return 0;
 }
 
+/**
+ * @brief  : Process create bar info
+ * @param  : bar, hold create bar info
+ * @param  : bar_t, structure to be updated
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 static int8_t
 process_create_bar_info(pfcp_create_bar_ie_t *bar, bar_info_t *bar_t)
 {
@@ -278,6 +521,13 @@ process_create_bar_info(pfcp_create_bar_ie_t *bar, bar_info_t *bar_t)
 	return 0;
 }
 
+/**
+ * @brief  : Process create qer info
+ * @param  : qer, hold create qer info
+ * @param  : quer_t, structure to be updated
+ * @param  : session, session information
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 static int8_t
 process_create_qer_info(pfcp_create_qer_ie_t *qer, qer_info_t **quer_t,
 		pfcp_session_datat_t **session)
@@ -391,6 +641,12 @@ process_create_qer_info(pfcp_create_qer_ie_t *qer, qer_info_t **quer_t,
 	return 0;
 }
 
+/**
+ * @brief  : update far apply action
+ * @param  : far, hold create far apply action info
+ * @param  : far_t, structure to be updated
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 static int8_t
 far_apply_action(pfcp_apply_action_ie_t *far, apply_action *far_t)
 {
@@ -411,6 +667,13 @@ far_apply_action(pfcp_apply_action_ie_t *far, apply_action *far_t)
 	return 0;
 }
 
+/**
+ * @brief  : Process create far info
+ * @param  : far, hold create far info
+ * @param  : session, session information
+ * @param  : up_seid , session id
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 static int8_t
 process_create_far_info(pfcp_create_far_ie_t *far,
 		pfcp_session_datat_t **session, uint64_t up_seid)
@@ -446,7 +709,7 @@ process_create_far_info(pfcp_create_far_ie_t *far,
 			/* TEID */
 			far_t->frwdng_parms.outer_hdr_creation.teid =
 				far->frwdng_parms.outer_hdr_creation.teid;
-			RTE_LOG_DP(DEBUG, DP, "FAR Teid : %u\n",
+			clLog(clSystemLog, eCLSeverityDebug, "FAR Teid : %u\n",
 					far_t->frwdng_parms.outer_hdr_creation.teid);
 
 			/* Customer-VLAN Tag */
@@ -465,7 +728,7 @@ process_create_far_info(pfcp_create_far_ie_t *far,
 			far_t->frwdng_parms.outer_hdr_creation.ipv4_address =
 				far->frwdng_parms.outer_hdr_creation.ipv4_address;
 
-			RTE_LOG_DP(DEBUG, DP, "FAR dst Ipv4 Address :"IPV4_ADDR"\n",
+			clLog(clSystemLog, eCLSeverityDebug, "FAR dst Ipv4 Address :"IPV4_ADDR"\n",
 					IPV4_ADDR_HOST_FORMAT(far_t->frwdng_parms.outer_hdr_creation.ipv4_address));
 
 			/* Outer Header Creation Description */
@@ -478,7 +741,7 @@ process_create_far_info(pfcp_create_far_ie_t *far,
 #ifdef USE_REST
 				if ((add_node_conn_entry(ntohl(far->frwdng_parms.outer_hdr_creation.ipv4_address),
 						up_seid, S1U_PORT_ID)) < 0) {
-					RTE_LOG_DP(ERR, DP, FORMAT":Failed to add connection entry for eNB\n",
+					clLog(clSystemLog, eCLSeverityCritical, FORMAT":Failed to add connection entry for eNB\n",
 							ERR_MSG);
 				}
 #endif /* USE_REST */
@@ -486,7 +749,7 @@ process_create_far_info(pfcp_create_far_ie_t *far,
 				/* Update the Session state */
 				if (far->frwdng_parms.outer_hdr_creation.teid != 0) {
 					(*session)->sess_state = CONNECTED;
-					RTE_LOG_DP(DEBUG, DP, "Session State Change : "
+					clLog(clSystemLog, eCLSeverityDebug, "Session State Change : "
 								"IN_PROGRESS --> CONNECTED\n");
 				}
 			}
@@ -496,7 +759,7 @@ process_create_far_info(pfcp_create_far_ie_t *far,
 #ifdef USE_REST
 				if ((add_node_conn_entry(ntohl(far->frwdng_parms.outer_hdr_creation.ipv4_address),
 						up_seid, SGI_PORT_ID)) < 0) {
-					RTE_LOG_DP(ERR, DP, FORMAT":Failed to add connection entry for S5S8\n",
+					clLog(clSystemLog, eCLSeverityCritical, FORMAT":Failed to add connection entry for S5S8\n",
 							ERR_MSG);
 				}
 #endif /* USE_REST */
@@ -504,7 +767,7 @@ process_create_far_info(pfcp_create_far_ie_t *far,
 				/* Update the Session state */
 				if (far->frwdng_parms.outer_hdr_creation.teid != 0) {
 					(*session)->sess_state = CONNECTED;
-					RTE_LOG_DP(DEBUG, DP, "Session State Change : "
+					clLog(clSystemLog, eCLSeverityDebug, "Session State Change : "
 								"IN_PROGRESS --> CONNECTED\n");
 				}
 			}
@@ -528,6 +791,99 @@ process_create_far_info(pfcp_create_far_ie_t *far,
 	return 0;
 }
 
+static int8_t
+process_update_pdr_info(pfcp_update_pdr_ie_t *pdr, pfcp_session_t *sess)
+{
+	int ret = 0;
+	pfcp_session_datat_t *session = NULL;
+	pdr_info_t *pdr_t = NULL;
+	struct sdf_pkt_filter pkt_filter = {0};
+
+	if (pdr->pdi.local_fteid.teid) {
+		session = get_sess_by_teid_entry(pdr->pdi.local_fteid.teid,
+										&sess->sessions, SESS_MODIFY);
+		if (session == NULL) {
+			clLog(clSystemLog, eCLSeverityCritical, "Failed to create the session for TEID:%u",
+														pdr->pdi.local_fteid.teid);
+			return -1;
+		}
+	} else if (pdr->pdi.ue_ip_address.ipv4_address){
+		if ((app.spgw_cfg == PGWU) || (app.spgw_cfg == SAEGWU)) {
+			session = get_sess_by_ueip_entry(pdr->pdi.ue_ip_address.ipv4_address,
+													&sess->sessions, SESS_MODIFY);
+
+			if (session == NULL) {
+				clLog(clSystemLog, eCLSeverityCritical, "Failed to create the session for UE_IP:"IPV4_ADDR"",
+					IPV4_ADDR_HOST_FORMAT(pdr->pdi.ue_ip_address.ipv4_address));
+				return -1;
+			}
+		}
+	} else {
+		clLog(clSystemLog, eCLSeverityCritical, "%s: TIED and UE_IP_addr both are NULL \n",
+					__func__);
+		return -1;
+	}
+
+	/* M: PDR ID */
+	if (pdr->pdr_id.header.len) {
+		ret = rte_hash_lookup_data(pdr_by_id_hash,
+				&pdr->pdr_id.rule_id, (void **)&pdr_t);
+
+		if ( ret < 0) {
+			return -1;
+		}
+		if(pdr_t->rule_id != pdr->pdr_id.rule_id)
+			return -1;
+	}
+
+	/*First remove older sdf context from acl rules*/
+	for(int itr = 0; itr < pdr_t->pdi.sdf_filter_cnt; itr++){
+
+		pkt_filter.precedence = pdr_t->prcdnc_val;
+		/* Reset the rule string */
+		memset(pkt_filter.u.rule_str, 0, MAX_LEN);
+
+		/* flow description */
+		if (pdr_t->pdi.sdf_filter[itr].fd) {
+			memcpy(&pkt_filter.u.rule_str, &pdr_t->pdi.sdf_filter[itr].flow_desc,
+					pdr_t->pdi.sdf_filter[itr].len_of_flow_desc);
+
+			if (!pdr_t->pdi.src_intfc.interface_value) {
+				/* swap the src and dst address for UL traffic.*/
+				swap_src_dst_ip(&pkt_filter.u.rule_str[0]);
+			}
+
+			if (!session->acl_table_indx) {
+				return -1;
+			} else {
+				if (up_sdf_filter_entry_delete(session->acl_table_indx, &pkt_filter)) {
+					/* TODO: ERROR handling */
+				}
+			}
+		}
+	}
+
+	if (pdr->precedence.header.len) {
+		pdr_t->prcdnc_val = pdr->precedence.prcdnc_val;
+	}
+
+	/* M: Packet Detection Information */
+	if (pdr->pdi.header.len) {
+		if (process_pdr_pdi_info(&pdr->pdi, &pdr_t->pdi, &session,
+				pdr_t->prcdnc_val)) {
+			/* TODO:Error handling  */
+		}
+	}
+	return 0;
+}
+
+/**
+ * @brief  : Process create pdr info
+ * @param  : pdr, hold create pdr info
+ * @param  : session, pfcp session data related info
+ * @param  : sess , pfcp session info
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 static int8_t
 process_create_pdr_info(pfcp_create_pdr_ie_t *pdr, pfcp_session_datat_t **session,
 			pfcp_session_t *sess)
@@ -598,7 +954,7 @@ process_create_pdr_info(pfcp_create_pdr_ie_t *pdr, pfcp_session_datat_t **sessio
 
 	}
 
-	RTE_LOG_DP(INFO, DP, "Entry Add PDR_ID:%u, precedence:%u, ACL_TABLE_INDX:%u\n",
+	clLog(clSystemLog, eCLSeverityInfo, "Entry Add PDR_ID:%u, precedence:%u, ACL_TABLE_INDX:%u\n",
 			pdr->pdr_id.rule_id, pdr->precedence.prcdnc_val,
 			(*session)->acl_table_indx);
 
@@ -619,7 +975,7 @@ process_up_session_estab_req(pfcp_sess_estab_req_t *sess_req,
 	if (sess_req == NULL)
 		return -1;
 
-	RTE_LOG_DP(DEBUG, DP, "PFCP Session Establishment Request :: START \n");
+	clLog(clSystemLog, eCLSeverityDebug, "PFCP Session Establishment Request :: START \n");
 	/* Check Session ID is present or not in header */
 	if (sess_req->header.s) {
 		/* Check SEID is not ZERO */
@@ -648,7 +1004,7 @@ process_up_session_estab_req(pfcp_sess_estab_req_t *sess_req,
 	//sess->cp_seid = UE_SESS_ID(sess_req->cp_fseid.seid);
 	sess->cp_seid = sess_req->cp_fseid.seid;
 
-	RTE_LOG_DP(DEBUG, DP, "%s: CP_Sess_ID: %lu, UP_Sess_ID:%lu\n",
+	clLog(clSystemLog, eCLSeverityDebug, "%s: CP_Sess_ID: %lu, UP_Sess_ID:%lu\n",
 			__func__, sess->cp_seid, sess->up_seid);
 
 	/* TODO: Export this function to make it generic across the establishment and modify request */
@@ -660,7 +1016,7 @@ process_up_session_estab_req(pfcp_sess_estab_req_t *sess_req,
 			session = get_sess_by_teid_entry(sess_req->create_pdr[itr].pdi.local_fteid.teid,
 					&sess->sessions, SESS_CREATE);
 			if (session == NULL) {
-				RTE_LOG_DP(ERR, DP, "Failed to create the session for TEID:%u",
+				clLog(clSystemLog, eCLSeverityCritical, "Failed to create the session for TEID:%u",
 						sess_req->create_pdr[itr].pdi.local_fteid.teid);
 				continue;
 			}
@@ -670,13 +1026,13 @@ process_up_session_estab_req(pfcp_sess_estab_req_t *sess_req,
 						&sess->sessions, SESS_CREATE);
 
 				if (session == NULL) {
-					RTE_LOG_DP(ERR, DP, "Failed to create the session for UE_IP:"IPV4_ADDR"",
+					clLog(clSystemLog, eCLSeverityCritical, "Failed to create the session for UE_IP:"IPV4_ADDR"",
 						IPV4_ADDR_HOST_FORMAT(sess_req->create_pdr[itr].pdi.ue_ip_address.ipv4_address));
 					continue;
 				}
 			}
 		} else {
-			RTE_LOG_DP(ERR, DP, "%s: TIED and UE_IP_addr both are NULL \n",
+			clLog(clSystemLog, eCLSeverityCritical, "%s: TIED and UE_IP_addr both are NULL \n",
 					__func__);
 			return -1;
 		}
@@ -744,6 +1100,205 @@ process_up_session_estab_req(pfcp_sess_estab_req_t *sess_req,
 		}
 	}
 
+#ifdef USE_CSID
+	fqcsid_t *tmp = NULL;
+	if (app.spgw_cfg != PGWU) {
+		sess->sgw_fqcsid = rte_zmalloc_socket(NULL, sizeof(fqcsid_t),
+				RTE_CACHE_LINE_SIZE, rte_socket_id());
+		if (sess->sgw_fqcsid == NULL) {
+			clLog(clSystemLog, eCLSeverityCritical, FORMAT"Failed to allocate the memory for fqcsids entry\n",
+					ERR_MSG);
+			return -1;
+		}
+	}
+
+	if (app.spgw_cfg != SAEGWU) {
+		sess->pgw_fqcsid = rte_zmalloc_socket(NULL, sizeof(fqcsid_t),
+				RTE_CACHE_LINE_SIZE, rte_socket_id());
+		if (sess->pgw_fqcsid == NULL) {
+			clLog(clSystemLog, eCLSeverityCritical, FORMAT"Failed to allocate the memory for fqcsids entry\n",
+					ERR_MSG);
+			return -1;
+		}
+	}
+
+	/* MME FQ-CSID */
+	if (sess_req->mme_fqcsid.header.len) {
+		sess->mme_fqcsid = rte_zmalloc_socket(NULL, sizeof(fqcsid_t),
+				RTE_CACHE_LINE_SIZE, rte_socket_id());
+		if (sess->mme_fqcsid == NULL) {
+			clLog(clSystemLog, eCLSeverityCritical, FORMAT"Failed to allocate the memory for fqcsids entry\n",
+					ERR_MSG);
+			return -1;
+		}
+
+		/* Stored the SGW CSID by SGW Node address */
+		tmp = get_peer_addr_csids_entry(sess_req->mme_fqcsid.node_address,
+				ADD);
+
+		if (tmp == NULL) {
+			clLog(apilogger, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
+					strerror(errno));
+			return -1;
+		}
+		tmp->node_addr = sess_req->mme_fqcsid.node_address;
+
+		for(uint8_t itr = 0; itr < sess_req->mme_fqcsid.number_of_csids; itr++) {
+			uint8_t match = 0;
+			for (uint8_t itr1 = 0; itr1 < tmp->num_csid; itr1++) {
+				if (tmp->local_csid[itr1] == sess_req->mme_fqcsid.pdn_conn_set_ident[itr])
+					match = 1;
+			}
+
+			if (!match) {
+				tmp->local_csid[tmp->num_csid++] =
+					sess_req->mme_fqcsid.pdn_conn_set_ident[itr];
+			}
+		}
+		memcpy(sess->mme_fqcsid, tmp, sizeof(fqcsid_t));
+	}
+
+	/* SGW FQ-CSID */
+	if (sess_req->sgw_c_fqcsid.header.len) {
+		/* Stored the SGW CSID by SGW Node address */
+		tmp = get_peer_addr_csids_entry(sess_req->sgw_c_fqcsid.node_address,
+				ADD);
+
+		if (tmp == NULL) {
+			clLog(apilogger, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
+					strerror(errno));
+			return -1;
+		}
+
+		tmp->node_addr = sess_req->sgw_c_fqcsid.node_address;
+
+		for(uint8_t itr = 0; itr < sess_req->sgw_c_fqcsid.number_of_csids; itr++) {
+			uint8_t match = 0;
+			for (uint8_t itr1 = 0; itr1 < tmp->num_csid; itr1++) {
+				if (tmp->local_csid[itr1] == sess_req->sgw_c_fqcsid.pdn_conn_set_ident[itr])
+					match = 1;
+			}
+
+			if (!match) {
+				tmp->local_csid[tmp->num_csid++] =
+					sess_req->sgw_c_fqcsid.pdn_conn_set_ident[itr];
+			}
+		}
+		memcpy(sess->sgw_fqcsid, tmp, sizeof(fqcsid_t));
+	} else {
+		if ((app.spgw_cfg == SGWU) || (app.spgw_cfg == SAEGWU)) {
+			sess->sgw_fqcsid = get_peer_addr_csids_entry(cp_comm_ip.s_addr,
+					ADD);
+			if (sess->sgw_fqcsid == NULL) {
+				clLog(apilogger, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
+						strerror(errno));
+				return -1;
+			}
+			tmp->node_addr = cp_comm_ip.s_addr;
+			memcpy(sess->sgw_fqcsid, tmp, sizeof(fqcsid_t));
+		}
+	}
+
+	/* PGW FQ-CSID */
+	if (sess_req->pgw_c_fqcsid.header.len) {
+		/* Stored the PGW CSID by SGW Node address */
+		tmp = get_peer_addr_csids_entry(sess_req->pgw_c_fqcsid.node_address,
+				ADD);
+
+		if (tmp == NULL) {
+			clLog(apilogger, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
+					strerror(errno));
+			return -1;
+		}
+
+		tmp->node_addr = sess_req->pgw_c_fqcsid.node_address;
+
+		for(uint8_t itr = 0; itr < sess_req->pgw_c_fqcsid.number_of_csids; itr++) {
+			uint8_t match = 0;
+			for (uint8_t itr1 = 0; itr1 < tmp->num_csid; itr1++) {
+				if (tmp->local_csid[itr1] == sess_req->pgw_c_fqcsid.pdn_conn_set_ident[itr])
+					match = 1;
+			}
+
+			if (!match) {
+				tmp->local_csid[tmp->num_csid++] =
+					sess_req->pgw_c_fqcsid.pdn_conn_set_ident[itr];
+			}
+		}
+		memcpy(sess->pgw_fqcsid, tmp, sizeof(fqcsid_t));
+	} else {
+		if (app.spgw_cfg == PGWU)  {
+			sess->pgw_fqcsid = get_peer_addr_csids_entry(cp_comm_ip.s_addr,
+					ADD);
+			if (sess->pgw_fqcsid == NULL) {
+				clLog(apilogger, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
+						strerror(errno));
+				return -1;
+			}
+			tmp->node_addr = cp_comm_ip.s_addr;
+			memcpy(sess->pgw_fqcsid, tmp, sizeof(fqcsid_t));
+		}
+	}
+
+	if (app.spgw_cfg != PGWU) {
+		sess->sgwu_fqcsid = get_peer_addr_csids_entry(dp_comm_ip.s_addr,
+				ADD);
+		if (sess->sgwu_fqcsid == NULL) {
+			clLog(apilogger, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
+					strerror(errno));
+			return -1;
+		}
+		(sess->sgwu_fqcsid)->node_addr = dp_comm_ip.s_addr;
+
+	} else {
+		sess->pgwu_fqcsid = get_peer_addr_csids_entry(dp_comm_ip.s_addr,
+				ADD);
+		if (sess->pgwu_fqcsid == NULL) {
+			clLog(apilogger, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
+					strerror(errno));
+			return -1;
+		}
+		(sess->pgwu_fqcsid)->node_addr = dp_comm_ip.s_addr;
+	}
+
+	/* Add the entry for peer nodes */
+	if (fill_peer_node_info_t(sess)) {
+		clLog(apilogger, eCLSeverityCritical, FORMAT"Failed to fill peer node info and assignment of the CSID Error: %s\n",
+				ERR_MSG,
+				strerror(errno));
+		return -1;
+	}
+
+	/* Add entry for cp session id with link local csid */
+	sess_csid *tmp1 = NULL;
+	if ((app.spgw_cfg == SGWU) || (app.spgw_cfg == SAEGWU)) {
+		tmp1 = get_sess_csid_entry(
+				(sess->sgwu_fqcsid)->local_csid[(sess->sgwu_fqcsid)->num_csid - 1]);
+	} else {
+		/* PGWC */
+		tmp1 = get_sess_csid_entry(
+				(sess->pgwu_fqcsid)->local_csid[(sess->pgwu_fqcsid)->num_csid - 1]);
+	}
+
+	if (tmp1 == NULL) {
+		clLog(apilogger, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
+				strerror(errno));
+		return -1;
+	}
+
+	/* Link local csid with session id */
+	tmp1->cp_seid[tmp1->seid_cnt++] = sess->cp_seid;
+	tmp1->up_seid[tmp1->seid_cnt - 1] = sess->up_seid;
+
+	/* Fill the fqcsid into the session est request */
+	if (fill_fqcsid_sess_est_rsp(sess_rsp, sess)) {
+		clLog(apilogger, eCLSeverityCritical, FORMAT"Failed to fill FQ-CSID in Sess EST Resp ERROR: %s\n",
+				ERR_MSG,
+				strerror(errno));
+		return -1;
+	}
+#endif /* USE_CSID */
+
 	/* Update the UP session id in the response */
 	sess_rsp->up_fseid.seid = sess->up_seid;
 	/* TODO: Need to be remove */
@@ -752,10 +1307,16 @@ process_up_session_estab_req(pfcp_sess_estab_req_t *sess_req,
 	/* Update the CP seid in the response packet */
 	sess_rsp->header.seid_seqno.has_seid.seid = sess->cp_seid;
 
-	RTE_LOG_DP(DEBUG, DP, "PFCP Session Establishment Request :: END \n\n");
+	clLog(clSystemLog, eCLSeverityDebug, "PFCP Session Establishment Request :: END \n\n");
 	return 0;
 }
 
+/**
+ * @brief  : Process update far info
+ * @param  : far, hold create far info
+ * @param  : up_seid, session id
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 static int8_t
 process_update_far_info(pfcp_update_far_ie_t *far, uint64_t up_seid)
 {
@@ -803,7 +1364,7 @@ process_update_far_info(pfcp_update_far_ie_t *far, uint64_t up_seid)
 			/* TEID */
 			far_t->frwdng_parms.outer_hdr_creation.teid =
 				far->upd_frwdng_parms.outer_hdr_creation.teid;
-			RTE_LOG_DP(DEBUG, DP, "FAR Teid : %u\n",
+			clLog(clSystemLog, eCLSeverityDebug, "FAR Teid : %u\n",
 					far->upd_frwdng_parms.outer_hdr_creation.teid);
 
 			/* Customer-VLAN Tag */
@@ -821,7 +1382,7 @@ process_update_far_info(pfcp_update_far_ie_t *far, uint64_t up_seid)
 			/* IPv4 Address */
 			far_t->frwdng_parms.outer_hdr_creation.ipv4_address =
 				far->upd_frwdng_parms.outer_hdr_creation.ipv4_address;
-			RTE_LOG_DP(DEBUG, DP, "FAR dst Ipv4 Address :"IPV4_ADDR"\n",
+			clLog(clSystemLog, eCLSeverityDebug, "FAR dst Ipv4 Address :"IPV4_ADDR"\n",
 					IPV4_ADDR_HOST_FORMAT(far->upd_frwdng_parms.outer_hdr_creation.ipv4_address));
 
 			/* Outer Header Creation Description */
@@ -835,7 +1396,7 @@ process_update_far_info(pfcp_update_far_ie_t *far, uint64_t up_seid)
 #ifdef USE_REST
 				if ((add_node_conn_entry(ntohl(far->upd_frwdng_parms.outer_hdr_creation.ipv4_address),
 						up_seid, S1U_PORT_ID)) < 0) {
-					RTE_LOG_DP(ERR, DP, FORMAT":Failed to add connection entry for eNB\n",
+					clLog(clSystemLog, eCLSeverityCritical, FORMAT":Failed to add connection entry for eNB\n",
 							ERR_MSG);
 				}
 #endif /* USE_REST */
@@ -844,7 +1405,7 @@ process_update_far_info(pfcp_update_far_ie_t *far, uint64_t up_seid)
 				if (!far->upd_frwdng_parms.outer_hdr_creation.teid) {
 					if ((far_t->session)->sess_state == CONNECTED) {
 						(far_t->session)->sess_state = IDLE;
-						RTE_LOG_DP(DEBUG, DP, "Session State Change : "
+						clLog(clSystemLog, eCLSeverityDebug, "Session State Change : "
 									"CONNECTED --> IDLE\n");
 					}
 				} else {
@@ -852,7 +1413,7 @@ process_update_far_info(pfcp_update_far_ie_t *far, uint64_t up_seid)
 					case IDLE:
 						{
 							(far_t->session)->sess_state = CONNECTED;
-							RTE_LOG_DP(DEBUG, DP, "Session State Change : "
+							clLog(clSystemLog, eCLSeverityDebug, "Session State Change : "
 										"IDLE --> CONNECTED\n");
 						}
 						break;
@@ -868,14 +1429,14 @@ process_update_far_info(pfcp_update_far_ie_t *far, uint64_t up_seid)
 								if ((far_t->session)->pdrs) {
 									*key = (far_t->session)->pdrs->pdi.local_fteid.teid;
 								} else {
-									RTE_LOG_DP(DEBUG, DP, FORMAT"ERROR: PDRs value is NULL\n", ERR_MSG);
+									clLog(clSystemLog, eCLSeverityDebug, FORMAT"ERROR: PDRs value is NULL\n", ERR_MSG);
 									break;
 								}
 							} else {
 								if ((far_t->session)->ue_ip_addr) {
 									*key = (far_t->session)->ue_ip_addr;
 								} else {
-									RTE_LOG_DP(DEBUG, DP, FORMAT"ERROR: UE_IP value is NULL\n", ERR_MSG);
+									clLog(clSystemLog, eCLSeverityDebug, FORMAT"ERROR: UE_IP value is NULL\n", ERR_MSG);
 									break;
 								}
 							}
@@ -884,12 +1445,12 @@ process_update_far_info(pfcp_update_far_ie_t *far, uint64_t up_seid)
 							        buf_pkt);
 
 							(far_t->session)->sess_state = CONNECTED;
-							RTE_LOG_DP(DEBUG, DP, "Session State Change : "
+							clLog(clSystemLog, eCLSeverityDebug, "Session State Change : "
 										"IN_PROGRESS --> CONNECTED\n");
 						}
 						break;
 					default:
-						RTE_LOG_DP(DEBUG, DP, "No state change\n");
+						clLog(clSystemLog, eCLSeverityDebug, "No state change\n");
 					}
 				}
 			}
@@ -899,7 +1460,7 @@ process_update_far_info(pfcp_update_far_ie_t *far, uint64_t up_seid)
 #ifdef USE_REST
 				if ((add_node_conn_entry(ntohl(far->upd_frwdng_parms.outer_hdr_creation.ipv4_address),
 						up_seid, SGI_PORT_ID)) < 0) {
-					RTE_LOG_DP(ERR, DP, "%s:%d:Failed to add connection entry for S5S8\n",
+					clLog(clSystemLog, eCLSeverityCritical, "%s:%d:Failed to add connection entry for S5S8\n",
 							 __func__, __LINE__);
 				}
 #endif /* USE_REST */
@@ -928,13 +1489,173 @@ process_update_far_info(pfcp_update_far_ie_t *far, uint64_t up_seid)
 	return 0;
 }
 
+
+int8_t
+process_remove_pdr_sess(pfcp_remove_pdr_ie_t *remove_pdr, uint64_t up_seid)
+{
+	int ret = 0;
+	uint8_t uiFlag = 0;
+	pfcp_session_t *sess = NULL;
+	struct sdf_pkt_filter pkt_filter = {0};
+
+	/* Get the session information from session table based on UP_SESSION_ID*/
+	sess = get_sess_info_entry(up_seid, SESS_MODIFY);
+
+	if (sess == NULL)
+		return -1;
+
+	/* Flush the Session data info from the hash tables based on teid*/
+	pfcp_session_datat_t *session = sess->sessions;
+	/* Cleanup the session data form hash table and delete the node from linked list */
+	while (NULL != session) {
+		/* Cleanup PDRs info from the linked list */
+		pdr_info_t *pdr = session->pdrs;
+		while (NULL != pdr) {
+			if (remove_pdr->pdr_id.rule_id == pdr->rule_id) {
+				pdr = get_pdr_info_entry(
+					remove_pdr->pdr_id.rule_id,
+					NULL);
+				if (pdr == NULL)
+					return -1;
+
+				//Remove Entry from ACL Table
+				for(int itr = 0; itr < pdr->pdi.sdf_filter_cnt; itr++){
+
+					pkt_filter.precedence = pdr->prcdnc_val;
+					/* Reset the rule string */
+					memset(pkt_filter.u.rule_str, 0, MAX_LEN);
+
+					/* flow description */
+					if (pdr->pdi.sdf_filter[itr].fd) {
+						memcpy(&pkt_filter.u.rule_str, &pdr->pdi.sdf_filter[itr].flow_desc,
+										pdr->pdi.sdf_filter[itr].len_of_flow_desc);
+
+						if (!pdr->pdi.src_intfc.interface_value) {
+							/* swap the src and dst address for UL traffic.*/
+							swap_src_dst_ip(&pkt_filter.u.rule_str[0]);
+						}
+
+						if (session->acl_table_indx)
+							remove_rule_entry_acl(session->acl_table_indx, &pkt_filter);
+					}
+				}
+
+
+				far_info_t *far = pdr->far;
+				/* Cleanup the FAR information */
+				if (far != NULL) {
+#ifdef USE_REST
+					if (far->frwdng_parms.outer_hdr_creation.ipv4_address != 0)
+						dp_flush_session(
+							ntohl(far->frwdng_parms.outer_hdr_creation.ipv4_address),
+							sess->up_seid);
+#endif /* USE_REST */
+
+					/* Flush the far info from the hash table */
+					ret = rte_hash_del_key(far_by_id_hash, &far->far_id_value);
+					if ( ret < 0) {
+						clLog(clSystemLog, eCLSeverityDebug,
+							"DP:"FORMAT"Entry not found for FAR_ID:%u...\n",
+							ERR_MSG, far->far_id_value);
+						return -1;
+					}
+				}
+
+				/* Cleanup QERs info from the linked list */
+				qer_info_t *qer = pdr->quer;
+				while (qer != NULL) {
+					/* Get QER ID */
+					uint32_t qer_id = qer->qer_id;
+
+					/* Delete the QER info node from the linked list */
+					pdr->quer = remove_qer_node(pdr->quer, qer);
+					qer = pdr->quer;
+
+					/* Flush the QER info from the hash table */
+					ret = rte_hash_del_key(qer_by_id_hash, &qer_id);
+					if ( ret < 0) {
+						clLog(clSystemLog, eCLSeverityDebug,
+							FORMAT"Entry not found for QER_ID:%u...\n",
+									ERR_MSG, qer_id);
+						return -1;
+					}
+				}
+
+				/* Cleanup URRs info from the linked list */
+				urr_info_t *urr = pdr->urr;
+				while (urr != NULL) {
+					/* Get URR ID */
+					uint32_t urr_id = urr->urr_id;
+
+					/* Delete the URR info node from the linked list */
+					pdr->urr = remove_urr_node(pdr->urr, urr);
+					urr = pdr->urr;
+
+					/* Flush the URR info from the hash table */
+					if (del_urr_info_entry(urr_id)) {
+						/* TODO : ERROR Handling */
+					}
+				}
+
+				if (pdr->pdi.local_fteid.teid) {
+					if (del_sess_by_teid_entry(pdr->pdi.local_fteid.teid)) {
+						/* TODO : ERROR Handling */
+					}else{
+						for (int itr1 = 0; itr1 < sess->ber_cnt; itr1++) {
+							if (pdr->pdi.local_fteid.teid == sess->teids[itr1]) {
+								sess->teids[itr1] = 0;
+							}
+						}
+
+					}
+				}
+
+				/* Cleanup PDRs info from the linked list */
+				/* Get PDR ID */
+				uint32_t pdr_id = pdr->rule_id;
+
+				/* Delete the PDR info node from the linked list */
+				session->pdrs = remove_pdr_node(session->pdrs, pdr);
+
+				/* Flush the PDR info from the hash table */
+				ret = rte_hash_del_key(pdr_by_id_hash, &pdr_id);
+				if ( ret < 0) {
+					clLog(clSystemLog, eCLSeverityDebug,
+						FORMAT"Entry not found for PDR_ID:%u...\n",
+								ERR_MSG, pdr_id);
+					return -1;
+				}
+
+				uiFlag = 1;
+				pdr = session->pdrs;
+				continue;
+			}
+
+			pdr = pdr->next;
+		}
+
+		if ((1 == uiFlag) && (NULL == session->pdrs)) {
+			/* Delete the Session data info node from the linked list */
+			sess->sessions = remove_sess_data_node(sess->sessions, session);
+			if (sess->sessions != NULL) {
+				session = sess->sessions;
+			}
+			uiFlag = 0;
+		} else {
+			session = session->next;
+		}
+	}
+
+	return 0;
+}
+
 int8_t
 process_up_session_modification_req(pfcp_sess_mod_req_t *sess_mod_req,
 					pfcp_sess_mod_rsp_t *sess_mod_rsp)
 {
 	pfcp_session_t *sess = NULL;
 
-	RTE_LOG_DP(DEBUG, DP, "PFCP Session Modification Request :: START \n");
+	clLog(clSystemLog, eCLSeverityDebug, "PFCP Session Modification Request :: START \n");
 	/* Get the session information from session table based on UP_SESSION_ID*/
 	if (sess_mod_req->header.s) {
 		/* Check SEID is not ZERO */
@@ -952,7 +1673,7 @@ process_up_session_modification_req(pfcp_sess_mod_req_t *sess_mod_req,
 
 	}
 
-	RTE_LOG_DP(DEBUG, DP, "%s: CP_Sess_ID: %lu, UP_Sess_ID:%lu\n",
+	clLog(clSystemLog, eCLSeverityDebug, "%s: CP_Sess_ID: %lu, UP_Sess_ID:%lu\n",
 			__func__, sess->cp_seid, sess->up_seid);
 
 	/* TODO: Export this function to make it generic across the establishment and modify request */
@@ -964,7 +1685,7 @@ process_up_session_modification_req(pfcp_sess_mod_req_t *sess_mod_req,
 			session = get_sess_by_teid_entry(sess_mod_req->create_pdr[itr].pdi.local_fteid.teid,
 					&sess->sessions, SESS_CREATE);
 			if (session == NULL) {
-				RTE_LOG_DP(ERR, DP, "Failed to create the session for TEID:%u",
+				clLog(clSystemLog, eCLSeverityCritical, "Failed to create the session for TEID:%u",
 						sess_mod_req->create_pdr[itr].pdi.local_fteid.teid);
 				continue;
 			}
@@ -974,13 +1695,13 @@ process_up_session_modification_req(pfcp_sess_mod_req_t *sess_mod_req,
 						&sess->sessions, SESS_CREATE);
 
 				if (session == NULL) {
-					RTE_LOG_DP(ERR, DP, "Failed to create the session for UE_IP:"IPV4_ADDR"",
+					clLog(clSystemLog, eCLSeverityCritical, "Failed to create the session for UE_IP:"IPV4_ADDR"",
 						IPV4_ADDR_HOST_FORMAT(sess_mod_req->create_pdr[itr].pdi.ue_ip_address.ipv4_address));
 					continue;
 				}
 			}
 		} else {
-			RTE_LOG_DP(ERR, DP, "%s: TIED and UE_IP_addr both are NULL \n",
+			clLog(clSystemLog, eCLSeverityCritical, "%s: TIED and UE_IP_addr both are NULL \n",
 					__func__);
 			return -1;
 		}
@@ -1060,38 +1781,97 @@ process_up_session_modification_req(pfcp_sess_mod_req_t *sess_mod_req,
 		}
 	}
 
+	for(int itr = 0; itr < sess_mod_req->update_pdr_count; itr++ ){
+		/* VK : Process the Update PDR info */
+		if(process_update_pdr_info(&sess_mod_req->update_pdr[itr], sess)){
+				/* TODO: Error Handling */
+		}
+	}
 
+	/* Process the Remove PDR information */
+	for (int itr = 0; itr < sess_mod_req->remove_pdr_count; itr++) {
+		if (process_remove_pdr_sess(&sess_mod_req->remove_pdr[itr], sess->up_seid)) {
+			/* TODO: Error Handling */
+			return -1;
+		}
+	}
+
+#ifdef USE_CSID
+	/* SGW FQ-CSID */
+	if (sess_mod_req->sgw_c_fqcsid.header.len) {
+		/* Stored the SGW CSID by SGW Node address */
+		sess->sgw_fqcsid = get_peer_addr_csids_entry(sess_mod_req->sgw_c_fqcsid.node_address,
+				ADD);
+
+		if (sess->sgw_fqcsid == NULL) {
+			clLog(apilogger, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
+					strerror(errno));
+			return -1;
+		}
+
+		(sess->sgw_fqcsid)->node_addr = sess_mod_req->sgw_c_fqcsid.node_address;
+
+		for(uint8_t itr = 0; itr < sess_mod_req->sgw_c_fqcsid.number_of_csids; itr++) {
+			uint8_t match = 0;
+			for (uint8_t itr1 = 0; itr1 < (sess->sgw_fqcsid)->num_csid; itr1++) {
+				if ((sess->sgw_fqcsid)->local_csid[itr1] == sess_mod_req->sgw_c_fqcsid.pdn_conn_set_ident[itr])
+					match = 1;
+			}
+
+			if (!match) {
+				(sess->sgw_fqcsid)->local_csid[(sess->sgw_fqcsid)->num_csid++] =
+					sess_mod_req->sgw_c_fqcsid.pdn_conn_set_ident[itr];
+			}
+		}
+	}
+
+	/* PGW FQ-CSID */
+	if (sess_mod_req->pgw_c_fqcsid.header.len) {
+		/* Stored the SGW CSID by SGW Node address */
+		sess->pgw_fqcsid = get_peer_addr_csids_entry(sess_mod_req->pgw_c_fqcsid.node_address,
+				ADD);
+
+		if (sess->pgw_fqcsid == NULL) {
+			clLog(apilogger, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
+					strerror(errno));
+			return -1;
+		}
+
+		(sess->pgw_fqcsid)->node_addr = sess_mod_req->pgw_c_fqcsid.node_address;
+
+		for(uint8_t itr = 0; itr < sess_mod_req->pgw_c_fqcsid.number_of_csids; itr++) {
+			uint8_t match = 0;
+			for (uint8_t itr1 = 0; itr1 < (sess->pgw_fqcsid)->num_csid; itr1++) {
+				if ((sess->pgw_fqcsid)->local_csid[itr1] == sess_mod_req->pgw_c_fqcsid.pdn_conn_set_ident[itr])
+					match = 1;
+			}
+
+			if (!match) {
+				(sess->pgw_fqcsid)->local_csid[(sess->pgw_fqcsid)->num_csid++] =
+					sess_mod_req->pgw_c_fqcsid.pdn_conn_set_ident[itr];
+			}
+		}
+	}
+#endif /* USE_CSID */
 	/* Update the CP seid in the response packet */
 	sess_mod_rsp->header.seid_seqno.has_seid.seid =	sess->cp_seid;
 
-	RTE_LOG_DP(DEBUG, DP, "PFCP Session Modification Request :: END \n\n");
+	clLog(clSystemLog, eCLSeverityDebug, "PFCP Session Modification Request :: END \n\n");
 	return 0;
 }
 
 int8_t
-process_up_session_deletion_req(pfcp_sess_del_req_t *sess_del_req,
-				pfcp_sess_del_rsp_t *sess_del_rsp)
+up_delete_session_entry(pfcp_session_t *sess)
 {
 	int ret = 0;
 	int8_t inx = 0;
 	uint32_t ue_ip[MAX_BEARERS] = {0};
-	pfcp_session_t *sess = NULL;
 
-	RTE_LOG_DP(DEBUG, DP, "PFCP Session Deletion Request :: START \n");
-	/* Get the session information from session table based on UP_SESSION_ID*/
-	if (sess_del_req->header.s) {
-		/* Check SEID is not ZERO */
-		sess = get_sess_info_entry(sess_del_req->header.seid_seqno.has_seid.seid,
-				SESS_DEL);
-	}
-
-	if (sess == NULL)
-		return -1;
-
-	RTE_LOG_DP(DEBUG, DP, "%s: CP_Sess_ID: %lu, UP_Sess_ID:%lu\n",
+	clLog(clSystemLog, eCLSeverityDebug, "%s: CP_Sess_ID: %lu, UP_Sess_ID:%lu\n",
 			__func__, sess->cp_seid, sess->up_seid);
 	/* Flush the Session data info from the hash tables based on teid*/
 	pfcp_session_datat_t *session = sess->sessions;
+
 	/* Cleanup the session data form hash table and delete the node from linked list */
 	while (session != NULL) {
 			if (session->dl_ring != NULL) {
@@ -1131,7 +1911,7 @@ process_up_session_deletion_req(pfcp_sess_del_req_t *sess_del_req,
 
 			if (rte_ring_enqueue(dl_ring_container, ring) ==
 			        ENOBUFS) {
-			    RTE_LOG_DP(ERR, DP, "Can't put ring back, so free it - "
+			    clLog(clSystemLog, eCLSeverityCritical, "Can't put ring back, so free it - "
 			            "dropped %d pkts\n", count);
 			    rte_ring_free(ring);
 			}
@@ -1153,11 +1933,11 @@ process_up_session_deletion_req(pfcp_sess_del_req_t *sess_del_req,
 				/* Flush the far info from the hash table */
 				ret = rte_hash_del_key(far_by_id_hash, &far->far_id_value);
 				if ( ret < 0) {
-					fprintf(stderr, "DP:"FORMAT"Entry not found for FAR_ID:%u...\n",
+					clLog(clSystemLog, eCLSeverityCritical, "DP:"FORMAT"Entry not found for FAR_ID:%u...\n",
 								ERR_MSG, far->far_id_value);
 					return -1;
 				}
-				RTE_LOG_DP(DEBUG, DP, "%s: FAR_ID:%u\n",
+				clLog(clSystemLog, eCLSeverityDebug, "%s: FAR_ID:%u\n",
 						__func__, far->far_id_value);
 			}
 
@@ -1174,11 +1954,11 @@ process_up_session_deletion_req(pfcp_sess_del_req_t *sess_del_req,
 				/* Flush the QER info from the hash table */
 				ret = rte_hash_del_key(qer_by_id_hash, &qer_id);
 				if ( ret < 0) {
-					fprintf(stderr, FORMAT"Entry not found for QER_ID:%u...\n",
+					clLog(clSystemLog, eCLSeverityCritical, FORMAT"Entry not found for QER_ID:%u...\n",
 								ERR_MSG, qer_id);
 					return -1;
 				}
-				RTE_LOG_DP(DEBUG, DP, "%s: QER_ID:%u\n",
+				clLog(clSystemLog, eCLSeverityDebug, "%s: QER_ID:%u\n",
 						__func__, qer_id);
 			}
 
@@ -1209,11 +1989,11 @@ process_up_session_deletion_req(pfcp_sess_del_req_t *sess_del_req,
 			/* Flush the PDR info from the hash table */
 			ret = rte_hash_del_key(pdr_by_id_hash, &pdr_id);
 			if ( ret < 0) {
-				fprintf(stderr, FORMAT"Entry not found for PDR_ID:%u...\n",
+				clLog(clSystemLog, eCLSeverityCritical, FORMAT"Entry not found for PDR_ID:%u...\n",
 							ERR_MSG, pdr_id);
 				return -1;
 			}
-			RTE_LOG_DP(DEBUG, DP, "%s: PDR_ID:%u\n",
+			clLog(clSystemLog, eCLSeverityDebug, "%s: PDR_ID:%u\n",
 					__func__, pdr_id);
 		}
 
@@ -1242,11 +2022,11 @@ process_up_session_deletion_req(pfcp_sess_del_req_t *sess_del_req,
 				/* Session Entry is present. Delete Session Entry */
 				ret = rte_hash_del_key(sess_by_ueip_hash, &ue_ip[inx]);
 				if ( ret < 0) {
-					fprintf(stderr, FORMAT"Entry not found for UE_IP:"IPV4_ADDR"...\n",
+					clLog(clSystemLog, eCLSeverityCritical, FORMAT"Entry not found for UE_IP:"IPV4_ADDR"...\n",
 								ERR_MSG, IPV4_ADDR_HOST_FORMAT(ue_ip[inx]));
 					return -1;
 				}
-				RTE_LOG_DP(DEBUG, DP, "%s: UE_IP:"IPV4_ADDR"\n",
+				clLog(clSystemLog, eCLSeverityDebug, "%s: UE_IP:"IPV4_ADDR"\n",
 						__func__, IPV4_ADDR_HOST_FORMAT(ue_ip[inx]));
 			}
 		}
@@ -1254,26 +2034,69 @@ process_up_session_deletion_req(pfcp_sess_del_req_t *sess_del_req,
 
 
 	for (int itr1 = 0; itr1 < sess->ber_cnt; itr1++) {
-		if (del_sess_by_teid_entry(sess->teids[itr1])) {
+		if(sess->teids[itr1] == 0)
+			continue;
+		else if (del_sess_by_teid_entry(sess->teids[itr1])) {
 			/* TODO : ERROR Handling */
 		}
 	}
 
-	/* Update the CP seid in the response packet */
-	sess_del_rsp->header.seid_seqno.has_seid.seid =	sess->cp_seid;
-
 	/* Session Entry is present. Delete Session Entry */
 	ret = rte_hash_del_key(sess_ctx_by_sessid_hash, &sess->up_seid);
 	if (ret < 0) {
-		fprintf(stderr, FORMAT"Entry not found for UP_SESS_ID:%lu...\n",
+		clLog(clSystemLog, eCLSeverityCritical, FORMAT"Entry not found for UP_SESS_ID:%lu...\n",
 					ERR_MSG, sess->up_seid);
 		return -1;
 	}
+
+	/*CLI:decrement active session count*/
+	update_sys_stat(number_of_active_session, DECREMENT);
+
+	return 0;
+}
+
+int8_t
+process_up_session_deletion_req(pfcp_sess_del_req_t *sess_del_req,
+				pfcp_sess_del_rsp_t *sess_del_rsp)
+{
+	pfcp_session_t *sess = NULL;
+
+	clLog(clSystemLog, eCLSeverityDebug, "PFCP Session Deletion Request :: START \n");
+	/* Get the session information from session table based on UP_SESSION_ID*/
+	if (sess_del_req->header.s) {
+		/* Check SEID is not ZERO */
+		sess = get_sess_info_entry(sess_del_req->header.seid_seqno.has_seid.seid,
+				SESS_DEL);
+	}
+
+	if (sess == NULL)
+		return -1;
+
+	if (up_delete_session_entry(sess))
+		return -1;
+
+	/* Update the CP seid in the response packet */
+	sess_del_rsp->header.seid_seqno.has_seid.seid =	sess->cp_seid;
+
+#ifdef USE_CSID
+	if (app.spgw_cfg != PGWU) {
+		if (del_sess_by_csid_entry(sess->sgw_fqcsid, sess->sgwu_fqcsid,
+			sess_del_req->header.seid_seqno.has_seid.seid)) {
+			return -1;
+		}
+	} else {
+		if (del_sess_by_csid_entry(sess->pgw_fqcsid, sess->pgwu_fqcsid,
+			sess_del_req->header.seid_seqno.has_seid.seid)) {
+			return -1;
+		}
+	}
+#endif /* USE_CSID */
+
 	/* Cleanup the session */
 	rte_free(sess);
 	sess = NULL;
 
-	RTE_LOG_DP(DEBUG, DP, "PFCP Session Deletion Request :: END \n\n");
+	clLog(clSystemLog, eCLSeverityDebug, "PFCP Session Deletion Request :: END \n\n");
 	return 0;
 }
 

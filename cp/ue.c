@@ -17,12 +17,13 @@
 #include "ue.h"
 #include "cp.h"
 #include "interface.h"
-
+#include "clogger.h"
 
 extern pfcp_config_t pfcp_config;
 struct rte_hash *ue_context_by_imsi_hash;
 struct rte_hash *ue_context_by_fteid_hash;
 struct rte_hash *pdn_by_fteid_hash;
+struct rte_hash *bearer_by_fteid_hash;
 
 static struct in_addr ip_pool_ip;
 static struct in_addr ip_pool_mask;
@@ -32,6 +33,7 @@ apn apn_list[MAX_NB_DPN];
 /* base value and offset for seid generation */
 const uint32_t s11_sgw_gtpc_base_teid = 0xC0FFEE;
 static uint32_t s11_sgw_gtpc_teid_offset;
+const uint32_t s5s8_sgw_gtpc_base_teid = 0xE0FFEE;
 const uint32_t s5s8_pgw_gtpc_base_teid = 0xD0FFEE;
 static uint32_t s5s8_pgw_gtpc_teid_offset;
 
@@ -159,7 +161,15 @@ create_ue_hash(void)
 				rte_hash_params.name,
 		    rte_strerror(rte_errno), rte_errno);
 	}
-
+	
+	rte_hash_params.name = "bearer_by_teid_hash";
+	rte_hash_params.key_len = sizeof(uint32_t);
+	bearer_by_fteid_hash = rte_hash_create(&rte_hash_params);
+	if (!bearer_by_fteid_hash) {
+                rte_panic("%s hash create failed: %s (%u)\n.",
+                                rte_hash_params.name,
+                    rte_strerror(rte_errno), rte_errno);
+        }
 }
 
 
@@ -168,7 +178,7 @@ set_ip_pool_ip(const char *ip_str)
 {
 	if (!inet_aton(ip_str, &ip_pool_ip))
 		rte_panic("Invalid argument - %s - Exiting.", ip_str);
-	printf("ip_pool_ip:  %s\n", inet_ntoa(ip_pool_ip));
+	clLog(clSystemLog, eCLSeverityDebug,"ip_pool_ip:  %s\n", inet_ntoa(ip_pool_ip));
 }
 
 
@@ -177,7 +187,7 @@ set_ip_pool_mask(const char *ip_str)
 {
 	if (!inet_aton(ip_str, &ip_pool_mask))
 		rte_panic("Invalid argument - %s - Exiting.", ip_str);
-	printf("ip_pool_mask: %s\n", inet_ntoa(ip_pool_mask));
+	clLog(clSystemLog, eCLSeverityDebug,"ip_pool_mask: %s\n", inet_ntoa(ip_pool_mask));
 }
 
 
@@ -222,18 +232,18 @@ print_ue_context_by(struct rte_hash *h, ue_context *context)
 	int32_t ret;
 	uint32_t next = 0;
 	int i;
-	printf(" %16s %1s %16s %16s %8s %8s %11s\n", "imsi", "u", "mei",
+	clLog(clSystemLog, eCLSeverityDebug," %16s %1s %16s %16s %8s %8s %11s\n", "imsi", "u", "mei",
 			"msisdn", "s11-teid", "s11-ipv4", "56789012345");
 	if (context) {
-		printf("*%16lx %1lx %16lx %16lx %8x %15s ", context->imsi,
+		clLog(clSystemLog, eCLSeverityDebug,"*%16lx %1lx %16lx %16lx %8x %15s ", context->imsi,
 		    (uint64_t) context->unathenticated_imsi, context->mei,
 		    context->msisdn, context->s11_sgw_gtpc_teid,
 		     inet_ntoa(context->s11_sgw_gtpc_ipv4));
 		for (i = 0; i < MAX_BEARERS; ++i) {
-			printf("%c", (context->bearer_bitmap & (1 << i))
+			clLog(clSystemLog, eCLSeverityDebug,"%c", (context->bearer_bitmap & (1 << i))
 					? '1' : '0');
 		}
-		printf("\t0x%04x\n", context->bearer_bitmap);
+		clLog(clSystemLog, eCLSeverityDebug,"\t0x%04x\n", context->bearer_bitmap);
 	}
 	if (h == NULL)
 		return;
@@ -242,25 +252,41 @@ print_ue_context_by(struct rte_hash *h, ue_context *context)
 				(void **) &context, &next);
 		if (ret < 0)
 			break;
-		printf(" %16lx %1lx %16lx %16lx %8x %15s ",
+		clLog(clSystemLog, eCLSeverityDebug," %16lx %1lx %16lx %16lx %8x %15s ",
 			context->imsi,
 			(uint64_t) context->unathenticated_imsi,
 			context->mei,
 		    context->msisdn, context->s11_sgw_gtpc_teid,
 		    inet_ntoa(context->s11_sgw_gtpc_ipv4));
 		for (i = 0; i < MAX_BEARERS; ++i) {
-			printf("%c", (context->bearer_bitmap & (1 << i))
+			clLog(clSystemLog, eCLSeverityDebug,"%c", (context->bearer_bitmap & (1 << i))
 					? '1' : '0');
 		}
-		printf("\t0x%4x", context->bearer_bitmap);
+		clLog(clSystemLog, eCLSeverityDebug,"\t0x%4x", context->bearer_bitmap);
 		puts("");
 	}
 }
 
+int
+add_bearer_entry_by_sgw_s5s8_tied(uint32_t fteid_key, struct eps_bearer_t **bearer)
+{
+	int8_t ret = 0;
+	ret = rte_hash_add_key_data(bearer_by_fteid_hash,
+	    (const void *) &fteid_key, (void *) (*bearer));
+	
+	if (ret < 0) {
+		clLog(clSystemLog, eCLSeverityCritical,
+			"%s - Error on rte_hash_add_key_data add\n",
+			strerror(ret));
+		return GTPV2C_CAUSE_SYSTEM_FAILURE;
+	}
+	return 0;
+}
 
 int
 create_ue_context(uint64_t *imsi_val, uint16_t imsi_len,
-		uint8_t ebi, ue_context **context, apn *apn_requested)
+		uint8_t ebi, ue_context **context, apn *apn_requested,
+	  	uint32_t sequence)
 {
 	int ret;
 	int i;
@@ -268,6 +294,7 @@ create_ue_context(uint64_t *imsi_val, uint16_t imsi_len,
 	uint64_t imsi = UINT64_MAX;
 	pdn_connection *pdn = NULL;
 	eps_bearer *bearer = NULL;
+	int if_ue_present = 0;
 
 	memcpy(&imsi, imsi_val, imsi_len);
 
@@ -278,7 +305,7 @@ create_ue_context(uint64_t *imsi_val, uint16_t imsi_len,
 		(*context) = rte_zmalloc_socket(NULL, sizeof(ue_context),
 		    RTE_CACHE_LINE_SIZE, rte_socket_id());
 		if (*context == NULL) {
-			fprintf(stderr, "Failure to allocate ue context "
+			clLog(clSystemLog, eCLSeverityCritical, "Failure to allocate ue context "
 					"structure: %s (%s:%d)\n",
 					rte_strerror(rte_errno),
 					__FILE__,
@@ -286,10 +313,11 @@ create_ue_context(uint64_t *imsi_val, uint16_t imsi_len,
 			return GTPV2C_CAUSE_SYSTEM_FAILURE;
 		}
 		(*context)->imsi = imsi;
+		(*context)->imsi_len = imsi_len;
 		ret = rte_hash_add_key_data(ue_context_by_imsi_hash,
 		    (const void *) &(*context)->imsi, (void *) (*context));
 		if (ret < 0) {
-			fprintf(stderr,
+			clLog(clSystemLog, eCLSeverityCritical,
 				"%s - Error on rte_hash_add_key_data add\n",
 				strerror(ret));
 			rte_free((*context));
@@ -298,22 +326,37 @@ create_ue_context(uint64_t *imsi_val, uint16_t imsi_len,
 	} else {
 		/* VS: TODO: Need to think on this, flush entry when received DSR*/
 		RTE_SET_USED(apn_requested);
+		if_ue_present = 1;
+		if((*context)->eps_bearers[ebi - 5] != NULL ) {
+			pdn = (*context)->eps_bearers[ebi - 5]->pdn;
+			if(pdn != NULL ) {
+				if(pdn->csr_sequence == sequence ) 
+				{
+					/* -2 : Discarding re-transmitted csr */
+					return -2;
+				}
+			}
+		}
 		/*if ((strncmp(apn_requested->apn_name_label,
 					(((*context)->pdns[ebi - 5])->apn_in_use)->apn_name_label,
 					sizeof(apn_requested->apn_name_length))) == 0) {
-			fprintf(stderr,
+			clLog(clSystemLog, eCLSeverityCritical,
 				"%s- Discarding re-transmitted csr received for IMSI:%lu \n",
 				__func__, imsi);
 			return -1;
 		}*/
 	}
+	if (if_ue_present == 0){
+		if ((spgw_cfg == SGWC) || (spgw_cfg == SAEGWC)) {
+			(*context)->s11_sgw_gtpc_teid = s11_sgw_gtpc_base_teid
+			    + s11_sgw_gtpc_teid_offset;
+			++s11_sgw_gtpc_teid_offset;
 
-	if ((spgw_cfg == SGWC) || (spgw_cfg == SAEGWC)) {
-		(*context)->s11_sgw_gtpc_teid = s11_sgw_gtpc_base_teid
-		    + s11_sgw_gtpc_teid_offset;
-		++s11_sgw_gtpc_teid_offset;
-
-	} else if (spgw_cfg == PGWC){
+		} else if (spgw_cfg == PGWC){
+			(*context)->s11_sgw_gtpc_teid = s5s8_pgw_gtpc_base_teid
+				+ s5s8_pgw_gtpc_teid_offset;
+		}
+	}else if (spgw_cfg == PGWC){
 		(*context)->s11_sgw_gtpc_teid = s5s8_pgw_gtpc_base_teid
 			+ s5s8_pgw_gtpc_teid_offset;
 	}
@@ -323,7 +366,7 @@ create_ue_context(uint64_t *imsi_val, uint16_t imsi_len,
 	    (void *) (*context));
 
 	if (ret < 0) {
-		fprintf(stderr,
+		clLog(clSystemLog, eCLSeverityCritical,
 			"%s - Error on ue_context_by_fteid_hash add\n",
 			strerror(ret));
 		rte_hash_del_key(ue_context_by_imsi_hash,
@@ -370,7 +413,7 @@ create_ue_context(uint64_t *imsi_val, uint16_t imsi_len,
 				sizeof(struct pdn_connection_t),
 				RTE_CACHE_LINE_SIZE, rte_socket_id());
 			if (pdn == NULL) {
-				fprintf(stderr, "Failure to allocate PDN "
+				clLog(clSystemLog, eCLSeverityCritical, "Failure to allocate PDN "
 						"structure: %s (%s:%d)\n",
 						rte_strerror(rte_errno),
 						__FILE__,
@@ -384,10 +427,13 @@ create_ue_context(uint64_t *imsi_val, uint16_t imsi_len,
 			pdn->default_bearer_id = ebi;
 		}
 	} else {
+		/*
+		 * Allocate default bearer
+		 */
 		bearer = rte_zmalloc_socket(NULL, sizeof(eps_bearer),
 			RTE_CACHE_LINE_SIZE, rte_socket_id());
 		if (bearer == NULL) {
-			fprintf(stderr, "Failure to allocate bearer "
+			clLog(clSystemLog, eCLSeverityCritical, "Failure to allocate bearer "
 					"structure: %s (%s:%d)\n",
 					rte_strerror(rte_errno),
 					__FILE__,
@@ -398,7 +444,7 @@ create_ue_context(uint64_t *imsi_val, uint16_t imsi_len,
 		pdn = rte_zmalloc_socket(NULL, sizeof(struct pdn_connection_t),
 		    RTE_CACHE_LINE_SIZE, rte_socket_id());
 		if (pdn == NULL) {
-			fprintf(stderr, "Failure to allocate PDN "
+			clLog(clSystemLog, eCLSeverityCritical, "Failure to allocate PDN "
 					"structure: %s (%s:%d)\n",
 					rte_strerror(rte_errno),
 					__FILE__,
@@ -408,6 +454,7 @@ create_ue_context(uint64_t *imsi_val, uint16_t imsi_len,
 		pdn->num_bearer++;
 		(*context)->eps_bearers[ebi_index] = bearer;
 		(*context)->pdns[ebi_index] = pdn;
+		(*context)->num_pdns++;
 		(*context)->bearer_bitmap |= (1 << ebi_index);
 		pdn->eps_bearers[ebi_index] = bearer;
 		pdn->default_bearer_id = ebi;
@@ -427,9 +474,8 @@ create_ue_context(uint64_t *imsi_val, uint16_t imsi_len,
 	    (const void *) &(*context)->s11_sgw_gtpc_teid,
 	    (void *) pdn);
 
-	//printf("PDN SEID(%lu)\n", pdn->seid);
 	if (ret < 0) {
-		fprintf(stderr,
+		clLog(clSystemLog, eCLSeverityCritical,
 			"%s - Error on pdn_by_fteid_hash add\n",
 			strerror(ret));
 		rte_hash_del_key(pdn_by_fteid_hash,
@@ -501,7 +547,7 @@ acquire_ip(struct in_addr *ipv4)
 {
 	static uint32_t next_ip_index;
 	if (unlikely(next_ip_index == LDB_ENTRIES_DEFAULT)) {
-		fprintf(stderr, "IP Pool depleted\n");
+		clLog(clSystemLog, eCLSeverityCritical, "IP Pool depleted\n");
 		return GTPV2C_CAUSE_ALL_DYNAMIC_ADDRESSES_OCCUPIED;
 	}
 	ipv4->s_addr = GET_UE_IP(next_ip_index++);

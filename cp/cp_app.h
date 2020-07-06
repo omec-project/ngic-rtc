@@ -71,6 +71,9 @@ enum e_BUF_HDR {
 	GX_CCA_MSG,
 };
 
+/**
+ * @brief  : Maintains data related to different gs messages
+ */
 typedef struct Gx_msg {
 	uint8_t msg_type;
 	union data_t {
@@ -84,41 +87,107 @@ typedef struct Gx_msg {
 
 #pragma pack()
 
+/**
+ * @brief  : Handles processing of gx rar message
+ * @param  : recv_buf, Received data from incoming message
+ * @return : Returns nothing
+ */
 void
 handle_gx_rar( unsigned char *recv_buf);
 
+/**
+ * @brief  : Handles processing of gx cca message
+ * @param  : recv_buf, Received data from incoming message
+ * @return : Returns nothing
+ */
 void
 handle_gx_cca( unsigned char *recv_buf);
 
+/**
+ * @brief  : Handles incoming gx messages
+ * @param  : No param
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 int
 msg_handler_gx( void );
 
+/**
+ * @brief  : Activate  interface for listening gx messages
+ * @param  : No param
+ * @return : Returns nothing
+ */
 void
 start_cp_app( void );
 
 #ifdef CP_BUILD
+/**
+ * @brief  : Fill ccr request
+ * @param  : ccr, structure to be filled
+ * @param  : context, ue context data
+ * @param  : ebi_index, array index of bearer
+ * @param  : sess_id, session id
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 int
 fill_ccr_request(GxCCR *ccr, ue_context *context,
 		uint8_t ebi_index, char *sess_id);
 
 #endif /* CP_BUILD */
 
+/**
+ * @brief  : Fill rat type ie
+ * @param  : ccr_rat_type, parameter to be filled
+ * @param  : csr_rat_type, input rat type
+ * @return : Returns nothing
+ */
 void
 fill_rat_type_ie( int32_t *ccr_rat_type, uint8_t csr_rat_type );
 
+/**
+ * @brief  : Fill user equipment information
+ * @param  : ccr_user_eq_info, structure to be filled
+ * @param  : csr_imei, imei value
+ * @return : Returns nothing
+ */
 void
 fill_user_equipment_info( GxUserEquipmentInfo *ccr_user_eq_info, uint64_t csr_imei );
 
+/**
+ * @brief  : Fill timezone information
+ * @param  : ccr_tgpp_ms_timezone, structure to be filled
+ * @param  : csr_ue_timezone, input data
+ * @return : Returns nothing
+ */
 void
 fill_3gpp_ue_timezone( Gx3gppMsTimezoneOctetString *ccr_tgpp_ms_timezone,
 		gtp_ue_time_zone_ie_t csr_ue_timezone );
 
+/**
+ * @brief  : Fill subscription id information
+ * @param  : subs_id, structure to be filled
+ * @param  : imsi, imsi value
+ * @param  : msisdn, msisdn value
+ * @return : Returns nothing
+ */
 void
 fill_subscription_id( GxSubscriptionIdList *subs_id, uint64_t imsi, uint64_t msisdn );
 
+/**
+ * @brief  : Process create bearer response and send raa message
+ * @param  : sock, interface id to send raa
+ * @return : Returns nothing
+ */
 void
 process_create_bearer_resp_and_send_raa( int sock );
 
+/**
+ * @brief  : Convert binary data to string value
+ * @param  : b_val, input binary data
+ * @param  : s_val, parameter to store converted string
+ * @param  : b_len, length of binary data
+ * @param  : s_len, length of string
+ * @return : Returns nothing
+ */
 void
 bin_to_str(unsigned char *b_val, char *s_val, int b_len, int s_len);
 

@@ -17,13 +17,9 @@
 #include "ipv4.h"
 
 /**
- * Function to update ipv4 ckcum.
- *
- * @param m
- *	mbuf pointer
- *
- * @return
- *	None
+ * @brief  : Function to update ipv4 ckcum.
+ * @param  : m, mbuf pointer
+ * @return : Returns nothing
  */
 static void update_ckcum(struct rte_mbuf *m)
 {

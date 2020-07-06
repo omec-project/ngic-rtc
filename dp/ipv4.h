@@ -29,13 +29,9 @@
 #endif /* DP_BUILD */
 
 /**
- * Function to return pointer to ip headers, assuming ether header is untagged.
- *
- * @param m
- *	mbuf pointer
- *
- * @return
- *	pointer to ipv4 headers
+ * @brief  : Function to return pointer to ip headers, assuming ether header is untagged.
+ * @param  : m, mbuf pointer
+ * @return : pointer to ipv4 headers
  */
 static inline struct ipv4_hdr *get_mtoip(struct rte_mbuf *m)
 {
@@ -50,13 +46,9 @@ static inline struct ipv4_hdr *get_mtoip(struct rte_mbuf *m)
 }
 
 /**
- * Function to construct IPv4 header with default values.
- *
- * @param m
- *	mbuf pointer
- *
- * @return
- *	None
+ * @brief  : Function to construct IPv4 header with default values.
+ * @param  : m, mbuf pointer
+ * @return : Returns nothing
  */
 static inline void build_ipv4_default_hdr(struct rte_mbuf *m)
 {
@@ -77,19 +69,13 @@ static inline void build_ipv4_default_hdr(struct rte_mbuf *m)
 }
 
 /**
- * Function to construct IPv4 header with default values.
- *
- * @param m
- *	mbuf pointer
- * @param len
- *	len of header
- * @param protocol
- *	next protocol id
- * @param src_ip
- * @param dst_ip
- *
- * @return
- *	None
+ * @brief  : Function to construct IPv4 header with default values.
+ * @param  : m, mbuf pointer
+ * @param  : len, len of header
+ * @param  : protocol, next protocol id
+ * @param  : src_ip, Source ip address
+ * @param  : dst_ip, destination ip address
+ * @return : Returns nothing
  */
 static inline void
 set_ipv4_hdr(struct rte_mbuf *m, uint16_t len, uint8_t protocol,
@@ -108,19 +94,13 @@ set_ipv4_hdr(struct rte_mbuf *m, uint16_t len, uint8_t protocol,
 }
 
 /**
- * Function to construct ipv4 header.
- *
- * @param m
- *	mbuf pointer
- * @param len
- *	len of header
- * @param protocol
- *	next protocol id
- * @param src_ip
- * @param dst_ip
- *
- * @return
- *	None
+ * @brief  : Function to construct ipv4 header.
+ * @param  : m, mbuf pointer
+ * @param  : len, len of header
+ * @param  : protocol, next protocol id
+ * @param  : src_ip, Source ip address
+ * @param  : dst_ip, destination ip address
+ * @return : Returns nothing
  */
 void
 construct_ipv4_hdr(struct rte_mbuf *m, uint16_t len, uint8_t protocol,

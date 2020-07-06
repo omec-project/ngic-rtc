@@ -36,6 +36,8 @@
 
 #include "up_main.h"
 #include "pipeline/epc_arp.h"
+#include "clogger.h"
+#include "gw_adapter.h"
 
 #define TX_QUEUE 1
 
@@ -75,7 +77,7 @@ validate_parameters(uint32_t portmask)
 	uint32_t i;
 
 	if (!portmask) {
-		printf("No port configured in port mask\n");
+		clLog(clSystemLog, eCLSeverityDebug,"No port configured in port mask\n");
 		return -1;
 	}
 
@@ -114,19 +116,19 @@ kni_ingress(struct kni_port_params *p,
 		struct rte_mbuf *pkts_burst[PKT_BURST_SZ],
 		unsigned nb_rx) {
 	if (p == NULL) {
-		printf("KNI port params is NULL!!!\n");
+		clLog(clSystemLog, eCLSeverityDebug,"KNI port params is NULL!!!\n");
 		return;
 	}
 
 	for (uint32_t i = 0; i < p->nb_kni; i++) {
 		/* Burst rx from eth */
 		if (unlikely(nb_rx > PKT_BURST_SZ)) {
-			RTE_LOG_DP(ERR, KNI, "Error receiving from eth\n");
+			clLog(knilogger, eCLSeverityCritical, "Error receiving from eth\n");
 			return;
 		}
 
 		if (nb_rx > 0) {
-			RTE_LOG_DP(DEBUG, KNI, "KNI- kni_probe:%s::"
+			clLog(knilogger, eCLSeverityDebug, "KNI- kni_probe:%s::"
 					"\n\tnb_rx=%u\n",
 					__func__, nb_rx);
 		}
@@ -155,12 +157,12 @@ kni_egress(struct kni_port_params *p)
 		/* Burst rx from kni */
 		unsigned nb_rx = rte_kni_rx_burst(p->kni[i], pkts_burst, PKT_BURST_SZ);
 		if (unlikely(nb_rx > PKT_BURST_SZ)) {
-			RTE_LOG_DP(ERR, KNI, "Error receiving from KNI\n");
+			clLog(knilogger, eCLSeverityCritical, "Error receiving from KNI\n");
 			return;
 		}
 
 		if (nb_rx > 0) {
-			RTE_LOG_DP(DEBUG, KNI, "KNI- kni_probe:%s::"
+			clLog(knilogger, eCLSeverityDebug, "KNI- kni_probe:%s::"
 					"\n\tnb_rx=%u\n",
 					__func__, nb_rx);
 		}
@@ -169,7 +171,7 @@ kni_egress(struct kni_port_params *p)
 			int ret = rte_ring_enqueue(shared_ring[p->port_id], pkts_burst[pkt_cnt]);
 			if (ret == -ENOBUFS) {
 				rte_pktmbuf_free(pkts_burst[pkt_cnt]);
-				RTE_LOG_DP(ERR, DP, "%s::Can't queue pkt- ring full..."
+				clLog(clSystemLog, eCLSeverityCritical, "%s::Can't queue pkt- ring full..."
 						" Dropping pkt", __func__);
 				continue;
 			}
@@ -221,7 +223,7 @@ void check_all_ports_link_status(uint16_t port_num, uint32_t port_mask) {
 				(link.link_duplex == ETH_LINK_FULL_DUPLEX) ?
 					("full-duplex") : ("half-duplex\n"));
 				else
-					printf("Port %d Link Down\n", portid);
+					clLog(clSystemLog, eCLSeverityDebug,"Port %d Link Down\n", portid);
 				continue;
 			}
 			/* clear all_ports_up flag if any link down */
@@ -235,7 +237,7 @@ void check_all_ports_link_status(uint16_t port_num, uint32_t port_mask) {
 			break;
 
 		if (all_ports_up == 0) {
-			printf(".");
+			clLog(clSystemLog, eCLSeverityDebug,".");
 			fflush(stdout);
 			rte_delay_ms(CHECK_INTERVAL);
 		}
@@ -248,7 +250,12 @@ void check_all_ports_link_status(uint16_t port_num, uint32_t port_mask) {
 	}
 }
 
-/* Callback for request of changing MTU */
+/**
+ * @brief  : Callback for request of changing MTU
+ * @param  : port_id, port number
+ * @param  : new_mtu, new mtu value
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 static int
 kni_change_mtu(uint16_t port_id, unsigned int new_mtu)
 {
@@ -259,11 +266,11 @@ kni_change_mtu(uint16_t port_id, unsigned int new_mtu)
 	struct rte_eth_rxconf rxq_conf;
 
 	if (port_id >= rte_eth_dev_count()) {
-		RTE_LOG_DP(ERR, KNI, "Invalid port id %d\n", port_id);
+		clLog(knilogger, eCLSeverityCritical, "Invalid port id %d\n", port_id);
 		return -EINVAL;
 	}
 
-	RTE_LOG_DP(INFO, KNI, "Change MTU of port %d to %u\n", port_id, new_mtu);
+	clLog(knilogger, eCLSeverityInfo, "Change MTU of port %d to %u\n", port_id, new_mtu);
 
 	/* Stop specific port */
 	rte_eth_dev_stop(port_id);
@@ -280,7 +287,7 @@ kni_change_mtu(uint16_t port_id, unsigned int new_mtu)
 							KNI_ENET_FCS_SIZE;
 	ret = rte_eth_dev_configure(port_id, 1, 1, &conf);
 	if (ret < 0) {
-		RTE_LOG_DP(ERR, KNI, "Fail to reconfigure port %d\n", port_id);
+		clLog(knilogger, eCLSeverityCritical, "Fail to reconfigure port %d\n", port_id);
 		return ret;
 	}
 
@@ -298,7 +305,7 @@ kni_change_mtu(uint16_t port_id, unsigned int new_mtu)
 	ret = rte_eth_rx_queue_setup(port_id, 0, nb_rxd,
 		rte_eth_dev_socket_id(port_id), &rxq_conf, mbuf_pool);
 	if (ret < 0) {
-		RTE_LOG_DP(ERR, KNI, "Fail to setup Rx queue of port %d\n",
+		clLog(knilogger, eCLSeverityCritical, "Fail to setup Rx queue of port %d\n",
 				port_id);
 		return ret;
 	}
@@ -306,13 +313,18 @@ kni_change_mtu(uint16_t port_id, unsigned int new_mtu)
 	/* Restart specific port */
 	ret = rte_eth_dev_start(port_id);
 	if (ret < 0) {
-		RTE_LOG_DP(ERR, KNI, "Fail to restart port %d\n", port_id);
+		clLog(knilogger, eCLSeverityCritical, "Fail to restart port %d\n", port_id);
 		return ret;
 	}
 
 	return 0;
 }
 
+/**
+ * @brief  : Callback for request of releasing kni
+ * @param  : port_id, port number
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 static int
 kni_free_kni(uint16_t port_id)
 {
@@ -324,7 +336,7 @@ kni_free_kni(uint16_t port_id)
 
 	for (i = 0; i < p[port_id]->nb_kni; i++) {
 		if (rte_kni_release(p[port_id]->kni[0]))
-			printf("Fail to release kni\n");
+			clLog(clSystemLog, eCLSeverityDebug,"Fail to release kni\n");
 		p[port_id]->kni[i] = NULL;
 	}
 	rte_eth_dev_stop(port_id);
@@ -332,18 +344,23 @@ kni_free_kni(uint16_t port_id)
 	return 0;
 }
 
-/* Callback for request of configuring network interface up/down */
+/**
+ * @brief  : Callback for request of configuring network interface up/down
+ * @param  : port_id, port number
+ * @param  : if_up, flag to check if interface is up
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 static int
 kni_config_network_interface(uint16_t port_id, uint8_t if_up)
 {
 	int ret = 0;
 
 	if (port_id >= rte_eth_dev_count() || port_id >= RTE_MAX_ETHPORTS) {
-		RTE_LOG_DP(ERR, KNI, "Invalid port id %d\n", port_id);
+		clLog(knilogger, eCLSeverityCritical, "Invalid port id %d\n", port_id);
 		return -EINVAL;
 	}
 
-	RTE_LOG_DP(INFO, KNI, "Configure network interface of %d %s\n",
+	clLog(knilogger, eCLSeverityInfo, "Configure network interface of %d %s\n",
 					port_id, if_up ? "up" : "down");
 
 	if (if_up != 0) { /* Configure network interface up */
@@ -358,7 +375,7 @@ kni_config_network_interface(uint16_t port_id, uint8_t if_up)
 	int client_fd = socket(AF_INET, SOCK_DGRAM, 0);
 
 	if(client_fd < 0) {
-		fprintf(stderr, "cannot create socket\n");
+		clLog(clSystemLog, eCLSeverityCritical, "cannot create socket\n");
 		exit(1);
 	}
 
@@ -383,42 +400,53 @@ kni_config_network_interface(uint16_t port_id, uint8_t if_up)
 	//	perror("bind failed");
 	//	exit(EXIT_FAILURE);
 	//} else {
-	//	printf("KNI: Initialize and Configure interface %s socket_fd.\n",
+	//	clLog(knilogger, eCLSeverityDebug,"KNI: Initialize and Configure interface %s socket_fd.\n",
 	//			inet_ntoa(*((struct in_addr *)&servaddr.sin_addr.s_addr)));
 	//}
 
 	if (ret < 0)
-		RTE_LOG_DP(ERR, KNI, "Failed to start port %d\n", port_id);
+		clLog(knilogger, eCLSeverityCritical, "Failed to start port %d\n", port_id);
 
 	return ret;
 }
 
+/**
+ * @brief  : Callback for request to print ethernet address
+ * @param  : name, name
+ * @param  : mac_addr, ethernet address
+ * @return : Returns nothing
+ */
 static void
 print_ethaddr(const char *name, struct ether_addr *mac_addr)
 {
 	char buf[ETHER_ADDR_FMT_SIZE];
 	ether_format_addr(buf, ETHER_ADDR_FMT_SIZE, mac_addr);
-	RTE_LOG_DP(INFO, KNI, "\t%s%s\n", name, buf);
+	clLog(knilogger, eCLSeverityInfo, "\t%s%s\n", name, buf);
 }
 
-/* Callback for request of configuring mac address */
+/**
+ * @brief  : Callback for request configuring mac address
+ * @param  : port_id, port number
+ * @param  : mac_addr, ethernet address
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 static int
 kni_config_mac_address(uint16_t port_id, uint8_t mac_addr[])
 {
 	int ret = 0;
 
 	if (port_id >= rte_eth_dev_count() || port_id >= RTE_MAX_ETHPORTS) {
-		RTE_LOG_DP(ERR, KNI, "Invalid port id %d\n", port_id);
+		clLog(knilogger, eCLSeverityCritical, "Invalid port id %d\n", port_id);
 		return -EINVAL;
 	}
 
-	RTE_LOG_DP(INFO, KNI, "Configure mac address of %d\n", port_id);
+	clLog(knilogger, eCLSeverityInfo, "Configure mac address of %d\n", port_id);
 	print_ethaddr("Address:", (struct ether_addr *)mac_addr);
 
 	ret = rte_eth_dev_default_mac_addr_set(port_id,
 					       (struct ether_addr *)mac_addr);
 	if (ret < 0)
-		RTE_LOG_DP(ERR, KNI, "Failed to config mac_addr for port %d\n",
+		clLog(knilogger, eCLSeverityCritical, "Failed to config mac_addr for port %d\n",
 			port_id);
 
 	return ret;

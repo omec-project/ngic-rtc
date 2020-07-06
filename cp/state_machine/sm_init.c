@@ -20,26 +20,22 @@
 
 #include "ue.h"
 #include "sm_struct.h"
-
-#ifdef C3PO_OSS
 #include "cp_config.h"
-#endif /* C3PO_OSS */
-#define SM_HASH_SIZE (1 << 18)
 
-/**
- * Add session entry in state machine hash table.
- *
- * @param sess_id
- *	key.
- * @param resp_info Resp
- *	return 0 or 1.
- *
- */
+extern struct rte_hash *bearer_by_fteid_hash;
+
+#define SM_HASH_SIZE (1 << 18)
 
 char proc_name[40];
 char state_name[40];
 char event_name[40];
 
+/**
+ * @brief  : Add session entry in state machine hash table.
+ * @param  : sess_id, key.
+ * @param  : resp_info Resp
+ * @return : 0 or 1.
+ */
 uint8_t
 add_sess_entry(uint64_t sess_id, struct resp_info *resp)
 {
@@ -65,7 +61,7 @@ add_sess_entry(uint64_t sess_id, struct resp_info *resp)
 		ret = rte_hash_add_key_data(sm_hash,
 						&sess_id, resp);
 		if (ret) {
-			fprintf(stderr, "%s: Failed to add entry = %lu"
+			clLog(clSystemLog, eCLSeverityCritical, "%s: Failed to add entry = %lu"
 					"\n\tError= %s\n",
 					__func__, sess_id,
 					rte_strerror(abs(ret)));
@@ -88,7 +84,7 @@ get_sess_entry(uint64_t sess_id, struct resp_info **resp)
 				&sess_id, (void **)resp);
 
 	if ( ret < 0) {
-		fprintf(stderr, "%s %s %d Entry not found for sess_id:%lu...\n",__func__,
+		clLog(clSystemLog, eCLSeverityCritical, "%s %s %d Entry not found for sess_id:%lu...\n",__func__,
 				__file__, __LINE__,sess_id);
 		return -1;
 	}
@@ -108,7 +104,7 @@ get_sess_state(uint64_t sess_id)
 				&sess_id, (void **)&resp);
 
 	if ( ret < 0) {
-		fprintf(stderr, "%s %s %d Entry not found for sess_id:%lu...\n",__func__,
+		clLog(clSystemLog, eCLSeverityCritical, "%s %s %d Entry not found for sess_id:%lu...\n",__func__,
 				__file__, __LINE__,sess_id);
 		return -1;
 	}
@@ -129,7 +125,7 @@ update_sess_state(uint64_t sess_id, uint8_t state)
 				&sess_id, (void **)&resp);
 
 	if ( ret < 0) {
-		fprintf(stderr, "%s %s %d :Entry not found for sess_id:%lu...\n", __func__,
+		clLog(clSystemLog, eCLSeverityCritical, "%s %s %d :Entry not found for sess_id:%lu...\n", __func__,
 				__file__, __LINE__, sess_id);
 		return -1;
 	}
@@ -151,13 +147,13 @@ del_sess_entry(uint64_t sess_id)
 
 	/* Check Session Entry is present or Not */
 	ret = rte_hash_lookup_data(sm_hash,
-					&sess_id, (void **)&resp);
+					&sess_id, (void **)resp);
 	if (ret) {
 		/* Session Entry is present. Delete Session Entry */
 		ret = rte_hash_del_key(sm_hash, &sess_id);
 
 		if ( ret < 0) {
-			fprintf(stderr, "%s %s %d:Entry not found for sess_id:%lu...\n",
+			clLog(clSystemLog, eCLSeverityCritical, "%s %s %d:Entry not found for sess_id:%lu...\n",
 						__func__, __file__, __LINE__, sess_id);
 			return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 		}
@@ -173,42 +169,45 @@ del_sess_entry(uint64_t sess_id)
 }
 
 uint8_t
-update_ue_state(uint32_t teid_key, uint8_t state)
+update_ue_state(uint32_t teid_key, uint8_t state,  uint8_t ebi_index)
 {
 	int ret = 0;
 	ue_context *context = NULL;
+	pdn_connection *pdn = NULL;
 	ret = rte_hash_lookup_data(ue_context_by_fteid_hash,
 				&teid_key, (void **)&context);
 
 	if ( ret < 0) {
-		fprintf(stderr, "%s:Failed to update UE State for Teid:%x...\n", __func__,
+		clLog(clSystemLog, eCLSeverityCritical, "%s:Failed to update UE State for Teid:%x...\n", __func__,
 				teid_key);
 		return -1;
 	}
-	context->state = state;
+	pdn = GET_PDN(context , ebi_index);
+	pdn->state = state;
 
 	clLog(clSystemLog, eCLSeverityDebug, "%s: Change UE State for Teid:%u, State:%s\n",
-			__func__, teid_key, get_state_string(context->state));
+			__func__, teid_key, get_state_string(pdn->state));
 	return 0;
 
 }
 
 uint8_t
-get_ue_state(uint32_t teid_key)
+get_ue_state(uint32_t teid_key, uint8_t ebi_index)
 {
 	int ret = 0;
 	ue_context *context = NULL;
+	pdn_connection *pdn = NULL;
 	ret = rte_hash_lookup_data(ue_context_by_fteid_hash,
 				&teid_key, (void **)&context);
 
 	if ( ret < 0) {
-		fprintf(stderr, "%s:Entry not found for teid:%x...\n", __func__, teid_key);
+		clLog(clSystemLog, eCLSeverityCritical, "%s:Entry not found for teid:%x...\n", __func__, teid_key);
 		return -1;
 	}
-
+	pdn = GET_PDN(context , ebi_index);
 	clLog(clSystemLog, eCLSeverityDebug, "%s: Teid:%u, State:%s\n",
-			__func__, teid_key, get_state_string(context->state));
-	return context->state;
+			__func__, teid_key, get_state_string(pdn->state));
+	return pdn->state;
 }
 
 int
@@ -219,7 +218,7 @@ get_pdn(uint32_t teid_key, pdn_connection **pdn)
 				&teid_key, (void **)pdn);
 
 	if ( ret < 0) {
-		fprintf(stderr, "%s:Entry not found for teid:%x...\n", __func__, teid_key);
+		clLog(clSystemLog, eCLSeverityCritical, "%s:Entry not found for teid:%x...\n", __func__, teid_key);
 		return -1;
 	}
 
@@ -230,27 +229,87 @@ get_pdn(uint32_t teid_key, pdn_connection **pdn)
 }
 
 int8_t
+get_bearer_by_teid(uint32_t teid_key, struct eps_bearer_t **bearer)
+{
+	int ret = 0;
+        ret = rte_hash_lookup_data(bearer_by_fteid_hash,
+                                        &teid_key, (void **)bearer);
+
+
+        if ( ret < 0) {
+               // clLog(clSystemLog, eCLSeverityCritical, "%s:Entry not found for teid:%x...\n", __func__, teid_key);
+                return -1;
+        }
+
+
+        clLog(clSystemLog, eCLSeverityDebug, "%s: Teid %u\n",
+                        __func__, teid_key);
+        return 0;
+}
+
+int8_t
+get_ue_context_by_sgw_s5s8_teid(uint32_t teid_key, ue_context **context)
+{
+	int ret = 0;
+	struct eps_bearer_t *bearer = NULL;
+
+	ret = get_bearer_by_teid(teid_key, &bearer);
+	if(ret < 0) {
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%d Entry not found for teid:%x...\n", __func__, __LINE__, teid_key);
+                return -1;
+	}
+	if(bearer != NULL && bearer->pdn != NULL && bearer->pdn->context != NULL ) {
+		*context = bearer->pdn->context;
+		return 0;
+	}
+	return -1;
+}
+/* This function use only in clean up while error */
+int8_t
+get_ue_context_while_error(uint32_t teid_key, ue_context **context)
+{
+	int ret = 0;
+	struct eps_bearer_t *bearer = NULL;
+	/* If teid key is sgwc s11 */
+	ret = rte_hash_lookup_data(ue_context_by_fteid_hash,
+                                        &teid_key, (void **)context);
+	if( ret < 0) {
+		/* If teid key is sgwc s5s8 */
+		ret = get_bearer_by_teid(teid_key, &bearer);
+		if(ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical, "%s:%d Entry not found for teid:%x...\n", __func__, __LINE__, teid_key);
+			return -1;
+		}
+
+     	   *context = bearer->pdn->context;
+	}
+	return 0;
+}
+
+int8_t
 get_ue_context(uint32_t teid_key, ue_context **context)
 {
 
 	int ret = 0;
-	pdn_connection *pdn = NULL;
-	ret = get_pdn(teid_key, &pdn);
+	ret = rte_hash_lookup_data(ue_context_by_fteid_hash,
+					&teid_key, (void **)context);
+
 
 	if ( ret < 0) {
-		fprintf(stderr, "%s:Entry not found for teid:%x...\n", __func__, teid_key);
+		clLog(clSystemLog, eCLSeverityCritical, "%s:Entry not found for teid:%x...\n", __func__, teid_key);
 		return -1;
 	}
-	*context = pdn->context;
 
 
-	clLog(clSystemLog, eCLSeverityDebug, "%s: Teid:%u, State:%s\n",
-			__func__, teid_key, get_state_string((*context)->state));
+	clLog(clSystemLog, eCLSeverityDebug, "%s: Teid %u\n",
+			__func__, teid_key);
 	return 0;
 
 }
 /**
- * @brief Initializes the hash table used to account for CS/MB/DS req and resp handle sync.
+ * @brief  : Initializes the hash table used to account for CS/MB/DS req and resp handle sync.
+ * @param  : No param
+ * @return : Returns nothing
  */
 void
 init_sm_hash(void)
@@ -273,20 +332,9 @@ init_sm_hash(void)
 }
 
 /**
- *@brief Used to update "last" param in cli
- */
-void
-get_current_time(char *last_time_stamp)
-{
-	struct tm * last_timer;
-	time_t rawtime;
-	time (&rawtime);
-	last_timer = localtime (&rawtime);
-	strftime (last_time_stamp,80,"%FT%T",last_timer);
-}
-
-/**
- *@brief It return procedure name from enum
+ * @brief  : It return procedure name from enum
+ * @param  : value, procedure
+ * @return : Returns procedure string
  */
 const char * get_proc_string(int value)
 {
@@ -312,6 +360,18 @@ const char * get_proc_string(int value)
 		case DED_BER_ACTIVATION_PROC:
 			strcpy(proc_name, "DED_BER_ACTIVATION_PROC");
 			break;
+		case PDN_GW_INIT_BEARER_DEACTIVATION:
+			strcpy(proc_name, "PDN_GW_INIT_BEARER_DEACTIVATION");
+			break;
+		case MME_INI_DEDICATED_BEARER_DEACTIVATION_PROC:
+			strcpy(proc_name, "MME_INI_DEDICATED_BEARER_DEACTIVATION_PROC");
+			break;
+		case UPDATE_BEARER_PROC:
+			strcpy(proc_name, "UPDATE_BEARER_PROC");
+			break;
+		case RESTORATION_RECOVERY_PROC:
+			strcpy(proc_name, "RESTORATION_RECOVERY_PROC");
+			break;
 		case END_PROC:
 			strcpy(proc_name, "END_PROC");
 			break;
@@ -323,7 +383,9 @@ const char * get_proc_string(int value)
 }
 
 /**
- *@brief It return state name from enum
+ * @brief  : It return state name from enum
+ * @param  : value, state
+ * @return : Returns state string
  */
 const char * get_state_string(int value)
 {
@@ -331,7 +393,7 @@ const char * get_state_string(int value)
         case SGWC_NONE_STATE:
             strcpy(state_name, "SGWC_NONE_STATE");
             break;
-       case PFCP_ASSOC_REQ_SNT_STATE:
+        case PFCP_ASSOC_REQ_SNT_STATE:
             strcpy(state_name, "PFCP_ASSOC_REQ_SNT_STATE");
             break;
         case PFCP_ASSOC_RESP_RCVD_STATE:
@@ -380,7 +442,7 @@ const char * get_state_string(int value)
             strcpy(state_name, "DDN_ACK_RCVD_STATE");
             break;
 		case MBR_REQ_SNT_STATE:
-            strcpy(state_name, "MBR_REQ_SNT_STATE");
+			strcpy(state_name, "MBR_REQ_SNT_STATE");
 			break;
 		case MBR_RESP_RCVD_STATE:
 			strcpy(state_name, "MBR_RESP_RCVD_STATE");
@@ -392,29 +454,64 @@ const char * get_state_string(int value)
 			 strcpy(state_name, "RE_AUTH_ANS_SNT_STATE");
 			break;
 		case PGWC_NONE_STATE:
-            strcpy(state_name, "PGWC_NONE_STATE");
-            break;
+		        strcpy(state_name, "PGWC_NONE_STATE");
+		        break;
 		case CCR_SNT_STATE:
-            strcpy(state_name, "CCR_SNT_STATE");
-            break;
+		        strcpy(state_name, "CCR_SNT_STATE");
+		        break;
 		case CREATE_BER_RESP_SNT_STATE:
-            strcpy(state_name, "CREATE_BER_RESP_SNT_STATE");
-            break;
+		        strcpy(state_name, "CREATE_BER_RESP_SNT_STATE");
+		        break;
 		case PFCP_PFD_MGMT_RESP_RCVD_STATE:
-            strcpy(state_name, "PFCP_PFD_MGMT_RESP_RCVD_STATE");
-            break;
-        case END_STATE:
-            strcpy(state_name, "END_STATE");
+		        strcpy(state_name, "PFCP_PFD_MGMT_RESP_RCVD_STATE");
+		        break;
+		case ERROR_OCCURED_STATE:
+		        strcpy(state_name, "ERROR_OCCURED_STATE");
+				break;
+		case UPDATE_BEARER_REQ_SNT_STATE:
+		        strcpy(state_name, "UPDATE_BEARER_REQ_SNT_STATE");
+				break;
+		case UPDATE_BEARER_RESP_SNT_STATE:
+		        strcpy(state_name, "UPDATE_BEARER_RESP_SNT_STATE");
+				break;
+		case DELETE_BER_REQ_SNT_STATE:
+		    strcpy(state_name, "DELETE_BER_REQ_SNT_STATE");
 			break;
-        default:
-            strcpy(state_name, "UNDEFINED STATE");
-            break;
+		case CCRU_SNT_STATE:
+		    strcpy(state_name, "CCRU_SNT_STATE");
+			break;
+		case PGW_RSTRT_NOTIF_REQ_SNT_STATE:
+		    strcpy(state_name, "PGW_RSTRT_NOTIF_REQ_SNT_STATE");
+			break;
+		case UPD_PDN_CONN_SET_REQ_SNT_STATE:
+		    strcpy(state_name, "UPD_PDN_CONN_SET_REQ_SNT_STATE");
+			break;
+		case DEL_PDN_CONN_SET_REQ_SNT_STATE:
+		    strcpy(state_name, "DEL_PDN_CONN_SET_REQ_SNT_STATE");
+			break;
+		case DEL_PDN_CONN_SET_REQ_RCVD_STATE:
+		    strcpy(state_name, "DEL_PDN_CONN_SET_REQ_RCVD_STATE");
+			break;
+		case PFCP_SESS_SET_DEL_REQ_SNT_STATE:
+		    strcpy(state_name, "PFCP_SESS_SET_DEL_REQ_SNT_STATE");
+			break;
+		case PFCP_SESS_SET_DEL_REQ_RCVD_STATE:
+		    strcpy(state_name, "PFCP_SESS_SET_DEL_REQ_RCVD_STATE");
+			break;
+		case END_STATE:
+		    strcpy(state_name, "END_STATE");
+			break;
+		default:
+		    strcpy(state_name, "UNDEFINED STATE");
+		    break;
     }
     return state_name;
 }
 
 /**
- *@brief It return event name from enum
+ * @brief  : It return event name from enum
+ * @param  : value, state
+ * @return : Returns event string
  */
 const char * get_event_string(int value)
 {
@@ -479,21 +576,63 @@ const char * get_event_string(int value)
         case PFCP_SESS_RPT_REQ_RCVD_EVNT:
             strcpy(event_name, "PFCP_SESS_RPT_REQ_RCVD_EVNT");
             break;
-		case RE_AUTH_REQ_RCVD_EVNT:
+	case RE_AUTH_REQ_RCVD_EVNT:
             strcpy(event_name, "RE_AUTH_REQ_RCVD_EVNT");
 			break;
-		case CREATE_BER_RESP_RCVD_EVNT:
+	case CREATE_BER_RESP_RCVD_EVNT:
             strcpy(event_name, "CREATE_BER_RESP_RCVD_EVNT");
 			break;
-		case CCA_RCVD_EVNT:
+	case CCA_RCVD_EVNT:
             strcpy(event_name, "CCA_RCVD_EVNT");
 			break;
-		case CREATE_BER_REQ_RCVD_EVNT:
+	case CREATE_BER_REQ_RCVD_EVNT:
             strcpy(event_name, "CREATE_BER_REQ_RCVD_EVNT");
 			break;
-		case PFCP_PFD_MGMT_RESP_RCVD_EVNT:
+	case PFCP_PFD_MGMT_RESP_RCVD_EVNT:
             strcpy(event_name, "PFCP_PFD_MGMT_RESP_RCVD_EVNT");
 			break;
+	case ERROR_OCCURED_EVNT:
+            strcpy(event_name, "ERROR_OCCURED_EVNT");
+            break;
+	case UPDATE_BEARER_REQ_RCVD_EVNT:
+            strcpy(event_name, "UPDATE_BEARER_REQ_RCVD_EVNT");
+            break;
+	case UPDATE_BEARER_RSP_RCVD_EVNT:
+            strcpy(event_name, "UPDATE_BEARER_RSP_RCVD_EVNT");
+            break;
+	case DELETE_BER_REQ_RCVD_EVNT:
+            strcpy(event_name, "DELETE_BER_REQ_RCVD_EVNT");
+            break;
+	case DELETE_BER_RESP_RCVD_EVNT:
+            strcpy(event_name, "DELETE_BER_RESP_RCVD_EVNT");
+            break;
+	case DELETE_BER_CMD_RCVD_EVNT:
+            strcpy(event_name, "DELETE_BER_CMD_RCVD_EVNT");
+            break;
+	case CCAU_RCVD_EVNT:
+            strcpy(event_name, "CCAU_RCVD_EVNT");
+            break;
+        case PFCP_SESS_SET_DEL_REQ_RCVD_EVNT:
+            strcpy(event_name, "PFCP_SESS_SET_DEL_REQ_RCVD_EVNT");
+            break;
+        case PFCP_SESS_SET_DEL_RESP_RCVD_EVNT:
+            strcpy(event_name, "PFCP_SESS_SET_DEL_RSEP_RCVD_EVNT");
+            break;
+		case PGW_RSTRT_NOTIF_ACK_RCVD_EVNT:
+		    strcpy(event_name, "PGW_RSTRT_NOTIF_ACK_RCVD_EVNT");
+		    break;
+		case UPD_PDN_CONN_SET_REQ_RCVD_EVNT:
+		    strcpy(event_name, "UPD_PDN_CONN_SET_REQ_RCVD_EVNT");
+		    break;
+		case UPD_PDN_CONN_SET_RESP_RCVD_EVNT:
+		    strcpy(event_name, "UPD_PDN_CONN_SET_RESP_RCVD_EVNT");
+		    break;
+		case DEL_PDN_CONN_SET_REQ_RCVD_EVNT:
+		    strcpy(event_name, "DEL_PDN_CONN_SET_REQ_RCVD_EVNT");
+		    break;
+		case DEL_PDN_CONN_SET_RESP_RCVD_EVNT:
+		    strcpy(event_name, "DEL_PDN_CONN_SET_RESP_RCVD_EVNT");
+		    break;
         case END_EVNT:
             strcpy(event_name, "END_EVNT");
             break;
@@ -539,6 +678,11 @@ get_procedure(msg_info *msg)
 			break;
 		}
 
+
+		case GTP_DELETE_SESSION_RSP: {
+				proc = DETACH_PROC;
+			break;
+		}
 		case GTP_RELEASE_ACCESS_BEARERS_REQ: {
 			proc = CONN_SUSPEND_PROC;
 
@@ -553,6 +697,59 @@ get_procedure(msg_info *msg)
 
 		case GTP_CREATE_BEARER_RSP: {
 			proc = DED_BER_ACTIVATION_PROC;
+
+			break;
+		}
+
+		case GTP_DELETE_BEARER_REQ: {
+			proc = PDN_GW_INIT_BEARER_DEACTIVATION;
+			break;
+		}
+
+		case GTP_DELETE_BEARER_RSP: {
+			proc = PDN_GW_INIT_BEARER_DEACTIVATION;
+
+			break;
+		}
+
+		case GTP_UPDATE_BEARER_REQ: {
+			proc = UPDATE_BEARER_PROC;
+
+			break;
+		}
+
+		case GTP_UPDATE_BEARER_RSP: {
+			proc = UPDATE_BEARER_PROC;
+
+			break;
+		}
+
+		case GTP_DELETE_BEARER_CMD: {
+			proc = MME_INI_DEDICATED_BEARER_DEACTIVATION_PROC;
+			break;
+		}
+		case GTP_DELETE_PDN_CONNECTION_SET_REQ: {
+			proc = RESTORATION_RECOVERY_PROC;
+
+			break;
+		}
+		case GTP_DELETE_PDN_CONNECTION_SET_RSP: {
+			proc = RESTORATION_RECOVERY_PROC;
+
+			break;
+		}
+		case GTP_UPDATE_PDN_CONNECTION_SET_REQ: {
+			proc = RESTORATION_RECOVERY_PROC;
+
+			break;
+		}
+		case GTP_UPDATE_PDN_CONNECTION_SET_RSP: {
+			proc = RESTORATION_RECOVERY_PROC;
+
+			break;
+		}
+		case GTP_PGW_RESTART_NOTIFICATION_ACK: {
+			proc = RESTORATION_RECOVERY_PROC;
 
 			break;
 		}
@@ -574,24 +771,34 @@ get_csr_proc(create_sess_req_t *csr)
 }
 
 uint8_t
-update_ue_proc(uint32_t teid_key, uint8_t proc)
+update_ue_proc(uint32_t teid_key, uint8_t proc, uint8_t ebi_index)
 {
 	int ret = 0;
 	ue_context *context = NULL;
+	pdn_connection *pdn = NULL;
 	ret = rte_hash_lookup_data(ue_context_by_fteid_hash,
 				&teid_key, (void **)&context);
 
 	if ( ret < 0) {
-		fprintf(stderr, "%s:Failed to update UE State for Teid:%x...\n", __func__,
+		clLog(clSystemLog, eCLSeverityCritical, "%s:Failed to update UE State for Teid:%x...\n", __func__,
 				teid_key);
 		return -1;
 	}
-	context->proc = proc;
+
+	if (context == NULL)
+		return -1;
+
+	pdn = GET_PDN(context, ebi_index);
+
+	if (pdn == NULL)
+		return -1;
+
+	pdn->proc = proc;
 
 	clLog(clSystemLog, eCLSeverityDebug,
 			"%s: Change UE State for Teid:%u, Procedure:%s, State:%s\n",
-			__func__, teid_key, get_proc_string((*context).proc),
-			get_state_string((*context).state));
+			__func__, teid_key, get_proc_string(pdn->proc),
+			get_state_string(pdn->state));
 
 	return 0;
 

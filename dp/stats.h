@@ -22,105 +22,76 @@
  * prototypes of dataplane nic and pipeline stats.
  */
 #include <rte_pipeline.h>
+
 /**
- * Function to display IN and OUT stats for all pipelines from struct.
- *
- * @param
- *	Void
- *
- * @return
- *	None
+ * @brief  : Function to display IN and OUT stats for all pipelines from struct.
+ * @param  : No param
+ * @return : Returns nothing
  */
 void display_stats(void);
+
 /**
- * Function to get IN stats of a pipeline.
- *
- * @param p
- *	rte pipeline.
- * @param port_id
- *	port id.
- * @param istats
- *	struct rte_pipeline_port_in_stats param.
- *
- * @return
- *	None
+ * @brief  : Function to get IN stats of a pipeline.
+ * @param  : p, rte pipeline.
+ * @param  : port_id, port id.
+ * @param  : istats, struct rte_pipeline_port_in_stats param.
+ * @return : Returns nothing
  */
 void pip_istats(struct rte_pipeline *p, char *name, uint8_t port_id,
 		struct rte_pipeline_port_in_stats *istats);
 
 /**
- * Function to fill IN stats for all pipelines in struct.
- *
- * @param
- *	Void
- *
- * @return
- *	None
+ * @brief  : Function to fill IN stats for all pipelines in struct.
+ * @param  : No param
+ * @return : Returns nothing
  */
 void pipeline_in_stats(void);
 
 /**
- * Function to get OUT stats of a pipeline.
- *
- * @param p
- *	rte pipeline.
- * @param name
- *	pipeline name
- * @param port_id
- *	port id.
- * @param ostats
- *	struct rte_pipeline_port_out_stats param.
- *
- * @return
- *	None
+ * @brief  : Function to get OUT stats of a pipeline.
+ * @param  : p, rte pipeline.
+ * @param  : name, pipeline name
+ * @param  : port_id, port id.
+ * @param  : ostats, struct rte_pipeline_port_out_stats param.
+ * @return : Returns nothing
  */
 void pip_ostats(struct rte_pipeline *p, char *name, uint8_t port_id,
 		struct rte_pipeline_port_out_stats *ostats);
 
 /**
- * Function to fill OUT stats for all pipelines in struct.
- *
- * @param
- *	Void
- *
- * @return
- *	None
+ * @brief  : Function to fill OUT stats for all pipelines in struct.
+ * @param  : No param
+ * @return : Returns nothing
  */
 void pipeline_out_stats(void);
 
 /**
- * Function to display NIC stats.
- *
- * @param
- *	Void
- *
- * @return
- *	None
+ * @brief  : Function to display NIC stats.
+ * @param  : No param
+ * @return : Returns nothing
  */
 void nic_in_stats(void);
+
 /**
- * Function to display stats header parameters.
- *
- * @param
- *	Void
- *
- * @return
- *	None
+ * @brief  : Function to display stats header parameters.
+ * @param  : No param
+ * @return : Returns nothing
  */
 void print_headers(void);
 
-/**
- * Core to print the pipeline stats.
- *
- * @param
- *	Unused
- *
- * @return
- *	None
- */
 #ifdef NGCORE_SHRINK
+/**
+ * @brief  : Core to print the pipeline stats.
+ * @param  : No param
+ * @return : Returns nothing
+ */
 void epc_stats_core(void);
 #else
+/**
+ * @brief  : Core to print the pipeline stats.
+ * @param  : args, Unused param
+ * @return : Returns nothing
+ */
 void epc_stats_core(__rte_unused void *args);
 #endif
 

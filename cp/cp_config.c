@@ -61,23 +61,20 @@
 #define PERIODIC_TIMER			"PERIODIC_TIMER"
 #define TRANSMIT_COUNT			"TRANSMIT_COUNT"
 
-int s11logger;
-int s5s8logger;
-int sxlogger;
-int gxlogger;
-int apilogger;
-int epclogger;
+/* CP Timer Parameter */
+#define REQUEST_TIMEOUT 		"REQUEST_TIMEOUT"
+#define REQUEST_TRIES			"REQUEST_TRIES"
 
 void
 config_cp_ip_port(pfcp_config_t *pfcp_config)
 {
-	uint32_t i = 0;
-	uint32_t num_ops_entries = 0;
-	uint32_t num_app_entries = 0;
-	uint32_t num_cache_entries = 0;
-	uint32_t num_ip_pool_entries = 0;
-	uint32_t num_apn_entries = 0;
-	uint32_t num_global_entries = 0;
+	int32_t i = 0;
+	int32_t num_ops_entries = 0;
+	int32_t num_app_entries = 0;
+	int32_t num_cache_entries = 0;
+	int32_t num_ip_pool_entries = 0;
+	int32_t num_apn_entries = 0;
+	int32_t num_global_entries = 0;
 
 	struct rte_cfgfile_entry *global_entries = NULL;
 	struct rte_cfgfile_entry *apn_entries = NULL;
@@ -214,18 +211,69 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 
 		 } else if (strncmp(CP_LOGGER, global_entries[i].name, strlen(CP_LOGGER)) == 0) {
 			 pfcp_config->cp_logger = (uint8_t)atoi(global_entries[i].value);
+			 fprintf(stderr, "CP: CP_LOGGER: %d\n",
+					pfcp_config->cp_logger);
 		 }
 
 		/* Parse timer and counter values from cp.cfg */
-		if(strncmp(TRANSMIT_TIMER, global_entries[i].name, strlen(TRANSMIT_TIMER)) == 0)
+		if(strncmp(TRANSMIT_TIMER, global_entries[i].name, strlen(TRANSMIT_TIMER)) == 0) {
 			pfcp_config->transmit_timer = (int)atoi(global_entries[i].value);
+			fprintf(stderr, "CP: TRANSMIT_TIMER: %d\n",
+				pfcp_config->transmit_timer);
+		}
 
-		if(strncmp(PERIODIC_TIMER, global_entries[i].name, strlen(PERIODIC_TIMER)) == 0)
+		if(strncmp(PERIODIC_TIMER, global_entries[i].name, strlen(PERIODIC_TIMER)) == 0) {
 			pfcp_config->periodic_timer = (int)atoi(global_entries[i].value);
+			fprintf(stderr, "CP: PERIODIC_TIMER: %d\n",
+				pfcp_config->periodic_timer);
+		}
 
-		if(strncmp(TRANSMIT_COUNT, global_entries[i].name, strlen(TRANSMIT_COUNT)) == 0)
+		if(strncmp(TRANSMIT_COUNT, global_entries[i].name, strlen(TRANSMIT_COUNT)) == 0) {
 			pfcp_config->transmit_cnt = (uint8_t)atoi(global_entries[i].value);
+			fprintf(stderr, "CP: TRANSMIT_COUNT: %u\n",
+				pfcp_config->transmit_cnt);
+		}
 
+		/* Parse CP Timer Request Time Out and Retries Values from cp.cfg */
+		if(strncmp(REQUEST_TIMEOUT, global_entries[i].name, strlen(REQUEST_TIMEOUT)) == 0){
+			if(check_cp_req_timeout_config(global_entries[i].value) == 0) {
+				pfcp_config->request_timeout = (int)atoi(global_entries[i].value);
+				fprintf(stderr, "CP: REQUEST_TIMEOUT: %d\n",
+					pfcp_config->request_timeout);
+			} else {
+				rte_panic("Error configuring "
+					"CP TIMER "REQUEST_TIMEOUT" invalid entry of %s\n", STATIC_CP_FILE);
+			}
+		}else {
+			/* if CP Request Timer Parameter is not present is cp.cfg */
+			/* Defualt Request Timerout value */
+			/* 5 minute = 300000 milisecond  */
+			if(pfcp_config->request_timeout == 0) {
+				pfcp_config->request_timeout = 300000;
+				fprintf(stderr, "CP: DEFAULT REQUEST_TIMEOUT: %d\n",
+					pfcp_config->request_timeout);
+			}
+		}
+
+		if(strncmp(REQUEST_TRIES, global_entries[i].name, strlen(REQUEST_TRIES)) == 0) {
+			if(check_cp_req_tries_config(global_entries[i].value) == 0) {
+				pfcp_config->request_tries = (uint8_t)atoi(global_entries[i].value);
+				fprintf(stderr, "CP: REQUEST_TRIES: %d\n",
+					pfcp_config->request_tries);
+			} else {
+				rte_panic("Error configuring "
+					"CP TIMER "REQUEST_TRIES" invalid entry of %s\n", STATIC_CP_FILE);
+			}
+
+		} else {
+			/* if CP Request Timer Parameter is not present is cp.cfg */
+                        /* Defualt Request Retries value */
+			if(pfcp_config->request_tries == 0) {
+				pfcp_config->request_tries = 3;
+				fprintf(stderr, "CP: DEFAULT REQUEST_TRIES: %d\n",
+					pfcp_config->request_tries);
+			}
+		}
 	}
 
 	rte_free(global_entries);
@@ -327,7 +375,7 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 		if (strncmp(INT_SEC, cache_entries[i].name,
 						strlen(CONCURRENT)) == 0)
 			pfcp_config->dns_cache.sec =
-					(uint32_t)atoi(cache_entries[i].value);
+					(((uint32_t)atoi(cache_entries[i].value)) * 1000);
 		if (strncmp(QUERY_TIMEOUT, cache_entries[i].name,
 		                strlen(QUERY_TIMEOUT)) == 0)
 		    pfcp_config->dns_cache.timeoutms =
@@ -483,6 +531,43 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 	return;
 }
 
+int
+check_cp_req_timeout_config(char *value) {
+	unsigned int idx = 0;
+	if(value == NULL )
+	        return -1;
+	/* check string has all digit 0 to 9 */
+	for(idx = 0; idx < strlen(value); idx++) {
+	        if(isdigit(value[idx])  == 0) {
+	                return -1;
+	        }
+	}
+	/* check cp request timer timeout range */
+	if((int)atoi(value) >= 1 && (int)atoi(value) <= 1800000 ) {
+	        return 0;
+	}
+
+	return -1;
+}
+
+int
+check_cp_req_tries_config(char *value) {
+	unsigned int idx = 0;
+	if(value == NULL )
+	        return -1;
+	/* check string has all digit 0 to 9 */
+	for(idx = 0; idx < strlen(value); idx++) {
+	        if(isdigit(value[idx])  == 0) {
+	                return -1;
+	        }
+	}
+	/* check cp request timer tries range */
+	if((int)atoi(value) >= 1 && (int)atoi(value) <= 20) {
+	        return 0;
+	}
+	return -1;
+}
+
 void
 parse_apn_args(char *temp, char *ptr[3])
 {
@@ -539,43 +624,4 @@ parse_apn_args(char *temp, char *ptr[3])
 	}
 
 }
-
-#ifdef C3PO_OSS
-void
-init_cli_module(pfcp_config_t *pfcp_config)
-{
-
-	clSetOption(eCLOptLogFileName, "logs/cp.log");
-	clSetOption(eCLOptStatFileName, "logs/cp_stat.log");
-	clSetOption(eCLOptAuditFileName, "logs/cp_sys.log");
-
-	clInit("sgwc", pfcp_config->cp_logger);
-
-	if (spgw_cfg == SGWC || spgw_cfg == SAEGWC)
-		s11logger = clAddLogger("s11", pfcp_config->cp_logger);
-	if (spgw_cfg == SGWC || spgw_cfg == PGWC)
-		s5s8logger = clAddLogger("s5s8", pfcp_config->cp_logger);
-	if (spgw_cfg == SAEGWC || spgw_cfg == PGWC)
-		gxlogger = clAddLogger("Gx", pfcp_config->cp_logger);
-	sxlogger = clAddLogger("sx", pfcp_config->cp_logger);
-	apilogger = clAddLogger("api", pfcp_config->cp_logger);
-	epclogger = clAddLogger("epc", pfcp_config->cp_logger);
-
-	clAddRecentLogger("sgwc-001","cp",5);
-
-	clStart();
-
-    csInit(clGetStatsLogger(), 5000);
-
-    csStart();
-
-
-    /*CLI:New logic r1.5*/
-	cli_node.cp_type = pfcp_config->cp_type;
-	cli_node.upsecs = &cp_stats.time;
-	cli_init(&cli_node,&cnt_peer);
-
-	init_rest_methods(12997, 1);
-}
-#endif /* C3PO_OSS */
 

@@ -44,6 +44,11 @@
 #include "main.h"
 #include "gtpu.h"
 
+/**
+ * @brief  : Set s1u port id
+ * @param  : m, rte mbuf pointer
+ * @return : Returns nothing
+ */
 static inline void epc_s1u_rx_set_port_id(struct rte_mbuf *m)
 {
 	uint8_t *m_data = rte_pktmbuf_mtod(m, uint8_t *);
@@ -64,7 +69,7 @@ static inline void epc_s1u_rx_set_port_id(struct rte_mbuf *m)
 	if (unlikely(m->ol_flags
 		& (PKT_RX_L4_CKSUM_BAD
 		| PKT_RX_IP_CKSUM_BAD))) {
-		RTE_LOG_DP(ERR, EPC, "Bad checksum\n");
+		clLog(epclogger, eCLSeverityCritical, "Bad checksum\n");
 		ipv4_packet = 0;
 	}
 
@@ -78,7 +83,7 @@ static inline void epc_s1u_rx_set_port_id(struct rte_mbuf *m)
 		if (likely(udph->dst_port == htons(2152))) {
 			/* TODO: Inner could be ipv6 ? */
 
-			RTE_LOG_DP(DEBUG, EPC, "Function:%s::\n\t"
+			clLog(epclogger, eCLSeverityDebug, "Function:%s::\n\t"
 					 "gtpu_hdrsz= %lu\n",
 					 __func__, sizeof(struct gtpu_hdr));
 
@@ -91,7 +96,7 @@ static inline void epc_s1u_rx_set_port_id(struct rte_mbuf *m)
 			const uint32_t *p =
 			    (const uint32_t *)&inner_ipv4_hdr->src_addr;
 
-			RTE_LOG_DP(DEBUG, EPC, "gtpu packet\n");
+			clLog(epclogger, eCLSeverityDebug, "gtpu packet\n");
 			*port_id_offset = 0;
 
 			set_ue_ipv4_hash(ue_ipv4_hash_offset, p);
@@ -99,6 +104,14 @@ static inline void epc_s1u_rx_set_port_id(struct rte_mbuf *m)
 	}
 }
 
+/**
+ * @brief  : Set s1u port id in action handler
+ * @param  : p, rte pipeline pointer
+ * @param  : pkts, rte mbuf pointer
+ * @param  : n, number of packets
+ * @param  : arg, unused parameter
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 static int epc_s1u_rx_port_in_action_handler(struct rte_pipeline *p,
 					struct rte_mbuf **pkts, uint32_t n,
 					void *arg)
@@ -115,6 +128,11 @@ static int epc_s1u_rx_port_in_action_handler(struct rte_pipeline *p,
 	return 0;
 }
 
+/**
+ * @brief  : Set sgi port id in action handler
+ * @param  : m, rte mbuf pointer
+ * @return : Returns nothing
+ */
 static inline void epc_sgi_rx_set_port_id(struct rte_mbuf *m)
 {
 	uint8_t *m_data = rte_pktmbuf_mtod(m, uint8_t *);
@@ -135,7 +153,7 @@ static inline void epc_sgi_rx_set_port_id(struct rte_mbuf *m)
 
 	if (unlikely(m->ol_flags
 		& (PKT_RX_L4_CKSUM_BAD | PKT_RX_IP_CKSUM_BAD))) {
-		RTE_LOG_DP(DEBUG, EPC, "Bad checksum\n");
+		clLog(epclogger, eCLSeverityDebug, "Bad checksum\n");
 		/* put packets with bad checksum to kernel */
 		ipv4_packet = 0;
 	}
@@ -153,12 +171,20 @@ static inline void epc_sgi_rx_set_port_id(struct rte_mbuf *m)
 	if (likely(!*port_id_offset)) {
 		const uint32_t *p = (const uint32_t *)&ipv4_hdr->dst_addr;
 
-		RTE_LOG_DP(DEBUG, EPC, "SGI packet\n");
+		clLog(epclogger, eCLSeverityDebug, "SGI packet\n");
 
 		set_ue_ipv4_hash(ue_ipv4_hash_offset, p);
 	}
 }
 
+/**
+ * @brief  : Set sgi port id in action handler
+ * @param  : p, rte pipeline pointer
+ * @param  : pkts, rte mbuf pointer
+ * @param  : n, number of packets
+ * @param  : arg, unused parameter
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 static int
 epc_sgi_rx_port_in_action_handler(struct rte_pipeline *p,
 					struct rte_mbuf **pkts,
@@ -221,10 +247,10 @@ void epc_rx_init(struct epc_rx_params *param, int core, uint8_t port_id)
 	 /* Input port configuration */
 	if (rte_eth_dev_socket_id(port_id)
 		!= (int)lcore_config[core].socket_id) {
-		RTE_LOG_DP(WARNING, EPC,
+		clLog(epclogger, eCLSeverityMinor,
 			"location of the RX core for port=%d is not optimal\n",
 			port_id);
-		RTE_LOG_DP(WARNING, EPC,
+		clLog(epclogger, eCLSeverityMinor,
 			"***** performance may be degradated !!!!! *******\n");
 	}
 

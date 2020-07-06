@@ -21,6 +21,8 @@
 #include "pfcp_association.h"
 #include "sm_pcnd.h"
 #include "ue.h"
+#include "clogger.h"
+#include "gw_adapter.h"
 
 static uint32_t cc_request_number = 0;
 extern pfcp_config_t pfcp_config;
@@ -39,7 +41,7 @@ handle_gx_rar(unsigned char * recv_buf )
 
 	gx_rar_unpack((unsigned char *)recv_buf, gx_rar );
 
-	printf("Gx RAR : \n  Session Id [%s]  \n re_auth_request_type[%d]\n",
+	clLog(gxlogger, eCLSeverityDebug,"Gx RAR : \n  Session Id [%s]  \n re_auth_request_type[%d]\n",
 			gx_rar->session_id.val,
 			gx_rar->re_auth_request_type );
 }
@@ -64,6 +66,13 @@ fill_rat_type_ie( int32_t *ccr_rat_type, uint8_t csr_rat_type )
 	}
 }
 
+/**
+ * @brief  : Fill qos information
+ * @param  : ccr_qos_info, structure to be filled
+ * @param  : bearer, bearer information
+ * @param  : apn_ambr, ambr details
+ * @return : Returns nothing
+ */
 static void
 fill_qos_info( GxQosInformation *ccr_qos_info,
 		eps_bearer *bearer, ambr_ie *apn_ambr)
@@ -97,6 +106,12 @@ fill_qos_info( GxQosInformation *ccr_qos_info,
 		bearer->qos.dl_gbr;
 }
 
+/**
+ * @brief  : fill default eps bearer qos
+ * @param  : ccr_default_eps_bearer_qos, structure to be filled
+ * @param  : bearer, bearer data
+ * @return : Returns Nothing
+ */
 static void
 fill_default_eps_bearer_qos( GxDefaultEpsBearerQos *ccr_default_eps_bearer_qos,
 		eps_bearer *bearer)
@@ -128,12 +143,12 @@ fill_default_eps_bearer_qos( GxDefaultEpsBearerQos *ccr_default_eps_bearer_qos,
 }
 
 /**
- * @brief convert binary value to string
- * Binary value is stored in 8 bytes, each nibble representing each char.
- * char binary stroes each char in 1 byte.
- * @param[in] b_val : Binary val
- * @param[out] s_val : Converted string val
- * @return void
+ * @brief  : convert binary value to string
+ *           Binary value is stored in 8 bytes, each nibble representing each char.
+ *           char binary stroes each char in 1 byte.
+ * @param  : [in] b_val : Binary val
+ * @param  : [out] s_val : Converted string val
+ * @return : void
  */
 void
 bin_to_str(unsigned char *b_val, char *s_val, int b_len, int s_len)
@@ -157,38 +172,40 @@ bin_to_str(unsigned char *b_val, char *s_val, int b_len, int s_len)
 void
 fill_subscription_id( GxSubscriptionIdList *subs_id, uint64_t imsi, uint64_t msisdn )
 {
+	subs_id->count = 0;
+
 	if( imsi != 0 ) {
-		subs_id->count++;
 		subs_id->list = malloc(sizeof( GxSubscriptionId));
 		if(subs_id->list == NULL){
-			fprintf(stderr,"[%s]:[%s]:[%d] Memory allocation fails\n",
+			clLog(clSystemLog, eCLSeverityCritical,"[%s]:[%s]:[%d] Memory allocation fails\n",
 					__file__, __func__, __LINE__);
 		}
 
-		subs_id->list[0].presence.subscription_id_type = PRESENT;
-		subs_id->list[0].presence.subscription_id_data = PRESENT;
-		subs_id->list[0].subscription_id_type = END_USER_IMSI;
-		subs_id->list[0].subscription_id_data.len = STR_IMSI_LEN -1 ;
+		subs_id->list[subs_id->count].presence.subscription_id_type = PRESENT;
+		subs_id->list[subs_id->count].presence.subscription_id_data = PRESENT;
+		subs_id->list[subs_id->count].subscription_id_type = END_USER_IMSI;
+		subs_id->list[subs_id->count].subscription_id_data.len = STR_IMSI_LEN -1 ;
 		bin_to_str((unsigned char*) (&imsi),
-				(char *)(subs_id->list[0].subscription_id_data.val),
+				(char *)(subs_id->list[subs_id->count].subscription_id_data.val),
 				BINARY_IMSI_LEN, STR_IMSI_LEN);
 
-	} else 	if( msisdn != 0 ) {
 		subs_id->count++;
+	} else 	if( msisdn != 0 ) {
 
 		subs_id->list = malloc(sizeof( GxSubscriptionId));
 		if(subs_id->list == NULL){
-			fprintf(stderr,"[%s]:[%s]:[%d] Memory allocation fails\n",
+			clLog(clSystemLog, eCLSeverityCritical,"[%s]:[%s]:[%d] Memory allocation fails\n",
 					__file__, __func__, __LINE__);
 		}
 
-		subs_id->list[0].presence.subscription_id_type = PRESENT;
-		subs_id->list[0].presence.subscription_id_data = PRESENT;
-		subs_id->list[0].subscription_id_type = END_USER_E164;
-		subs_id->list[0].subscription_id_data.len = STR_MSISDN_LEN;
+		subs_id->list[subs_id->count].presence.subscription_id_type = PRESENT;
+		subs_id->list[subs_id->count].presence.subscription_id_data = PRESENT;
+		subs_id->list[subs_id->count].subscription_id_type = END_USER_E164;
+		subs_id->list[subs_id->count].subscription_id_data.len = STR_MSISDN_LEN;
 		bin_to_str((unsigned char*) (&msisdn),
-				(char *)(subs_id->list[0].subscription_id_data.val),
+				(char *)(subs_id->list[subs_id->count].subscription_id_data.val),
 				BINARY_MSISDN_LEN, STR_MSISDN_LEN);
+		subs_id->count++;
 	}
 }
 
@@ -258,13 +275,13 @@ fill_ccr_request(GxCCR *ccr, ue_context *context,
 			}
 			case UPDATE_REQUEST:
 				ccr->presence.cc_request_number = PRESENT;
-				ccr->cc_request_number = cc_request_number++ ;
+				ccr->cc_request_number = ++cc_request_number ;
 				break;
 
 			case TERMINATION_REQUEST:
 				ccr->presence.cc_request_number = PRESENT;
 				/* Make this number generic */
-				ccr->cc_request_number = 1 ;
+				ccr->cc_request_number =  ++cc_request_number ;
 
 				/* VS: TODO: Need to Check condition handling */
 				ccr->presence.ip_can_type = PRESENT;
@@ -272,7 +289,7 @@ fill_ccr_request(GxCCR *ccr, ue_context *context,
 				break;
 
 			default:
-				RTE_LOG_DP(ERR, CP, "%s : Error: %s \n", __func__,
+				clLog(clSystemLog, eCLSeverityCritical, "%s : Error: %s \n", __func__,
 						strerror(errno));
 				return -1;
 		}
@@ -334,13 +351,6 @@ fill_ccr_request(GxCCR *ccr, ue_context *context,
 		fill_user_equipment_info( &(ccr->user_equipment_info), context->mei );
 	}
 
-	///* VS: TODO Need to check later on */
-	//if( csr->ue_time_zone.header.len != 0 )
-	//{
-	//	ccr->presence.tgpp_ms_timezone = PRESENT;
-	//	fill_3gpp_ue_timezone( &(ccr->tgpp_ms_timezone), csr->ue_time_zone );
-	//}
-
 	return 0;
 }
 
@@ -369,7 +379,7 @@ process_create_bearer_resp_and_send_raa( int sock )
 	memcpy( send_buf, &resp->msg_type, sizeof(resp->msg_type));
 
 	if ( gx_raa_pack(&(resp->data.cp_raa), (unsigned char *)(send_buf + sizeof(resp->msg_type)), buflen ) == 0 )
-		printf("RAA Packing failure on sock [%d] \n", sock);
+		clLog(gxlogger, eCLSeverityDebug,"RAA Packing failure on sock [%d] \n", sock);
 
 	//send_to_ipc_channel( sock, send_buf );
 }

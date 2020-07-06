@@ -17,18 +17,16 @@
 #include <errno.h>
 
 #include <rte_debug.h>
-
+/* TODO: Verify */
+#include "ue.h"
 #include "packet_filters.h"
 #include "gtp_messages.h"
 #include "gtpv2c_set_ie.h"
 #include "../cp_dp_api/vepc_cp_dp_api.h"
 #include "../pfcp_messages/pfcp_set_ie.h"
-
-#ifdef C3PO_OSS
 #include "cp_config.h"
-#endif /* C3PO_OSS */
-
 #include "cp_stats.h"
+
 //#define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
 
 extern pfcp_config_t pfcp_config;
@@ -96,7 +94,7 @@ set_create_session_response(gtpv2c_header_t *gtpv2c_tx,
 		cs_resp.bearer_contexts_created.header.len += sizeof(struct cause_ie_hdr_t) + IE_HEADER_SIZE;
 
 		if (bearer->s11u_mme_gtpu_teid) {
-			printf("S11U Detect- set_create_session_response-"
+			clLog(s11logger, eCLSeverityDebug,"S11U Detect- set_create_session_response-"
 					"\n\tbearer->s11u_mme_gtpu_teid= %X;"
 					"\n\tGTPV2C_IFTYPE_S11U_MME_GTPU= %X\n",
 					htonl(bearer->s11u_mme_gtpu_teid),
@@ -104,7 +102,7 @@ set_create_session_response(gtpv2c_header_t *gtpv2c_tx,
 
 			/* TODO: set fteid values to create session response member */
 			/*
-			printf("S11U Detect- set_create_session_response-"
+			clLog(s11logger, eCLSeverityDebug,"S11U Detect- set_create_session_response-"
 					"\n\tbearer->s11u_mme_gtpu_teid= %X;"
 					"\n\tGTPV2C_IFTYPE_S11U_MME_GTPU= %X\n",
 					bearer->s11u_mme_gtpu_teid,
@@ -173,6 +171,30 @@ set_create_session_response(gtpv2c_header_t *gtpv2c_tx,
 			+ sizeof(ie_header_t);
 	}
 
+#ifdef USE_CSID
+	fqcsid_t *csid = NULL;
+	/* Get peer CSID associated with node */
+	csid = get_peer_addr_csids_entry(context->s11_mme_gtpc_ipv4.s_addr,
+			MOD);
+	if ((csid != NULL) && (csid->num_csid)) {
+		/* Set the SGW FQ-CSID */
+		if ((context->sgw_fqcsid)->num_csid) {
+			set_gtpc_fqcsid_t(&cs_resp.sgw_fqcsid, IE_INSTANCE_ONE,
+					context->sgw_fqcsid);
+		}
+
+		/* Set the PGW FQ-CSID */
+		if (spgw_cfg != SAEGWC) {
+			if ((context->pgw_fqcsid)->num_csid) {
+				set_gtpc_fqcsid_t(&cs_resp.pgw_fqcsid, IE_INSTANCE_ZERO,
+						context->pgw_fqcsid);
+				cs_resp.pgw_fqcsid.node_address = ntohl((context->pgw_fqcsid)->node_addr);
+			}
+		}
+	}
+
+#endif /* USE_CSID */
+
 	uint16_t msg_len = 0;
 	msg_len = encode_create_sess_rsp(&cs_resp, (uint8_t *)gtpv2c_tx);
 	gtpv2c_tx->gtpc.message_len = htons(msg_len - 4);
@@ -198,7 +220,7 @@ process_create_session_request(gtpv2c_header_t *gtpv2c_rx,
 
 	if (csr.indctn_flgs.header.len &&
 			csr.indctn_flgs.indication_uimsi) {
-		fprintf(stderr, "%s:%s:%d Unauthenticated IMSI Not Yet Implemented - "
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d Unauthenticated IMSI Not Yet Implemented - "
 				"Dropping packet\n",
 			   __FILE__, __func__, __LINE__);
 		return -EPERM;
@@ -215,14 +237,14 @@ process_create_session_request(gtpv2c_header_t *gtpv2c_rx,
 			|| !csr.bearer_contexts_to_be_created.bearer_lvl_qos.header.len
 			|| !csr.msisdn.header.len
 			|| !(csr.pdn_type.pdn_type_pdn_type == PDN_IP_TYPE_IPV4) ) {
-		fprintf(stderr, "%s:%s:%d Mandatory IE missing. Dropping packet\n",
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d Mandatory IE missing. Dropping packet\n",
 			   __FILE__, __func__, __LINE__);
 		return -EPERM;
 	}
 
 	if (csr.pdn_type.pdn_type_pdn_type == PDN_IP_TYPE_IPV6 ||
 			csr.pdn_type.pdn_type_pdn_type == PDN_IP_TYPE_IPV4V6) {
-			fprintf(stderr, "%s:%s:%d IPv6 Not Yet Implemented - Dropping packet\n",
+			clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d IPv6 Not Yet Implemented - Dropping packet\n",
 			   __FILE__, __func__, __LINE__);
 			return GTPV2C_CAUSE_PREFERRED_PDN_TYPE_UNSUPPORTED;
 	}
@@ -240,7 +262,8 @@ process_create_session_request(gtpv2c_header_t *gtpv2c_rx,
 
 	/* set s11_sgw_gtpc_teid= key->ue_context_by_fteid_hash */
 	ret = create_ue_context(&csr.imsi.imsi_number_digits, csr.imsi.header.len,
-			csr.bearer_contexts_to_be_created.eps_bearer_id.ebi_ebi, &context, apn_requested);
+			csr.bearer_contexts_to_be_created.eps_bearer_id.ebi_ebi, &context, apn_requested,
+			csr.header.teid.has_teid.seq);
 	if (ret)
 		return ret;
 

@@ -2930,9 +2930,11 @@ int encode_gtp_fqcsid_ie(gtp_fqcsid_ie_t *value,
     encoded += encode_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
     encoded += encode_bits(value->node_id_type, 4, buf + (encoded/8), encoded % CHAR_SIZE);
     encoded += encode_bits(value->number_of_csids, 4, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->node_id, 8, buf + (encoded/8), encoded % CHAR_SIZE);
-    memcpy(buf + (encoded/8), &value->pdn_csid,PDN_CSID_LEN);
-    encoded += PDN_CSID_LEN * CHAR_SIZE;
+    encoded += encode_bits(value->node_address, 32, buf + (encoded/8), encoded % CHAR_SIZE);
+    //memcpy(buf + (encoded/8), &value->pdn_csid,PDN_CSID_LEN);
+    //encoded += PDN_CSID_LEN * CHAR_SIZE;
+	for(int i = 0; i < value->number_of_csids; i++)
+		encoded += encode_bits(value->pdn_csid[i], 16, buf + (encoded/8), encoded % CHAR_SIZE);
 
     return encoded/CHAR_SIZE;
 }
@@ -3596,7 +3598,7 @@ int encode_gtp_ip_address_ie(gtp_ip_address_ie_t *value,
 {
     uint16_t encoded = 0;
     encoded += encode_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-    encoded += encode_bits(value->ipv4_ipv6_addr, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+    encoded += encode_bits(value->ipv4_ipv6_addr, 32, buf + (encoded/8), encoded % CHAR_SIZE);
 
     return encoded/CHAR_SIZE;
 }

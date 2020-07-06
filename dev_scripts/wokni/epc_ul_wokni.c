@@ -77,7 +77,7 @@ static inline void epc_ul_set_port_id(struct rte_mbuf *m)
 	if (unlikely(
 		     (m->ol_flags & PKT_RX_IP_CKSUM_MASK) == PKT_RX_IP_CKSUM_BAD ||
 		     (m->ol_flags & PKT_RX_L4_CKSUM_MASK) == PKT_RX_L4_CKSUM_BAD)) {
-		RTE_LOG_DP(ERR, DP, "UL Bad checksum: %lu\n", m->ol_flags);
+		clLog(clSystemLog, eCLSeverityCritical, "UL Bad checksum: %lu\n", m->ol_flags);
 		ipv4_packet = 0;
 	}
 
@@ -106,7 +106,7 @@ static inline void epc_ul_set_port_id(struct rte_mbuf *m)
 								gtpu_hdr));
 				const uint32_t *p =
 					(const uint32_t *)&inner_ipv4_hdr->src_addr;
-				RTE_LOG_DP(DEBUG, DP, "UL: gtpu packet\n");
+				clLog(clSystemLog, eCLSeverityDebug, "UL: gtpu packet\n");
 				*port_id_offset = 0;
 				ul_gtpu_pkt = 1;
 				ul_arp_pkt = 0;
@@ -213,10 +213,10 @@ void epc_ul_init(struct epc_ul_params *param, int core, uint8_t in_port_id, uint
 	/* Input port configuration */
 	if (rte_eth_dev_socket_id(in_port_id)
 			!= (int)lcore_config[core].socket_id) {
-		RTE_LOG_DP(WARNING, DP,
+		clLog(clSystemLog, eCLSeverityMinor,
 				"location of the RX core for port=%d is not optimal\n",
 				in_port_id);
-		RTE_LOG_DP(WARNING, DP,
+		clLog(clSystemLog, eCLSeverityMinor,
 				"***** performance may be degradated !!!!! *******\n");
 	}
 

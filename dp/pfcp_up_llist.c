@@ -85,7 +85,10 @@ get_sess_data_next_node(pfcp_session_datat_t *head)
 	return NULL;
 }
 
-/* Function to remove the 1st node from the session data Linked List. */
+/* @brief  : Function to remove the 1st node from the session data Linked List.
+ * @param  : head, linked list head pointer
+ * @retrun : Returns linked list head pointer
+ */
 static pfcp_session_datat_t *
 remove_sess_data_first_node(pfcp_session_datat_t *head)
 {
@@ -110,7 +113,11 @@ remove_sess_data_first_node(pfcp_session_datat_t *head)
 	return head;
 }
 
-/* Function to remove the last node from the session data Linked List. */
+/**
+ * @brief  : Function to remove the last node from the session data Linked List.
+ * @param  : head, linked list head pointer
+ * @retrun : Returns linked list head pointer
+ */
 static pfcp_session_datat_t *
 remove_sess_data_last_node(pfcp_session_datat_t *head)
 {
@@ -265,7 +272,11 @@ get_pdr_next_node(pdr_info_t *head)
 	return NULL;
 }
 
-/* Function to remove the 1st node from the PDR Linked List. */
+/**
+ * @brief  : Function to remove the 1st node from the PDR Linked List.
+ * @param  : head, linked list head pointer
+ * @retrun : Returns linked list head pointer
+ */
 static pdr_info_t *
 remove_pdr_first_node(pdr_info_t *head)
 {
@@ -292,7 +303,11 @@ remove_pdr_first_node(pdr_info_t *head)
 	return head;
 }
 
-/* Function to remove the last node from the PDR Linked List. */
+/**
+ * @brief  : Function to remove the last node from the PDR Linked List.
+ * @param  : head, linked list head pointer
+ * @retrun : Returns linked list head pointer
+ */
 static pdr_info_t *
 remove_pdr_last_node(pdr_info_t *head)
 {
@@ -453,7 +468,11 @@ get_qer_next_node(qer_info_t *head)
 	return NULL;
 }
 
-/* Function to remove the 1st node from the QER Linked List. */
+/**
+ * @brief  : Function to remove the 1st node from the QER Linked List.
+ * @param  : head, linked list head pointer
+ * @retrun : Returns linked list head pointer
+ */
 static qer_info_t *
 remove_qer_first_node(qer_info_t *head)
 {
@@ -480,7 +499,11 @@ remove_qer_first_node(qer_info_t *head)
 	return head;
 }
 
-/* Function to remove the last node from the QER Linked List. */
+/**
+ * @brief  : Function to remove the last node from the QER Linked List.
+ * @param  : head, linked list head pointer
+ * @retrun : Returns linked list head pointer
+ */
 static qer_info_t *
 remove_qer_last_node(qer_info_t *head)
 {
@@ -641,7 +664,11 @@ get_urr_next_node(urr_info_t *head)
 	return NULL;
 }
 
-/* Function to remove the 1st node from the URR Linked List. */
+/**
+ * @brief  : Function to remove the 1st node from the URR Linked List.
+ * @param  : head, linked list head pointer
+ * @retrun : Returns linked list head pointer
+ */
 static urr_info_t *
 remove_urr_first_node(urr_info_t *head)
 {
@@ -668,7 +695,11 @@ remove_urr_first_node(urr_info_t *head)
 	return head;
 }
 
-/* Function to remove the last node from the URR Linked List. */
+/**
+ * @brief  : Function to remove the last node from the URR Linked List.
+ * @param  : head, linked list head pointer
+ * @retrun : Returns linked list head pointer
+ */
 static urr_info_t *
 remove_urr_last_node(urr_info_t *head)
 {

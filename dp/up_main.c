@@ -29,12 +29,22 @@
 #include "pfcp_util.h"
 #include "pfcp_set_ie.h"
 
+#include "gw_adapter.h"
+#include "clogger.h"
+#include "cstats.h"
+#ifdef USE_CSID
+#include "csid_struct.h"
+#endif /* USE_CSID */
 /**
  * Main function.
  */
 
 uint32_t start_time;
 extern struct in_addr cp_comm_ip;
+
+#ifdef USE_CSID
+uint16_t local_csid = 0;
+#endif /* USE_CSID */
 
 /**
  * Main function.
@@ -61,6 +71,8 @@ int main(int argc, char **argv)
 	/* DP Init */
 	dp_init(argc, argv);
 
+	init_cli_module(app.dp_logger);
+
 #ifndef PERF_TEST
 	/* Add support for dpdk-18.02 */
 	/* enable DP log level */
@@ -70,19 +82,19 @@ int main(int argc, char **argv)
 		rte_log_set_level(RTE_LOGTYPE_KNI, RTE_LOG_DEBUG);
 		rte_log_set_level(RTE_LOGTYPE_API, RTE_LOG_DEBUG);
 		rte_log_set_level(RTE_LOGTYPE_EPC, RTE_LOG_DEBUG);
-		RTE_LOG_DP(DEBUG, DP, "LOG_LEVEL=LOG_DEBUG::"
+		clLog(clSystemLog, eCLSeverityDebug, "LOG_LEVEL=LOG_DEBUG::"
 				"\n\trte_log_get_global_level()= %u\n\n",
 				rte_log_get_global_level());
 	} else if (app.log_level == NOTICE) {
 		/*Enable NOTICE log level*/
 		rte_log_set_global_level(RTE_LOG_NOTICE);
-		printf("LOG_LEVEL=LOG_NOTICE::"
+		clLog(clSystemLog, eCLSeverityDebug,"LOG_LEVEL=LOG_NOTICE::"
 				"\n\trte_log_get_global_level()= %u\n\n",
 				rte_log_get_global_level());
 	} else {
 		/*Enable INFO log level*/
 		rte_log_set_global_level(RTE_LOG_INFO);
-		printf("LOG_LEVEL=LOG_INFO::"
+		clLog(clSystemLog, eCLSeverityDebug,"LOG_LEVEL=LOG_INFO::"
 				"\n\trte_log_get_global_level()= %u\n\n",
 				rte_log_get_global_level());
 	}
@@ -98,7 +110,7 @@ int main(int argc, char **argv)
 			/**
 			 *UE <--S1U-->[SGW]<--S5/8-->[PGW]<--SGi-->
 			 */
-			RTE_LOG_DP(INFO, DP, "SPGW_CFG=SGWU::"
+			clLog(clSystemLog, eCLSeverityInfo, "SPGW_CFG=SGWU::"
 					"\n\tWEST_PORT=S1U <> EAST_PORT=S5/S8\n");
 			/* Pipeline Init */
 			epc_init_packet_framework(app.s5s8_sgwu_port,
@@ -121,7 +133,7 @@ int main(int argc, char **argv)
 			/**
 			 *UE <--S1U-->[SGW]<--S5/8-->[PGW]<--SGi-->
 			 */
-			RTE_LOG_DP(INFO, DP, "SPGW_CFG=PGWU::"
+			clLog(clSystemLog, eCLSeverityInfo, "SPGW_CFG=PGWU::"
 					"\n\tWEST_PORT=S5/S8 <> EAST_PORT=SGi\n");
 			/* Pipeline Init */
 			epc_init_packet_framework(app.sgi_port, app.s5s8_pgwu_port);
@@ -143,7 +155,7 @@ int main(int argc, char **argv)
 			/**
 			 * UE <--S1U--> [SPGW] <--SGi-->
 			 */
-			RTE_LOG_DP(INFO, DP, "SPGW_CFG=SAEGWU::"
+			clLog(clSystemLog, eCLSeverityInfo, "SPGW_CFG=SAEGWU::"
 					"\n\tWEST_PORT=S1U <> EAST_PORT=SGi\n");
 			/* Pipeline Init */
 			epc_init_packet_framework(app.sgi_port, app.s1u_port);
@@ -186,6 +198,10 @@ int main(int argc, char **argv)
 	rest_thread_init();
 
 #endif  /* USE_REST */
+
+#ifdef USE_CSID
+	init_fqcsid_hash_tables();
+#endif /* USE_CSID */
 
 	packet_framework_launch();
 

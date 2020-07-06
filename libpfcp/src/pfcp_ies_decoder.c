@@ -2663,14 +2663,19 @@ int decode_pfcp_fqcsid_ie_t(uint8_t *buf,
 	total_decoded += decoded;
 	value->number_of_csids = decode_bits(buf, total_decoded, 4, &decoded);
 	total_decoded += decoded;
-	DECODE_NODE_ADDRESS_COND_1(buf, total_decoded, 32, decoded, value);
+	//DECODE_NODE_ADDRESS_COND_1(buf, total_decoded, 32, decoded, value);
+    	value->node_address = decode_bits(buf, total_decoded, 32, &decoded);
 	total_decoded += decoded;
 	/* TODO: Revisit this for change in yang */
 	//DECODE_PDN_CONN_SET_IDENT_COND(buf, total_decoded, 16, decoded, value);
 	//total_decoded += decoded;
 
-	memcpy(&value->pdn_conn_set_ident, buf + (total_decoded/CHAR_SIZE), 2*(value->number_of_csids));
-	total_decoded +=  2*(value->number_of_csids) * CHAR_SIZE;
+	//memcpy(&value->pdn_conn_set_ident, buf + (total_decoded/CHAR_SIZE), 2*(value->number_of_csids));
+	//total_decoded +=  2*(value->number_of_csids) * CHAR_SIZE;
+	for(int itr = 0; itr < value->number_of_csids; itr++) {
+		value->pdn_conn_set_ident[itr] = decode_bits(buf, total_decoded, 16, &decoded);
+		total_decoded += decoded;
+	}
 
 	return total_decoded/CHAR_SIZE;
 }

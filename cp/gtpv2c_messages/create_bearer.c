@@ -22,17 +22,16 @@ extern uint32_t num_adc_rules;
 extern uint32_t adc_rule_id[];
 
 /**
- * parses gtpv2c message and populates parse_cb_rsp structure
- * @param gtpv2c_rx
- *   buffer containing create bearer response message
- * @param cbr
- *   data structure to contain required information elements from parsed
- *   create bearer response
- * @return
- *   \- 0 if successful
- *   \- > 0 if error occurs during packet filter parsing corresponds to 3gpp
- *   specified cause error value
- *   \- < 0 for all other errors
+ * @brief  : parses gtpv2c message and populates parse_cb_rsp structure
+ * @param  : gtpv2c_rx
+ *           buffer containing create bearer response message
+ * @param  : cbr
+ *           data structure to contain required information elements from parsed
+ *           create bearer response
+ * @return : - 0 if successful
+ *           - > 0 if error occurs during packet filter parsing corresponds to 3gpp
+ *             specified cause error value
+ *           - < 0 for all other errors
  */
 #if 0
 static int
@@ -53,7 +52,7 @@ parse_cb_rsp(gtpv2c_header_t *gtpv2c_rx,
 
 	cbr->ded_bearer = cbr->context->ded_bearer;
 	if (cbr->ded_bearer == NULL) {
-		fprintf(stderr, "Received unexpected Create "
+		clLog(clSystemLog, eCLSeverityCritical, "Received unexpected Create "
 				"Bearer Response!\n");
 		return -EPERM;
 	}
@@ -94,7 +93,7 @@ parse_cb_rsp(gtpv2c_header_t *gtpv2c_rx,
 
 	if (cbr->ebi_ie == NULL || cbr->s1u_enb_gtpu_fteid_ie == NULL
 	    || cbr->s1u_sgw_gtpu_fteid_ie == NULL) {
-		fprintf(stderr, "Received Create Bearer "
+		clLog(clSystemLog, eCLSeverityCritical, "Received Create Bearer "
 				"response without expected IEs");
 		return -EPERM;
 	}

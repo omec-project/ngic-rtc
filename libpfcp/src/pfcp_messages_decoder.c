@@ -1623,6 +1623,9 @@ int decode_pfcp_update_pdr_ie_t(uint8_t *buf,
 
       count = decode_pfcp_ie_header_t(buf + count, &value->header);
 
+      count = count/CHAR_SIZE;
+      buf_len = value->header.len;
+      
       value->actvt_predef_rules_count = 0;
       value->deact_predef_rules_count = 0;
 

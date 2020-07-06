@@ -25,13 +25,13 @@
 #include "pfcp_util.h"
 #include "pfcp_set_ie.h"
 #include "pfcp_messages.h"
+#include "clogger.h"
 
 #ifdef CP_BUILD
 #include "cp_config.h"
 #include "sm_pcnd.h"
-#ifdef C3PO_OSS
+#include "cp_timer.h"
 #include "cp_stats.h"
-#endif /* C3PO_OSS */
 #else
 #define LDB_ENTRIES_DEFAULT (1024 * 1024 * 4)
 #endif /* CP_BUILD */
@@ -53,6 +53,14 @@ struct rte_hash *associated_upf_hash;
 #if defined(CP_BUILD) && defined(USE_DNS_QUERY)
 extern pfcp_config_t pfcp_config;
 
+/**
+ * @brief  : Add canonical result entry in upflist hash
+ * @param  : res , result
+ * @param  : res_count , total entries in result
+ * @param  : imsi_val , imsi value
+ * @param  : imsi_len , imsi length
+ * @return : Returns upf count in case of success , 0 if could not get list , -1 otherwise
+ */
 static int
 add_canonical_result_upflist_entry(canonical_result_t *res,
 		uint8_t res_count, uint64_t *imsi_val, uint16_t imsi_len)
@@ -61,7 +69,7 @@ add_canonical_result_upflist_entry(canonical_result_t *res,
 				sizeof(upfs_dnsres_t),
 				RTE_CACHE_LINE_SIZE, rte_socket_id());
 	if (NULL == upf_list) {
-		fprintf(stderr, "Failure to allocate memeory for upf list "
+		clLog(clSystemLog, eCLSeverityCritical, "Failure to allocate memory for upf list "
 				"structure: %s (%s:%d)\n",
 				rte_strerror(rte_errno),
 				__FILE__,
@@ -82,7 +90,7 @@ add_canonical_result_upflist_entry(canonical_result_t *res,
 	}
 
 	if (upf_count == 0) {
-		fprintf(stderr, "Could not get collocated candidate list. \n");
+		clLog(clSystemLog, eCLSeverityCritical, "Could not get collocated candidate list. \n");
 		return 0;
 	}
 
@@ -93,6 +101,14 @@ add_canonical_result_upflist_entry(canonical_result_t *res,
 	return upf_count;
 }
 
+/**
+ * @brief  : Add dns result in upflist hash
+ * @param  : res , dns result
+ * @param  : res_count , total entries in result
+ * @param  : imsi_val , imsi value
+ * @param  : imsi_len , imsi length
+ * @return : Returns upf count in case of success , 0 if could not get list , -1 otherwise
+ */
 static int
 add_dns_result_upflist_entry(dns_query_result_t *res,
 		uint8_t res_count, uint64_t *imsi_val, uint16_t imsi_len)
@@ -101,7 +117,7 @@ add_dns_result_upflist_entry(dns_query_result_t *res,
 				sizeof(upfs_dnsres_t),
 				RTE_CACHE_LINE_SIZE, rte_socket_id());
 	if (NULL == upf_list) {
-		fprintf(stderr, "Failure to allocate memeory for upf list "
+		clLog(clSystemLog, eCLSeverityCritical, "Failure to allocate memeory for upf list "
 				"structure: %s (%s:%d)\n",
 				rte_strerror(rte_errno),
 				__FILE__,
@@ -122,7 +138,7 @@ add_dns_result_upflist_entry(dns_query_result_t *res,
 	}
 
 	if (upf_count == 0) {
-		fprintf(stderr, "Could not get SGW-U list using DNS query \n");
+		clLog(clSystemLog, eCLSeverityCritical, "Could not get SGW-U list using DNS query \n");
 		return 0;
 	}
 
@@ -133,13 +149,18 @@ add_dns_result_upflist_entry(dns_query_result_t *res,
 	return upf_count;
 }
 
+/**
+ * @brief  : Record entries for failed enodeb
+ * @param  : endid , enodeb id
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 static int
 record_failed_enbid(char *enbid)
 {
 	FILE *fp = fopen(FAILED_ENB_FILE, "a");
 
 	if (fp == NULL) {
-		fprintf(stderr, "Could not open %s for writing failed "
+		clLog(clSystemLog, eCLSeverityCritical, "Could not open %s for writing failed "
 				"eNodeB query entry.\n", FAILED_ENB_FILE);
 		return 1;
 	}
@@ -220,7 +241,7 @@ get_upf_list(pdn_connection *pdn)
 			char hb[8] = {0};
 
 			if (ctxt->uli.tai != 1) {
-				fprintf(stderr, "Could not get SGW-U list using DNS"
+				clLog(clSystemLog, eCLSeverityCritical, "Could not get SGW-U list using DNS"
 								"query. TAC missing in CSR.\n");
 				return 0;
 			}
@@ -244,7 +265,7 @@ get_upf_list(pdn_connection *pdn)
 			process_dnsreq(sgwupf_node_sel, sgwu_list, &sgwu_count);
 
 			if (!sgwu_count) {
-				fprintf(stderr, "Could not get SGW-U list using DNS"
+				clLog(clSystemLog, eCLSeverityCritical, "Could not get SGW-U list using DNS"
 					"query \n");
 				return 0;
 			}
@@ -318,7 +339,7 @@ get_upf_list(pdn_connection *pdn)
 		/* VS: Need to check this */
 		/* Get collocated candidate list */
 		if (!strlen((char *)pdn->fqdn)) {
-			fprintf(stderr, "SGW-U node name missing in CSR. \n");
+			clLog(clSystemLog, eCLSeverityCritical, "SGW-U node name missing in CSR. \n");
 			deinit_node_selector(pwupf_node_sel);
 			return 0;
 		}
@@ -328,7 +349,7 @@ get_upf_list(pdn_connection *pdn)
 				(char *)pdn->fqdn, pwupf_node_sel, result);
 
 		if (!res_count) {
-			fprintf(stderr, "Could not get collocated candidate list. \n");
+			clLog(clSystemLog, eCLSeverityCritical, "Could not get collocated candidate list. \n");
 			deinit_node_selector(pwupf_node_sel);
 			return 0;
 		}
@@ -343,22 +364,22 @@ get_upf_list(pdn_connection *pdn)
 }
 
 int
-dns_query_lookup(ue_context *context, uint8_t eps_index, uint32_t **upf_ip)
+dns_query_lookup(pdn_connection *pdn, uint32_t **upf_ip)
 {
 	upfs_dnsres_t *entry = NULL;
 
-	if (get_upf_list(context->pdns[eps_index]) == 0){
+	if (get_upf_list(pdn) == 0){
 		 clLog(sxlogger, eCLSeverityCritical, "%s:%d Error:\n",
 			    __func__, __LINE__);
 		return GTPV2C_CAUSE_REQUEST_REJECTED;
 	}
 
 	/* Fill msg->upf_ipv4 address */
-	if ((get_upf_ip(context, &entry, upf_ip)) != 0) {
-		fprintf(stderr, "Failed to get upf ip address\n");
+	if ((get_upf_ip(pdn->context, &entry, upf_ip)) != 0) {
+		clLog(clSystemLog, eCLSeverityCritical, "Failed to get upf ip address\n");
 		return GTPV2C_CAUSE_REQUEST_REJECTED;
 	}
-	memcpy((context->pdns[eps_index])->fqdn, entry->upf_fqdn[entry->current_upf],
+	memcpy(pdn->fqdn, entry->upf_fqdn[entry->current_upf],
 					strlen(entry->upf_fqdn[entry->current_upf]));
 	return 0;
 }
@@ -454,7 +475,6 @@ create_heartbeat_hash_table(void)
 
 }
 
-/* TODO: HP: Remove following */
 void
 create_associated_upf_hash(void)
 {

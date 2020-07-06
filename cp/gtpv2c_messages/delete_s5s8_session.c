@@ -29,14 +29,14 @@
 #include "sm_struct.h"
 #include "../cp_stats.h"
 #include "../ue.h"
-
-#ifdef C3PO_OSS
 #include"cp_config.h"
-#endif /* C3PO_OSS */
 
 extern int pfcp_fd;
 extern struct sockaddr_in upf_pfcp_sockaddr;
 
+/**
+ * @brief  : Maintans gateway information
+ */
 struct gw_info {
 	uint8_t eps_bearer_id;
 	uint32_t s5s8_sgw_gtpc_teid;
@@ -51,20 +51,19 @@ struct gw_info {
  */
 
 /**
- * Parses delete session request message and handles the removal of
- * corresponding data structures internal to the control plane - as well as
- * notifying the data plane of such changes
- * @param gtpv2c_rx
- *   buffer containing create delete session request message
- * @param _context
- *   returns the UE context structure pertaining to the session to be deleted
- * @param del_teid_ptr
- *   returns pointer to s5s8_sgw_gtpc_teid to be deleted
- * @return
- *   \- 0 if successful
- *   \- > 0 if error occurs during packet filter parsing corresponds to 3gpp
- *   specified cause error value
- *   \- < 0 for all other errors
+ * @brief  : Parses delete session request message and handles the removal of
+ *           corresponding data structures internal to the control plane - as well as
+ *           notifying the data plane of such changes
+ * @param  : gtpv2c_rx
+ *           buffer containing create delete session request message
+ * @param  : _context
+ *           returns the UE context structure pertaining to the session to be deleted
+ * @param  : del_teid_ptr
+ *           returns pointer to s5s8_sgw_gtpc_teid to be deleted
+ * @return : - 0 if successful
+ *           - > 0 if error occurs during packet filter parsing corresponds to 3gpp
+ *             specified cause error value
+ *           - < 0 for all other errors
  */
 //static int
 //delete_pgwc_context(gtpv2c_header *gtpv2c_rx, ue_context **_context,
@@ -112,7 +111,7 @@ struct gw_info {
 //	if (!ebi_ei_to_be_removed) {
 //		/* TODO: should be responding with response indicating error
 //		 * in request */
-//		fprintf(stderr, "Received delete session without ebi! - "
+//		clLog(clSystemLog, eCLSeverityCritical, "Received delete session without ebi! - "
 //				"dropping\n");
 //		return -EPERM;
 //	}
@@ -125,27 +124,27 @@ struct gw_info {
 //
 //	uint8_t ebi_index = ebi - 5;
 //	if (!(context->bearer_bitmap & (1 << ebi_index))) {
-//		fprintf(stderr,
+//		clLog(clSystemLog, eCLSeverityCritical,
 //		    "Received delete session on non-existent EBI - "
 //		    "Dropping packet\n");
-//		fprintf(stderr, "ebi %u\n",
+//		clLog(clSystemLog, eCLSeverityCritical, "ebi %u\n",
 //		    *IE_TYPE_PTR_FROM_GTPV2C_IE(uint8_t, ebi_ei_to_be_removed));
-//		fprintf(stderr, "ebi_index %u\n", ebi_index);
-//		fprintf(stderr, "bearer_bitmap %04x\n", context->bearer_bitmap);
-//		fprintf(stderr, "mask %04x\n", (1 << ebi_index));
+//		clLog(clSystemLog, eCLSeverityCritical, "ebi_index %u\n", ebi_index);
+//		clLog(clSystemLog, eCLSeverityCritical, "bearer_bitmap %04x\n", context->bearer_bitmap);
+//		clLog(clSystemLog, eCLSeverityCritical, "mask %04x\n", (1 << ebi_index));
 //		return -EPERM;
 //	}
 //
 //	pdn_connection *pdn = context->pdns[ebi_index];
 //	resp->seid = context->pdns[ebi_index]->seid;  //NK:change for seid
 //	if (!pdn) {
-//		fprintf(stderr, "Received delete session on "
+//		clLog(clSystemLog, eCLSeverityCritical, "Received delete session on "
 //				"non-existent EBI\n");
 //		return GTPV2C_CAUSE_MANDATORY_IE_INCORRECT;
 //	}
 //
 //	if (pdn->default_bearer_id != ebi) {
-//		fprintf(stderr,
+//		clLog(clSystemLog, eCLSeverityCritical,
 //		    "Received delete session referencing incorrect "
 //		    "default bearer ebi");
 //		return GTPV2C_CAUSE_MANDATORY_IE_INCORRECT;
@@ -175,7 +174,7 @@ struct gw_info {
 //
 //	eps_bearer *bearer = context->eps_bearers[ebi_index];
 //	if (!bearer) {
-//		fprintf(stderr, "Received delete session on non-existent "
+//		clLog(clSystemLog, eCLSeverityCritical, "Received delete session on non-existent "
 //				"default EBI\n");
 //		return GTPV2C_CAUSE_MANDATORY_IE_INCORRECT;
 //	}
@@ -248,7 +247,7 @@ struct gw_info {
 //
 //	if (pfcp_send(pfcp_fd, pfcp_msg,encoded,
 //				&upf_pfcp_sockaddr) < 0 )
-//		printf("Error sending: %i\n",errno);
+//		clLog(clSystemLog, eCLSeverityDebug,"Error sending: %i\n",errno);
 //	else {
 //		cp_stats.session_deletion_req_sent++;
 //		get_current_time(cp_stats.session_deletion_req_sent_time);
@@ -263,7 +262,7 @@ struct gw_info {
 //
 //	/* VS: Stored/Update the session information. */
 //	if (get_sess_entry(_resp.seid, &resp) != 0) {
-//		fprintf(stderr, "Failed to add response in entry in SM_HASH\n");
+//		clLog(clSystemLog, eCLSeverityCritical, "Failed to add response in entry in SM_HASH\n");
 //		return -1;
 //	}
 //
@@ -286,18 +285,17 @@ struct gw_info {
 // */
 //
 ///**
-// * Parses delete session request message and handles the removal of
-// * corresponding data structures internal to the control plane - as well as
-// * notifying the data plane of such changes
-// * @param gtpv2c_rx
-// *   buffer containing create delete session request message
-// * @param _context
-// *   returns the UE context structure pertaining to the session to be deleted
-// * @return
-// *   \- 0 if successful
-// *   \- > 0 if error occurs during packet filter parsing corresponds to 3gpp
-// *   specified cause error value
-// *   \- < 0 for all other errors
+// * @brief  : Parses delete session request message and handles the removal of
+// *           corresponding data structures internal to the control plane - as well as
+// *           notifying the data plane of such changes
+// * @param  : gtpv2c_rx
+// *           buffer containing create delete session request message
+// * @param  : _context
+// *           returns the UE context structure pertaining to the session to be deleted
+// * @return : - 0 if successful
+// *           - > 0 if error occurs during packet filter parsing corresponds to 3gpp
+// *             specified cause error value
+// *           - < 0 for all other errors
 // */
 //static int
 //delete_sgwc_context(gtpv2c_header *gtpv2c_rx, ue_context **_context, uint64_t *seid)
@@ -325,7 +323,7 @@ struct gw_info {
 //				process_sgwc_s5s8_ds_rsp_cnt++,
 //				gtpv2c_rx->teid_u.has_teid.teid,
 //				ret);
-//		printf("Conext not found\n\n");
+//		clLog(clSystemLog, eCLSeverityDebug,"Conext not found\n\n");
 //		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 //	}
 //
@@ -440,7 +438,7 @@ gen_sgwc_s5s8_delete_session_request(gtpv2c_header_t *gtpv2c_rx,
 //
 //	/* Delete entry from session entry */
 //	if (del_sess_entry(seid) != 0){
-//		fprintf(stderr, "NO Session Entry Found for Key sess ID:%lu\n", seid);
+//		clLog(clSystemLog, eCLSeverityCritical, "NO Session Entry Found for Key sess ID:%lu\n", seid);
 //		return -1;
 //	}
 //
@@ -461,13 +459,13 @@ int process_sgwc_delete_handover(uint64_t sess_id, gtpv2c_header_t *gtpv2c_tx)
 	//gtpv2c_header gtpv2c_rx;
 
 	if (get_sess_entry(sess_id, &resp) != 0){
-		fprintf(stderr, "NO Session Entry Found for sess ID:%lu\n", sess_id);
+		clLog(clSystemLog, eCLSeverityCritical, "NO Session Entry Found for sess ID:%lu\n", sess_id);
 		return -1;
 	}
 
 	ret = get_ue_context(teid, &context);
 	if (ret < 0) {
-		fprintf(stderr, "%s:%d Failed to update UE State for teid: %u\n",
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%d Failed to update UE State for teid: %u\n",
 				__func__, __LINE__,
 				teid);
 	}
@@ -492,7 +490,7 @@ int process_sgwc_delete_handover(uint64_t sess_id, gtpv2c_header_t *gtpv2c_tx)
 
 	/* Delete entry from session entry */
 	if (del_sess_entry(sess_id) != 0){
-		fprintf(stderr, "NO Session Entry Found for Key sess ID:%lu\n", sess_id);
+		clLog(clSystemLog, eCLSeverityCritical, "NO Session Entry Found for Key sess ID:%lu\n", sess_id);
 		return -1;
 	}
 	return 0;

@@ -64,7 +64,7 @@ struct kni_port_params *kni_port_params_array[RTE_MAX_ETHPORTS];
 
 /* VS: Route table Discovery */
 /**
- * Routing table hash params.
+ * @brief  : Routing table hash params.
  */
 static struct rte_hash_parameters route_hash_params = {
 	.name = "ROUTE_TABLE",
@@ -76,14 +76,14 @@ static struct rte_hash_parameters route_hash_params = {
 };
 
 /**
- * Route rte hash handler.
+ * @brief  : Route rte hash handler.
  */
 struct rte_hash *route_hash_handle;
 
 uint32_t nb_ports = 0 ;
 
 /**
- * default port config structure .
+ * @brief  : default port config structure .
  */
 const struct rte_eth_conf port_conf_default = {
     .rxmode = {
@@ -115,16 +115,13 @@ struct in_addr cp_comm_ip;
 uint16_t cp_comm_port;
 
 /**
- * Function to Initialize a given port using global settings and with the rx
- * buffers coming from the mbuf_pool passed as parameter
- * @param port
- *	port number.
- * @param mbuf_pool
- *	memory pool pointer.
- *
- * @return
- *	- 0 on success
- *	- -1 on failure
+ * @brief  : Function to Initialize a given port using global settings and with the rx
+ *           buffers coming from the mbuf_pool passed as parameter
+ * @param  : port
+ *           port number.
+ * @param  : mbuf_pool
+ *           memory pool pointer.
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 static inline int port_init(uint8_t port, struct rte_mempool *mbuf_pool)
 {

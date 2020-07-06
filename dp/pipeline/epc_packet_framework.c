@@ -49,8 +49,13 @@
 #include "interface.h"
 #include "dp_ipc_api.h"
 #include "epc_packet_framework.h"
-
+#include "clogger.h"
+#include "gw_adapter.h"
 struct rte_ring *epc_mct_spns_dns_rx;
+
+/**
+ * @brief  : Maintains epc parameters
+ */
 struct epc_app_params epc_app = {
 	/* Ports */
 	.n_ports = NUM_SPGW_PORTS,
@@ -92,6 +97,11 @@ struct epc_app_params epc_app = {
 };
 
 #if defined(SDN_ODL_BUILD)
+/**
+ * @brief  : Start zmq thread
+ * @param  : arg, unused param
+ * @return : Returns nothing
+ */
 static void *dp_zmq_thread(__rte_unused void *arg)
 {
 	while (1)
@@ -100,6 +110,12 @@ static void *dp_zmq_thread(__rte_unused void *arg)
 }
 #endif  /* DP:(SDN_ODL_BUILD */
 
+/**
+ * @brief  : Creats ZMQ read thread , Polls message queue
+ *           Populates hash table from que
+ * @param  : arg, unused parameter
+ * @return : Returns nothing
+ */
 static void epc_iface_core(__rte_unused void *args)
 {
 #ifdef SIMU_CP
@@ -113,9 +129,9 @@ static void epc_iface_core(__rte_unused void *args)
 	uint32_t lcore;
 
 	lcore = rte_lcore_id();
-	RTE_LOG_DP(NOTICE, API, "RTE NOTICE enabled on lcore %d\n", lcore);
-	RTE_LOG_DP(INFO, API, "RTE INFO enabled on lcore %d\n", lcore);
-	RTE_LOG_DP(DEBUG, API, "RTE DEBUG enabled on lcore %d\n", lcore);
+	clLog(apilogger, eCLSeverityMajor, "RTE NOTICE enabled on lcore %d\n", lcore);
+	clLog(apilogger, eCLSeverityInfo, "RTE INFO enabled on lcore %d\n", lcore);
+	clLog(apilogger, eCLSeverityDebug, "RTE DEBUG enabled on lcore %d\n", lcore);
 
 #if defined(SDN_ODL_BUILD)
 	pthread_t t;
@@ -123,9 +139,9 @@ static void epc_iface_core(__rte_unused void *args)
 
 	err = pthread_create(&t, NULL, &dp_zmq_thread, NULL);
 	if (err != 0)
-		RTE_LOG_DP(INFO, API, "\ncan't create ZMQ read thread :[%s]", strerror(err));
+		clLog(apilogger, eCLSeverityInfo, "\ncan't create ZMQ read thread :[%s]", strerror(err));
 	else
-		RTE_LOG_DP(INFO, API, "\n ZMQ read thread created successfully\n");
+		clLog(apilogger, eCLSeverityInfo, "\n ZMQ read thread created successfully\n");
 #endif  /* DP:(SDN_ODL_BUILD */
 
 	/*
@@ -140,6 +156,11 @@ static void epc_iface_core(__rte_unused void *args)
 #endif
 }
 
+/**
+ * @brief  : Initialize epc core
+ * @param  : No param
+ * @return : Returns nothing
+ */
 static void epc_init_lcores(void)
 {
 	epc_alloc_lcore(epc_arp, NULL, epc_app.core_mct);
@@ -175,7 +196,7 @@ static void epc_init_lcores(void)
 	epc_alloc_lcore(epc_tx, &epc_app.tx_params[EAST_PORT_ID],
 						epc_app.core_tx[EAST_PORT_ID]);
 
-	RTE_LOG_DP(DEBUG, DP, "LB_CORE= %d;"
+	clLog(clSystemLog, eCLSeverityDebug, "LB_CORE= %d;"
 			"s1u_port= %d<>core = %d;"
 			"sgi_port= %d<>core =%d\n",
 			epc_app.core_load_balance, app.s1u_port,
@@ -187,7 +208,11 @@ static void epc_init_lcores(void)
 #define for_each_port(port) for (port = 0; port < epc_app.n_ports; port++)
 #define for_each_core(core) for (core = 0; core < DP_MAX_LCORE; core++)
 
-/* initialize rings common to all pipelines */
+/**
+ * @brief  : Initialize rings common to all pipelines
+ * @param  : No param
+ * @return : Returns nothing
+ */
 static void epc_init_rings(void)
 {
 	uint32_t i;
@@ -269,6 +294,11 @@ static void epc_init_rings(void)
 	}
 }
 
+/**
+ * @brief  : Launch epc pipeline
+ * @param  : No param
+ * @return : Returns nothing
+ */
 static inline void epc_run_pipeline(void)
 {
 	struct epc_lcore_config *config;
@@ -298,6 +328,11 @@ static inline void epc_run_pipeline(void)
 		}
 }
 
+/**
+ * @brief  : Start epc core
+ * @param  : arg, unused parameter
+ * @return : Returns 0 in case of success
+ */
 static int epc_lcore_main_loop(__attribute__ ((unused))
 		void *arg)
 {
@@ -310,9 +345,9 @@ static int epc_lcore_main_loop(__attribute__ ((unused))
 	if (config->allocated == 0)
 		return 0;
 
-	RTE_LOG_DP(NOTICE, DP, "RTE NOTICE enabled on lcore %d\n", lcore);
-	RTE_LOG_DP(INFO, DP, "RTE INFO enabled on lcore %d\n", lcore);
-	RTE_LOG_DP(DEBUG, DP, "RTE DEBUG enabled on lcore %d\n", lcore);
+	clLog(clSystemLog, eCLSeverityMajor, "RTE NOTICE enabled on lcore %d\n", lcore);
+	clLog(clSystemLog, eCLSeverityInfo, "RTE INFO enabled on lcore %d\n", lcore);
+	clLog(clSystemLog, eCLSeverityDebug, "RTE DEBUG enabled on lcore %d\n", lcore);
 
 	while (1)
 		epc_run_pipeline();
@@ -323,7 +358,7 @@ static int epc_lcore_main_loop(__attribute__ ((unused))
 void epc_init_packet_framework(uint8_t east_port_id, uint8_t west_port_id)
 {
 	if (epc_app.n_ports > NUM_SPGW_PORTS) {
-		printf("number of ports exceeds a configured number %u\n",
+		clLog(clSystemLog, eCLSeverityDebug,"number of ports exceeds a configured number %u\n",
 				epc_app.n_ports);
 		exit(1);
 	}
@@ -353,8 +388,8 @@ void epc_init_packet_framework(uint8_t east_port_id, uint8_t west_port_id)
 	epc_spns_dns_init();
 
 #ifdef NGCORE_SHRINK
-	printf("Uplink Core on:\t\t\t%d\n", epc_app.core_ul[WEST_PORT_ID]);
-	RTE_LOG_DP(INFO, DP, "ASR- ng-core_shrink:%s::\n\t"
+	clLog(clSystemLog, eCLSeverityDebug,"Uplink Core on:\t\t\t%d\n", epc_app.core_ul[WEST_PORT_ID]);
+	clLog(clSystemLog, eCLSeverityInfo, "ASR- ng-core_shrink:%s::\n\t"
 		"epc_ul_init::epc_app.core_ul[WEST_PORT_ID]= %d\n\t"
 		"WEST_PORT_ID= %d; EAST_PORT_ID= %d\n",
 		__func__, epc_app.core_ul[WEST_PORT_ID],
@@ -364,8 +399,8 @@ void epc_init_packet_framework(uint8_t east_port_id, uint8_t west_port_id)
 				epc_app.core_ul[WEST_PORT_ID],
 				WEST_PORT_ID, EAST_PORT_ID);
 
-	printf("Downlink Core on:\t\t%d\n", epc_app.core_dl[EAST_PORT_ID]);
-	RTE_LOG_DP(INFO, DP, "ASR- ng-core_shrink:%s::\n\t"
+	clLog(clSystemLog, eCLSeverityDebug,"Downlink Core on:\t\t%d\n", epc_app.core_dl[EAST_PORT_ID]);
+	clLog(clSystemLog, eCLSeverityInfo, "ASR- ng-core_shrink:%s::\n\t"
 		"epc_dl_init::epc_app.core_dl[EAST_PORT_ID]= %d\n\t"
 		"EAST_PORT_ID= %d; WEST_PORT_ID= %d\n",
 		__func__, epc_app.core_dl[EAST_PORT_ID],
@@ -376,22 +411,22 @@ void epc_init_packet_framework(uint8_t east_port_id, uint8_t west_port_id)
 				EAST_PORT_ID, WEST_PORT_ID);
 
 #else
-	printf("WEST PORT RX/TX Core on:\t%d\n",
+	clLog(clSystemLog, eCLSeverityDebug,"WEST PORT RX/TX Core on:\t%d\n",
 						epc_app.core_rx[WEST_PORT_ID]);
-	printf("EAST PORT RX/TX Core on:\t%d\n",
+	clLog(clSystemLog, eCLSeverityDebug,"EAST PORT RX/TX Core on:\t%d\n",
 						epc_app.core_rx[EAST_PORT_ID]);
-	printf("LOAD BALANCER Core on:\t\t%d\n",
+	clLog(clSystemLog, eCLSeverityDebug,"LOAD BALANCER Core on:\t\t%d\n",
 						epc_app.core_load_balance);
 	unsigned i;
 	for (i = 0; i < epc_app.num_workers; ++i) {
-		printf("WORKER Core[%u] on:\t\t%u\n",
+		clLog(clSystemLog, eCLSeverityDebug,"WORKER Core[%u] on:\t\t%u\n",
 				i, epc_app.worker_cores[i]);
 	}
 
 	/*
 	 * Initialize pipelines
 	 */
-	RTE_LOG_DP(DEBUG, DP, "ASR- ng-core_shrink:%s::\n\t"
+	clLog(clSystemLog, eCLSeverityDebug, "ASR- ng-core_shrink:%s::\n\t"
 		"epc_rx_init::epc_app.core_rx[WEST_PORT_ID]= %d\n\t"
 		"WEST_PORT_ID= %d\n",
 		__func__, epc_app.core_rx[WEST_PORT_ID], WEST_PORT_ID);
@@ -399,7 +434,7 @@ void epc_init_packet_framework(uint8_t east_port_id, uint8_t west_port_id)
 	epc_rx_init(&epc_app.rx_params[WEST_PORT_ID],
 				epc_app.core_rx[WEST_PORT_ID], WEST_PORT_ID);
 
-	RTE_LOG_DP(DEBUG, DP, "ASR- ng-core_shrink:%s::\n\t"
+	clLog(clSystemLog, eCLSeverityDebug, "ASR- ng-core_shrink:%s::\n\t"
 		"epc_rx_init::epc_app.core_rx[EAST_PORT_ID]= %d\n\t"
 		"EAST_PORT_ID= %d\n",
 		__func__, epc_app.core_rx[EAST_PORT_ID], EAST_PORT_ID);

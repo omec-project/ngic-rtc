@@ -35,7 +35,7 @@
 #include "up_ether.h"
 #include "interface.h"
 #include "epc_packet_framework.h"
-
+#include "clogger.h"
 
 #ifdef PCAP_GEN
 pcap_dumper_t *pcap_dumper_east;
@@ -100,9 +100,9 @@ gtpu_decap(struct rte_mbuf **pkts, uint32_t n,
 						META_DATA_OFFSET);
 		meta_data->teid = ntohl(gtpu_hdr->teid);
 		meta_data->enb_ipv4 = ntohl(ipv4_hdr->src_addr);
-		RTE_LOG_DP(DEBUG, DP, "Received tunneled packet with teid 0x%X\n",
+		clLog(clSystemLog, eCLSeverityDebug, "Received tunneled packet with teid 0x%X\n",
 				ntohl(meta_data->teid));
-		RTE_LOG_DP(DEBUG, DP, "From Ue IP " IPV4_ADDR "\n",
+		clLog(clSystemLog, eCLSeverityDebug, "From Ue IP " IPV4_ADDR "\n",
 				IPV4_ADDR_FORMAT(GTPU_INNER_SRC_IP(pkts[i])));
 
 		ret = DECAP_GTPU_HDR(pkts[i]);
@@ -145,7 +145,7 @@ gtpu_encap(pdr_info_t **pdrs, pfcp_session_datat_t **sess_data, struct rte_mbuf 
 #ifdef STATS
 			--epc_app.dl_params[SGI_PORT_ID].pkts_in;
 #endif /* STATS */
-			RTE_LOG_DP(DEBUG, DP, FORMAT":Session Data is NULL\n", ERR_MSG);
+			clLog(clSystemLog, eCLSeverityDebug, FORMAT":Session Data is NULL\n", ERR_MSG);
 			RESET_BIT(*pkts_mask, i);
 			continue;
 		}
@@ -154,7 +154,7 @@ gtpu_encap(pdr_info_t **pdrs, pfcp_session_datat_t **sess_data, struct rte_mbuf 
 #ifdef STATS
 			--epc_app.dl_params[SGI_PORT_ID].pkts_in;
 #endif /* STATS */
-			RTE_LOG_DP(DEBUG, DP, FORMAT":PDR INFO IS NULL\n", ERR_MSG);
+			clLog(clSystemLog, eCLSeverityDebug, FORMAT":PDR INFO IS NULL\n", ERR_MSG);
 			RESET_BIT(*pkts_mask, i);
 			continue;
 		}
@@ -166,7 +166,7 @@ gtpu_encap(pdr_info_t **pdrs, pfcp_session_datat_t **sess_data, struct rte_mbuf 
 #ifdef STATS
 			--epc_app.dl_params[SGI_PORT_ID].pkts_in;
 #endif /* STATS */
-			RTE_LOG_DP(DEBUG, DP, FORMAT":FAR INFO IS NULL\n", ERR_MSG);
+			clLog(clSystemLog, eCLSeverityDebug, FORMAT":FAR INFO IS NULL\n", ERR_MSG);
 			RESET_BIT(*pkts_mask, i);
 			continue;
 		}
@@ -177,7 +177,7 @@ gtpu_encap(pdr_info_t **pdrs, pfcp_session_datat_t **sess_data, struct rte_mbuf 
 				--epc_app.dl_params[SGI_PORT_ID].pkts_in;
 				++epc_app.dl_params[SGI_PORT_ID].ddn_buf_pkts;
 #endif /* STATS */
-				RTE_LOG_DP(DEBUG, DP, FORMAT"Session State is NOT CONNECTED\n",
+				clLog(clSystemLog, eCLSeverityDebug, FORMAT"Session State is NOT CONNECTED\n",
 					ERR_MSG);
 				RESET_BIT(*pkts_mask, i);
 				SET_BIT(*pkts_queue_mask, i);
@@ -190,7 +190,7 @@ gtpu_encap(pdr_info_t **pdrs, pfcp_session_datat_t **sess_data, struct rte_mbuf 
 			--epc_app.dl_params[SGI_PORT_ID].pkts_in;
 			++epc_app.dl_params[SGI_PORT_ID].ddn_buf_pkts;
 #endif /* STATS */
-			RTE_LOG_DP(DEBUG, DP, "ERROR:"FORMAT"Action is NOT set to FORW,"
+			clLog(clSystemLog, eCLSeverityDebug, "ERROR:"FORMAT"Action is NOT set to FORW,"
 				" PDR_ID:%u, FAR_ID:%u\n",
 				ERR_MSG, pdr->rule_id, far->far_id_value);
 			RESET_BIT(*pkts_mask, i);
@@ -202,7 +202,7 @@ gtpu_encap(pdr_info_t **pdrs, pfcp_session_datat_t **sess_data, struct rte_mbuf 
 #ifdef STATS
 			--epc_app.dl_params[SGI_PORT_ID].pkts_in;
 #endif /* STATS */
-			RTE_LOG_DP(DEBUG, DP, "ERROR:"FORMAT"Next hop teid is NULL: "
+			clLog(clSystemLog, eCLSeverityDebug, "ERROR:"FORMAT"Next hop teid is NULL: "
 				" PDR_ID:%u, FAR_ID:%u\n",
 				ERR_MSG, pdr->rule_id, far->far_id_value);
 			RESET_BIT(*pkts_mask, i);
@@ -214,7 +214,7 @@ gtpu_encap(pdr_info_t **pdrs, pfcp_session_datat_t **sess_data, struct rte_mbuf 
 #ifdef STATS
 			--epc_app.dl_params[SGI_PORT_ID].pkts_in;
 #endif /* STATS */
-			RTE_LOG_DP(DEBUG, DP, "ERROR:"FORMAT":Failed to ENCAP GTPU HEADER \n", ERR_MSG);
+			clLog(clSystemLog, eCLSeverityDebug, "ERROR:"FORMAT":Failed to ENCAP GTPU HEADER \n", ERR_MSG);
 			RESET_BIT(*pkts_mask, i);
 			continue;
 		}
@@ -223,7 +223,7 @@ gtpu_encap(pdr_info_t **pdrs, pfcp_session_datat_t **sess_data, struct rte_mbuf 
 		len = len - ETH_HDR_SIZE;
 
 		dst_addr = (pdr->far)->frwdng_parms.outer_hdr_creation.ipv4_address;
-		RTE_LOG_DP(DEBUG, DP, "DST ADDR:"IPV4_ADDR"\n", IPV4_ADDR_HOST_FORMAT(dst_addr));
+		clLog(clSystemLog, eCLSeverityDebug, "DST ADDR:"IPV4_ADDR"\n", IPV4_ADDR_HOST_FORMAT(dst_addr));
 
 		/* construct iphdr */
 		switch(app.spgw_cfg) {
@@ -288,7 +288,7 @@ ul_sess_info_get(struct rte_mbuf **pkts, uint32_t n,
 				ipv4_hdr = get_mtoip(pkts[j]);
 				if (ipv4_hdr->dst_addr != app.s1u_ip) {
 					RESET_BIT(*pkts_mask, j);
-					RTE_LOG_DP(DEBUG, DP, FORMAT":S1U IP is not valid\n",
+					clLog(clSystemLog, eCLSeverityDebug, FORMAT":S1U IP is not valid\n",
 						ERR_MSG);
 					continue;
 				}
@@ -297,7 +297,7 @@ ul_sess_info_get(struct rte_mbuf **pkts, uint32_t n,
 				udp_hdr = get_mtoudp(pkts[j]);
 				if (ntohs(udp_hdr->dst_port) != UDP_PORT_GTPU) {
 					RESET_BIT(*pkts_mask, j);
-					RTE_LOG_DP(DEBUG, DP, FORMAT":GTPU UDP PORT is not valid\n",
+					clLog(clSystemLog, eCLSeverityDebug, FORMAT":GTPU UDP PORT is not valid\n",
 						ERR_MSG);
 					continue;
 				}
@@ -305,7 +305,7 @@ ul_sess_info_get(struct rte_mbuf **pkts, uint32_t n,
 				gtpu_hdr = get_mtogtpu(pkts[j]);
 				if (gtpu_hdr->teid == 0 || gtpu_hdr->msgtype != GTP_GPDU) {
 					RESET_BIT(*pkts_mask, j);
-					RTE_LOG_DP(DEBUG, DP, FORMAT":GTPU TEID and MSG_TYPE is not valid\n",
+					clLog(clSystemLog, eCLSeverityDebug, FORMAT":GTPU TEID and MSG_TYPE is not valid\n",
 						ERR_MSG);
 					continue;
 				}
@@ -337,13 +337,13 @@ ul_sess_info_get(struct rte_mbuf **pkts, uint32_t n,
 	for (j = 0; j < n; j++) {
 		if (!ISSET_BIT(hit_mask, j)) {
 			RESET_BIT(*pkts_mask, j);
-			RTE_LOG_DP(DEBUG, DP, FORMAT":Session Data LKUP:FAIL!! UL_KEY "
+			clLog(clSystemLog, eCLSeverityDebug, FORMAT":Session Data LKUP:FAIL!! UL_KEY "
 				"TEID:%u\n", ERR_MSG,
 				key[j].teid);
 			sess_data[j] = NULL;
 		} else {
 
-			RTE_LOG_DP(DEBUG, DP, "SESSION INFO:"
+			clLog(clSystemLog, eCLSeverityDebug, "SESSION INFO:"
 					"TEID:%u, "
 					"Session State:%u\n", key[j].teid,
 					(sess_data[j])->sess_state);
@@ -383,7 +383,7 @@ dl_get_sess_info(struct rte_mbuf **pkts, uint32_t n,
 		ipv4_hdr = get_mtoip(pkts[j]);
 		if (ipv4_hdr->dst_addr != app.s5s8_sgwu_ip) {
 			RESET_BIT(*pkts_mask, j);
-			RTE_LOG_DP(DEBUG, DP, FORMAT":S5S8 SGWU IP is not valid\n",
+			clLog(clSystemLog, eCLSeverityDebug, FORMAT":S5S8 SGWU IP is not valid\n",
 				ERR_MSG);
 			continue;
 		}
@@ -392,7 +392,7 @@ dl_get_sess_info(struct rte_mbuf **pkts, uint32_t n,
 		udp_hdr = get_mtoudp(pkts[j]);
 		if (ntohs(udp_hdr->dst_port) != UDP_PORT_GTPU) {
 			RESET_BIT(*pkts_mask, j);
-			RTE_LOG_DP(DEBUG, DP, FORMAT":GTPU UDP PORT is not valid\n",
+			clLog(clSystemLog, eCLSeverityDebug, FORMAT":GTPU UDP PORT is not valid\n",
 				ERR_MSG);
 			continue;
 		}
@@ -400,7 +400,7 @@ dl_get_sess_info(struct rte_mbuf **pkts, uint32_t n,
 		gtpu_hdr = get_mtogtpu(pkts[j]);
 		if (gtpu_hdr->teid == 0 || gtpu_hdr->msgtype != GTP_GPDU) {
 			RESET_BIT(*pkts_mask, j);
-			RTE_LOG_DP(DEBUG, DP, FORMAT":GTPU TEID and MSG_TYPE is not valid\n",
+			clLog(clSystemLog, eCLSeverityDebug, FORMAT":GTPU TEID and MSG_TYPE is not valid\n",
 				ERR_MSG);
 			continue;
 		}
@@ -416,13 +416,13 @@ dl_get_sess_info(struct rte_mbuf **pkts, uint32_t n,
 	for (j = 0; j < n; j++) {
 		if (!ISSET_BIT(hit_mask, j)) {
 			RESET_BIT(*pkts_mask, j);
-			RTE_LOG_DP(DEBUG, DP, FORMAT":Session Data LKUP:FAIL!! UL_KEY "
+			clLog(clSystemLog, eCLSeverityDebug, FORMAT":Session Data LKUP:FAIL!! UL_KEY "
 				"TEID:%u\n", ERR_MSG,
 				key[j].teid);
 			sess_data[j] = NULL;
 		} else {
 
-			RTE_LOG_DP(DEBUG, DP, "SESSION INFO:"
+			clLog(clSystemLog, eCLSeverityDebug, "SESSION INFO:"
 					"TEID:%u, "
 					"Session State:%u\n", key[j].teid,
 					(sess_data[j])->sess_state);
@@ -489,7 +489,7 @@ dl_sess_info_get(struct rte_mbuf **pkts, uint32_t n,
 				ipv4_hdr = get_mtoip(pkts[j]);
 				if (ipv4_hdr->dst_addr != app.s5s8_sgwu_ip) {
 					RESET_BIT(*pkts_mask, j);
-					RTE_LOG_DP(DEBUG, DP, FORMAT":S5S8 IP is not valid\n",
+					clLog(clSystemLog, eCLSeverityDebug, FORMAT":S5S8 IP is not valid\n",
 						ERR_MSG);
 					continue;
 				}
@@ -498,7 +498,7 @@ dl_sess_info_get(struct rte_mbuf **pkts, uint32_t n,
 				udp_hdr = get_mtoudp(pkts[j]);
 				if (ntohs(udp_hdr->dst_port) != UDP_PORT_GTPU) {
 					RESET_BIT(*pkts_mask, j);
-					RTE_LOG_DP(DEBUG, DP, FORMAT":GTPU UDP PORT is not valid\n",
+					clLog(clSystemLog, eCLSeverityDebug, FORMAT":GTPU UDP PORT is not valid\n",
 						ERR_MSG);
 					continue;
 				}
@@ -506,7 +506,7 @@ dl_sess_info_get(struct rte_mbuf **pkts, uint32_t n,
 				gtpu_hdr = get_mtogtpu(pkts[j]);
 				if (gtpu_hdr->teid == 0 || gtpu_hdr->msgtype != GTP_GPDU) {
 					RESET_BIT(*pkts_mask, j);
-					RTE_LOG_DP(DEBUG, DP, FORMAT":GTPU TEID and MSG_TYPE is not valid\n",
+					clLog(clSystemLog, eCLSeverityDebug, FORMAT":GTPU TEID and MSG_TYPE is not valid\n",
 						ERR_MSG);
 					continue;
 				}
@@ -540,7 +540,7 @@ dl_sess_info_get(struct rte_mbuf **pkts, uint32_t n,
 		(struct epc_meta_data *)RTE_MBUF_METADATA_UINT8_PTR(pkts[j],
 							META_DATA_OFFSET);
 		meta_data->key.ue_ipv4 = key[j].ue_ipv4;
-		RTE_LOG_DP(DEBUG, DP, "BEAR_SESS LKUP:DL_KEY ue_addr:"IPV4_ADDR
+		clLog(clSystemLog, eCLSeverityDebug, "BEAR_SESS LKUP:DL_KEY ue_addr:"IPV4_ADDR
 				"\n",
 				IPV4_ADDR_HOST_FORMAT(ntohl(meta_data->key.ue_ipv4)));
 
@@ -549,18 +549,18 @@ dl_sess_info_get(struct rte_mbuf **pkts, uint32_t n,
 
 	if ((iface_lookup_downlink_bulk_data((const void **)&key_ptr[0], n,
 			&hit_mask, (void **)si)) < 0) {
-		RTE_LOG_DP(ERR, DP, "SDF BEAR Bulk LKUP:FAIL!!\n");
+		clLog(clSystemLog, eCLSeverityCritical, "SDF BEAR Bulk LKUP:FAIL!!\n");
 	}
 
 	for (j = 0; j < n; j++) {
 		if (!ISSET_BIT(hit_mask, j)) {
 			RESET_BIT(*pkts_mask, j);
-			RTE_LOG_DP(DEBUG, DP, "SDF BEAR LKUP FAIL!! DL_KEY "
+			clLog(clSystemLog, eCLSeverityDebug, "SDF BEAR LKUP FAIL!! DL_KEY "
 					"UE_Addr:"IPV4_ADDR"\n",
 				IPV4_ADDR_HOST_FORMAT(ntohl((key[j]).ue_ipv4)));
 			si[j] = NULL;
 		} else {
-			RTE_LOG_DP(DEBUG, DP, "SESSION INFO:"
+			clLog(clSystemLog, eCLSeverityDebug, "SESSION INFO:"
 					"UE_Addr:"IPV4_ADDR", ACL_TABLE_Index-%u "
 					"Session State:%u\n",
 				IPV4_ADDR_HOST_FORMAT((si[j])->ue_ip_addr),
@@ -594,10 +594,10 @@ qer_gating(pdr_info_t **pdr, uint32_t n, uint64_t *pkts_mask,
 				if (pdr[i]->qer_count) {
 					if ((pdr[i]->quer[0]).gate_status.ul_gate == CLOSE) {
 						RESET_BIT(*pkts_mask, i);
-						RTE_LOG_DP(DEBUG, DP, "Matched PDR_ID:%u, FAR_ID:%u, QER_ID:%u\n",
+						clLog(clSystemLog, eCLSeverityDebug, "Matched PDR_ID:%u, FAR_ID:%u, QER_ID:%u\n",
 								pdr[i]->rule_id, (pdr[i]->far)->far_id_value,
 								(pdr[i]->quer[0]).qer_id);
-						RTE_LOG_DP(DEBUG, DP, "Packets DROPPED: UL_GATE: CLOSED\n");
+						clLog(clSystemLog, eCLSeverityDebug, "Packets DROPPED: UL_GATE: CLOSED\n");
 					}
 				}
 			}
@@ -610,10 +610,10 @@ qer_gating(pdr_info_t **pdr, uint32_t n, uint64_t *pkts_mask,
 				if (pdr[i]->qer_count) {
 					if ((pdr[i]->quer[0]).gate_status.dl_gate == CLOSE) {
 						RESET_BIT(*pkts_mask, i);
-						RTE_LOG_DP(DEBUG, DP, "Matched PDR_ID:%u, FAR_ID:%u, QER_ID:%u\n",
+						clLog(clSystemLog, eCLSeverityDebug, "Matched PDR_ID:%u, FAR_ID:%u, QER_ID:%u\n",
 								pdr[i]->rule_id, (pdr[i]->far)->far_id_value,
 								(pdr[i]->quer[0]).qer_id);
-						RTE_LOG_DP(DEBUG, DP, "Packets DROPPED: DL_GATE: CLOSED\n");
+						clLog(clSystemLog, eCLSeverityDebug, "Packets DROPPED: DL_GATE: CLOSED\n");
 					}
 				}
 			}
@@ -621,6 +621,12 @@ qer_gating(pdr_info_t **pdr, uint32_t n, uint64_t *pkts_mask,
 	}
 }
 
+/**
+ * @brief  : Check if packet contains dns data
+ * @param  : m, buffer containing  packet data
+ * @param  : rid, dns rule id
+ * @return : Returns true for dns packet, false otherwise
+ */
 static inline bool is_dns_pkt(struct rte_mbuf *m, uint32_t rid)
 {
 	struct ipv4_hdr *ip_hdr;
@@ -659,6 +665,11 @@ update_dns_meta(struct rte_mbuf **pkts, uint32_t n, uint32_t *rid)
 }
 
 #ifdef HYPERSCAN_DPI
+/**
+ * @brief  : Get worker index
+ * @param  : lcore_id
+ * @return : Returns epc app worker index
+ */
 static int
 get_worker_index(unsigned lcore_id)
 {
@@ -718,23 +729,30 @@ update_nexts5s8_info(struct rte_mbuf **pkts, uint32_t n,
 			len = rte_pktmbuf_data_len(pkts[i]);
 			len = len - ETH_HDR_SIZE;
 
-			if (app.spgw_cfg == SGWU) {
-				/*TODO : Make readable*/
-				uint32_t s5s8_pgwu_addr =
-					sess_data[i]->pdrs->far->frwdng_parms.outer_hdr_creation.ipv4_address;
-				construct_ipv4_hdr(pkts[i], len, IP_PROTO_UDP,
-						ntohl(app.s5s8_sgwu_ip), s5s8_pgwu_addr);
-			}else if (app.spgw_cfg == PGWU) {
-				uint32_t s5s8_sgwu_addr =
-					sess_data[i]->pdrs->far->frwdng_parms.outer_hdr_creation.ipv4_address;
-				construct_ipv4_hdr(pkts[i], len, IP_PROTO_UDP,
-						ntohl(app.s5s8_pgwu_ip), s5s8_sgwu_addr);
+			if (sess_data[i]->pdrs != NULL) {
+				if (app.spgw_cfg == SGWU) {
+					/*TODO : Make readable*/
+					uint32_t s5s8_pgwu_addr =
+						sess_data[i]->pdrs->far->frwdng_parms.outer_hdr_creation.ipv4_address;
+					construct_ipv4_hdr(pkts[i], len, IP_PROTO_UDP,
+							ntohl(app.s5s8_sgwu_ip), s5s8_pgwu_addr);
+				}else if (app.spgw_cfg == PGWU) {
+					uint32_t s5s8_sgwu_addr =
+						sess_data[i]->pdrs->far->frwdng_parms.outer_hdr_creation.ipv4_address;
+					construct_ipv4_hdr(pkts[i], len, IP_PROTO_UDP,
+							ntohl(app.s5s8_pgwu_ip), s5s8_sgwu_addr);
+				}
+
+				/* VS: Update the GTP-U header teid of S5S8 PGWU*/
+				((struct gtpu_hdr *)get_mtogtpu(pkts[i]))->teid  =
+						ntohl(sess_data[i]->pdrs->far->frwdng_parms.outer_hdr_creation.teid);
+
+			} else {
+				RESET_BIT(*pkts_mask, i);
+				clLog(clSystemLog, eCLSeverityDebug, FORMAT":ERROR:Session Data don't have PDR info"
+					"\n", ERR_MSG);
+				sess_data[i]->pdrs = NULL;
 			}
-
-			/* VS: Update the GTP-U header teid of S5S8 PGWU*/
-			((struct gtpu_hdr *)get_mtogtpu(pkts[i]))->teid  =
-					ntohl(sess_data[i]->pdrs->far->frwdng_parms.outer_hdr_creation.teid);
-
 		}
 		/* Fill the PDR info form the session data */
 		if (sess_data[i] != NULL) {
@@ -783,8 +801,12 @@ update_adc_rid_from_domain_lookup(uint32_t *rb, uint32_t *rc, uint32_t n)
 }
 
 /**
- * @brief create hash table.
- *
+ * @brief  : create hash table.
+ * @param  : name, hash name
+ * @param  : rte_hash, pointer to  store created hash
+ * @param  : entrie, entries to add in table
+ * @param  : key_len, key length
+ * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 hash_create(const char *name, struct rte_hash **rte_hash,
@@ -811,7 +833,7 @@ hash_create(const char *name, struct rte_hash **rte_hash,
 void up_pcap_init(void)
 {
 
-	printf("\n\npcap files will be overwritten...\n");
+	clLog(clSystemLog, eCLSeverityDebug,"\n\npcap files will be overwritten...\n");
 
 	char east_file[PCAP_FILENAME_LEN] = {0};
 	char west_file[PCAP_FILENAME_LEN] = {0};
@@ -847,13 +869,6 @@ void up_pcap_init(void)
 
 }
 
-
-
-/**
- * initialize pcap dumper.
- * @param pcap_filename
- *  pointer to pcap output filename.
- */
 pcap_dumper_t *
 init_pcap(char* pcap_filename)
 {
@@ -862,21 +877,12 @@ init_pcap(char* pcap_filename)
 	pcap = pcap_open_dead(DLT_EN10MB, UINT16_MAX);
 
 	if ((pcap_dumper = pcap_dump_open(pcap, pcap_filename)) == NULL) {
-		RTE_LOG_DP(ERR, DP, "Error in opening pcap file.\n");
+		clLog(clSystemLog, eCLSeverityCritical, "Error in opening pcap file.\n");
 		return NULL;
 	}
 	return pcap_dumper;
 }
 
-/**
- * write into pcap file.
- * @param pkts
- *  pointer to mbuf of packets.
- * @param n
- *  number of pkts.
- * @param pcap_dumper
- *  pointer to pcap dumper.
- */
 void dump_pcap(struct rte_mbuf **pkts, uint32_t n,
 pcap_dumper_t *pcap_dumper)
 {

@@ -17,17 +17,17 @@
 #include <rte_errno.h>
 
 #include "gtpv2c_set_ie.h"
+#include "clogger.h"
 
 #define DEFAULT_BEARER_QOS_PRIORITY (15)
 
 extern pfcp_config_t pfcp_config;
 
 /**
- * The structure to contain required information from a parsed Bearer Resource
- * Command message
- *
- * Contains UE context, bearer, and PDN connection, as well as information
- * elements required to process message.
+ * @brief  : The structure to contain required information from a parsed Bearer Resource
+ *           Command message
+ *           Contains UE context, bearer, and PDN connection, as well as information
+ *           elements required to process message.
  */
 struct parse_bearer_resource_command_t {
 	ue_context *context;
@@ -39,6 +39,12 @@ struct parse_bearer_resource_command_t {
 	gtpv2c_ie *flow_quality_of_service;
 };
 
+/**
+ * @brief  : Parse bearer resource commnad
+ * @param  : gtpv2c_rx , gtpv2c header
+ * @param  : brc, command
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 static int
 parse_bearer_resource_cmd(gtpv2c_header_t *gtpv2c_rx,
 			  struct parse_bearer_resource_command_t *brc)
@@ -75,7 +81,7 @@ parse_bearer_resource_cmd(gtpv2c_header_t *gtpv2c_rx,
 	if (!brc->linked_eps_bearer_id
 	    || !brc->procedure_transaction_id
 	    || !brc->tad) {
-		fprintf(stderr, "Improper Bearer Resource Command - "
+		clLog(clSystemLog, eCLSeverityCritical, "Improper Bearer Resource Command - "
 				"Dropping packet\n");
 		return -EPERM;
 	}
@@ -84,7 +90,7 @@ parse_bearer_resource_cmd(gtpv2c_header_t *gtpv2c_rx,
 	    brc->linked_eps_bearer_id) - 5;
 	if (!(brc->context->bearer_bitmap &
 			(1 << ebi_index))) {
-		fprintf(stderr,
+		clLog(clSystemLog, eCLSeverityCritical,
 		    "Received Bearer Resource Command on non-existent LBI - "
 		    "Dropping packet\n");
 		return -EPERM;
@@ -92,7 +98,7 @@ parse_bearer_resource_cmd(gtpv2c_header_t *gtpv2c_rx,
 
 	brc->bearer = brc->context->eps_bearers[ebi_index];
 	if (!brc->bearer) {
-		fprintf(stderr,
+		clLog(clSystemLog, eCLSeverityCritical,
 		    "Received Bearer Resource Command on non-existent LBI - "
 		    "Bitmap Inconsistency - Dropping packet\n");
 		return -EPERM;
@@ -103,17 +109,16 @@ parse_bearer_resource_cmd(gtpv2c_header_t *gtpv2c_rx,
 }
 
 /**
- *
- * @param cpf
- *   packet filter corresponding to table 10.5.144b in 3gpp 2.008 contained
- *   within gtpv2c message
- * @param pf
- *   packet filter structure for internal use to CP
- * @return
- *   \- 0 if successful
- *   \- > 0 if error occurs during packet filter parsing corresponds to 3gpp
- *   specified cause error value
- *   \- < 0 for all other errors
+ * @brief  : parse packet filter
+ * @param  : cpf
+ *           packet filter corresponding to table 10.5.144b in 3gpp 2.008 contained
+ *           within gtpv2c message
+ * @param  : pf
+ *           packet filter structure for internal use to CP
+ * @return : - 0 if successful
+ *           - > 0 if error occurs during packet filter parsing corresponds to 3gpp
+ *             specified cause error value
+ *           - < 0 for all other errors
  */
 static int
 parse_packet_filter(create_pkt_filter *cpf, pkt_fltr *pf)
@@ -131,7 +136,7 @@ parse_packet_filter(create_pkt_filter *cpf, pkt_fltr *pf)
 	while (length) {
 		if (length <
 			PACKET_FILTER_COMPONENT_SIZE[filter_component->type]) {
-			fprintf(stderr,
+			clLog(clSystemLog, eCLSeverityCritical,
 			    "Insufficient space in packet filter for"
 			    " component type %u\n",
 			    filter_component->type);
@@ -150,10 +155,10 @@ parse_packet_filter(create_pkt_filter *cpf, pkt_fltr *pf)
 				+ __builtin_ctzl(
 					filter_component->type_union.ipv4.mask.
 					s_addr) != 32) {
-				fprintf(stderr, "Error in ipmask:");
-				fprintf(stderr, "IPV4_REMOTE_ADDRESS: %s/",
+				clLog(clSystemLog, eCLSeverityCritical, "Error in ipmask:");
+				clLog(clSystemLog, eCLSeverityCritical, "IPV4_REMOTE_ADDRESS: %s/",
 				    inet_ntoa(pf->remote_ip_addr));
-				fprintf(stderr, "%s\n",
+				clLog(clSystemLog, eCLSeverityCritical, "%s\n",
 				    inet_ntoa(filter_component->type_union.
 						    ipv4.mask));
 			}
@@ -175,10 +180,10 @@ parse_packet_filter(create_pkt_filter *cpf, pkt_fltr *pf)
 				+ __builtin_ctzl(
 					filter_component->type_union.ipv4.mask.
 					s_addr) != 32) {
-				fprintf(stderr, "Error in ipmask:");
-				fprintf(stderr, "IPV4_REMOTE_ADDRESS: %s/",
+				clLog(clSystemLog, eCLSeverityCritical, "Error in ipmask:");
+				clLog(clSystemLog, eCLSeverityCritical, "IPV4_REMOTE_ADDRESS: %s/",
 					inet_ntoa(pf->local_ip_addr));
-				fprintf(stderr, "%s\n",
+				clLog(clSystemLog, eCLSeverityCritical, "%s\n",
 					inet_ntoa(
 					filter_component->type_union.ipv4.
 					mask));
@@ -240,7 +245,7 @@ parse_packet_filter(create_pkt_filter *cpf, pkt_fltr *pf)
 			    next_component;
 			break;
 		default:
-			fprintf(stderr, "Invalid/Unsupported TFT Filter"
+			clLog(clSystemLog, eCLSeverityCritical, "Invalid/Unsupported TFT Filter"
 					" Component\n");
 			return GTPV2C_CAUSE_SERVICE_NOT_SUPPORTED;
 		}
@@ -249,11 +254,10 @@ parse_packet_filter(create_pkt_filter *cpf, pkt_fltr *pf)
 }
 
 /**
- * converts 5 byte array representing bit rate to uint64_t type
- * @param br
- *   bit rate represented as 5-byte array
- * @return
- *   bit rate converted to uint64_t type
+ * @brief  : converts 5 byte array representing bit rate to uint64_t type
+ * @param  : br
+ *           bit rate represented as 5-byte array
+ * @return : bit rate converted to uint64_t type
  */
 /*
 static uint64_t
@@ -267,16 +271,15 @@ get_br(uint8_t br[5]) {
 */
 
 /**
- *
- * @param ded_bearer
- * @param tad
- *   Traffic Aggregation Description information element as described by
- *   clause 10.5.6.12 3gpp 24.008, as referenced by clause 8.20 3gpp 29.274
- * @return
- *   \- 0 if successful
- *   \- > 0 if error occurs during packet filter parsing corresponds to 3gpp
- *   specified cause error value
- *   \- < 0 for all other errors
+ * @brief  : install packet filter
+ * @param  : ded_bearer
+ * @param  : tad
+ *           Traffic Aggregation Description information element as described by
+ *           clause 10.5.6.12 3gpp 24.008, as referenced by clause 8.20 3gpp 29.274
+ * @return : - 0 if successful
+ *           - > 0 if error occurs during packet filter parsing corresponds to 3gpp
+ *             specified cause error value
+ *           - < 0 for all other errors
  */
 static int
 install_packet_filters(eps_bearer *ded_bearer,
@@ -308,7 +311,7 @@ install_packet_filters(eps_bearer *ded_bearer,
 		}
 
 		if (bearer_filter_id == MAX_FILTERS_PER_UE) {
-			fprintf(stderr, "Not enough packet filter "
+			clLog(clSystemLog, eCLSeverityCritical, "Not enough packet filter "
 					"identifiers available");
 			return -EPERM;
 		}
@@ -325,7 +328,7 @@ install_packet_filters(eps_bearer *ded_bearer,
 		/*pf.pkt_fltr.rating_group = ded_bearer->qos.qos.qci;*/
 
 		if (dp_packet_filter_id == -ENOENT) {
-			fprintf(stderr,
+			clLog(clSystemLog, eCLSeverityCritical,
 			    "Packet filters must be pre-defined by static "
 			    "file prior to reference by s11 Message\n");
 			/* TODO: Implement dynamic installation of packet
@@ -356,26 +359,28 @@ install_packet_filters(eps_bearer *ded_bearer,
 
 
 /**
- * from parameters, populates gtpv2c message 'create bearer request' and
- * populates required information elements as defined by
- * clause 7.2.3 3gpp 29.274
- * @param gtpv2c_tx
- *   transmission buffer to contain 'create bearer request' message
- * @param sequence
- *   sequence number as described by clause 7.6 3gpp 29.274
- * @param context
- *   UE Context data structure pertaining to the bearer to be created
- * @param bearer
- *   EPS Bearer data structure to be created
- * @param lbi
- *   'Linked Bearer Identifier': indicates the default bearer identifier
- *   associated to the PDN connection to which the dedicated bearer is to be
- *   created
- * @param pti
- *   'Procedure Transaction Identifier' according to clause 8.35 3gpp 29.274,
- *   as specified by table 7.2.3-1 3gpp 29.274, 'shall be the same as the one
- *   used in the corresponding bearer resource command'
- *
+ * @brief  : from parameters, populates gtpv2c message 'create bearer request' and
+ *           populates required information elements as defined by
+ *           clause 7.2.3 3gpp 29.274
+ * @param  : gtpv2c_tx
+ *           transmission buffer to contain 'create bearer request' message
+ * @param  : sequence
+ *           sequence number as described by clause 7.6 3gpp 29.274
+ * @param  : context
+ *           UE Context data structure pertaining to the bearer to be created
+ * @param  : bearer
+ *           EPS Bearer data structure to be created
+ * @param  : lbi
+ *           'Linked Bearer Identifier': indicates the default bearer identifier
+ *           associated to the PDN connection to which the dedicated bearer is to be
+ *           created
+ * @param  : pti
+ *           'Procedure Transaction Identifier' according to clause 8.35 3gpp 29.274,
+ *           as specified by table 7.2.3-1 3gpp 29.274, 'shall be the same as the one
+ *           used in the corresponding bearer resource command'
+ * @param  : eps_bearer_lvl_tft
+ * @param  : tft_len
+ * @return : Returns nothing
  */
 void
 set_create_bearer_request(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
@@ -392,9 +397,7 @@ set_create_bearer_request(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
 		set_pti(&cb_req.pti, IE_INSTANCE_ZERO, pti);
 	}
 
-	if (lbi) {}
-	/* TODO: NC Need to remove hardcoded value instead use lbi linked bearer id which is default bearer id */
-	set_ebi(&cb_req.lbi, IE_INSTANCE_ZERO, 5);//lbi);
+	set_ebi(&cb_req.lbi, IE_INSTANCE_ZERO, lbi);
 
 	set_ie_header(&cb_req.bearer_contexts.header, GTP_IE_BEARER_CONTEXT,
 			IE_INSTANCE_ZERO, 0);
@@ -430,6 +433,7 @@ set_create_bearer_request(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
 			GTPV2C_IFTYPE_S5S8_PGW_GTPU, IE_INSTANCE_ONE, bearer->s5s8_pgw_gtpu_ipv4,
 			bearer->s5s8_pgw_gtpu_teid);
 	} else {
+		//bearer->s1u_sgw_gtpu_ipv4.s_addr = htonl(bearer->s1u_sgw_gtpu_ipv4.s_addr);
 		set_ipv4_fteid(&cb_req.bearer_contexts.s1u_sgw_fteid,
 			GTPV2C_IFTYPE_S1U_SGW_GTPU, IE_INSTANCE_ZERO, bearer->s1u_sgw_gtpu_ipv4,
 			bearer->s1u_sgw_gtpu_teid);
@@ -484,6 +488,7 @@ set_create_bearer_response(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
 	cb_resp.bearer_contexts.header.len += sizeof(struct fteid_ie_hdr_t) +
 		sizeof(struct in_addr) + IE_HEADER_SIZE;
 
+	//bearer->s5s8_sgw_gtpu_ipv4.s_addr = htonl(bearer->s5s8_sgw_gtpu_ipv4.s_addr);
 	set_ipv4_fteid(&cb_resp.bearer_contexts.s58_u_sgw_fteid,
 		GTPV2C_IFTYPE_S5S8_SGW_GTPU, IE_INSTANCE_TWO, bearer->s5s8_sgw_gtpu_ipv4,
 		bearer->s5s8_sgw_gtpu_teid);
@@ -497,22 +502,21 @@ set_create_bearer_response(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
 }
 
 /**
- * When a bearer resource command is received for some UE Context/PDN connection
- * with a traffic aggregation description requesting the installation of some
- * packet filters, we create a dedicated bearer using those filters. Here, we
- * are bypassing any PCRF interaction and relying on static rules
- * @param gtpv2c_rx
- *   gtpv2c message buffer containing bearer resource command message
- * @param gtpv2c_tx
- *   gtpv2c message transmission buffer to contain transmit 'create bearer
- *   request' message
- * @param brc
- *   bearer resource command parsed data
- * @return
- *   \- 0 if successful
- *   \- > 0 if error occurs during packet filter parsing corresponds to 3gpp
- *   specified cause error value
- *   \- < 0 for all other errors
+ * @brief  : When a bearer resource command is received for some UE Context/PDN connection
+ *           with a traffic aggregation description requesting the installation of some
+ *           packet filters, we create a dedicated bearer using those filters. Here, we
+ *           are bypassing any PCRF interaction and relying on static rules
+ * @param  : gtpv2c_rx
+ *           gtpv2c message buffer containing bearer resource command message
+ * @param  : gtpv2c_tx
+ *           gtpv2c message transmission buffer to contain transmit 'create bearer
+ *           request' message
+ * @param  : brc
+ *           bearer resource command parsed data
+ * @return : - 0 if successful
+ *           - > 0 if error occurs during packet filter parsing corresponds to 3gpp
+ *             specified cause error value
+ *           - < 0 for all other errors
  */
 static int
 create_dedicated_bearer(gtpv2c_header_t *gtpv2c_rx,
@@ -527,7 +531,7 @@ create_dedicated_bearer(gtpv2c_header_t *gtpv2c_rx,
 
 
 	if (brc->flow_quality_of_service == NULL) {
-		fprintf(stderr, "Received Bearer Resource Command without Flow "
+		clLog(clSystemLog, eCLSeverityCritical, "Received Bearer Resource Command without Flow "
 				"QoS IE\n");
 		return -EPERM;
 	}
@@ -538,7 +542,7 @@ create_dedicated_bearer(gtpv2c_header_t *gtpv2c_rx,
 			rte_zmalloc_socket(NULL, sizeof(eps_bearer),
 					RTE_CACHE_LINE_SIZE, rte_socket_id());
 	if (ded_bearer == NULL) {
-		fprintf(stderr, "Failure to allocate dedicated bearer "
+		clLog(clSystemLog, eCLSeverityCritical, "Failure to allocate dedicated bearer "
 				"structure: %s (%s:%d)\n",
 				rte_strerror(rte_errno),
 				__FILE__,
@@ -588,22 +592,21 @@ create_dedicated_bearer(gtpv2c_header_t *gtpv2c_rx,
 
 
 /**
- * When a bearer resource command is received for some UE Context/PDN connection
- * with a traffic aggregation description requesting the removal of some
- * packet filters, we check if all filters are removed from the dedicated bearer
- * and if so, request the deletion of that bearer
- * @param gtpv2c_rx
- *   gtpv2c message buffer containing bearer resource command message
- * @param gtpv2c_tx
- *   gtpv2c message transmission buffer to contain transmit 'delete bearer
- *   request' message
- * @param brc
- *   bearer resource command parsed data
- * @return
- *   \- 0 if successful
- *   \- > 0 if error occurs during packet filter parsing corresponds to 3gpp
- *   specified cause error value
- *   \- < 0 for all other errors
+ * @brief  : When a bearer resource command is received for some UE Context/PDN connection
+ *           with a traffic aggregation description requesting the removal of some
+ *           packet filters, we check if all filters are removed from the dedicated bearer
+ *           and if so, request the deletion of that bearer
+ * @param  : gtpv2c_rx
+ *           gtpv2c message buffer containing bearer resource command message
+ * @param  : gtpv2c_tx
+ *           gtpv2c message transmission buffer to contain transmit 'delete bearer
+ *           request' message
+ * @param  : brc
+ *           bearer resource command parsed data
+ * @return : - 0 if successful
+ *           - > 0 if error occurs during packet filter parsing corresponds to 3gpp
+ *             specified cause error value
+ *           - < 0 for all other errors
  */
 static int
 delete_packet_filter(gtpv2c_header_t *gtpv2c_rx,
@@ -615,9 +618,9 @@ delete_packet_filter(gtpv2c_header_t *gtpv2c_rx,
 	eps_bearer *b = brc->pdn->packet_filter_map[dpf->pkt_filter_id];
 
 	if (b == NULL) {
-		fprintf(stderr, "Requesting the deletion of non-existent "
+		clLog(clSystemLog, eCLSeverityCritical, "Requesting the deletion of non-existent "
 				"packet filter\n");
-		fprintf(stderr, "\t"
+		clLog(clSystemLog, eCLSeverityCritical, "\t"
 				"%"PRIx32"\t"
 		"%"PRIx32"\n", brc->context->s11_mme_gtpc_teid,
 		    brc->context->s11_sgw_gtpc_teid);

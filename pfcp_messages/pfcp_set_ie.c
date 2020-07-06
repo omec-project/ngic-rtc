@@ -18,6 +18,7 @@
 #include "pfcp_util.h"
 #include "pfcp_set_ie.h"
 #include "pfcp_enum.h"
+#include "clogger.h"
 
 #ifdef CP_BUILD
 #include "cp.h"
@@ -28,6 +29,11 @@
 #endif /* CP_BUILD */
 
 #define RI_MAX 8
+
+/* size of user ip resource info ie will be 6 if teid_range is not included otherwise 7 */
+#define SIZE_IF_TEIDRI_PRESENT 7
+#define SIZE_IF_TEIDRI_NOT_PRESENT 6
+
 /* extern */
 uint32_t start_time;
 const uint32_t pfcp_base_seq_no = 0x00000000;
@@ -91,7 +97,7 @@ get_pfcp_sequence_number(uint8_t type, uint32_t seq){
 		case PFCP_SESSION_REPORT_RESPONSE:
 			return seq;
 		default:
-			RTE_LOG_DP(DEBUG, DP, "Unknown pfcp msg type. \n");
+			clLog(clSystemLog, eCLSeverityDebug, "Unknown pfcp msg type. \n");
 			return 0;
 			break;
 	}
@@ -185,6 +191,11 @@ set_cpf_features(pfcp_cp_func_feat_ie_t *cpf_feat)
 }
 
 #ifdef DP_BUILD
+/**
+ * @brief  : checks next available teid range for give teidri index
+ * @param  : val , teidri value , must be between 0 to 7
+ * @return : Returns teid range in case of success, -1 otherwise
+ */
 static uint8_t
 check_available_teid(uint8_t val){
 	uint8_t temp = 0;
@@ -197,6 +208,11 @@ check_available_teid(uint8_t val){
 	return temp;
 }
 
+/**
+ * @brief  : Assign teid range from next available teid ranges
+ * @param  : val , teidri value , must be between 0 to 7
+ * @return : Returns teid range in case of success, -1 otherwise
+ */
 static uint8_t
 assign_teid_range(uint8_t val){
 	if(val == 0){
@@ -211,9 +227,13 @@ void
 set_up_ip_resource_info(pfcp_user_plane_ip_rsrc_info_ie_t *up_ip_resource_info,
 						uint8_t i)
 {
-	/* length will be 6 if teid_range is not included otherwise 7 */
-	pfcp_set_ie_header(&(up_ip_resource_info->header),
-								PFCP_IE_USER_PLANE_IP_RSRC_INFO, 7);
+	if(app.teidri_val == 0){
+		pfcp_set_ie_header(&(up_ip_resource_info->header),
+				PFCP_IE_USER_PLANE_IP_RSRC_INFO, SIZE_IF_TEIDRI_NOT_PRESENT);
+	}else{
+		pfcp_set_ie_header(&(up_ip_resource_info->header),
+				PFCP_IE_USER_PLANE_IP_RSRC_INFO, SIZE_IF_TEIDRI_PRESENT);
+	}
 
 	up_ip_resource_info->user_plane_ip_rsrc_info_spare  = 0;
 	up_ip_resource_info->assosi = 1;
@@ -268,7 +288,7 @@ set_up_ip_resource_info(pfcp_user_plane_ip_rsrc_info_ie_t *up_ip_resource_info,
 				break;
 
 			default :
-				printf("default pfcp asso req\n");
+				clLog(clSystemLog, eCLSeverityDebug,"default pfcp asso req\n");
 				break;
 		}
 	}
@@ -466,6 +486,44 @@ creating_far(pfcp_create_far_ie_t *create_far)
 	len += 4; /* Header Size of set_apply action ie */
 
 	pfcp_set_ie_header(&(create_far->header), IE_CREATE_FAR, len);
+}
+
+int
+updating_pdr(pfcp_update_pdr_ie_t *create_pdr, int source_iface_value)
+{
+	int size = 0;
+
+	size += set_pdr_id(&(create_pdr->pdr_id));
+	size += set_precedence(&(create_pdr->precedence));
+	size += set_pdi(&(create_pdr->pdi));
+#ifdef CP_BUILD
+	if (pfcp_config.cp_type != SGWC && source_iface_value == SOURCE_INTERFACE_VALUE_ACCESS)
+		size += set_outer_hdr_removal(&(create_pdr->outer_hdr_removal));
+	size += set_far_id(&(create_pdr->far_id));
+#ifdef _GX_BUILD
+	/*TODO : need to check this durinf UT */
+	if (pfcp_config.cp_type != SGWC){
+		for(int i=0; i < create_pdr->qer_id_count; i++ ) {
+			size += set_qer_id(&(create_pdr->qer_id[i]));
+		}
+	}
+#endif /* GX_BUILD*/
+#endif /* CP_BUILD */
+	/* TODO: Revisit this for change in yang
+	create_pdr->urr_id_count = 1;
+	for(int i=0; i < create_pdr->urr_id_count; i++ ) {
+		set_urr_id(&(create_pdr->urr_id[i]));
+	} */
+
+	/* TODO: Revisit this for change in yang
+	create_pdr->actvt_predef_rules_count = 1;
+	for(int i=0; i < create_pdr->actvt_predef_rules_count; i++ ) {
+		set_activate_predefined_rules(&(create_pdr->actvt_predef_rules[i]));
+	} */
+
+	pfcp_set_ie_header(&(create_pdr->header), IE_CREATE_PDR, size);
+
+	return size;
 }
 
 void
@@ -671,11 +729,19 @@ set_cause(pfcp_cause_ie_t *cause, uint8_t cause_val)
 }
 
 void
+removing_pdr(pfcp_remove_pdr_ie_t *remove_pdr)
+{
+	pfcp_set_ie_header(&(remove_pdr->header), IE_REMOVE_PDR, sizeof(pfcp_pdr_id_ie_t));
+	set_pdr_id(&(remove_pdr->pdr_id));
+}
+
+void
 removing_bar( pfcp_remove_bar_ie_t *remove_bar)
 {
 	pfcp_set_ie_header(&(remove_bar->header), IE_REMOVE_BAR, sizeof(pfcp_bar_id_ie_t));
 	set_bar_id(&(remove_bar->bar_id));
 }
+
 void
 set_traffic_endpoint(pfcp_traffic_endpt_id_ie_t *traffic_endpoint_id)
 {
@@ -1492,7 +1558,7 @@ gx_context_entry_add(char *sess_id, gx_context_t *entry)
 			(const void *)sess_id , (void *)entry);
 
 	if (ret < 0) {
-		fprintf(stderr,
+		clLog(clSystemLog, eCLSeverityCritical,
 				"%s - Error on rte_hash_add_key_data add\n",
 				strerror(ret));
 		return -1;
@@ -1507,7 +1573,7 @@ gx_context_entry_lookup(char *sess_id, gx_context_t **entry)
 			(const void*) (sess_id), (void **) entry);
 
 	if (ret < 0) {
-		RTE_LOG_DP(DEBUG, DP, "NO ENTRY FOUND IN UPF HASH [%s]\n", sess_id);
+		clLog(clSystemLog, eCLSeverityDebug, "NO ENTRY FOUND IN UPF HASH [%s]\n", sess_id);
 		return -1;
 	}
 
@@ -1523,7 +1589,7 @@ upf_context_entry_add(uint32_t *upf_ip, upf_context_t *entry)
 			(const void *)upf_ip , (void *)entry);
 
 	if (ret < 0) {
-		fprintf(stderr,
+		clLog(clSystemLog, eCLSeverityCritical,
 				"%s - Error on rte_hash_add_key_data add\n",
 				strerror(ret));
 		return 1;
@@ -1538,7 +1604,7 @@ upf_context_entry_lookup(uint32_t upf_ip, upf_context_t **entry)
 			(const void*) &(upf_ip), (void **) entry);
 
 	if (ret < 0) {
-		fprintf(stderr, "%s:%d NO ENTRY FOUND IN UPF HASH [%u]\n",
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%d NO ENTRY FOUND IN UPF HASH [%u]\n",
 				__func__, __LINE__, upf_ip);
 		return -1;
 	}
@@ -1559,7 +1625,7 @@ add_node_id_hash(uint32_t *nodeid, uint64_t *data )
 	temp =(uint64_t *) rte_zmalloc_socket(NULL, sizeof(uint64_t),
 			RTE_CACHE_LINE_SIZE, rte_socket_id());
 	if (temp == NULL) {
-		fprintf(stderr, "Failure to allocate ue context "
+		clLog(clSystemLog, eCLSeverityCritical, "Failure to allocate ue context "
 				"structure: %s (%s:%d)\n",
 				rte_strerror(rte_errno),
 				__FILE__,
@@ -1570,7 +1636,7 @@ add_node_id_hash(uint32_t *nodeid, uint64_t *data )
 	ret = rte_hash_add_key_data(node_id_hash,
 			(const void *)&key , (void *)temp);
 	if (ret < 0) {
-		fprintf(stderr,
+		clLog(clSystemLog, eCLSeverityCritical,
 				"%s - Error on rte_hash_add_key_data add\n",
 				strerror(ret));
 		rte_free((temp));
@@ -1758,7 +1824,7 @@ add_data_to_heartbeat_hash_table(uint32_t *ip, uint32_t *recov_time)
 	temp = rte_zmalloc_socket(NULL, sizeof(uint32_t),
 			RTE_CACHE_LINE_SIZE, rte_socket_id());
 	if (temp == NULL) {
-		fprintf(stderr, "Failure to allocate fseid context "
+		clLog(clSystemLog, eCLSeverityCritical, "Failure to allocate fseid context "
 				"structure: %s (%s:%d)\n",
 				rte_strerror(rte_errno),
 				__FILE__,
@@ -1769,7 +1835,7 @@ add_data_to_heartbeat_hash_table(uint32_t *ip, uint32_t *recov_time)
 	ret = rte_hash_add_key_data(heartbeat_recovery_hash,
 			(const void *)&key, temp);
 	if (ret < 0) {
-		fprintf(stderr,"%s - Error on rte_hash_add_key_data add in heartbeat\n",
+		clLog(clSystemLog, eCLSeverityCritical,"%s - Error on rte_hash_add_key_data add in heartbeat\n",
 				strerror(ret));
 		free(temp);
 		return 1;
@@ -1784,7 +1850,7 @@ void add_ip_to_heartbeat_hash(struct sockaddr_in *peer_addr, uint32_t recovery_t
 			RTE_CACHE_LINE_SIZE, rte_socket_id());
 
 	if(default_recov_time == NULL) {
-		fprintf(stderr, "Failure to allocate memory in adding ip to heartbeat"
+		clLog(clSystemLog, eCLSeverityCritical, "Failure to allocate memory in adding ip to heartbeat"
 				"structure: %s (%s:%d)\n",
 				rte_strerror(rte_errno),
 				__FILE__,
@@ -1797,7 +1863,7 @@ void add_ip_to_heartbeat_hash(struct sockaddr_in *peer_addr, uint32_t recovery_t
 				default_recov_time);
 
 		if(ret !=0) {
-			fprintf(stderr,"%s - Error on rte_hash_add_key_data add in heartbeat\n",
+			clLog(clSystemLog, eCLSeverityCritical,"%s - Error on rte_hash_add_key_data add in heartbeat\n",
 					strerror(ret));
 		}
 	}
@@ -1809,7 +1875,7 @@ void delete_entry_heartbeat_hash(struct sockaddr_in *peer_addr)
 	int ret = rte_hash_del_key(heartbeat_recovery_hash,
 			(const void *)&(peer_addr->sin_addr.s_addr));
 	if (ret == -EINVAL || ret == -ENOENT) {
-		fprintf(stderr,"%s - Error on rte_delete_enrty_key_data add in heartbeat\n",
+		clLog(clSystemLog, eCLSeverityCritical,"%s - Error on rte_delete_enrty_key_data add in heartbeat\n",
 				strerror(ret));
 	}
 }
@@ -1910,7 +1976,7 @@ upflist_by_ue_hash_entry_add(uint64_t *imsi_val, uint16_t imsi_len,
 			entry);
 
 	if (ret < 0) {
-		RTE_LOG_DP(ERR, DP, "Failed to add entry in upflist_by_ue_hash"
+		clLog(clSystemLog, eCLSeverityCritical, "Failed to add entry in upflist_by_ue_hash"
 				"hash table");
 		return -1;
 	}
@@ -1930,10 +1996,37 @@ upflist_by_ue_hash_entry_lookup(uint64_t *imsi_val, uint16_t imsi_len,
 			(void **)entry);
 
 	if (ret < 0) {
-		RTE_LOG_DP(ERR, DP, "Failed to search entry in upflist_by_ue_hash"
+		clLog(clSystemLog, eCLSeverityCritical, "Failed to search entry in upflist_by_ue_hash"
 				"hash table");
 		return ret;
 	}
+
+	return 0;
+}
+
+int
+upflist_by_ue_hash_entry_delete(uint64_t *imsi_val, uint16_t imsi_len)
+{
+	uint64_t imsi = UINT64_MAX;
+	upfs_dnsres_t *entry = NULL;
+	memcpy(&imsi, imsi_val, imsi_len);
+
+	int ret = rte_hash_lookup_data(upflist_by_ue_hash, &imsi,
+			(void **)&entry);
+	if (ret) {
+		/* PDN Conn Entry is present. Delete PDN Conn Entry */
+		ret = rte_hash_del_key(upflist_by_ue_hash, &imsi);
+
+		if ( ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical, FORMAT"IMSI entry is not found:%lu...\n",
+						ERR_MSG, imsi);
+			return -1;
+		}
+	}
+
+	/* Free data from hash */
+	if (entry != NULL)
+		rte_free(entry);
 
 	return 0;
 }
