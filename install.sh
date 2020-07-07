@@ -663,7 +663,7 @@ step_3()
 install_oss_util()
 {
    pushd $NGIC_DIR/$OSS_UTIL_DIR
-   git clone -b cli_dev $OSS_UTIL_GIT_LINK
+   git clone -b delivery_1.8 $OSS_UTIL_GIT_LINK
    pushd oss-util
    ./install.sh
    popd
