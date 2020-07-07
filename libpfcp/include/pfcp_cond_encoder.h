@@ -17,6 +17,10 @@
 #ifndef __PFCP_COND_ENCODER_H__
 #define __PFCP_COND_ENCODER_H__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "pfcp_enum.h"
 
 /* Inside pfcp_fteid_ie_t */
@@ -158,8 +162,7 @@
 #define ENCODE_IPV4_ADDRESS_COND_5(value, bit_count, destination, offset, encoded) \
 	if (value->v4 && value->ch == 0) \
 { \
-	memcpy(buf + (encoded/8), &value->ipv4_address, 4); \
-	encoded += 4 * CHAR_SIZE; \
+	encoded += encode_bits(value->ipv4_address, bit_count, destination, offset); \
 }
 
 /* Inside pfcp_fteid_ie_t */
@@ -172,10 +175,19 @@
 /* Inside pfcp_node_id_ie_t */
 /* TODO: Revisit this for change in yang */
 #define ENCODE_NODE_ID_VALUE_COND_1(value, bit_count, destination, offset, encoded) \
-	if(value->node_id_type == 0) \
+	if(value->node_id_type == NODE_ID_TYPE_TYPE_IPV4ADDRESS) \
 { \
-	memcpy(buf + (encoded/8), &value->node_id_value, 4); \
-	encoded +=  4 * CHAR_SIZE; \
+	encoded += encode_bits(value->node_id_value_ipv4_address, bit_count, destination, offset); \
+} \
+	if(value->node_id_type == NODE_ID_TYPE_TYPE_IPV6ADDRESS) \
+{ \
+	memcpy(buf + (encoded/8), &value->node_id_value_ipv6_address, IPV6_ADDRESS_LEN); \
+	encoded += IPV6_ADDRESS_LEN * CHAR_SIZE; \
+} \
+	if(value->node_id_type == FQDN) \
+{ \
+	memcpy(buf + (encoded/8), &value->node_id_value_fqdn, PFCP_FQDN_LEN); \
+	encoded +=  PFCP_FQDN_LEN* CHAR_SIZE; \
 }
 
 /* Inside pfcp_sdf_filter_ie_t */
@@ -234,8 +246,7 @@
 #define ENCODE_NODE_ADDRESS_COND_1(value, destination, offset, encoded) \
 	 if (value->fqcsid_node_id_type == IPV4_GLOBAL_UNICAST) \
 {  \
-	memcpy(buf + (encoded/8), &value->node_address, 4); \
-	encoded +=  4 * CHAR_SIZE; \
+	encoded += encode_bits(value->node_address, bit_count, destination, offset); \
 }
 
 
@@ -420,8 +431,7 @@ if ((value->outer_hdr_creation_desc >> 8) == 1 || (value->outer_hdr_creation_des
 #define ENCODE_IPV4_ADDRESS_COND_2(value, bit_count, destination, offset, encoded) \
 	if (value->v4) \
 { \
-	memcpy(buf + (encoded/8), &value->ipv4_address, 4); \
-	encoded +=  4 * CHAR_SIZE; \
+	encoded += encode_bits(value->ipv4_address, bit_count, destination, offset); \
 }
 
 /* Inside pfcp_fseid_ie_t */
@@ -586,5 +596,9 @@ if ((value->outer_hdr_creation_desc >> 8) == 1 || (value->outer_hdr_creation_des
 		memcpy(buf + (encoded/CHAR_SIZE), &value->nai, value->length_of_nai); \
 		encoded +=  value->length_of_nai * CHAR_SIZE; \
 }
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /*__PFCP_COND_ENCODER_H__*/

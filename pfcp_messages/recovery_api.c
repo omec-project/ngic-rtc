@@ -25,6 +25,7 @@
 #include "gw_adapter.h"
 #include "pfcp.h"
 #include "csid_struct.h"
+#include "teid.h"
 
 
 #ifdef CP_BUILD
@@ -33,13 +34,16 @@
 
 static pthread_t recov_thread;
 uint32_t recov_peer_addr;
-extern volatile uint8_t recovery_flag;
+extern uint8_t recovery_flag;
 extern pfcp_config_t pfcp_config;
 extern int pfcp_fd;
 extern struct sockaddr_in upf_pfcp_sockaddr;
 
-/* num_sess : Contain Number of session est. req sent to the peer node while Recover affected session's */
-volatile uint64_t num_sess ;
+/*
+ * num_sess : Contain Number of session est.
+ * req sent to the peer node while Recover affected session's
+ */
+uint64_t num_sess ;
 
 #endif /* CP_BUILD */
 
@@ -82,7 +86,7 @@ fill_create_pdr(pfcp_create_pdr_ie_t *create_pdr, pdr_t *pdr, eps_bearer *bearer
 	create_pdr->pdi.src_intfc.interface_value = pdr->pdi.src_intfc.interface_value;
 
 	/* -> F-TEID */
-	if ((pfcp_config.cp_type == SGWC) ||
+	if ((bearer->pdn->context->cp_mode == SGWC) ||
 			(pdr->pdi.src_intfc.interface_value != SOURCE_INTERFACE_VALUE_CORE)) {
 		int len = 0;
 		len = sizeof(pfcp_fteid_ie_t) - /*(sizeof(create_pdr->pdi.local_fteid.ipv4_address) + */
@@ -103,7 +107,7 @@ fill_create_pdr(pfcp_create_pdr_ie_t *create_pdr, pdr_t *pdr, eps_bearer *bearer
 		pdi_header_len += len;
 	}
 
-	if ((pfcp_config.cp_type != SGWC) &&
+	if ((bearer->pdn->context->cp_mode != SGWC) &&
 			(pdr->pdi.src_intfc.interface_value == SOURCE_INTERFACE_VALUE_CORE)) {
 		/* ->  netework Instance */
 		pfcp_set_ie_header(&(create_pdr->pdi.ntwk_inst.header), PFCP_IE_NTWK_INST,
@@ -112,7 +116,7 @@ fill_create_pdr(pfcp_create_pdr_ie_t *create_pdr, pdr_t *pdr, eps_bearer *bearer
 		pdi_header_len += sizeof(pfcp_ntwk_inst_ie_t);
 
 		strncpy((char *)create_pdr->pdi.ntwk_inst.ntwk_inst,
-					(char *)&pdr->pdi.ntwk_inst.ntwk_inst, 32);
+					(char *)&pdr->pdi.ntwk_inst.ntwk_inst, PFCP_NTWK_INST_LEN);
 		/* -> UE IP address */
 		int len = sizeof(pfcp_ue_ip_address_ie_t)
 					-(sizeof(create_pdr->pdi.ue_ip_address.ipv6_address)
@@ -135,7 +139,7 @@ fill_create_pdr(pfcp_create_pdr_ie_t *create_pdr, pdr_t *pdr, eps_bearer *bearer
 	pfcp_set_ie_header(&(create_pdr->pdi.header), IE_PDI, pdi_header_len);
 
 	/* Outer header removal */
-	if((pfcp_config.cp_type != SGWC) &&
+	if((bearer->pdn->context->cp_mode != SGWC) &&
 			 pdr->pdi.src_intfc.interface_value  == SOURCE_INTERFACE_VALUE_ACCESS) {
 		pfcp_set_ie_header(&(create_pdr->outer_hdr_removal.header),
 				PFCP_IE_OUTER_HDR_REMOVAL, UINT8_SIZE);
@@ -154,23 +158,25 @@ fill_create_pdr(pfcp_create_pdr_ie_t *create_pdr, pdr_t *pdr, eps_bearer *bearer
 	create_pdr->far_id.far_id_value = pdr->far.far_id_value;
 
 	/* UUR ID */
-	create_pdr->urr_id_count = pdr->urr_id_count;
-	for (uint8_t itr = 0; itr < pdr->urr_id_count; itr++) {
-		pfcp_set_ie_header(&(create_pdr->urr_id[itr].header), PFCP_IE_URR_ID, UINT32_SIZE);
+	if (bearer->pdn->generate_cdr) {
+		create_pdr->urr_id_count = pdr->urr_id_count;
+		for (uint8_t itr = 0; itr < pdr->urr_id_count; itr++) {
+			pfcp_set_ie_header(&(create_pdr->urr_id[itr].header),
+					PFCP_IE_URR_ID, UINT32_SIZE);
 
-		create_pdr->urr_id[itr].urr_id_value = pdr->urr.urr_id_value;
+			create_pdr->urr_id[itr].urr_id_value = pdr->urr.urr_id_value;
 
-		/* If Multiple urr id in one pdr */
-		if (pdr->urr_id_count > 1 ) {
-			create_pdr->urr_id[itr].urr_id_value = pdr->urr_id[itr].urr_id;
+			/* If Multiple urr id in one pdr */
+			if (pdr->urr_id_count > 1 ) {
+				create_pdr->urr_id[itr].urr_id_value = pdr->urr_id[itr].urr_id;
+			}
+
+			pdr_header_len += sizeof(pfcp_urr_id_ie_t);
 		}
-
-		pdr_header_len += sizeof(pfcp_urr_id_ie_t);
 	}
 
-#ifdef GX_BUILD
 	/* QER ID */
-	if(pfcp_config.cp_type != SGWC) {
+	if((pfcp_config.use_gx) && bearer->pdn->context->cp_mode != SGWC) {
 		uint8_t idx = 0;
 		create_pdr->qer_id_count = pdr->qer_id_count;
 		for(int itr1 = 0; itr1 < pdr->qer_id_count; itr1++) {
@@ -182,9 +188,6 @@ fill_create_pdr(pfcp_create_pdr_ie_t *create_pdr, pdr_t *pdr, eps_bearer *bearer
 			idx++;
 		}
 	}
-#else
-	RTE_SET_USED(bearer);
-#endif /* GX_BUILD */
 
 	pfcp_set_ie_header(&(create_pdr->header), IE_CREATE_PDR, pdr_header_len);
 
@@ -234,7 +237,7 @@ fill_create_far(pfcp_create_far_ie_t *create_far, pdr_t *pdr, eps_bearer *bearer
 	create_far->frwdng_parms.dst_intfc.interface_value =
 										pdr->far.dst_intfc.interface_value;
 
-	 if((pfcp_config.cp_type == SGWC) ||
+	 if((bearer->pdn->context->cp_mode == SGWC) ||
 	                         (pdr->far.dst_intfc.interface_value == DESTINATION_INTERFACE_VALUE_ACCESS)) {
 		/* --> outer header creation */
 		int len =(sizeof(create_far->frwdng_parms.outer_hdr_creation.ipv4_address)
@@ -249,7 +252,7 @@ fill_create_far(pfcp_create_far_ie_t *create_far, pdr_t *pdr, eps_bearer *bearer
 		create_far->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc = 0x0100;
 		/* SGWC --> access --> ENB S1U */
 		/* SAEGWC --> access --> ENB S1U */
-		if (((pfcp_config.cp_type == SGWC) || (pfcp_config.cp_type ==  SAEGWC)) &&
+		if (((bearer->pdn->context->cp_mode == SGWC) || (bearer->pdn->context->cp_mode ==  SAEGWC)) &&
 				(pdr->far.dst_intfc.interface_value == DESTINATION_INTERFACE_VALUE_ACCESS)) {
 			create_far->frwdng_parms.outer_hdr_creation.teid = bearer->s1u_enb_gtpu_teid;
 			create_far->frwdng_parms.outer_hdr_creation.ipv4_address = bearer->s1u_enb_gtpu_ipv4.s_addr;
@@ -257,13 +260,13 @@ fill_create_far(pfcp_create_far_ie_t *create_far, pdr_t *pdr, eps_bearer *bearer
 		/* In far not found destinatiion instarface value, it's by default 0  pdr->far.dst_intfc.interface_value
 		 * so insted of far we use pdi */
 		/* SGWC --> core --> PGW S5S8  */
-		if ((pfcp_config.cp_type == SGWC) &&
+		if ((bearer->pdn->context->cp_mode == SGWC) &&
 				(pdr->far.dst_intfc.interface_value ==  DESTINATION_INTERFACE_VALUE_CORE)) {
 			create_far->frwdng_parms.outer_hdr_creation.teid = bearer->s5s8_pgw_gtpu_teid;
 			create_far->frwdng_parms.outer_hdr_creation.ipv4_address = bearer->s5s8_pgw_gtpu_ipv4.s_addr;
 		}
 		/* PGWC --> access --> SGW S5S8 */
-		if ((pfcp_config.cp_type == PGWC) &&
+		if ((bearer->pdn->context->cp_mode == PGWC) &&
 					pdr->far.dst_intfc.interface_value == SOURCE_INTERFACE_VALUE_ACCESS) {
 			create_far->frwdng_parms.outer_hdr_creation.teid = bearer->s5s8_sgw_gtpu_teid;
 			create_far->frwdng_parms.outer_hdr_creation.ipv4_address = bearer->s5s8_sgw_gtpu_ipv4.s_addr;
@@ -279,7 +282,6 @@ fill_create_far(pfcp_create_far_ie_t *create_far, pdr_t *pdr, eps_bearer *bearer
 	return (far_hdr_len + sizeof(pfcp_ie_header_t));
 }
 
-#ifdef GX_BUILD
 /**
  * @brief  : Fill create qer ie
  * @param  : pfcp_sess_est_req, buffer to be filled
@@ -347,7 +349,6 @@ fill_create_qer(pfcp_sess_estab_req_t *pfcp_sess_est_req, eps_bearer *bearer) {
 	/* Total header lenght of qer */
 	return ret;
 }
-#endif /* GX_BUILD */
 
 /**
  * @brief  : Fill create urr ie
@@ -469,30 +470,36 @@ process_pfcp_sess_est_req(ue_context *context, uint32_t node_addr)
 	struct resp_info *resp = NULL;
 	pfcp_sess_estab_req_t pfcp_sess_est_req = {0};
 
-	for(uint8_t itr = 0; itr < context->num_pdns; itr++) {
+	for(uint8_t itr = 0, pdn_count = context->num_pdns; (itr < MAX_BEARERS && pdn_count > 0) ; itr++) {
 
 		pdn = context->pdns[itr];
 
-		if(pdn == NULL)
+		if(pdn == NULL){
 			continue;
+		}else{
+			pdn_count--;
+		}
 
-		/* PDN upf ip address and peer node address, if not match than we assume CP connected to the onthere DP */
+		/* PDN upf ip address and peer node address,
+		 * if not match than we assume CP connected to the onthere DP */
 		if(pdn->upf_ipv4.s_addr != node_addr) {
-			clLog(clSystemLog, eCLSeverityDebug, "%s:%d Match Not Found : Peer Node Address : %u , PDN upf ip addres : %u\n",
-						__func__, __LINE__, node_addr, pdn->upf_ipv4.s_addr);
-			//return -1;
+			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT
+				"Match Not Found : Peer Node Address : %u ,"
+				" PDN upf ip addres : %u\n",
+				LOG_VALUE, node_addr, pdn->upf_ipv4.s_addr);
+			continue;
 		}
 
 		/* need to think anout it */
 		seq = get_pfcp_sequence_number(PFCP_SESSION_ESTABLISHMENT_REQUEST, seq);
 
 		/* Filling header */
-		set_pfcp_seid_header((pfcp_header_t *) &(pfcp_sess_est_req.header), PFCP_SESSION_ESTABLISHMENT_REQUEST,
-				HAS_SEID, seq);
+		set_pfcp_seid_header((pfcp_header_t *) &(pfcp_sess_est_req.header),
+				PFCP_SESSION_ESTABLISHMENT_REQUEST, HAS_SEID, seq, pdn->context->cp_mode);
 
 		/* Assing DP SEID */
-		clLog(clSystemLog, eCLSeverityDebug, "%s:%d : DP SEID %u\n",
-					__func__, __LINE__, pdn->dp_seid);
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT" : DP SEID %u\n",
+			LOG_VALUE, pdn->dp_seid);
 
 		pfcp_sess_est_req.header.seid_seqno.has_seid.seid = pdn->dp_seid;
 
@@ -527,26 +534,31 @@ process_pfcp_sess_est_req(ue_context *context, uint32_t node_addr)
 			pfcp_sess_est_req.create_urr_count += bearer->pdr_count;
 
 			for(uint8_t itr2 = 0; itr2 < bearer->pdr_count; itr2++) {
-				fill_create_pdr(&(pfcp_sess_est_req.create_pdr[pdr_idx]), bearer->pdrs[itr2], bearer);
-				fill_create_far(&(pfcp_sess_est_req.create_far[pdr_idx]), bearer->pdrs[itr2], bearer);
-				fill_create_urr(&(pfcp_sess_est_req.create_urr[pdr_idx]), bearer->pdrs[itr2]);
-
-				if (pfcp_config.cp_type != SGWC) {
-#ifdef GX_BUILD
-					for(int sdf_itr1 = 0; sdf_itr1 < bearer->pdrs[itr2]->pdi.sdf_filter_cnt; sdf_itr1++) {
-						enum flow_status f_status = pdn->policy.pcc_rule[sdf_itr1].dyn_rule.flow_status;
-
-						fill_create_pdr_sdf_rules(pfcp_sess_est_req.create_pdr, bearer->dynamic_rules[sdf_itr1], pdr_idx);
-						fill_gate_status(&pfcp_sess_est_req, pdr_idx, f_status);
-
-					}
-#endif /* GX_BUILD */
+				fill_create_pdr(&(pfcp_sess_est_req.create_pdr[pdr_idx]),
+						bearer->pdrs[itr2], bearer);
+				fill_create_far(&(pfcp_sess_est_req.create_far[pdr_idx]),
+						bearer->pdrs[itr2], bearer);
+				if (pdn->generate_cdr) {
+					fill_create_urr(&(pfcp_sess_est_req.create_urr[pdr_idx]),
+							bearer->pdrs[itr2]);
 				}
+
+				if ((pfcp_config.use_gx) && pdn->context->cp_mode != SGWC) {
+					for(int sdf_itr1 = 0;
+							sdf_itr1 < bearer->pdrs[itr2]->pdi.sdf_filter_cnt; sdf_itr1++) {
+						enum flow_status f_status =
+							pdn->policy.pcc_rule[sdf_itr1].dyn_rule.flow_status;
+
+						fill_create_pdr_sdf_rules(pfcp_sess_est_req.create_pdr,
+								bearer->dynamic_rules[sdf_itr1], pdr_idx);
+						fill_gate_status(&pfcp_sess_est_req, pdr_idx, f_status);
+					}
+				}
+
 				pdr_idx++;
 			}
 
-#ifdef GX_BUILD
-			if(pfcp_config.cp_type != SGWC) {
+			if((pfcp_config.use_gx) && pdn->context->cp_mode != SGWC) {
 				/* Need to think about it. */
 				int idx = 0;
 				uint8_t qer_count = 0;
@@ -564,30 +576,29 @@ process_pfcp_sess_est_req(ue_context *context, uint32_t node_addr)
 				pfcp_sess_est_req.create_qer_count += bearer->qer_count;
 
 			}
-#endif /* GX_BUIDL */
 
 		} /* for loop 1 */
 
 		/* Fill the fqcsid into the session est request */
-		if (pfcp_config.cp_type != PGWC) {
+		if (context->cp_mode != PGWC) {
 			/* Set SGW FQ-CSID */
 			if ((context->sgw_fqcsid)->num_csid) {
 				set_fq_csid_t(&pfcp_sess_est_req.sgw_c_fqcsid, context->sgw_fqcsid);
-				(pfcp_sess_est_req.sgw_c_fqcsid).node_address = ntohl(pfcp_config.pfcp_ip.s_addr);
+				(pfcp_sess_est_req.sgw_c_fqcsid).node_address = pfcp_config.pfcp_ip.s_addr;
 			}
 			/* Set MME FQ-CSID */
 			if((context->mme_fqcsid)->num_csid) {
 				set_fq_csid_t(&pfcp_sess_est_req.mme_fqcsid, context->mme_fqcsid);
 			}
 			/* set PGWC FQ-CSID */
-			if (pfcp_config.cp_type != SAEGWC) {
+			if (context->cp_mode  != SAEGWC) {
 				set_fq_csid_t(&pfcp_sess_est_req.pgw_c_fqcsid, context->pgw_fqcsid);
 			}
 		} else {
 			/* Set PGW FQ-CSID */
 			if ((context->pgw_fqcsid)->num_csid) {
 				set_fq_csid_t(&pfcp_sess_est_req.pgw_c_fqcsid, context->pgw_fqcsid);
-				(pfcp_sess_est_req.pgw_c_fqcsid).node_address = ntohl(pfcp_config.pfcp_ip.s_addr);
+				(pfcp_sess_est_req.pgw_c_fqcsid).node_address = pfcp_config.pfcp_ip.s_addr;
 			}
 			/* Set SGW C FQ_CSID */
 			if ((context->sgw_fqcsid)->num_csid) {
@@ -602,30 +613,33 @@ process_pfcp_sess_est_req(ue_context *context, uint32_t node_addr)
 		/* Fetch and update resp info */
 		/* Lookup Stored the session information. */
 		if (get_sess_entry(pdn->seid, &resp) != 0) {
-			clLog(clSystemLog, eCLSeverityCritical, "%s %s %d Failed to add response in entry in SM_HASH\n", __file__
-					,__func__, __LINE__);
+			clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Failed to add response in entry in SM_HASH\n", LOG_VALUE);
 			return -1;
 		}
 
-		resp->eps_bearer_id = pdn->default_bearer_id;
+		reset_resp_info_structure(resp);
+
+		resp->linked_eps_bearer_id = pdn->default_bearer_id;
 		resp->state = PFCP_SESS_EST_REQ_SNT_STATE ;
 		resp->proc = RESTORATION_RECOVERY_PROC;
 		/* Update  PDN procedure */
 		pdn->proc = RESTORATION_RECOVERY_PROC;
 		pdn->state = PFCP_SESS_EST_REQ_SNT_STATE;
 
-		uint8_t pfcp_msg[2048]={0};
+		uint8_t pfcp_msg[PFCP_MSG_LEN]={0};
 		/* Think about it , if CP connected with multiple DP */
 		upf_pfcp_sockaddr.sin_addr.s_addr = pdn->upf_ipv4.s_addr;
-		int encoded = encode_pfcp_sess_estab_req_t(&pfcp_sess_est_req, pfcp_msg, INTERFACE);
+		int encoded = encode_pfcp_sess_estab_req_t(&pfcp_sess_est_req,
+				pfcp_msg);
 
 		pfcp_header_t *header = (pfcp_header_t *) pfcp_msg;
-		header->message_len = htons(encoded - 4);
+		header->message_len = htons(encoded - PFCP_IE_HDR_SIZE);
 
 		upf_pfcp_sockaddr.sin_addr.s_addr = node_addr;
 		if ( pfcp_send(pfcp_fd, pfcp_msg, encoded, &upf_pfcp_sockaddr, SENT) < 0 ){
-			clLog(clSystemLog, eCLSeverityCritical, "%s:%d Error sending: %i\n",
-					__func__, __LINE__, errno);
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT" Error sending in "
+				"PFCP Session Establishment Request: %i\n", LOG_VALUE, errno);
 			return -1;
 		 }
 	} /* for loop */
@@ -652,7 +666,7 @@ create_sess_by_csid_entry(fqcsid_t *csids, uint32_t node_addr)
 		tmp = get_sess_csid_entry(csids->local_csid[itr1], REMOVE_NODE);
 		if (tmp == NULL) {
 			clLog(clSystemLog, eCLSeverityDebug,
-					FORMAT"Entry not found, CSID: %u\n", ERR_MSG,
+					LOG_FORMAT"Entry not found, CSID: %u\n", LOG_VALUE,
 					csids->local_csid[itr1]);
 			continue;
 		}
@@ -665,7 +679,7 @@ create_sess_by_csid_entry(fqcsid_t *csids, uint32_t node_addr)
 		while (current != NULL ) {
 			uint32_t teid_key = UE_SESS_ID(current->cp_seid);
 
-			clLog(clSystemLog, eCLSeverityDebug, FORMAT" TEID : %u\n", ERR_MSG, teid_key);
+			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT" TEID : %u\n", LOG_VALUE, teid_key);
 
 			ret = rte_hash_lookup_data(ue_context_by_fteid_hash,
 					(const void *) &teid_key,
@@ -673,16 +687,16 @@ create_sess_by_csid_entry(fqcsid_t *csids, uint32_t node_addr)
 
 			if (ret < 0 || !context) {
 				clLog(clSystemLog, eCLSeverityCritical,
-						FORMAT"Error: UE contetx not found fot TEID %u \n",
-						ERR_MSG, teid_key);
+						LOG_FORMAT"Error: UE contetx not found fot TEID %u \n",
+						LOG_VALUE, teid_key);
 				/* Assign Next node address */
 				current = current->next;
 				continue;
 			}
 
 			if (process_pfcp_sess_est_req(context, node_addr) < 0) {
-				clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: TEID %u \n",
-						ERR_MSG, teid_key);
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Error while Processing "
+					"PFCP Session Establishment Request TEID %u \n", LOG_VALUE, teid_key);
 				/* Assign Next node address */
 				current = current->next;
 				continue;
@@ -705,26 +719,29 @@ create_sess_by_csid_entry(fqcsid_t *csids, uint32_t node_addr)
 int
 create_peer_node_sess(uint32_t node_addr, uint8_t iface) {
 
-	clLog(clSystemLog, eCLSeverityDebug, "%s:START\n", __func__);
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT":START\n", LOG_VALUE);
 	//int ret = 0;
 	fqcsid_t csids = {0};
 	fqcsid_t *peer_csids = NULL;
 
 	/* Get peer CSID associated with node */
-	/*ntohl()*/
+	/* ntohl is needed, because received ip address is in network order */
 	peer_csids = get_peer_addr_csids_entry(ntohl(node_addr),
 			UPDATE_NODE);
 	if (peer_csids == NULL) {
 		/* Delete UPF hash entry */
 		if (iface == SX_PORT_ID) {
+			/* Delete entry from teid info list for given upf*/
+			delete_entry_from_teid_list(node_addr, &upf_teid_info_head);
+
 			if (rte_hash_del_key(upf_context_by_ip_hash, &node_addr) < 0) {
 				clLog(clSystemLog, eCLSeverityCritical,
-						FORMAT" Error on upf_context_by_ip_hash del\n", ERR_MSG);
+						LOG_FORMAT" Error on upf_context_by_ip_hash del\n", LOG_VALUE);
 			}
 		}
 		clLog(clSystemLog, eCLSeverityDebug,
-				FORMAT"Peer CSIDs are not found, Node_Addr:"IPV4_ADDR"\n",
-				ERR_MSG, IPV4_ADDR_HOST_FORMAT(node_addr));
+				LOG_FORMAT"Peer CSIDs are not found, Node_Addr:"IPV4_ADDR"\n",
+				LOG_VALUE, IPV4_ADDR_HOST_FORMAT(node_addr));
 		return -1;
 	}
 
@@ -737,7 +754,8 @@ create_peer_node_sess(uint32_t node_addr, uint8_t iface) {
 
 		tmp = get_peer_csid_entry(&key, iface);
 		if (tmp == NULL) {
-			clLog(clSystemLog, eCLSeverityDebug, FORMAT"Entry not found \n", ERR_MSG);
+			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Entry not found for "
+				"peer CSIDs\n", LOG_VALUE);
 			return -1;
 		}
 
@@ -749,7 +767,7 @@ create_peer_node_sess(uint32_t node_addr, uint8_t iface) {
 	}
 
 	if (!csids.num_csid) {
-		clLog(clSystemLog, eCLSeverityDebug, FORMAT"Local CSIDs not found\n", ERR_MSG);
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Local CSIDs not found\n", LOG_VALUE);
 		return -1;
 	}
 
@@ -758,27 +776,6 @@ create_peer_node_sess(uint32_t node_addr, uint8_t iface) {
 	}
 	return 0;
 }
-
-/*  Function to get peer recovery time stamp */
-//int
-//get_peer_recovery_time_stamp(uint32_t *ip, uint32_t *recov_time) {
-//
-//	int ret = 0;
-//	uint32_t key = UINT32_MAX;
-//
-//	/* copy peer node address */
-//	memcpy(&key,ip,UINT32_SIZE);
-//
-//	ret = rte_hash_add_key_data(heartbeat_recovery_hash,
-//			(const void *)&key, recov_time);
-//	if (ret < 0) {
-//		clLog(clSystemLog, eCLSeverityCritical, FORMAT"ERROR : %s\n", ERR_MSG,
-//				strerror(ret));
-//		return ret;
-//	}
-//
-//	return ret;
-//}
 
 /* Function to send pfcp association setup request in recovery mode */
 int
@@ -793,8 +790,8 @@ process_aasociation_setup_req(uint32_t node_addr)
 			(const void*) &(node_addr), (void **) &(upf_context));
 
 	if (ret < 0) {
-		clLog(clSystemLog, eCLSeverityCritical, FORMAT"NO ENTRY FOUND IN UPF HASH [%u]\n",
-				ERR_MSG, node_addr);
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"NO ENTRY FOUND IN "
+			"UPF HASH [%u]\n", LOG_VALUE, node_addr);
 		return -1;
 	}
 
@@ -805,23 +802,24 @@ process_aasociation_setup_req(uint32_t node_addr)
 	/* Filling pfcp associtaion setup request */
 	fill_pfcp_association_setup_req(&pfcp_ass_setup_req);
 
-	uint8_t pfcp_msg[256] = {0};
+	uint8_t pfcp_msg[PFCP_MSG_LEN] = {0};
 	int encoded = encode_pfcp_assn_setup_req_t(&pfcp_ass_setup_req, pfcp_msg);
 
 	pfcp_header_t *header = (pfcp_header_t *) pfcp_msg;
-	header->message_len = htons(encoded - 4);
+	header->message_len = htons(encoded - PFCP_IE_HDR_SIZE);
 
 	/* ask vishal :  Do we need request time for recovery */
 	/*  Do we need to update cli stat */
 	/* Peer node address */
 	upf_pfcp_sockaddr.sin_addr.s_addr = node_addr;
 	if (pfcp_send(pfcp_fd, pfcp_msg, encoded, &upf_pfcp_sockaddr, SENT) < 0 ) {
-		clLog(clSystemLog, eCLSeverityDebug,"Error sending\n\n");
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT" Error in sending Session "
+			"Association Setup Request\n", LOG_VALUE);
 		return -1;
 	}
 
-	clLog(clSystemLog, eCLSeverityDebug,"Association request sent to peer node : [%u]\n\n",
-				node_addr);
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT" Association request sent to "
+		"peer node : [%u]\n\n", LOG_VALUE, node_addr);
 	return 0;
 
 }
@@ -836,17 +834,18 @@ recov_est_thread_func(void *arg) {
 
 	RTE_SET_USED(arg);
 	//uint32_t *peer_addr = (uint32_t *) arg;
-	clLog(clSystemLog, eCLSeverityDebug,"RECOVERY MODE: Thread Start , peer node : [%u]\n\n",
-			recov_peer_addr);
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT" RECOVERY MODE: Thread Start , peer node : [%u]\n\n",
+		LOG_VALUE, recov_peer_addr);
 
 	/* */
 	create_peer_node_sess(recov_peer_addr, SX_PORT_ID);
 
 
-	clLog(clSystemLog, eCLSeverityDebug,"RECOVERY MODE: Thread Stop , peer node : [%u]\n\n",
-			recov_peer_addr);
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT" RECOVERY MODE: Thread Stop , peer node : [%u]\n\n",
+		LOG_VALUE, recov_peer_addr);
 
 	/* Checking All session est. response are received or not */
+	/* There no critical segment, so we are not using thread sync. technique */
 	while (num_sess != 0) {
 		usleep(SLEEP_TIME);
 	}
@@ -870,8 +869,8 @@ process_asso_resp(void *_msg, struct sockaddr_in *peer_addr) {
 			(const void*) &(msg->upf_ipv4.s_addr), (void **) &(upf_context));
 
 	if (ret < 0) {
-		clLog(clSystemLog, eCLSeverityDebug, FORMAT"NO ENTRY FOUND IN UPF HASH [%u]\n",
-				ERR_MSG, msg->upf_ipv4.s_addr);
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"NO ENTRY FOUND IN UPF HASH [%u]\n",
+				LOG_VALUE, msg->upf_ipv4.s_addr);
 		return -1;
 	}
 
@@ -879,34 +878,32 @@ process_asso_resp(void *_msg, struct sockaddr_in *peer_addr) {
 	upf_context->assoc_status = ASSOC_ESTABLISHED;
 	upf_context->state = PFCP_ASSOC_RESP_RCVD_STATE;
 
+
 	/* Checking Assign TEIDRI */
-	if(msg->pfcp_msg.pfcp_ass_resp.user_plane_ip_rsrc_info[0].teid_range != upf_context->teidri){
+	if((msg->pfcp_msg.pfcp_ass_resp.user_plane_ip_rsrc_info[0].teid_range != upf_context->teid_range) ||
+			(msg->pfcp_msg.pfcp_ass_resp.user_plane_ip_rsrc_info[0].teidri != upf_context->teidri)){
 		clLog(clSystemLog, eCLSeverityDebug,
-				FORMAT"ERROR : TEIDRI MATCH NOT FOUND ,NODE ADDR : [%u] , PERVIOUS TEIDRI : [%d]"
-				"TEIDRI : [%d] \n", ERR_MSG, msg->upf_ipv4.s_addr, upf_context->teidri,
-				msg->pfcp_msg.pfcp_ass_resp.user_plane_ip_rsrc_info[0].teid_range);
+				LOG_FORMAT"ERROR : TEID RANGE MATCH NOT FOUND ,NODE ADDR : [%u] , PERVIOUS TEID RANGE : [%d] TEIDRI : [%d]"
+				"CURRENT TEID RANGE : [%d] TEIDRI : [%d] \n", LOG_VALUE, msg->upf_ipv4.s_addr, upf_context->teid_range , upf_context->teidri ,
+				msg->pfcp_msg.pfcp_ass_resp.user_plane_ip_rsrc_info[0].teid_range, msg->pfcp_msg.pfcp_ass_resp.user_plane_ip_rsrc_info[0].teidri);
 		/* Cleanup is on low priority */
 		/* Cleanip Initiate for peer node */
-		del_peer_node_sess(recov_peer_addr, SX_PORT_ID);
+		del_peer_node_sess(recov_peer_addr, SX_PORT_ID, upf_context->cp_mode);
 		return -1;
 	}
 
-	/* Adding ip to cp  heartbeat when dp returns the association response*/
-	//add_ip_to_heartbeat_hash(peer_addr,
-	//					msg->pfcp_msg.pfcp_ass_resp.rcvry_time_stmp.rcvry_time_stmp_val);
 
-
-	clLog(clSystemLog, eCLSeverityDebug, "TEIDRI MATCT FOUND : NODE ADDR : [%u] , PERVIOUS TEIDRI : [%d] \n",
-				peer_addr->sin_addr.s_addr, upf_context->teidri);
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT "TEID RANGE MATCT FOUND : NODE ADDR : [%u] , PERVIOUS TEID RANGE : [%d] \n",
+		LOG_VALUE, peer_addr->sin_addr.s_addr, upf_context->teid_range);
 
 
 	ret  = pthread_create(&recov_thread, NULL, &recov_est_thread_func, NULL);
 	if (ret != 0) {
-		clLog(clSystemLog, eCLSeverityInfo, "\ncan't create RECOVRY MODE thread :[%s]", strerror(ret));
+		clLog(clSystemLog, eCLSeverityInfo, LOG_FORMAT"\ncan't create RECOVRY MODE thread :[%s]", LOG_VALUE, strerror(ret));
 		return ret;
 	}
 	else {
-		clLog(clSystemLog, eCLSeverityInfo, "\n RECOVERY MODE thread created successfully\n");
+		clLog(clSystemLog, eCLSeverityInfo, LOG_FORMAT"\n RECOVERY MODE thread created successfully\n", LOG_VALUE);
 	}
 
 	return 0;
@@ -917,10 +914,10 @@ process_asso_resp(void *_msg, struct sockaddr_in *peer_addr) {
 int
 process_sess_est_resp(pfcp_sess_estab_rsp_t *pfcp_sess_est_rsp)
 {
-	clLog(clSystemLog, eCLSeverityDebug, "RECOVERY MODE : session establishment response received  \n");
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"RECOVERY MODE : session establishment response received\n", LOG_VALUE);
 	if (pfcp_sess_est_rsp == NULL) {
-		clLog(clSystemLog, eCLSeverityCritical, FORMAT"ERROR:%s\n",
-				ERR_MSG, strerror(errno));
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"ERROR:%s\n",
+				LOG_VALUE, strerror(errno));
 		return -1;
 	}
 
@@ -936,29 +933,31 @@ process_sess_est_resp(pfcp_sess_estab_rsp_t *pfcp_sess_est_rsp)
 	/* Retrieve the UE context */
 	ret = get_ue_context(teid, &context);
 	if (ret < 0) {
-			clLog(clSystemLog, eCLSeverityCritical, "%s:%d Failed to update UE State for teid: %u\n",
-					__func__, __LINE__,
-					teid);
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT" Failed to update UE "
+				"State for teid: %u\n", LOG_VALUE, teid);
 		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 	}
 
 	if (get_sess_entry(sess_id, &resp) != 0) {
-		clLog(clSystemLog, eCLSeverityCritical, "%s %s %d Failed to get response entry in SM_HASH for SEID : 0x%x \n", __file__
-				,__func__, __LINE__, sess_id);
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT" Failed to get response "
+			"entry in SM_HASH for SEID : 0x%x \n", LOG_VALUE, sess_id);
 		return -1;
 	}
 
 
 	/* Need to think on eps_bearer_id*/
-	//uint8_t ebi_index = UE_BEAR_ID(sess_id) - 5;
-	uint8_t ebi_index = resp->eps_bearer_id - 5;
-	//bearer = context->eps_bearers[ebi_index];
+	int ebi_index = GET_EBI_INDEX(resp->linked_eps_bearer_id);
+	if (ebi_index == -1) {
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Invalid EBI ID\n", LOG_VALUE);
+		return GTPV2C_CAUSE_SYSTEM_FAILURE;
+	}
+	// uint8_t ebi_index = resp->linked_eps_bearer_id - NUM_RESERVED_EBI_INDEX;
 
 	/* Update the UE state */
 	pdn = GET_PDN(context, ebi_index);
 	if(pdn == NULL){
 		clLog(clSystemLog, eCLSeverityCritical,
-				"%s:%d Failed to get pdn \n", __func__, __LINE__);
+			LOG_FORMAT"Failed to get pdn for ebi_index : %d \n", LOG_VALUE);
 		return -1;
 	}
 
@@ -972,45 +971,45 @@ process_sess_est_resp(pfcp_sess_estab_rsp_t *pfcp_sess_est_rsp)
 	fqcsid = rte_zmalloc_socket(NULL, sizeof(fqcsid_t),
 			RTE_CACHE_LINE_SIZE, rte_socket_id());
 	if (fqcsid == NULL) {
-		clLog(clSystemLog, eCLSeverityCritical, FORMAT"Failed to allocate the memory for fqcsids entry\n",
-				ERR_MSG);
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to allocate the "
+			"memory for fqcsids entry\n", LOG_VALUE);
 		return -1;
 	}
 
 	/* SGW FQ-CSID */
-	if (pfcp_sess_est_rsp->sgw_u_fqcsid.header.len) {
-		if (pfcp_sess_est_rsp->sgw_u_fqcsid.number_of_csids) {
-			/* Stored the SGW CSID by SGW Node address */
-			tmp = get_peer_addr_csids_entry(pfcp_sess_est_rsp->sgw_u_fqcsid.node_address,
+	if (pfcp_sess_est_rsp->up_fqcsid.header.len) {
+		if (pfcp_sess_est_rsp->up_fqcsid.number_of_csids) {
+			/* Stored the UP CSID by UP Node address */
+			tmp = get_peer_addr_csids_entry(pfcp_sess_est_rsp->up_fqcsid.node_address,
 					ADD_NODE);
 
 			if (tmp == NULL) {
-				clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
-						strerror(errno));
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to get SGW-U "
+					"FQ-CSID while PFCP Session Establishment Response: %s \n",
+					LOG_VALUE, strerror(errno));
 				return -1;
 			}
 
-			tmp->node_addr = pfcp_sess_est_rsp->sgw_u_fqcsid.node_address;
+			tmp->node_addr = pfcp_sess_est_rsp->up_fqcsid.node_address;
 
-			for(uint8_t itr = 0; itr < pfcp_sess_est_rsp->sgw_u_fqcsid.number_of_csids; itr++) {
+			for(uint8_t itr = 0; itr < pfcp_sess_est_rsp->up_fqcsid.number_of_csids; itr++) {
 				uint8_t match = 0;
 				for (uint8_t itr1 = 0; itr1 < tmp->num_csid; itr1++) {
-					if (tmp->local_csid[itr1] == pfcp_sess_est_rsp->sgw_u_fqcsid.pdn_conn_set_ident[itr]) {
+					if (tmp->local_csid[itr1] == pfcp_sess_est_rsp->up_fqcsid.pdn_conn_set_ident[itr]) {
 						match = 1;
-						break;
 					}
 				}
 				if (!match) {
 					tmp->local_csid[tmp->num_csid++] =
-						pfcp_sess_est_rsp->sgw_u_fqcsid.pdn_conn_set_ident[itr];
+						pfcp_sess_est_rsp->up_fqcsid.pdn_conn_set_ident[itr];
 				}
 			}
-			for(uint8_t itr1 = 0; itr1 < pfcp_sess_est_rsp->sgw_u_fqcsid.number_of_csids; itr1++) {
+			for(uint8_t itr1 = 0; itr1 < pfcp_sess_est_rsp->up_fqcsid.number_of_csids; itr1++) {
 					fqcsid->local_csid[fqcsid->num_csid++] =
-						pfcp_sess_est_rsp->sgw_u_fqcsid.pdn_conn_set_ident[itr1];
+						pfcp_sess_est_rsp->up_fqcsid.pdn_conn_set_ident[itr1];
 			}
 
-			fqcsid->node_addr = pfcp_sess_est_rsp->sgw_u_fqcsid.node_address;
+			fqcsid->node_addr = pfcp_sess_est_rsp->up_fqcsid.node_address;
 
 			for (uint8_t itr2 = 0; itr2 < tmp->num_csid; itr2++) {
 				if (tmp->local_csid[itr2] == old_csid) {
@@ -1023,61 +1022,19 @@ process_sess_est_resp(pfcp_sess_estab_rsp_t *pfcp_sess_est_rsp)
 		}
 	}
 
-	/* PGW FQ-CSID */
-	if (pfcp_sess_est_rsp->pgw_u_fqcsid.header.len) {
-		if (pfcp_sess_est_rsp->pgw_u_fqcsid.number_of_csids) {
-			/* Stored the PGW CSID by PGW Node address */
-			tmp = get_peer_addr_csids_entry(pfcp_sess_est_rsp->pgw_u_fqcsid.node_address,
-					ADD_NODE);
-
-			if (tmp == NULL) {
-				clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
-						strerror(errno));
-				return -1;
-			}
-
-			tmp->node_addr = pfcp_sess_est_rsp->pgw_u_fqcsid.node_address;
-
-			for(uint8_t itr = 0; itr < pfcp_sess_est_rsp->pgw_u_fqcsid.number_of_csids; itr++) {
-				uint8_t match = 0;
-				for (uint8_t itr1 = 0; itr1 < tmp->num_csid; itr1++) {
-					if (tmp->local_csid[itr1] == pfcp_sess_est_rsp->pgw_u_fqcsid.pdn_conn_set_ident[itr]) {
-						match = 1;
-					}
-				}
-				if (!match) {
-					tmp->local_csid[tmp->num_csid++] =
-						pfcp_sess_est_rsp->pgw_u_fqcsid.pdn_conn_set_ident[itr];
-				}
-			}
-			for(uint8_t itr1 = 0; itr1 < pfcp_sess_est_rsp->pgw_u_fqcsid.number_of_csids; itr1++) {
-					fqcsid->local_csid[fqcsid->num_csid++] =
-						pfcp_sess_est_rsp->pgw_u_fqcsid.pdn_conn_set_ident[itr1];
-			}
-
-			fqcsid->node_addr = pfcp_sess_est_rsp->pgw_u_fqcsid.node_address;
-
-			for (uint8_t itr2 = 0; itr2 < tmp->num_csid; itr2++) {
-				if (tmp->local_csid[itr2] == old_csid) {
-					for(uint8_t pos = itr2; pos < (tmp->num_csid - 1); pos++ ) {
-						tmp->local_csid[pos] = tmp->local_csid[pos + 1];
-					}
-					tmp->num_csid--;
-				}
-			}
-		}
-	}
 	/* TODO: Add the handling if SGW or PGW not support Partial failure */
 	/* Link peer node SGW or PGW csid with local csid */
-	if (pfcp_config.cp_type != PGWC) {
+	if (context->cp_mode != PGWC) {
 		ret = update_peer_csid_link(fqcsid, context->sgw_fqcsid);
 	} else {
 		ret = update_peer_csid_link(fqcsid, context->pgw_fqcsid);
 	}
 
 	if (ret) {
-		clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
-				strerror(errno));
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to Update "
+			"FQ-CSID link while PFCP Session Establishment Response: %s \n",
+			LOG_VALUE, strerror(errno));
+
 		return -1;
 	}
 

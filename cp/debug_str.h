@@ -30,6 +30,7 @@
 #include <stdint.h>
 
 #include "gtpv2c_ie.h"
+#include "pfcp_ies.h"
 
 /**
  * @brief  : Returns cause string from code value as defined by 3gpp TS 29.274.
@@ -59,4 +60,13 @@ gtp_type_str(uint8_t type);
  */
 const char *
 gx_type_str(uint8_t type);
+
+/**
+ * @brief  : Returns cause string from code value for pfcp messages
+ * @param  : cause
+ *           The cause coded value
+ * @return : String describing cause code value.
+ */
+const char *
+cause_str_pfcp(enum cause_values_type);
 #endif /* DEBUG_STR_H */

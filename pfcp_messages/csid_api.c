@@ -33,6 +33,84 @@ extern struct sockaddr_in upf_pfcp_sockaddr;
 extern struct in_addr dp_comm_ip;
 extern struct in_addr cp_comm_ip;
 extern struct app_params app;
+
+int8_t
+stored_recvd_peer_fqcsid(pfcp_fqcsid_ie_t *peer_fqcsid, fqcsid_t *local_fqcsid)
+{
+	fqcsid_t *tmp = NULL;
+	/* Stored the Peer CSID by Peer Node address */
+	tmp = get_peer_addr_csids_entry(peer_fqcsid->node_address,
+			ADD_NODE);
+	if (tmp == NULL) {
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Error: %s \n", LOG_VALUE,
+				strerror(errno));
+		return -1;
+	}
+	tmp->node_addr = peer_fqcsid->node_address;
+
+	for(uint8_t itr = 0; itr < peer_fqcsid->number_of_csids; itr++) {
+		uint8_t match = 0;
+		for (uint8_t itr1 = 0; itr1 < tmp->num_csid; itr1++) {
+			if (tmp->local_csid[itr1] == peer_fqcsid->pdn_conn_set_ident[itr]){
+				match = 1;
+				break;
+			}
+		}
+		if (!match) {
+			tmp->local_csid[tmp->num_csid++] =
+				peer_fqcsid->pdn_conn_set_ident[itr];
+		}
+	}
+
+	for(uint8_t itr1 = 0; itr1 < peer_fqcsid->number_of_csids; itr1++) {
+			local_fqcsid->local_csid[local_fqcsid->num_csid++] =
+				peer_fqcsid->pdn_conn_set_ident[itr1];
+	}
+	local_fqcsid->node_addr = peer_fqcsid->node_address;
+
+	return 0;
+}
+
+int8_t
+link_peer_csid_with_local_csid(fqcsid_t *peer_fqcsid,
+		fqcsid_t *local_fqcsid, uint8_t iface)
+{
+	/* LINK Peer CSID with local CSID */
+	if (peer_fqcsid->num_csid) {
+		for (uint8_t itr = 0; itr < peer_fqcsid->num_csid; itr++) {
+			csid_t *tmp1 = NULL;
+			csid_key_t key = {0};
+			key.local_csid = peer_fqcsid->local_csid[itr];
+			key.node_addr = peer_fqcsid->node_addr;
+
+			tmp1 = get_peer_csid_entry(&key, iface);
+			if (tmp1 == NULL) {
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Error: %s \n", LOG_VALUE,
+						strerror(errno));
+				return -1;
+			}
+
+			if (!tmp1->num_csid) {
+				tmp1->local_csid[tmp1->num_csid++] =
+					local_fqcsid->local_csid[local_fqcsid->num_csid - 1];
+			} else {
+				uint8_t match = 0;
+				for (uint8_t itr1 = 0; itr1 < tmp1->num_csid; itr1++) {
+					if (tmp1->local_csid[itr1] ==
+							local_fqcsid->local_csid[local_fqcsid->num_csid - 1]) {
+						match = 1;
+						break;
+					}
+				}
+				if (!match) {
+					tmp1->local_csid[tmp1->num_csid++] =
+						local_fqcsid->local_csid[local_fqcsid->num_csid - 1];
+				}
+			}
+		}
+	}
+	return 0;
+}
 #endif /* CP_BUILD */
 
 /* PFCP: Create and Fill the FQ-CSIDs */
@@ -59,6 +137,7 @@ void
 set_gtpc_fqcsid_t(gtp_fqcsid_ie_t *fqcsid,
 		enum ie_instance instance, fqcsid_t *csids)
 {
+	uint8_t count = 5;
 	set_ie_header(&fqcsid->header, GTP_IE_FQCSID,
 		instance, 0);
 
@@ -70,8 +149,59 @@ set_gtpc_fqcsid_t(gtp_fqcsid_ie_t *fqcsid,
 		fqcsid->pdn_csid[itr] = csids->local_csid[itr];
 	}
 
-	fqcsid->header.len = (2 * (fqcsid->number_of_csids) + 5);
+	fqcsid->header.len = (2 * (fqcsid->number_of_csids) + count);
 	return;
+}
+
+/* Linked the Peer CSID with local CSID */
+int8_t
+link_gtpc_peer_csids(fqcsid_t *peer_fqcsid, fqcsid_t *local_fqcsid,
+		uint8_t iface)
+{
+	if (local_fqcsid == NULL) {
+		clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Local CSID is NULL, ERR:%S\n", LOG_VALUE, strerror(errno));
+		return -1;
+	}
+
+	for (uint8_t itr = 0; itr < peer_fqcsid->num_csid; itr++) {
+		csid_t *tmp = NULL;
+		csid_key_t key = {0};
+		key.local_csid = peer_fqcsid->local_csid[itr];
+		key.node_addr = peer_fqcsid->node_addr;
+
+		tmp = get_peer_csid_entry(&key, iface);
+		if (tmp == NULL) {
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to get "
+					"CSID entry to link with PEER FQCSID, Error : %s \n", LOG_VALUE,
+					strerror(errno));
+			return -1;
+		}
+
+		/* Link local csid with MME CSID */
+		if (tmp->num_csid == 0) {
+			tmp->local_csid[tmp->num_csid++] =
+				local_fqcsid->local_csid[local_fqcsid->num_csid - 1];
+		} else {
+			for (uint8_t itr1 = 0; itr1 < tmp->num_csid; itr1++) {
+				if (tmp->local_csid[itr1] ==
+						local_fqcsid->local_csid[local_fqcsid->num_csid - 1]) {
+					return 0;
+				}
+			}
+			/* Link with peer CSID */
+			tmp->local_csid[tmp->num_csid++] =
+				local_fqcsid->local_csid[local_fqcsid->num_csid - 1];
+
+			/* Update the Node Addr */
+			tmp->node_addr = local_fqcsid->node_addr;
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Peer CSID Linked with Local CSID: %u\n", LOG_VALUE,
+					local_fqcsid->local_csid[local_fqcsid->num_csid - 1]);
+		}
+	}
+
+	return 0;
 }
 
 int
@@ -82,7 +212,7 @@ fill_peer_node_info(pdn_connection *pdn,
 	csid_key peer_info = {0};
 
 	/* MME FQ-CSID */
-	if (pfcp_config.cp_type != PGWC) {
+	if ((pdn->context)->cp_mode != PGWC) {
 		if (((pdn->context)->mme_fqcsid)->num_csid) {
 			peer_info.mme_ip = ((pdn->context)->mme_fqcsid)->node_addr;
 		} else {
@@ -90,8 +220,8 @@ fill_peer_node_info(pdn_connection *pdn,
 			peer_info.mme_ip = (pdn->context)->s11_mme_gtpc_ipv4.s_addr;
 		}
 		clLog(clSystemLog, eCLSeverityDebug,
-				FORMAT"Peer Node MME IP Address: "IPV4_ADDR"\n",
-				ERR_MSG,
+				LOG_FORMAT"Peer Node MME IP Address: "IPV4_ADDR"\n",
+				LOG_VALUE,
 				IPV4_ADDR_HOST_FORMAT(peer_info.mme_ip));
 	}
 
@@ -100,7 +230,7 @@ fill_peer_node_info(pdn_connection *pdn,
 		peer_info.sgwc_ip = ((pdn->context)->sgw_fqcsid)->node_addr;
 	} else {
 		/* IF SGWC not support partial failure */
-		if ((pfcp_config.cp_type == SGWC) || (pfcp_config.cp_type == SAEGWC)) {
+		if (((pdn->context)->cp_mode == SGWC) || ((pdn->context)->cp_mode == SAEGWC)) {
 			peer_info.sgwc_ip = (pdn->context)->s11_sgw_gtpc_ipv4.s_addr;
 		} else {
 			peer_info.sgwc_ip = pdn->s5s8_sgw_gtpc_ipv4.s_addr;
@@ -108,270 +238,126 @@ fill_peer_node_info(pdn_connection *pdn,
 	}
 
 	clLog(clSystemLog, eCLSeverityDebug,
-			FORMAT"Peer Node SGWC/SAEGWC IP Address: "IPV4_ADDR"\n",
-			ERR_MSG,
+			LOG_FORMAT"Peer Node SGWC/SAEGWC IP Address: "IPV4_ADDR"\n",
+			LOG_VALUE,
 			IPV4_ADDR_HOST_FORMAT(peer_info.sgwc_ip));
 
-	if (pfcp_config.cp_type != PGWC) {
+	if ((pdn->context)->cp_mode != PGWC) {
 		/* Fill the enodeb IP */
 		peer_info.enodeb_ip = bearer->s1u_enb_gtpu_ipv4.s_addr;
 		clLog(clSystemLog, eCLSeverityDebug,
-				FORMAT"Peer Node enodeb IP Address: "IPV4_ADDR"\n",
-				ERR_MSG,
+				LOG_FORMAT"Peer Node enodeb IP Address: "IPV4_ADDR"\n",
+				LOG_VALUE,
 				IPV4_ADDR_HOST_FORMAT(peer_info.enodeb_ip));
 	}
 
 	/* SGW and PGW peer node info */
 	peer_info.pgwc_ip = pdn->s5s8_pgw_gtpc_ipv4.s_addr;
 	clLog(clSystemLog, eCLSeverityDebug,
-			FORMAT"Peer Node PGWC IP Address: "IPV4_ADDR"\n",
-			ERR_MSG,
+			LOG_FORMAT"Peer Node PGWC IP Address: "IPV4_ADDR"\n",
+			LOG_VALUE,
 			IPV4_ADDR_HOST_FORMAT(peer_info.pgwc_ip));
 
 	/* SGWU and PGWU peer node info */
-	if ((pfcp_config.cp_type == SAEGWC) || (pfcp_config.cp_type == SGWC)) {
+	if (((pdn->context)->cp_mode == SAEGWC) || ((pdn->context)->cp_mode == SGWC)) {
 		peer_info.sgwu_ip = pdn->upf_ipv4.s_addr;
-		//peer_info.pgwu_ip = bearer->s5s8_pgw_gtpu_ipv4.s_addr;
 		clLog(clSystemLog, eCLSeverityDebug,
-				FORMAT"Peer Node SGWU/SAEGWU IP Address: "IPV4_ADDR"\n",
-				ERR_MSG,
+				LOG_FORMAT"Peer Node SGWU/SAEGWU IP Address: "IPV4_ADDR"\n",
+				LOG_VALUE,
 				IPV4_ADDR_HOST_FORMAT(peer_info.sgwu_ip));
-	} else if (pfcp_config.cp_type == PGWC) {
+	} else if ((pdn->context)->cp_mode == PGWC) {
 		/*TODO: Need to think on it*/
-		//peer_info.sgwu_ip = bearer->s5s8_sgw_gtpu_ipv4.s_addr;
 		peer_info.pgwu_ip = pdn->upf_ipv4.s_addr;
 		clLog(clSystemLog, eCLSeverityDebug,
-				FORMAT"Peer Node PGWU IP Address: "IPV4_ADDR"\n",
-				ERR_MSG,
+				LOG_FORMAT"Peer Node PGWU IP Address: "IPV4_ADDR"\n",
+				LOG_VALUE,
 				IPV4_ADDR_HOST_FORMAT(peer_info.pgwu_ip));
 	}
 
 	/* Get local csid for set of peer node */
 	local_csid = get_csid_entry(&peer_info);
 	if (local_csid < 0) {
-		clLog(clSystemLog, eCLSeverityCritical, FORMAT"Failed to assinged CSID..\n", ERR_MSG);
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to assinged CSID..\n", LOG_VALUE);
 		return -1;
 	}
 
 	/* Remove the dummy local CSIDs from the context */
-	if (pfcp_config.cp_type != PGWC) {
-		if (((pdn->context)->sgw_fqcsid)->local_csid[((pdn->context)->sgw_fqcsid)->num_csid - 1] != local_csid) {
-			//memset((pdn->context)->sgw_fqcsid, 0, sizeof(fqcsid_t));
-			((pdn->context)->sgw_fqcsid)->num_csid = 0;
+	fqcsid_t tmp_csid_t = {0};
+	if ((pdn->context)->cp_mode != PGWC) {
+		memcpy(&tmp_csid_t, (pdn->context)->sgw_fqcsid, sizeof(fqcsid_t));
+	} else {
+		memcpy(&tmp_csid_t, (pdn->context)->pgw_fqcsid, sizeof(fqcsid_t));
+	}
+
+	/* Validate the CSID present or not in exsiting CSID List */
+	for (uint8_t inx = 0; inx < tmp_csid_t.num_csid; inx++) {
+		if (tmp_csid_t.local_csid[inx] == local_csid) {
+			return 0;
 		}
 	}
 
 	/* Update the local csid into the UE context */
-	uint8_t match = 0;
-	if ((pfcp_config.cp_type == SGWC) || (pfcp_config.cp_type == SAEGWC)) {
-		for(uint8_t itr = 0; itr < ((pdn->context)->sgw_fqcsid)->num_csid; itr++) {
-			if (((pdn->context)->sgw_fqcsid)->local_csid[itr] == local_csid) {
-				match = 1;
-				break;
-			}
-		}
-
-		if (!match) {
-			((pdn->context)->sgw_fqcsid)->local_csid[((pdn->context)->sgw_fqcsid)->num_csid++] =
-				local_csid;
-			match = 0;
-		}
+	if ((pdn->context)->cp_mode != PGWC) {
+		((pdn->context)->sgw_fqcsid)->local_csid[((pdn->context)->sgw_fqcsid)->num_csid++] =
+			local_csid;
+		pdn->context->flag_fqcsid_modified = TRUE;
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"SGW CSID is Modified ..\n", LOG_VALUE);
 	} else {
-		for(uint8_t itr = 0; itr < ((pdn->context)->pgw_fqcsid)->num_csid; itr++) {
-			if (((pdn->context)->pgw_fqcsid)->local_csid[itr] == local_csid) {
-				match = 1;
-				break;
-			}
-		}
-
-		if (!match) {
-			((pdn->context)->pgw_fqcsid)->local_csid[((pdn->context)->pgw_fqcsid)->num_csid++] =
-				local_csid;
-			match = 0;
-		}
+		((pdn->context)->pgw_fqcsid)->local_csid[((pdn->context)->pgw_fqcsid)->num_csid++] =
+			local_csid;
+		pdn->context->flag_fqcsid_modified = TRUE;
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"PGW CSID is Modified ..\n", LOG_VALUE);
 	}
 
 	/* Link local CSID with MME CSID */
 	if ((pdn->context)->mme_fqcsid != NULL) {
-		if (((pdn->context)->mme_fqcsid)->num_csid) {
-			for (uint8_t itr = 0; itr < ((pdn->context)->mme_fqcsid)->num_csid; itr++) {
-				csid_t *tmp = NULL;
-				csid_key_t key = {0};
-				key.local_csid = ((pdn->context)->mme_fqcsid)->local_csid[itr];
-				key.node_addr = ((pdn->context)->mme_fqcsid)->node_addr;
-
-				if (pfcp_config.cp_type != PGWC)
-					tmp = get_peer_csid_entry(&key, S11_SGW_PORT_ID);
-				else
-					tmp = get_peer_csid_entry(&key, S5S8_PGWC_PORT_ID);
-
-				if (tmp == NULL) {
-					clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
-							strerror(errno));
-					return -1;
-				}
-
-				/* Link local csid with MME CSID */
-				if (tmp->num_csid == 0) {
-					tmp->local_csid[tmp->num_csid++] = local_csid;
-				} else {
-					uint8_t match = 0;
-					for (uint8_t itr1 = 0; itr1 < tmp->num_csid; itr1++) {
-						if (tmp->local_csid[itr1] == local_csid) {
-							match = 1;
-							break;
-						}
-					}
-
-					if (!match) {
-						tmp->local_csid[tmp->num_csid++] = local_csid;
-					}
-				}
-
-				/* Update the Node Addr */
-				if (pfcp_config.cp_type != PGWC)
-					tmp->node_addr = ((pdn->context)->sgw_fqcsid)->node_addr;
-				else
-					tmp->node_addr = ((pdn->context)->pgw_fqcsid)->node_addr;
+		if ((pdn->context)->cp_mode != PGWC) {
+			if (link_gtpc_peer_csids((pdn->context)->mme_fqcsid,
+						(pdn->context)->sgw_fqcsid, S11_SGW_PORT_ID)) {
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to Link "
+					"Local CSID entry to link with MME FQCSID, Error : %s \n", LOG_VALUE,
+					strerror(errno));
+				return -1;
+			}
+		} else {
+			if (link_gtpc_peer_csids((pdn->context)->mme_fqcsid,
+						(pdn->context)->pgw_fqcsid, S5S8_PGWC_PORT_ID)) {
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to Link "
+					"Local CSID entry to link with MME FQCSID, Error : %s \n", LOG_VALUE,
+					strerror(errno));
+				return -1;
 			}
 		}
 	}
 
 	/* PGW Link local CSID with SGW CSID */
-	if (pfcp_config.cp_type == PGWC) {
+	if ((pdn->context)->cp_mode == PGWC) {
 		if ((pdn->context)->sgw_fqcsid != NULL) {
-			if (((pdn->context)->sgw_fqcsid)->num_csid) {
-				for (uint8_t itr = 0; itr < ((pdn->context)->sgw_fqcsid)->num_csid; itr++) {
-					csid_t *tmp = NULL;
-					csid_key_t key = {0};
-					key.local_csid = ((pdn->context)->sgw_fqcsid)->local_csid[itr];
-					key.node_addr = ((pdn->context)->sgw_fqcsid)->node_addr;
-
-					tmp = get_peer_csid_entry(&key, S5S8_PGWC_PORT_ID);
-					if (tmp == NULL) {
-						clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
-								strerror(errno));
-						return -1;
-					}
-
-					/* Link local csid with SGW CSID */
-					if (tmp->num_csid == 0) {
-						/* Update csid by mme csid */
-						tmp->local_csid[tmp->num_csid++] = local_csid;
-					} else {
-						uint8_t match = 0;
-						for (uint8_t itr1 = 0; itr1 < tmp->num_csid; itr1++) {
-							if (tmp->local_csid[itr1] == local_csid) {
-								match = 1;
-								break;
-							}
-						}
-
-						if (!match) {
-							tmp->local_csid[tmp->num_csid++] = local_csid;
-						}
-					}
-					/* Update the node address */
-					tmp->node_addr = ((pdn->context)->sgw_fqcsid)->node_addr;
-				}
+			if (link_gtpc_peer_csids((pdn->context)->sgw_fqcsid,
+						(pdn->context)->pgw_fqcsid, S5S8_PGWC_PORT_ID)) {
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to Link "
+					"Local CSID entry to link with SGW FQCSID, Error : %s \n", LOG_VALUE,
+					strerror(errno));
+				return -1;
 			}
 		}
 	}
 
 	/* SGW Link local CSID with PGW CSID */
-	if (pfcp_config.cp_type != PGWC) {
+	if ((pdn->context)->cp_mode != PGWC) {
 		if ((pdn->context)->pgw_fqcsid != NULL) {
-			if (((pdn->context)->pgw_fqcsid)->num_csid) {
-				for (uint8_t itr = 0; itr < ((pdn->context)->pgw_fqcsid)->num_csid; itr++) {
-					csid_t *tmp = NULL;
-					csid_key_t key = {0};
-					key.local_csid = ((pdn->context)->pgw_fqcsid)->local_csid[itr];
-					key.node_addr = ((pdn->context)->pgw_fqcsid)->node_addr;
-
-					tmp = get_peer_csid_entry(&key, S5S8_PGWC_PORT_ID);
-					if (tmp == NULL) {
-						clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
-								strerror(errno));
-						return -1;
-					}
-
-					/* Link local csid with SGW CSID */
-					if (tmp->num_csid == 0) {
-						/* Update csid by mme csid */
-						tmp->local_csid[tmp->num_csid++] = local_csid;
-					} else {
-						uint8_t match = 0;
-						for (uint8_t itr1 = 0; itr1 < tmp->num_csid; itr1++) {
-							if (tmp->local_csid[itr1] == local_csid) {
-								match = 1;
-								break;
-							}
-						}
-
-						if (!match) {
-							tmp->local_csid[tmp->num_csid++] = local_csid;
-						}
-					}
-					/* Update the node address */
-					tmp->node_addr = ((pdn->context)->pgw_fqcsid)->node_addr;
-				}
+			if (link_gtpc_peer_csids((pdn->context)->pgw_fqcsid,
+						(pdn->context)->sgw_fqcsid, S5S8_SGWC_PORT_ID)) {
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to Link "
+					"Local CSID entry to link with PGW FQCSID, Error : %s \n", LOG_VALUE,
+					strerror(errno));
+				return -1;
 			}
 		}
 	}
 	return 0;
 }
 
-
-int
-csrsp_fill_peer_node_info(create_sess_req_t *csr, pdn_connection *pdn,
-				eps_bearer *bearer)
-{
-	RTE_SET_USED(csr);
-	RTE_SET_USED(pdn);
-	RTE_SET_USED(bearer);
-	//csid_key peer_info = {0};
-	//fq_csids *csids = NULL;
-
-	///* SGW FQ-CSID */
-	//if (csr->sgw_fqcsid.header.len) {
-	//	for(int itr = 0; itr < csr->sgw_fqcsid.number_of_csids; itr++) {
-	//		csids->sgwc_csid[itr] = csr->sgw_fqcsid.pdn_csid[itr];
-	//	}
-	//	peer_info.sgwc_ip = csr->sgw_fqcsid.node_address;
-	//} else {
-	//	/* IF SGW not support partial failure */
-	//	peer_info.sgwc_ip = (pdn->context)->s11_sgw_gtpc_ipv4.s_addr;
-	//}
-
-	///* PGW FQ-CSID */
-	//if (csr->pgw_fqcsid.header.len) {
-	//	for(uint8_t itr = 0; itr < csr->pgw_fqcsid.number_of_csids; itr++) {
-	//		csids->pgwc_csid[itr] = csr->pgw_fqcsid.pdn_csid[itr];
-	//	}
-	//	peer_info.pgwc_ip = csr->pgw_fqcsid.node_address;
-	//} else {
-	//	/* IF PGWC not support partial failure */
-	//	peer_info.pgwc_ip = (pdn->context)->s11_sgw_gtpc_ipv4.s_addr;
-	//}
-
-	return 0;
-}
-
-/*
-static void
-fill_gtpc_sess_set_del_req()
-{
-
-}
-*/
-/* In partial failure support initiate the Request to cleanup peer node sessions based on FQ-CSID */
-//int8_t
-//gen_gtpc_sess_deletion_req()
-//{
-//
-//
-//	return 0;
-//}
 
 int8_t
 update_peer_csid_link(fqcsid_t *fqcsid, fqcsid_t *fqcsid_t)
@@ -387,8 +373,8 @@ update_peer_csid_link(fqcsid_t *fqcsid, fqcsid_t *fqcsid_t)
 			tmp = get_peer_csid_entry(&key, SX_PORT_ID);
 
 			if (tmp == NULL) {
-				clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
-						strerror(errno));
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Error in "
+					"updating peer CSID link: %s \n", LOG_VALUE, strerror(errno));
 				return -1;
 			}
 
@@ -423,14 +409,16 @@ fill_fqcsid_sess_mod_req(pfcp_sess_mod_req_t *pfcp_sess_mod_req, ue_context *con
 			fqcsid_t tmp_fqcsid = {0};
 
 			set_fq_csid_t(&pfcp_sess_mod_req->sgw_c_fqcsid, context->sgw_fqcsid);
-			if (pfcp_config.cp_type != PGWC) {
-				(pfcp_sess_mod_req->sgw_c_fqcsid).node_address = ntohl(pfcp_config.pfcp_ip.s_addr);
+			if (context->cp_mode != PGWC) {
+				(pfcp_sess_mod_req->sgw_c_fqcsid).node_address = pfcp_config.pfcp_ip.s_addr;
 			}
 
 			/* set PGWC FQ-CSID explicitlly zero */
 			set_fq_csid_t(&pfcp_sess_mod_req->pgw_c_fqcsid, &tmp_fqcsid);
-			/* set MME FQ-CSID explicitlly zero */
-			set_fq_csid_t(&pfcp_sess_mod_req->mme_fqcsid, &tmp_fqcsid);
+			if (!pfcp_sess_mod_req->mme_fqcsid.number_of_csids) {
+				/* set MME FQ-CSID explicitlly zero */
+				set_fq_csid_t(&pfcp_sess_mod_req->mme_fqcsid, &tmp_fqcsid);
+			}
 		}
 	}
 
@@ -441,36 +429,48 @@ int8_t
 fill_fqcsid_sess_est_req(pfcp_sess_estab_req_t *pfcp_sess_est_req, ue_context *context)
 {
 
-	if (pfcp_config.cp_type != PGWC) {
+	fqcsid_t tmp_fqcsid = {0};
+	if (context->cp_mode != PGWC) {
 		/* Set SGW FQ-CSID */
 		if ((context->sgw_fqcsid)->num_csid) {
 			set_fq_csid_t(&pfcp_sess_est_req->sgw_c_fqcsid, context->sgw_fqcsid);
-			(pfcp_sess_est_req->sgw_c_fqcsid).node_address = ntohl(pfcp_config.pfcp_ip.s_addr);
+			(pfcp_sess_est_req->sgw_c_fqcsid).node_address = pfcp_config.pfcp_ip.s_addr;
+		} else {
+			set_fq_csid_t(&pfcp_sess_est_req->sgw_c_fqcsid, &tmp_fqcsid);
 		}
 		/* Set MME FQ-CSID */
 		if((context->mme_fqcsid)->num_csid) {
 			set_fq_csid_t(&pfcp_sess_est_req->mme_fqcsid, context->mme_fqcsid);
+		} else {
+			set_fq_csid_t(&pfcp_sess_est_req->mme_fqcsid, &tmp_fqcsid);
 		}
 
 		/* set PGWC FQ-CSID */
 		/* set PGWC FQ-CSID expliciatlly zero */
-		if (pfcp_config.cp_type != SAEGWC) {
-			fqcsid_t tmp_fqcsid = {0};
+		if (context->cp_mode != SAEGWC) {
 			set_fq_csid_t(&pfcp_sess_est_req->pgw_c_fqcsid, &tmp_fqcsid);
 		}
 	} else {
 		/* Set PGW FQ-CSID */
 		if ((context->pgw_fqcsid)->num_csid) {
 			set_fq_csid_t(&pfcp_sess_est_req->pgw_c_fqcsid, context->pgw_fqcsid);
-			(pfcp_sess_est_req->pgw_c_fqcsid).node_address = ntohl(pfcp_config.pfcp_ip.s_addr);
+			(pfcp_sess_est_req->pgw_c_fqcsid).node_address = pfcp_config.pfcp_ip.s_addr;
+		} else {
+			set_fq_csid_t(&pfcp_sess_est_req->pgw_c_fqcsid, &tmp_fqcsid);
 		}
+
 		/* Set SGW C FQ_CSID */
 		if ((context->sgw_fqcsid)->num_csid) {
 			set_fq_csid_t(&pfcp_sess_est_req->sgw_c_fqcsid, context->sgw_fqcsid);
+		} else {
+			set_fq_csid_t(&pfcp_sess_est_req->sgw_c_fqcsid, &tmp_fqcsid);
 		}
+
 		/* Set MME FQ-CSID */
 		if((context->mme_fqcsid)->num_csid) {
 			set_fq_csid_t(&pfcp_sess_est_req->mme_fqcsid, context->mme_fqcsid);
+		} else {
+			set_fq_csid_t(&pfcp_sess_est_req->mme_fqcsid, &tmp_fqcsid);
 		}
 	}
 
@@ -487,7 +487,7 @@ cp_fill_pfcp_sess_set_del_req_t(pfcp_sess_set_del_req_t *pfcp_sess_set_del_req,
 {
 	fqcsid_t tmp = {0};
 	set_pfcp_seid_header((pfcp_header_t *) &(pfcp_sess_set_del_req->header),
-			PFCP_SESSION_SET_DELETION_REQUEST, NO_SEID, ++seq_t);
+			PFCP_SESSION_SET_DELETION_REQUEST, NO_SEID, ++seq_t, NO_CP_MODE_REQUIRED);
 
 	char pAddr[INET_ADDRSTRLEN] = {0};
 
@@ -521,11 +521,8 @@ cp_fill_pfcp_sess_set_del_req_t(pfcp_sess_set_del_req_t *pfcp_sess_set_del_req,
 		}
 	}
 
-	if (pfcp_config.cp_type != PGWC) {
-		set_fq_csid_t(&pfcp_sess_set_del_req->sgw_u_fqcsid, &tmp);
-	} else {
-		set_fq_csid_t(&pfcp_sess_set_del_req->pgw_u_fqcsid, &tmp);
-	}
+	/* Set the UP FQ-CSID */
+	set_fq_csid_t(&pfcp_sess_set_del_req->up_fqcsid, &tmp);
 
 }
 #endif /* CP_BUILD */
@@ -535,7 +532,7 @@ fill_pfcp_sess_set_del_req_t(pfcp_sess_set_del_req_t *pfcp_sess_set_del_req,
 {
 	fqcsid_t tmp_csids = {0};
 	set_pfcp_seid_header((pfcp_header_t *) &(pfcp_sess_set_del_req->header),
-			PFCP_SESSION_SET_DELETION_REQUEST, NO_SEID, ++seq_t);
+			PFCP_SESSION_SET_DELETION_REQUEST, NO_SEID, ++seq_t, NO_CP_MODE_REQUIRED);
 
 	char pAddr[INET_ADDRSTRLEN] = {0};
 
@@ -555,32 +552,23 @@ fill_pfcp_sess_set_del_req_t(pfcp_sess_set_del_req_t *pfcp_sess_set_del_req,
 				(iface == S5S8_SGWC_PORT_ID)) {
 			set_fq_csid_t(&pfcp_sess_set_del_req->sgw_c_fqcsid, local_csids);
 			set_fq_csid_t(&pfcp_sess_set_del_req->pgw_c_fqcsid, &tmp_csids);
-			set_fq_csid_t(&pfcp_sess_set_del_req->sgw_u_fqcsid, &tmp_csids);
+			set_fq_csid_t(&pfcp_sess_set_del_req->up_fqcsid, &tmp_csids);
 			set_fq_csid_t(&pfcp_sess_set_del_req->mme_fqcsid, &tmp_csids);
 		}
 
 		if (iface == S5S8_PGWC_PORT_ID) {
 			set_fq_csid_t(&pfcp_sess_set_del_req->sgw_c_fqcsid, &tmp_csids);
 			set_fq_csid_t(&pfcp_sess_set_del_req->pgw_c_fqcsid, local_csids);
-			set_fq_csid_t(&pfcp_sess_set_del_req->pgw_u_fqcsid, &tmp_csids);
+			set_fq_csid_t(&pfcp_sess_set_del_req->up_fqcsid, &tmp_csids);
 			set_fq_csid_t(&pfcp_sess_set_del_req->mme_fqcsid, &tmp_csids);
 		}
 #else
-		if(app.spgw_cfg == PGWU){
-			set_fq_csid_t(&pfcp_sess_set_del_req->sgw_c_fqcsid, &tmp_csids);
-			set_fq_csid_t(&pfcp_sess_set_del_req->pgw_c_fqcsid, &tmp_csids);
-			set_fq_csid_t(&pfcp_sess_set_del_req->pgw_u_fqcsid, local_csids);
-			set_fq_csid_t(&pfcp_sess_set_del_req->mme_fqcsid, &tmp_csids);
-			/* Set Node Addr */
-			pfcp_sess_set_del_req->pgw_u_fqcsid.node_address = ntohl(dp_comm_ip.s_addr);
-		} else {
-			set_fq_csid_t(&pfcp_sess_set_del_req->sgw_c_fqcsid, &tmp_csids);
-			set_fq_csid_t(&pfcp_sess_set_del_req->pgw_c_fqcsid, &tmp_csids);
-			set_fq_csid_t(&pfcp_sess_set_del_req->sgw_u_fqcsid, local_csids);
-			set_fq_csid_t(&pfcp_sess_set_del_req->mme_fqcsid, &tmp_csids);
-			/* Set Node Addr */
-			pfcp_sess_set_del_req->sgw_u_fqcsid.node_address = ntohl(dp_comm_ip.s_addr);
-		}
+		set_fq_csid_t(&pfcp_sess_set_del_req->sgw_c_fqcsid, &tmp_csids);
+		set_fq_csid_t(&pfcp_sess_set_del_req->pgw_c_fqcsid, &tmp_csids);
+		set_fq_csid_t(&pfcp_sess_set_del_req->up_fqcsid, local_csids);
+		set_fq_csid_t(&pfcp_sess_set_del_req->mme_fqcsid, &tmp_csids);
+		/* Set Node Addr */
+		pfcp_sess_set_del_req->up_fqcsid.node_address = dp_comm_ip.s_addr;
 #endif /* DP_BUILD */
 	}
 }
@@ -596,11 +584,12 @@ del_pfcp_peer_node_sess(uint32_t node_addr, uint8_t iface)
 	/* Get local CSID associated with node */
 	local_csids = get_peer_addr_csids_entry(node_addr, UPDATE_NODE);
 	if (local_csids == NULL) {
-		clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
-				strerror(errno));
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to get CSID "
+			"entry while deleting session information: %s \n",
+			LOG_VALUE, strerror(errno));
 		clLog(clSystemLog, eCLSeverityDebug,
-				FORMAT"Peer CSIDs are already cleanup, Node_Addr:"IPV4_ADDR"\n",
-				ERR_MSG, IPV4_ADDR_HOST_FORMAT(node_addr));
+				LOG_FORMAT"Peer CSIDs are already cleanup, Node_Addr:"IPV4_ADDR"\n",
+				LOG_VALUE, IPV4_ADDR_HOST_FORMAT(node_addr));
 		return 0;
 	}
 
@@ -613,8 +602,9 @@ del_pfcp_peer_node_sess(uint32_t node_addr, uint8_t iface)
 
 		tmp = get_peer_csid_entry(&key, iface);
 		if (tmp == NULL) {
-			clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
-					strerror(errno));
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to get CSID "
+				"while cleanup session information, Error : %s \n",
+				LOG_VALUE, strerror(errno));
 			return -1;
 		}
 
@@ -626,27 +616,27 @@ del_pfcp_peer_node_sess(uint32_t node_addr, uint8_t iface)
 	}
 
 	if (!csids.num_csid) {
-		clLog(clSystemLog, eCLSeverityDebug, FORMAT"CSIDs are already cleanup \n", ERR_MSG);
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"CSIDs are already cleanup \n", LOG_VALUE);
 		return 0;
 	}
 
 #ifdef CP_BUILD
-		csids.node_addr = ntohl(pfcp_config.pfcp_ip.s_addr);
+		csids.node_addr = pfcp_config.pfcp_ip.s_addr;
 #endif /* CP_BUILD */
 
 	fill_pfcp_sess_set_del_req_t(&del_set_req_t, &csids, iface);
 
 	/* Send the Delete set Request to peer node */
-	uint8_t pfcp_msg[1024]={0};
+	uint8_t pfcp_msg[PFCP_MSG_LEN]={0};
 	int encoded = encode_pfcp_sess_set_del_req_t(&del_set_req_t, pfcp_msg);
 
 	pfcp_header_t *header = (pfcp_header_t *) pfcp_msg;
-	header->message_len = htons(encoded - 4);
+	header->message_len = htons(encoded - PFCP_IE_HDR_SIZE);
 
 #ifdef CP_BUILD
 	if (pfcp_send(pfcp_fd, pfcp_msg, encoded, &upf_pfcp_sockaddr, SENT) < 0 ) {
-		clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error sending: %i\n",
-				ERR_MSG, errno);
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Error in sending PFCP "
+			"Set Session Deletion Request, Error : %i\n", LOG_VALUE, errno);
 		return -1;
 	}
 #else
@@ -656,7 +646,8 @@ del_pfcp_peer_node_sess(uint32_t node_addr, uint8_t iface)
 		MSG_DONTWAIT,
 		(struct sockaddr *)&dest_addr_t,
 		sizeof(struct sockaddr_in)) < 0) {
-		clLog(clSystemLog, eCLSeverityDebug, "Error sending: %i\n",errno);
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Error in sending PFCP "
+			"Set Session Deletion Request, Error : %i\n", LOG_VALUE, errno);
 			return -1;
 	}
 	else {
@@ -684,9 +675,6 @@ fill_pfcp_sess_set_del_resp(pfcp_sess_set_del_rsp_t *pfcp_del_resp,
 	pfcp_del_resp->cause.cause_value = cause_val;
 
 	RTE_SET_USED(offending_id);
-	//pfcp_set_ie_header(&pfcp_del_resp->offending_ie.header, PFCP_IE_OFFENDING_IE,
-	//		sizeof(pfcp_del_resp->offending_ie.type_of_the_offending_ie));
-	//pfcp_del_resp->offending_ie.type_of_the_offending_ie = (uint16_t)offending_id;
 }
 
 int8_t
@@ -717,8 +705,8 @@ del_csid_entry_hash(fqcsid_t *peer_csids,
 
 			if (!csids->num_csid) {
 				if (del_peer_csid_entry(&key, iface)) {
-					clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
-							strerror(errno));
+					clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Error in deleting "
+						"peer CSID entry, Error : %i\n", LOG_VALUE, errno);
 					/* TODO ERROR HANDLING */
 					return -1;
 				}
@@ -737,8 +725,8 @@ del_csid_entry_hash(fqcsid_t *peer_csids,
 
 					if (!tmp->num_csid) {
 						if (del_peer_addr_csids_entry(peer_csids->node_addr)) {
-							clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
-									strerror(errno));
+							clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Error in deleting "
+								"peer CSID entry, Error : %i\n", LOG_VALUE, errno);
 							/* TODO ERROR HANDLING */
 							return -1;
 						}
@@ -746,9 +734,90 @@ del_csid_entry_hash(fqcsid_t *peer_csids,
 				}
 			}
 		}
-
 	}
 	return 0;
 
 }
 
+#if defined(CP_BUILD) && defined(USE_CSID)
+int
+update_peer_node_csid(pfcp_sess_mod_rsp_t *pfcp_sess_mod_rsp, ue_context *context)
+{
+	/* UP FQ-CSID */
+	if (pfcp_sess_mod_rsp->up_fqcsid.header.len) {
+		if (pfcp_sess_mod_rsp->up_fqcsid.number_of_csids) {
+			uint8_t ret = 0;
+			uint8_t match = 0;
+			fqcsid_t *tmp = NULL;
+			fqcsid_t fqcsid = {0};
+			uint16_t old_csid = 0;
+
+			if (context->up_fqcsid != NULL) {
+				old_csid = context->up_fqcsid->local_csid[context->up_fqcsid->num_csid - 1];
+			} else {
+				context->up_fqcsid = rte_zmalloc_socket(NULL, sizeof(fqcsid_t),
+						RTE_CACHE_LINE_SIZE, rte_socket_id());
+				if (context->up_fqcsid == NULL) {
+					clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT
+							"Failed to allocate the memory for fqcsids entry\n", LOG_VALUE);
+					return GTPV2C_CAUSE_SYSTEM_FAILURE;
+				}
+			}
+
+			/* Stored the UP CSID by UP Node address */
+			tmp = get_peer_addr_csids_entry(pfcp_sess_mod_rsp->up_fqcsid.node_address,
+					ADD_NODE);
+			if (tmp == NULL) {
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT
+					"Failed to get peer csid entry while update CSID entry\n", LOG_VALUE);
+				return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+			}
+			tmp->node_addr = pfcp_sess_mod_rsp->up_fqcsid.node_address;
+
+			/* TODO: Re-write the optimizes way */
+			for(uint8_t itr = 0; itr < pfcp_sess_mod_rsp->up_fqcsid.number_of_csids; itr++) {
+				match = 0;
+				for (uint8_t itr1 = 0; itr1 < tmp->num_csid; itr1++) {
+					if (tmp->local_csid[itr1] ==
+								pfcp_sess_mod_rsp->up_fqcsid.pdn_conn_set_ident[itr]) {
+						match = 1;
+						break;
+					}
+				}
+				if (!match) {
+					tmp->local_csid[tmp->num_csid++] =
+						pfcp_sess_mod_rsp->up_fqcsid.pdn_conn_set_ident[itr];
+				}
+			}
+
+			for(uint8_t itr1 = 0; itr1 < pfcp_sess_mod_rsp->up_fqcsid.number_of_csids; itr1++) {
+				fqcsid.local_csid[fqcsid.num_csid++] =
+					pfcp_sess_mod_rsp->up_fqcsid.pdn_conn_set_ident[itr1];
+			}
+			fqcsid.node_addr = pfcp_sess_mod_rsp->up_fqcsid.node_address;
+
+			for (uint8_t itr2 = 0; itr2 < tmp->num_csid; itr2++) {
+				if (tmp->local_csid[itr2] == old_csid) {
+					for(uint8_t pos = itr2; pos < (tmp->num_csid - 1); pos++ ) {
+						tmp->local_csid[pos] = tmp->local_csid[pos + 1];
+					}
+					tmp->num_csid--;
+				}
+			}
+			/* TODO: Add the handling if SGW or PGW not support Partial failure */
+			/* Link peer node SGW or PGW csid with local csid */
+			ret = update_peer_csid_link(&fqcsid, context->sgw_fqcsid);
+			if (ret) {
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT
+						"Error: peer csid entry not found \n", LOG_VALUE);
+				return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+			}
+
+			/* Update the UP CSID in the context */
+			memcpy(context->up_fqcsid, &fqcsid, sizeof(fqcsid_t));
+		}
+	}
+
+	return 0;
+}
+#endif /* CP_BUILD && USE_CSID */

@@ -17,6 +17,9 @@
 #ifndef __PFCP_MESSAGES_H
 #define __PFCP_MESSAGES_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include <stdint.h>
 #include <arpa/inet.h>
@@ -25,6 +28,7 @@
 
 #include "pfcp_ies.h"
 
+#define PFCP_IE_HDR_SIZE sizeof(pfcp_ie_header_t)
 #define MAX_LIST_SIZE 16
 #define CHAR_SIZE 8
 #define PFCP_HRTBEAT_REQ (1)
@@ -208,6 +212,7 @@ typedef struct pfcp_frwdng_parms_ie_t {
   pfcp_hdr_enrchmt_ie_t hdr_enrchmt;
   pfcp_traffic_endpt_id_ie_t lnkd_traffic_endpt_id;
   pfcp_proxying_ie_t proxying;
+  pfcp_3gpp_intfc_type_ie_t dst_intfc_type;
 } pfcp_frwdng_parms_ie_t;
 
 typedef struct pfcp_dupng_parms_ie_t {
@@ -423,6 +428,7 @@ typedef struct pfcp_upd_frwdng_parms_ie_t {
   pfcp_hdr_enrchmt_ie_t hdr_enrchmt;
   pfcp_pfcpsmreq_flags_ie_t pfcpsmreq_flags;
   pfcp_traffic_endpt_id_ie_t lnkd_traffic_endpt_id;
+  pfcp_3gpp_intfc_type_ie_t dst_intfc_type;
 } pfcp_upd_frwdng_parms_ie_t;
 
 typedef struct pfcp_upd_dupng_parms_ie_t {
@@ -646,8 +652,8 @@ typedef struct pfcp_sess_set_del_req_t {
   pfcp_node_id_ie_t node_id;
   pfcp_fqcsid_ie_t sgw_c_fqcsid;
   pfcp_fqcsid_ie_t pgw_c_fqcsid;
-  pfcp_fqcsid_ie_t sgw_u_fqcsid;
-  pfcp_fqcsid_ie_t pgw_u_fqcsid;
+  /* As per Discusion with Sprint Team, instead of two different CSID, use common CSID IE*/
+  pfcp_fqcsid_ie_t up_fqcsid;
   pfcp_fqcsid_ie_t twan_fqcsid;
   pfcp_fqcsid_ie_t epdg_fqcsid;
   pfcp_fqcsid_ie_t mme_fqcsid;
@@ -675,6 +681,7 @@ typedef struct pfcp_sess_estab_req_t {
 	pfcp_user_id_ie_t user_id;
 	pfcp_trc_info_ie_t trc_info;
 	uint8_t create_pdr_count;
+	pfcp_apn_dnn_ie_t apn_dnn;
 	pfcp_create_pdr_ie_t create_pdr[MAX_LIST_SIZE];
 	uint8_t create_far_count;
 	pfcp_create_far_ie_t create_far[MAX_LIST_SIZE];
@@ -695,8 +702,8 @@ typedef struct pfcp_sess_estab_rsp_t {
   pfcp_created_pdr_ie_t created_pdr;
   pfcp_load_ctl_info_ie_t load_ctl_info;
   pfcp_ovrld_ctl_info_ie_t ovrld_ctl_info;
-  pfcp_fqcsid_ie_t sgw_u_fqcsid;
-  pfcp_fqcsid_ie_t pgw_u_fqcsid;
+  /* As per Discusion with Sprint Team, instead of two different CSID, use common CSID IE*/
+  pfcp_fqcsid_ie_t up_fqcsid;
   pfcp_failed_rule_id_ie_t failed_rule_id;
   pfcp_created_traffic_endpt_ie_t created_traffic_endpt;
 } pfcp_sess_estab_rsp_t;
@@ -751,7 +758,7 @@ typedef struct pfcp_sess_mod_rsp_t {
   pfcp_header_t header;
   pfcp_cause_ie_t cause;
   /* As per requirement added fqcsid in this sturcture*/
-  pfcp_fqcsid_ie_t sgw_u_fqcsid;
+  pfcp_fqcsid_ie_t up_fqcsid;
   pfcp_offending_ie_ie_t offending_ie;
   pfcp_created_pdr_ie_t created_pdr;
   pfcp_load_ctl_info_ie_t load_ctl_info;
@@ -799,4 +806,8 @@ typedef struct pfcp_sess_rpt_rsp_t {
 
 /* TODO: Revisit this for change in yang */
 #pragma pack()
+
+#ifdef __cplusplus
+}
+#endif
 #endif

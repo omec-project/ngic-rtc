@@ -128,11 +128,12 @@ start_cp_app( void );
  * @param  : context, ue context data
  * @param  : ebi_index, array index of bearer
  * @param  : sess_id, session id
+ * @param  : flow_flag, 1 for bearer resource mod flow,else 0
  * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 fill_ccr_request(GxCCR *ccr, ue_context *context,
-		uint8_t ebi_index, char *sess_id);
+		int ebi_index, char *sess_id, uint8_t flow_flag);
 
 #endif /* CP_BUILD */
 

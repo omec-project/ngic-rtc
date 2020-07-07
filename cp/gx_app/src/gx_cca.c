@@ -161,8 +161,9 @@ int gx_cca_cb
 	}
 	/* Cal the length of buffer needed */
 	buflen = gx_cca_calc_length (&gx_resp.data.cp_cca);
-  gx_resp.msg_len = buflen + GX_HEADER_LEN;
-	send_buf = malloc(buflen + GX_HEADER_LEN);
+	gx_resp.msg_len = buflen + GX_HEADER_LEN;
+  send_buf = malloc(buflen + GX_HEADER_LEN);
+
 	if( send_buf == NULL){
  			printf("SendBuff memory fails\n");
 			return 1;
@@ -171,20 +172,20 @@ int gx_cca_cb
 	/* encoding the cca header value to buffer */
 	memcpy( send_buf, &gx_resp.msg_type, sizeof(gx_resp.msg_type));
   memcpy( send_buf + sizeof(gx_resp.msg_type), &gx_resp.msg_len,
-                                    sizeof(gx_resp.msg_len));
-	if ( gx_cca_pack( &(gx_resp.data.cp_cca), (unsigned char *)(send_buf + GX_HEADER_LEN),
-                                                                        buflen ) == 0)
-	{
-		printf("CCA Packing failure \n");
-		goto err;
+                                   sizeof(gx_resp.msg_len));
+
+	if ( gx_cca_pack( &(gx_resp.data.cp_cca),
+      (unsigned char *)(send_buf + GX_HEADER_LEN),
+      buflen ) == 0 ) {
+		  printf("CCA Packing failure \n");
+      free(send_buf);
+		  goto err;
 	}
 
 	send_to_ipc_channel(g_gx_client_sock, send_buf, buflen + GX_HEADER_LEN);
 	goto fini2;
 err:
 	goto fini2;
-
-//fini1:	/*TODO: check if require*/
 
 fini2:
 	free(send_buf);

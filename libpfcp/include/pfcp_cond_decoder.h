@@ -17,6 +17,12 @@
 #ifndef __PFCP_COND_DECODER_H__
 #define __PFCP_COND_DECODER_H__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include <stdlib.h>
+
 #include "pfcp_enum.h"
 
 /* Inside pfcp_fteid_ie_t */
@@ -32,8 +38,8 @@
 #define DECODE_IPV4_ADDRESS_COND_6(buf, total_decoded, bit_count, decoded, value) \
 	if (value->v4 ) \
 { \
-	memcpy(&value->ipv4_address, buf + (total_decoded/CHAR_SIZE), 4); \
-	total_decoded += 4 * CHAR_SIZE; \
+    value->ipv4_address = decode_bits(buf, total_decoded, 32, &decoded); \
+    total_decoded += decoded; \
 }
 
 /* Inside pfcp_ue_ip_address_ie_t */
@@ -167,8 +173,8 @@
 #define DECODE_IPV4_ADDRESS_COND_5(buf, total_decoded, bit_count, decoded, value) \
     if (value->v4 && value->ch == 0) \
     { \
-        memcpy(&value->ipv4_address, buf + (total_decoded/CHAR_SIZE), IPV6_ADDRESS_LEN); \
-        total_decoded +=  4 * CHAR_SIZE; \
+            value->ipv4_address = decode_bits(buf, total_decoded, 32, &decoded); \
+            total_decoded += decoded; \
     }
 
 /* Inside pfcp_fteid_ie_t */
@@ -240,8 +246,8 @@
 #define DECODE_NODE_ADDRESS_COND_1(buf, total_decoded, bit_count, decoded, value) \
 	if(value->fqcsid_node_id_type == IPV4_GLOBAL_UNICAST ) \
 { \
-	memcpy(&value->node_address, buf, 4); \
-	decoded = 4 * CHAR_SIZE; \
+        value->node_address = decode_bits(buf, total_decoded, 32, &decoded); \
+        total_decoded += decoded; \
 }
 
 
@@ -411,8 +417,8 @@ if ((value->outer_hdr_creation_desc >> 8) == 1 || (value->outer_hdr_creation_des
 #define DECODE_IPV4_ADDRESS_COND_2(buf, total_decoded, bit_count, decoded, value) \
     if (value->v4) \
     { \
-		memcpy(&value->ipv4_address, buf + (total_decoded/CHAR_SIZE), 4); \
-		total_decoded += 4 * CHAR_SIZE; \
+        value->ipv4_address = decode_bits(buf, total_decoded, 32, &decoded); \
+        total_decoded += decoded; \
     }
 
 /* Inside pfcp_fseid_ie_t */
@@ -579,5 +585,9 @@ if ((value->outer_hdr_creation_desc >> 8) == 1 || (value->outer_hdr_creation_des
 { \
 	memcpy(&value->nai, buf + (total_decoded/CHAR_SIZE), value->length_of_nai); \
 }
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /*__PFCP_COND_DECODER_H__*/

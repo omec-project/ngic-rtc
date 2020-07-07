@@ -198,6 +198,7 @@ enum disp_action * act
 	memcpy( send_buf, &gx_req->msg_type, sizeof(gx_req->msg_type));
 	memcpy( send_buf + sizeof(gx_req->msg_type), &gx_req->msg_len,
 											sizeof(gx_req->msg_len));
+
 	if ( gx_rar_pack( &(gx_req->data.cp_rar),
 			(unsigned char *)(send_buf + GX_HEADER_LEN), buflen ) == 0 )
 		printf("RAR Packing failure \n");

@@ -21,6 +21,7 @@
 #include "cp.h"
 #include "gx_app/include/gx_struct.h"
 #include "pfcp_struct.h"
+#include "pfcp_session.h"
 
 
 struct rte_hash *pfcp_cntxt_hash;
@@ -29,6 +30,7 @@ struct rte_hash *qer_entry_hash;
 struct rte_hash *urr_entry_hash;
 struct rte_hash *pdn_conn_hash;
 struct rte_hash *rule_name_bearer_id_map_hash;
+struct rte_hash *ds_seq_key_with_teid;
 
 /**
  * @file
@@ -57,7 +59,17 @@ extern struct sockaddr_in pfcp_sockaddr;
 
 extern in_port_t upf_pfcp_port;
 extern struct sockaddr_in upf_pfcp_sockaddr;
-#define RULE_NAME_LEN 256
+
+#define PFCP_BUFF_SIZE 1024
+#define PFCP_RX_BUFF_SIZE 2048
+#define ADD_RULE_TO_ALLOW  1
+#define ADD_RULE_TO_DENY   2
+#define DEFAULT_SDF_RULE  "permit out ip from 0.0.0.0/0 0-65535 to 0.0.0.0/0 0-65535"
+#define DEFAULT_FLOW_STATUS_FL_ENABLED  2
+#define DEFAULT_FLOW_STATUS_FL_DISABLED 3
+#define DEFAULT_PRECEDENCE  10
+#define DEFAULT_NUM_SDF_RULE 2
+#define DEFAULT_RULE_NAME "default_rule_name"
 
 /**
  * @brief : Rule Name is key for Mapping of Rules and Bearer table.
@@ -321,6 +333,15 @@ uint32_t
 generate_rar_seq(void);
 
 /**
+ * @brief  : Generates sequence numbers for sgwc generated
+ *           gtpv2c messages for mme
+ * @param  : void
+ * @return : Returns sequence number on success , 0 otherwise
+ */
+uint32_t
+generate_seq_number(void);
+
+/**
  * @brief  : Retrieve Call ID from CCR Session ID
  * @param  : str represents CCR session ID
  * @param  : call_id , variable to store retrived call id
@@ -346,7 +367,6 @@ generate_dp_sess_id(uint64_t cp_sess_id);
 int8_t
 gen_sess_id_for_ccr(char *sess_id, uint32_t call_id);
 
-#ifdef GX_BUILD
 /**
  * @brief  : Parse GX CCA message and fill ue context
  * @param  : cca holds data from gx cca message
@@ -357,21 +377,37 @@ int8_t
 parse_gx_cca_msg(GxCCA *cca, pdn_connection **_pdn);
 
 /**
+ * @brief  : Create a new bearer
+ * @param  : pdn, pdn connection details
+ * @return : Returns 0 on success, -1 otherwise
+ */
+int
+gx_create_bearer_req(pdn_connection *pdn);
+
+/**
+ * @brief  : Delete already existing bearer
+ * @param  : pdn, pdn connection details
+ * @return : Returns 0 on success, -1 otherwise
+ */
+int
+gx_delete_bearer_req(pdn_connection *pdn);
+
+/**
  * @brief  : Updates the already existing bearer
  * @param  : pdn, pdn connection details
  * @return : Returns 0 on success, -1 otherwise
  */
-
-int16_t
+int
 gx_update_bearer_req(pdn_connection *pdn);
 
 /**
  * @brief  : Parse GX RAR message.
- * @param  : rar holds data from gx rar message
+ * @param  : rar, rar holds data from gx rar message
+ * @param  : pdn_cntxt, pointer structure for pdn information
  * @return : Returns 0 on success, -1 otherwise
  */
 int16_t
-parse_gx_rar_msg(GxRAR *rar);
+parse_gx_rar_msg(GxRAR *rar, pdn_connection *pdn_cntxt);
 
 /**
  * @brief  : Get details of charging rule
@@ -384,17 +420,6 @@ parse_gx_rar_msg(GxRAR *rar);
 void
 get_charging_rule_remove_bearer_info(pdn_connection *pdn,
 	uint8_t *lbi, uint8_t *ded_ebi, uint8_t *ber_cnt);
-
-/**
- * @brief  : Generates new bearer id
- * @param  : pdn context
- * @return : Returns new bearer id
- */
-int8_t
-get_bearer_info_install_rules(pdn_connection *pdn,
-	uint8_t *ebi);
-
-#endif /* GX_BUILD */
 
 /**
  * @brief  : Convert the decimal value into the string
@@ -414,6 +439,64 @@ int_to_str(char *buf , uint32_t val);
 int8_t
 compare_default_bearer_qos(bearer_qos_ie *default_bearer_qos,
 		bearer_qos_ie *rule_qos);
+/**
+ * @brief  : to check whether flow description is changed or not
+ * @param  : dyn_rule, old dynamic_rule
+ * @param  : dyn_rule, new dynamic_rule
+ * @return : Returns 0 if found changed, -1 otherwise
+ */
+int
+compare_flow_description(dynamic_rule_t *old_dyn_rule, dynamic_rule_t *new_dyn_rule);
+/**
+ * @brief  : to check whether bearer qos is changed or not
+ * @param  : dyn_rule, old dynamic_rule
+ * @param  : dyn_rule, new dynamic_rule
+ * @return : Returns 0 if found changed, -1 otherwise
+ */
+int
+compare_bearer_qos(dynamic_rule_t *old_dyn_rule, dynamic_rule_t *new_dyn_rule);
+/**
+ * Add seg number on tied.
+ *
+ * @param teid_key : sequence number and proc as a key
+ * @param teid_info : structure containing value of TEID and msg_type
+ * return 0 or -1
+ */
+int8_t
+add_seq_number_for_teid(const teid_key_t teid_key, struct teid_value_t *teid_value);
+
+/**
+ * Add seg number on tied.
+ *
+ * @param teid_key : sequence number and proc as a key
+ * return teid_value structure in case of success otherwise null
+ */
+teid_value_t *get_teid_for_seq_number(const teid_key_t teid_key);
+
+/**
+ * Delete teid entry for seg number.
+ * @param teid_key : sequence number and proc as a key
+ * return 0 or -1
+ */
+int8_t
+delete_teid_entry_for_seq(const teid_key_t teid_key);
+/**
+ * @brief  : Fill qos information for bearer form Dynamic rule
+ * @param  : bearer , eps bearer to be modified
+ * @return : Returns nothing
+ */
+void
+update_bearer_qos(eps_bearer *bearer);
+
+/**
+ * @brief  : Store rule name & status for pro ack msg
+ * @param  : policy , contains rule & rule action received in CCA-U
+ * @param  : pro_ack_rule_array,global var to store rule name & their status
+ * @return : Returns 0 on success, else -1
+ */
+int
+store_rule_status_for_pro_ack(policy_t *policy,
+		         pro_ack_rule_array_t  *pro_ack_rule_array);
 
 #endif /* CP_BUILD */
 #endif /* PFCP_H */

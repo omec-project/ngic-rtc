@@ -2,12 +2,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2019 Intel Corporation
 
+source ./git_url.cfg
 THIRD_PARTY_SW_PATH="third_party"
 OSS_UTIL_DIR="oss-util"
 C3PO_OSS_DIR="oss_adapter/c3po_oss"
-OSS_UTIL_GIT_LINK="http://10.155.205.206/C3PO-NGIC/oss-util.git"
-FREEDIAMETER="http://10.155.205.206/C3PO-NGIC/freeDiameter.git"
-HIREDIS="https://github.com/redis/hiredis.git"
 
 SERVICES="$1"
 SUDO=''
@@ -28,11 +26,11 @@ install_pkg_deps() {
 		libpcap0.8-dev \
 		libssl-dev \
 		libzmq3-dev \
-                libjson0-dev \
-	        libc6-dev \
-	        libcurl4-openssl-dev \
+        libjson0-dev \
+	    libc6-dev \
+	    libcurl4-openssl-dev \
 		libc6 \
-                g++ cmake ragel libboost-all-dev \
+        g++ cmake ragel libboost-all-dev \
 		wget
 
 
@@ -75,7 +73,7 @@ download_hyperscan()
         cd $DEPS_DIR
 
         echo "Downloading HS and dependent libraries"
-        wget https://github.com/01org/hyperscan/archive/v4.1.0.tar.gz
+        wget $HYPERSCAN_GIT_LINK
         tar -xvf v4.1.0.tar.gz
         pushd hyperscan-4.1.0
         mkdir build; pushd build
@@ -97,12 +95,11 @@ download_freediameter()
              mkdir $THIRD_PARTY_SW_PATH
         fi
         pushd $THIRD_PARTY_SW_PATH
-        git clone $FREEDIAMETER -b delivery_1.5
+        git clone $FREEDIAMETER
         if [ $? -ne 0 ] ; then
                         echo "Failed to clone FreeDiameter, please check the errors."
                         return
         fi
-	mv freeDiameter freediameter
         popd
 
 }
@@ -174,7 +171,6 @@ build_fd_gxapp()
 {
 	echo "Building FreeDiameter ..."
 	build_fd_lib
-	#ldconfig
 
 	echo "Building GxAPP ..."
 	build_gxapp
@@ -183,7 +179,9 @@ build_fd_gxapp()
 build_hiredis()
 {
 	pushd $CUR_DIR/$THIRD_PARTY_SW_PATH/hiredis
-	make
+	git checkout 8e0264cfd6889b73c241b60736fe96ba1322ee6e
+	make clean
+	make USE_SSL=1
 	if [ $? -ne 0 ] ; then
 		echo "Failed to build Hiredis, please check the errors."
 		exit 1
@@ -216,7 +214,8 @@ install_oss_util()
 
         if [ ! -d $OSS_DIR ]; then
        	     echo "Cloning OSS-UTIL repo ...$OSS_UTIL_GIT_LINK"
-             git clone $OSS_UTIL_GIT_LINK -b delivery_1.7
+             git clone $OSS_UTIL_GIT_LINK
+#      	     mv oss_util_gslab oss-util
         fi
 
         cp $CUR_DIR/oss-util.sh $OSS_DIR/
@@ -232,23 +231,23 @@ install_build_deps() {
        install_pkg_deps
        install_dpdk
        if [[ $SERVICES == "CP" ]] || [[ $SERVICES == "cp" ]]; then
-		install_oss_util
-		download_freediameter
-		build_libgtpcv2c
-		build_fd_gxapp
-		download_hiredis
-		build_hiredis
+	     install_oss_util
+	     download_freediameter
+         build_libgtpcv2c
+         build_fd_gxapp
+         download_hiredis
+         build_hiredis
        elif [[ $SERVICES == "DP" ]] || [[ $SERVICES == "dp" ]]; then
-		install_oss_util
-		download_hyperscan
+	     install_oss_util
+         download_hyperscan
        else
-		download_hyperscan
-		download_freediameter
-		install_oss_util
-		build_libgtpcv2c
-		build_fd_gxapp
-		download_hiredis
-		build_hiredis
+         download_hyperscan
+         download_freediameter
+         install_oss_util
+         build_libgtpcv2c
+         build_fd_gxapp
+	     download_hiredis
+         build_hiredis
        fi
        build_pfcp_lib
 }

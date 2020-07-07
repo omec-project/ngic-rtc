@@ -82,7 +82,7 @@ print_adc_val(struct adc_rules *adc)
 		fprintf(stdout, "=========================================\n");
 		fprintf(stdout, " ---> ADC Rule Method ::\n");
 		fprintf(stdout, "=========================================\n");
-		fprintf(stdout, " ---> Rule id : %d\n", adc->rule_id);
+		fprintf(stdout, " ---> Rule id : %u\n", adc->rule_id);
 
 		print_sel_type_val(adc);
 
@@ -103,41 +103,44 @@ print_pcc_val(struct pcc_rules *pcc)
 		fprintf(stdout, "=========================================\n");
 		fprintf(stdout, " ---> PCC Rule Method ::\n");
 		fprintf(stdout, "=========================================\n");
-		fprintf(stdout, " ---> Rule id : %d\n", pcc->rule_id);
-		fprintf(stdout, " ---> metering_method :%d\n",
+		fprintf(stdout, " ---> Rule id : %u\n", pcc->rule_id);
+		fprintf(stdout, " ---> metering_method :%u\n",
 				pcc->metering_method);
-		fprintf(stdout, " ---> charging_mode :%d\n",
+		fprintf(stdout, " ---> charging_mode :%u\n",
 				pcc->charging_mode);
-		fprintf(stdout, " ---> rating_group :%d\n",
+		fprintf(stdout, " ---> rating_group :%u\n",
 				pcc->rating_group);
-		fprintf(stdout, " ---> rule_status :%d\n",
+		fprintf(stdout, " ---> rule_status :%u\n",
 				pcc->rule_status);
-		fprintf(stdout, " ---> gate_status :%d\n",
-				pcc->gate_status);
-		fprintf(stdout, " ---> session_cont :%d\n",
+		fprintf(stdout, " ---> ul_gate_status :%u\n",
+				pcc->ul_gate_status);
+		fprintf(stdout, " ---> dl_gate_status :%u\n",
+				pcc->dl_gate_status);
+		fprintf(stdout, " ---> session_cont :%u\n",
 				pcc->session_cont);
-		fprintf(stdout, " ---> monitoring_key :%d\n",
+		fprintf(stdout, " ---> monitoring_key :%u\n",
 				pcc->monitoring_key);
-		fprintf(stdout, " ---> precedence :%d\n",
+		fprintf(stdout, " ---> precedence :%u\n",
 				pcc->precedence);
-		fprintf(stdout, " ---> level_of_report :%d\n",
+		fprintf(stdout, " ---> level_of_report :%u\n",
 				pcc->report_level);
-		fprintf(stdout, " ---> mute_status :%d\n",
+		fprintf(stdout, " ---> mute_status :%u\n",
 				pcc->mute_notify);
-		fprintf(stdout, " ---> drop_pkt_count :%ld\n",
+		fprintf(stdout, " ---> drop_pkt_count :%lu\n",
 				pcc->drop_pkt_count);
-		fprintf(stdout, " ---> redirect_info :%d\n",
+		fprintf(stdout, " ---> redirect_info :%u\n",
 				pcc->redirect_info.info);
-		fprintf(stdout, " ---> ul_mbr_mtr_profile_idx :%d\n",
-				pcc->qos.ul_mtr_profile_index);
-		fprintf(stdout, " ---> dl_mbr_mtr_profile_idx :%d\n",
-				pcc->qos.dl_mtr_profile_index);
-		fprintf(stdout, " ---> ADC Index :%d\n",
-				pcc->adc_idx);
-		fprintf(stdout, " ---> SDF Index count:%d\n",
+		fprintf(stdout, " ---> mtr_profile_idx :%u\n",
+				pcc->qos.mtr_profile_index);
+		fprintf(stdout, " ---> ADC Index count:%u\n",
+				pcc->adc_idx_cnt);
+		for(uint8_t inx =0; inx < pcc->adc_idx_cnt; ++inx)
+			fprintf(stdout, " ---> ADC Index [%u]:%u\n",
+					inx, pcc->adc_idx[inx]);
+		fprintf(stdout, " ---> SDF Index count:%u\n",
 				pcc->sdf_idx_cnt);
-		for(int i =0; i< pcc->sdf_idx_cnt; ++i)
-			fprintf(stdout, " ---> SDF IDx [%d]:%d\n",
+		for(uint8_t i =0; i< pcc->sdf_idx_cnt; ++i)
+			fprintf(stdout, " ---> SDF IDx [%u]:%u\n",
 					i, pcc->sdf_idx[i]);
 		fprintf(stdout, " ---> rule_name:%s\n", pcc->rule_name);
 		fprintf(stdout, " ---> sponsor_id:%s\n", pcc->sponsor_id);
@@ -158,15 +161,15 @@ print_mtr_val(struct mtr_entry *mtr)
 		fprintf(stdout, "=========================================\n");
 		fprintf(stdout, " ---> Meter Rule Method ::\n");
 		fprintf(stdout, "=========================================\n");
-		fprintf(stdout, " ---> Meter profile index :%d\n",
+		fprintf(stdout, " ---> Meter profile index :%u\n",
 				mtr->mtr_profile_index);
-		fprintf(stdout, " ---> Meter CIR :%ld\n",
+		fprintf(stdout, " ---> Meter CIR :%lu\n",
 				mtr->mtr_param.cir);
-		fprintf(stdout, " ---> Meter CBS :%ld\n",
+		fprintf(stdout, " ---> Meter CBS :%lu\n",
 				mtr->mtr_param.cbs);
-		fprintf(stdout, " ---> Meter EBS :%ld\n",
+		fprintf(stdout, " ---> Meter EBS :%lu\n",
 				mtr->mtr_param.ebs);
-		fprintf(stdout, " ---> Metering Method :%d\n",
+		fprintf(stdout, " ---> Metering Method :%u\n",
 				mtr->metering_method);
 		fprintf(stdout, "=========================================\n\n");
 	}
@@ -188,9 +191,9 @@ print_sdf_val(struct pkt_filter *sdf)
 
 		switch (sdf->sel_rule_type) {
 			case RULE_STRING:
-				fprintf(stdout, " ---> pcc_rule_id :%d\n",
-						sdf->pcc_rule_id);
-				fprintf(stdout, " ---> rule_type :%d\n",
+				fprintf(stdout, " ---> pcc_rule_id :%u\n",
+						sdf->rule_id);
+				fprintf(stdout, " ---> rule_type :%u\n",
 						sdf->sel_rule_type);
 				fprintf(stdout, " ---> rule_str : %s\n",
 						sdf->u.rule_str);

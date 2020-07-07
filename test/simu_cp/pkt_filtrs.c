@@ -337,8 +337,8 @@ init_sdf_rules(void)
 		if (entry) {
 			if (strcmp(entry, "bidirectional") == 0){
 				pf.direction = TFT_DIRECTION_BIDIRECTIONAL;
-				rte_panic("Invalid SDF direction. Supported : uplink_only,"
-						"downlink_only\n");
+				//rte_panic("Invalid SDF direction. Supported : uplink_only,"
+				//		"downlink_only\n");
 			}
 			else if (strcmp(entry, "uplink_only") == 0)
 				pf.direction = TFT_DIRECTION_UPLINK_ONLY;

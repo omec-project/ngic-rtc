@@ -22,74 +22,6 @@
 #include "cp_config.h"
 #include "cp_stats.h"
 
-//#define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
-
-#define MAX_STRING_LEN          32
-#define CFG_VALUE_LEN           256
-
-#define GLOBAL_ENTRIES			"GLOBAL"
-#define APN_ENTRIES				"APN"
-#define NAMESERVER_ENTRIES		"NAMESERVER_CONFIG"
-#define IP_POOL_ENTRIES			"IP_POOL_CONFIG"
-#define CACHE_ENTRIES			"CACHE"
-#define APP_ENTRIES				"APP"
-#define OPS_ENTRIES				"OPS"
-
-#define CP_TYPE					"CP_TYPE"
-#define CP_LOGGER				"CP_LOGGER"
-#define S11_IPS					"S11_IP"
-#define S11_PORTS				"S11_PORT"
-#define S5S8_IPS				"S5S8_IP"
-#define S5S8_PORTS				"S5S8_PORT"
-#define PFCP_IPS				"PFCP_IP"
-#define PFCP_PORTS				"PFCP_PORT"
-#define DDF_INTFC				"DDF_INTFC"
-#define DADMF_IPS				"DADMF_IP"
-#define DADMF_PORTS				"DADMF_PORT"
-#define MME_S11_IPS				"MME_S11_IP"
-#define MME_S11_PORTS			"MME_S11_PORT"
-#define UPF_PFCP_IPS			"UPF_PFCP_IP"
-#define UPF_PFCP_PORTS			"UPF_PFCP_PORT"
-#define REDIS_IPS				"REDIS_IP"
-#define REDIS_PORTS				"REDIS_PORT"
-
-#define APN_SEC_NAME_LEN		8
-#define NAME 					"name"
-#define USAGE_TYPE				"usage_type"
-#define NETWORK_CAPABILITY		"network_capability"
-#define TRIGGER_TYPE			"trigger_type"
-#define UPLINK_VOLTH			"uplink_volume_th"
-#define DOWNLINK_VOLTH			"downlink_volume_th"
-#define TIMETH					"time_th"
-#define URR_DEFAULT				"URR_DEFAULT"
-
-#define NAMESERVER				"nameserver"
-#define IP_POOL_IP				"IP_POOL_IP"
-#define IP_POOL_MASK			"IP_POOL_MASK"
-#define CONCURRENT				"concurrent"
-#define PERCENTAGE				"percentage"
-#define INT_SEC					"interval_seconds"
-#define FREQ_SEC				"frequency_seconds"
-#define FILENAME				"filename"
-#define QUERY_TIMEOUT           "query_timeout_ms"
-#define QUERY_TRIES             "query_tries"
-
-/* Restoration Parameters */
-#define TRANSMIT_TIMER			"TRANSMIT_TIMER"
-#define PERIODIC_TIMER			"PERIODIC_TIMER"
-#define TRANSMIT_COUNT			"TRANSMIT_COUNT"
-
-/* CP Timer Parameter */
-#define REQUEST_TIMEOUT 		"REQUEST_TIMEOUT"
-#define REQUEST_TRIES			"REQUEST_TRIES"
-
-/* LI-DF Parameter */
-#define NUMBER_OF_LINES					100
-#define MAX_LINE_LENGTH					1024
-#define LI_DF_CONFIG_FILE_NAME			"../config/LI_DF.csv"
-#define READ_ONLY_MODE					"r"
-#define APPEND_MODE						"a"
-#define LI_DF_CSV_HEADER_INFO			1
 
 void
 config_cp_ip_port(pfcp_config_t *pfcp_config)
@@ -203,13 +135,31 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 			fprintf(stderr, "CP: PFCP_PORT   : %d\n",
 					pfcp_config->pfcp_port);
 
-		} else if (strncmp(DDF_INTFC , global_entries[i].name,
+		} else if (strncmp(DDF2_IP , global_entries[i].name,
 					ENTRY_NAME_SIZE) == 0) {
 
-			strncpy(pfcp_config->ddf_intfc, global_entries[i].value, DDF_INTFC_LEN);
+			inet_aton(global_entries[i].value,
+					&(pfcp_config->ddf2_ip));
 
-			fprintf(stderr, "CP: DDF_INTFC     : %s\n",
-					pfcp_config->ddf_intfc);
+			fprintf(stderr, "CP: DDF2_IP     : %s\n",
+					inet_ntoa(pfcp_config->ddf2_ip));
+
+		} else if (strncmp(DDF2_PORT , global_entries[i].name,
+					ENTRY_NAME_SIZE) == 0) {
+
+			pfcp_config->ddf2_port =
+				(uint16_t)atoi(global_entries[i].value);
+
+			fprintf(stderr, "CP: DDF2_PORT     : %d\n",
+					pfcp_config->ddf2_port);
+
+		} else if (strncmp(DDF2_INTFC , global_entries[i].name,
+					ENTRY_NAME_SIZE) == 0) {
+
+			strncpy(pfcp_config->ddf2_intfc, global_entries[i].value, DDF_INTFC_LEN);
+
+			fprintf(stderr, "CP: DDF2_INTFC     : %s\n",
+					pfcp_config->ddf2_intfc);
 
 		} else if (strncmp(DADMF_IPS , global_entries[i].name,
 					ENTRY_NAME_SIZE) == 0) {
@@ -262,6 +212,27 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 
 			fprintf(stderr, "CP: UPF_PFCP_PORT: %d\n",
 					pfcp_config->upf_pfcp_port);
+		} else if (strncmp("UPF_S5S8_IP", global_entries[i].name,
+					ENTRY_NAME_SIZE) == 0) {
+
+			struct in_addr tmp = {0};
+			inet_aton(global_entries[i].value,
+					&(tmp));
+			pfcp_config->upf_s5s8_ip = ntohl(tmp.s_addr);
+
+			fprintf(stderr, "CP: UPF_S5S8_IP : %s\n",
+					inet_ntoa(tmp));
+
+		} else if (strncmp("UPF_S5S8_MASK", global_entries[i].name,
+					ENTRY_NAME_SIZE) == 0) {
+
+			struct in_addr tmp = {0};
+			inet_aton(global_entries[i].value, &(tmp));
+
+			pfcp_config->upf_s5s8_mask = ntohl(tmp.s_addr);
+
+			fprintf(stderr, "CP: UPF_S5S8_MASK : %s\n",
+					inet_ntoa(tmp));
 
 		 } else if (strncmp(REDIS_IPS , global_entries[i].name,
 					ENTRY_NAME_SIZE) == 0) {
@@ -271,6 +242,24 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 
 			fprintf(stderr, "CP: REDIS_IP : %s\n",
 					inet_ntoa(pfcp_config->redis_ip));
+
+		 } else if (strncmp(CP_REDIS_IP , global_entries[i].name,
+					ENTRY_NAME_SIZE) == 0) {
+
+			inet_aton(global_entries[i].value,
+					&(pfcp_config->cp_redis_ip));
+
+			fprintf(stderr, "CP: CP_REDIS_IP : %s\n",
+					inet_ntoa(pfcp_config->cp_redis_ip));
+
+		 } else if (strncmp(REDIS_CERT_PATH , global_entries[i].name,
+					ENTRY_NAME_SIZE) == 0) {
+
+			strncpy(pfcp_config->redis_cert_path, global_entries[i].value,
+													REDIS_CERT_PATH_LEN);
+
+			fprintf(stderr, "CP: REDIS_CERT_PATH : %s\n",
+									pfcp_config->redis_cert_path);
 
 		} else if (strncmp(REDIS_PORTS, global_entries[i].name,
 					ENTRY_NAME_SIZE) == 0) {
@@ -307,9 +296,9 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 		}else {
 			/* if CP Request Timer Parameter is not present is cp.cfg */
 			/* Defualt Request Timerout value */
-			/* 5 minute = 300000 milisecond  */
+			/* 3 seconds = 3000 milisecond  */
 			if(pfcp_config->request_timeout == 0) {
-				pfcp_config->request_timeout = 300000;
+				pfcp_config->request_timeout = REQUEST_TIMEOUT_DEFAULT_VALUE;
 			}
 		}
 
@@ -325,14 +314,88 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 
 		} else {
 			/* if CP Request Timer Parameter is not present is cp.cfg */
-                        /* Defualt Request Retries value */
+			/* Defualt Request Retries value */
 			if(pfcp_config->request_tries == 0) {
-				pfcp_config->request_tries = 3;
+				pfcp_config->request_tries = REQUEST_TRIES_DEFAULT_VALUE;
 			}
+		}
+		/* DNS Parameter for Config CP with or without DNSquery */
+		if(strncmp(USE_DNS, global_entries[i].name, ENTRY_NAME_SIZE) == 0) {
+			pfcp_config->use_dns = (uint8_t)atoi(global_entries[i].value);
+			fprintf(stderr, "CP: %s :   %s \n", (pfcp_config->cp_type == SGWC ? "SGW-C" :
+						pfcp_config->cp_type == PGWC ? "PGW-C" :
+						pfcp_config->cp_type == SAEGWC ? "SAEGW-C" : "UNKNOWN"),
+					((pfcp_config->use_dns)? "WITH DNS": "WITHOUT DNS"));
+		}
+
+		/* To ON/OFF CDR on PGW/SAEGW */
+		if(strncmp(GENERATE_CDR, global_entries[i].name, ENTRY_NAME_SIZE) == 0) {
+			pfcp_config->generate_cdr = (uint8_t)atoi(global_entries[i].value);
+			fprintf(stderr, "CP: [PGW/SAEGW] CDR GENERATION : %s\n",
+					(pfcp_config->generate_cdr)? "ENABLED" : "DISABLED");
+			if(pfcp_config->generate_cdr > CDR_ON){
+				rte_panic("Error : Invalide value aasign to paramtere GENERATE_CDR \n");
+
+			}
+		}
+
+		/* To ON/OFF/CC_CHECK for CDR generation on SGW */
+		if(strncmp(GENERATE_SGW_CDR, global_entries[i].name, ENTRY_NAME_SIZE) == 0) {
+			pfcp_config->generate_sgw_cdr = (uint8_t)atoi(global_entries[i].value);
+			fprintf(stderr, "CP: [SGW] CDR GENERATION : %d\n",
+									(pfcp_config->generate_sgw_cdr));
+			if(pfcp_config->generate_sgw_cdr > SGW_CC_CHECK){
+				rte_panic("Error : Invalide value aasign to paramtere GENERATE_SGW_CDR \n");
+
+			}
+		}
+
+		/* Charging Characteristic for the case of SGW */
+		if((pfcp_config->generate_sgw_cdr == SGW_CC_CHECK) &&
+				strncmp(SGW_CC, global_entries[i].name, ENTRY_NAME_SIZE) == 0) {
+			pfcp_config->sgw_cc = (uint8_t)atoi(global_entries[i].value);
+			fprintf(stderr, "CP: Charging Characteristic for SGW : %s\n",
+													get_cc_string(pfcp_config->sgw_cc));
+		}
+
+		if(pfcp_config->cp_type != SGWC) {
+			if(strncmp(USE_GX, global_entries[i].name, ENTRY_NAME_SIZE) == 0) {
+				pfcp_config->use_gx = (uint8_t)atoi(global_entries[i].value);
+				if(pfcp_config->use_gx <= 1) {
+					fprintf(stderr, "CP: USE GX : %s\n",
+							(pfcp_config->use_gx)? "ENABLED" : "DISABLED");
+				}
+				else {
+					rte_panic("Use 0 or 1 for gx interface DISABLE/ENABLE : %s\n", STATIC_CP_FILE);
+				}
+			}
+		}
+
+		if(strncmp(ADD_DEFAULT_RULE, global_entries[i].name, ENTRY_NAME_SIZE) == 0) {
+			pfcp_config->add_default_rule = (uint8_t)atoi(global_entries[i].value);
+			fprintf(stderr, "CP: ADD_DEFAULT_RULE : %s\n",
+					(pfcp_config->add_default_rule)? ((pfcp_config->add_default_rule == 1) ?
+					"ALLOW ANY TO ANY" : "DENY ANY TO ANY") : "DISABLED");
 		}
 	}
 
 	rte_free(global_entries);
+
+	if ((pfcp_config->upf_s5s8_ip)
+			&& (pfcp_config->upf_s5s8_mask)) {
+
+		pfcp_config->upf_s5s8_net = pfcp_config->upf_s5s8_ip & pfcp_config->upf_s5s8_mask;
+		pfcp_config->upf_s5s8_bcast_addr = pfcp_config->upf_s5s8_ip | ~(pfcp_config->upf_s5s8_mask);
+		fprintf(stderr, "CP: Config:%s:Configure UPF S5S8 Intf Subnet::"
+				"\n\tUP: S5S8 Intf IP:\t\t"IPV4_ADDR";\n\t",
+				__func__, IPV4_ADDR_HOST_FORMAT(pfcp_config->upf_s5s8_ip));
+		fprintf(stderr, "S5S8 Intf NET:\t\t\t"IPV4_ADDR";\n\t",
+				IPV4_ADDR_HOST_FORMAT(pfcp_config->upf_s5s8_net));
+		fprintf(stderr, "S5S8 Intf MASK:\t\t\t"IPV4_ADDR";\n\t",
+				IPV4_ADDR_HOST_FORMAT(pfcp_config->upf_s5s8_mask));
+		fprintf(stderr, "S5S8 Intf BCAST ADDR:\t\t"IPV4_ADDR";\n",
+				IPV4_ADDR_HOST_FORMAT(pfcp_config->upf_s5s8_bcast_addr));
+	}
 
 	/* Parse APN and nameserver values. */
 	uint16_t app_nameserver_ip_idx = 0;
@@ -419,8 +482,8 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 				}
 
 		    }
+			pfcp_config->num_apn = num_apn;
 			apn_list[apn_idx].apn_idx = apn_idx;
-			set_apn_name(&apn_list[apn_idx], apn_list[apn_idx].apn_name_label);
 
 			 /*check for valid configuration*/
 
@@ -447,6 +510,7 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 						 " for apn : %s\n",apn_list[apn_idx].apn_name_label);
 				 rte_panic("Line no : %d\n",__LINE__);
 			 }
+			 set_apn_name(&apn_list[apn_idx], apn_list[apn_idx].apn_name_label);
 			 apn_idx++;
 			 total_apn_cnt++;
 		}
@@ -709,6 +773,10 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 	}
 
 	rte_free(ip_pool_entries);
+	if (file != NULL) {
+		rte_cfgfile_close(file);
+		file = NULL;
+	}
 
 	return;
 }
@@ -805,4 +873,29 @@ parse_apn_args(char *temp, char *ptr[3])
 		}
 	}
 
+}
+
+int
+get_apn_name(char *apn_name_label, char *apn_name) {
+
+	if(apn_name_label == NULL)
+		return -1;
+
+	uint8_t length = strnlen(apn_name_label, MAX_NB_DPN);
+
+	for (uint8_t i=0; i<length; i++) {
+
+		uint8_t len = apn_name_label[i];
+
+		if (i!=0)
+			apn_name[i - 1] = '.';
+
+		for (uint8_t j=i; j<(i +len); j++) {
+			apn_name[j] = apn_name_label[j+1];
+		}
+
+		i = i + len;
+
+	}
+	return 0;
 }

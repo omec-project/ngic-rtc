@@ -44,14 +44,14 @@ enum TCP_SOCKET {
 };
 
 /**
- * @brief  : Get tcp tunnel sockfd if exist or create new
+ * @brief  : create tunnel with ddf
  * @param  : ip, Ip address of remote server for which we want/create sockfd
  * @param  : port, port no for creating sockfd if new ip
- * @param  : create, variable to identify  to create new sockfd if not present
+ * @param  : intfc_name, interface name
  * @return : Returns 0 in case of success , -1 otherwise
  */
 int
-get_tcp_tunnel(uint32_t ip, uint16_t port, int create);
+create_ddf_tunnel(uint32_t ip, uint16_t port, char intfc_name[DDF_INTFC_LEN]);
 
 /**
  * @brief  : Send pkts over TCP for LI
@@ -73,13 +73,5 @@ send_li_data_pkt(int sock, void *pkt, int size);
 void
 insert_fd(int *sock_arr, uint32_t *arr_size, int fd);
 
-/**
- * @brief  : Clean up socket create from li ddf component
- * @param  : ddf_ip, IP address of DDF
- * @param  : ddf_port, Port of DDF
- * @return : 0 in case of success, if fails it return -1
- */
-int
-Cleanup_sock_ddf_ip_hash(uint32_t ddf_ip, uint16_t ddf_port);
 
 #endif /*_TCP_CLIENT_H_*/

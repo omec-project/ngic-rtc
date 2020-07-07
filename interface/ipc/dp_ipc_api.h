@@ -107,16 +107,6 @@ struct ipc_node {
 struct ipc_node *basenode;
 
 /**
- * @brief Function to recv the IPC message and process them.
- *
- * This function is not thread safe and should only be called once by DP.
- */
-//int iface_process_ipc_msgs(void);
-
-
-void iface_process_ipc_msgs(void);
-
-/**
  * @brief Function to Inilialize memory for IPC msg.
  *
  * @param
@@ -138,21 +128,16 @@ void
 iface_ipc_register_msg_cb(int msg_id,
 		int (*msg_cb)(struct msgbuf *msg_payload));
 
+/**
+ * @brief : handles s11 interface messages
+ */
 
-//#ifdef DP_BUILD
-int
-udp_recv(void *msg_payload, uint32_t size,
-			struct sockaddr_in *peer_addr);
+void msg_handler_s11(void);
 
 /**
- * @brief Functino to Process IPC msgs.
- *
- * @param none
- * Return
- * 0 on success, -1 on failure
+ * @brief : handles s5s8 interface messages
  */
-int iface_remove_que(enum cp_dp_comm id);
-void msg_handler_s11(void);
+
 void msg_handler_s5s8(void);
 
 #ifdef CP_BUILD

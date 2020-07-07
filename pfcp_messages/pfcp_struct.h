@@ -19,7 +19,23 @@
 
 #define MAX_LIST_SIZE	    16
 #define MAX_FLOW_DESC_LEN   256
+#define RULE_NAME_LEN   	(256)
 #include "pfcp_ies.h"
+
+#define MAX_FRWD_PLCY_IDENTIFIER_LEN		255
+/**
+ * li max entries per imsi. id is different per imsi
+ */
+#define MAX_LI_ENTRIES_PER_UE						16
+
+
+#define URR_PER_PDR         1
+
+enum urr_measur_method {
+	VOL_BASED,
+	TIME_BASED,
+	VOL_TIME_BASED
+};
 
 /**
  * @brief  : Maintains Source Interface details
@@ -78,7 +94,7 @@ typedef struct sdf_filter_info_t {
  */
 typedef struct network_inst_t {
 	/* TODO: Revisit this */
-	uint8_t ntwk_inst[32];
+	uint8_t ntwk_inst[PFCP_NTWK_INST_LEN];
 } ntwk_inst_t;
 
 /**
@@ -86,7 +102,7 @@ typedef struct network_inst_t {
  */
 typedef struct application_id_info_t {
   /* TODO: Revisit this for change */
-  uint8_t app_ident[8];
+  uint8_t app_ident[PFCP_APPLICATION_ID_LEN];
 } app_id_t;
 
 /**
@@ -108,7 +124,7 @@ typedef struct pdi_info_t {
 typedef struct outer_hdr_removal_info_t {
   uint8_t outer_hdr_removal_desc;
 /* TODO: Revisit this for change */
-//  uint8_t gtpu_ext_hdr_del;
+//	uint8_t gtpu_ext_hdr_del;
 } outer_hdr_removal_t;
 
 /**
@@ -129,8 +145,7 @@ typedef struct qer_id_t {
  * @brief  : Maintains activating predefined rule name
  */
 typedef struct actvt_predef_rules_t {
-	/* VS:TODO: Revist this part */
-	uint8_t predef_rules_nm[8];
+	uint8_t predef_rules_nm[RULE_NAME_LEN];
 }actvt_predef_rules;
 
 /**
@@ -185,7 +200,7 @@ typedef struct redirect_info_t {
  */
 typedef struct forwardng_plcy_t {
 	uint8_t frwdng_plcy_ident_len;
-	uint8_t frwdng_plcy_ident;
+	uint8_t frwdng_plcy_ident[MAX_FRWD_PLCY_IDENTIFIER_LEN];
 } frwdng_plcy_t;
 
 /**
@@ -346,11 +361,10 @@ typedef struct time_threshold_t {
 
 }time_threshold;
 
-#ifdef CP_BUILD
 /**
  * @brief  : Maintains far information
  */
-typedef struct far_info_t {
+typedef struct far_cp_info_t {
 	//uint8_t bar_id_value;						/* BAR ID */
 	uint32_t far_id_value;						/* FAR ID */
 	uint64_t session_id;						/* Session ID */
@@ -366,8 +380,7 @@ typedef struct far_info_t {
 /**
  * @brief  : Maintains qer information
  */
-typedef struct qer_info_t {
-	/*VS: TODO: Remove qer id*/
+typedef struct qer_cp_info_t {
 	uint32_t qer_id;							/* QER ID */
 	uint32_t qer_corr_id_val;					/* QER Correlation ID */
 	uint64_t session_id;						/* Session ID */
@@ -385,7 +398,7 @@ typedef struct qer_info_t {
 /**
  * @brief  : Maintains urr information
  */
-typedef struct urr_info_t {
+typedef struct urr_cp_info_t {
 
 	uint32_t urr_id_value;
 	uint64_t session_id;
@@ -396,10 +409,11 @@ typedef struct urr_info_t {
 
 }urr_t;
 
+
 /**
- * @brief  : Maintains pdr information
+ * @brief  : Maintains pdr information for CP
  */
-typedef struct pdr_info_t {
+typedef struct pdr_cp_info_t {
 	uint8_t urr_id_count;						/* Number of URR */
 	uint8_t qer_id_count;						/* Number of QER */
 	uint8_t actvt_predef_rules_count;			/* Number of predefine rules */
@@ -414,17 +428,20 @@ typedef struct pdr_info_t {
 	urr urr_id[MAX_LIST_SIZE];					/* Collection of URR IDs */
 	qer qer_id[MAX_LIST_SIZE];					/* Collection of QER IDs */
 	actvt_predef_rules rules[MAX_LIST_SIZE];	/* Collection of active predefined rules */
+	char rule_name[RULE_NAME_LEN];			/* Rule name for which the PDR is created */
+	uint8_t create_far;
+	uint8_t create_urr;
 
 }pdr_t;
+
 
 /**
  * @brief  : Maintains bar information
  */
-typedef struct bar_info_t {
+typedef struct bar_cp_info_t {
 	uint8_t bar_id;				/* BAR ID */
 	dnlnk_data_notif_delay_t ddn_delay;
 	suggstd_buf_pckts_cnt_t suggstd_buf_pckts_cnt;
 }bar_t;
 
-#endif  /* CP_BUILD */
 #endif /* PFCP_STRUCT_H */

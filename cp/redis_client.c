@@ -27,19 +27,52 @@ redisContext* redis_connect(redis_config_t* cfg)
 	if (cfg->type == REDIS_TCP) {
 		ctx = redisConnectWithTimeout(cfg->conf.tcp.host,
 				cfg->conf.tcp.port, cfg->conf.tcp.timeout);
-	} else if (cfg->type == REDIS_SSL) {
+	} else if (cfg->type == REDIS_TLS) {
 
+		redisOptions options = {0};
+		REDIS_OPTIONS_SET_TCP(&options, cfg->conf.tls.host,
+				cfg->conf.tls.port);
+		options.timeout = &cfg->conf.tls.timeout;
+		options.endpoint.tcp.source_addr = cfg->cp_ip;
+
+		ctx = redisConnectWithOptions(&options);
+		 if (ctx == NULL || ctx->err) {
+			if (ctx) {
+				clLog(clSystemLog, eCLSeverityCritical,
+						"Connection error: %s\n", ctx->errstr);
+				redisFree(ctx);
+			} else {
+				clLog(clSystemLog, eCLSeverityCritical,
+						"Connection error: can't allocate"
+						 "redis context\n");
+			}
+			return NULL;
+		}
+
+		if (redisSecureConnection(ctx, cfg->conf.tls.ca_cert_path,
+					cfg->conf.tls.cert_path,
+					cfg->conf.tls.key_path, "sgx") != REDIS_OK) {
+			clLog(clSystemLog, eCLSeverityCritical,
+					"Couldn't initialize SSL!\n");
+			clLog(clSystemLog, eCLSeverityCritical,
+					 "Error: %s\n", ctx->errstr);
+			redisFree(ctx);
+			return NULL;
+		}
 	} else {
-		/* TODO: Add log*/;
+		clLog(clSystemLog, eCLSeverityCritical,"Invalid"
+				"Connection Type.only TCP and"
+				"TLS is supported");
+		return NULL;
 	}
 
 	if (ctx == NULL) {
-		/* TODO: Add log and remove printf */
+		clLog(clSystemLog, eCLSeverityCritical,"Connection"
+				"Failed\n");
 		return NULL;
 	} else if (ctx->err) {
 		clLog(clSystemLog, eCLSeverityCritical,
-				"Connection error: %s\n", ctx->errstr);
-		/* TODO: Add log and remove printf */
+			"Connection error: %s\n", ctx->errstr);
 		redisFree(ctx);
 		return NULL;
 	}
@@ -50,7 +83,7 @@ redisContext* redis_connect(redis_config_t* cfg)
 
 int redis_save_cdr(redisContext* ctx, char *cp_ip, char* cdr)
 {
-	redisCommand(ctx,"LPUSH %s %s", cp_ip, cdr);
+	redisCommand(ctx, "LPUSH %s %s", cp_ip, cdr);
 	return 0;
 }
 

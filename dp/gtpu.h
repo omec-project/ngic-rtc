@@ -42,6 +42,7 @@
 #define GPDU_HDR_SIZE_DYNAMIC(flags) ((uint32_t)(GPDU_HDR_SIZE_WITHOUT_SEQNB + ((flags) & GTP_FLAG_SEQNB ? sizeof(GTPU_STATIC_SEQNB) : 0)))
 
 #define GTP_GPDU		0xff
+#define GTP_GEMR		0xfe
 
 /* GTPU-Echo defines*/
 #define GTPU_ECHO_RECOVERY			(14)
@@ -49,7 +50,8 @@
 #define GTPU_ECHO_RESPONSE			(0x02)
 #define GTPU_HDR_SIZE				(8)
 #define GTPU_END_MARKER_REQUEST			(254)
-/* VS: TODO*/
+
+/* VS: Defined the GTPU, UDP, ETHER, and IPv4 header size micro */
 #define GTPU_HDR_LEN   8
 #define IPV4_HDR_LEN   20
 #define ETH_HDR_LEN    14
@@ -79,8 +81,8 @@ struct gtpu_hdr {
  * @brief  : Maintains GTPU-Recovery Information Element
  */
 typedef struct gtpu_recovery_ie_t {
-    uint8_t type;
-    uint8_t restart_cntr;
+	uint8_t type;
+	uint8_t restart_cntr;
 } gtpu_recovery_ie;
 
 /**
@@ -224,4 +226,4 @@ void gtpu_get_inner_src_dst_ip_without_seqnb(struct rte_mbuf *m, uint32_t *src_i
  * @return : Returns nothing
  */
 void process_echo_request(struct rte_mbuf *echo_pkt, uint8_t port_id);
-#endif	/* _GTPU_H_ */
+#endif /* _GTPU_H_ */

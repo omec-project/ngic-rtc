@@ -16,6 +16,10 @@
 #ifndef __PFCP_ENUM_H
 #define __PFCP_ENUM_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define NODE_ID_IPV4_LEN		        5
 #define NODE_ID_IPV6_LEN             	9
 #define RECOV_TIMESTAMP_LEN          	4
@@ -54,6 +58,18 @@ enum source_interface_value {
 	SOURCE_INTERFACE_VALUE_CORE =1,
 	SOURCE_INTERFACE_VALUE_SGI_LAN_N6_LAN =2,
 	SOURCE_INTERFACE_VALUE_CP_FUNCTION =3,
+};
+
+enum outer_header_description {
+	GTP_U_UDP_IPv4 = 0,
+	GTP_U_UDP_IPv6 = 1,
+	UDP_IPv4 = 2,
+	UDP_IPv6 = 3,
+	IPv4 = 4,
+	IPv6 = 5,
+	GTP_U_UDP_IP = 6,
+	VLAN_S_TAG = 7,
+	S_TAG_C_TAG =8,
 };
 
 enum destination_interface_value {
@@ -123,34 +139,9 @@ enum li_policy {
 	CC_EVENT_DELETE = 3,
 };
 
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* __PFCP_ENUM_H */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

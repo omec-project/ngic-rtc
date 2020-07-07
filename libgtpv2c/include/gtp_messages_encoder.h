@@ -16,6 +16,9 @@
 #ifndef __GTP_MESSAGES_ENCODE_H__
 #define __GTP_MESSAGES_ENCODE_H__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include "gtp_messages.h"
 
@@ -30,7 +33,7 @@
  * @return
  *   number of encoded bytes.
  */
-int encode_gtpv2c_header_t(gtpv2c_header_t *value,
+int encode_gtpv2c_header_t(const gtpv2c_header_t *value,
 	uint8_t *buf);
 
 /**
@@ -42,7 +45,7 @@ int encode_gtpv2c_header_t(gtpv2c_header_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_ie_header_t(ie_header_t *value,
+int encode_ie_header_t(const ie_header_t *value,
 	uint8_t *buf);
 
 /**
@@ -90,7 +93,7 @@ int encode_create_sess_req(create_sess_req_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_create_sess_request_bearer_ctxt_to_be_created_ie(gtp_create_sess_request_bearer_ctxt_to_be_created_ie_t *value,
+int encode_gtp_create_sess_request_bearer_ctxt_to_be_created_ie(const gtp_create_sess_request_bearer_ctxt_to_be_created_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -102,7 +105,7 @@ int encode_gtp_create_sess_request_bearer_ctxt_to_be_created_ie(gtp_create_sess_
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_create_sess_request_bearer_ctxt_to_be_removed_ie(gtp_create_sess_request_bearer_ctxt_to_be_removed_ie_t *value,
+int encode_gtp_create_sess_request_bearer_ctxt_to_be_removed_ie(const gtp_create_sess_request_bearer_ctxt_to_be_removed_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -114,7 +117,7 @@ int encode_gtp_create_sess_request_bearer_ctxt_to_be_removed_ie(gtp_create_sess_
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_create_sess_request__overload_ctl_info_ie(gtp_create_sess_request__overload_ctl_info_ie_t *value,
+int encode_gtp_create_sess_request__overload_ctl_info_ie(const gtp_create_sess_request__overload_ctl_info_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -126,7 +129,7 @@ int encode_gtp_create_sess_request__overload_ctl_info_ie(gtp_create_sess_request
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_create_sess_request__remote_ue_ctxt_connected_ie(gtp_create_sess_request__remote_ue_ctxt_connected_ie_t *value,
+int encode_gtp_create_sess_request__remote_ue_ctxt_connected_ie(const gtp_create_sess_request__remote_ue_ctxt_connected_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -150,7 +153,7 @@ int encode_create_sess_rsp(create_sess_rsp_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_create_sess_response_bearer_ctxt_created_ie(gtp_create_sess_response_bearer_ctxt_created_ie_t *value,
+int encode_gtp_create_sess_response_bearer_ctxt_created_ie(const gtp_create_sess_response_bearer_ctxt_created_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -162,7 +165,7 @@ int encode_gtp_create_sess_response_bearer_ctxt_created_ie(gtp_create_sess_respo
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_create_sess_response_bearer_ctxt_marked_removal_ie(gtp_create_sess_response_bearer_ctxt_marked_removal_ie_t *value,
+int encode_gtp_create_sess_response_bearer_ctxt_marked_removal_ie(const gtp_create_sess_response_bearer_ctxt_marked_removal_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -174,7 +177,7 @@ int encode_gtp_create_sess_response_bearer_ctxt_marked_removal_ie(gtp_create_ses
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_create_sess_response__load_ctl_info_ie(gtp_create_sess_response__load_ctl_info_ie_t *value,
+int encode_gtp_create_sess_response__load_ctl_info_ie(const gtp_create_sess_response__load_ctl_info_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -186,7 +189,7 @@ int encode_gtp_create_sess_response__load_ctl_info_ie(gtp_create_sess_response__
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_create_sess_response__overload_ctl_info_ie(gtp_create_sess_response__overload_ctl_info_ie_t *value,
+int encode_gtp_create_sess_response__overload_ctl_info_ie(const gtp_create_sess_response__overload_ctl_info_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -210,7 +213,7 @@ int encode_create_bearer_req(create_bearer_req_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_create_bearer_request_bearer_ctxt_ie(gtp_create_bearer_request_bearer_ctxt_ie_t *value,
+int encode_gtp_create_bearer_request_bearer_ctxt_ie(const gtp_create_bearer_request_bearer_ctxt_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -222,7 +225,7 @@ int encode_gtp_create_bearer_request_bearer_ctxt_ie(gtp_create_bearer_request_be
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_create_bearer_request__load_ctl_info_ie(gtp_create_bearer_request__load_ctl_info_ie_t *value,
+int encode_gtp_create_bearer_request__load_ctl_info_ie(const gtp_create_bearer_request__load_ctl_info_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -234,7 +237,7 @@ int encode_gtp_create_bearer_request__load_ctl_info_ie(gtp_create_bearer_request
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_create_bearer_request__overload_ctl_info_ie(gtp_create_bearer_request__overload_ctl_info_ie_t *value,
+int encode_gtp_create_bearer_request__overload_ctl_info_ie(const gtp_create_bearer_request__overload_ctl_info_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -258,7 +261,7 @@ int encode_create_bearer_rsp(create_bearer_rsp_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_create_bearer_response_bearer_ctxt_ie(gtp_create_bearer_response_bearer_ctxt_ie_t *value,
+int encode_gtp_create_bearer_response_bearer_ctxt_ie(const gtp_create_bearer_response_bearer_ctxt_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -270,7 +273,7 @@ int encode_gtp_create_bearer_response_bearer_ctxt_ie(gtp_create_bearer_response_
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_create_bearer_response__overload_ctl_info_ie(gtp_create_bearer_response__overload_ctl_info_ie_t *value,
+int encode_gtp_create_bearer_response__overload_ctl_info_ie(const gtp_create_bearer_response__overload_ctl_info_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -294,7 +297,7 @@ int encode_bearer_rsrc_cmd(bearer_rsrc_cmd_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_bearer_rsrc_command__overload_ctl_info_ie(gtp_bearer_rsrc_command__overload_ctl_info_ie_t *value,
+int encode_gtp_bearer_rsrc_command__overload_ctl_info_ie(const gtp_bearer_rsrc_command__overload_ctl_info_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -318,7 +321,7 @@ int encode_bearer_rsrc_fail_indctn(bearer_rsrc_fail_indctn_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_bearer_rsrc_fail_indication__overload_ctl_info_ie(gtp_bearer_rsrc_fail_indication__overload_ctl_info_ie_t *value,
+int encode_gtp_bearer_rsrc_fail_indication__overload_ctl_info_ie(const gtp_bearer_rsrc_fail_indication__overload_ctl_info_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -342,7 +345,7 @@ int encode_mod_bearer_req(mod_bearer_req_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mod_bearer_request_bearer_ctxt_to_be_modified_ie(gtp_mod_bearer_request_bearer_ctxt_to_be_modified_ie_t *value,
+int encode_gtp_mod_bearer_request_bearer_ctxt_to_be_modified_ie(const gtp_mod_bearer_request_bearer_ctxt_to_be_modified_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -354,7 +357,7 @@ int encode_gtp_mod_bearer_request_bearer_ctxt_to_be_modified_ie(gtp_mod_bearer_r
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mod_bearer_request_bearer_ctxt_to_be_removed_ie(gtp_mod_bearer_request_bearer_ctxt_to_be_removed_ie_t *value,
+int encode_gtp_mod_bearer_request_bearer_ctxt_to_be_removed_ie(const gtp_mod_bearer_request_bearer_ctxt_to_be_removed_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -366,7 +369,7 @@ int encode_gtp_mod_bearer_request_bearer_ctxt_to_be_removed_ie(gtp_mod_bearer_re
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mod_bearer_request_overload_ctl_info_ie(gtp_mod_bearer_request_overload_ctl_info_ie_t *value,
+int encode_gtp_mod_bearer_request_overload_ctl_info_ie(const gtp_mod_bearer_request_overload_ctl_info_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -390,7 +393,7 @@ int encode_mod_bearer_rsp(mod_bearer_rsp_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mod_bearer_response_bearer_ctxt_modified_ie(gtp_mod_bearer_response_bearer_ctxt_modified_ie_t *value,
+int encode_gtp_mod_bearer_response_bearer_ctxt_modified_ie(const gtp_mod_bearer_response_bearer_ctxt_modified_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -402,7 +405,7 @@ int encode_gtp_mod_bearer_response_bearer_ctxt_modified_ie(gtp_mod_bearer_respon
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mod_bearer_response_bearer_ctxt_marked_removal_ie(gtp_mod_bearer_response_bearer_ctxt_marked_removal_ie_t *value,
+int encode_gtp_mod_bearer_response_bearer_ctxt_marked_removal_ie(const gtp_mod_bearer_response_bearer_ctxt_marked_removal_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -414,7 +417,7 @@ int encode_gtp_mod_bearer_response_bearer_ctxt_marked_removal_ie(gtp_mod_bearer_
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mod_bearer_response__load_ctl_info_ie(gtp_mod_bearer_response__load_ctl_info_ie_t *value,
+int encode_gtp_mod_bearer_response__load_ctl_info_ie(const gtp_mod_bearer_response__load_ctl_info_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -426,7 +429,7 @@ int encode_gtp_mod_bearer_response__load_ctl_info_ie(gtp_mod_bearer_response__lo
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mod_bearer_response__overload_ctl_info_ie(gtp_mod_bearer_response__overload_ctl_info_ie_t *value,
+int encode_gtp_mod_bearer_response__overload_ctl_info_ie(const gtp_mod_bearer_response__overload_ctl_info_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -450,7 +453,7 @@ int encode_del_sess_req(del_sess_req_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_del_sess_request__overload_ctl_info_ie(gtp_del_sess_request__overload_ctl_info_ie_t *value,
+int encode_gtp_del_sess_request__overload_ctl_info_ie(const gtp_del_sess_request__overload_ctl_info_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -474,7 +477,7 @@ int encode_del_bearer_req(del_bearer_req_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_del_bearer_request__bearer_ctxt_ie(gtp_del_bearer_request__bearer_ctxt_ie_t *value,
+int encode_gtp_del_bearer_request__bearer_ctxt_ie(const gtp_del_bearer_request__bearer_ctxt_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -486,7 +489,7 @@ int encode_gtp_del_bearer_request__bearer_ctxt_ie(gtp_del_bearer_request__bearer
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_del_bearer_request__load_ctl_info_ie(gtp_del_bearer_request__load_ctl_info_ie_t *value,
+int encode_gtp_del_bearer_request__load_ctl_info_ie(const gtp_del_bearer_request__load_ctl_info_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -498,7 +501,7 @@ int encode_gtp_del_bearer_request__load_ctl_info_ie(gtp_del_bearer_request__load
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_del_bearer_request__overload_ctl_info_ie(gtp_del_bearer_request__overload_ctl_info_ie_t *value,
+int encode_gtp_del_bearer_request__overload_ctl_info_ie(const gtp_del_bearer_request__overload_ctl_info_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -522,7 +525,7 @@ int encode_del_sess_rsp(del_sess_rsp_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_del_sess_response__load_ctl_info_ie(gtp_del_sess_response__load_ctl_info_ie_t *value,
+int encode_gtp_del_sess_response__load_ctl_info_ie(const gtp_del_sess_response__load_ctl_info_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -534,7 +537,7 @@ int encode_gtp_del_sess_response__load_ctl_info_ie(gtp_del_sess_response__load_c
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_del_sess_response__overload_ctl_info_ie(gtp_del_sess_response__overload_ctl_info_ie_t *value,
+int encode_gtp_del_sess_response__overload_ctl_info_ie(const gtp_del_sess_response__overload_ctl_info_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -558,7 +561,7 @@ int encode_del_bearer_rsp(del_bearer_rsp_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_del_bearer_response_bearer_ctxt_ie(gtp_del_bearer_response_bearer_ctxt_ie_t *value,
+int encode_gtp_del_bearer_response_bearer_ctxt_ie(const gtp_del_bearer_response_bearer_ctxt_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -570,7 +573,7 @@ int encode_gtp_del_bearer_response_bearer_ctxt_ie(gtp_del_bearer_response_bearer
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_del_bearer_response__overload_ctl_info_ie(gtp_del_bearer_response__overload_ctl_info_ie_t *value,
+int encode_gtp_del_bearer_response__overload_ctl_info_ie(const gtp_del_bearer_response__overload_ctl_info_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -594,7 +597,7 @@ int encode_dnlnk_data_notif(dnlnk_data_notif_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_dnlnk_data_notification__load_ctl_info_ie(gtp_dnlnk_data_notification__load_ctl_info_ie_t *value,
+int encode_gtp_dnlnk_data_notification__load_ctl_info_ie(const gtp_dnlnk_data_notification__load_ctl_info_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -606,7 +609,7 @@ int encode_gtp_dnlnk_data_notification__load_ctl_info_ie(gtp_dnlnk_data_notifica
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_dnlnk_data_notification__overload_ctl_info_ie(gtp_dnlnk_data_notification__overload_ctl_info_ie_t *value,
+int encode_gtp_dnlnk_data_notification__overload_ctl_info_ie(const gtp_dnlnk_data_notification__overload_ctl_info_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -654,7 +657,7 @@ int encode_mod_bearer_cmd(mod_bearer_cmd_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mod_bearer_command__bearer_ctxt_ie(gtp_mod_bearer_command__bearer_ctxt_ie_t *value,
+int encode_gtp_mod_bearer_command__bearer_ctxt_ie(const gtp_mod_bearer_command__bearer_ctxt_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -666,7 +669,7 @@ int encode_gtp_mod_bearer_command__bearer_ctxt_ie(gtp_mod_bearer_command__bearer
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mod_bearer_command__overload_ctl_info_ie(gtp_mod_bearer_command__overload_ctl_info_ie_t *value,
+int encode_gtp_mod_bearer_command__overload_ctl_info_ie(const gtp_mod_bearer_command__overload_ctl_info_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -690,7 +693,7 @@ int encode_mod_bearer_fail_indctn(mod_bearer_fail_indctn_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mod_bearer_fail_indication__overload_ctl_info_ie(gtp_mod_bearer_fail_indication__overload_ctl_info_ie_t *value,
+int encode_gtp_mod_bearer_fail_indication__overload_ctl_info_ie(const gtp_mod_bearer_fail_indication__overload_ctl_info_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -714,7 +717,7 @@ int encode_upd_bearer_req(upd_bearer_req_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_upd_bearer_request__bearer_ctxt_ie(gtp_upd_bearer_request__bearer_ctxt_ie_t *value,
+int encode_gtp_upd_bearer_request__bearer_ctxt_ie(const gtp_upd_bearer_request__bearer_ctxt_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -726,7 +729,7 @@ int encode_gtp_upd_bearer_request__bearer_ctxt_ie(gtp_upd_bearer_request__bearer
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_upd_bearer_request__load_ctl_info_ie(gtp_upd_bearer_request__load_ctl_info_ie_t *value,
+int encode_gtp_upd_bearer_request__load_ctl_info_ie(const gtp_upd_bearer_request__load_ctl_info_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -738,7 +741,7 @@ int encode_gtp_upd_bearer_request__load_ctl_info_ie(gtp_upd_bearer_request__load
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_upd_bearer_request__overload_ctl_info_ie(gtp_upd_bearer_request__overload_ctl_info_ie_t *value,
+int encode_gtp_upd_bearer_request__overload_ctl_info_ie(const gtp_upd_bearer_request__overload_ctl_info_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -762,7 +765,7 @@ int encode_upd_bearer_rsp(upd_bearer_rsp_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_upd_bearer_response__bearer_ctxt_ie(gtp_upd_bearer_response__bearer_ctxt_ie_t *value,
+int encode_gtp_upd_bearer_response__bearer_ctxt_ie(const gtp_upd_bearer_response__bearer_ctxt_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -774,7 +777,7 @@ int encode_gtp_upd_bearer_response__bearer_ctxt_ie(gtp_upd_bearer_response__bear
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_upd_bearer_response__overload_ctl_info_ie(gtp_upd_bearer_response__overload_ctl_info_ie_t *value,
+int encode_gtp_upd_bearer_response__overload_ctl_info_ie(const gtp_upd_bearer_response__overload_ctl_info_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -798,7 +801,7 @@ int encode_del_bearer_cmd(del_bearer_cmd_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_del_bearer_command_bearer_ctxt_ie(gtp_del_bearer_command_bearer_ctxt_ie_t *value,
+int encode_gtp_del_bearer_command_bearer_ctxt_ie(const gtp_del_bearer_command_bearer_ctxt_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -810,7 +813,7 @@ int encode_gtp_del_bearer_command_bearer_ctxt_ie(gtp_del_bearer_command_bearer_c
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_del_bearer_command__overload_ctl_info_ie(gtp_del_bearer_command__overload_ctl_info_ie_t *value,
+int encode_gtp_del_bearer_command__overload_ctl_info_ie(const gtp_del_bearer_command__overload_ctl_info_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -834,7 +837,7 @@ int encode_del_bearer_fail_indctn(del_bearer_fail_indctn_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_del_bearer_fail_indication__bearer_ctxt_ie(gtp_del_bearer_fail_indication__bearer_ctxt_ie_t *value,
+int encode_gtp_del_bearer_fail_indication__bearer_ctxt_ie(const gtp_del_bearer_fail_indication__bearer_ctxt_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -846,7 +849,7 @@ int encode_gtp_del_bearer_fail_indication__bearer_ctxt_ie(gtp_del_bearer_fail_in
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_del_bearer_fail_indication__overload_ctl_info_ie(gtp_del_bearer_fail_indication__overload_ctl_info_ie_t *value,
+int encode_gtp_del_bearer_fail_indication__overload_ctl_info_ie(const gtp_del_bearer_fail_indication__overload_ctl_info_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -870,7 +873,7 @@ int encode_create_indir_data_fwdng_tunn_req(create_indir_data_fwdng_tunn_req_t *
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_create_indir_data_fwdng_tunn_request__bearer_ctxt_ie(gtp_create_indir_data_fwdng_tunn_request__bearer_ctxt_ie_t *value,
+int encode_gtp_create_indir_data_fwdng_tunn_request__bearer_ctxt_ie(const gtp_create_indir_data_fwdng_tunn_request__bearer_ctxt_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -894,7 +897,7 @@ int encode_create_indir_data_fwdng_tunn_rsp(create_indir_data_fwdng_tunn_rsp_t *
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_create_indir_data_fwdng_tunn_response__bearer_ctxt_ie(gtp_create_indir_data_fwdng_tunn_response__bearer_ctxt_ie_t *value,
+int encode_gtp_create_indir_data_fwdng_tunn_response__bearer_ctxt_ie(const gtp_create_indir_data_fwdng_tunn_response__bearer_ctxt_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -906,7 +909,7 @@ int encode_gtp_create_indir_data_fwdng_tunn_response__bearer_ctxt_ie(gtp_create_
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_release_acc_bearers_response__load_ctl_info_ie(gtp_release_acc_bearers_response__load_ctl_info_ie_t *value,
+int encode_gtp_release_acc_bearers_response__load_ctl_info_ie(const gtp_release_acc_bearers_response__load_ctl_info_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -918,7 +921,7 @@ int encode_gtp_release_acc_bearers_response__load_ctl_info_ie(gtp_release_acc_be
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_release_acc_bearers_response__overload_ctl_info_ie(gtp_release_acc_bearers_response__overload_ctl_info_ie_t *value,
+int encode_gtp_release_acc_bearers_response__overload_ctl_info_ie(const gtp_release_acc_bearers_response__overload_ctl_info_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -954,7 +957,7 @@ int encode_mod_acc_bearers_req(mod_acc_bearers_req_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mod_acc_bearers_request__bearer_ctxt_to_be_modified_ie(gtp_mod_acc_bearers_request__bearer_ctxt_to_be_modified_ie_t *value,
+int encode_gtp_mod_acc_bearers_request__bearer_ctxt_to_be_modified_ie(const gtp_mod_acc_bearers_request__bearer_ctxt_to_be_modified_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -966,7 +969,7 @@ int encode_gtp_mod_acc_bearers_request__bearer_ctxt_to_be_modified_ie(gtp_mod_ac
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mod_acc_bearers_request__bearer_ctxt_to_be_removed_ie(gtp_mod_acc_bearers_request__bearer_ctxt_to_be_removed_ie_t *value,
+int encode_gtp_mod_acc_bearers_request__bearer_ctxt_to_be_removed_ie(const gtp_mod_acc_bearers_request__bearer_ctxt_to_be_removed_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -990,7 +993,7 @@ int encode_mod_acc_bearers_rsp(mod_acc_bearers_rsp_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mod_acc_bearers_response__bearer_ctxt_modified_ie(gtp_mod_acc_bearers_response__bearer_ctxt_modified_ie_t *value,
+int encode_gtp_mod_acc_bearers_response__bearer_ctxt_modified_ie(const gtp_mod_acc_bearers_response__bearer_ctxt_modified_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -1002,7 +1005,7 @@ int encode_gtp_mod_acc_bearers_response__bearer_ctxt_modified_ie(gtp_mod_acc_bea
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mod_acc_bearers_response__bearer_ctxt_marked_removal_ie(gtp_mod_acc_bearers_response__bearer_ctxt_marked_removal_ie_t *value,
+int encode_gtp_mod_acc_bearers_response__bearer_ctxt_marked_removal_ie(const gtp_mod_acc_bearers_response__bearer_ctxt_marked_removal_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -1014,7 +1017,7 @@ int encode_gtp_mod_acc_bearers_response__bearer_ctxt_marked_removal_ie(gtp_mod_a
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mod_acc_bearers_response__load_ctl_info_ie(gtp_mod_acc_bearers_response__load_ctl_info_ie_t *value,
+int encode_gtp_mod_acc_bearers_response__load_ctl_info_ie(const gtp_mod_acc_bearers_response__load_ctl_info_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -1026,7 +1029,7 @@ int encode_gtp_mod_acc_bearers_response__load_ctl_info_ie(gtp_mod_acc_bearers_re
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mod_acc_bearers_response__overload_ctl_info_ie(gtp_mod_acc_bearers_response__overload_ctl_info_ie_t *value,
+int encode_gtp_mod_acc_bearers_response__overload_ctl_info_ie(const gtp_mod_acc_bearers_response__overload_ctl_info_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -1050,7 +1053,7 @@ int encode_rmt_ue_rpt_notif(rmt_ue_rpt_notif_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_rmt_ue_rpt_notification__remote_ue_ctxt_connected_ie(gtp_rmt_ue_rpt_notification__remote_ue_ctxt_connected_ie_t *value,
+int encode_gtp_rmt_ue_rpt_notification__remote_ue_ctxt_connected_ie(const gtp_rmt_ue_rpt_notification__remote_ue_ctxt_connected_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -1062,7 +1065,7 @@ int encode_gtp_rmt_ue_rpt_notification__remote_ue_ctxt_connected_ie(gtp_rmt_ue_r
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_rmt_ue_rpt_notification__remote_ue_ctxt_disconnected_ie(gtp_rmt_ue_rpt_notification__remote_ue_ctxt_disconnected_ie_t *value,
+int encode_gtp_rmt_ue_rpt_notification__remote_ue_ctxt_disconnected_ie(const gtp_rmt_ue_rpt_notification__remote_ue_ctxt_disconnected_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -1098,7 +1101,7 @@ int encode_fwd_reloc_req(fwd_reloc_req_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_fwd_reloc_request__mmesgsnamf_ue_eps_pdn_connections_ie(gtp_fwd_reloc_request__mmesgsnamf_ue_eps_pdn_connections_ie_t *value,
+int encode_gtp_fwd_reloc_request__mmesgsnamf_ue_eps_pdn_connections_ie(const gtp_fwd_reloc_request__mmesgsnamf_ue_eps_pdn_connections_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -1110,7 +1113,7 @@ int encode_gtp_fwd_reloc_request__mmesgsnamf_ue_eps_pdn_connections_ie(gtp_fwd_r
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_fwd_reloc_request__bearer_ctxt_ie(gtp_fwd_reloc_request__bearer_ctxt_ie_t *value,
+int encode_gtp_fwd_reloc_request__bearer_ctxt_ie(const gtp_fwd_reloc_request__bearer_ctxt_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -1122,7 +1125,7 @@ int encode_gtp_fwd_reloc_request__bearer_ctxt_ie(gtp_fwd_reloc_request__bearer_c
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_fwd_reloc_request__remote_ue_ctxt_connected_ie(gtp_fwd_reloc_request__remote_ue_ctxt_connected_ie_t *value,
+int encode_gtp_fwd_reloc_request__remote_ue_ctxt_connected_ie(const gtp_fwd_reloc_request__remote_ue_ctxt_connected_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -1134,7 +1137,7 @@ int encode_gtp_fwd_reloc_request__remote_ue_ctxt_connected_ie(gtp_fwd_reloc_requ
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_fwd_reloc_request__mme_ue_scef_pdn_connections_ie(gtp_fwd_reloc_request__mme_ue_scef_pdn_connections_ie_t *value,
+int encode_gtp_fwd_reloc_request__mme_ue_scef_pdn_connections_ie(const gtp_fwd_reloc_request__mme_ue_scef_pdn_connections_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -1206,7 +1209,7 @@ int encode_ctxt_rsp(ctxt_rsp_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_ctxt_response__mmesgsn_ue_eps_pdn_connections_ie(gtp_ctxt_response__mmesgsn_ue_eps_pdn_connections_ie_t *value,
+int encode_gtp_ctxt_response__mmesgsn_ue_eps_pdn_connections_ie(const gtp_ctxt_response__mmesgsn_ue_eps_pdn_connections_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -1218,7 +1221,7 @@ int encode_gtp_ctxt_response__mmesgsn_ue_eps_pdn_connections_ie(gtp_ctxt_respons
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_ctxt_response__bearer_ctxt_ie(gtp_ctxt_response__bearer_ctxt_ie_t *value,
+int encode_gtp_ctxt_response__bearer_ctxt_ie(const gtp_ctxt_response__bearer_ctxt_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -1230,7 +1233,7 @@ int encode_gtp_ctxt_response__bearer_ctxt_ie(gtp_ctxt_response__bearer_ctxt_ie_t
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_ctxt_response__remote_ue_ctxt_connected_ie(gtp_ctxt_response__remote_ue_ctxt_connected_ie_t *value,
+int encode_gtp_ctxt_response__remote_ue_ctxt_connected_ie(const gtp_ctxt_response__remote_ue_ctxt_connected_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -1242,7 +1245,7 @@ int encode_gtp_ctxt_response__remote_ue_ctxt_connected_ie(gtp_ctxt_response__rem
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_ctxt_response__mmesgsn_ue_scef_pdn_connections_ie(gtp_ctxt_response__mmesgsn_ue_scef_pdn_connections_ie_t *value,
+int encode_gtp_ctxt_response__mmesgsn_ue_scef_pdn_connections_ie(const gtp_ctxt_response__mmesgsn_ue_scef_pdn_connections_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -1266,7 +1269,7 @@ int encode_ctxt_ack(ctxt_ack_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_ctxt_acknowledge__bearer_ctxt_ie(gtp_ctxt_acknowledge__bearer_ctxt_ie_t *value,
+int encode_gtp_ctxt_acknowledge__bearer_ctxt_ie(const gtp_ctxt_acknowledge__bearer_ctxt_ie_t *value,
     uint8_t *buf);
 
 /**
@@ -1666,5 +1669,20 @@ int encode_change_noti_req(change_noti_req_t *value,
 int encode_change_noti_rsp(change_noti_rsp_t *value,
 		uint8_t *buf);
 
+/**
+ * Encodes release access bearers response to buffer.
+ * @param value
+ *    rel_acc_ber_rsp_t
+ * @param buf
+ *   buffer to store encoded values.
+ * @return
+ *   number of encoded bytes.
+ */
+int encode_release_access_bearers_rsp(release_access_bearer_resp_t *value,
+        uint8_t *buf);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /*__GTP_MESSAGES_ENCODE_H__*/

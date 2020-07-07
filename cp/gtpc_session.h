@@ -38,7 +38,7 @@
 #ifndef GTPC_SESSION_H
 #define GTPC_SESSION_H
 
-#define DYN_RULE_CNT  (16)
+#define GTP_MSG_LEN		2048
 /**
  * @brief  : Maintains seid, bearer id, sgw teid , pgw ip for cp
  */
@@ -47,6 +47,13 @@ struct gw_info {
 	uint32_t s5s8_sgw_gtpc_teid;
 	uint32_t s5s8_pgw_gtpc_ipv4;
 	uint64_t seid;
+};
+
+enum modify_bearer_procedure {
+	INITIAL_PDN_ATTACH = 01,
+	UPDATE_PDN_CONNECTION,
+	FORWARD_MBR_REQUEST,
+	NO_UPDATE_MBR,
 };
 
 #ifdef CP_BUILD
@@ -60,8 +67,7 @@ struct gw_info {
  */
 int
 delete_context(gtp_eps_bearer_id_ie_t lbi, uint32_t teid,
-	ue_context **_context, uint32_t *s5s8_pgw_gtpc_teid,
-	uint32_t *s5s8_pgw_gtpc_ipv4);
+	ue_context **_context, pdn_connection **pdn);
 
 /**
  * @brief  : Fill Create Sess Request
@@ -72,7 +78,7 @@ delete_context(gtp_eps_bearer_id_ie_t lbi, uint32_t teid,
  */
 int
 fill_cs_request(create_sess_req_t *cs_req, struct ue_context_t *context,
-		uint8_t ebi_index);
+		int ebi_index );
 
 /**
  * @brief  : Process create session response received on s5s8 interface in sgwc
@@ -83,18 +89,6 @@ int
 process_sgwc_s5s8_create_sess_rsp(create_sess_rsp_t *cs_rsp);
 
 /**
- * @brief  : Fill create session response on pgwc
- * @param  : cs_resp, response structure to be filled
- * @param  : sequence, sequence number
- * @param  : context, ue context info
- * @param  : ebi_index, index of bearer in bearer array
- * @param  : is_piggybacked, piggybacked message
- * @return : Returns nothing
- */
-void
-fill_pgwc_create_session_response(create_sess_rsp_t *cs_resp,
-		uint32_t sequence, struct ue_context_t *context, uint8_t ebi_index, uint8_t is_piggybacked);
-/**
  * @brief  : Fill delete session request
  * @param  : ds_req, request structure to be filled
  * @param  : context, ue context info
@@ -103,7 +97,7 @@ fill_pgwc_create_session_response(create_sess_rsp_t *cs_resp,
  */
 void
 fill_ds_request(del_sess_req_t *ds_req, struct ue_context_t *context,
-		 uint8_t ebi_index);
+		 int ebi_index , uint32_t teid);
 /**
  * @brief  : Fill delete session response on pgwc
  * @param  : ds_resp, response structure to be filled
@@ -112,24 +106,7 @@ fill_ds_request(del_sess_req_t *ds_req, struct ue_context_t *context,
  * @return : Returns nothing
  */
 void
-fill_pgwc_ds_sess_rsp(del_sess_rsp_t *ds_resp, uint32_t sequence, uint32_t has_teid);
-
-/**
- * @brief  : Process delete session request received on s5s8 interface , on pgwc
- * @param  : ds_req, holds info from request
- * @return : Returns 0 in case of success , -1 otherwise
- */
-int
-process_pgwc_s5s8_delete_session_request(del_sess_req_t *ds_req);
-
-/**
- * @brief  : Process delete session response received on s5s8 interface , on sgwc
- * @param  : dsr, holds info from response
- * @param  : gtpv2c_tx, structure to be filled to send delete session response to mme
- * @return : Returns 0 in case of success , -1 otherwise
- */
-int
-process_sgwc_s5s8_delete_session_response(del_sess_rsp_t *dsr, uint8_t *gtpv2c_tx);
+fill_del_sess_rsp(del_sess_rsp_t *ds_resp, uint32_t sequence, uint32_t has_teid);
 
 /**
  * @brief  : Set values in create bearer request
@@ -144,11 +121,13 @@ process_sgwc_s5s8_delete_session_response(del_sess_rsp_t *dsr, uint8_t *gtpv2c_t
  *           as specified by table 7.2.3-1 3gpp 29.274, 'shall be the same as the one
  *           used in the corresponding bearer resource command'
  * @param  : resp
- * @return : Returns nothing
+ * @param  : piggybacked flag
+ * @param  : req_for_mme, flag to identify if req is being created for mme or not
+ * @return : Returns 0 on sucess
  */
 int
 set_create_bearer_request(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
-	pdn_connection *pdn, uint8_t lbi, uint8_t pti, struct resp_info *resp, uint8_t piggybacked);
+	pdn_connection *pdn, uint8_t lbi, uint8_t pti, struct resp_info *resp, uint8_t piggybacked, bool req_for_mme);
 
 /**
  * @brief  : Set values in create bearer response
@@ -170,29 +149,6 @@ set_create_bearer_response(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
 		pdn_connection *pdn, uint8_t lbi, uint8_t pti, struct resp_info *resp);
 
 /**
- * @brief  : Set values in create bearer request
- * @param  : gtpv2c_tx, transmission buffer to contain 'create bearer request' message
- * @param  : sequence, sequence number as described by clause 7.6 3gpp 29.274
- * @param  : pdn, pdn data structure pertaining to the bearer to be created
- * @param  : bearer, EPS Bearer data structure to be created
- * @param  : lbi, 'Linked Bearer Identifier': indicates the default bearer identifier
- *           associated to the PDN connection to which the dedicated bearer is to be
- *           created
- * @param  : pti, 'Procedure Transaction Identifier' according to clause 8.35 3gpp 29.274,
- *           as specified by table 7.2.3-1 3gpp 29.274, 'shall be the same as the one
- *           used in the corresponding bearer resource command'
- * @param  : resp
- * @return : - 0 if successful
- *           - > 0 if error occurs during packet filter parsing corresponds to 3gpp
- *           specified cause error value
- *           - < 0 for all other errors
- */
-int8_t
-set_sgwc_create_bearer_request(gtpv2c_header_t *gtpv2c_tx,
-		      uint32_t sequence, pdn_connection *pdn, uint8_t lbi,
-		      uint8_t pti, struct resp_info *resp);
-
-/**
  * @brief  : Handles the processing at sgwc after receiving delete
  *           session request messages
  * @param  : ds_resp, holds info from response
@@ -202,25 +158,7 @@ set_sgwc_create_bearer_request(gtpv2c_header_t *gtpv2c_tx,
  *           - < 0 for all other errors
  */
 int
-process_sgwc_s5s8_delete_session_request(del_sess_rsp_t *ds_resp);
-
-/**
- * @brief  : Delete ue context on sgwc
- * @param  : gtpv2c_teid, teid
- * @param  : context, ue context to be deleted
- * @param  : seid, seid
- * @return : Returns 0 in case of success , -1 otherwise
- */
-int
-delete_sgwc_context(uint32_t gtpv2c_teid, ue_context **_context, uint64_t *seid);
-
-/**
- * @brief  : Proccesses create bearer response on pgwc
- * @param  : cb_rsp, holds data from response
- * @return : Returns 0 in case of success , -1 otherwise
- */
-int
-process_pgwc_create_bearer_rsp(create_bearer_rsp_t *cb_rsp);
+process_delete_session_response(del_sess_rsp_t *ds_resp);
 
 /**
  * @brief  : Proccesses create bearer response on sgwc
@@ -228,7 +166,7 @@ process_pgwc_create_bearer_rsp(create_bearer_rsp_t *cb_rsp);
  * @return : Returns 0 in case of success , -1 otherwise
  */
 int
-process_sgwc_create_bearer_rsp(create_bearer_rsp_t *cb_rsp);
+process_create_bearer_response(create_bearer_rsp_t *cb_rsp);
 
 /**
  * @brief  : Proccesses update bearer request
@@ -244,7 +182,7 @@ process_update_bearer_request(upd_bearer_req_t *ubr);
  * @return : Returns 0 in case of success , -1 otherwise
  */
 int
-process_s11_upd_bearer_response(upd_bearer_rsp_t *ub_rsp);
+process_s11_upd_bearer_response(upd_bearer_rsp_t *ub_rsp, ue_context *context);
 
 /**
  * @brief  : Proccesses update bearer response received on s5s8 interface
@@ -252,15 +190,87 @@ process_s11_upd_bearer_response(upd_bearer_rsp_t *ub_rsp);
  * @return : Returns 0 in case of success , -1 otherwise
  */
 int
-process_s5s8_upd_bearer_response(upd_bearer_rsp_t *ub_rsp);
+process_s5s8_upd_bearer_response(upd_bearer_rsp_t *ub_rsp, ue_context *context);
 
 /**
  * @brief  : Process CSR request for Context Replacement.
  * @param  : csr, Received CSR request.
+ * @param  : cp_mode
+ * @param  : apn_requested : Requested APN in CSR
  * @return : Returns 0 on success, -1 otherwise
  */
 int
-gtpc_context_replace_check(create_sess_req_t *csr);
+gtpc_context_replace_check(create_sess_req_t *csr, uint8_t cp_mode, apn *apn_requested);
+
+/**
+ * @brief  : Check MBRequest and decide the process for that MBR.
+ * @param  : ue context
+ * @return : Returns 0 on failure, and interger corresponing to a process.
+ */
+uint8_t
+check_mbr_procedure(ue_context *context);
+
+/**
+ * @brief  : This Handler is used when SGWC receives the MBR request
+ * @param  : pfcp_sess_mod_response, gtpv2c header, pdn, resp strcut,
+ *           eps bearer, mbr procedure flag
+ * @return : Returns 0 on failure, and interger corresponing to a process.
+ */
+int
+process_pfcp_sess_mod_resp_mbr_req(pfcp_sess_mod_rsp_t *pfcp_sess_mod_rsp,
+		         gtpv2c_header_t *gtpv2c_tx, pdn_connection *pdn,
+				 struct resp_info *resp, eps_bearer *bearer, uint8_t *mbr_procedure);
+
+/**
+ * @brief  : This Handler is used after Receiving Sess MODIFICATION RESPONSE
+ *           when PGWC will receive Update PDN Connection Req.
+ * @param  : UPDATE PDN CONNEC. SET REQ
+ * @return : Returns 0 on failure, and interger corresponing to a process.
+ */
+int
+proc_pfcp_sess_mbr_udp_csid_req(upd_pdn_conn_set_req_t *upd_req);
+
+
+/**
+ * @brief  : Check for difference in ULI IE received and context
+ * @param  : ULI IE, ue context
+ * @return : Returns 0 on failure, and interger corresponing to a process.
+ */
+void
+check_for_uli_changes(gtp_user_loc_info_ie_t *uli, ue_context *context);
+
+/**
+ * @brief  : Generate CCR-U request and send to PCRF.
+ * @param  : ue context, eps_bearer
+ * @return : Returns 0 on failure, and interger corresponing to a process.
+ */
+int
+gen_ccru_request(ue_context *context, eps_bearer *bearer, bearer_rsrc_cmd_t *bearer_rsrc_cmd);
+
+/**
+ * @brief  : Delete session context in case of context replacement.
+ * @param  : context, UE context information.
+ * @param  : pdn, pdn information
+ * @return : Returns nothing.
+ */
+void
+delete_sess_context(ue_context *context, pdn_connection *pdn);
+
+/**
+ * @brief  : Delete rules in bearer context.
+ * @param  : bearer, Bearer context.
+ * @return : Returns 0 on success, -1 otherwise
+ */
+int delete_rule_in_bearer(eps_bearer *bearer);
+
+/**
+ * @brief  : Delete Bearer Context associate with EBI.
+ * @param  : pdn, pdn information.
+ * @param  : ebi_index, Bearer index.
+ * @return : Returns 0 on success, -1 otherwise
+ */
+int
+delete_bearer_context(pdn_connection *pdn, int ebi_index );
 
 #endif /*CP_BUILD*/
 #endif

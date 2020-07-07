@@ -296,19 +296,19 @@ void del_entry_from_hash(uint32_t ipAddr)
 
 	int ret = 0;
 
-	clLog(clSystemLog, eCLSeverityDebug, " Delete entry from connection table of ip:%s\n",
-			inet_ntoa(*(struct in_addr *)&ipAddr));
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT" Delete entry from connection table of ip:%s\n",
+			LOG_VALUE, inet_ntoa(*(struct in_addr *)&ipAddr));
 
 	/* Delete entry from connection hash table */
 	ret = rte_hash_del_key(conn_hash_handle,
 			&ipAddr);
 
 	if (ret == -ENOENT)
-		clLog(clSystemLog, eCLSeverityDebug, "key is not found\n");
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"key is not found\n", LOG_VALUE);
 	if (ret == -EINVAL)
-		clLog(clSystemLog, eCLSeverityDebug, "Invalid Params: Failed to del from hash table\n");
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Invalid Params: Failed to del from hash table\n", LOG_VALUE);
 	if (ret < 0)
-		clLog(clSystemLog, eCLSeverityDebug, "VS: Failed to del entry from hash table\n");
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Failed to del entry from hash table\n", LOG_VALUE);
 
 	conn_cnt--;
 
@@ -324,8 +324,8 @@ uint8_t process_response(uint32_t dstIp)
 			&dstIp, (void **)&conn_data);
 
 	if ( ret < 0) {
-		clLog(clSystemLog, eCLSeverityDebug, " Entry not found for NODE :%s\n",
-				inet_ntoa(*(struct in_addr *)&dstIp));
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT" Entry not found for NODE :%s\n",
+				LOG_VALUE, inet_ntoa(*(struct in_addr *)&dstIp));
 	} else {
 		conn_data->itr_cnt = 0;
 
@@ -337,7 +337,7 @@ uint8_t process_response(uint32_t dstIp)
 		stopTimer( &conn_data->pt );
 		/* Reset Periodic Timer */
 		if ( startTimer( &conn_data->pt ) < 0)
-			clLog(clSystemLog, eCLSeverityCritical, "Periodic Timer failed to start...\n");
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Periodic Timer failed to start...\n", LOG_VALUE);
 
 	}
 	return 0;
@@ -348,7 +348,8 @@ void recovery_time_into_file(uint32_t recov_time)
 	FILE *fp = NULL;
 
 	if ((fp = fopen(hbt_filename, "w+")) == NULL) {
-				clLog(clSystemLog, eCLSeverityCritical, "Unable to open heartbeat recovery file..\n");
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Unable to open "
+					"heartbeat recovery file..\n", LOG_VALUE);
 
 	} else {
 		fseek(fp, 0, SEEK_SET);

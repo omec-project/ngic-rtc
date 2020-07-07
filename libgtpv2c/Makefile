@@ -39,8 +39,8 @@ else
 endif
 
 INCS := -I$(ROOT)/include
-LIB_PATH :=
-LIBS :=
+LIB_PATH := 
+LIBS := 
 
 LFLAGS := -shared
 

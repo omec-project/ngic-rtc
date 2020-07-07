@@ -21,7 +21,7 @@
 #include "ue.h"
 #include "../cp_dp_api/vepc_cp_dp_api.h"
 #include "clogger.h"
-
+#include "cp.h"
 /**
  * @brief  : Maintatins data from parsed delete bearer response
  */
@@ -93,8 +93,8 @@ parse_delete_bearer_response(gtpv2c_header_t *gtpv2c_rx,
 
 	if (!dbr->cause_ie || !dbr->bearer_context_ebi_ie
 	    || !dbr->bearer_context_cause_ie) {
-		clLog(clSystemLog, eCLSeverityCritical, "Received Delete Bearer Response without "
-				"mandatory IEs\n");
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Received Delete Bearer Response without "
+				"mandatory IEs\n", LOG_VALUE);
 		return GTPV2C_CAUSE_MANDATORY_IE_MISSING;
 	}
 
@@ -121,15 +121,15 @@ process_delete_bearer_response(gtpv2c_header_t *gtpv2c_rx)
 	uint8_t ebi =
 	    IE_TYPE_PTR_FROM_GTPV2C_IE(eps_bearer_id_ie,
 			    delete_bearer_rsp.bearer_context_ebi_ie)->ebi;
-	uint8_t ebi_index = ebi - 5;
+	int  ebi_index = ebi;
 
 	delete_bearer_rsp.ded_bearer =
 	    delete_bearer_rsp.context->eps_bearers[ebi_index];
 
 	if (delete_bearer_rsp.ded_bearer == NULL) {
-		clLog(clSystemLog, eCLSeverityCritical,
+		clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT
 		    "Received Delete Bearer Response for"
-		    " non-existant EBI: %"PRIu8"\n",
+		    " non-existant EBI: %"PRIu8"\n",LOG_VALUE,
 		    ebi);
 		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 	}
@@ -144,8 +144,13 @@ process_delete_bearer_response(gtpv2c_header_t *gtpv2c_rx)
 	    ==
 	    IE_TYPE_PTR_FROM_GTPV2C_IE(eps_bearer_id_ie,
 			    delete_bearer_rsp.bearer_context_ebi_ie)->ebi) {
+		int ebi_index = GET_EBI_INDEX(delete_bearer_rsp.ded_bearer->eps_bearer_id);
+		if (ebi_index == -1) {
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Invalid EBI ID\n", LOG_VALUE);
+			return GTPV2C_CAUSE_SYSTEM_FAILURE;
+		}
 		delete_bearer_rsp.context->bearer_bitmap &= ~(1
-		    << (delete_bearer_rsp.ded_bearer->eps_bearer_id - 5));
+		    << ebi_index);
 		delete_bearer_rsp.context->eps_bearers[ebi_index] = NULL;
 		delete_bearer_rsp.pdn->eps_bearers[ebi_index] = NULL;
 		uint8_t index = ((0x0f000000
@@ -173,13 +178,21 @@ process_delete_bearer_response(gtpv2c_header_t *gtpv2c_rx)
 
 void
 set_delete_bearer_request(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
-	ue_context *context, uint8_t linked_eps_bearer_id,
+	pdn_connection *pdn, uint8_t linked_eps_bearer_id, uint8_t pti,
 	uint8_t ded_eps_bearer_ids[], uint8_t ded_bearer_counter)
 {
 	del_bearer_req_t db_req = {0};
 
-	set_gtpv2c_teid_header((gtpv2c_header_t *) &db_req, GTP_DELETE_BEARER_REQ,
-	    context->s11_mme_gtpc_teid, sequence, 0);
+	if ((pdn->context)->cp_mode != PGWC) {
+		set_gtpv2c_teid_header((gtpv2c_header_t *) &db_req, GTP_DELETE_BEARER_REQ,
+		    (pdn->context)->s11_mme_gtpc_teid, sequence, 0);
+	} else {
+		set_gtpv2c_teid_header((gtpv2c_header_t *) &db_req, GTP_DELETE_BEARER_REQ,
+		    pdn->s5s8_sgw_gtpc_teid, sequence, 0);
+	}
+
+	if(pti)
+		set_pti(&db_req.pti, IE_INSTANCE_ZERO, pti);
 
 	if (linked_eps_bearer_id > 0) {
 		set_ebi(&db_req.lbi, IE_INSTANCE_ZERO, linked_eps_bearer_id);
@@ -194,233 +207,8 @@ set_delete_bearer_request(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
 
 	uint16_t msg_len = 0;
 	msg_len = encode_del_bearer_req(&db_req, (uint8_t *)gtpv2c_tx);
-	gtpv2c_tx->gtpc.message_len = htons(msg_len - 4);
+	gtpv2c_tx->gtpc.message_len = htons(msg_len - IE_HEADER_SIZE);
 }
-
-/*
-int
-set_change_notification_request(gtpv2c_header_t *gtpv2c_tx, change_noti_req_t *change_not_req)
-{
-	change_noti_req_t chn_not_req = {0};
-	pdn_connection *pdn =  NULL;
-	eps_bearer *bearer = NULL;
-	ue_context *context = NULL;
-	int ret = 0;
-	uint8_t ebi_index = 0;
-	int len = 0;
-
-	ebi_index = change_not_req->lbi.ebi_ebi - 5;
-
-	ret = rte_hash_lookup_data(ue_context_by_fteid_hash,
-			(const void *) &change_not_req->header.teid.has_teid.teid,
-			(void **) &context);
-
-	if (ret < 0 || !context)
-		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
-
-	bearer = context->eps_bearers[ebi_index];
-
-	if (!bearer) {
-		clLog(clSystemLog, eCLSeverityCritical,
-				"%s:%d Received modify bearer on non-existent EBI - "
-				"Bitmap Inconsistency - Dropping packet\n", __func__, __LINE__);
-		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
-	}
-
-	pdn = bearer->pdn;
-
-	set_gtpv2c_teid_header((gtpv2c_header_t *) &chn_not_req, GTP_CHANGE_NOTIFICATION_REQ,
-		pdn->s5s8_pgw_gtpc_teid, sequence);
-
-	if (linked_eps_bearer_id > 0) {
-		set_ebi(&chn_not_req.lbi, IE_INSTANCE_ZERO, change_not_req->lbi.ebi_ebi);
-	}
-
-	if(change_not_req->uli.header.len !=0) {
-	if (change_not_req->uli.lai) {
-		chn_not_req.uli.lai = context->uli.lai;
-		chn_not_req.uli.lai2.lai_mcc_digit_2 = change_not_req->uli.lai2.lai_mcc_digit_2;
-		chn_not_req.uli.lai2.lai_mcc_digit_1 = change_not_req->uli.lai2.lai_mcc_digit_1;
-		chn_not_req.uli.lai2.lai_mnc_digit_3 = change_not_req->uli.lai2.lai_mnc_digit_3;
-		chn_not_req.uli.lai2.lai_mcc_digit_3 = change_not_req->uli.lai2.lai_mcc_digit_3;
-		chn_not_req.lai2.lai_mnc_digit_2 = change_not_req->uli.lai2.lai_mnc_digit_2;
-		chn_not_req.lai2.lai_mnc_digit_1 = change_not_req->uli.lai2.lai_mnc_digit_1;
-		chn_not_req.uli.lai2.lai_lac = change_not_req->uli.lai2.lai_lac;
-
-		len += sizeof(chn_not_req.uli.lai2);
-	}
-	if (change_not_req->uli.tai) {
-		chn_not_req.uli.tai = context->uli.tai;
-		chn_not_req.uli.tai2.tai_mcc_digit_2 = change_not_req->uli.tai2.tai_mcc_digit_2;
-		chn_not_req.uli.tai2.tai_mcc_digit_1 = change_not_req->uli.tai2.tai_mcc_digit_1;
-		chn_not_req.uli.tai2.tai_mnc_digit_3 = change_not_req->uli.tai2.tai_mnc_digit_3;
-		chn_not_req.uli.tai2.tai_mcc_digit_3 = change_not_req->uli.tai2.tai_mcc_digit_3;
-		chn_not_req.uli.tai2.tai_mnc_digit_2 = change_not_req->uli.tai2.tai_mnc_digit_2;
-		chn_not_req.uli.tai2.tai_mnc_digit_1 = change_not_req->uli.tai2.tai_mnc_digit_1;
-		chn_not_req.uli.tai2.tai_tac = cchange_not_req->uli.tai2.tai_tac;
-		len += sizeof(chn_not_req.uli.tai2);
-	}
-	if (change_not_req->uli.rai) {
-		chn_not_req.uli.rai = change_not_req->uli.rai;
-		chn_not_req.uli.rai2.ria_mcc_digit_2 = change_not_req->uli.rai2.ria_mcc_digit_2;
-		chn_not_req.uli.rai2.ria_mcc_digit_1 = change_not_req->uli.rai2.ria_mcc_digit_1;
-		chn_not_req.uli.rai2.ria_mnc_digit_3 = change_not_req->uli.rai2.ria_mnc_digit_3;
-		chn_not_req.uli.rai2.ria_mcc_digit_3 = change_not_req->uli.rai2.ria_mcc_digit_3;
-		chn_not_req.uli.rai2.ria_mnc_digit_2 = change_not_req->uli.rai2.ria_mnc_digit_2;
-		chn_not_req.uli.rai2.ria_mnc_digit_1 = change_not_req->uli.rai2.ria_mnc_digit_1;
-		chn_not_req.uli.rai2.ria_lac = change_not_req->uli.rai2.ria_lac;
-		chn_not_req.uli.rai2.ria_rac = change_not_req->uli.rai2.ria_rac;
-		len += sizeof(mbr.uli.rai2);
-	}
-	if (change_not_req->uli.sai) {
-		chn_not_req.uli.sai = context->uli.sai;
-		chn_not_req.uli.sai2.sai_mcc_digit_2 = change_not_req->uli.sai2.sai_mcc_digit_2;
-		chn_not_req.uli.sai2.sai_mcc_digit_1 = change_not_req->uli.sai2.sai_mcc_digit_1;
-		chn_not_req.uli.sai2.sai_mnc_digit_3 = change_not_req->uli.sai2.sai_mnc_digit_3;
-		chn_not_req.uli.sai2.sai_mcc_digit_3 = change_not_req->uli.sai2.sai_mcc_digit_3;
-		chn_not_req.uli.sai2.sai_mnc_digit_2 = change_not_req->uli.sai2.sai_mnc_digit_2;
-		chn_not_req.uli.sai2.sai_mnc_digit_1 = change_not_req->uli.sai2.sai_mnc_digit_1;
-		chn_not_req.uli.sai2.sai_lac = change_not_req->uli.sai2.sai_lac;
-		chn_not_req.uli.sai2.sai_sac = change_not_req->uli.sai2.sai_sac;
-		len += sizeof(chn_not_req.uli.sai2);
-	}
-	if (change_not_req->uli.cgi) {
-		chn_not_req.uli.cgi = change_not_req->uli.cgi;
-		chn_not_req.uli.cgi2.cgi_mcc_digit_2 = change_not_req->uli.cgi2.cgi_mcc_digit_2;
-		chn_not_req.uli.cgi2.cgi_mcc_digit_1 = change_not_req->uli.cgi2.cgi_mcc_digit_1;
-		chn_not_req.uli.cgi2.cgi_mnc_digit_3 = change_not_req->uli.cgi2.cgi_mnc_digit_3;
-		chn_not_req.uli.cgi2.cgi_mcc_digit_3 = change_not_req->uli.cgi2.cgi_mcc_digit_3;
-		chn_not_req.uli.cgi2.cgi_mnc_digit_2 = change_not_req->uli.cgi2.cgi_mnc_digit_2;
-		chn_not_req.uli.cgi2.cgi_mnc_digit_1 = change_not_req->uli.cgi2.cgi_mnc_digit_1;
-		chn_not_req.uli.cgi2.cgi_lac = change_not_req->uli.cgi2.cgi_lac;
-		chn_not_req.uli.cgi2.cgi_ci = context->uli.cgi2.cgi_ci;
-		len += sizeof(chn_not_req.uli.cgi2);
-	}
-	if (change_not_req->uli.ecgi) {
-		chn_not_req.uli.ecgi = change_not_req->uli.ecgi;
-		chn_not_req.uli.ecgi2.ecgi_mcc_digit_2 = change_not_req->uli.ecgi2.ecgi_mcc_digit_2;
-		chn_not_req.uli.ecgi2.ecgi_mcc_digit_1 = change_not_req->uli.ecgi2.ecgi_mcc_digit_1;
-		chn_not_req.uli.ecgi2.ecgi_mnc_digit_3 = change_not_req->uli.ecgi2.ecgi_mnc_digit_3;
-		chn_not_req.uli.ecgi2.ecgi_mcc_digit_3 = change_not_req->uli.ecgi2.ecgi_mcc_digit_3;
-		chn_not_req.uli.ecgi2.ecgi_mnc_digit_2 = change_not_req->uli.ecgi2.ecgi_mnc_digit_2;
-		chn_not_req.uli.ecgi2.ecgi_mnc_digit_1 = change_not_req->uli.ecgi2.ecgi_mnc_digit_1;
-		chn_not_req.uli.ecgi2.ecgi_spare = change_not_req->uli.ecgi2.ecgi_spare;
-		chn_not_req.uli.ecgi2.eci = change_not_req->uli.ecgi2.eci;
-		len += sizeof(chn_not_req.uli.ecgi2);
-	}
-	if (change_not_req->uli.macro_enodeb_id) {
-		chn_not_req.uli.macro_enodeb_id = change_not_req->uli.macro_enodeb_id;
-		chn_not_req.uli.macro_enodeb_id2.menbid_mcc_digit_2 =
-			change_not_req->uli.macro_enodeb_id2.menbid_mcc_digit_2;
-		chn_not_req.uli.macro_enodeb_id2.menbid_mcc_digit_1 =
-			change_not_req->uli.macro_enodeb_id2.menbid_mcc_digit_1;
-		chn_not_req.uli.macro_enodeb_id2.menbid_mnc_digit_3 =
-			change_not_req->uli.macro_enodeb_id2.menbid_mnc_digit_3;
-		chn_not_req.uli.macro_enodeb_id2.menbid_mcc_digit_3 =
-			change_not_req->uli.macro_enodeb_id2.menbid_mcc_digit_3;
-		chn_not_req.uli.macro_enodeb_id2.menbid_mnc_digit_2 =
-			change_not_req->uli.macro_enodeb_id2.menbid_mnc_digit_2;
-		chn_not_req.uli.macro_enodeb_id2.menbid_mnc_digit_1 =
-			change_not_req->uli.macro_enodeb_id2.menbid_mnc_digit_1;
-		chn_not_req.uli.macro_enodeb_id2.menbid_spare =
-			change_not_req->uli.macro_enodeb_id2.menbid_spare;
-		chn_not_req.uli.macro_enodeb_id2.menbid_macro_enodeb_id =
-			change_not_req->uli.macro_enodeb_id2.menbid_macro_enodeb_id;
-		chn_not_req.uli.macro_enodeb_id2.menbid_macro_enb_id2 =
-			change_not_req->uli.macro_enodeb_id2.menbid_macro_enb_id2;
-		len += sizeof(chn_not_req.uli.macro_enodeb_id2);
-	}
-	if (change_not_req->uli.extnded_macro_enb_id) {
-		chn_not_req.uli.extnded_macro_enb_id = change_not_req->uli.extnded_macro_enb_id;
-		chn_not_req.uli.extended_macro_enodeb_id2.emenbid_mcc_digit_1 =
-			change_not_req->uli.extended_macro_enodeb_id2.emenbid_mcc_digit_1;
-		chn_not_req.uli.extended_macro_enodeb_id2.emenbid_mnc_digit_3 =
-			change_not_req->uli.extended_macro_enodeb_id2.emenbid_mnc_digit_3;
-		chn_not_req.uli.extended_macro_enodeb_id2.emenbid_mcc_digit_3 =
-			change_not_req->uli.extended_macro_enodeb_id2.emenbid_mcc_digit_3;
-		chn_not_req.uli.extended_macro_enodeb_id2.emenbid_mnc_digit_2 =
-			change_not_req->uli.extended_macro_enodeb_id2.emenbid_mnc_digit_2;
-		chn_not_req.uli.extended_macro_enodeb_id2.emenbid_mnc_digit_1 =
-			change_not_req->uli.extended_macro_enodeb_id2.emenbid_mnc_digit_1;
-		chn_not_req.uli.extended_macro_enodeb_id2.emenbid_smenb =
-			change_not_req->uli.extended_macro_enodeb_id2.emenbid_smenb;
-		chn_not_req.uli.extended_macro_enodeb_id2.emenbid_spare =
-			change_not_req->uli.extended_macro_enodeb_id2.emenbid_spare;
-		chn_not_req.uli.extended_macro_enodeb_id2.emenbid_extnded_macro_enb_id =
-			change_not_req->uli.extended_macro_enodeb_id2.emenbid_extnded_macro_enb_id;
-		chn_not_req.uli.extended_macro_enodeb_id2.emenbid_extnded_macro_enb_id2 =
-			change_not_req->uli.extended_macro_enodeb_id2.emenbid_extnded_macro_enb_id2;
-		len += sizeof(chn_not_req.uli.extended_macro_enodeb_id2);
-	}
-
-	len += 1;
-	set_ie_header(&chn_not_req.uli.header, GTP_IE_USER_LOC_INFO, IE_INSTANCE_ZERO, len);
-	}
-
-	if(change_not_req->rat_type.header.len !=0 ) {
-		set_ie_header(&chn_not_req.rat_type.header, GTP_IE_RAT_TYPE, IE_INSTANCE_ZERO,
-				sizeof(gtp_rat_type_ie_t) - sizeof(ie_header_t));
-		chn_not_req.rat_type.rat_type = change_not_req-->rat_type.rat_type;
-	}
-
-	if(change_not_req->uci.header.len !=0 ) {
-		set_ie_header(&chn_not_req.rat_type.header,GTP_IE_USER_LOC_INFO, IE_INSTANCE_ZERO,
-				sizeof(gtp_rat_type_ie_t) - sizeof(ie_header_t));
-	}
-
-	for(uint8_t i =0; i< change_not_req->second_rat_type; i++) {
-
-		uint8_t instance = 0;
-		set_ie_header(&chn_not_req.rat_type.header, GTP_IE_SECDRY_RAT_USAGE_DATA_RPT, instance,
-			              sizeof(gtp_secdry_rat_usage_data_rpt_ie_t) - sizeof(ie_header_t));
-		instance++;
-	}
-	//if(RAT Type)
-	//if(SECONDATY_RAT)
-	//if(USER CGI)
-
-	struct resp_info *resp= NULL;
-	int ret = get_sess_entry(pdn->seid , &resp);
-	if(ret) {
-	}
-
-	resp->state = CONNECTED_STATE;
-	resp->proc = INITIAL_PDN_ATTACH_PROC;
-
-	uint16_t msg_len = 0;
-	msg_len = encode_change_noti_req(&chn_not_req, (uint8_t *)gtpv2c_tx);
-	gtpv2c_tx->gtpc.message_len = htons(msg_len - 4);
-
-	s5s8_recv_sockaddr.sin_addr.s_addr =
-			htonl(pdn->s5s8_pgw_gtpc_ipv4.s_addr);
-
-	return 0;
-}
-*/
-
-/*
-void
-set_change_notification_response(gtpv2c_header_t *gtpv2c_tx, pdn_connection *pdn, uint8_t cause_value)
-{
-	change_noti_rsp_t chn_not_rsp = {0};
-
-	set_gtpv2c_teid_header((gtpv2c_header_t *) &chn_not_rsp, GTP_CHANGE_NOTIFICATION_RSP,
-			pdn->s5s8_pgw_gtpc_teid, pdn->context->sequence);
-
-	set_cause_accepted(&chn_not_rsp.cause, IE_INSTANCE_ZERO);
-
-	if (FALSE == *cause_value) {
-	    chn_not_rsp.cause.cause_value = GTPV2C_CAUSE_REQUEST_ACCEPTED_PARTIALLY;
-	}
-
-	uint16_t msg_len = 0;
-	msg_len = encode_change_noti_rsp(&chn_not_rsp, (uint8_t *)gtpv2c_tx);
-	gtpv2c_tx->gtpc.message_len = htons(msg_len - 4);
-
-	//s5s8_recv_sockaddr.sin_addr.s_addr =
-	//	htonl(bearer->pdn->s5s8_sgw_gtpc_ipv4.s_addr);
-}
-*/
 
 void
 set_delete_bearer_response(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
@@ -434,7 +222,6 @@ set_delete_bearer_response(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
 
 	set_cause_accepted(&db_resp.cause, IE_INSTANCE_ZERO);
 
-	//db_resp..header.gtpc.message_len += db_resp.cause.header.len + sizeof(ie_header_t);
 	if (linked_eps_bearer_id > 0) {
 		set_ebi(&db_resp.lbi, IE_INSTANCE_ZERO, linked_eps_bearer_id);
 	} else {
@@ -451,8 +238,6 @@ set_delete_bearer_response(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
 				IE_INSTANCE_ZERO);
 			db_resp.bearer_contexts[iCnt].header.len +=
 				sizeof(uint16_t) + IE_HEADER_SIZE;
-	//		db_resp..header.gtpc.message_len += db_resp.bearer_contexts[iCnt].header.len +
-	//					sizeof(ie_header_t);
 
 		}
 
@@ -461,6 +246,6 @@ set_delete_bearer_response(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
 
 	uint16_t msg_len = 0;
 	msg_len = encode_del_bearer_rsp(&db_resp, (uint8_t *)gtpv2c_tx);
-	gtpv2c_tx->gtpc.message_len = htons(msg_len - 4);
+	gtpv2c_tx->gtpc.message_len = htons(msg_len - IE_HEADER_SIZE);
 }
 

@@ -64,7 +64,8 @@ static void stats_init(char *op)
 	snprintf(filename, PATH_MAX, "%stimer_stats_%s_%s.log",
 			STATS_PATH, op, timestamp);
 
-	clLog(clSystemLog, eCLSeverityDebug,"Logging timer stats into %s\n", filename);
+	clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT"Logging timer stats into %s\n", LOG_VALUE, filename);
 	if (!strcmp(op, "UL")) {
 		ul_timer_stats_file = fopen(filename, "w");
 		if (!ul_timer_stats_file)
@@ -200,53 +201,6 @@ static char* SET_FORMAT(char *str, uint64_t num)  {
 	}
 	return str;
 }
-#if 0
-#define SET_FORMAT(str, num) ( {        \
-	memset(str, 100, '\0');             \
-	int cnt = 0, coma_cntr = 0;           \
-	uint64_t tmp_num = num;             \
-	while (tmp_num) {                       \
-		int rem = tmp_num%10;               \
-		str[cnt++] = rem + '0';           \
-		tmp_num /= 10;                      \
-		if (tmp_num && coma_cntr++ == 2) {  \
-			str[cnt++] = ',';             \
-			coma_cntr = 0;              \
-		}                               \
-	}                                   \
-	str[cnt] = '\0';                      \
-	int len = strlen(str);              \
-	for (cnt = 0; cnt < (len/2); ++cnt) {   \
-		char tmp = str[cnt];              \
-		str[cnt] = str[len-cnt-1];          \
-		str[len-cnt-1] = tmp;             \
-	}                                   \
-	str;                                \
-})
-char* format(uint64_t num) {
-	clLog(clSystemLog, eCLSeverityDebug,"NUm is %lu\n", num);
-	memset(str, 100, '\0');
-	int i = 0, coma_cntr = 0;
-	while (num) {
-		int rem = num%10;
-		str[i++] = rem + '0';
-		num /= 10;
-		if (num && coma_cntr++ == 2) {
-			str[i++] = ',';
-			coma_cntr = 0;
-		}
-	}
-	str[i] = '\0';
-	int len = strlen(str);
-	for (i = 0; i < (len/2)+1; ++i) {
-		char tmp = str[i];
-		str[i] = str[len-i-1];
-		str[len-i-1] = tmp;
-	}
-	clLog(clSystemLog, eCLSeverityDebug,"str is %s\n", str);
-	return str;
-}
-#endif
 
 /**
  * @brief  : Print uplink performance statistics
@@ -315,7 +269,8 @@ static void print_ul_perf_statistics(void) {
 			fprintf (ul_timer_stats_file, "\nPORT IN-PORT OUT opertion\n");
 			break;
 		}
-    	clLog(clSystemLog, eCLSeverityDebug,"%10s%11s%15s%15s%21s%15s%21s\n","Bursts|", "Cum Pkt Cnt|",
+    	clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"%10s%11s%15s%15s%21s%15s%21s\n", LOG_VALUE, "Bursts|", "Cum Pkt Cnt|",
 			"Total Duration|", "max_pktsvctime|", "max_svctime_burst_sz|",
 			"min_pktsvctime|", "min_svctime_burst_sz");
     	fprintf(ul_timer_stats_file, "%s|%s|%s|%s|%s|%s|%s\n","Bursts", "Cum Pkt Cnt",
@@ -425,7 +380,8 @@ static void print_dl_perf_statistics(void) {
 			fprintf (dl_timer_stats_file, "\nPORT IN-PORT OUT operation\n");
 			break;
 		}
-    	clLog(clSystemLog, eCLSeverityDebug,"%10s%11s%15s%15s%21s%15s%21s\n","Bursts|", "Cum Pkt Cnt|",
+    	clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"%10s%11s%15s%15s%21s%15s%21s\n", LOG_VALUE, "Bursts|", "Cum Pkt Cnt|",
 			"Total Duration|", "max_pktsvctime|", "max_svctime_burst_sz|",
 			"min_pktsvctime|", "min_svctime_burst_sz");
     	fprintf(dl_timer_stats_file, "%s|%s|%s|%s|%s|%s|%s\n","Bursts", "Cum Pkt Cnt",

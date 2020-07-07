@@ -18,7 +18,6 @@
 #ifndef GW_ADAPTER_H
 #define GW_ADAPTER_H
 
-/* TODO: Verify */
 #ifdef CP_BUILD
 #include "cp.h"
 #endif /* CP_BUILD */
@@ -27,9 +26,7 @@
 #define REST_FAIL     400
 #define LAST_TIMER_SIZE 128
 #define JSON_RESP_SIZE 512
-#define SXA_STATS_SIZE 21
-#define SXB_STATS_SIZE 23
-#define SXASXB_STATS_SIZE 23
+#define SX_STATS_SIZE 23
 #define S11_STATS_SIZE 51
 #define S5S8_STATS_SIZE 37
 #define GX_STATS_SIZE 23
@@ -42,9 +39,21 @@
 #define ENODE_LEN 16
 #define MCC_MNC_LEN 4
 #define LB_HB_LEN 8
-#define NWINST_LEN 32
 #define MAX_SYS_STATS 5
-
+#define DDF_INTFC_LEN 64
+#define MAX_NUM_NAMESERVER 8
+#define NETCAP_LEN 64
+#define MAC_BYTES_LEN 32
+#define MAX_NUM_APN 16
+#define INET_ADDRSTRLEN 16
+#define PATH_LEN 64
+#define APN_NAME_LEN 64
+#define DNS_IP_INDEX 1
+#define MAC_ADDR_BYTES_IN_INT_ARRAY 6
+#define FOUR_BIT_MAX_VALUE 15
+#define REDIS_CERT_PATH_LEN 256
+#define SGW_CHARGING_CHARACTERISTICS 2
+#define CLI_GX_IP "127.0.0.1"
 /**
  * @brief initiates the rest service
  * @param port_no  - Rest service port number
@@ -82,9 +91,7 @@ extern _timer_t st_time;
 #define MAX_PEER               10
 #define S11_MSG_TYPE_LEN       49
 #define S5S8_MSG_TYPE_LEN      35
-#define SXA_MSG_TYPE_LEN       21
-#define SXB_MSG_TYPE_LEN       23
-#define SXASXB_MSG_TYPE_LEN    23
+#define SX_MSG_TYPE_LEN    23
 #define GX_MSG_TYPE_LEN        8
 #define SYSTEM_MSG_TYPE_LEN    4
 #define HEALTH_STATS_SIZE      2
@@ -106,10 +113,20 @@ extern _timer_t st_time;
 #define GTP_CHANGE_NOTIFICATION_REQ                          (38)
 #define GTP_CHANGE_NOTIFICATION_RSP                          (39)
 #define GTP_DELETE_BEARER_CMD                                (66)
+#define GTP_DELETE_BEARER_FAILURE_IND                        (67)
+#define GTP_MODIFY_BEARER_CMD                                (64)
+#define GTP_MODIFY_BEARER_FAILURE_IND                        (65)
+#define GTP_BEARER_RESOURCE_CMD                              (68)
+#define GTP_BEARER_RESOURCE_FAILURE_IND                      (69)
 #define GTP_PGW_RESTART_NOTIFICATION                         (179)
 #define GTP_PGW_RESTART_NOTIFICATION_ACK                     (180)
+#define GTP_UPDATE_PDN_CONNECTION_SET_REQ                    (200)
+#define GTP_UPDATE_PDN_CONNECTION_SET_RSP                    (201)
 
 #define MAX_UINT16_T										65535
+
+/* Single curl command has maximum UE entry limit */
+#define MAX_LI_ENTRIES										255
 
 enum GxMessageType {
     OSS_CCR_INITIAL = 120,
@@ -123,12 +140,13 @@ enum GxMessageType {
 };
 
 enum oss_gw_config {
-	OSS_SGWC = 01,
-	OSS_PGWC = 02,
-	OSS_SAEGWC = 03,
-	OSS_SGWU = 04,
-	OSS_PGWU = 05,
-	OSS_SAEGWU = 06
+	OSS_CONTROL_PLANE = 01,
+	OSS_USER_PLANE = 02
+};
+
+enum oss_s5s8_selection {
+	OSS_S5S8_RECEIVER = 01,
+	OSS_S5S8_SENDER = 02
 };
 
 typedef enum {
@@ -152,9 +170,7 @@ typedef enum {
 typedef enum {
 	itS11,
 	itS5S8,
-	itSxa,
-	itSxb,
-	itSxaSxb,
+	itSx,
 	itGx,
 	itS1U,
 	itSGI,
@@ -189,6 +205,13 @@ typedef enum {
 	REQUEST_TRIES_INDEX,
 } SystemCmds;
 
+typedef enum {
+	STOP_PCAP_GEN,
+	START_PCAP_GEN,
+	RESTART_PCAP_GEN
+
+} PcapGenCmd;
+
 typedef struct {
 	int msgtype;
 	const char *msgname;
@@ -208,13 +231,14 @@ typedef struct {
 /**
  * @brief  : Maintains health request , response and interface stats for peers
  */
+#pragma pack(1)
 typedef struct {
 	struct in_addr ipaddr;
 	EInterfaceType intfctype;
 
 	bool status;
-	int *response_timeout;  //TRANSMIT TIMER
-	int *maxtimeout;    //TRANSMIT COUNT in cp.cfg
+	int *response_timeout;
+	int *maxtimeout;
 	uint8_t timeouts;
 
 	char lastactivity[LAST_TIMER_SIZE];
@@ -224,9 +248,7 @@ typedef struct {
 	union {
 		Statistic s11[S11_STATS_SIZE];
 		Statistic s5s8[S5S8_STATS_SIZE];
-		Statistic sxa[SXA_STATS_SIZE];
-		Statistic sxb[SXB_STATS_SIZE];
-		Statistic sxasxb[SXASXB_STATS_SIZE];
+		Statistic sx[SX_STATS_SIZE];
 		Statistic gx[GX_STATS_SIZE];
 	} stats;
 } SPeer;
@@ -245,51 +267,218 @@ typedef struct {
 	uint8_t gw_type;
 	uint64_t *upsecs;
 	uint64_t *resetsecs;
+	uint8_t s5s8_selection;
 	//uint64_t upsecs;
 	uint64_t stats[MAX_SYS_STATS];
 	SPeer *peer[MAX_PEER];
 }cli_node_t;
 
 /**
+ * @brief  : Maintains dns cache information
+ */
+typedef struct dns_cache_parameters_t {
+	uint32_t concurrent;
+	uint32_t sec;
+	uint8_t percent;
+	unsigned long timeoutms;
+	uint32_t tries;
+} dns_cache_parameters_t;
+
+/**
+ * @brief  : Maintains dns configuration
+ */
+typedef struct dns_configuration_t {
+	uint8_t freq_sec;
+	char filename[PATH_LEN];
+	uint8_t nameserver_cnt;
+	char nameserver_ip[MAX_NUM_NAMESERVER][INET_ADDRSTRLEN];
+} dns_configuration_t;
+
+/**
+ * @brief  : Maintains apn related information
+ */
+typedef struct apn_info_t {
+	char apn_name_label[APN_NAME_LEN];
+	int apn_usage_type;
+	char apn_net_cap[NETCAP_LEN];
+	int trigger_type;
+	int uplink_volume_th;
+	int downlink_volume_th;
+	int time_th;
+	size_t apn_name_length;
+	uint8_t apn_idx;
+} apn_info_t;
+
+/**
+* @brief  : Maintains restoration parameters information
+*/
+typedef struct restoration_params_t {
+	uint8_t transmit_cnt;
+	int transmit_timer;
+	int periodic_timer;
+} restoration_params_t;
+
+/**
+ * @brief  : Maintains CP-Configuration
+ */
+typedef struct {
+	uint8_t cp_type;
+	uint16_t s11_mme_port;
+	struct in_addr s11_mme_ip;
+	char ddf2_intfc[DDF_INTFC_LEN];
+	uint16_t s11_port;
+	uint16_t s5s8_port;
+	uint16_t pfcp_port;
+	uint16_t dadmf_port;
+	uint16_t ddf2_port;
+	struct in_addr s11_ip;
+	struct in_addr s5s8_ip;
+	struct in_addr pfcp_ip;
+	struct in_addr dadmf_ip;
+	struct in_addr ddf2_ip;
+	uint16_t upf_pfcp_port;
+	struct in_addr upf_pfcp_ip;
+	uint16_t redis_port;
+	struct in_addr redis_ip;
+	struct in_addr cp_redis_ip;
+	char redis_cert_path[REDIS_CERT_PATH_LEN];
+	uint8_t request_tries;
+	int request_timeout;
+	uint8_t add_default_rule;
+	uint8_t cp_logger;
+	uint8_t use_dns;
+	uint32_t num_apn;
+	struct apn_info_t apn_list[MAX_NUM_APN];
+	int trigger_type;
+	int uplink_volume_th;
+	int downlink_volume_th;
+	int time_th;
+	struct dns_cache_parameters_t dns_cache;
+	struct dns_configuration_t ops_dns;
+	struct dns_configuration_t app_dns;
+	struct restoration_params_t restoration_params;
+	struct in_addr ip_pool_ip;
+	struct in_addr ip_pool_mask;
+	uint8_t generate_cdr;
+	uint8_t generate_sgw_cdr;
+	uint16_t sgw_cc;
+	uint8_t ip_byte_order_changed;
+	uint8_t use_gx;
+	uint32_t upf_s5s8_ip;
+	uint32_t upf_s5s8_mask;
+	uint8_t is_gx_interface;
+}cp_configuration_t;
+
+/**
+ * @brief  : Maintains DP-Configuration
+ */
+typedef struct {
+	uint8_t dp_type;
+	uint32_t wb_ip;
+	uint32_t wb_mask;
+	uint32_t wb_port;
+	uint32_t eb_ip;
+	uint32_t eb_mask;
+	uint32_t eb_port;
+	uint32_t numa_on;
+	int teidri_val;
+	int teidri_timeout;
+	uint8_t dp_logger;
+	uint8_t generate_pcap;
+	struct in_addr dp_comm_ip;
+	struct in_addr cp_comm_ip;
+	uint16_t dp_comm_port;
+	uint16_t cp_comm_port;
+	struct restoration_params_t restoration_params;
+	uint32_t ddf2_ip;
+	uint32_t ddf3_ip;
+	uint16_t ddf2_port;
+	uint16_t ddf3_port;
+	char ddf2_intfc[DDF_INTFC_LEN];
+	char ddf3_intfc[DDF_INTFC_LEN];
+	char ddf_intfc[DDF_INTFC_LEN];
+	char wb_iface_name[MAX_LEN];
+	char eb_iface_name[MAX_LEN];
+	char wb_mac[MAC_BYTES_LEN];
+	char eb_mac[MAC_BYTES_LEN];
+	uint32_t wb_li_ip;
+	uint32_t wb_li_mask;
+	uint8_t gtpu_seqnb_out;
+	uint8_t gtpu_seqnb_in;
+	char wb_li_iface_name[MAX_LEN];
+}dp_configuration_t;
+
+/**
  * @brief  : Maintains LI-DF configuration value
  */
 typedef struct li_df_config_t {
+
+	/* Identifier */
+	uint64_t uiId;
+
+	/* Unique Ue Identity */
 	uint64_t uiImsi;
-	uint16_t uiOperation;
-	uint16_t uiAction;
-	struct in_addr ddf2_ip;
-	uint16_t uiDDf2Port;
-	struct in_addr ddf3_ip;
-	uint16_t uiDDf3Port;
-	uint64_t uiTimerValue;
+
+	/* Signalling Interfaces */
+	uint16_t uiS11;
+	uint16_t uiSgwS5s8C;
+	uint16_t uiPgwS5s8C;
+
+	/* Sx Signalling Interfaces */
+	uint16_t uiSxa;
+	uint16_t uiSxb;
+	uint16_t uiSxaSxb;
+
+	/* Header OR Header + Data OR Data*/
+	uint16_t uiS1uContent;
+	uint16_t uiSgwS5s8UContent;
+	uint16_t uiPgwS5s8UContent;
+	uint16_t uiSgiContent;
+
+	/* Data Interfaces */
+	uint16_t uiS1u;
+	uint16_t uiSgwS5s8U;
+	uint16_t uiPgwS5s8U;
+	uint16_t uiSgi;
+
+	/* Forward to DFx */
+	uint16_t uiForward;
 
 }li_df_config_t;
 
+#pragma pack()
+
 extern cli_node_t cli_node;
 extern uint64_t reset_time;
+extern cp_configuration_t cp_configuration;
+extern dp_configuration_t dp_configuration;
 
-//extern SPeer *peer[MAX_PEER];
-extern int cnt_peer;  /*last index of array*/
-extern int nbr_of_peer; /*total nbr of peer count*/
+extern struct in_addr dp_comm_ip;
+extern struct in_addr cp_comm_ip;
+extern uint16_t dp_comm_port;
+extern uint16_t cp_comm_port;
+
+/* last index of array */
+extern int cnt_peer;
+/* total nbr of peer count */
+extern int nbr_of_peer;
 
 extern int number_of_transmit_count;
 extern int number_of_request_tries;
 extern int transmit_timer_value;
 extern int periodic_timer_value;
 extern int request_timeout_value;
-extern cli_node_t *cli_node_ptr; // OSS cli node ptr
+extern cli_node_t *cli_node_ptr;
 extern struct rte_hash *conn_hash_handle;
 
 extern MessageType ossS5s8MessageDefs[];
 extern MessageType ossS11MessageDefs[];
-extern MessageType ossSxaMessageDefs[];
-extern MessageType ossSxbMessageDefs[];
-extern MessageType ossSxaSxbMessageDefs[];
+extern MessageType ossSxMessageDefs[];
 extern MessageType ossGxMessageDefs[];
 extern MessageType ossSystemMessageDefs[];
 extern char ossInterfaceStr[][10];
 extern char ossInterfaceProtocolStr[][10];
-extern char ossGatewayStr[][10];
+extern char ossGatewayStr[][16];
 extern uint64_t oss_reset_time;
 
 #ifdef CP_BUILD
@@ -451,4 +640,29 @@ uint8_t get_gw_type(void);
  * @return : Returns nothing
  */
 void reset_sys_stat(void);
+
+/* Function */
+/**
+ * @brief  : fill cp configuration
+ * @param  : void
+ * @return : Returns nothing
+ */
+void fill_cp_configuration(void);
+
+/* Function */
+/**
+ * @brief  : fill dp configuration
+ * @param  : void
+ * @return : Returns nothing
+ */
+void fill_dp_configuration(void);
+
+/* Function */
+/**
+ * @brief  : set mac value
+ * @param  : mac char ptr
+ * @param  : mac int ptr
+ * @return : Returns nothing
+ */
+void set_mac_value(char *mac_addr_char_ptr, uint8_t *mac_addr_int_ptr);
 #endif

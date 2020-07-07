@@ -17,6 +17,10 @@
 #ifndef __SV_IES_H
 #define __SV_IES_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdint.h>
 #include <arpa/inet.h>
 #include <string.h>
@@ -32,4 +36,9 @@ typedef struct gtp_stn_sr_ie_t {
     uint8_t filler :4;
     uint8_t number_digit :4;
 } gtp_stn_sr_ie_t;
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif
