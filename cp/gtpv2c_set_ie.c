@@ -329,6 +329,18 @@ set_apn_restriction(gtp_apn_restriction_ie_t *apn_restriction,
 	return;
 }
 
+void
+set_change_reporting_action(gtp_chg_rptng_act_ie_t *chg_rptng_act,
+		 enum ie_instance instance, uint8_t action)
+{
+
+	set_ie_header(&chg_rptng_act->header, GTP_IE_CHG_RPTNG_ACT,
+		instance, sizeof(uint8_t));
+
+	chg_rptng_act->action = action;
+
+}
+
 uint16_t
 set_apn_restriction_ie(gtpv2c_header_t *header,
 		enum ie_instance instance, uint8_t apn_restriction)
@@ -795,17 +807,24 @@ decode_check_csr(gtpv2c_header_t *gtpv2c_rx,
 	}
 
 	if (/*!csr->max_apn_rstrct.header.len
-			||*/ !csr->bearer_contexts_to_be_created.header.len
-			|| !csr->sender_fteid_ctl_plane.header.len
+			||*/ !csr->sender_fteid_ctl_plane.header.len
 			|| !csr->imsi.header.len
 			|| !csr->apn_ambr.header.len
 			|| !csr->pdn_type.header.len
-			|| !csr->bearer_contexts_to_be_created.bearer_lvl_qos.header.len
 			|| !csr->rat_type.header.len
 			|| !(csr->pdn_type.pdn_type_pdn_type == PDN_IP_TYPE_IPV4) ) {
 		clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d Mandatory IE missing. Dropping packet\n",
 				__file__, __func__, __LINE__);
 		return GTPV2C_CAUSE_MANDATORY_IE_MISSING;
+	}
+
+	for (uint8_t iCnt = 0; iCnt < csr->bearer_count; ++iCnt) {
+		if (!csr->bearer_contexts_to_be_created[iCnt].header.len
+			|| !csr->bearer_contexts_to_be_created[iCnt].bearer_lvl_qos.header.len) {
+			clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d Bearer Context IE missing. Dropping packet\n",
+					__file__, __func__, __LINE__);
+			return GTPV2C_CAUSE_MANDATORY_IE_MISSING;
+		}
 	}
 
 	if (csr->pdn_type.pdn_type_pdn_type == PDN_IP_TYPE_IPV6 ||

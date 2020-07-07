@@ -44,7 +44,7 @@ char hbt_filename[256] = "../config/hrtbeat_recov_time.txt";
 static pthread_t _gstimer_thread;
 static pid_t _gstimer_tid;
 
-extern struct rte_hash *conn_hash_handle;
+//extern struct rte_hash *conn_hash_handle;
 
 const char *getPrintableTime(void)
 {
@@ -56,7 +56,7 @@ const char *getPrintableTime(void)
 	gettimeofday(&tv, &tz);
 	ptm = localtime( &tv.tv_sec );
 
-	sprintf( buf, "%04d-%02d-%02d %02d:%02d:%02d.%03ld",
+	snprintf( buf, MAX_LEN, "%04d-%02d-%02d %02d:%02d:%02d.%03ld",
 			ptm->tm_year + 1900,
 			ptm->tm_mon + 1,
 			ptm->tm_mday,

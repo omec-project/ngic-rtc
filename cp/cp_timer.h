@@ -27,6 +27,7 @@ extern pfcp_config_t pfcp_config;
  * @param  : buf_len, total length of data
  * @param  : itr, request_tries value in pfcp config
  * @param  : teid, teid value
+ * @param  : ebi_index
  * @return : Returns pointer to filled timer entry structure
  */
 peerData *
@@ -62,11 +63,22 @@ void
 timer_callback(gstimerinfo_t *ti, const void *data_t);
 
 /**
+ * @brief  : timer callback for association request
+ * @param  : ti, timer information
+ * @param  : data_t, Peer node connection information
+ * @return : Returns nothing
+ */
+void
+association_timer_callback(gstimerinfo_t *ti, const void *data_t);
+
+/**
  * @brief  : Fills and adds timer entry, and starts periodic timer for gtpv2c messages
  * @param  : teid, teid value
  * @param  : peer_addr, peer node address
  * @param  : buf, holds timer data
  * @param  : buf_len, total length of data
+ * @param  : ebi_index
+ * @param  : iface, source interface
  * @return : Returns nothing
  */
 void
@@ -79,15 +91,27 @@ add_gtpv2c_if_timer_entry(uint32_t teid, struct sockaddr_in *peer_addr,
  * @param  : peer_addr, peer node address
  * @param  : buf, holds timer data
  * @param  : buf_len, total length of data
+ * @param  : ebi_index
  * @return : Returns nothing
  */
 void
 add_pfcp_if_timer_entry(uint32_t teid, struct sockaddr_in *peer_addr,
 	uint8_t *buf, uint16_t buf_len, uint8_t ebi_index);
 
+/**
+ * @brief  : Deletes pfcp timer entry
+ * @param  : teid, teid value
+ * @param  : ebi_index
+ * @return : Returns nothing
+ */
 void
 delete_pfcp_if_timer_entry(uint32_t teid, uint8_t ebi_index);
 
+/**
+ * @brief  : Deletes gtp timer entry
+ * @param  : teid, teid value
+ * @return : Returns nothing
+ */
 void
 delete_gtpv2c_if_timer_entry(uint32_t teid);
 

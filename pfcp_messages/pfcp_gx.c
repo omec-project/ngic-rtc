@@ -17,6 +17,7 @@
 #include "pfcp.h"
 #include "cp_config.h"
 #include "cp_stats.h"
+#include "gx.h"
 #include <rte_ip.h>
 #include <rte_udp.h>
 #include <rte_cfgfile.h>
@@ -36,7 +37,7 @@
 #include "clogger.h"
 
 #define PRESENT 1
-#define NUM_VALS 9
+#define NUM_VALS 16
 
 /* Default Bearer Indication Values */
 #define BIND_TO_DEFAULT_BEARER			0
@@ -50,6 +51,30 @@ extern int s5s8_fd;
 extern socklen_t s5s8_sockaddr_len;
 extern socklen_t s11_mme_sockaddr_len;
 
+/* Assign the UE requested qos to default bearer*/
+static int
+check_ue_requested_qos(pdn_connection *pdn) {
+
+	if (pdn == NULL) {
+		clLog(clSystemLog, eCLSeverityCritical,
+			FORMAT"pdn_connection node is NULL\n", ERR_MSG);
+			return -1;
+		}
+
+	eps_bearer *bearer = NULL;
+	bearer = pdn->eps_bearers[pdn->default_bearer_id - 5];
+
+	if (bearer->qos.qci != 0) {
+		pdn->policy.default_bearer_qos_valid = TRUE;
+		memcpy(&pdn->policy.default_bearer_qos, &bearer->qos, sizeof(bearer_qos_ie));
+	} else {
+		clLog(clSystemLog, eCLSeverityCritical,
+				FORMAT"UE requested bearer qos is NULL\n", ERR_MSG);
+		return -1;
+	}
+	return 0;
+}
+
 /**
  * @brief  : Fill UE context default bearer information of default_eps_bearer_qos from CCA
  * @param  : context , eps bearer context
@@ -61,8 +86,11 @@ store_default_bearer_qos_in_policy(pdn_connection *pdn, GxDefaultEpsBearerQos qo
 {
 	int8_t ebi_index = 0;
 	eps_bearer *bearer = NULL;
-	if (pdn == NULL)
-		return -1;
+	if (pdn == NULL) {
+		clLog(clSystemLog, eCLSeverityCritical,
+				"%s:%d pdn_connection node is NULL\n",__func__, __LINE__);
+		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+	}
 	ebi_index = pdn->default_bearer_id - 5;
 	bearer = pdn->eps_bearers[ebi_index];
 
@@ -155,9 +183,9 @@ fill_sdf_strctr(char *str, sdf_pkt_fltr *pkt_filter)
 	/* VG: format of sdf string is  */
 	/* action dir fom src_ip src_port to dst_ip dst_port" */
 
-	nb_token = rte_strsplit(str, strlen(str), str_fld, NUM_VALS, ' ');
+	nb_token = rte_strsplit(str, strnlen(str,MAX_SDF_DESC_LEN), str_fld, NUM_VALS, ' ');
 	if (nb_token > NUM_VALS) {
-		clLog(gxlogger, eCLSeverityCritical, "%s:%s:%d AVP:Reach Max limit for sdf string \n",
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d AVP:Reach Max limit for sdf string \n",
 				__file__, __func__, __LINE__);
 		return -1;
 	}
@@ -165,27 +193,28 @@ fill_sdf_strctr(char *str, sdf_pkt_fltr *pkt_filter)
 	for(int indx=0; indx < nb_token; indx++){
 
 		if( indx == 0 ){
-			if(strncmp(str_fld[indx], "permit", strlen("permit")) != 0 ) {
-                		clLog(gxlogger, eCLSeverityCritical, "%s:%s:%d AVP:Skip sdf filling for IP filter rule action : %s \n",
-				__file__, __func__, __LINE__,str_fld[indx]);
-                		return -1;
-           		}
+			if(strncmp(str_fld[indx], "permit", NUM_VALS) != 0 ) {
+				clLog(clSystemLog, eCLSeverityCritical,
+						"%s:%s:%d AVP:Skip sdf filling for IP filter rule action : %s \n",
+						__file__, __func__, __LINE__,str_fld[indx]);
+				return -1;
+			}
 		} else if(indx == 2) {
 			pkt_filter->proto_id = atoi(str_fld[indx]);
 		} else if (indx == 4){
 
-			if(strncmp(str_fld[indx], "any", strlen("any")) != 0 ){
+			if(strncmp(str_fld[indx], "any", NUM_VALS) != 0 ){
 				if( strstr(str_fld[indx], "/") != NULL) {
 					int ip_token = 0;
 					char *ip_fld[2];
-					ip_token = rte_strsplit(str_fld[indx], strlen(str_fld[indx]), ip_fld, 2, '/');
+					ip_token = rte_strsplit(str_fld[indx], strnlen(str_fld[indx],NUM_VALS), ip_fld, 2, '/');
 					if (ip_token > 2) {
-						clLog(gxlogger, eCLSeverityCritical, "%s:%s:%d AVP:Reach Max limit for sdf src ip \n",
+						clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d AVP:Reach Max limit for sdf src ip \n",
 							__file__, __func__, __LINE__);
 						return -1;
 					}
 					if(inet_pton(AF_INET, (const char *) ip_fld[0], (void *)(&pkt_filter->local_ip_addr)) < 0){
-						clLog(gxlogger, eCLSeverityCritical, "%s:%s:%d AVP:conv of src ip fails \n",
+						clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d AVP:conv of src ip fails \n",
 							__file__, __func__, __LINE__);
 						return -1;
 					}
@@ -193,7 +222,7 @@ fill_sdf_strctr(char *str, sdf_pkt_fltr *pkt_filter)
 					pkt_filter->local_ip_mask = atoi(ip_fld[1]);
 				} else {
 					if(inet_pton(AF_INET, (const char *) str_fld[indx], (void *)(&pkt_filter->local_ip_addr)) < 0){
-						clLog(gxlogger, eCLSeverityCritical, "%s:%s:%d AVP:conv of src ip fails \n",
+						clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d AVP:conv of src ip fails \n",
 								__file__, __func__, __LINE__);
 						return -1;
 					}
@@ -201,14 +230,14 @@ fill_sdf_strctr(char *str, sdf_pkt_fltr *pkt_filter)
 			}
 		} else if(indx == 5){
 			/*TODO VG : handling of multiple ports p1,p2,p3 etc*/
-			if(strncmp(str_fld[indx], "to", strlen("to")) != 0 ){
+			if(strncmp(str_fld[indx], "to", NUM_VALS) != 0 ){
 				if( strstr(str_fld[indx], "-") != NULL) {
 					int port_token = 0;
 					char *port_fld[2];
-					port_token = rte_strsplit(str_fld[indx], strlen(str_fld[indx]), port_fld, 2, '-');
+					port_token = rte_strsplit(str_fld[indx], strnlen(str_fld[indx],NUM_VALS), port_fld, 2, '-');
 
 					if (port_token > 2) {
-						clLog(gxlogger, eCLSeverityCritical, "%s:%s:%d AVP:Reach Max limit for sdf src port \n",
+						clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d AVP:Reach Max limit for sdf src port \n",
 							__file__, __func__, __LINE__);
 						return -1;
 					}
@@ -225,18 +254,18 @@ fill_sdf_strctr(char *str, sdf_pkt_fltr *pkt_filter)
 			}
 		} else if (indx + offset == 7){
 
-			if(strncmp(str_fld[indx], "any", strlen("any")) != 0 ){
+			if(strncmp(str_fld[indx], "any", NUM_VALS) != 0 ){
 				if( strstr(str_fld[indx], "/") != NULL) {
 					int ip_token = 0;
 					char *ip_fld[2];
-					ip_token = rte_strsplit(str_fld[indx], strlen(str_fld[indx]), ip_fld, 2, '/');
+					ip_token = rte_strsplit(str_fld[indx], strnlen(str_fld[indx],NUM_VALS), ip_fld, 2, '/');
 					if (ip_token > 2) {
-						clLog(gxlogger, eCLSeverityCritical, "%s:%s:%d AVP:Reach Max limit for sdf dst ip \n",
+						clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d AVP:Reach Max limit for sdf dst ip \n",
 								__file__, __func__, __LINE__);
 						return -1;
 					}
 					if(inet_pton(AF_INET, (const char *) ip_fld[0], (void *)(&pkt_filter->remote_ip_addr)) < 0){
-						clLog(gxlogger, eCLSeverityCritical, "%s:%s:%d AVP:conv of dst ip fails \n",
+						clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d AVP:conv of dst ip fails \n",
 								__file__, __func__, __LINE__);
 						return -1;
 					}
@@ -244,7 +273,7 @@ fill_sdf_strctr(char *str, sdf_pkt_fltr *pkt_filter)
 					pkt_filter->remote_ip_mask = atoi(ip_fld[1]);
 				} else{
 					if(inet_pton(AF_INET, (const char *) str_fld[indx], (void *)(&pkt_filter->remote_ip_addr)) < 0){
-						clLog(gxlogger, eCLSeverityCritical, "%s:%s:%d AVP:conv of dst ip \n",
+						clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d AVP:conv of dst ip \n",
 								__file__, __func__, __LINE__);
 						return -1;
 					}
@@ -256,10 +285,10 @@ fill_sdf_strctr(char *str, sdf_pkt_fltr *pkt_filter)
 			if( strstr(str_fld[indx], "-") != NULL) {
 				int port_token = 0;
 				char *port_fld[2];
-				port_token = rte_strsplit(str_fld[indx], strlen(str_fld[indx]), port_fld, 2, '-');
+				port_token = rte_strsplit(str_fld[indx], strnlen(str_fld[indx],NUM_VALS), port_fld, 2, '-');
 
 				if (port_token > 2) {
-					clLog(gxlogger, eCLSeverityCritical, "%s:%s:%d AVP:Reach Max limit for sdf dst port\n",
+					clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d AVP:Reach Max limit for sdf dst port\n",
 							__file__, __func__, __LINE__);
 					return -1;
 				}
@@ -353,6 +382,7 @@ fill_charging_rule_definition(dynamic_rule_t *dynamic_rule,
 	                /* CHAR*/
 	                if ((rule_definition->flow_information).list[idx].presence.flow_description
 	                                == PRESENT) {
+
 	                        memcpy(dynamic_rule->flow_desc[idx].sdf_flow_description,
 	                                (rule_definition->flow_information).list[idx].flow_description.val,
 	                                (rule_definition->flow_information).list[idx].flow_description.len);
@@ -446,44 +476,51 @@ store_dynamic_rules_in_policy(pdn_connection *pdn, GxChargingRuleInstallList * c
 		GxChargingRuleRemoveList * charging_rule_remove)
 {
 
-	int32_t idx = 0;
+	//int32_t idx = 0;
 	rule_name_key_t rule_name = {0};
 	GxChargingRuleDefinition *rule_definition = NULL;
 
+	/* Clear Policy in PDN */
+	pdn->policy.count = 0;
+	pdn->policy.num_charg_rule_install = 0;
+	pdn->policy.num_charg_rule_modify = 0;
+	pdn->policy.num_charg_rule_delete = 0;
+
 	if(charging_rule_install != NULL)
 	{
-		for (int32_t idx1 = 0; idx1 < charging_rule_install->count; idx1++, pdn->policy.count++)
+		for (int32_t idx1 = 0; idx1 < charging_rule_install->count; idx1++)
 		{
 			if (charging_rule_install->list[idx1].presence.charging_rule_definition == PRESENT)
 			{
-				for(int32_t idx2 = 0; idx2 < charging_rule_install->list[idx].charging_rule_definition.count; idx2++)
+				for(int32_t idx2 = 0; idx2 < charging_rule_install->list[idx1].charging_rule_definition.count; idx2++)
 				{
 					rule_definition =
-						&(charging_rule_install->list[idx].charging_rule_definition.list[idx2]);
+						&(charging_rule_install->list[idx1].charging_rule_definition.list[idx2]);
 					if (rule_definition->presence.charging_rule_name == PRESENT) {
 
 						memset(rule_name.rule_name, '\0', sizeof(rule_name.rule_name));
-						strncpy(rule_name.rule_name, (char *)(rule_definition->charging_rule_name.val),
-								rule_definition->charging_rule_name.len);
-						sprintf(rule_name.rule_name, "%s%d",
-								rule_name.rule_name, pdn->call_id);
+						snprintf(rule_name.rule_name, RULE_NAME_LEN,"%s%d",
+								rule_definition->charging_rule_name.val, pdn->call_id);
 						if(get_rule_name_entry(rule_name) == -1)
 						{
-							pdn->policy.pcc_rule[idx2].action = RULE_ACTION_ADD;
+							pdn->policy.pcc_rule[pdn->policy.count].action = RULE_ACTION_ADD;
+							pdn->policy.count++;
 							pdn->policy.num_charg_rule_install++;
 						}
 						else
 						{
-							pdn->policy.pcc_rule[idx2].action =  RULE_ACTION_MODIFY;
+							pdn->policy.pcc_rule[pdn->policy.count].action =  RULE_ACTION_MODIFY;
+							pdn->policy.count++;
 							pdn->policy.num_charg_rule_modify++;
 						}
-						fill_charging_rule_definition(&(pdn->policy.pcc_rule[idx2].dyn_rule), rule_definition);
+						fill_charging_rule_definition(&(pdn->policy.pcc_rule[pdn->policy.count - 1].dyn_rule), rule_definition);
 
 					}
 					else
 					{
 						//TODO: Rule without name not possible; Log IT ?
-						return -1;
+						clLog(clSystemLog, eCLSeverityCritical, "%s:%d Charging rule name is not present\n",__func__, __LINE__);
+						return GTPV2C_CAUSE_INVALID_REPLY_FROM_REMOTE_PEER;
 					}
 				}
 			}
@@ -496,13 +533,16 @@ store_dynamic_rules_in_policy(pdn_connection *pdn, GxChargingRuleInstallList * c
 		{
 			if (charging_rule_remove->list[idx1].presence.charging_rule_name == PRESENT)
 			{
+				char rule_temp[RULE_NAME_LEN];
+
 				//Get the rule name and only store the name in dynamic rule_t
 				memset(rule_name.rule_name, '\0', 256);
-				strncpy(rule_name.rule_name,
-						(char *)(charging_rule_remove->list[idx1].charging_rule_name.list[0].val),
+				memset(rule_temp, '\0', 256);
+				strncpy(rule_temp, (char *)charging_rule_remove->list[idx1].charging_rule_name.list[0].val,
 						charging_rule_remove->list[idx1].charging_rule_name.list[0].len);
-				sprintf(rule_name.rule_name, "%s%d",
-						rule_name.rule_name, pdn->call_id);
+				snprintf(rule_name.rule_name, RULE_NAME_LEN,"%s%d",
+						rule_temp, pdn->call_id);
+
 				/* TODO: Need to remove comment */
 				int8_t bearer_identifer = get_rule_name_entry(rule_name);
 				if (bearer_identifer >= 0)
@@ -554,6 +594,11 @@ store_dynamic_rules_in_policy(pdn_connection *pdn, GxChargingRuleInstallList * c
 
 }
 
+/**
+ * @brief  : Search for rules on default bearer
+ * @param  : pdn, pdn connection details
+ * @return : Returns 0 on success, -1 otherwise
+ */
 static int
 check_for_rules_on_default_bearer(pdn_connection *pdn)
 {
@@ -572,20 +617,21 @@ check_for_rules_on_default_bearer(pdn_connection *pdn)
 				memset(id, 0 , sizeof(bearer_id_t));
 				rule_name_key_t key = {0};
 				id->bearer_id = pdn->default_bearer_id - 5;
-				strncpy(key.rule_name, pdn->policy.pcc_rule[idx].dyn_rule.rule_name,
-						strlen(pdn->policy.pcc_rule[idx].dyn_rule.rule_name));
-				sprintf(key.rule_name, "%s%d", key.rule_name,
-						pdn->call_id);
+
+				snprintf(key.rule_name, RULE_NAME_LEN, "%s%d",
+						pdn->policy.pcc_rule[idx].dyn_rule.rule_name, pdn->call_id);
+
 				if (add_rule_name_entry(key, id) != 0) {
-					clLog(sxlogger, eCLSeverityCritical,
+					clLog(clSystemLog, eCLSeverityCritical,
 						FORMAT"Failed to add_rule_name_entry with rule_name\n",
 						ERR_MSG);
-					return -1;
+					return GTPV2C_CAUSE_SYSTEM_FAILURE;
 				}
 			return 0;
 		}
 	}
-	return -1;
+	clLog(clSystemLog, eCLSeverityCritical, "%s:%d Rules not found for default bearer\n",__func__, __LINE__);
+	return GTPV2C_CAUSE_INVALID_REPLY_FROM_REMOTE_PEER;
 }
 
 #if 0
@@ -623,7 +669,7 @@ retrieve_bearer_id(pdn_connection *pdn, GxCCA *cca)
 						if (ret == 0)
 							return id;
 					} else {
-						clLog(gxlogger, eCLSeverityCritical, "%s:%s:%d AVP:charging_rule_definition missing:"
+						clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d AVP:charging_rule_definition missing:"
 								"AVP:Qos Information \n",
 								__file__, __func__, __LINE__);
 						return -1;
@@ -650,7 +696,7 @@ parse_gx_cca_msg(GxCCA *cca, pdn_connection **_pdn)
 	if (ret < 0) {
 	        clLog(clSystemLog, eCLSeverityCritical, "%s:No Call Id found from session id:%s\n", __func__,
 	                        cca->session_id.val);
-	        return -1;
+	        return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 	}
 
 	/* Retrieve PDN context based on call id */
@@ -659,7 +705,7 @@ parse_gx_cca_msg(GxCCA *cca, pdn_connection **_pdn)
 	{
 	      clLog(clSystemLog, eCLSeverityCritical, "%s:No valid pdn cntxt found for CALL_ID:%u\n",
 	                          __func__, call_id);
-	      return -1;
+	      return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 	}
 	*_pdn = pdn_cntxt;
 
@@ -667,39 +713,55 @@ parse_gx_cca_msg(GxCCA *cca, pdn_connection **_pdn)
 	pdn_cntxt->bearer_control_mode = cca->bearer_control_mode;
 
 
+
 	/* VS: Overwirte the CSR qos values with CCA default eps bearer qos values */
-	if (cca->presence.default_eps_bearer_qos != PRESENT) {
-		clLog(gxlogger, eCLSeverityCritical, "%s:%s:%d AVP:default_eps_bearer_qos is missing \n",
-				__file__, __func__, __LINE__);
-		return -1;
+	if(cca->cc_request_type == INITIAL_REQUEST) {
+		/* Check for implimentation wise Mandotory AVP */
+		if ( cca->presence.charging_rule_install != PRESENT ) {
+			clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d AVP:default_eps_bearer_qos is missing \n",
+					__file__, __func__, __LINE__);
+			return GTPV2C_CAUSE_INVALID_REPLY_FROM_REMOTE_PEER;
+		}
+
+		/* Check for Default bearer QOS recevied from PCRF */
+		if (cca->presence.default_eps_bearer_qos != PRESENT) {
+			ret = check_ue_requested_qos(pdn_cntxt);
+			if (ret) {
+				clLog(clSystemLog, eCLSeverityCritical, FORMAT"AVP:default_eps_bearer_qos is missing \n",
+																								ERR_MSG);
+				return GTPV2C_CAUSE_INVALID_REPLY_FROM_REMOTE_PEER;
+			}
+		} else {
+			ret = store_default_bearer_qos_in_policy(pdn_cntxt, cca->default_eps_bearer_qos);
+			if (ret)
+				return GTPV2C_CAUSE_INVALID_REPLY_FROM_REMOTE_PEER;
+		}
+
+		/* VS: Compare the default qos and CCA charging rule qos info and retrieve the bearer identifier */
+		//bearer_id = retrieve_bearer_id(pdn_cntxt, cca);
+		//if (bearer_id)
+		//      return bearer_id;
+
+		/* VS: Fill the dynamic rule from rule install structure of cca to policy */
+		ret = store_dynamic_rules_in_policy(pdn_cntxt, &(cca->charging_rule_install), &(cca->charging_rule_remove));
+		if (ret)
+			return ret;
+
+		/* No rule to install nor to remove */
+		if(pdn_cntxt->policy.count == 0){
+			return GTPV2C_CAUSE_INVALID_REPLY_FROM_REMOTE_PEER;
+		}
+		ret = check_for_rules_on_default_bearer(pdn_cntxt);
+		if (ret)
+			return ret;
+		/* VS: Retrive the UE context to initiate the DNS and ASSOCIATION Request */
+		//*_pdn->context = pdn_cntxt->context;
 	}
-	ret = store_default_bearer_qos_in_policy(pdn_cntxt, cca->default_eps_bearer_qos);
-	if (ret)
-	        return ret;
-
-
-	/* VS: Compare the default qos and CCA charging rule qos info and retrieve the bearer identifier */
-	//bearer_id = retrieve_bearer_id(pdn_cntxt, cca);
-	//if (bearer_id)
-	  //      return bearer_id;
-
-
-	/* VS: Fill the dynamic rule from rule install structure of cca to policy */
-	ret = store_dynamic_rules_in_policy(pdn_cntxt, &(cca->charging_rule_install), &(cca->charging_rule_remove));
-	if (ret)
-	        return ret;
-
-	ret = check_for_rules_on_default_bearer(pdn_cntxt);
-	if (ret)
-	        return ret;
-	/* VS: Retrive the UE context to initiate the DNS and ASSOCIATION Request */
-	//*_pdn->context = pdn_cntxt->context;
-
 	ret = store_event_trigger(pdn_cntxt, &(cca->event_trigger));
 	if (ret)
 	        return ret;
 
-	return ret;
+	return 0;
 }
 
 int16_t
@@ -728,7 +790,7 @@ gx_update_bearer_req(pdn_connection *pdn){
 	/* VS: Retrive the UE Context */
 	ret = get_ue_context(UE_SESS_ID(pdn->seid), &context);
 	if (ret) {
-		clLog(sxlogger, eCLSeverityCritical, "%s:%d Error: %d \n", __func__,
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%d Error: %d \n", __func__,
 				__LINE__, ret);
 		return DIAMETER_ERROR_USER_UNKNOWN;
 	}
@@ -736,12 +798,13 @@ gx_update_bearer_req(pdn_connection *pdn){
 	/*VK : Start Creating UBR request */
 
 	set_gtpv2c_teid_header((gtpv2c_header_t *) &ubr_req, GTP_UPDATE_BEARER_REQ,
-	    										context->s11_mme_gtpc_teid, seq_no);
+			context->s11_mme_gtpc_teid, seq_no, 0);
 
 	ubr_req.apn_ambr.apn_ambr_uplnk = pdn->apn_ambr.ambr_uplink;
 	ubr_req.apn_ambr.apn_ambr_dnlnk = pdn->apn_ambr.ambr_downlink;
 
-	set_ie_header(&ubr_req.apn_ambr.header, GTP_IE_AGG_MAX_BIT_RATE, IE_INSTANCE_ZERO,																			sizeof(uint64_t));
+	set_ie_header(&ubr_req.apn_ambr.header, GTP_IE_AGG_MAX_BIT_RATE, IE_INSTANCE_ZERO,
+				sizeof(uint64_t));
 
 	/* For now not supporting user location retrive
 	set_ie_header(&ubr_req.indctn_flgs.header, GTP_IE_INDICATION, IE_INSTANCE_ZERO,
@@ -757,7 +820,7 @@ gx_update_bearer_req(pdn_connection *pdn){
 
 			bearer = get_bearer(pdn, &pdn->policy.pcc_rule[idx].dyn_rule.qos);
 			if(bearer == NULL){
-				clLog(sxlogger, eCLSeverityCritical,
+				clLog(clSystemLog, eCLSeverityCritical,
 						"%s:%d Bearer return is Null for that Qos recived in RAR: %d \n",
 				 		__func__, __LINE__);
 				return DIAMETER_ERROR_USER_UNKNOWN;
@@ -783,7 +846,7 @@ gx_update_bearer_req(pdn_connection *pdn){
 			ubr_req.bearer_contexts[ubr_req.bearer_context_count].header.len += len;
 			update_require++;
 
-			resp->list_bearer_ids[resp->num_of_bearers++] = bearer->eps_bearer_id;
+			resp->eps_bearer_ids[resp->bearer_count++] = bearer->eps_bearer_id;
 
 			set_ebi(&ubr_req.bearer_contexts[ubr_req.bearer_context_count].eps_bearer_id,
 					IE_INSTANCE_ZERO, bearer->eps_bearer_id);
@@ -831,19 +894,28 @@ gx_update_bearer_req(pdn_connection *pdn){
 			//send S5S8 or on S11  interface update bearer request.
 			gtpv2c_send(s5s8_fd, tx_buf, payload_length,
 	    		      		(struct sockaddr *) &s5s8_recv_sockaddr,
-	        				s5s8_sockaddr_len);
-		}else{
+	        				s5s8_sockaddr_len,SENT);
+
+			process_cp_li_msg(pdn->seid, tx_buf, payload_length,
+				pfcp_config.s5s8_ip.s_addr, s5s8_recv_sockaddr.sin_addr.s_addr,
+				pfcp_config.s5s8_port, s5s8_recv_sockaddr.sin_port);
+		} else {
 			s11_mme_sockaddr.sin_addr.s_addr =
 								htonl(context->s11_mme_gtpc_ipv4.s_addr);
 			gtpv2c_send(s11_fd, tx_buf, payload_length,
 	    		      		(struct sockaddr *) &s11_mme_sockaddr,
-	        				s11_mme_sockaddr_len);
+	        				s11_mme_sockaddr_len,SENT);
+
+			process_cp_li_msg(pdn->seid, tx_buf, payload_length,
+				pfcp_config.s11_ip.s_addr, s11_mme_sockaddr.sin_addr.s_addr,
+				pfcp_config.s11_port, s11_mme_sockaddr.sin_port);
 		}
 	}
 	return 0;
 }
 
-int8_t
+/*Handling of RAA message*/
+int16_t
 parse_gx_rar_msg(GxRAR *rar)
 {
 	int16_t ret = 0;
@@ -884,8 +956,13 @@ parse_gx_rar_msg(GxRAR *rar)
 			return ret;
 	}
 	ret = store_dynamic_rules_in_policy(pdn_cntxt, &(rar->charging_rule_install), &(rar->charging_rule_remove));
-	if (ret)
+	if (ret){
 	        return ret;
+	}
+
+	if(0 == pdn_cntxt->policy.count){
+		return DIAMETER_MISSING_AVP;
+	}
 
 	if(pdn_cntxt->policy.num_charg_rule_modify){
 		return gx_update_bearer_req(pdn_cntxt);
@@ -896,25 +973,23 @@ parse_gx_rar_msg(GxRAR *rar)
 	pdn_cntxt->context->sequence = seq_no;
 
 	uint8_t pfcp_msg[1024] = {0};
-	int encoded = encode_pfcp_sess_mod_req_t(&pfcp_sess_mod_req, pfcp_msg);
+	int encoded = encode_pfcp_sess_mod_req_t(&pfcp_sess_mod_req, pfcp_msg, INTERFACE);
 	pfcp_header_t *header = (pfcp_header_t *) pfcp_msg;
 	header->message_len = htons(encoded - 4);
 
-	if ( pfcp_send(pfcp_fd, pfcp_msg, encoded, &upf_pfcp_sockaddr) < 0 ){
+	if ( pfcp_send(pfcp_fd, pfcp_msg, encoded, &upf_pfcp_sockaddr,SENT) < 0 ){
 		clLog(clSystemLog, eCLSeverityDebug,"Error sending: %i\n",errno);
 	} else {
-		update_cli_stats((uint32_t)upf_pfcp_sockaddr.sin_addr.s_addr,
-					pfcp_sess_mod_req.header.message_type,SENT,SX);
 		if(pfcp_config.cp_type == PGWC){
-                               add_pfcp_if_timer_entry(pdn_cntxt->s5s8_pgw_gtpc_teid, &upf_pfcp_sockaddr,
-                                       pfcp_msg, encoded, pdn_cntxt->default_bearer_id - 5);
-                       }
-               if(pfcp_config.cp_type == SAEGWC)
-               {
-                       add_pfcp_if_timer_entry(pdn_cntxt->context->s11_sgw_gtpc_teid, &upf_pfcp_sockaddr,
-                               pfcp_msg, encoded, pdn_cntxt->default_bearer_id - 5);
-               }
-        }
+			add_pfcp_if_timer_entry(pdn_cntxt->s5s8_pgw_gtpc_teid, &upf_pfcp_sockaddr,
+					pfcp_msg, encoded, pdn_cntxt->default_bearer_id - 5);
+		}
+		if(pfcp_config.cp_type == SAEGWC)
+		{
+			add_pfcp_if_timer_entry(pdn_cntxt->context->s11_sgw_gtpc_teid, &upf_pfcp_sockaddr,
+					pfcp_msg, encoded, pdn_cntxt->default_bearer_id - 5);
+		}
+	}
 
 	/* Retrive Gx_context based on Sess ID. */
 	ret = rte_hash_lookup_data(gx_context_by_sess_id_hash,
@@ -932,11 +1007,17 @@ parse_gx_rar_msg(GxRAR *rar)
 	/*Retrive the session information based on session id. */
 	if (get_sess_entry(pdn_cntxt->seid, &resp) != 0){
 		clLog(clSystemLog, eCLSeverityCritical, "%s:%d NO Session Entry Found for sess ID:%lu\n",
-				__func__, __LINE__, (pdn_cntxt->context)->pdns[bearer_id]->seid);
+				__func__, __LINE__, pdn_cntxt->seid);
 		return -1;
 	}
 
-	/* Set GX rar message */
+	/*AALI Storing the Event Trigger received in RAA message*/
+
+	ret = store_event_trigger(pdn_cntxt, &(rar->event_trigger));
+	if (ret < 0)
+		return ret;
+
+		/* Set GX rar message */
 	resp->eps_bearer_id = bearer_id + 5;
 	resp->msg_type = GX_RAR_MSG;
 	resp->state = PFCP_SESS_MOD_REQ_SNT_STATE;
@@ -969,10 +1050,8 @@ get_charging_rule_remove_bearer_info(pdn_connection *pdn,
 		if(RULE_ACTION_DELETE == pdn->policy.pcc_rule[idx + idx_offset].action)
 		{
 			rule_name_key_t rule_name = {0};
-			memcpy(&rule_name.rule_name, &(pdn->policy.pcc_rule[idx + idx_offset].dyn_rule.rule_name),
-				   sizeof(pdn->policy.pcc_rule[idx + idx_offset].dyn_rule.rule_name));
-			sprintf(rule_name.rule_name, "%s%d",
-					rule_name.rule_name, pdn->call_id);
+			snprintf(rule_name.rule_name, RULE_NAME_LEN,"%s%d",
+					pdn->policy.pcc_rule[idx + idx_offset].dyn_rule.rule_name, pdn->call_id);
 
 			bearer_id = get_rule_name_entry(rule_name);
 			if (-1 == bearer_id) {
@@ -1010,10 +1089,8 @@ get_bearer_info_install_rules(pdn_connection *pdn,
 		if(RULE_ACTION_ADD == pdn->policy.pcc_rule[idx].action)
 		{
 			rule_name_key_t rule_name = {0};
-			memcpy(&rule_name.rule_name, &(pdn->policy.pcc_rule[idx].dyn_rule.rule_name),
-				   sizeof(pdn->policy.pcc_rule[idx].dyn_rule.rule_name));
-			sprintf(rule_name.rule_name, "%s%d",
-					rule_name.rule_name, pdn->call_id);
+			snprintf(rule_name.rule_name, RULE_NAME_LEN,"%s%d",
+					pdn->policy.pcc_rule[idx].dyn_rule.rule_name, pdn->call_id);
 			ret = get_rule_name_entry(rule_name);
 			if (-1 == ret) {
 				/* TODO: Error handling bearer not found */

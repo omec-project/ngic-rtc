@@ -30,7 +30,8 @@
 #include "dp_ipc_api.h"
 #include "pfcp_set_ie.h"
 #include "../pfcp_messages/pfcp.h"
-
+#include "gw_adapter.h"
+#include "li_config.h"
 
 #ifdef USE_REST
 #include "../restoration/restoration_timer.h"
@@ -239,7 +240,6 @@ init_cp_params(void) {
 #endif
 }
 
-
 /**
  * @brief  : Main function - initializes dpdk environment, parses command line arguments,
  *           calls initialization function, and spawns stats and control plane function
@@ -251,6 +251,8 @@ int
 main(int argc, char **argv)
 {
 	int ret;
+	uint16_t uiLiCntr = 0;
+	struct li_df_config_t li_df_config[LI_MAX_SIZE];
 
 	//set_signal_mask();
 
@@ -282,7 +284,27 @@ main(int argc, char **argv)
 	init_cp();
 	init_cp_params();
 
+	number_of_transmit_count = pfcp_config.transmit_cnt;
+	number_of_request_tries = pfcp_config.request_tries;
+	transmit_timer_value = pfcp_config.transmit_timer;
+	periodic_timer_value = pfcp_config.periodic_timer;
+	request_timeout_value = pfcp_config.request_timeout;
+
 	init_cli_module(pfcp_config.cp_logger);
+	init_redis();
+
+	ret = registerCpOnDadmf(pfcp_config.dadmf_ip,
+			pfcp_config.dadmf_port, pfcp_config.pfcp_ip,
+			li_df_config, &uiLiCntr);
+	if (ret < 0) {
+		clLog(clSystemLog, eCLSeverityCritical,
+				"Failed to register Control Plane on D-AMDF");
+	}
+
+	ret = fillup_li_df_hash(li_df_config, uiLiCntr);
+	if (ret < 0) {
+		/* Error Condition Handling */
+	}
 
 	/* TODO: Need to Re-arrange the hash initialize */
 	create_heartbeat_hash_table();
@@ -325,6 +347,8 @@ main(int argc, char **argv)
 #ifdef USE_CSID
 	init_fqcsid_hash_tables();
 #endif /* USE_CSID */
+
+	recovery_flag = 0;
 
 	control_plane();
 

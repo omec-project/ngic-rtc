@@ -18,6 +18,8 @@
 
 #include "gtpv2c_set_ie.h"
 #include "clogger.h"
+#include "sm_struct.h"
+#include "gtpc_session.h"
 
 #define DEFAULT_BEARER_QOS_PRIORITY (15)
 
@@ -357,6 +359,101 @@ install_packet_filters(eps_bearer *ded_bearer,
 	return 0;
 }
 
+int8_t
+set_sgwc_create_bearer_request(gtpv2c_header_t *gtpv2c_tx,
+	uint32_t sequence, pdn_connection *pdn, uint8_t lbi,
+	uint8_t pti, struct resp_info *resp)
+{
+	uint8_t len = 0;
+	uint8_t idx = 0;
+	uint8_t ebi_index = 0;
+	ue_context *context = NULL;
+	create_bearer_req_t cb_req = {0};
+	eps_bearer *bearer  = NULL;
+
+	context = pdn->context;
+	set_gtpv2c_teid_header((gtpv2c_header_t *) &cb_req,
+		GTP_CREATE_BEARER_REQ, context->s11_mme_gtpc_teid, sequence, 0);
+
+	if (pti) {
+		set_pti(&cb_req.pti, IE_INSTANCE_ZERO, pti);
+	}
+
+	set_ebi(&cb_req.lbi, IE_INSTANCE_ZERO, lbi);
+
+	for(idx = 0; idx < resp->bearer_count; idx++) {
+
+		ebi_index = resp->eps_bearer_ids[idx] - 5;
+		bearer = pdn->eps_bearers[ebi_index];
+
+		if (bearer == NULL) {
+			/* TODO : use clilog insted of fprintf */
+			fprintf(stderr,
+				"%s:%d Retrive modify bearer context"
+				" but EBI is non-existent- "
+				"Bitmap Inconsistency - Dropping packet\n"
+							, __func__, __LINE__);
+			return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+		}
+
+		set_ie_header(&cb_req.bearer_contexts[idx].header,
+			GTP_IE_BEARER_CONTEXT, IE_INSTANCE_ZERO, 0);
+
+		/* TODO: NC Need to remove hardcoded ebi use new dedicated bearer id as 0*/
+		set_ebi(&cb_req.bearer_contexts[idx].eps_bearer_id,
+						IE_INSTANCE_ZERO, 0);
+
+		cb_req.bearer_contexts[idx].header.len += sizeof(uint8_t)
+							+ IE_HEADER_SIZE;
+
+		set_bearer_qos(&cb_req.bearer_contexts[idx].bearer_lvl_qos,
+				IE_INSTANCE_ZERO, bearer);
+
+		cb_req.bearer_contexts[idx].header.len +=
+						sizeof(gtp_bearer_qlty_of_svc_ie_t);
+
+		memset(cb_req.bearer_contexts[idx].tft.eps_bearer_lvl_tft, 0, 257);
+		memcpy(cb_req.bearer_contexts[idx].tft.eps_bearer_lvl_tft,
+						resp->eps_bearer_lvl_tft[idx], 257);
+
+		set_ie_header(&cb_req.bearer_contexts[idx].tft.header,
+			GTP_IE_EPS_BEARER_LVL_TRAFFIC_FLOW_TMPL,
+			IE_INSTANCE_ZERO, resp->tft_header_len[idx]);
+
+		len = resp->tft_header_len[idx] + IE_HEADER_SIZE;
+
+		cb_req.bearer_contexts[idx].header.len += len;
+		//sizeof(gtp_eps_bearer_lvl_traffic_flow_tmpl_ie_t);
+
+		/* TODO: remove hardcoded charging id */
+		set_charging_id(&cb_req.bearer_contexts[idx].charging_id,
+				IE_INSTANCE_ZERO, 1);//bearer->charging_id);
+
+		cb_req.bearer_contexts[idx].header.len += sizeof(gtp_charging_id_ie_t);
+
+		set_ipv4_fteid(&cb_req.bearer_contexts[idx].s1u_sgw_fteid,
+			GTPV2C_IFTYPE_S1U_SGW_GTPU, IE_INSTANCE_ZERO,
+			bearer->s1u_sgw_gtpu_ipv4, bearer->s1u_sgw_gtpu_teid);
+
+		set_ipv4_fteid(&cb_req.bearer_contexts[idx].s58_u_pgw_fteid,
+			GTPV2C_IFTYPE_S5S8_PGW_GTPU, IE_INSTANCE_ONE,
+			bearer->s5s8_pgw_gtpu_ipv4, bearer->s5s8_pgw_gtpu_teid);
+
+		cb_req.bearer_contexts[idx].header.len += sizeof(struct fteid_ie_hdr_t) +
+			sizeof(struct in_addr) + IE_HEADER_SIZE;
+
+		cb_req.bearer_contexts[idx].header.len += sizeof(struct fteid_ie_hdr_t) +
+			sizeof(struct in_addr) + IE_HEADER_SIZE;
+		cb_req.bearer_cnt++;
+	}
+
+	uint16_t msg_len = 0;
+	msg_len = encode_create_bearer_req(&cb_req, (uint8_t *)gtpv2c_tx);
+	gtpv2c_tx->gtpc.message_len = htons(msg_len - 4);
+
+	return 0;
+}
+
 
 /**
  * @brief  : from parameters, populates gtpv2c message 'create bearer request' and
@@ -382,123 +479,144 @@ install_packet_filters(eps_bearer *ded_bearer,
  * @param  : tft_len
  * @return : Returns nothing
  */
-void
+int
 set_create_bearer_request(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
-	ue_context *context, eps_bearer *bearer, uint8_t lbi, uint8_t pti,
-	uint8_t eps_bearer_lvl_tft[], uint8_t tft_len)
+	pdn_connection *pdn, uint8_t lbi, uint8_t pti,
+	struct resp_info *resp,  uint8_t is_piggybacked)
 {
 	uint8_t len = 0;
+	uint8_t idx = 0;
+	ue_context *context = NULL;
 	create_bearer_req_t cb_req = {0};
+	eps_bearer *bearer  = NULL;
+	uint8_t policy_count = 0;
 
+	context = pdn->context;
 	set_gtpv2c_teid_header((gtpv2c_header_t *) &cb_req, GTP_CREATE_BEARER_REQ,
-	    context->s11_mme_gtpc_teid, sequence);
+	    context->s11_mme_gtpc_teid, sequence, 0);
 
 	if (pti) {
 		set_pti(&cb_req.pti, IE_INSTANCE_ZERO, pti);
 	}
-
 	set_ebi(&cb_req.lbi, IE_INSTANCE_ZERO, lbi);
-
-	set_ie_header(&cb_req.bearer_contexts.header, GTP_IE_BEARER_CONTEXT,
-			IE_INSTANCE_ZERO, 0);
-
-	/* TODO: NC Need to remove hardcoded ebi use new dedicated bearer id as 0*/
-	set_ebi(&cb_req.bearer_contexts.eps_bearer_id, IE_INSTANCE_ZERO, 0);
-	cb_req.bearer_contexts.header.len += sizeof(uint8_t) + IE_HEADER_SIZE;
-
-	set_bearer_qos(&cb_req.bearer_contexts.bearer_lvl_qos,
-			IE_INSTANCE_ZERO, bearer);
-	cb_req.bearer_contexts.header.len += sizeof(gtp_bearer_qlty_of_svc_ie_t);
-
-	/* TODO TFT is pending */
-	if (SGWC == pfcp_config.cp_type) {
-		memset(cb_req.bearer_contexts.tft.eps_bearer_lvl_tft, 0, 257);
-		memcpy(cb_req.bearer_contexts.tft.eps_bearer_lvl_tft, eps_bearer_lvl_tft, 257);
-
-		set_ie_header(&cb_req.bearer_contexts.tft.header,
-			GTP_IE_EPS_BEARER_LVL_TRAFFIC_FLOW_TMPL, IE_INSTANCE_ZERO, tft_len);
-		len = tft_len + IE_HEADER_SIZE;
-	} else {
-		len = set_bearer_tft(&cb_req.bearer_contexts.tft, IE_INSTANCE_ZERO, bearer->dynamic_rules[bearer->num_dynamic_filters - 1]->num_flw_desc, bearer);
+	if(is_piggybacked){
+		policy_count = pdn->policy.count - 1;
+	}else{
+		policy_count =  pdn->policy.count;
 	}
+	for(idx = 0; idx < policy_count; idx++) {
+		if (pdn->policy.pcc_rule[idx].action == RULE_ACTION_ADD)
+		{
+			bearer = get_bearer(pdn, &pdn->policy.pcc_rule[idx].dyn_rule.qos);
+			if (bearer == NULL) {
+					fprintf(stderr,
+						"%s:%d Retrive modify bearer context but EBI is non-existent- "
+						"Bitmap Inconsistency - Dropping packet\n", __func__, __LINE__);
+					return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+			}
+			else{
+				set_ie_header(&cb_req.bearer_contexts[idx].header, GTP_IE_BEARER_CONTEXT,
+					IE_INSTANCE_ZERO, 0);
 
-	cb_req.bearer_contexts.header.len += len;//sizeof(gtp_eps_bearer_lvl_traffic_flow_tmpl_ie_t);
+				/* TODO: NC Need to remove hardcoded ebi use new dedicated bearer id as 0*/
+				set_ebi(&cb_req.bearer_contexts[idx].eps_bearer_id, IE_INSTANCE_ZERO, 0);
+				cb_req.bearer_contexts[idx].header.len += sizeof(uint8_t) + IE_HEADER_SIZE;
 
-	set_charging_id(&cb_req.bearer_contexts.charging_id,
-			IE_INSTANCE_ZERO, 1);//bearer->charging_id);
-	cb_req.bearer_contexts.header.len += sizeof(gtp_charging_id_ie_t);
+				set_bearer_qos(&cb_req.bearer_contexts[idx].bearer_lvl_qos,
+					IE_INSTANCE_ZERO, bearer);
+				cb_req.bearer_contexts[idx].header.len += sizeof(gtp_bearer_qlty_of_svc_ie_t);
 
-	if (PGWC == pfcp_config.cp_type) {
-		set_ipv4_fteid(&cb_req.bearer_contexts.s58_u_pgw_fteid,
-			GTPV2C_IFTYPE_S5S8_PGW_GTPU, IE_INSTANCE_ONE, bearer->s5s8_pgw_gtpu_ipv4,
-			bearer->s5s8_pgw_gtpu_teid);
-	} else {
-		//bearer->s1u_sgw_gtpu_ipv4.s_addr = htonl(bearer->s1u_sgw_gtpu_ipv4.s_addr);
-		set_ipv4_fteid(&cb_req.bearer_contexts.s1u_sgw_fteid,
-			GTPV2C_IFTYPE_S1U_SGW_GTPU, IE_INSTANCE_ZERO, bearer->s1u_sgw_gtpu_ipv4,
-			bearer->s1u_sgw_gtpu_teid);
+				len = set_bearer_tft(&cb_req.bearer_contexts[idx].tft, IE_INSTANCE_ZERO,
+					bearer->dynamic_rules[bearer->num_dynamic_filters - 1]->num_flw_desc, bearer);
 
-		if (SGWC == pfcp_config.cp_type) {
-			set_ipv4_fteid(&cb_req.bearer_contexts.s58_u_pgw_fteid,
-				GTPV2C_IFTYPE_S5S8_PGW_GTPU, IE_INSTANCE_ONE, bearer->s5s8_pgw_gtpu_ipv4,
-				bearer->s5s8_pgw_gtpu_teid);
+				cb_req.bearer_contexts[idx].header.len += len;//sizeof(gtp_eps_bearer_lvl_traffic_flow_tmpl_ie_t);
 
-			cb_req.bearer_contexts.header.len += sizeof(struct fteid_ie_hdr_t) +
+				set_charging_id(&cb_req.bearer_contexts[idx].charging_id,
+				IE_INSTANCE_ZERO, 1);//bearer->charging_id);
+				cb_req.bearer_contexts[idx].header.len += sizeof(gtp_charging_id_ie_t);
+			}
+			if (PGWC == pfcp_config.cp_type) {
+				set_ipv4_fteid(&cb_req.bearer_contexts[idx].s58_u_pgw_fteid,
+					GTPV2C_IFTYPE_S5S8_PGW_GTPU, IE_INSTANCE_ONE, bearer->s5s8_pgw_gtpu_ipv4,
+					bearer->s5s8_pgw_gtpu_teid);
+			} else {
+				set_ipv4_fteid(&cb_req.bearer_contexts[idx].s1u_sgw_fteid,
+					GTPV2C_IFTYPE_S1U_SGW_GTPU, IE_INSTANCE_ZERO, bearer->s1u_sgw_gtpu_ipv4,
+					bearer->s1u_sgw_gtpu_teid);
+			}
+
+			cb_req.bearer_contexts[idx].header.len += sizeof(struct fteid_ie_hdr_t) +
 				sizeof(struct in_addr) + IE_HEADER_SIZE;
+			cb_req.bearer_cnt++;
 		}
 	}
-
-	cb_req.bearer_contexts.header.len += sizeof(struct fteid_ie_hdr_t) +
-		sizeof(struct in_addr) + IE_HEADER_SIZE;
-
 	uint16_t msg_len = 0;
 	msg_len = encode_create_bearer_req(&cb_req, (uint8_t *)gtpv2c_tx);
 	gtpv2c_tx->gtpc.message_len = htons(msg_len - 4);
+	RTE_SET_USED(resp);
+	return 0;
 }
 
-void
+int
 set_create_bearer_response(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
-		       ue_context *context, eps_bearer *bearer,
-			   uint8_t ebi, uint8_t pti)
+						pdn_connection *pdn, uint8_t lbi, uint8_t pti,
+						struct resp_info *resp)
 {
+	uint8_t ebi_index = 0;
+	uint8_t idx = 0;
+	eps_bearer *bearer  = NULL;
+	ue_context *context = NULL;
 	create_bearer_rsp_t cb_resp = {0};
 
-	/* TODO: NC Need to remove hard coded value */
+	context = pdn->context;
+
 	set_gtpv2c_teid_header((gtpv2c_header_t *) &cb_resp, GTP_CREATE_BEARER_RSP,
-	   context->pdns[0]->s5s8_pgw_gtpc_teid , sequence);
+					pdn->s5s8_pgw_gtpc_teid , sequence, 0);
 
 	set_cause_accepted(&cb_resp.cause, IE_INSTANCE_ZERO);
 
 	if (pti) {}
+	if (lbi) {}
 
-	set_ie_header(&cb_resp.bearer_contexts.header, GTP_IE_BEARER_CONTEXT,
-			IE_INSTANCE_ZERO, 0);
+	for(idx = 0; idx < resp->bearer_count; idx++) {
+		ebi_index = resp->eps_bearer_ids[idx] - 5;
+		bearer = context->eps_bearers[ebi_index];
+		if (bearer == NULL) {
+			fprintf(stderr,
+				"%s:%d Retrive modify bearer context but EBI is non-existent- "
+				"Bitmap Inconsistency - Dropping packet\n", __func__, __LINE__);
+			return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+		}
+		else{
+		set_ie_header(&cb_resp.bearer_contexts[idx].header, GTP_IE_BEARER_CONTEXT,
+							IE_INSTANCE_ZERO, 0);
 
-	/* TODO  Remove hardcoded ebi */
-	set_ebi(&cb_resp.bearer_contexts.eps_bearer_id, IE_INSTANCE_ZERO, ebi);
-	cb_resp.bearer_contexts.header.len += sizeof(uint8_t) + IE_HEADER_SIZE;
+		set_ebi(&cb_resp.bearer_contexts[idx].eps_bearer_id, IE_INSTANCE_ZERO, (ebi_index + 5));
+		cb_resp.bearer_contexts[idx].header.len += sizeof(uint8_t) + IE_HEADER_SIZE;
 
-	set_cause_accepted(&cb_resp.bearer_contexts.cause, IE_INSTANCE_ZERO);
-	cb_resp.bearer_contexts.header.len += sizeof(uint16_t) + IE_HEADER_SIZE;
+		set_cause_accepted(&cb_resp.bearer_contexts[idx].cause, IE_INSTANCE_ZERO);
+		cb_resp.bearer_contexts[idx].header.len += sizeof(uint16_t) + IE_HEADER_SIZE;
 
-	set_ipv4_fteid(&cb_resp.bearer_contexts.s58_u_pgw_fteid,
-		GTPV2C_IFTYPE_S5S8_PGW_GTPU, IE_INSTANCE_ZERO, bearer->s5s8_pgw_gtpu_ipv4,
-		bearer->s5s8_pgw_gtpu_teid);
+		set_ipv4_fteid(&cb_resp.bearer_contexts[idx].s58_u_pgw_fteid,
+			GTPV2C_IFTYPE_S5S8_PGW_GTPU, IE_INSTANCE_THREE, bearer->s5s8_pgw_gtpu_ipv4,
+			bearer->s5s8_pgw_gtpu_teid);
 
-	cb_resp.bearer_contexts.header.len += sizeof(struct fteid_ie_hdr_t) +
-		sizeof(struct in_addr) + IE_HEADER_SIZE;
+		cb_resp.bearer_contexts[idx].header.len += sizeof(struct fteid_ie_hdr_t) +
+			sizeof(struct in_addr) + IE_HEADER_SIZE;
 
-	//bearer->s5s8_sgw_gtpu_ipv4.s_addr = htonl(bearer->s5s8_sgw_gtpu_ipv4.s_addr);
-	set_ipv4_fteid(&cb_resp.bearer_contexts.s58_u_sgw_fteid,
-		GTPV2C_IFTYPE_S5S8_SGW_GTPU, IE_INSTANCE_TWO, bearer->s5s8_sgw_gtpu_ipv4,
-		bearer->s5s8_sgw_gtpu_teid);
+		set_ipv4_fteid(&cb_resp.bearer_contexts[idx].s58_u_sgw_fteid,
+			GTPV2C_IFTYPE_S5S8_SGW_GTPU, IE_INSTANCE_TWO, bearer->s5s8_sgw_gtpu_ipv4,
+			bearer->s5s8_sgw_gtpu_teid);
 
-	cb_resp.bearer_contexts.header.len += sizeof(struct fteid_ie_hdr_t) +
-		sizeof(struct in_addr) + IE_HEADER_SIZE;
-
+		cb_resp.bearer_contexts[idx].header.len += sizeof(struct fteid_ie_hdr_t) +
+			sizeof(struct in_addr) + IE_HEADER_SIZE;
+		}
+	}
+	cb_resp.bearer_cnt = resp->bearer_count;
 	uint16_t msg_len = 0;
 	msg_len = encode_create_bearer_rsp(&cb_resp, (uint8_t *)gtpv2c_tx);
 	gtpv2c_tx->gtpc.message_len = htons(msg_len - 4);
+	return 0;
 }
 
 /**
@@ -581,8 +699,7 @@ create_dedicated_bearer(gtpv2c_header_t *gtpv2c_rx,
 	ded_bearer->qos.arp.priority_level = DEFAULT_BEARER_QOS_PRIORITY;
 
 	set_create_bearer_request(gtpv2c_tx, gtpv2c_rx->teid.has_teid.seq,
-	    brc->context, ded_bearer,
-	    IE_TYPE_PTR_FROM_GTPV2C_IE(eps_bearer_id_ie,
+	    brc->pdn, IE_TYPE_PTR_FROM_GTPV2C_IE(eps_bearer_id_ie,
 			    brc->linked_eps_bearer_id)->ebi,
 	    *IE_TYPE_PTR_FROM_GTPV2C_IE(uint8_t,
 			    brc->procedure_transaction_id), NULL, 0);
@@ -638,7 +755,7 @@ delete_packet_filter(gtpv2c_header_t *gtpv2c_rx,
 		/* we delete this bearer */
 		set_gtpv2c_teid_header(gtpv2c_tx, GTP_DELETE_BEARER_REQ,
 			brc->context->s11_mme_gtpc_teid,
-			gtpv2c_rx->teid.has_teid.seq);
+			gtpv2c_rx->teid.has_teid.seq, 0);
 
 		set_ebi_ie(gtpv2c_tx, IE_INSTANCE_ONE, b->eps_bearer_id);
 		set_pti_ie(gtpv2c_tx, IE_INSTANCE_ZERO,

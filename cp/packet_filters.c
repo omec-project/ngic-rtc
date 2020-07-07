@@ -77,6 +77,7 @@ uint16_t dlambr_idx;
  */
 static uint32_t name_to_num(const char *name)
 {
+	/*TODO : change strlen with strnlen with proper size (n)*/
 	uint32_t num = 0;
 	int i;
 

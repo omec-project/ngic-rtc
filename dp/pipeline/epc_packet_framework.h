@@ -65,6 +65,7 @@ extern uint64_t num_dns_processed;
 #define DL_PKT_POOL_SIZE (1024 * 32)
 #define DL_PKT_POOL_CACHE_SIZE 32
 #define DL_PKTS_RING_SIZE 1024
+#define UL_PKTS_RING_SIZE 1024
 
 /* Borrowed from dpdk ip_frag_internal.c */
 #define PRIME_VALUE	0xeaad8405
@@ -468,6 +469,8 @@ int arp_icmp_get_dest_mac_address(const uint32_t ipaddr,
  * @return : Returns nothing
  */
 void epc_arp(__rte_unused void *arg);
+
+void process_li_data();
 
 /**
  * @brief  : Initializes DNS processing resources

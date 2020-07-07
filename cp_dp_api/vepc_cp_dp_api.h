@@ -52,7 +52,7 @@
  */
 #define MAX_SDF_IDX_COUNT 16
 #define MAX_SDF_STR_LEN 4096
-
+#define MAX_LI_HDR_SIZE 2048
 /**
  * Maximum buffer/name length
  */
@@ -84,11 +84,20 @@
 /**
  * Get pdn from context and bearer id.
  */
-#define GET_PDN(x, i) (x->eps_bearers[i]->pdn)
+#define GET_PDN(x, i)                                                   \
+(								                                        \
+	((x != NULL)                                                        \
+	&& (i < MAX_BEARERS*2) && (x->eps_bearers[i] != NULL)) ? x->eps_bearers[i]->pdn : NULL     \
+)
 /**
  * default bearer session.
  */
 #define DEFAULT_BEARER 5
+
+/**
+ * get dupl flag (apply action) status
+ */
+#define GET_DUP_STATUS(context) (context->dupl)
 
 /**
  * get UE session id
@@ -479,6 +488,26 @@ struct msg_ue_cdr {
 							 * write new logs into cdr log file.*/
 } __attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
 
+typedef struct li_header_t {
+	struct flags {
+		uint8_t type:1;
+		uint8_t src:1;
+		uint8_t dst:1;
+		uint8_t df2:1;
+		uint8_t df3:1;
+		uint8_t spare:3;
+	} flags;
+
+	uint16_t len;
+	uint64_t imsi;
+	uint32_t src_ip;
+	uint16_t src_port;
+	uint32_t dst_ip;
+	uint16_t dst_port;
+	uint32_t df2_ip;
+	uint32_t df3_ip;
+} li_header_t;
+
 #ifdef DP_BUILD
 /**
  * @brief  : SDF Packet filter configuration structure.
@@ -533,6 +562,8 @@ build_endmarker_and_send(struct sess_info_endmark *edmk);
 #endif 	/* DP_BUILD */
 
 #define MAX_NB_DPN	8  /* Note: MAX_NB_DPN <= 8 */
+#define PRESENT 		1
+#define NOT_PRESENT		0
 
 /********************* SDF Pkt filter table ****************/
 /**
@@ -838,5 +869,13 @@ meter_profile_entry_delete(struct dp_id dp_id, struct mtr_entry mtr_entry);
  */
 int
 ue_cdr_flush(struct dp_id dp_id, struct msg_ue_cdr ue_cdr);
+
+int
+encode_li_header(li_header_t *header, uint8_t *buf);
+
+int8_t
+create_li_header(uint8_t *uiPayload, int *uiPayloadLen, uint8_t type,
+		uint64_t uiImsi, uint32_t uiSrcIp, uint32_t uiDstIp,
+		uint16_t uiSrcPort, uint16_t uiDstPort, uint32_t uiDdf2Ip, uint32_t uiDdf3Ip);
 
 #endif /* _CP_DP_API_H_ */

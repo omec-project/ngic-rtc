@@ -24,10 +24,16 @@
 
 #define CONNECTPEER  "ConnectPeer"
 
+/* EVENT TRIGGER SET BY PCRF ON PGWC */
 
+#define RAT_EVENT_TRIGGER           2
+#define RAI_EVENT_TRIGGER           12
 #define ULI_EVENT_TRIGGER           13
 #define UE_TIMEZONE_EVT_TRIGGER     25
-#define ECGI_AND_TAI_PRESENT        17
+#define TAI_EVENT_TRIGGER           26
+#define ECGI_EVENT_TRIGGER          27
+
+
 
 
 /*The above flag will be set bit wise as
@@ -53,13 +59,15 @@
 #define GX_SAI_TYPE                 0x01
 #define GX_RAI_TYPE                 0x02
 #define GX_CGI_TYPE                 0x00
+#define EVENT_TRIGGER_LIST           64
 
-
+#define GX_HEADER_LEN sizeof(uint8_t) + sizeof(uint16_t)
 
 enum diameter_error {
-	DIAMETER_UNKNOWN_SESSION_ID = 5002,
-	DIAMETER_ERROR_USER_UNKNOWN = 5030,
-	DIAMETER_UNABLE_TO_COMPLY =  5012
+    DIAMETER_UNKNOWN_SESSION_ID = 5002,
+	DIAMETER_MISSING_AVP = 5005,
+    DIAMETER_ERROR_USER_UNKNOWN = 5030,
+    DIAMETER_UNABLE_TO_COMPLY =  5012
 };
 
 /**

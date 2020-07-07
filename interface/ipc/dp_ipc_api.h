@@ -97,7 +97,7 @@ struct msgbuf {
 struct msgbuf sbuf;
 struct msgbuf rbuf;
 
-uint8_t pfcp_rx[1024]; /* TODO: Decide size */
+uint8_t pfcp_rx[2048]; /* TODO: Decide size */
 
 /* IPC msg node */
 struct ipc_node {

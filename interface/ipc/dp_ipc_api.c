@@ -42,9 +42,9 @@
 #include "../cp/state_machine/sm_struct.h"
 
 #ifdef GX_BUILD
-extern int gx_app_sock;
+extern int gx_app_sock_read;
 #endif /* GX_BUILD */
-
+extern volatile uint8_t recovery_flag;
 #endif /* CP_BUILD */
 
 //extern int errno;
@@ -132,7 +132,6 @@ void iface_process_ipc_msgs(void)
 {
 	int n = 0, rv = 0;
 	fd_set readfds = {0};
-	struct timeval tv = {0};
 	struct sockaddr_in peer_addr = {0};
 
 	FD_ZERO(&readfds);
@@ -157,7 +156,7 @@ void iface_process_ipc_msgs(void)
 #ifdef GX_BUILD
 	/* Add GX_FD in the set */
 	if ((spgw_cfg == PGWC ) || (spgw_cfg == SAEGWC)) {
-		FD_SET(gx_app_sock, &readfds);
+		FD_SET(gx_app_sock_read, &readfds);
 	}
 #endif /* GX_BUILD */
 
@@ -171,14 +170,14 @@ void iface_process_ipc_msgs(void)
 		max = (my_sock.sock_fd > my_sock.sock_fd_s11 ?
 				my_sock.sock_fd : my_sock.sock_fd_s11);
 #ifdef GX_BUILD
-		max = (gx_app_sock > max ? gx_app_sock : max);
+		max = (gx_app_sock_read > max ? gx_app_sock_read : max);
 #endif /* GX_BUILD */
 	}
 	if (spgw_cfg == PGWC) {
 		max = (my_sock.sock_fd > my_sock.sock_fd_s5s8 ?
 				my_sock.sock_fd : my_sock.sock_fd_s5s8);
 #ifdef GX_BUILD
-		max = (gx_app_sock > max ? gx_app_sock : max);
+		max = (gx_app_sock_read > max ? gx_app_sock_read : max);
 #endif /* GX_BUILD */
 	}
 
@@ -188,21 +187,30 @@ void iface_process_ipc_msgs(void)
 	n = my_sock.sock_fd + 1;
 
 #endif
-	/* wait until either socket has data
-	 *  ready to be recv()d (timeout 10.5 secs)
-	 */
-#ifdef NGCORE_SHRINK
-	tv.tv_sec = 1;
-	tv.tv_usec = 500000;
-#else
-	tv.tv_sec = 10;
-	tv.tv_usec = 500000;
-#endif
-	rv = select(n, &readfds, NULL, NULL, &tv);
+	rv = select(n, &readfds, NULL, NULL, NULL);
 	if (rv == -1) {
 		/*TODO: Need to Fix*/
 		//perror("select"); /* error occurred in select() */
 	} else if (rv > 0) {
+		/* when recovery mode is initiate, only pfcp message we handle, and other msg is in socket queue */
+#ifdef CP_BUILD
+		if (recovery_flag == 1) {
+			if (FD_ISSET(my_sock.sock_fd, &readfds)) {
+					process_pfcp_msg(pfcp_rx, &peer_addr);
+			} else {
+				return;
+			}
+		}
+#ifdef GX_BUILD
+		if ((spgw_cfg == PGWC) || (spgw_cfg == SAEGWC)) {
+			if (FD_ISSET(gx_app_sock_read, &readfds)) {
+					msg_handler_gx();
+			}
+		}
+#endif  /* GX_BUILD */
+
+#endif /* CP_BUILD */
+
 		/* one or both of the descriptors have data */
 		if (FD_ISSET(my_sock.sock_fd, &readfds))
 				process_pfcp_msg(pfcp_rx, &peer_addr);
@@ -219,13 +227,6 @@ void iface_process_ipc_msgs(void)
 			}
 		}
 
-#ifdef GX_BUILD
-		if ((spgw_cfg == PGWC) || (spgw_cfg == SAEGWC)) {
-			if (FD_ISSET(gx_app_sock, &readfds)) {
-					msg_handler_gx();
-			}
-		}
-#endif  /* GX_BUILD */
 #endif
 
 	}

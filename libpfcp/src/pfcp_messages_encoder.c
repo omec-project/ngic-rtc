@@ -173,94 +173,94 @@ int encode_pfcp_create_urr_ie_t(pfcp_create_urr_ie_t *value,
     enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
 
     if (value->urr_id.header.len)
-        enc_len += encode_pfcp_urr_id_ie_t(&(value->urr_id), buf + enc_len);
+        enc_len += encode_pfcp_urr_id_ie_t(&(value->urr_id), buf + (enc_len/CHAR_SIZE));
 
     if (value->meas_mthd.header.len)
-        enc_len += encode_pfcp_meas_mthd_ie_t(&(value->meas_mthd), buf + enc_len);
+        enc_len += encode_pfcp_meas_mthd_ie_t(&(value->meas_mthd), buf + (enc_len/CHAR_SIZE));
 
     if (value->rptng_triggers.header.len)
-        enc_len += encode_pfcp_rptng_triggers_ie_t(&(value->rptng_triggers), buf + enc_len);
+        enc_len += encode_pfcp_rptng_triggers_ie_t(&(value->rptng_triggers), buf + (enc_len/CHAR_SIZE));
 
     if (value->meas_period.header.len)
-        enc_len += encode_pfcp_meas_period_ie_t(&(value->meas_period), buf + enc_len);
+        enc_len += encode_pfcp_meas_period_ie_t(&(value->meas_period), buf + (enc_len/CHAR_SIZE));
 
     if (value->vol_thresh.header.len)
-        enc_len += encode_pfcp_vol_thresh_ie_t(&(value->vol_thresh), buf + enc_len);
+        enc_len += encode_pfcp_vol_thresh_ie_t(&(value->vol_thresh), buf + (enc_len/CHAR_SIZE));
 
     if (value->volume_quota.header.len)
-        enc_len += encode_pfcp_volume_quota_ie_t(&(value->volume_quota), buf + enc_len);
+        enc_len += encode_pfcp_volume_quota_ie_t(&(value->volume_quota), buf + (enc_len/CHAR_SIZE));
 
     if (value->event_threshold.header.len)
-        enc_len += encode_pfcp_event_threshold_ie_t(&(value->event_threshold), buf + enc_len);
+        enc_len += encode_pfcp_event_threshold_ie_t(&(value->event_threshold), buf + (enc_len/CHAR_SIZE));
 
     if (value->event_quota.header.len)
-        enc_len += encode_pfcp_event_quota_ie_t(&(value->event_quota), buf + enc_len);
+        enc_len += encode_pfcp_event_quota_ie_t(&(value->event_quota), buf + (enc_len/CHAR_SIZE));
 
     if (value->time_threshold.header.len)
-        enc_len += encode_pfcp_time_threshold_ie_t(&(value->time_threshold), buf + enc_len);
+        enc_len += encode_pfcp_time_threshold_ie_t(&(value->time_threshold), buf + (enc_len/CHAR_SIZE));
 
     if (value->time_quota.header.len)
-        enc_len += encode_pfcp_time_quota_ie_t(&(value->time_quota), buf + enc_len);
+        enc_len += encode_pfcp_time_quota_ie_t(&(value->time_quota), buf + (enc_len/CHAR_SIZE));
 
     if (value->quota_hldng_time.header.len)
-        enc_len += encode_pfcp_quota_hldng_time_ie_t(&(value->quota_hldng_time), buf + enc_len);
+        enc_len += encode_pfcp_quota_hldng_time_ie_t(&(value->quota_hldng_time), buf + (enc_len/CHAR_SIZE));
 
     if (value->drpd_dl_traffic_thresh.header.len)
-        enc_len += encode_pfcp_drpd_dl_traffic_thresh_ie_t(&(value->drpd_dl_traffic_thresh), buf + enc_len);
+        enc_len += encode_pfcp_drpd_dl_traffic_thresh_ie_t(&(value->drpd_dl_traffic_thresh), buf + (enc_len/CHAR_SIZE));
 
     if (value->monitoring_time.header.len)
-        enc_len += encode_pfcp_monitoring_time_ie_t(&(value->monitoring_time), buf + enc_len);
+        enc_len += encode_pfcp_monitoring_time_ie_t(&(value->monitoring_time), buf + (enc_len/CHAR_SIZE));
 
     if (value->sbsqnt_vol_thresh.header.len)
-        enc_len += encode_pfcp_sbsqnt_vol_thresh_ie_t(&(value->sbsqnt_vol_thresh), buf + enc_len);
+        enc_len += encode_pfcp_sbsqnt_vol_thresh_ie_t(&(value->sbsqnt_vol_thresh), buf + (enc_len/CHAR_SIZE));
 
     if (value->sbsqnt_time_thresh.header.len)
-        enc_len += encode_pfcp_sbsqnt_time_thresh_ie_t(&(value->sbsqnt_time_thresh), buf + enc_len);
+        enc_len += encode_pfcp_sbsqnt_time_thresh_ie_t(&(value->sbsqnt_time_thresh), buf + (enc_len/CHAR_SIZE));
 
     if (value->sbsqnt_vol_quota.header.len)
-        enc_len += encode_pfcp_sbsqnt_vol_quota_ie_t(&(value->sbsqnt_vol_quota), buf + enc_len);
+        enc_len += encode_pfcp_sbsqnt_vol_quota_ie_t(&(value->sbsqnt_vol_quota), buf + (enc_len/CHAR_SIZE));
 
     if (value->sbsqnt_time_quota.header.len)
-        enc_len += encode_pfcp_sbsqnt_time_quota_ie_t(&(value->sbsqnt_time_quota), buf + enc_len);
+        enc_len += encode_pfcp_sbsqnt_time_quota_ie_t(&(value->sbsqnt_time_quota), buf + (enc_len/CHAR_SIZE));
 
     if (value->sbsqnt_evnt_thresh.header.len)
-        enc_len += encode_pfcp_sbsqnt_evnt_thresh_ie_t(&(value->sbsqnt_evnt_thresh), buf + enc_len);
+        enc_len += encode_pfcp_sbsqnt_evnt_thresh_ie_t(&(value->sbsqnt_evnt_thresh), buf + (enc_len/CHAR_SIZE));
 
     if (value->sbsqnt_evnt_quota.header.len)
-        enc_len += encode_pfcp_sbsqnt_evnt_quota_ie_t(&(value->sbsqnt_evnt_quota), buf + enc_len);
+        enc_len += encode_pfcp_sbsqnt_evnt_quota_ie_t(&(value->sbsqnt_evnt_quota), buf + (enc_len/CHAR_SIZE));
 
     if (value->inact_det_time.header.len)
-        enc_len += encode_pfcp_inact_det_time_ie_t(&(value->inact_det_time), buf + enc_len);
+        enc_len += encode_pfcp_inact_det_time_ie_t(&(value->inact_det_time), buf + (enc_len/CHAR_SIZE));
 
     if (value->meas_info.header.len)
-        enc_len += encode_pfcp_meas_info_ie_t(&(value->meas_info), buf + enc_len);
+        enc_len += encode_pfcp_meas_info_ie_t(&(value->meas_info), buf + (enc_len/CHAR_SIZE));
 
     if (value->time_quota_mech.header.len)
-        enc_len += encode_pfcp_time_quota_mech_ie_t(&(value->time_quota_mech), buf + enc_len);
+        enc_len += encode_pfcp_time_quota_mech_ie_t(&(value->time_quota_mech), buf + (enc_len/CHAR_SIZE));
 
     if (value->far_id_for_quota_act.header.len)
-        enc_len += encode_pfcp_far_id_ie_t(&(value->far_id_for_quota_act), buf + enc_len);
+        enc_len += encode_pfcp_far_id_ie_t(&(value->far_id_for_quota_act), buf + (enc_len/CHAR_SIZE));
 
     if (value->eth_inact_timer.header.len)
-        enc_len += encode_pfcp_eth_inact_timer_ie_t(&(value->eth_inact_timer), buf + enc_len);
+        enc_len += encode_pfcp_eth_inact_timer_ie_t(&(value->eth_inact_timer), buf + (enc_len/CHAR_SIZE));
 
     for (uint8_t i = 0; i < value->linked_urr_id_count; i++) {
         if (value->linked_urr_id[i].header.len)
-            enc_len += encode_pfcp_linked_urr_id_ie_t(&(value->linked_urr_id[i]), buf + enc_len);
+            enc_len += encode_pfcp_linked_urr_id_ie_t(&(value->linked_urr_id[i]), buf + (enc_len/CHAR_SIZE));
     }
 
     for (uint8_t i = 0; i < value->aggregated_urrs_count; i++) {
         if (value->aggregated_urrs[i].header.len)
-            enc_len += encode_pfcp_aggregated_urrs_ie_t(&(value->aggregated_urrs[i]), buf + enc_len);
+            enc_len += encode_pfcp_aggregated_urrs_ie_t(&(value->aggregated_urrs[i]), buf + (enc_len/CHAR_SIZE));
     }
 
     for (uint8_t i = 0; i < value->add_mntrng_time_count; i++) {
         if (value->add_mntrng_time[i].header.len)
-            enc_len += encode_pfcp_add_mntrng_time_ie_t(&(value->add_mntrng_time[i]), buf + enc_len);
+            enc_len += encode_pfcp_add_mntrng_time_ie_t(&(value->add_mntrng_time[i]), buf + (enc_len/CHAR_SIZE));
     }
 
 
-    return enc_len;
+    return (enc_len/CHAR_SIZE);
 }
 
 /**
@@ -379,11 +379,11 @@ int encode_pfcp_create_far_ie_t(pfcp_create_far_ie_t *value,
 		enc_len += encode_pfcp_frwdng_parms_ie_t(&(value->frwdng_parms), buf + (enc_len/CHAR_SIZE));
 
 	if (value->bar_id.header.len)
-		enc_len += encode_pfcp_bar_id_ie_t(&(value->bar_id), buf + enc_len);
+		enc_len += encode_pfcp_bar_id_ie_t(&(value->bar_id), buf + (enc_len/CHAR_SIZE));
 
 	for (uint8_t i = 0; i < value->dupng_parms_count; i++) {
 		if (value->dupng_parms[i].header.len)
-			enc_len += encode_pfcp_dupng_parms_ie_t(&(value->dupng_parms[i]), buf + enc_len);
+			enc_len += encode_pfcp_dupng_parms_ie_t(&(value->dupng_parms[i]), buf + (enc_len/CHAR_SIZE));
 	}
 
 	return enc_len/CHAR_SIZE;
@@ -560,7 +560,7 @@ int encode_pfcp_upd_bar_sess_rpt_rsp_ie_t(pfcp_upd_bar_sess_rpt_rsp_ie_t *value,
  *   number of encoded bytes.
  */
 int encode_pfcp_sess_mod_req_t(pfcp_sess_mod_req_t *value,
-		uint8_t *buf)
+		uint8_t *buf, sx_intf_t intf_type)
 {
 	uint16_t enc_len = 0;
 
@@ -595,23 +595,30 @@ int encode_pfcp_sess_mod_req_t(pfcp_sess_mod_req_t *value,
 		enc_len += encode_pfcp_pfcpsmreq_flags_ie_t(&(value->pfcpsmreq_flags), buf + enc_len);
 	}
 
-	if (value->pgw_c_fqcsid.header.len) {
-		enc_len += encode_pfcp_fqcsid_ie_t(&(value->pgw_c_fqcsid), buf + enc_len);
-	}
+    if ((intf_type == Sxa) || (intf_type == Sxb) || (intf_type == Sxa_Sxb)) {
+        if (value->pgw_c_fqcsid.header.len)
+            enc_len += encode_pfcp_fqcsid_ie_t(&(value->pgw_c_fqcsid), buf + enc_len);
+    }
 
-	if (value->sgw_c_fqcsid.header.len) {
-		enc_len += encode_pfcp_fqcsid_ie_t(&(value->sgw_c_fqcsid), buf + enc_len);
-	}
+    if ((intf_type == Sxa) || (intf_type == Sxb) || (intf_type == Sxa_Sxb)) {
+        if (value->sgw_c_fqcsid.header.len)
+            enc_len += encode_pfcp_fqcsid_ie_t(&(value->sgw_c_fqcsid), buf + enc_len);
+    }
 
-	if (value->mme_fqcsid.header.len) {
-		enc_len += encode_pfcp_fqcsid_ie_t(&(value->mme_fqcsid), buf + enc_len);
-	}
+    if ((intf_type == Sxa) || (intf_type == Sxb) || (intf_type == Sxa_Sxb)) {
+        if (value->mme_fqcsid.header.len)
+            enc_len += encode_pfcp_fqcsid_ie_t(&(value->mme_fqcsid), buf + enc_len);
+    }
 
-	if (value->epdg_fqcsid.header.len)
-		enc_len += encode_pfcp_fqcsid_ie_t(&(value->epdg_fqcsid), buf + enc_len);
+    if ((intf_type == Sxb) || (intf_type == Sxa_Sxb)) {
+        if (value->epdg_fqcsid.header.len)
+            enc_len += encode_pfcp_fqcsid_ie_t(&(value->epdg_fqcsid), buf + enc_len);
+    }
 
-	if (value->twan_fqcsid.header.len)
-		enc_len += encode_pfcp_fqcsid_ie_t(&(value->twan_fqcsid), buf + enc_len);
+    if ((intf_type == Sxb) || (intf_type == Sxa_Sxb)) {
+        if (value->twan_fqcsid.header.len)
+            enc_len += encode_pfcp_fqcsid_ie_t(&(value->twan_fqcsid), buf + enc_len);
+    }
 
 	if (value->user_plane_inact_timer.header.len)
 		enc_len += encode_pfcp_user_plane_inact_timer_ie_t(&(value->user_plane_inact_timer), buf + enc_len);
@@ -704,43 +711,43 @@ int encode_pfcp_usage_rpt_sess_mod_rsp_ie_t(pfcp_usage_rpt_sess_mod_rsp_ie_t *va
 	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
 
 	if (value->urr_id.header.len)
-		enc_len += encode_pfcp_urr_id_ie_t(&(value->urr_id), buf + enc_len);
+		enc_len += encode_pfcp_urr_id_ie_t(&(value->urr_id), buf + (enc_len/CHAR_SIZE));
 
 	if (value->urseqn.header.len)
-		enc_len += encode_pfcp_urseqn_ie_t(&(value->urseqn), buf + enc_len);
+		enc_len += encode_pfcp_urseqn_ie_t(&(value->urseqn), buf + (enc_len/CHAR_SIZE));
 
 	if (value->usage_rpt_trig.header.len)
-		enc_len += encode_pfcp_usage_rpt_trig_ie_t(&(value->usage_rpt_trig), buf + enc_len);
+		enc_len += encode_pfcp_usage_rpt_trig_ie_t(&(value->usage_rpt_trig), buf + (enc_len/CHAR_SIZE));
 
 	if (value->start_time.header.len)
-		enc_len += encode_pfcp_start_time_ie_t(&(value->start_time), buf + enc_len);
+		enc_len += encode_pfcp_start_time_ie_t(&(value->start_time), buf + (enc_len/CHAR_SIZE));
 
 	if (value->end_time.header.len)
-		enc_len += encode_pfcp_end_time_ie_t(&(value->end_time), buf + enc_len);
+		enc_len += encode_pfcp_end_time_ie_t(&(value->end_time), buf + (enc_len/CHAR_SIZE));
 
 	if (value->vol_meas.header.len)
-		enc_len += encode_pfcp_vol_meas_ie_t(&(value->vol_meas), buf + enc_len);
+		enc_len += encode_pfcp_vol_meas_ie_t(&(value->vol_meas), buf + (enc_len/CHAR_SIZE));
 
 	if (value->dur_meas.header.len)
-		enc_len += encode_pfcp_dur_meas_ie_t(&(value->dur_meas), buf + enc_len);
+		enc_len += encode_pfcp_dur_meas_ie_t(&(value->dur_meas), buf + (enc_len/CHAR_SIZE));
 
 	if (value->time_of_frst_pckt.header.len)
-		enc_len += encode_pfcp_time_of_frst_pckt_ie_t(&(value->time_of_frst_pckt), buf + enc_len);
+		enc_len += encode_pfcp_time_of_frst_pckt_ie_t(&(value->time_of_frst_pckt), buf + (enc_len/CHAR_SIZE));
 
 	if (value->time_of_lst_pckt.header.len)
-		enc_len += encode_pfcp_time_of_lst_pckt_ie_t(&(value->time_of_lst_pckt), buf + enc_len);
+		enc_len += encode_pfcp_time_of_lst_pckt_ie_t(&(value->time_of_lst_pckt), buf + (enc_len/CHAR_SIZE));
 
 	if (value->usage_info.header.len)
-		enc_len += encode_pfcp_usage_info_ie_t(&(value->usage_info), buf + enc_len);
+		enc_len += encode_pfcp_usage_info_ie_t(&(value->usage_info), buf + (enc_len/CHAR_SIZE));
 
 	if (value->query_urr_ref.header.len)
-		enc_len += encode_pfcp_query_urr_ref_ie_t(&(value->query_urr_ref), buf + enc_len);
+		enc_len += encode_pfcp_query_urr_ref_ie_t(&(value->query_urr_ref), buf + (enc_len/CHAR_SIZE));
 
 	if (value->eth_traffic_info.header.len)
-		enc_len += encode_pfcp_eth_traffic_info_ie_t(&(value->eth_traffic_info), buf + enc_len);
+		enc_len += encode_pfcp_eth_traffic_info_ie_t(&(value->eth_traffic_info), buf + (enc_len/CHAR_SIZE));
 
 
-	return enc_len;
+	return enc_len/CHAR_SIZE;
 }
 
 /**
@@ -815,40 +822,40 @@ int encode_pfcp_usage_rpt_sess_del_rsp_ie_t(pfcp_usage_rpt_sess_del_rsp_ie_t *va
 	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
 
 	if (value->urr_id.header.len)
-		enc_len += encode_pfcp_urr_id_ie_t(&(value->urr_id), buf + enc_len);
+		enc_len += encode_pfcp_urr_id_ie_t(&(value->urr_id), buf + (enc_len/CHAR_SIZE));
 
 	if (value->urseqn.header.len)
-		enc_len += encode_pfcp_urseqn_ie_t(&(value->urseqn), buf + enc_len);
+		enc_len += encode_pfcp_urseqn_ie_t(&(value->urseqn), buf + (enc_len/CHAR_SIZE));
 
 	if (value->usage_rpt_trig.header.len)
-		enc_len += encode_pfcp_usage_rpt_trig_ie_t(&(value->usage_rpt_trig), buf + enc_len);
+		enc_len += encode_pfcp_usage_rpt_trig_ie_t(&(value->usage_rpt_trig), buf + (enc_len/CHAR_SIZE));
 
 	if (value->start_time.header.len)
-		enc_len += encode_pfcp_start_time_ie_t(&(value->start_time), buf + enc_len);
+		enc_len += encode_pfcp_start_time_ie_t(&(value->start_time), buf + (enc_len/CHAR_SIZE));
 
 	if (value->end_time.header.len)
-		enc_len += encode_pfcp_end_time_ie_t(&(value->end_time), buf + enc_len);
+		enc_len += encode_pfcp_end_time_ie_t(&(value->end_time), buf + (enc_len/CHAR_SIZE));
 
 	if (value->vol_meas.header.len)
-		enc_len += encode_pfcp_vol_meas_ie_t(&(value->vol_meas), buf + enc_len);
+		enc_len += encode_pfcp_vol_meas_ie_t(&(value->vol_meas), buf + (enc_len/CHAR_SIZE));
 
 	if (value->dur_meas.header.len)
-		enc_len += encode_pfcp_dur_meas_ie_t(&(value->dur_meas), buf + enc_len);
+		enc_len += encode_pfcp_dur_meas_ie_t(&(value->dur_meas), buf + (enc_len/CHAR_SIZE));
 
 	if (value->time_of_frst_pckt.header.len)
-		enc_len += encode_pfcp_time_of_frst_pckt_ie_t(&(value->time_of_frst_pckt), buf + enc_len);
+		enc_len += encode_pfcp_time_of_frst_pckt_ie_t(&(value->time_of_frst_pckt), buf + (enc_len/CHAR_SIZE));
 
 	if (value->time_of_lst_pckt.header.len)
-		enc_len += encode_pfcp_time_of_lst_pckt_ie_t(&(value->time_of_lst_pckt), buf + enc_len);
+		enc_len += encode_pfcp_time_of_lst_pckt_ie_t(&(value->time_of_lst_pckt), buf + (enc_len/CHAR_SIZE));
 
 	if (value->usage_info.header.len)
-		enc_len += encode_pfcp_usage_info_ie_t(&(value->usage_info), buf + enc_len);
+		enc_len += encode_pfcp_usage_info_ie_t(&(value->usage_info), buf + (enc_len/CHAR_SIZE));
 
 	if (value->eth_traffic_info.header.len)
-		enc_len += encode_pfcp_eth_traffic_info_ie_t(&(value->eth_traffic_info), buf + enc_len);
+		enc_len += encode_pfcp_eth_traffic_info_ie_t(&(value->eth_traffic_info), buf + (enc_len/CHAR_SIZE));
 
 
-	return enc_len;
+	return (enc_len/CHAR_SIZE);
 }
 
 /**
@@ -926,57 +933,57 @@ int encode_pfcp_usage_rpt_sess_rpt_req_ie_t(pfcp_usage_rpt_sess_rpt_req_ie_t *va
 	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
 
 	if (value->urr_id.header.len)
-		enc_len += encode_pfcp_urr_id_ie_t(&(value->urr_id), buf + enc_len);
+		enc_len += encode_pfcp_urr_id_ie_t(&(value->urr_id), buf + (enc_len/CHAR_SIZE));
 
 	if (value->urseqn.header.len)
-		enc_len += encode_pfcp_urseqn_ie_t(&(value->urseqn), buf + enc_len);
+		enc_len += encode_pfcp_urseqn_ie_t(&(value->urseqn), buf + (enc_len/CHAR_SIZE));
 
 	if (value->usage_rpt_trig.header.len)
-		enc_len += encode_pfcp_usage_rpt_trig_ie_t(&(value->usage_rpt_trig), buf + enc_len);
+		enc_len += encode_pfcp_usage_rpt_trig_ie_t(&(value->usage_rpt_trig), buf + (enc_len/CHAR_SIZE));
 
 	if (value->start_time.header.len)
-		enc_len += encode_pfcp_start_time_ie_t(&(value->start_time), buf + enc_len);
+		enc_len += encode_pfcp_start_time_ie_t(&(value->start_time), buf + (enc_len/CHAR_SIZE));
 
 	if (value->end_time.header.len)
-		enc_len += encode_pfcp_end_time_ie_t(&(value->end_time), buf + enc_len);
+		enc_len += encode_pfcp_end_time_ie_t(&(value->end_time), buf + (enc_len/CHAR_SIZE));
 
 	if (value->vol_meas.header.len)
-		enc_len += encode_pfcp_vol_meas_ie_t(&(value->vol_meas), buf + enc_len);
+		enc_len += encode_pfcp_vol_meas_ie_t(&(value->vol_meas), buf + (enc_len/CHAR_SIZE));
 
 	if (value->dur_meas.header.len)
-		enc_len += encode_pfcp_dur_meas_ie_t(&(value->dur_meas), buf + enc_len);
+		enc_len += encode_pfcp_dur_meas_ie_t(&(value->dur_meas), buf + (enc_len/CHAR_SIZE));
 
 	if (value->app_det_info.header.len)
-		enc_len += encode_pfcp_app_det_info_ie_t(&(value->app_det_info), buf + enc_len);
+		enc_len += encode_pfcp_app_det_info_ie_t(&(value->app_det_info), buf + (enc_len/CHAR_SIZE));
 
 	if (value->ue_ip_address.header.len)
-		enc_len += encode_pfcp_ue_ip_address_ie_t(&(value->ue_ip_address), buf + enc_len);
+		enc_len += encode_pfcp_ue_ip_address_ie_t(&(value->ue_ip_address), buf + (enc_len/CHAR_SIZE));
 
 	if (value->ntwk_inst.header.len)
-		enc_len += encode_pfcp_ntwk_inst_ie_t(&(value->ntwk_inst), buf + enc_len);
+		enc_len += encode_pfcp_ntwk_inst_ie_t(&(value->ntwk_inst), buf + (enc_len/CHAR_SIZE));
 
 	if (value->time_of_frst_pckt.header.len)
-		enc_len += encode_pfcp_time_of_frst_pckt_ie_t(&(value->time_of_frst_pckt), buf + enc_len);
+		enc_len += encode_pfcp_time_of_frst_pckt_ie_t(&(value->time_of_frst_pckt), buf + (enc_len/CHAR_SIZE));
 
 	if (value->time_of_lst_pckt.header.len)
-		enc_len += encode_pfcp_time_of_lst_pckt_ie_t(&(value->time_of_lst_pckt), buf + enc_len);
+		enc_len += encode_pfcp_time_of_lst_pckt_ie_t(&(value->time_of_lst_pckt), buf + (enc_len/CHAR_SIZE));
 
 	if (value->usage_info.header.len)
-		enc_len += encode_pfcp_usage_info_ie_t(&(value->usage_info), buf + enc_len);
+		enc_len += encode_pfcp_usage_info_ie_t(&(value->usage_info), buf + (enc_len/CHAR_SIZE));
 
 	if (value->query_urr_ref.header.len)
-		enc_len += encode_pfcp_query_urr_ref_ie_t(&(value->query_urr_ref), buf + enc_len);
+		enc_len += encode_pfcp_query_urr_ref_ie_t(&(value->query_urr_ref), buf + (enc_len/CHAR_SIZE));
 
 	if (value->eth_traffic_info.header.len)
-		enc_len += encode_pfcp_eth_traffic_info_ie_t(&(value->eth_traffic_info), buf + enc_len);
+		enc_len += encode_pfcp_eth_traffic_info_ie_t(&(value->eth_traffic_info), buf + (enc_len/CHAR_SIZE));
 
 	for (uint8_t i = 0; i < value->evnt_time_stmp_count; i++) {
 		if (value->evnt_time_stmp[i].header.len)
-			enc_len += encode_pfcp_evnt_time_stmp_ie_t(&(value->evnt_time_stmp[i]), buf + enc_len);
+			enc_len += encode_pfcp_evnt_time_stmp_ie_t(&(value->evnt_time_stmp[i]), buf + (enc_len/CHAR_SIZE));
 	}
 
 
-	return enc_len;
+	return (enc_len/CHAR_SIZE);
 }
 
 /**
@@ -1162,6 +1169,9 @@ int encode_pfcp_sess_mod_rsp_t(pfcp_sess_mod_rsp_t *value,
 	if (value->cause.header.len)
 		enc_len += encode_pfcp_cause_ie_t(&(value->cause), buf + enc_len);
 
+	if (value->sgw_u_fqcsid.header.len)
+		enc_len += encode_pfcp_fqcsid_ie_t(&(value->sgw_u_fqcsid), buf + enc_len);
+
 	if (value->offending_ie.header.len)
 		enc_len += encode_pfcp_offending_ie_ie_t(&(value->offending_ie), buf + enc_len);
 
@@ -1306,16 +1316,16 @@ int encode_pfcp_upd_dupng_parms_ie_t(pfcp_upd_dupng_parms_ie_t *value,
 	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
 
 	if (value->dst_intfc.header.len)
-		enc_len += encode_pfcp_dst_intfc_ie_t(&(value->dst_intfc), buf + enc_len);
+		enc_len += encode_pfcp_dst_intfc_ie_t(&(value->dst_intfc), buf + (enc_len/CHAR_SIZE));
 
 	if (value->outer_hdr_creation.header.len)
-		enc_len += encode_pfcp_outer_hdr_creation_ie_t(&(value->outer_hdr_creation), buf + enc_len);
+		enc_len += encode_pfcp_outer_hdr_creation_ie_t(&(value->outer_hdr_creation), buf + (enc_len/CHAR_SIZE));
 
 	if (value->trnspt_lvl_marking.header.len)
-		enc_len += encode_pfcp_trnspt_lvl_marking_ie_t(&(value->trnspt_lvl_marking), buf + enc_len);
+		enc_len += encode_pfcp_trnspt_lvl_marking_ie_t(&(value->trnspt_lvl_marking), buf + (enc_len/CHAR_SIZE));
 
 	if (value->frwdng_plcy.header.len)
-		enc_len += encode_pfcp_frwdng_plcy_ie_t(&(value->frwdng_plcy), buf + enc_len);
+		enc_len += encode_pfcp_frwdng_plcy_ie_t(&(value->frwdng_plcy), buf + (enc_len/CHAR_SIZE));
 
 
 	return enc_len;
@@ -1385,16 +1395,16 @@ int encode_pfcp_dupng_parms_ie_t(pfcp_dupng_parms_ie_t *value,
 	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
 
 	if (value->dst_intfc.header.len)
-		enc_len += encode_pfcp_dst_intfc_ie_t(&(value->dst_intfc), buf + enc_len);
+		enc_len += encode_pfcp_dst_intfc_ie_t(&(value->dst_intfc), buf + (enc_len/CHAR_SIZE));
 
 	if (value->outer_hdr_creation.header.len)
-		enc_len += encode_pfcp_outer_hdr_creation_ie_t(&(value->outer_hdr_creation), buf + enc_len);
+		enc_len += encode_pfcp_outer_hdr_creation_ie_t(&(value->outer_hdr_creation), buf + (enc_len/CHAR_SIZE));
 
 	if (value->trnspt_lvl_marking.header.len)
-		enc_len += encode_pfcp_trnspt_lvl_marking_ie_t(&(value->trnspt_lvl_marking), buf + enc_len);
+		enc_len += encode_pfcp_trnspt_lvl_marking_ie_t(&(value->trnspt_lvl_marking), buf + (enc_len/CHAR_SIZE));
 
 	if (value->frwdng_plcy.header.len)
-		enc_len += encode_pfcp_frwdng_plcy_ie_t(&(value->frwdng_plcy), buf + enc_len);
+		enc_len += encode_pfcp_frwdng_plcy_ie_t(&(value->frwdng_plcy), buf + (enc_len/CHAR_SIZE));
 
 
 	return enc_len;
@@ -1827,7 +1837,7 @@ int encode_pfcp_assn_upd_req_t(pfcp_assn_upd_req_t *value,
  *   number of encoded bytes.
  */
 int encode_pfcp_sess_estab_req_t(pfcp_sess_estab_req_t *value,
-		uint8_t *buf)
+		uint8_t *buf, sx_intf_t intf_type)
 {
 	uint16_t enc_len = 0;
 
@@ -1845,20 +1855,30 @@ int encode_pfcp_sess_estab_req_t(pfcp_sess_estab_req_t *value,
 	if (value->pdn_type.header.len)
 		enc_len += encode_pfcp_pdn_type_ie_t(&(value->pdn_type), buf + enc_len);
 
-	if (value->sgw_c_fqcsid.header.len)
-		enc_len += encode_pfcp_fqcsid_ie_t(&(value->sgw_c_fqcsid), buf + enc_len);
+	    if ((intf_type == Sxa) || (intf_type == Sxb) || (intf_type == Sxa_Sxb)) {
+		if (value->sgw_c_fqcsid.header.len)
+		    enc_len += encode_pfcp_fqcsid_ie_t(&(value->sgw_c_fqcsid), buf + enc_len);
+	    }
 
-	if (value->mme_fqcsid.header.len)
-		enc_len += encode_pfcp_fqcsid_ie_t(&(value->mme_fqcsid), buf + enc_len);
+	    if ((intf_type == Sxa) || (intf_type == Sxb) || (intf_type == Sxa_Sxb)) {
+		if (value->mme_fqcsid.header.len)
+		    enc_len += encode_pfcp_fqcsid_ie_t(&(value->mme_fqcsid), buf + enc_len);
+	    }
 
-	if (value->pgw_c_fqcsid.header.len)
-		enc_len += encode_pfcp_fqcsid_ie_t(&(value->pgw_c_fqcsid), buf + enc_len);
+    if ((intf_type == Sxa) || (intf_type == Sxb) || (intf_type == Sxa_Sxb)) {
+        if (value->pgw_c_fqcsid.header.len)
+            enc_len += encode_pfcp_fqcsid_ie_t(&(value->pgw_c_fqcsid), buf + enc_len);
+    }
 
-	if (value->epdg_fqcsid.header.len)
-		enc_len += encode_pfcp_fqcsid_ie_t(&(value->epdg_fqcsid), buf + enc_len);
+    if ((intf_type == Sxb) || (intf_type == Sxa_Sxb)) {
+        if (value->epdg_fqcsid.header.len)
+            enc_len += encode_pfcp_fqcsid_ie_t(&(value->epdg_fqcsid), buf + enc_len);
+    }
 
-	if (value->twan_fqcsid.header.len)
-		enc_len += encode_pfcp_fqcsid_ie_t(&(value->twan_fqcsid), buf + enc_len);
+    if ((intf_type == Sxb) || (intf_type == Sxa_Sxb)) {
+        if (value->twan_fqcsid.header.len)
+            enc_len += encode_pfcp_fqcsid_ie_t(&(value->twan_fqcsid), buf + enc_len);
+    }
 
 	if (value->user_plane_inact_timer.header.len)
 		enc_len += encode_pfcp_user_plane_inact_timer_ie_t(&(value->user_plane_inact_timer), buf + enc_len);
@@ -2212,7 +2232,7 @@ int encode_pfcp_update_far_ie_t(pfcp_update_far_ie_t *value,
 
 	for (uint8_t i = 0; i < value->upd_dupng_parms_count; i++) {
 		if (value->upd_dupng_parms[i].header.len)
-			enc_len += encode_pfcp_upd_dupng_parms_ie_t(&(value->upd_dupng_parms[i]), buf + enc_len);
+			enc_len += encode_pfcp_upd_dupng_parms_ie_t(&(value->upd_dupng_parms[i]), buf + (enc_len/CHAR_SIZE));
 	}
 
 
@@ -2382,7 +2402,7 @@ int encode_pfcp_add_mntrng_time_ie_t(pfcp_add_mntrng_time_ie_t *value,
  *   number of encoded bytes.
  */
 int encode_pfcp_sess_estab_rsp_t(pfcp_sess_estab_rsp_t *value,
-		uint8_t *buf)
+		uint8_t *buf, sx_intf_t intf_type)
 {
 	uint16_t enc_len = 0;
 
@@ -2409,11 +2429,15 @@ int encode_pfcp_sess_estab_rsp_t(pfcp_sess_estab_rsp_t *value,
 	if (value->ovrld_ctl_info.header.len)
 		enc_len += encode_pfcp_ovrld_ctl_info_ie_t(&(value->ovrld_ctl_info), buf + enc_len);
 
-	if (value->sgw_u_fqcsid.header.len)
-		enc_len += encode_pfcp_fqcsid_ie_t(&(value->sgw_u_fqcsid), buf + enc_len);
+    if ((intf_type == Sxa) || (intf_type == Sxa_Sxb)) {
+        if (value->sgw_u_fqcsid.header.len)
+            enc_len += encode_pfcp_fqcsid_ie_t(&(value->sgw_u_fqcsid), buf + enc_len);
+    }
 
-	if (value->pgw_u_fqcsid.header.len)
-		enc_len += encode_pfcp_fqcsid_ie_t(&(value->pgw_u_fqcsid), buf + enc_len);
+    if ((intf_type == Sxb) || (intf_type == Sxa_Sxb)) {
+        if (value->pgw_u_fqcsid.header.len)
+            enc_len += encode_pfcp_fqcsid_ie_t(&(value->pgw_u_fqcsid), buf + enc_len);
+    }
 
 	if (value->failed_rule_id.header.len)
 		enc_len += encode_pfcp_failed_rule_id_ie_t(&(value->failed_rule_id), buf + enc_len);

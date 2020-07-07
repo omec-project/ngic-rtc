@@ -313,10 +313,10 @@
 
 /* Inside pfcp_outer_hdr_creation_ie_t */
 #define DECODE_TEID_COND_1(buf, total_decoded, bit_count, decoded, value) \
-	if (value->outer_hdr_creation_desc) \
+if ((value->outer_hdr_creation_desc >> 8) == 1 || (value->outer_hdr_creation_desc >> 9) == 1)\
 { \
-	memcpy(&value->teid, buf + (total_decoded/CHAR_SIZE), 4); \
-	total_decoded += 4 * CHAR_SIZE; \
+	value->teid = decode_bits(buf, total_decoded, bit_count, &decoded);\
+	total_decoded += decoded; \
 }
 
 /* Inside pfcp_user_plane_ip_rsrc_info_ie_t */
@@ -337,7 +337,11 @@
 
 /* Inside pfcp_outer_hdr_creation_ie_t */
 #define DECODE_PORT_NUMBER_COND_1(buf, total_decoded, bit_count, decoded, value) \
-    /* To check */
+if ((value->outer_hdr_creation_desc >> 10) == 1 || (value->outer_hdr_creation_desc >> 11) == 1)\
+{\
+	value->port_number = decode_bits(buf, total_decoded, bit_count, &decoded);\
+	total_decoded += decoded; \
+}
 
 /* Inside pfcp_outer_hdr_creation_ie_t */
 #define DECODE_CTAG_COND_1(buf, total_decoded, bit_count, decoded, value) \
@@ -350,7 +354,8 @@
 /* Inside pfcp_outer_hdr_creation_ie_t */
 //if (value->outer_hdr_creation_desc)
 #define DECODE_IPV4_ADDRESS_COND_3(buf, total_decoded, bit_count, decoded, value) \
-if (1) \
+if ((value->outer_hdr_creation_desc >> 8) == 1 || (value->outer_hdr_creation_desc >> 10) == 1 \
+		                               || (value->outer_hdr_creation_desc >> 12) == 1)\
 { \
 	value->ipv4_address = decode_bits(buf, total_decoded, bit_count, &decoded); \
 	total_decoded += decoded; \
@@ -453,6 +458,7 @@ if (1) \
     if (value->tovol) \
     { \
         value->total_volume += decode_bits(buf, total_decoded, bit_count, &decoded); \
+		total_decoded += decoded; \
     }
 
 /* Inside pfcp_vol_thresh_ie_t */
@@ -460,6 +466,7 @@ if (1) \
     if (value->ulvol) \
     { \
         value->uplink_volume += decode_bits(buf, total_decoded, bit_count, &decoded); \
+		total_decoded += decoded; \
     }
 
 /* Inside pfcp_vol_thresh_ie_t */
@@ -467,6 +474,7 @@ if (1) \
     if (value->dlvol) \
     { \
         value->downlink_volume += decode_bits(buf, total_decoded, bit_count, &decoded); \
+		total_decoded += decoded; \
     }
 
 /* Inside pfcp_mac_address_ie_t */

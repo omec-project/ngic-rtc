@@ -192,7 +192,7 @@ static char* SET_FORMAT(char *str, uint64_t num)  {
 		}
 	}
 	str[cnt] = '\0';
-	int len = strlen(str);
+	int len = strnlen(str,MAX_FORMAT_LEN);
 	for (cnt = 0; cnt < (len/2); ++cnt) {
 		char tmp = str[cnt];
 		str[cnt] = str[len-cnt-1];
@@ -326,7 +326,7 @@ static void print_ul_perf_statistics(void) {
 			ul_perf_stats.op_time[i].duration, ul_perf_stats.op_time[i].max_time,
 			ul_perf_stats.op_time[i].max_burst_sz, ul_perf_stats.op_time[i].min_time,
 			ul_perf_stats.op_time[i].min_burst_sz);
-		char str[7][100] = {0};
+		char str[MAX_FORMAT_COUNT][MAX_FORMAT_LEN] = {0};
 		fprintf (ul_timer_stats_file, "%s|%s|%s|%s|%s|%s|%s\n",
 			SET_FORMAT(str[0], ul_perf_stats.no_of_bursts),
 			SET_FORMAT(str[1], ul_perf_stats.cumm_pkt_cnt),
@@ -346,8 +346,7 @@ static void print_ul_perf_statistics(void) {
 		++i) {
 		tot_duration += ul_perf_stats.op_time[i].duration;
 	}
-	printf ("Cum. time for all S1U operations: %lu\n", tot_duration);
-	char str[100] = {'\0'};
+	char str[MAX_FORMAT_LEN] = {'\0'};
 	fprintf (ul_timer_stats_file, "Cum. time for all S1U operations|-|%s\n",
 			SET_FORMAT(str, tot_duration));
 	if (fflush(ul_timer_stats_file))
@@ -437,7 +436,7 @@ static void print_dl_perf_statistics(void) {
 			dl_perf_stats.op_time[i].duration, dl_perf_stats.op_time[i].max_time,
 			dl_perf_stats.op_time[i].max_burst_sz, dl_perf_stats.op_time[i].min_time,
 			dl_perf_stats.op_time[i].min_burst_sz);
-		char str[7][100] = {0};
+		char str[MAX_FORMAT_COUNT][MAX_FORMAT_LEN] = {0};
 		fprintf (dl_timer_stats_file, "%s|%s|%s|%s|%s|%s|%s\n",
 			SET_FORMAT(str[0], dl_perf_stats.no_of_bursts),
 			SET_FORMAT(str[1], dl_perf_stats.cumm_pkt_cnt),
@@ -456,7 +455,7 @@ static void print_dl_perf_statistics(void) {
 		tot_duration += dl_perf_stats.op_time[i].duration;
 	}
 	printf ("Cum. time for all SGI operations: %lu\n", tot_duration);
-	char str[100] = {0};
+	char str[MAX_FORMAT_LEN] = {0};
 	fprintf (dl_timer_stats_file, "Cum. time for all SGI operations|-|%s\n",
 			SET_FORMAT(str, tot_duration));
 	if (fflush(dl_timer_stats_file))

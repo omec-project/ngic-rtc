@@ -12,7 +12,9 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 */
-
+#include <inttypes.h>
+#include <stdio.h>
+#include <stdint.h>
 #include "../include/gtp_ies_decoder.h"
 
 #include "../include/enc_dec_bits.h"
@@ -289,6 +291,28 @@ int decode_gtp_guti_ie(uint8_t *buf,
     return total_decoded/CHAR_SIZE;
 }
 
+
+void
+decode_imsi(uint8_t *buf, int len, uint64_t *imsi)
+{
+    char hex[16] = {0};
+    bool flag = false;
+
+    for(uint32_t i = 0; i < len; i++) {
+        if (i == len -1 && (((buf[i] & 0xF0)>>4) == 0x0F)) {
+            sprintf(hex + i*2 , "%02x", (buf[i] & 0x0F)<<4);
+            flag = true;
+        }
+        else
+            sprintf(hex + i*2 , "%02x",(((buf[i] & 0x0F)<<4) | ((buf[i] & 0xF0)>>4)));
+    }
+	sscanf(hex, "%lu", imsi);
+
+	if (flag)
+		*imsi /= 10;
+	return;
+}
+
 /**
 * decodes gtp_imsi_ie_t to buffer.
 * @param buf
@@ -307,7 +331,9 @@ int decode_gtp_imsi_ie(uint8_t *buf,
     // value->imsi_number_digits = decode_bits(buf, total_decoded, 64, &decoded);
     // total_decoded += decoded;
     /* TODO: Revisit this for change in yang */
-    memcpy(&value->imsi_number_digits, (uint8_t *)buf + total_decoded/CHAR_SIZE, value->header.len);
+    //memcpy(&value->imsi_number_digits, (uint8_t *)buf + total_decoded/CHAR_SIZE, value->header.len);
+    decode_imsi((uint8_t *)buf + total_decoded/CHAR_SIZE, value->header.len,
+                                                &value->imsi_number_digits);
     total_decoded += value->header.len * CHAR_SIZE;
     return total_decoded/CHAR_SIZE;
 }
@@ -777,7 +803,6 @@ int decode_gtp_fully_qual_domain_name_ie(uint8_t *buf,
 {
     uint16_t total_decoded = 0;
     total_decoded += decode_ie_header_t(buf, &(value->header), IE_HEADER_SIZE);
-    //uint16_t decoded = 0;
     memcpy(&value->fqdn, buf + (total_decoded/CHAR_SIZE), value->header.len);
     total_decoded +=  value->header.len * CHAR_SIZE;
     return total_decoded/CHAR_SIZE;
@@ -1402,7 +1427,6 @@ int decode_gtp_ovrld_ctl_info_ie(uint8_t *buf,
 {
     uint16_t total_decoded = 0;
     total_decoded += decode_ie_header_t(buf, &(value->header), IE_HEADER_SIZE);
-    //uint16_t decoded = 0;
     memcpy(&value->overload_control_information, buf + (total_decoded/CHAR_SIZE), OVERLOAD_CONTROL_INFORMATION_LEN);
     total_decoded +=  OVERLOAD_CONTROL_INFORMATION_LEN * CHAR_SIZE;
     return total_decoded/CHAR_SIZE;
@@ -1497,7 +1521,6 @@ int decode_gtp_acc_pt_name_ie(uint8_t *buf,
 {
     uint16_t total_decoded = 0;
     total_decoded += decode_ie_header_t(buf, &(value->header), IE_HEADER_SIZE);
-    //uint16_t decoded = 0;
     memcpy(&value->apn, buf + (total_decoded/CHAR_SIZE),  value->header.len);
     total_decoded +=   value->header.len * CHAR_SIZE;
     return total_decoded/CHAR_SIZE;
@@ -2163,13 +2186,13 @@ int decode_gtp_secdry_rat_usage_data_rpt_ie(uint8_t *buf,
     total_decoded += decoded;
     value->ebi = decode_bits(buf, total_decoded, 4, &decoded);
     total_decoded += decoded;
-    value->start_timestamp = decode_bits(buf, total_decoded, 8, &decoded);
+    value->start_timestamp = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    value->end_timestamp = decode_bits(buf, total_decoded, 8, &decoded);
+    value->end_timestamp = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    value->usage_data_dl = decode_bits(buf, total_decoded, 8, &decoded);
+    value->usage_data_dl = decode_bits(buf, total_decoded, 64, &decoded);
     total_decoded += decoded;
-    value->usage_data_ul = decode_bits(buf, total_decoded, 8, &decoded);
+    value->usage_data_ul = decode_bits(buf, total_decoded, 64, &decoded);
     total_decoded += decoded;
     return total_decoded/CHAR_SIZE;
 }
@@ -2923,6 +2946,8 @@ int decode_gtp_user_csg_info_ie(uint8_t *buf,
     total_decoded += decoded;
     value->spare2 = decode_bits(buf, total_decoded, 5, &decoded);
     total_decoded += decoded;
+    value->csg_id = decode_bits(buf, total_decoded, 3, &decoded);
+    total_decoded += decoded;
     value->csg_id2 = decode_bits(buf, total_decoded, 24, &decoded);
     total_decoded += decoded;
     value->access_mode = decode_bits(buf, total_decoded, 2, &decoded);
@@ -2990,7 +3015,6 @@ int decode_gtp_msisdn_ie(uint8_t *buf,
 {
     uint16_t total_decoded = 0;
     total_decoded += decode_ie_header_t(buf, &(value->header), IE_HEADER_SIZE);
-    //uint16_t decoded = 0;
     // value->msisdn_number_digits = decode_bits(buf, total_decoded, 64, &decoded);
     // total_decoded += decoded;
     memcpy(&value->msisdn_number_digits, (uint8_t *)buf + total_decoded/CHAR_SIZE, value->header.len);
@@ -3033,7 +3057,6 @@ int decode_gtp_bearer_context_ie(uint8_t *buf,
 {
     uint16_t total_decoded = 0;
     total_decoded += decode_ie_header_t(buf, &(value->header), IE_HEADER_SIZE);
-    //uint16_t decoded = 0;
     memcpy(&value->bearer_context, buf + (total_decoded/CHAR_SIZE), BEARER_CONTEXT_LEN);
     total_decoded +=  BEARER_CONTEXT_LEN * CHAR_SIZE;
     return total_decoded/CHAR_SIZE;
@@ -3277,7 +3300,6 @@ int decode_gtp_load_ctl_info_ie(uint8_t *buf,
 {
     uint16_t total_decoded = 0;
     total_decoded += decode_ie_header_t(buf, &(value->header), IE_HEADER_SIZE);
-    //uint16_t decoded = 0;
     memcpy(&value->load_control_information, buf + (total_decoded/CHAR_SIZE), LOAD_CONTROL_INFORMATION_LEN);
     total_decoded +=  LOAD_CONTROL_INFORMATION_LEN * CHAR_SIZE;
     return total_decoded/CHAR_SIZE;
@@ -3297,7 +3319,6 @@ int decode_gtp_rmt_ue_ctxt_ie(uint8_t *buf,
 {
     uint16_t total_decoded = 0;
     total_decoded += decode_ie_header_t(buf, &(value->header), IE_HEADER_SIZE);
-    //uint16_t decoded = 0;
     memcpy(&value->remote_ue_context, buf + (total_decoded/CHAR_SIZE), REMOTE_UE_CONTEXT_LEN);
     total_decoded +=  REMOTE_UE_CONTEXT_LEN * CHAR_SIZE;
     return total_decoded/CHAR_SIZE;
@@ -4083,7 +4104,6 @@ int decode_gtp_scef_pdn_conn_ie(uint8_t *buf,
 {
     uint16_t total_decoded = 0;
     total_decoded += decode_ie_header_t(buf, &(value->header), IE_HEADER_SIZE);
-    //uint16_t decoded = 0;
     memcpy(&value->scef_pdn_connection, buf + (total_decoded/CHAR_SIZE), SCEF_PDN_CONNECTION_LEN);
     total_decoded +=  SCEF_PDN_CONNECTION_LEN * CHAR_SIZE;
     return total_decoded/CHAR_SIZE;
@@ -4163,7 +4183,6 @@ int decode_gtp_pdn_connection_ie(uint8_t *buf,
 {
     uint16_t total_decoded = 0;
     total_decoded += decode_ie_header_t(buf, &(value->header), IE_HEADER_SIZE);
-    //uint16_t decoded = 0;
     return total_decoded/CHAR_SIZE;
 }
 
@@ -4262,7 +4281,6 @@ int decode_mm_context(uint8_t *buf,
         mm_context_t *value)
 {
     uint16_t total_decoded = 0;
-    //uint16_t decoded = 0;
     return total_decoded;
 }
 
@@ -4327,7 +4345,7 @@ int decode_gtp_ip_address_ie(uint8_t *buf,
     uint16_t total_decoded = 0;
     total_decoded += decode_ie_header_t(buf, &(value->header), IE_HEADER_SIZE);
     uint16_t decoded = 0;
-    value->ipv4_ipv6_addr = decode_bits(buf, total_decoded, 8, &decoded);
+    value->ipv4_ipv6_addr = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
     return total_decoded/CHAR_SIZE;
 }
@@ -4478,16 +4496,16 @@ int decode_gtp_selection_mode_ie(uint8_t *buf,
 *   number of decoded bytes.
 */
 int decode_gtp_up_func_sel_indctn_flgs_ie(uint8_t *buf,
-        gtp_up_func_sel_indctn_flgs_ie_t *value)
+		gtp_up_func_sel_indctn_flgs_ie_t *value)
 {
-    uint16_t total_decoded = 0;
-    total_decoded += decode_ie_header_t(buf, &(value->header), IE_HEADER_SIZE);
-    uint16_t decoded = 0;
-    value->spare2 = decode_bits(buf, total_decoded, 7, &decoded);
-    total_decoded += decoded;
-    value->dcnr = decode_bits(buf, total_decoded, 1, &decoded);
-    total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+	uint16_t total_decoded = 0;
+	total_decoded += decode_ie_header_t(buf, &(value->header), IE_HEADER_SIZE);
+	uint16_t decoded = 0;
+	value->spare2 = decode_bits(buf, total_decoded, 7, &decoded);
+	total_decoded += decoded;
+	value->dcnr = decode_bits(buf, total_decoded, 1, &decoded);
+	total_decoded += decoded;
+	return total_decoded/CHAR_SIZE;
 }
 
 /**
@@ -4546,7 +4564,6 @@ int decode_gtp_eps_bearer_lvl_traffic_flow_tmpl_ie(uint8_t *buf,
 {
     uint16_t total_decoded = 0;
     total_decoded += decode_ie_header_t(buf, &(value->header), IE_HEADER_SIZE);
-    //uint16_t decoded = 0;
     /* value->eps_bearer_lvl_tft = decode_bits(buf, total_decoded, 8, &decoded); */
     memcpy(&value->eps_bearer_lvl_tft, buf + (total_decoded/CHAR_SIZE), value->header.len);
     total_decoded +=  value->header.len * CHAR_SIZE;

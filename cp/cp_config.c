@@ -24,8 +24,11 @@
 
 //#define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
 
+#define MAX_STRING_LEN          32
+#define CFG_VALUE_LEN           256
+
 #define GLOBAL_ENTRIES			"GLOBAL"
-#define APN_ENTRIES				"APN_CONFIG"
+#define APN_ENTRIES				"APN"
 #define NAMESERVER_ENTRIES		"NAMESERVER_CONFIG"
 #define IP_POOL_ENTRIES			"IP_POOL_CONFIG"
 #define CACHE_ENTRIES			"CACHE"
@@ -40,11 +43,26 @@
 #define S5S8_PORTS				"S5S8_PORT"
 #define PFCP_IPS				"PFCP_IP"
 #define PFCP_PORTS				"PFCP_PORT"
+#define DDF_INTFC				"DDF_INTFC"
+#define DADMF_IPS				"DADMF_IP"
+#define DADMF_PORTS				"DADMF_PORT"
 #define MME_S11_IPS				"MME_S11_IP"
 #define MME_S11_PORTS			"MME_S11_PORT"
 #define UPF_PFCP_IPS			"UPF_PFCP_IP"
 #define UPF_PFCP_PORTS			"UPF_PFCP_PORT"
-#define APN						"APN"
+#define REDIS_IPS				"REDIS_IP"
+#define REDIS_PORTS				"REDIS_PORT"
+
+#define APN_SEC_NAME_LEN		8
+#define NAME 					"name"
+#define USAGE_TYPE				"usage_type"
+#define NETWORK_CAPABILITY		"network_capability"
+#define TRIGGER_TYPE			"trigger_type"
+#define UPLINK_VOLTH			"uplink_volume_th"
+#define DOWNLINK_VOLTH			"downlink_volume_th"
+#define TIMETH					"time_th"
+#define URR_DEFAULT				"URR_DEFAULT"
+
 #define NAMESERVER				"nameserver"
 #define IP_POOL_IP				"IP_POOL_IP"
 #define IP_POOL_MASK			"IP_POOL_MASK"
@@ -65,16 +83,25 @@
 #define REQUEST_TIMEOUT 		"REQUEST_TIMEOUT"
 #define REQUEST_TRIES			"REQUEST_TRIES"
 
+/* LI-DF Parameter */
+#define NUMBER_OF_LINES					100
+#define MAX_LINE_LENGTH					1024
+#define LI_DF_CONFIG_FILE_NAME			"../config/LI_DF.csv"
+#define READ_ONLY_MODE					"r"
+#define APPEND_MODE						"a"
+#define LI_DF_CSV_HEADER_INFO			1
+
 void
 config_cp_ip_port(pfcp_config_t *pfcp_config)
 {
 	int32_t i = 0;
 	int32_t num_ops_entries = 0;
 	int32_t num_app_entries = 0;
+	int32_t num_apn_entries = 0;
 	int32_t num_cache_entries = 0;
 	int32_t num_ip_pool_entries = 0;
-	int32_t num_apn_entries = 0;
 	int32_t num_global_entries = 0;
+	int32_t num_urr_entries = 0;
 
 	struct rte_cfgfile_entry *global_entries = NULL;
 	struct rte_cfgfile_entry *apn_entries = NULL;
@@ -82,6 +109,7 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 	struct rte_cfgfile_entry *cache_entries = NULL;
 	struct rte_cfgfile_entry *app_entries = NULL;
 	struct rte_cfgfile_entry *ops_entries = NULL;
+	struct rte_cfgfile_entry *urr_entries = NULL;
 
 
 	struct rte_cfgfile *file = rte_cfgfile_load(STATIC_CP_FILE, 0);
@@ -113,7 +141,7 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 	for (i = 0; i < num_global_entries; ++i) {
 
 		/* Parse SGWC, PGWC and SAEGWC values from cp.cfg */
-		if(strncmp(CP_TYPE, global_entries[i].name, strlen(CP_TYPE)) == 0) {
+		if(strncmp(CP_TYPE, global_entries[i].name, ENTRY_NAME_SIZE) == 0) {
 			pfcp_config->cp_type = (uint8_t)atoi(global_entries[i].value);
 
 			fprintf(stderr, "CP: CP_TYPE     : %s\n",
@@ -122,7 +150,7 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 					pfcp_config->cp_type == SAEGWC ? "SAEGW-C" : "UNKNOWN");
 
 		}else if (strncmp(S11_IPS, global_entries[i].name,
-					strlen(S11_IPS)) == 0) {
+					ENTRY_NAME_SIZE) == 0) {
 
 			inet_aton(global_entries[i].value,
 					&(pfcp_config->s11_ip));
@@ -131,7 +159,7 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 					inet_ntoa(pfcp_config->s11_ip));
 
 		}else if (strncmp(S11_PORTS, global_entries[i].name,
-					strlen(S11_PORTS)) == 0) {
+					ENTRY_NAME_SIZE) == 0) {
 
 			pfcp_config->s11_port =
 					(uint16_t)atoi(global_entries[i].value);
@@ -140,7 +168,7 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 					pfcp_config->s11_port);
 
 		} else if (strncmp(S5S8_IPS, global_entries[i].name,
-					strlen(S5S8_IPS)) == 0) {
+					ENTRY_NAME_SIZE) == 0) {
 
 			inet_aton(global_entries[i].value,
 					&(pfcp_config->s5s8_ip));
@@ -149,7 +177,7 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 					inet_ntoa(pfcp_config->s5s8_ip));
 
 		} else if (strncmp(S5S8_PORTS, global_entries[i].name,
-					strlen(S5S8_PORTS)) == 0) {
+					ENTRY_NAME_SIZE) == 0) {
 
 			pfcp_config->s5s8_port =
 				(uint16_t)atoi(global_entries[i].value);
@@ -158,7 +186,7 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 					pfcp_config->s5s8_port);
 
 		} else if (strncmp(PFCP_IPS , global_entries[i].name,
-					strlen(PFCP_IPS)) == 0) {
+					ENTRY_NAME_SIZE) == 0) {
 
 			inet_aton(global_entries[i].value,
 					&(pfcp_config->pfcp_ip));
@@ -167,7 +195,7 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 					inet_ntoa(pfcp_config->pfcp_ip));
 
 		} else if (strncmp(PFCP_PORTS, global_entries[i].name,
-					strlen(PFCP_PORTS)) == 0) {
+					ENTRY_NAME_SIZE) == 0) {
 
 			pfcp_config->pfcp_port =
 				(uint16_t)atoi(global_entries[i].value);
@@ -175,8 +203,34 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 			fprintf(stderr, "CP: PFCP_PORT   : %d\n",
 					pfcp_config->pfcp_port);
 
+		} else if (strncmp(DDF_INTFC , global_entries[i].name,
+					ENTRY_NAME_SIZE) == 0) {
+
+			strncpy(pfcp_config->ddf_intfc, global_entries[i].value, DDF_INTFC_LEN);
+
+			fprintf(stderr, "CP: DDF_INTFC     : %s\n",
+					pfcp_config->ddf_intfc);
+
+		} else if (strncmp(DADMF_IPS , global_entries[i].name,
+					ENTRY_NAME_SIZE) == 0) {
+
+			inet_aton(global_entries[i].value,
+					&(pfcp_config->dadmf_ip));
+
+			fprintf(stderr, "CP: DADMF_IP     : %s\n",
+					inet_ntoa(pfcp_config->dadmf_ip));
+
+		} else if (strncmp(DADMF_PORTS, global_entries[i].name,
+					ENTRY_NAME_SIZE) == 0) {
+
+			pfcp_config->dadmf_port =
+				(uint16_t)atoi(global_entries[i].value);
+
+			fprintf(stderr, "CP: DADMF_PORT   : %d\n",
+					pfcp_config->dadmf_port);
+
 		} else if (strncmp(MME_S11_IPS, global_entries[i].name,
-					strlen(MME_S11_IPS)) == 0) {
+					ENTRY_NAME_SIZE) == 0) {
 
 			inet_aton(global_entries[i].value,
 					&(pfcp_config->s11_mme_ip));
@@ -185,14 +239,14 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 					inet_ntoa(pfcp_config->s11_mme_ip));
 
 		} else if (strncmp(MME_S11_PORTS, global_entries[i].name,
-					strlen(MME_S11_PORTS)) == 0) {
+					ENTRY_NAME_SIZE) == 0) {
 			pfcp_config->s11_mme_port =
 				(uint16_t)atoi(global_entries[i].value);
 
 			fprintf(stderr, "CP: MME_S11_PORT: %d\n", pfcp_config->s11_mme_port);
 
 		} else if (strncmp(UPF_PFCP_IPS , global_entries[i].name,
-					strlen(UPF_PFCP_IPS)) == 0) {
+					ENTRY_NAME_SIZE) == 0) {
 
 			inet_aton(global_entries[i].value,
 					&(pfcp_config->upf_pfcp_ip));
@@ -201,7 +255,7 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 					inet_ntoa(pfcp_config->upf_pfcp_ip));
 
 		} else if (strncmp(UPF_PFCP_PORTS, global_entries[i].name,
-					strlen(UPF_PFCP_PORTS)) == 0) {
+					ENTRY_NAME_SIZE) == 0) {
 
 			pfcp_config->upf_pfcp_port =
 				(uint16_t)atoi(global_entries[i].value);
@@ -209,33 +263,39 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 			fprintf(stderr, "CP: UPF_PFCP_PORT: %d\n",
 					pfcp_config->upf_pfcp_port);
 
-		 } else if (strncmp(CP_LOGGER, global_entries[i].name, strlen(CP_LOGGER)) == 0) {
+		 } else if (strncmp(REDIS_IPS , global_entries[i].name,
+					ENTRY_NAME_SIZE) == 0) {
+
+			inet_aton(global_entries[i].value,
+					&(pfcp_config->redis_ip));
+
+			fprintf(stderr, "CP: REDIS_IP : %s\n",
+					inet_ntoa(pfcp_config->redis_ip));
+
+		} else if (strncmp(REDIS_PORTS, global_entries[i].name,
+					ENTRY_NAME_SIZE) == 0) {
+
+			pfcp_config->redis_port =
+				(uint16_t)atoi(global_entries[i].value);
+
+			fprintf(stderr, "CP: REDIS_PORT: %d\n",
+					pfcp_config->redis_port);
+		} else if (strncmp(CP_LOGGER, global_entries[i].name, ENTRY_NAME_SIZE) == 0) {
 			 pfcp_config->cp_logger = (uint8_t)atoi(global_entries[i].value);
-			 fprintf(stderr, "CP: CP_LOGGER: %d\n",
-					pfcp_config->cp_logger);
 		 }
 
 		/* Parse timer and counter values from cp.cfg */
-		if(strncmp(TRANSMIT_TIMER, global_entries[i].name, strlen(TRANSMIT_TIMER)) == 0) {
+		if(strncmp(TRANSMIT_TIMER, global_entries[i].name, ENTRY_NAME_SIZE) == 0)
 			pfcp_config->transmit_timer = (int)atoi(global_entries[i].value);
-			fprintf(stderr, "CP: TRANSMIT_TIMER: %d\n",
-				pfcp_config->transmit_timer);
-		}
 
-		if(strncmp(PERIODIC_TIMER, global_entries[i].name, strlen(PERIODIC_TIMER)) == 0) {
+		if(strncmp(PERIODIC_TIMER, global_entries[i].name, ENTRY_NAME_SIZE) == 0)
 			pfcp_config->periodic_timer = (int)atoi(global_entries[i].value);
-			fprintf(stderr, "CP: PERIODIC_TIMER: %d\n",
-				pfcp_config->periodic_timer);
-		}
 
-		if(strncmp(TRANSMIT_COUNT, global_entries[i].name, strlen(TRANSMIT_COUNT)) == 0) {
+		if(strncmp(TRANSMIT_COUNT, global_entries[i].name, ENTRY_NAME_SIZE) == 0)
 			pfcp_config->transmit_cnt = (uint8_t)atoi(global_entries[i].value);
-			fprintf(stderr, "CP: TRANSMIT_COUNT: %u\n",
-				pfcp_config->transmit_cnt);
-		}
 
 		/* Parse CP Timer Request Time Out and Retries Values from cp.cfg */
-		if(strncmp(REQUEST_TIMEOUT, global_entries[i].name, strlen(REQUEST_TIMEOUT)) == 0){
+		if(strncmp(REQUEST_TIMEOUT, global_entries[i].name, ENTRY_NAME_SIZE) == 0){
 			if(check_cp_req_timeout_config(global_entries[i].value) == 0) {
 				pfcp_config->request_timeout = (int)atoi(global_entries[i].value);
 				fprintf(stderr, "CP: REQUEST_TIMEOUT: %d\n",
@@ -250,12 +310,10 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 			/* 5 minute = 300000 milisecond  */
 			if(pfcp_config->request_timeout == 0) {
 				pfcp_config->request_timeout = 300000;
-				fprintf(stderr, "CP: DEFAULT REQUEST_TIMEOUT: %d\n",
-					pfcp_config->request_timeout);
 			}
 		}
 
-		if(strncmp(REQUEST_TRIES, global_entries[i].name, strlen(REQUEST_TRIES)) == 0) {
+		if(strncmp(REQUEST_TRIES, global_entries[i].name, ENTRY_NAME_SIZE) == 0) {
 			if(check_cp_req_tries_config(global_entries[i].value) == 0) {
 				pfcp_config->request_tries = (uint8_t)atoi(global_entries[i].value);
 				fprintf(stderr, "CP: REQUEST_TRIES: %d\n",
@@ -270,8 +328,6 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
                         /* Defualt Request Retries value */
 			if(pfcp_config->request_tries == 0) {
 				pfcp_config->request_tries = 3;
-				fprintf(stderr, "CP: DEFAULT REQUEST_TRIES: %d\n",
-					pfcp_config->request_tries);
 			}
 		}
 	}
@@ -279,7 +335,6 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 	rte_free(global_entries);
 
 	/* Parse APN and nameserver values. */
-	uint16_t apn_idx = 0;
 	uint16_t app_nameserver_ip_idx = 0;
 	uint16_t ops_nameserver_ip_idx = 0;
 
@@ -299,46 +354,173 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 
 
 	/* Fill the entries in APN list. */
-	rte_cfgfile_section_entries(file,
-			APN_ENTRIES, apn_entries, num_apn_entries);
+	int num_apn = 0;
 
-	for (i = 0; i < num_apn_entries; ++i) {
-		fprintf(stderr, "CP: [%s] = %s\n",
-				apn_entries[i].name,
-				apn_entries[i].value);
+	num_apn = rte_cfgfile_num_sections(file,
+					APN_ENTRIES, APN_SEC_NAME_LEN);
 
-		if (strncmp(APN, apn_entries[i].name,
-					strlen(APN)) == 0) {
-			/* If key matches */
-			if (i < MAX_NUM_APN) {
-				char *ptr[3];
-				/* Based on default value, set usage type */
-				apn_list[i].apn_usage_type = -1;
+	int j;
+	int apn_num_entries = 0;
+	int apn_idx = 0;
+	total_apn_cnt = 0;
+	char apn_name[APN_SEC_NAME_LEN] = {0};
+	strncpy(apn_name, APN_ENTRIES,APN_SEC_NAME_LEN);
 
-				parse_apn_args(apn_entries[i].value, ptr);
+	for(i = 1 ; i <= num_apn; i++ )
+	{
 
-				apn_list[i].apn_name_label = ptr[0];
+		apn_num_entries = rte_cfgfile_section_entries_by_index(file,
+				i, apn_name, apn_entries, 10);
 
-			if (ptr[1] != NULL)
-				apn_list[i].apn_usage_type = atoi(ptr[1]);
+		if (apn_num_entries > 0 )
+		{
+			for(j = 0; j < apn_num_entries; ++j )
+			{
+				fprintf(stderr,"\nCP: [%s] = %s",
+						apn_entries[j].name,
+						apn_entries[j].value);
 
-		if (ptr[2] != NULL)
-			memcpy(apn_list[i].apn_net_cap, ptr[2], strlen(ptr[2]));
 
-			set_apn_name(&apn_list[i], apn_list[i].apn_name_label);
+				if(strncmp(NAME, apn_entries[j].name,
+							ENTRY_NAME_SIZE) == 0) {
 
-				int f = 0;
-				/* Free the memory allocated by malloc. */
+					apn_list[apn_idx].apn_name_label = apn_entries[j].value;
 
-				for (f = 0; f < 3; f++)
-					free(ptr[f]);
+				} else if (strncmp(USAGE_TYPE, apn_entries[j].name,
+							ENTRY_NAME_SIZE) == 0 ) {
 
-				apn_idx++;
-			}
+					apn_list[apn_idx].apn_usage_type = (int)atoi(apn_entries[j].value);
+
+				} else if (strncmp(NETWORK_CAPABILITY, apn_entries[j].name,
+							ENTRY_NAME_SIZE) == 0) {
+
+					strncpy(apn_list[apn_idx].apn_net_cap, apn_entries[j].value, ENTRY_VALUE_SIZE);
+
+				} else if (strncmp(TRIGGER_TYPE, apn_entries[j].name,
+							ENTRY_NAME_SIZE) == 0) {
+
+					apn_list[apn_idx].trigger_type = (int)atoi(apn_entries[j].value);
+
+				} else if (strncmp(UPLINK_VOLTH, apn_entries[j].name,
+							ENTRY_NAME_SIZE) == 0) {
+
+					apn_list[apn_idx].uplink_volume_th = (int)atoi(apn_entries[j].value);
+
+				} else if (strncmp(DOWNLINK_VOLTH, apn_entries[j].name,
+							ENTRY_NAME_SIZE) == 0) {
+
+					apn_list[apn_idx].downlink_volume_th = (int)atoi(apn_entries[j].value);
+
+				} else if (strncmp(TIMETH, apn_entries[j].name,
+							ENTRY_NAME_SIZE) == 0) {
+
+					apn_list[apn_idx].time_th = (int)atoi(apn_entries[j].value);
+
+				}
+
+		    }
+			apn_list[apn_idx].apn_idx = apn_idx;
+			set_apn_name(&apn_list[apn_idx], apn_list[apn_idx].apn_name_label);
+
+			 /*check for valid configuration*/
+
+			 if(apn_list[apn_idx].trigger_type < 0 || apn_list[apn_idx].trigger_type > 2) {
+				 fprintf(stderr, "\ncp.cfg : Wrong trigger_type"
+						 " for apn : %s\n",apn_list[apn_idx].apn_name_label);
+				 rte_panic("Line no : %d\n",__LINE__);
+			 }
+
+			 if(apn_list[apn_idx].uplink_volume_th <= 0 ) {
+				 fprintf(stderr, "\ncp.cfg : Wrong uplink_volume_th"
+						 " for apn : %s\n",apn_list[apn_idx].apn_name_label);
+				 rte_panic("Line no : %d\n",__LINE__);
+			 }
+
+			 if(apn_list[apn_idx].downlink_volume_th <= 0 ) {
+				 fprintf(stderr, "\ncp.cfg : Wrong downlink_volume_th"
+						 " for apn : %s\n",apn_list[apn_idx].apn_name_label);
+				 rte_panic("Line no : %d\n",__LINE__);
+			 }
+
+			 if(apn_list[apn_idx].time_th <= 0 ) {
+				 fprintf(stderr, "\ncp.cfg : Wrong time_th"
+						 " for apn : %s\n",apn_list[apn_idx].apn_name_label);
+				 rte_panic("Line no : %d\n",__LINE__);
+			 }
+			 apn_idx++;
+			 total_apn_cnt++;
 		}
 	}
 	rte_free(apn_entries);
 
+	/*Read Default configuration of URR*/
+	num_urr_entries =
+		rte_cfgfile_section_num_entries(file, URR_DEFAULT);
+
+	if (num_urr_entries > 0) {
+		urr_entries = rte_malloc_socket(NULL,
+						sizeof(struct rte_cfgfile_entry)
+							*num_urr_entries,
+							RTE_CACHE_LINE_SIZE,
+							rte_socket_id());
+	}
+
+	if (urr_entries == NULL)
+		rte_panic("Error configuring"
+				"URR_DEFAULT entry of %s\n", STATIC_CP_FILE);
+
+	rte_cfgfile_section_entries(file, URR_DEFAULT,
+					urr_entries,
+					num_urr_entries);
+
+	for (i = 0; i < num_urr_entries; ++i) {
+		fprintf(stderr, "\nCP: [%s] = %s",
+				urr_entries[i].name,
+				urr_entries[i].value);
+		if (strncmp(TRIGGER_TYPE, urr_entries[i].name,
+						ENTRY_NAME_SIZE) == 0)
+			pfcp_config->trigger_type =
+					(int)atoi(urr_entries[i].value);
+		if (strncmp(UPLINK_VOLTH, urr_entries[i].name,
+						ENTRY_NAME_SIZE) == 0)
+			pfcp_config->uplink_volume_th =
+					(int)atoi(urr_entries[i].value);
+		if (strncmp(DOWNLINK_VOLTH, urr_entries[i].name,
+						ENTRY_NAME_SIZE) == 0)
+			pfcp_config->downlink_volume_th =
+					(int)atoi(urr_entries[i].value);
+		if (strncmp(TIMETH, urr_entries[i].name,
+						ENTRY_NAME_SIZE) == 0)
+			pfcp_config->time_th =
+					(int)atoi(urr_entries[i].value);
+	}
+
+	/*check for valid configuration*/
+
+	if(pfcp_config->trigger_type < 0 || pfcp_config->trigger_type > 2) {
+		fprintf(stderr, "\ncp.cfg : Wrong trigger_type"
+				" for defalt configuration type [URR_DEFAULT]\n");
+		rte_panic("Line no : %d\n",__LINE__);
+	}
+
+	if(pfcp_config->uplink_volume_th <= 0 ) {
+		fprintf(stderr, "\ncp.cfg : Wrong uplink_volume_th"
+				" for defalt configuration type [URR_DEFAULT]\n");
+		rte_panic("Line no : %d\n",__LINE__);
+	}
+
+	if(pfcp_config->downlink_volume_th <= 0 ) {
+		fprintf(stderr, "\ncp.cfg : Wrong downlink_volume_th"
+				" for defalt configuration type [URR_DEFAULT]\n");
+		rte_panic("Line no : %d\n",__LINE__);
+	}
+
+	if(pfcp_config->time_th <= 0 ) {
+		fprintf(stderr, "\ncp.cfg : Wrong time_th"
+				" for defalt configuration type [URR_DEFAULT]\n");
+		rte_panic("Line no : %d\n",__LINE__);
+	}
+	rte_free(urr_entries);
 
 	/* Read cache values from cfg seaction. */
 	num_cache_entries =
@@ -365,23 +547,23 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 				cache_entries[i].name,
 				cache_entries[i].value);
 		if (strncmp(CONCURRENT, cache_entries[i].name,
-						strlen(CONCURRENT)) == 0)
+						ENTRY_NAME_SIZE) == 0)
 			pfcp_config->dns_cache.concurrent =
 					(uint32_t)atoi(cache_entries[i].value);
 		if (strncmp(PERCENTAGE, cache_entries[i].name,
-						strlen(CONCURRENT)) == 0)
+						ENTRY_NAME_SIZE) == 0)
 			pfcp_config->dns_cache.percent =
 					(uint32_t)atoi(cache_entries[i].value);
 		if (strncmp(INT_SEC, cache_entries[i].name,
-						strlen(CONCURRENT)) == 0)
+						ENTRY_NAME_SIZE) == 0)
 			pfcp_config->dns_cache.sec =
-					(((uint32_t)atoi(cache_entries[i].value)) * 1000);
+				(((uint32_t)atoi(cache_entries[i].value)) * 1000);
 		if (strncmp(QUERY_TIMEOUT, cache_entries[i].name,
-		                strlen(QUERY_TIMEOUT)) == 0)
+		                ENTRY_NAME_SIZE) == 0)
 		    pfcp_config->dns_cache.timeoutms =
 		            (long)atol(cache_entries[i].value);
 		if (strncmp(QUERY_TRIES, cache_entries[i].name,
-		                strlen(QUERY_TRIES)) == 0)
+		                ENTRY_NAME_SIZE) == 0)
 		    pfcp_config->dns_cache.tries =
 		           (uint32_t)atoi(cache_entries[i].value);
 	}
@@ -414,21 +596,21 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 				app_entries[i].value);
 
 		if (strncmp(FREQ_SEC, app_entries[i].name,
-						strlen(FREQ_SEC)) == 0)
+						ENTRY_NAME_SIZE) == 0)
 			pfcp_config->app_dns.freq_sec =
 					(uint8_t)atoi(app_entries[i].value);
 
 		if (strncmp(FILENAME, app_entries[i].name,
-						strlen(FILENAME)) == 0)
+						ENTRY_NAME_SIZE) == 0)
 			strncpy(pfcp_config->app_dns.filename,
 					app_entries[i].value,
-					strlen(app_entries[i].value));
+					sizeof(pfcp_config->app_dns.filename));
 
 		if (strncmp(NAMESERVER, app_entries[i].name,
-						strlen(NAMESERVER)) == 0) {
+						ENTRY_NAME_SIZE) == 0) {
 			strncpy(pfcp_config->app_dns.nameserver_ip[app_nameserver_ip_idx],
 					app_entries[i].value,
-					strlen(app_entries[i].value));
+					sizeof(pfcp_config->app_dns.nameserver_ip[app_nameserver_ip_idx]));
 			app_nameserver_ip_idx++;
 		}
 	}
@@ -463,21 +645,21 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 				ops_entries[i].value);
 
 		if (strncmp(FREQ_SEC, ops_entries[i].name,
-						strlen(FREQ_SEC)) == 0)
+						ENTRY_NAME_SIZE) == 0)
 			pfcp_config->ops_dns.freq_sec =
 					(uint8_t)atoi(ops_entries[i].value);
 
 		if (strncmp(FILENAME, ops_entries[i].name,
-						strlen(FILENAME)) == 0)
+						ENTRY_NAME_SIZE) == 0)
 			strncpy(pfcp_config->ops_dns.filename,
 					ops_entries[i].value,
-					strlen(ops_entries[i].value));
+					strnlen(ops_entries[i].value,CFG_VALUE_LEN));
 
 		if (strncmp(NAMESERVER, ops_entries[i].name,
-						strlen(NAMESERVER)) == 0) {
+						ENTRY_NAME_SIZE) == 0) {
 			strncpy(pfcp_config->ops_dns.nameserver_ip[ops_nameserver_ip_idx],
 					ops_entries[i].value,
-					strlen(ops_entries[i].value));
+					strnlen(ops_entries[i].value,CFG_VALUE_LEN));
 			ops_nameserver_ip_idx++;
 		}
 	}
@@ -515,12 +697,12 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 				ip_pool_entries[i].value);
 		if (strncmp(IP_POOL_IP,
 					ip_pool_entries[i].name,
-					strlen(IP_POOL_IP)) == 0) {
+					ENTRY_NAME_SIZE) == 0) {
 			inet_aton(ip_pool_entries[i].value,
 					&(pfcp_config->ip_pool_ip));
 		} else if (strncmp
 				(IP_POOL_MASK, ip_pool_entries[i].name,
-				 strlen(IP_POOL_MASK)) == 0) {
+				 ENTRY_NAME_SIZE) == 0) {
 			inet_aton(ip_pool_entries[i].value,
 					&(pfcp_config->ip_pool_mask));
 		}
@@ -537,7 +719,7 @@ check_cp_req_timeout_config(char *value) {
 	if(value == NULL )
 	        return -1;
 	/* check string has all digit 0 to 9 */
-	for(idx = 0; idx < strlen(value); idx++) {
+	for(idx = 0; idx < strnlen(value,CFG_VALUE_LEN); idx++) {
 	        if(isdigit(value[idx])  == 0) {
 	                return -1;
 	        }
@@ -556,7 +738,7 @@ check_cp_req_tries_config(char *value) {
 	if(value == NULL )
 	        return -1;
 	/* check string has all digit 0 to 9 */
-	for(idx = 0; idx < strlen(value); idx++) {
+	for(idx = 0; idx < strnlen(value,CFG_VALUE_LEN); idx++) {
 	        if(isdigit(value[idx])  == 0) {
 	                return -1;
 	        }
@@ -624,4 +806,3 @@ parse_apn_args(char *temp, char *ptr[3])
 	}
 
 }
-

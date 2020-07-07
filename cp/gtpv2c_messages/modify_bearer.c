@@ -21,6 +21,8 @@
 #include "../pfcp_messages/pfcp_set_ie.h"
 #include "cp/cp_app.h"
 #include "clogger.h"
+#include "sm_enum.h"
+extern pfcp_config_t pfcp_config;
 /**
  * @brief  : Maintains parsed data from modify bearer request
  */
@@ -53,11 +55,11 @@ extern uint32_t adc_rule_id[];
  */
 void
 set_modify_bearer_response(gtpv2c_header_t *gtpv2c_tx,
-		uint32_t sequence, ue_context *context, eps_bearer *bearer)
+		uint32_t sequence, ue_context *context, eps_bearer *bearer, mod_bearer_req_t *mbr)
 {
 	int ret = 0;
-	uint64_t _ebi = bearer->eps_bearer_id;
-	uint64_t ebi_index = _ebi - 5;
+	uint8_t _ebi = bearer->eps_bearer_id;
+	uint8_t ebi_index = _ebi - 5;
 	upf_context_t *upf_ctx = NULL;
 
 	/*Retrive bearer id from bearer --> context->pdns[]->upf_ip*/
@@ -69,30 +71,50 @@ set_modify_bearer_response(gtpv2c_header_t *gtpv2c_tx,
 	mod_bearer_rsp_t mb_resp = {0};
 
 	set_gtpv2c_teid_header((gtpv2c_header_t *) &mb_resp, GTP_MODIFY_BEARER_RSP,
-	    context->s11_mme_gtpc_teid, sequence);
+	    context->s11_mme_gtpc_teid, sequence, 0);
 
 	set_cause_accepted(&mb_resp.cause, IE_INSTANCE_ZERO);
 
-	set_ie_header(&mb_resp.bearer_contexts_modified.header, GTP_IE_BEARER_CONTEXT,
-			IE_INSTANCE_ZERO, 0);
+		mb_resp.bearer_count =  mbr->bearer_count;
+		for (uint8_t uiCnt = 0; uiCnt < mbr->bearer_count; ++uiCnt) {
+			set_ie_header(&mb_resp.bearer_contexts_modified[uiCnt].header, GTP_IE_BEARER_CONTEXT,
+					IE_INSTANCE_ZERO, 0);
 
-	set_cause_accepted(&mb_resp.bearer_contexts_modified.cause, IE_INSTANCE_ZERO);
-	mb_resp.bearer_contexts_modified.header.len +=
-		sizeof(struct cause_ie_hdr_t) + IE_HEADER_SIZE;
+			set_cause_accepted(&mb_resp.bearer_contexts_modified[uiCnt].cause, IE_INSTANCE_ZERO);
+			mb_resp.bearer_contexts_modified[uiCnt].header.len +=
+				sizeof(struct cause_ie_hdr_t) + IE_HEADER_SIZE;
 
-	set_ebi(&mb_resp.bearer_contexts_modified.eps_bearer_id, IE_INSTANCE_ZERO,
-			bearer->eps_bearer_id);
-	mb_resp.bearer_contexts_modified.header.len += sizeof(uint8_t) + IE_HEADER_SIZE;
+			set_ebi(&mb_resp.bearer_contexts_modified[uiCnt].eps_bearer_id, IE_INSTANCE_ZERO,
+					bearer->eps_bearer_id);
+			mb_resp.bearer_contexts_modified[uiCnt].header.len += sizeof(uint8_t) + IE_HEADER_SIZE;
 
-	struct in_addr ip;
-	ip.s_addr = upf_ctx->s1u_ip;
+			if (pfcp_config.cp_type != PGWC) {
+				struct in_addr ip;
+				ip.s_addr = upf_ctx->s1u_ip;
 
-	set_ipv4_fteid(&mb_resp.bearer_contexts_modified.s1u_sgw_fteid,
-			GTPV2C_IFTYPE_S1U_SGW_GTPU, IE_INSTANCE_ZERO, ip,
-			bearer->s1u_sgw_gtpu_teid);
+				set_ipv4_fteid(&mb_resp.bearer_contexts_modified[uiCnt].s1u_sgw_fteid,
+						GTPV2C_IFTYPE_S1U_SGW_GTPU, IE_INSTANCE_ZERO, ip,
+						bearer->s1u_sgw_gtpu_teid);
 
-	mb_resp.bearer_contexts_modified.header.len += sizeof(struct fteid_ie_hdr_t) +
-		sizeof(struct in_addr) + IE_HEADER_SIZE;
+				mb_resp.bearer_contexts_modified[uiCnt].header.len += sizeof(struct fteid_ie_hdr_t) +
+					sizeof(struct in_addr) + IE_HEADER_SIZE;
+			}
+		}
+
+#ifdef USE_CSID
+		/* Set the SGW FQ-CSID */
+		if (context->eps_bearers[ebi_index]->pdn->proc == INITIAL_PDN_ATTACH_PROC) {
+			if (pfcp_config.cp_type != PGWC) {
+				if (context->sgw_fqcsid != NULL) {
+					if ((context->sgw_fqcsid)->num_csid) {
+						set_gtpc_fqcsid_t(&mb_resp.sgw_fqcsid, IE_INSTANCE_ONE,
+								context->sgw_fqcsid);
+						mb_resp.sgw_fqcsid.node_address = ntohl(context->s11_sgw_gtpc_ipv4.s_addr);
+					}
+				}
+			}
+		}
+#endif /* USE_CSID */
 
 	uint16_t msg_len = 0;
 	msg_len = encode_mod_bearer_rsp(&mb_resp, (uint8_t *)gtpv2c_tx);
@@ -103,12 +125,13 @@ set_modify_bearer_response(gtpv2c_header_t *gtpv2c_tx,
 
 void
 set_modify_bearer_response_handover(gtpv2c_header_t *gtpv2c_tx,
-		uint32_t sequence, ue_context *context, eps_bearer *bearer)
+		uint32_t sequence, ue_context *context, eps_bearer *bearer, mod_bearer_req_t *mbr)
 {
 	int ret = 0;
 	uint64_t _ebi = bearer->eps_bearer_id;
 	uint64_t ebi_index = _ebi - 5;
 	upf_context_t *upf_ctx = NULL;
+	struct in_addr ip = {0};
 
 	/*Retrive bearer id from bearer --> context->pdns[]->upf_ip*/
 	if ((ret = upf_context_entry_lookup(context->pdns[ebi_index]->upf_ipv4.s_addr,
@@ -118,32 +141,74 @@ set_modify_bearer_response_handover(gtpv2c_header_t *gtpv2c_tx,
 
 	mod_bearer_rsp_t mb_resp = {0};
 
-	set_gtpv2c_teid_header((gtpv2c_header_t *) &mb_resp, GTP_MODIFY_BEARER_RSP,
-		bearer->pdn->s5s8_sgw_gtpc_teid, sequence);
+	if((SGWC == pfcp_config.cp_type) || (SAEGWC == pfcp_config.cp_type)) {
+		set_gtpv2c_teid_header((gtpv2c_header_t *) &mb_resp, GTP_MODIFY_BEARER_RSP,
+				context->s11_mme_gtpc_teid, sequence, 0);
+	}else{
+		set_gtpv2c_teid_header((gtpv2c_header_t *) &mb_resp, GTP_MODIFY_BEARER_RSP,
+				bearer->pdn->s5s8_sgw_gtpc_teid, sequence, 0);
+	}
 
-	if(context->msisdn !=0) {
+	if(context->msisdn !=0 && PGWC == pfcp_config.cp_type) {
 		set_ie_header(&mb_resp.msisdn.header, GTP_IE_MSISDN, IE_INSTANCE_ZERO, BINARY_MSISDN_LEN);
 		mb_resp.msisdn.msisdn_number_digits = context->msisdn;
 	}
 
 	set_cause_accepted(&mb_resp.cause, IE_INSTANCE_ZERO);
 
-	set_ie_header(&mb_resp.bearer_contexts_modified.header, GTP_IE_BEARER_CONTEXT,
-			IE_INSTANCE_ZERO, 0);
+	{
+		mb_resp.bearer_count =  mbr->bearer_count;
+		for (uint8_t uiCnt = 0; uiCnt < mbr->bearer_count; uiCnt++) {
+			set_ie_header(&mb_resp.bearer_contexts_modified[uiCnt].header, GTP_IE_BEARER_CONTEXT,
+					IE_INSTANCE_ZERO, 0);
 
-	set_cause_accepted(&mb_resp.bearer_contexts_modified.cause, IE_INSTANCE_ZERO);
-	mb_resp.bearer_contexts_modified.header.len +=
-		sizeof(struct cause_ie_hdr_t) + IE_HEADER_SIZE;
+			set_cause_accepted(&mb_resp.bearer_contexts_modified[uiCnt].cause, IE_INSTANCE_ZERO);
+			mb_resp.bearer_contexts_modified[uiCnt].header.len +=
+				sizeof(struct cause_ie_hdr_t) + IE_HEADER_SIZE;
 
-	set_ebi(&mb_resp.bearer_contexts_modified.eps_bearer_id, IE_INSTANCE_ZERO,
-			bearer->eps_bearer_id);
-	mb_resp.bearer_contexts_modified.header.len += sizeof(uint8_t) + IE_HEADER_SIZE;
+			set_ebi(&mb_resp.bearer_contexts_modified[uiCnt].eps_bearer_id, IE_INSTANCE_ZERO,
+					mbr->bearer_contexts_to_be_modified[uiCnt].eps_bearer_id.ebi_ebi);
+
+			mb_resp.bearer_contexts_modified[uiCnt].header.len +=
+				sizeof(uint8_t) + IE_HEADER_SIZE;
+
+			ebi_index = mbr->bearer_contexts_to_be_modified[uiCnt].eps_bearer_id.ebi_ebi - 5;
+			bearer = context->eps_bearers[ebi_index];
+
+			if(SGWC == pfcp_config.cp_type || SAEGWC == pfcp_config.cp_type){
+				if(bearer->pdn->default_bearer_id ==
+						mbr->bearer_contexts_to_be_modified[uiCnt].eps_bearer_id.ebi_ebi) {
+					ip.s_addr = ntohl(bearer->s1u_sgw_gtpu_ipv4.s_addr);
+				}else {
+					ip.s_addr = (bearer->s1u_sgw_gtpu_ipv4.s_addr);
+				}
+
+				set_ipv4_fteid(&mb_resp.bearer_contexts_modified[uiCnt].s1u_sgw_fteid,
+						GTPV2C_IFTYPE_S1U_SGW_GTPU,
+						IE_INSTANCE_ZERO,ip,
+						bearer->s1u_sgw_gtpu_teid);
+				mb_resp.bearer_contexts_modified[uiCnt].header.len += sizeof(struct fteid_ie_hdr_t) +
+					sizeof(struct in_addr) + IE_HEADER_SIZE;
+			} else {
+				ip.s_addr = (bearer->s5s8_pgw_gtpu_ipv4.s_addr);
+
+				set_ipv4_fteid(&mb_resp.bearer_contexts_modified[uiCnt].s1u_sgw_fteid,
+						GTPV2C_IFTYPE_S5S8_PGW_GTPU,
+						IE_INSTANCE_ZERO,ip,
+						bearer->s5s8_pgw_gtpu_teid);
+				mb_resp.bearer_contexts_modified[uiCnt].header.len += sizeof(struct fteid_ie_hdr_t) +
+					sizeof(struct in_addr) + IE_HEADER_SIZE;
+			}
+		}
+	}
 
 	uint16_t msg_len = 0;
 	msg_len = encode_mod_bearer_rsp(&mb_resp, (uint8_t *)gtpv2c_tx);
 	gtpv2c_tx->gtpc.message_len = htons(msg_len - 4);
 }
 
+
+#if 0
 int
 process_modify_bearer_request(gtpv2c_header_t *gtpv2c_rx,
 		gtpv2c_header_t *gtpv2c_tx)
@@ -246,7 +311,47 @@ process_modify_bearer_request(gtpv2c_header_t *gtpv2c_rx,
 		rte_exit(EXIT_FAILURE, "Bearer Session modify fail !!!");
 	return 0;
 }
+#endif
 
+int8_t
+set_mbr_upd_sgw_csid_req(gtpv2c_header_t *gtpv2c_tx, pdn_connection *pdn,
+		uint8_t eps_bearer_id)
+{
+	mod_bearer_req_t mbr = {0};
+	struct ue_context_t *context = NULL;
+
+	set_gtpv2c_teid_header((gtpv2c_header_t *)&mbr.header, GTP_MODIFY_BEARER_REQ,
+			0, pdn->context->sequence, 0);
+
+	mbr.header.teid.has_teid.teid = pdn->s5s8_pgw_gtpc_teid;
+	context = pdn->context;
+
+#ifdef USE_CSID
+	/* Set the SGW FQ-CSID */
+	if (context->sgw_fqcsid != NULL) {
+		if ((context->sgw_fqcsid)->num_csid) {
+			set_gtpc_fqcsid_t(&mbr.sgw_fqcsid, IE_INSTANCE_ONE,
+					context->sgw_fqcsid);
+			mbr.sgw_fqcsid.node_address = pdn->s5s8_sgw_gtpc_ipv4.s_addr;
+		}
+	}
+#endif /* USE_CSID */
+
+	mbr.bearer_count = 1;
+
+	set_ie_header(&mbr.bearer_contexts_to_be_modified[0].header, GTP_IE_BEARER_CONTEXT,
+			IE_INSTANCE_ZERO, 0);
+	set_ebi(&mbr.bearer_contexts_to_be_modified[0].eps_bearer_id, IE_INSTANCE_ZERO,
+			eps_bearer_id);
+
+	mbr.bearer_contexts_to_be_modified[0].header.len += sizeof(uint8_t) + IE_HEADER_SIZE;
+
+	uint16_t msg_len = 0;
+	msg_len = encode_mod_bearer_req(&mbr, (uint8_t *)gtpv2c_tx);
+	gtpv2c_tx->gtpc.message_len = htons(msg_len - 4);
+
+	return 0;
+}
 
 void set_modify_bearer_request(gtpv2c_header_t *gtpv2c_tx, /*create_sess_req_t *csr,*/
 		pdn_connection *pdn, eps_bearer *bearer)
@@ -254,22 +359,46 @@ void set_modify_bearer_request(gtpv2c_header_t *gtpv2c_tx, /*create_sess_req_t *
 	int len = 0 ;
 	mod_bearer_req_t mbr = {0};
 	struct ue_context_t *context = NULL;
+	eps_bearer *def_bearer = bearer;
 
 	set_gtpv2c_teid_header((gtpv2c_header_t *)&mbr.header, GTP_MODIFY_BEARER_REQ,
-			0, pdn->context->sequence);
+			0, pdn->context->sequence, 0);
 
 	mbr.header.teid.has_teid.teid = pdn->s5s8_pgw_gtpc_teid;
-	bearer->s5s8_sgw_gtpu_ipv4.s_addr = htonl(bearer->s5s8_sgw_gtpu_ipv4.s_addr);
+	/* TODO: Need to verify */
 	set_ipv4_fteid(&mbr.sender_fteid_ctl_plane, GTPV2C_IFTYPE_S5S8_SGW_GTPC,
 			IE_INSTANCE_ZERO,
 			pdn->s5s8_sgw_gtpc_ipv4, pdn->s5s8_sgw_gtpc_teid);
 	if(pdn == NULL &&  pdn->context == NULL ) {
-		clLog(clSystemLog, eCLSeverityCritical, " %s : %s : %d UE contex not found : Warnning \n",
+		clLog(clSystemLog, eCLSeverityCritical,
+				" %s : %s : %d UE contex not found : Warnning \n",
 							__file__, __func__, __LINE__);
 
 		return;
 	}
 	context = pdn->context;
+	/* Note:Below condition is added for the flow ERAB Modification
+	 * Update. sepcs ref: 23.401 Section 5.4.7-1*/
+	if(context->second_rat_flag == 1 ) {
+
+		mbr.secdry_rat_usage_data_rpt.spare2 = 0;
+		mbr.secdry_rat_usage_data_rpt.irsgw = context->second_rat.irsgw;
+		mbr.secdry_rat_usage_data_rpt.irpgw = context->second_rat.irpgw;
+		mbr.secdry_rat_usage_data_rpt.secdry_rat_type = context->second_rat.rat_type;
+		mbr.secdry_rat_usage_data_rpt.ebi = context->second_rat.eps_id;
+		mbr.secdry_rat_usage_data_rpt.spare3 = 0;
+		mbr.secdry_rat_usage_data_rpt.start_timestamp = context->second_rat.start_timestamp;
+		mbr.secdry_rat_usage_data_rpt.end_timestamp = context->second_rat.end_timestamp;
+		mbr.secdry_rat_usage_data_rpt.usage_data_dl = context->second_rat.usage_data_dl;
+		mbr.secdry_rat_usage_data_rpt.usage_data_ul = context->second_rat.usage_data_ul;
+
+
+		set_ie_header(&mbr.secdry_rat_usage_data_rpt.header, GTP_IE_SECDRY_RAT_USAGE_DATA_RPT, IE_INSTANCE_ZERO,
+				sizeof(gtp_secdry_rat_usage_data_rpt_ie_t) - sizeof(ie_header_t));
+
+	}
+
+
 	if (context->uli.lai) {
 		mbr.uli.lai = context->uli.lai;
 		mbr.uli.lai2.lai_mcc_digit_2 = context->uli.lai2.lai_mcc_digit_2;
@@ -398,6 +527,50 @@ void set_modify_bearer_request(gtpv2c_header_t *gtpv2c_tx, /*create_sess_req_t *
 	mbr.serving_network.mcc_digit_2 = context->serving_nw.mcc_digit_2;
 	mbr.serving_network.mcc_digit_3 = context->serving_nw.mcc_digit_3;
 
+
+	if(context->indication_flag.oi == 1){
+		if(context->mo_exception_flag == true){
+			mbr.mo_exception_data_cntr.timestamp_value = context->mo_exception_data_counter.timestamp_value;
+			mbr.mo_exception_data_cntr.counter_value = context->mo_exception_data_counter.counter_value;
+
+			set_ie_header(&mbr.mo_exception_data_cntr.header, GTP_IE_COUNTER, IE_INSTANCE_ZERO,
+					sizeof(gtp_counter_ie_t) - sizeof(ie_header_t));
+			context->mo_exception_flag = false;
+		}
+	}
+
+	if(context->uci_flag == true){
+		mbr.uci.mnc_digit_1 = context->uci.mnc_digit_1;
+		mbr.uci.mnc_digit_2 = context->uci.mnc_digit_2;
+		mbr.uci.mnc_digit_3 = context->uci.mnc_digit_3;
+		mbr.uci.mcc_digit_1 = context->uci.mcc_digit_1;
+		mbr.uci.mcc_digit_2 = context->uci.mcc_digit_2;
+		mbr.uci.mcc_digit_3 = context->uci.mcc_digit_3;
+		mbr.uci.spare2 = 0;
+		mbr.uci.csg_id = context->uci.csg_id;
+		mbr.uci.csg_id2 = context->uci.csg_id2;
+		mbr.uci.access_mode = context->uci.access_mode;
+		mbr.uci.spare3 = 0;
+		mbr.uci.lcsg = context->uci.lcsg;
+		mbr.uci.cmi = context->uci.cmi;
+
+		set_ie_header(&mbr.uci.header, GTP_IE_USER_CSG_INFO, IE_INSTANCE_ZERO,
+				sizeof(gtp_user_csg_info_ie_t) - sizeof(ie_header_t));
+	}
+
+	if((context->ltem_rat_type_flag == true) && (context->indication_flag.oi == 1 || context->rat_type_flag == true)){
+		/**
+		 * Need to verify this condition
+		 * if rat type is lte-m and this flag is set then send lte-m rat type
+		 * else send wb-e-utran rat type
+		 * since anyway rat_type will be stored automattically like this no need to check
+		 * if(context->indication_flag.ltempi == 1)
+		 */
+		set_ie_header(&mbr.rat_type.header, GTP_IE_RAT_TYPE, IE_INSTANCE_ZERO,
+				sizeof(gtp_rat_type_ie_t) - sizeof(ie_header_t));
+		mbr.rat_type.rat_type = context->rat_type.rat_type;
+	  }
+
 	if (context->selection_flag) {
 		mbr.selection_mode.spare2 = context->select_mode.spare2;
 		mbr.selection_mode.selec_mode = context->select_mode.selec_mode;
@@ -409,30 +582,62 @@ void set_modify_bearer_request(gtpv2c_header_t *gtpv2c_tx, /*create_sess_req_t *
 	if(pdn->ue_time_zone_flag == true) {
 
 		mbr.ue_time_zone.time_zone = pdn->ue_tz.tz;
-		mbr.ue_time_zone.spare2 = 0;
 		mbr.ue_time_zone.daylt_svng_time = pdn->ue_tz.dst;
 
 		mbr.ue_time_zone.spare2 = 0;
+		set_ie_header(&mbr.ue_time_zone.header, GTP_IE_UE_TIME_ZONE, IE_INSTANCE_ZERO, (sizeof(uint8_t) * 2));
+	}else if(context->ue_time_zone_flag == true){
+		mbr.ue_time_zone.time_zone = context->tz.tz;
+		mbr.ue_time_zone.spare2 = 0;
+		mbr.ue_time_zone.daylt_svng_time = context->tz.dst;
+
 		set_ie_header(&mbr.ue_time_zone.header, GTP_IE_UE_TIME_ZONE,
 				IE_INSTANCE_ZERO, (sizeof(uint8_t) * 2));
 	}
 
-	set_ie_header(&mbr.bearer_contexts_to_be_modified.header, GTP_IE_BEARER_CONTEXT,
-			IE_INSTANCE_ZERO, 0);
-	set_ebi(&mbr.bearer_contexts_to_be_modified.eps_bearer_id, IE_INSTANCE_ZERO,
-			bearer->eps_bearer_id);
+	mbr.bearer_count = 0;
 
-	mbr.bearer_contexts_to_be_modified.header.len += sizeof(uint8_t) + IE_HEADER_SIZE;
+	for (uint8_t uiCnt = 0; uiCnt < MAX_BEARERS; ++uiCnt) {
 
-	/* Refer spec 23.274.Table 7.2.7-2 */
-	bearer->s5s8_sgw_gtpu_ipv4.s_addr = (bearer->s5s8_sgw_gtpu_ipv4.s_addr);
-	set_ipv4_fteid(&mbr.bearer_contexts_to_be_modified.s58_u_sgw_fteid,
-			GTPV2C_IFTYPE_S5S8_SGW_GTPU,
-			IE_INSTANCE_ONE,bearer->s5s8_sgw_gtpu_ipv4,
-			(bearer->s5s8_sgw_gtpu_teid));
+		bearer = pdn->eps_bearers[uiCnt];
 
-	mbr.bearer_contexts_to_be_modified.header.len += sizeof(struct fteid_ie_hdr_t) +
-		sizeof(struct in_addr) + IE_HEADER_SIZE;
+		if(bearer == NULL) {
+			continue;
+		}
+
+		mbr.bearer_count++;
+		set_ie_header(&mbr.bearer_contexts_to_be_modified[uiCnt].header, GTP_IE_BEARER_CONTEXT,
+				IE_INSTANCE_ZERO, 0);
+		set_ebi(&mbr.bearer_contexts_to_be_modified[uiCnt].eps_bearer_id, IE_INSTANCE_ZERO,
+				bearer->eps_bearer_id);
+
+		mbr.bearer_contexts_to_be_modified[uiCnt].header.len += sizeof(uint8_t) + IE_HEADER_SIZE;
+
+		/*
+		 * TODO : Below if condition is used to handle ip issue caused by use of
+		 * htonl or ntohl, Need to resolve this issue
+		 */
+		if(def_bearer->pdn->default_bearer_id ==
+				mbr.bearer_contexts_to_be_modified[uiCnt].eps_bearer_id.ebi_ebi) {
+			bearer->s5s8_sgw_gtpu_ipv4.s_addr = htonl(bearer->s5s8_sgw_gtpu_ipv4.s_addr);
+		}else{
+			if(pdn->proc == MODIFICATION_PROC){
+				/* Refer spec 23.274.Table 7.2.7-2 */
+				bearer->s5s8_sgw_gtpu_ipv4.s_addr = (bearer->s5s8_sgw_gtpu_ipv4.s_addr);
+			}else{
+				bearer->s5s8_sgw_gtpu_ipv4.s_addr = htonl(bearer->s5s8_sgw_gtpu_ipv4.s_addr);
+			}
+		}
+
+		set_ipv4_fteid(&mbr.bearer_contexts_to_be_modified[uiCnt].s58_u_sgw_fteid,
+				GTPV2C_IFTYPE_S5S8_SGW_GTPU,
+				IE_INSTANCE_ONE,bearer->s5s8_sgw_gtpu_ipv4,
+				(bearer->s5s8_sgw_gtpu_teid));
+
+		mbr.bearer_contexts_to_be_modified[uiCnt].header.len += sizeof(struct fteid_ie_hdr_t) +
+			sizeof(struct in_addr) + IE_HEADER_SIZE;
+
+	}
 
 	uint16_t msg_len = 0;
 	msg_len = encode_mod_bearer_req(&mbr, (uint8_t *)gtpv2c_tx);

@@ -35,6 +35,8 @@
 #include "../libgtpv2c/include/gtp_messages.h"
 #endif
 
+#define SLEEP_TIME (100)
+
 #ifndef PERF_TEST
 /** Temp. work around for support debug log level into DP, DPDK version 16.11.4 */
 #if (RTE_VER_YEAR >= 16) && (RTE_VER_MONTH >= 11)
@@ -78,6 +80,9 @@ typedef long long int _timer_t;
 #endif /* SYNC_STATS */
 
 #define MAX_UPF 10
+
+#define S11_INTFC			0
+#define S5S8_INTFC			1
 
 #define DNSCACHE_CONCURRENT 2
 #define DNSCACHE_PERCENTAGE 70
@@ -199,46 +204,9 @@ initialize_tables_on_dp(void);
 
 #ifdef CP_BUILD
 
-/**
- * @brief  : Set values in create bearer request
- * @param  : gtpv2c_tx, transmission buffer to contain 'create bearer request' message
- * @param  : sequence, sequence number as described by clause 7.6 3gpp 29.274
- * @param  : context, UE Context data structure pertaining to the bearer to be created
- * @param  : bearer, EPS Bearer data structure to be created
- * @param  : lbi, 'Linked Bearer Identifier': indicates the default bearer identifier
- *           associated to the PDN connection to which the dedicated bearer is to be
- *           created
- * @param  : pti, 'Procedure Transaction Identifier' according to clause 8.35 3gpp 29.274,
- *           as specified by table 7.2.3-1 3gpp 29.274, 'shall be the same as the one
- *           used in the corresponding bearer resource command'
- * @param  : eps_bearer_lvl_tft
- * @param  : tft_len
- * @return : Returns nothing
- */
-void
-set_create_bearer_request(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
-			  ue_context *context, eps_bearer *bearer,
-			  uint8_t lbi, uint8_t pti, uint8_t eps_bearer_lvl_tft[],
-			  uint8_t tft_len);
 
-/**
- * @brief  : Set values in create bearer response
- * @param  : gtpv2c_tx, transmission buffer to contain 'create bearer response' message
- * @param  : sequence, sequence number as described by clause 7.6 3gpp 29.274
- * @param  : context, UE Context data structure pertaining to the bearer to be created
- * @param  : bearer, EPS Bearer data structure to be created
- * @param  : lbi, 'Linked Bearer Identifier': indicates the default bearer identifier
- *           associated to the PDN connection to which the dedicated bearer is to be
- *           created
- * @param  : pti, 'Procedure Transaction Identifier' according to clause 8.35 3gpp 29.274,
- *           as specified by table 7.2.3-1 3gpp 29.274, 'shall be the same as the one
- *           used in the corresponding bearer resource command'
- * @return : Returns nothing
- */
-void
-set_create_bearer_response(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
-			  ue_context *context, eps_bearer *bearer,
-			  uint8_t lbi, uint8_t pti);
+
+
 
 void
 set_delete_bearer_request(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
@@ -344,6 +312,7 @@ close_stats(void);
 #define SGWU_PFCP_PORT   8805
 #define PGWU_PFCP_PORT   8805
 #define SAEGWU_PFCP_PORT   8805
+#define DDF_INTFC_LEN			64
 
 /**
  * @brief  : Maintains dns cache information
@@ -378,17 +347,25 @@ typedef struct pfcp_config_t {
 	uint16_t s11_mme_port;
 	struct in_addr s11_mme_ip;
 
+	/* DDF Interface Name */
+	char ddf_intfc[DDF_INTFC_LEN];
+
 	/* Control-Plane IPs and Ports Params. */
 	uint16_t s11_port;
 	uint16_t s5s8_port;
 	uint16_t pfcp_port;
+	uint16_t dadmf_port;
 	struct in_addr s11_ip;
 	struct in_addr s5s8_ip;
 	struct in_addr pfcp_ip;
+	struct in_addr dadmf_ip;
 
 	/* User-Plane IPs and Ports Params. */
 	uint16_t upf_pfcp_port;
 	struct in_addr upf_pfcp_ip;
+
+	uint16_t redis_port;
+	struct in_addr redis_ip;
 
 	/* RESTORATION PARAMETERS */
 	uint8_t transmit_cnt;
@@ -405,6 +382,12 @@ typedef struct pfcp_config_t {
 	/* APN */
 	uint32_t num_apn;
 	/* apn apn_list[MAX_NUM_APN]; */
+
+	/*Default URR configuration*/
+	int trigger_type;
+	int uplink_volume_th;
+	int downlink_volume_th;
+	int time_th;
 
 	dns_cache_params_t dns_cache;
 	dns_config_t ops_dns;
@@ -433,6 +416,15 @@ init_pfcp(void);
  */
 void
 init_cp(void);
+
+/**
+ * @brief  : Initializes redis node to send generated CDR
+ * @param  : void
+ * @return : Void
+ */
+void
+init_redis(void);
+
 
 /**
  * @brief  : Initialize dp rule table
@@ -466,6 +458,10 @@ fill_peer_node_info(pdn_connection *pdn, eps_bearer *bearer);
 /* Fill the FQ-CSID values in session est request */
 int8_t
 fill_fqcsid_sess_est_req(pfcp_sess_estab_req_t *pfcp_sess_est_req, ue_context *context);
+
+/* Fill the FQ-CSID values in session modification request */
+int8_t
+fill_fqcsid_sess_mod_req(pfcp_sess_mod_req_t *pfcp_sess_mod_req, ue_context *context);
 
 /* Cleanup Session information by local csid*/
 int8_t
@@ -511,6 +507,29 @@ int process_pfcp_sess_set_del_rsp_t(pfcp_sess_set_del_rsp_t *del_set_rsp);
 int8_t
 fill_gtpc_del_set_pdn_conn_rsp(gtpv2c_header_t *gtpv2c_tx, uint8_t seq_t,
 		uint8_t casue_value);
+
+int8_t
+cleanup_session_entries(uint16_t local_csid, ue_context *context);
+
+/*
+ * @brief  : Remove Temporary Local CSID linked with peer node CSID
+ * @param  : peer_fqcsid, structure to store peer node fqcsid info.
+ * @param  : tmp_csid, Temporary Local CSID.
+ * @param  : iface, Interface .
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+int
+remove_peer_temp_csid(fqcsid_t *peer_fqcsid, uint16_t tmp_csid, uint8_t iface);
+
+/*
+ * @brief  : Remove Session entry linked with Local CSID .
+ * @param  : seid, session id .
+ * @param  : peer_fqcsid, st1ructure to store peer node fqcsid info.
+ * @param  : context, Structure to store UE context,
+ * @return : Returns 0 in case of success ,-1 or cause value otherwise.
+ */
+int
+cleanup_csid_entry(uint64_t seid, fqcsid_t *peer_fqcsid, ue_context *context);
 #endif /* USE_CSID */
 
 #endif

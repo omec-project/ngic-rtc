@@ -107,7 +107,11 @@ static int
 set_dpn_id(const char *dpn_id_from_json)
 {
 	if (dpn_id != NULL && dpn_id_from_json != NULL)
+	{
+		clLog(clSystemLog, eCLSeverityDebug,
+				"%s:%d Set dpn function return -1\n",__func__, __LINE__);
 		return -1;
+	}
 	if (dpn_id != NULL && dpn_id_from_json == NULL) {
 		free(dpn_id);
 		dpn_id = NULL;

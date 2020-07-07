@@ -229,6 +229,20 @@ set_apn_restriction_ie(gtpv2c_header_t *header,
  * @return : Returns nothing
  */
 void
+set_change_reporting_action(gtp_chg_rptng_act_ie_t *chg_rptng_act,
+		          enum ie_instance instance, uint8_t action);
+/**
+ * @brief  : Populates 'Access Point Name' restriction information element
+ *           according to 3gpp 29.274 clause 8.57
+ * @param  : apn_restriction
+ *           apn restriction ie
+ * @param  : instance
+ *           Information element instance as specified by 3gpp 29.274 clause 6.1.3
+ * @param  : apn_restriction
+ *           value indicating the restriction according to 3gpp 29.274 table 8.57-1
+ * @return : Returns nothing
+ */
+void
 set_apn_restriction(gtp_apn_restriction_ie_t *apn_restriction,
 		enum ie_instance instance, uint8_t restriction_type);
 
@@ -420,12 +434,14 @@ add_grouped_ie_length(gtpv2c_ie *group_ie, uint16_t grouped_ie_length);
  *           pdn connection information
  * @param  : bearer
  *           bearer data structure to be modified
- * @return : Returns nothing
+ * @param  : is_piggybacked
+ *           describes whether message is piggybacked or not
+ * @return : Returns message length
  */
-void
+uint16_t
 set_create_session_response(gtpv2c_header_t *gtpv2c_tx,
 		uint32_t sequence, ue_context *context, pdn_connection *pdn,
-		eps_bearer *bearer);
+		eps_bearer *bearer, uint8_t is_piggybacked);
 
 /**
  * @brief  : from parameters, populates gtpv2c message 'modify bearer response' and
@@ -443,7 +459,7 @@ set_create_session_response(gtpv2c_header_t *gtpv2c_tx,
  */
 void
 set_modify_bearer_response(gtpv2c_header_t *gtpv2c_tx,
-		uint32_t sequence, ue_context *context, eps_bearer *bearer);
+		uint32_t sequence, ue_context *context, eps_bearer *bearer, mod_bearer_req_t *mbr);
 
 /* @brief  : Function added to return Response in case of Handover
  *           It performs the same as the function set_modify_bearer_response
@@ -459,7 +475,8 @@ set_modify_bearer_response(gtpv2c_header_t *gtpv2c_tx,
  */
 void
 set_modify_bearer_response_handover(gtpv2c_header_t *gtpv2c_tx,
-		uint32_t sequence, ue_context *context, eps_bearer *bearer);
+		uint32_t sequence, ue_context *context, eps_bearer *bearer,
+		mod_bearer_req_t *mbr);
 /**
  * @brief  : Helper function to set the gtp header for a gtpv2c message.
  * @param  : gtpv2c_tx
@@ -471,12 +488,14 @@ set_modify_bearer_response_handover(gtpv2c_header_t *gtpv2c_tx,
  *           gtp header
  * @param  : seq
  *           sequence number as described by clause 7.6 3gpp 29.274
+ * @param  : is_piggybacked
+ *           piggybacked  as described by clause 5.5.1 3gpp 29.274
  * @return : Returns nothing
  */
 void
 set_gtpv2c_header(gtpv2c_header_t *gtpv2c_tx,
 				uint8_t teidFlg, uint8_t type,
-				uint32_t has_teid, uint32_t seq);
+				uint32_t has_teid, uint32_t seq, uint8_t is_piggybacked);
 
 /**
  * @brief  : Helper function to set the gtp header for a gtpv2c message with the
@@ -489,11 +508,13 @@ set_gtpv2c_header(gtpv2c_header_t *gtpv2c_tx,
  *           GTP teid, or TEID-C, to be populated in the GTP header
  * @param  : seq
  *           sequence number as described by clause 7.6 3gpp 29.274
+ * @param  : is_piggybacked
+ *           is_piggybacked as described by clause 5.5.1 3gpp 29.274
  * @return : Returns nothing
  */
 void
 set_gtpv2c_teid_header(gtpv2c_header_t *gtpv2c_tx, uint8_t type,
-		uint32_t teid, uint32_t seq);
+		uint32_t teid, uint32_t seq, uint8_t is_piggybacked);
 
 /**
  * @brief  : from parameters, populates gtpv2c message 'create session response' and

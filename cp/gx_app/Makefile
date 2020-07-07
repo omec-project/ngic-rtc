@@ -32,7 +32,7 @@ SOURCES += ../ipc_api.c
 OBJECTS := $(patsubst $(SRCDIR)/%,$(BUILDDIR)/%,$(SOURCES:.$(SRCEXT)=.o))
 
 #CFLAGS +=  -fPIC -Wall
-CFLAGS +=  -fPIC
+CFLAGS +=  -fPIC -Wall -Werror
 
 ifeq ($(DEBUG),1)
 	CFLAGS += -g3

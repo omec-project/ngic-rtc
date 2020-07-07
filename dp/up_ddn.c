@@ -128,21 +128,6 @@ set_dldr_ie(pfcp_dnlnk_data_rpt_ie_t *dl)
 
 }
 
-/**
- * @brief  : Set values session report type ie
- * @param  : rt, structure to be filled
- * @return : Returns nothing
- */
-static void
-set_sess_report_type(pfcp_report_type_ie_t *rt)
-{
-	pfcp_set_ie_header(&(rt->header), PFCP_IE_REPORT_TYPE, UINT8_SIZE);
-	rt->rpt_type_spare = 0;
-	rt->upir  = 0;
-	rt->erir  = 0;
-	rt->usar  = 0;
-	rt->dldr  = 1;
-}
 
 /**
  * @brief  : Fill pfcp session report request
@@ -195,13 +180,9 @@ process_pfcp_session_report_req(struct sockaddr_in *peer_addr,
 	pfcp_header_t *header = (pfcp_header_t *) pfcp_msg;
 	header->message_len = htons(encoded - 4);
 
-	if ( pfcp_send(my_sock.sock_fd, pfcp_msg, encoded, peer_addr) < 0 ) {
+	if ( pfcp_send(my_sock.sock_fd, pfcp_msg, encoded, peer_addr,SENT) < 0 ) {
 	                clLog(clSystemLog, eCLSeverityDebug, "Error sending: %i\n",errno);
 	                return -1;
-	}
-	else {
-		update_cli_stats((uint32_t)peer_addr->sin_addr.s_addr,
-				pfcp_sess_rep_req.header.message_type,SENT,SX);	
 	}
 
 	return 0;

@@ -680,6 +680,7 @@ export_record(struct dp_session_info *session,
 void
 set_cdr_path(const char *path)
 {
+	/*TODO : change strlen with strnlen with proper size (n)*/
 	size_t append_end_slash = path[strlen(path) - 1] == '/' ? 0 : 1;
 	size_t alloc_size = strlen(path) + 1 + append_end_slash;
 	if (alloc_size > PATH_MAX)
@@ -866,7 +867,7 @@ cdr_init(void)
 
 	if (ssl_handle != NULL) {
 			clLog(clSystemLog, eCLSeverityDebug, "SSLWrite filename :%s\n",filename);
-			sent = SSL_write(ssl_handle, filename, strlen(filename));
+			sent = SSL_write(ssl_handle, filename, strnlen(filename,PATH_MAX));
 
 			if (sent <= 0) {
 				rte_panic("Error in sending filename to SGX DealerIn. Error %d\n",

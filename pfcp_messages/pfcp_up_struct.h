@@ -39,6 +39,9 @@
 #define MAX_BEARERS 15
 #define MAX_LIST_SIZE 16
 #define ACL_TABLE_NAME_LEN 16
+#define MAX_ACL_TABLES		1000
+#define MAX_SDF_RULE_NUM	32
+#define NAME_LEN			32
 
 typedef struct pfcp_session_t pfcp_session_t;
 typedef struct pfcp_session_datat_t pfcp_session_datat_t;
@@ -47,12 +50,14 @@ typedef struct qer_info_t qer_info_t;
 typedef struct urr_info_t urr_info_t;
 typedef struct predef_rules_t predef_rules_t;
 
-/* rte hash for pfcp context
- * hash key: pfcp sess id, data:  pfcp_session_t
+/**
+ * @brief  : rte hash for pfcp context
+ *           hash key: pfcp sess id, data:  pfcp_session_t
  */
 struct rte_hash *sess_ctx_by_sessid_hash;
 
-/* rte hash for session data by teid.
+/**
+ * @brief  : rte hash for session data by teid.
  * hash key: teid, data:  pfcp_session_datat_t
  * Usage:
  * 	1) SGW-U : UL & DL packet detection (Check packet against sdf rules defined in acl_table_name and get matching PDR ID.
@@ -60,35 +65,58 @@ struct rte_hash *sess_ctx_by_sessid_hash;
  */
 struct rte_hash *sess_by_teid_hash;
 
-/* rte hash for session data by ue ip addr.
+/**
+ * @brief  : rte hash for session data by ue ip addr.
  * hash key: ue ip addr, data:  pfcp_session_datat_t
  * Usage:
  * 	PGW-U : DL packet detection ()
  */
 struct rte_hash *sess_by_ueip_hash;
 
-/* rte hash for pdr by pdr id.
+/**
+ * @brief  : rte hash for pdr by pdr id.
  * hash key: pdr id, data:  pdr_info_t (pointer to already allocated pfcp_session_datat_t:pdr_info_t)
  */
 struct rte_hash *pdr_by_id_hash;
 
 
-/* rte hash for far by far id.
+/**
+ * @brief  : rte hash for far by far id.
  * hash key: far id, data:  far_info_t (pointer to already allocated pfcp_session_datat_t:pdr_info_t:far_info_t)
  */
 struct rte_hash *far_by_id_hash;
 
-/* rte hash for qer by qer id.
+/**
+ * @brief  : rte hash for qer by qer id.
  * hash key: qer id, data:  qer_info_t (pointer to already allocated pfcp_session_datat_t:pdr_info_t:qer_info_t)
  */
 struct rte_hash *qer_by_id_hash;
 
-/* rte hash for urr data by urr id.
+/**
+ * @brief  : rte hash for urr data by urr id.
  * hash key: urr id, data:  urr_info_t (pointer to already allocated pfcp_session_datat_t:pdr_info_t:urr_info_t)
  */
 struct rte_hash *urr_by_id_hash;
 
+/**
+ * @brief  : rte hash for timer data by urr id.
+ * hash key: urr id, data:  peerData
+ */
+struct rte_hash *timer_by_id_hash;
+
+/**
+ * @brief  : rte hash for socket.
+ */
+struct rte_hash *sock_by_ddf_ip_hash;
+
+
 enum up_session_state { CONNECTED, IDLE, IN_PROGRESS };
+
+enum urr_mesur_method {
+	VOL_BASED,
+	TIME_BASED,
+	VOL_TIME_BASED
+};
 
 /**
  * @brief  : Maintains predefined rules list
@@ -115,13 +143,26 @@ typedef struct far_frwdng_parms_t {
 } far_frwdng_parms_t;
 
 /**
+ * @brief  : Maintains duplicating parameters
+ */
+typedef struct duplicating_parms_t {
+
+	dst_intfc_t dst_intfc;
+	outer_hdr_creation_t outer_hdr_creation;
+
+}duplicating_parms_t;
+
+
+/**
  * @brief  : Maintains far related information
  */
 typedef struct far_info_t {
 	uint32_t far_id_value;						/* FAR ID */
 	apply_action actions;						/* Apply Action parameters */
 	far_frwdng_parms_t frwdng_parms;				/* Forwarding paramneters */
-
+	uint32_t dup_parms_cnt;
+	int tcp_sock_fd[MAX_LIST_SIZE];
+	duplicating_parms_t dup_parms[MAX_LIST_SIZE];
 	//pfcp_session_t *session;					/* Pointer to session */
 	pfcp_session_datat_t *session;					/* Pointer to session */
 }far_info_t;
@@ -165,6 +206,17 @@ typedef struct bar_info_t {
 typedef struct urr_info_t {
 	/* TODO: Add members */
 	uint32_t urr_id;							/* URR ID */
+	uint16_t meas_method;                       /* Measurment Method */
+	uint16_t rept_trigg;                        /* Reporting Trigger */
+	uint32_t vol_thes_uplnk;                    /* Vol Threshold */
+	uint32_t vol_thes_dwnlnk;                   /* Vol Threshold */
+	uint32_t time_thes;                         /* Time Threshold */
+	uint32_t uplnk_data;                        /* Uplink data usage */
+	uint32_t dwnlnk_data;                       /* Downlink Data Usage */
+	uint32_t start_time;                        /* Start Time */
+	uint32_t end_time;                          /* End Time */
+	uint32_t first_pkt_time;                    /* First Pkt Time */
+	uint32_t last_pkt_time;                     /* Last Pkt Time */
 
 	urr_info_t *next;
 }urr_info_t;
@@ -203,8 +255,12 @@ typedef struct pdr_info_t {
 typedef struct pfcp_session_datat_t {
 
 	uint32_t ue_ip_addr;
+	uint32_t eNB_ip_addr;
+	uint32_t sgwu_ip_addr;
+	uint32_t pgwu_ip_addr;
 	char acl_table_name[ACL_TABLE_NAME_LEN];
-	int acl_table_indx;
+	int acl_table_indx[MAX_SDF_RULE_NUM];
+	uint8_t acl_table_count;
 
 	pdr_info_t *pdrs;
 	//VS:TODO:NEED TO THINK ON IT
@@ -224,11 +280,14 @@ typedef struct pfcp_session_datat_t {
 typedef struct pfcp_session_t {
 	uint64_t cp_seid;
 	uint64_t up_seid;
+	uint64_t imsi;
 
 	uint8_t ber_cnt;
 	uint32_t teids[MAX_BEARERS];
 
+	/* TODO: Need to optimized */
 #ifdef USE_CSID
+	fqcsid_t *enb_fqcsid;
 	fqcsid_t *mme_fqcsid;
 	fqcsid_t *sgw_fqcsid;
 	fqcsid_t *sgwu_fqcsid;
@@ -236,6 +295,8 @@ typedef struct pfcp_session_t {
 	fqcsid_t *pgwu_fqcsid;
 #endif /* USE_REST */
 	pfcp_session_datat_t *sessions;
+	uint32_t dup_parms_cnt;
+	int tcp_sock_fd[MAX_LIST_SIZE];
 } pfcp_session_t;
 
 /**

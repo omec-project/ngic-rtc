@@ -97,6 +97,7 @@ typedef struct {
 	uint8_t ebi_index;
 	uint16_t buf_len;
 	uint8_t buf[1024];
+	uint64_t imsi;
 } peerData;
 
 #else
@@ -136,6 +137,9 @@ typedef struct {
 	/** Name String */
 	const char    *name;
 	//struct rte_mbuf *buf;
+	/*urr_info */
+	struct urr_info_t *urr;
+	uint64_t cp_seid;
 
 } peerData;
 
@@ -145,7 +149,34 @@ typedef struct {
 /*	extern uint32_t up_time;
 	uint32_t current_ntp_timestamp(void);
 */
+#ifdef DP_BUILD
+/**
+ * @brief  : Maintains data for peer node
+ */
+typedef struct {
+	/** src ipv4 address */
+	uint32_t srcIP;
+	/** dst ipv4 address */
+	uint32_t dstIP;
+	/** Recovery Time */
+	uint32_t rcv_time;
+	/** src ether address */
+	struct ether_addr src_eth_addr;
+	/** dst ether address */
+	struct ether_addr dst_eth_addr;
+	/** Periodic Timer */
+	gstimerinfo_t  pt;
+	/** Transmit Timer */
+	gstimerinfo_t  tt;
+	/** Name String */
+	const char    *name;
+	//struct rte_mbuf *buf;
+	/*urr_info */
+	struct urr_info_t *urr;
+	uint64_t cp_seid;
 
+} peerEntry;
+#endif
 /**
  * @brief  : start the timer thread and wait for _timer_tid to be populated
  * @param  : No param

@@ -27,6 +27,7 @@ include $(NG_CORE)/config/ng-core_cfg.mk
 OSS_UTIL_ROOT = $(NG_CORE)/oss_adapter/c3po_oss/oss-util
 LIBGTPV2C_ROOT = $(SRCDIR)/../libgtpv2c
 LIBPFCP_ROOT = $(SRCDIR)/../libpfcp
+HIREDIS_DIR = $(NG_CORE)/third_party/hiredis
 
 # binary name
 APP = ngic_controlplane
@@ -46,11 +47,12 @@ SRCS-y += cp_timer.c
 SRCS-y += packet_filters.c
 SRCS-y += gtpc_session.c
 SRCS-y += gtpv2c_error_rsp.c
-
+SRCS-y += cdr.c
+SRCS-y += redis_client.c
+SRCS-y += li_config.c
 SRCS-y += state_machine/sm_init.o
 SRCS-y += state_machine/sm_hand.o
 SRCS-y += state_machine/sm_gtpc_pcnd.o
-SRCS-y += state_machine/sm_s5s8_pcnd.o
 SRCS-y += state_machine/sm_pfcp_pcnd.o
 
 SRCS-y += gtpv2c_messages/bearer_resource_cmd.o
@@ -63,6 +65,7 @@ SRCS-y += gtpv2c_messages/delete_s5s8_session.o
 SRCS-y += gtpv2c_messages/gtpv2c_echo.o
 SRCS-y += gtpv2c_messages/modify_bearer.o
 SRCS-y += gtpv2c_messages/downlink_data_notification.o
+SRCS-y += gtpv2c_messages/change_notification.o
 SRCS-y += gtpv2c_messages/release_access_bearer.o
 SRCS-y += $(SRCDIR)/../pfcp_messages/pfcp_association.o
 SRCS-y += $(SRCDIR)/../pfcp_messages/pfcp_req_resp.o
@@ -78,6 +81,7 @@ SRCS-y += $(SRCDIR)/../interface/interface.o
 SRCS-y += $(SRCDIR)/../interface/udp/vepc_udp.o
 
 SRCS-y += $(SRCDIR)/../cp_dp_api/vepc_cp_dp_api.o
+SRCS-y += $(SRCDIR)/../cp_dp_api/tcp_client.o
 
 SRCS-y += $(SRCDIR)/../oss_adapter/c3po_oss/gw_adapter.o
 CFLAGS += -I$(SRCDIR)/../oss_adapter/c3po_oss
@@ -88,6 +92,7 @@ CFLAGS += -I$(SRCDIR)/../oss_adapter/c3po_oss
 #endif
 
 CFLAGS += -Wno-psabi # suppress "The ABI for passing parameters with 64-byte alignment has changed in GCC 4.6"
+CFLAGS += -Wall
 CFLAGS += -Werror
 CFLAGS += -Wunused-variable
 
@@ -106,6 +111,7 @@ CFLAGS += -I$(LIBPFCP_ROOT)/include
 CFLAGS += -I$(SRCDIR)/..
 CFLAGS += -I$(SRCDIR)/../pfcp_messages
 CFLAGS += -I$(SRCDIR)/state_machine
+CFLAGS += -I$(HIREDIS_DIR)
 
 # Mandatory CFLAGS, LDFLAGS- DO NOT MODIFY
 # #############################################################
@@ -121,6 +127,7 @@ LDLIBS += -L$(LIBGTPV2C_ROOT)/lib -lgtpv2c
 LDLIBS += -L$(LIBPFCP_ROOT)/lib -lpfcp
 
 LDLIBS += -lpcap
+LDLIBS += -lhiredis
 
 # ngic-cp application options CFLAGS
 # #############################################################
@@ -186,6 +193,8 @@ ifneq (,$(findstring USE_CSID, $(CFLAGS)))
  SRCS-y += $(SRCDIR)/../pfcp_messages/csid_api.o
  SRCS-y += $(SRCDIR)/../pfcp_messages/csid_peer_init.o
  SRCS-y += $(SRCDIR)/../pfcp_messages/csid_cp_cleanup.o
+ SRCS-y += $(SRCDIR)/../pfcp_messages/seid_llist.o
+ SRCS-y += $(SRCDIR)/../pfcp_messages/recovery_api.o
 endif
 
 # Un-comment below line to read fake cp config.
@@ -201,7 +210,7 @@ CFLAGS += -DUSE_DNS_QUERY
 	LIBDNSCLIENT_ROOT = $(SRCDIR)/../oss_adapter/c3po_oss/oss-util
 	CFLAGS += -I$(LIBDNSCLIENT_ROOT)/include
 	LDLIBS += $(LIBDNSCLIENT_ROOT)/lib/liboss-util.a -lstdc++ -lpistache
-	LDLIBS += -L$(LIBDNSCLIENT_ROOT)/modules/c-ares -lcares
+	LDLIBS += -L$(LIBDNSCLIENT_ROOT)/modules/c-ares -lcares -lcurl
 #endif
 
 # Comment below line to build cp without GxApp.

@@ -69,7 +69,7 @@ static inline void epc_s1u_rx_set_port_id(struct rte_mbuf *m)
 	if (unlikely(m->ol_flags
 		& (PKT_RX_L4_CKSUM_BAD
 		| PKT_RX_IP_CKSUM_BAD))) {
-		clLog(epclogger, eCLSeverityCritical, "Bad checksum\n");
+		clLog(clSystemLog, eCLSeverityCritical, "Bad checksum\n");
 		ipv4_packet = 0;
 	}
 
@@ -83,7 +83,7 @@ static inline void epc_s1u_rx_set_port_id(struct rte_mbuf *m)
 		if (likely(udph->dst_port == htons(2152))) {
 			/* TODO: Inner could be ipv6 ? */
 
-			clLog(epclogger, eCLSeverityDebug, "Function:%s::\n\t"
+			clLog(clSystemLog, eCLSeverityDebug, "Function:%s::\n\t"
 					 "gtpu_hdrsz= %lu\n",
 					 __func__, sizeof(struct gtpu_hdr));
 
@@ -96,7 +96,7 @@ static inline void epc_s1u_rx_set_port_id(struct rte_mbuf *m)
 			const uint32_t *p =
 			    (const uint32_t *)&inner_ipv4_hdr->src_addr;
 
-			clLog(epclogger, eCLSeverityDebug, "gtpu packet\n");
+			clLog(clSystemLog, eCLSeverityDebug, "gtpu packet\n");
 			*port_id_offset = 0;
 
 			set_ue_ipv4_hash(ue_ipv4_hash_offset, p);
@@ -153,7 +153,7 @@ static inline void epc_sgi_rx_set_port_id(struct rte_mbuf *m)
 
 	if (unlikely(m->ol_flags
 		& (PKT_RX_L4_CKSUM_BAD | PKT_RX_IP_CKSUM_BAD))) {
-		clLog(epclogger, eCLSeverityDebug, "Bad checksum\n");
+		clLog(clSystemLog, eCLSeverityDebug, "Bad checksum\n");
 		/* put packets with bad checksum to kernel */
 		ipv4_packet = 0;
 	}
@@ -171,7 +171,7 @@ static inline void epc_sgi_rx_set_port_id(struct rte_mbuf *m)
 	if (likely(!*port_id_offset)) {
 		const uint32_t *p = (const uint32_t *)&ipv4_hdr->dst_addr;
 
-		clLog(epclogger, eCLSeverityDebug, "SGI packet\n");
+		clLog(clSystemLog, eCLSeverityDebug, "SGI packet\n");
 
 		set_ue_ipv4_hash(ue_ipv4_hash_offset, p);
 	}
@@ -247,10 +247,10 @@ void epc_rx_init(struct epc_rx_params *param, int core, uint8_t port_id)
 	 /* Input port configuration */
 	if (rte_eth_dev_socket_id(port_id)
 		!= (int)lcore_config[core].socket_id) {
-		clLog(epclogger, eCLSeverityMinor,
+		clLog(clSystemLog, eCLSeverityMinor,
 			"location of the RX core for port=%d is not optimal\n",
 			port_id);
-		clLog(epclogger, eCLSeverityMinor,
+		clLog(clSystemLog, eCLSeverityMinor,
 			"***** performance may be degradated !!!!! *******\n");
 	}
 

@@ -17,8 +17,8 @@
 #ifndef PFCP_STRUCT_H
 #define PFCP_STRUCT_H
 
-#define MAX_LIST_SIZE	16
-
+#define MAX_LIST_SIZE	    16
+#define MAX_FLOW_DESC_LEN   256
 #include "pfcp_ies.h"
 
 /**
@@ -65,7 +65,7 @@ typedef struct sdf_filter_info_t {
 	uint8_t ttc;
 	uint8_t fd;
 	/* TODO: Need to think on flow desc*/
-	uint8_t flow_desc[255];
+	uint8_t flow_desc[MAX_FLOW_DESC_LEN];
 	uint16_t len_of_flow_desc;
 	uint16_t tos_traffic_cls;
 	uint32_t secur_parm_idx;
@@ -303,6 +303,49 @@ typedef struct suggested_buf_packets_cnt_t {
 	uint8_t pckt_cnt_val;
 } suggstd_buf_pckts_cnt_t;
 
+/**
+ * @brief : Maintains measurement methods in urr
+ */
+typedef struct measurement_method_t {
+
+	uint8_t event;
+	uint8_t volum;
+	uint8_t durat;
+
+}measurement_method;
+
+/**
+ * @brief : Maintains reporting trigger in urr
+ */
+typedef struct reporting_trigger_t {
+
+	uint8_t timth;
+	uint8_t volth;
+	uint8_t eveth;
+
+}reporting_trigger;
+
+/**
+ * @brief : Maintains volume threshold in urr
+ */
+typedef struct volume_threshold_t {
+
+	uint64_t total_volume;
+	uint64_t uplink_volume;
+	uint64_t downlink_volume;
+
+}volume_threshold;
+
+
+/**
+ * @brief : Maintains time threshold in urr
+ */
+typedef struct time_threshold_t {
+
+	uint32_t time_threshold;
+
+}time_threshold;
+
 #ifdef CP_BUILD
 /**
  * @brief  : Maintains far information
@@ -340,6 +383,20 @@ typedef struct qer_info_t {
 }qer_t;
 
 /**
+ * @brief  : Maintains urr information
+ */
+typedef struct urr_info_t {
+
+	uint32_t urr_id_value;
+	uint64_t session_id;
+	measurement_method mea_mt;
+	reporting_trigger rept_trigg;
+	volume_threshold vol_th;
+	time_threshold time_th;
+
+}urr_t;
+
+/**
  * @brief  : Maintains pdr information
  */
 typedef struct pdr_info_t {
@@ -352,6 +409,7 @@ typedef struct pdr_info_t {
 	pdi_t pdi;									/* Packet Detection Information */
 	far_t far;									/* FAR structure info */
 	qer_t qer;
+	urr_t urr;
 	outer_hdr_removal_t outer_hdr_removal;		/* Outer Header Removal */
 	urr urr_id[MAX_LIST_SIZE];					/* Collection of URR IDs */
 	qer qer_id[MAX_LIST_SIZE];					/* Collection of QER IDs */
@@ -368,12 +426,5 @@ typedef struct bar_info_t {
 	suggstd_buf_pckts_cnt_t suggstd_buf_pckts_cnt;
 }bar_t;
 
-/*VS:TODO: Revisit this part and update it. */
-/**
- * @brief  : Maintains urr information
- */
-typedef struct urr_info_t {
-
-}urr_t;
 #endif  /* CP_BUILD */
 #endif /* PFCP_STRUCT_H */

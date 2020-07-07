@@ -20,10 +20,12 @@
 #include <sys/sysinfo.h>
 #include <stdint.h>
 #include <arpa/inet.h>
+#include "gw_adapter.h"
 
 #ifdef CP_BUILD
 #include "ue.h"
 #include "gtp_messages.h"
+#include "sm_struct.h"
 #endif /* CP_BUILD */
 
 extern uint32_t start_time;
@@ -71,7 +73,7 @@ pfcp_recv(void *msg_payload, uint32_t size,
  */
 int
 pfcp_send(int fd,void *msg_payload, uint32_t size,
-		struct sockaddr_in *peer_addr);
+		struct sockaddr_in *peer_addr,Dir dir);
 
 /**
  * @brief  : Returns system seconds since boot
@@ -113,5 +115,85 @@ current_ntp_timestamp(void);
  */
 void
 time_to_ntp(struct timeval *tv, uint8_t *ntp);
+
+
+/**
+ * @brief  : Converts ntp time to unix/epoch(UTC) format
+ * @param  : ntp, input ntp timeval
+ * @param  : unix_tm, converted unix time
+ * @return : Returns nothing
+ */
+void
+ntp_to_unix_time(uint32_t *ntp, struct timeval *unix_tm);
+
+/**
+ * @brief  : Retrive UE Database From SEID and If require copy the message to LI server
+ * @param  : sess_id, key for search
+ * @param  : buf_tx, message to copy to LI server
+ * @param  : buf_tx_size, message size
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+#ifdef CP_BUILD
+/**
+ * @brief  : Process li message
+ * @param  : sess_id, session id
+ * @param  : buf_tx
+ * @param  : buf_tx_size, size of buf_tx
+ * @param  : uiSrcIp, source ip address
+ * @param  : uiDstIp, destination ip address
+ * @param  : uiSrcPort, source port number
+ * @param  : uiDstPort, destination port number
+ * @return : Returns 0 on success, -1 otherwise
+ */
+int
+process_cp_li_msg(uint64_t sess_id, uint8_t *buf_tx,
+		int buf_tx_size, uint32_t uiSrcIp, uint32_t uiDstIp,
+		uint16_t uiSrcPort, uint16_t uiDstPort);
+/**
+ * @brief  : Process li message using ue context
+ * @param  : context, ue context details
+ * @param  : buf_tx
+ * @param  : buf_tx_size, size of buf_tx
+ * @param  : uiSrcIp, source ip address
+ * @param  : uiDstIp, destination ip address
+ * @param  : uiSrcPort, source port number
+ * @param  : uiDstPort, destination port number
+ * @return : Returns 0 on success, -1 otherwise
+ */
+int
+process_cp_li_msg_using_context(ue_context *context, uint8_t *buf_tx, int buf_tx_size,
+		uint32_t uiSrcIp, uint32_t uiDstIp, uint16_t uiSrcPort, uint16_t uiDstPort);
+
+/**
+ * @brief  : Process messages for li
+ * @param  : context, ue context details
+ * @param  : msg, msg_info structure
+ * @param  : uiSrcIp, source ip address
+ * @param  : uiDstIp, destination ip address
+ * @param  : uiSrcPort, source port number
+ * @param  : uiDstPort, destination port number
+ * @return : Returns 0 on success, -1 otherwise
+ */
+int
+process_msg_for_li(ue_context *context, msg_info *msg, uint32_t uiSrcIp,
+		uint32_t uiDstIp, uint16_t uiSrcPort, uint16_t uiDstPort);
+
+/**
+ * @brief  : Process li message using imsi and li socket file descriptor
+ * @param  : uiImsi, imsi of UE
+ * @param  : li_sock_fd, li socket file descriptor
+ * @param  : buf_tx
+ * @param  : buf_tx_size, size of buf_tx
+ * @param  : uiSrcIp, source ip address
+ * @param  : uiDstIp, destination ip address
+ * @param  : uiSrcPort, source port number
+ * @param  : uiDstPort, destination port number
+ * @return : Returns 0 on success, -1 otherwise
+ */
+int
+process_cp_li_msg_for_cleanup(uint64_t uiImsi, int li_sock_fd, uint8_t *buf_tx, int buf_tx_size,
+		uint32_t uiSrcIp, uint32_t uiDstIp, uint16_t uiSrcPort, uint16_t uiDstPort);
+
+#endif /* CP_BUILD */
 
 #endif /* PFCP_UTIL_H */

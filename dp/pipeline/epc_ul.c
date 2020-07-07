@@ -50,6 +50,7 @@
 #include "up_main.h"
 #include "epc_packet_framework.h"
 #include "clogger.h"
+#include "gw_adapter.h"
 #ifdef USE_REST
 #include "../restoration/restoration_timer.h"
 #endif /* USE_REST */

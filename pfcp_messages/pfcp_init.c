@@ -38,7 +38,9 @@ static uint8_t bar_rule_id_offset;
 const uint16_t pdr_base_rule_id = 0x0000;
 static uint16_t pdr_rule_id_offset;
 const uint32_t far_base_rule_id = 0x00000000;
+const uint32_t urr_base_rule_id = 0x00000000;
 static uint32_t far_rule_id_offset;
+static uint32_t urr_rule_id_offset;
 const uint32_t qer_base_rule_id = 0x00000000;
 static uint32_t qer_rule_id_offset;
 /* VS: Need to decide the base value of call id */
@@ -79,7 +81,7 @@ add_pdn_conn_entry(uint32_t call_id, pdn_connection *pdn)
 					"\n\tError= %s\n",
 					__func__, __LINE__, call_id,
 					rte_strerror(abs(ret)));
-			return -1;
+			return GTPV2C_CAUSE_SYSTEM_FAILURE;
 		}
 	} else {
 		memcpy(tmp, pdn, sizeof(pdn_connection));
@@ -148,7 +150,10 @@ del_pdn_conn_entry(uint32_t call_id)
 	}
 
 	/* Free data from hash */
-	rte_free(pdn);
+	if(pdn){
+		rte_free(pdn);
+		pdn = NULL;
+	}
 
 	clLog(clSystemLog, eCLSeverityDebug, "%s: CALL_ID:%u",
 			__func__, call_id);
@@ -211,7 +216,6 @@ get_rule_name_entry(const rule_name_key_t rule_key)
 	/* Check Rule Name entry is present or Not */
 	ret = rte_hash_lookup_data(rule_name_bearer_id_map_hash,
 				&rule_key, (void **)&bearer);
-
 	if ( ret < 0) {
 		/* clLog(clSystemLog, eCLSeverityCritical, "%s:%d Entry not found for Rule_Name:%s...\n",
 				__func__, __LINE__, rule_key.rule_name); */
@@ -221,7 +225,6 @@ get_rule_name_entry(const rule_name_key_t rule_key)
 	clLog(clSystemLog, eCLSeverityDebug, "%s: Rule_Name:%s, Bearer_ID:%u\n",
 			__func__, rule_key.rule_name, bearer->bearer_id);
 	return bearer->bearer_id;
-
 }
 
 /**
@@ -241,7 +244,7 @@ del_rule_name_entry(const rule_name_key_t rule_key)
 	/* Check Rule Name entry is present or Not */
 	ret = rte_hash_lookup_data(rule_name_bearer_id_map_hash,
 					&rule_key, (void **)bearer);
-	if (ret) {
+	if (ret >= 0) {
 		/* Rule Name Entry is present. Delete Rule Name Entry */
 		ret = rte_hash_del_key(rule_name_bearer_id_map_hash, &rule_key);
 		if ( ret < 0) {
@@ -363,7 +366,10 @@ del_pfcp_cntxt_entry(uint64_t sess_id)
 	}
 
 	/* Free data from hash */
-	rte_free(cntxt);
+	if(cntxt){
+		rte_free(cntxt);
+		cntxt = NULL;
+	}
 
 	clLog(clSystemLog, eCLSeverityDebug, "%s: Sess_Id:%lu\n",
 			__func__, sess_id);
@@ -476,7 +482,7 @@ del_pdr_entry(uint16_t rule_id)
 	/* Check PDR entry is present or Not */
 	ret = rte_hash_lookup_data(pdr_entry_hash,
 					&rule_id, (void **)cntxt);
-	if (ret) {
+	if (ret >= 0 ) {
 		/* PDR Entry is present. Delete PDR Entry */
 		ret = rte_hash_del_key(pdr_entry_hash, &rule_id);
 
@@ -486,10 +492,11 @@ del_pdr_entry(uint16_t rule_id)
 			return -1;
 		}
 	}
-
-	/* Free data from hash */
-	rte_free(cntxt);
-	cntxt = NULL;
+	if(cntxt != NULL){
+		/* Free data from hash */
+		rte_free(cntxt);
+		cntxt = NULL;
+	}
 
 	clLog(clSystemLog, eCLSeverityDebug, "%s: PDR_ID:%u\n",
 			__func__, rule_id);
@@ -582,7 +589,7 @@ del_qer_entry(uint32_t qer_id)
 	/* Check QER entry is present or Not */
 	ret = rte_hash_lookup_data(qer_entry_hash,
 					&qer_id, (void **)cntxt);
-	if (ret) {
+	if (ret >= 0) {
 		/* QER Entry is present. Delete Session Entry */
 		ret = rte_hash_del_key(qer_entry_hash, &qer_id);
 
@@ -594,8 +601,10 @@ del_qer_entry(uint32_t qer_id)
 	}
 
 	/* Free data from hash */
-	if (cntxt != NULL)
+	if (cntxt != NULL){
 		rte_free(cntxt);
+		cntxt = NULL;
+	}
 
 	clLog(clSystemLog, eCLSeverityDebug, "%s: QER_ID:%u\n",
 			__func__, qer_id);
@@ -700,7 +709,10 @@ del_urr_entry(uint32_t urr_id)
 	}
 
 	/* Free data from hash */
-	rte_free(cntxt);
+	if(cntxt != NULL){
+		rte_free(cntxt);
+		cntxt = NULL;
+	}
 
 	clLog(clSystemLog, eCLSeverityDebug, "%s: URR_ID:%u\n",
 			__func__, urr_id);
@@ -743,6 +755,19 @@ generate_far_id(void)
 	uint32_t id = 0;
 
 	id = far_base_rule_id + (++far_rule_id_offset);
+
+	return id;
+}
+
+/**
+ * NK:Generate the URR ID
+ */
+uint32_t
+generate_urr_id(void)
+{
+	uint32_t id = 0;
+
+	id = urr_base_rule_id + (++urr_rule_id_offset);
 
 	return id;
 }
@@ -852,7 +877,7 @@ gen_sess_id_string(char *str_buf, char *timestamp , uint32_t value)
 		return -1;
 	}
 
-	sprintf(str_buf, "%s%s", timestamp, buf);
+	snprintf(str_buf, MAX_LEN,"%s%s", timestamp, buf);
 	return 0;
 }
 

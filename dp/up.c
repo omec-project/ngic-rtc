@@ -398,7 +398,7 @@ dl_get_sess_info(struct rte_mbuf **pkts, uint32_t n,
 		}
 
 		gtpu_hdr = get_mtogtpu(pkts[j]);
-		if (gtpu_hdr->teid == 0 || gtpu_hdr->msgtype != GTP_GPDU) {
+		if (gtpu_hdr->teid == 0 || ((gtpu_hdr->msgtype != GTP_GPDU) && (gtpu_hdr->msgtype != GTPU_END_MARKER_REQUEST))) {
 			RESET_BIT(*pkts_mask, j);
 			clLog(clSystemLog, eCLSeverityDebug, FORMAT":GTPU TEID and MSG_TYPE is not valid\n",
 				ERR_MSG);

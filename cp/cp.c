@@ -75,8 +75,10 @@ uint16_t payload_length;
 static uint8_t
 process_echo_req(gtpv2c_header_t *gtpv2c_rx, gtpv2c_header_t *gtpv2c_tx, int iface)
 {
-	uint16_t payload_length = 0;
 	int ret = 0;
+	uint16_t payload_length = 0;
+	echo_request_t *echo_rx = (echo_request_t *) gtpv2c_rx;
+	echo_request_t *echo_tx = (echo_request_t *) gtpv2c_tx;
 
 	if((iface != S11_IFACE) && (iface != S5S8_IFACE)){
 		clLog(clSystemLog, eCLSeverityCritical, "%s: Invalid interface %d \n", __func__, iface);
@@ -90,6 +92,13 @@ process_echo_req(gtpv2c_header_t *gtpv2c_rx, gtpv2c_header_t *gtpv2c_tx, int ifa
 				"%s: (%d) %s\n",
 				gtp_type_str(gtpv2c_rx->gtpc.message_type), ret,
 				(ret < 0 ? strerror(-ret) : cause_str(ret)));
+	}
+
+	if ((iface == S11_IFACE) && ((echo_rx)->sending_node_feat).header.len) {
+		if (((echo_rx)->sending_node_feat).sup_feat == PRN) {
+			set_node_feature_ie((gtp_node_features_ie_t *) echo_tx, GTP_IE_NODE_FEATURES,
+					sizeof(uint8_t), IE_INSTANCE_ZERO, PRN);
+		}
 	}
 #ifdef USE_REST
 	/* Reset ECHO Timers */
@@ -112,17 +121,13 @@ process_echo_req(gtpv2c_header_t *gtpv2c_rx, gtpv2c_header_t *gtpv2c_tx, int ifa
 	if(iface == S11_IFACE){
 		gtpv2c_send(s11_fd, s11_tx_buf, payload_length,
 				(struct sockaddr *) &s11_mme_sockaddr,
-				s11_mme_sockaddr_len);
+				s11_mme_sockaddr_len,SENT);
 		cp_stats.echo++;
-		update_cli_stats(s11_mme_sockaddr.sin_addr.s_addr,
-					gtpv2c_tx->gtpc.message_type,SENT,S11);
 	}else{
 		gtpv2c_send(s5s8_fd, s5s8_tx_buf, payload_length,
 				(struct sockaddr *) &s5s8_recv_sockaddr,
-				s5s8_sockaddr_len);
+				s5s8_sockaddr_len,SENT);
 		cp_stats.echo++;
-		update_cli_stats(s5s8_recv_sockaddr.sin_addr.s_addr,
-					gtpv2c_tx->gtpc.message_type,SENT,S5S8);
 	}
 	return 0;
 }
@@ -210,7 +215,11 @@ msg_handler_s11(void)
 	process_response(s11_mme_sockaddr.sin_addr.s_addr);
 
 	/*CLI: update counter for any req rcvd on s11 interface */
-	if(gtpv2c_s11_rx->gtpc.message_type != GTP_DOWNLINK_DATA_NOTIFICATION_ACK) {
+	if(gtpv2c_s11_rx->gtpc.message_type != GTP_DOWNLINK_DATA_NOTIFICATION_ACK &&
+		gtpv2c_s11_rx->gtpc.message_type != GTP_CREATE_BEARER_RSP &&
+        gtpv2c_s11_rx->gtpc.message_type != GTP_UPDATE_BEARER_RSP &&
+        gtpv2c_s11_rx->gtpc.message_type != GTP_DELETE_BEARER_RSP &&
+        gtpv2c_s11_rx->gtpc.message_type != GTP_PGW_RESTART_NOTIFICATION_ACK) {
 
 			update_cli_stats((uint32_t)s11_mme_sockaddr.sin_addr.s_addr,
 							gtpv2c_s11_rx->gtpc.message_type,RCVD,S11);
@@ -242,10 +251,19 @@ msg_handler_s11(void)
 		return;
 	}else {
 
-		if ((ret = gtpc_pcnd_check(gtpv2c_s11_rx, &msg, bytes_s11_rx)) != 0)
+		if ((ret = gtpc_pcnd_check(gtpv2c_s11_rx, &msg, bytes_s11_rx,
+						&s11_mme_sockaddr, S11_INTFC)) != 0) {
+			clLog(clSystemLog, eCLSeverityDebug,
+					"%s:%d Failure in gtpc_pcnd_check for s11 interface messages\n",
+					__func__, __LINE__);
 			return;
+		}
 
-		if(gtpv2c_s11_rx->gtpc.message_type == GTP_DOWNLINK_DATA_NOTIFICATION_ACK) {
+		if(gtpv2c_s11_rx->gtpc.message_type == GTP_DOWNLINK_DATA_NOTIFICATION_ACK ||
+		gtpv2c_s11_rx->gtpc.message_type == GTP_CREATE_BEARER_RSP ||
+		gtpv2c_s11_rx->gtpc.message_type == GTP_UPDATE_BEARER_RSP ||
+		gtpv2c_s11_rx->gtpc.message_type == GTP_DELETE_BEARER_RSP ||
+		gtpv2c_s11_rx->gtpc.message_type == GTP_PGW_RESTART_NOTIFICATION_ACK ) {
 				update_cli_stats((uint32_t)s11_mme_sockaddr.sin_addr.s_addr,
 								gtpv2c_s11_rx->gtpc.message_type,ACC,S11);
 			}
@@ -258,20 +276,20 @@ msg_handler_s11(void)
 			} else if (SAEGWC == pfcp_config.cp_type) {
 			    ret = (*state_machine_saegwc[msg.proc][msg.state][msg.event])(&msg, NULL);
 			} else {
-				clLog(s11logger, eCLSeverityCritical, "%s : "
+				clLog(clSystemLog, eCLSeverityCritical, "%s : "
 						"Invalid Control Plane Type: %d \n",
 						__func__, pfcp_config.cp_type);
 				return;
 			}
 
 			if(ret == -2) {
-				clLog(s11logger, eCLSeverityCritical, "%s : "
+				clLog(clSystemLog, eCLSeverityCritical, "%s : "
 						"Discarding re-transmitted csr Error: %d \n",
 						__func__, ret);
 				return;
 			}
 			if (ret) {
-				clLog(s11logger, eCLSeverityCritical, "%s : "
+				clLog(clSystemLog, eCLSeverityCritical, "%s : "
 						"State_Machine Callback failed with Error: %d \n",
 						__func__, ret);
 				return;
@@ -283,7 +301,7 @@ msg_handler_s11(void)
 				return;
 			}
 
-			clLog(s11logger, eCLSeverityCritical, "%s : "
+			clLog(clSystemLog, eCLSeverityCritical, "%s : "
 						"Invalid Procedure or State or Event \n",
 						__func__);
 			return;
@@ -475,13 +493,20 @@ msg_handler_s5s8(void)
 	/* Reset periodic timers */
 	process_response(s5s8_recv_sockaddr.sin_addr.s_addr);
 
-	if (spgw_cfg == PGWC)
+	if (spgw_cfg == PGWC && (gtpv2c_s5s8_rx->gtpc.message_type != GTP_CREATE_BEARER_RSP &&
+		gtpv2c_s5s8_rx->gtpc.message_type != GTP_DELETE_BEARER_RSP &&
+		gtpv2c_s5s8_rx->gtpc.message_type != GTP_UPDATE_BEARER_RSP ))
 		update_cli_stats(s5s8_recv_sockaddr.sin_addr.s_addr,
 					gtpv2c_s5s8_rx->gtpc.message_type,RCVD,S5S8);
 
 	if (spgw_cfg == SGWC && (gtpv2c_s5s8_rx->gtpc.message_type == GTP_ECHO_REQ ||
 		gtpv2c_s5s8_rx->gtpc.message_type == GTP_ECHO_RSP ||
-		gtpv2c_s5s8_rx->gtpc.message_type == GTP_CREATE_BEARER_REQ))
+		gtpv2c_s5s8_rx->gtpc.message_type == GTP_CREATE_BEARER_REQ ||
+		gtpv2c_s5s8_rx->gtpc.message_type == GTP_DELETE_BEARER_REQ ||
+		gtpv2c_s5s8_rx->gtpc.message_type == GTP_UPDATE_BEARER_REQ ||
+		gtpv2c_s5s8_rx->gtpc.message_type == GTP_DELETE_PDN_CONNECTION_SET_RSP ||
+		gtpv2c_s5s8_rx->gtpc.message_type == GTP_DELETE_PDN_CONNECTION_SET_REQ)
+		)
 
 		update_cli_stats(s5s8_recv_sockaddr.sin_addr.s_addr,
 					gtpv2c_s5s8_rx->gtpc.message_type,RCVD,S5S8);
@@ -521,8 +546,12 @@ msg_handler_s5s8(void)
 		return;
 	}else {
 
-		if ((ret = gtpc_pcnd_check(gtpv2c_s5s8_rx, &msg, bytes_s5s8_rx)) != 0)
+		if ((ret = gtpc_pcnd_check(gtpv2c_s5s8_rx, &msg, bytes_s5s8_rx,
+						&s5s8_recv_sockaddr, S5S8_INTFC)) != 0)
 		{
+			clLog(clSystemLog, eCLSeverityDebug,
+					"%s:%d Failure in gtpc_pcnd_check for s5s8 interface messages\n",
+					__func__, __LINE__);
 			/*CLI: update csr, dsr, mbr rej response*/
 			if(spgw_cfg == SGWC)
 				update_cli_stats(s5s8_recv_sockaddr.sin_addr.s_addr,
@@ -530,7 +559,8 @@ msg_handler_s5s8(void)
 			return;
 		}
 
-	if (spgw_cfg == SGWC)
+	if ((spgw_cfg == SGWC)&& (gtpv2c_s5s8_rx->gtpc.message_type != GTP_DELETE_PDN_CONNECTION_SET_RSP &&
+				gtpv2c_s5s8_rx->gtpc.message_type != GTP_DELETE_PDN_CONNECTION_SET_REQ))
 		update_cli_stats(s5s8_recv_sockaddr.sin_addr.s_addr,
 					gtpv2c_s5s8_rx->gtpc.message_type,ACC,S5S8);
 
@@ -538,15 +568,26 @@ msg_handler_s5s8(void)
 	{
 		if (gtpv2c_s5s8_rx->gtpc.message_type == GTP_CREATE_SESSION_RSP )
 		{
-			add_node_conn_entry(s5s8_recv_sockaddr.sin_addr.s_addr, S5S8_SGWC_PORT_ID);
+			if (s5s8_recv_sockaddr.sin_addr.s_addr != 0) {
+				add_node_conn_entry(s5s8_recv_sockaddr.sin_addr.s_addr, S5S8_SGWC_PORT_ID);
+			}
 		}
 		if (gtpv2c_s5s8_rx->gtpc.message_type == GTP_MODIFY_BEARER_RSP)
 		{
-			add_node_conn_entry(s5s8_recv_sockaddr.sin_addr.s_addr, S5S8_SGWC_PORT_ID);
+			if (s5s8_recv_sockaddr.sin_addr.s_addr != 0) {
+				add_node_conn_entry(s5s8_recv_sockaddr.sin_addr.s_addr, S5S8_SGWC_PORT_ID);
+			}
 		}
 	}
 
-		if ((msg.proc < END_PROC) && (msg.state < END_STATE) && (msg.event < END_EVNT)) {
+	if (spgw_cfg == PGWC && (gtpv2c_s5s8_rx->gtpc.message_type == GTP_CREATE_BEARER_RSP ||
+		gtpv2c_s5s8_rx->gtpc.message_type == GTP_DELETE_BEARER_RSP ||
+		gtpv2c_s5s8_rx->gtpc.message_type == GTP_UPDATE_BEARER_RSP ))
+
+		update_cli_stats(s5s8_recv_sockaddr.sin_addr.s_addr,
+					gtpv2c_s5s8_rx->gtpc.message_type,ACC,S5S8);
+
+	if ((msg.proc < END_PROC) && (msg.state < END_STATE) && (msg.event < END_EVNT)) {
 			if (SGWC == pfcp_config.cp_type) {
 			    ret = (*state_machine_sgwc[msg.proc][msg.state][msg.event])(&msg, NULL);
 			} else if (PGWC == pfcp_config.cp_type) {
@@ -554,26 +595,26 @@ msg_handler_s5s8(void)
 			} else if (SAEGWC == pfcp_config.cp_type) {
 			    ret = (*state_machine_saegwc[msg.proc][msg.state][msg.event])(&msg, NULL);
 			} else {
-				clLog(s5s8logger, eCLSeverityCritical, "%s : "
+				clLog(clSystemLog, eCLSeverityCritical, "%s : "
 						"Invalid Control Plane Type: %d \n",
 						__func__, pfcp_config.cp_type);
 				return;
 			}
 			if(ret == -2) {
-				clLog(s11logger, eCLSeverityCritical, "%s : "
+				clLog(clSystemLog, eCLSeverityCritical, "%s : "
 						"Discarding re-transmitted csr Error: %d \n",
 						__func__, ret);
 				return;
 			}
 
 			if (ret) {
-				clLog(s5s8logger, eCLSeverityCritical, "%s : "
+				clLog(clSystemLog, eCLSeverityCritical, "%s : "
 						"State_Machine Callback failed with Error: %d \n",
 						__func__, ret);
 				return;
 			}
 		} else {
-			clLog(s11logger, eCLSeverityCritical, "%s : "
+			clLog(clSystemLog, eCLSeverityCritical, "%s : "
 						"Invalid Procedure or State or Event \n",
 						__func__);
 			return;
@@ -607,5 +648,4 @@ msg_handler_s5s8(void)
 		break;
 	}
 }
-
 

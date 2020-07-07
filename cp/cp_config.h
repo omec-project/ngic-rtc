@@ -19,6 +19,9 @@
 #include "gw_adapter.h"
 #include "clogger.h"
 #include "cstats.h"
+#include "cdadmfapi.h"
+
+volatile uint8_t recovery_flag;
 
 /**
  * @brief  : parse the SGWU/PGWU/SAEGWU IP from config file
@@ -35,14 +38,19 @@ config_cp_ip_port(pfcp_config_t *pfcp_config);
  * @return : Returns nothing
  */
 void parse_apn_args(char *temp,char *ptr[3]);
-/*
- *
- **/
+
+/**
+ * @brief  : Validate cp requst timeout configured value
+ * @param  : value, configured value
+ * @return : Returns 0 in case of success, -1 otherwise
+ */
 int
 check_cp_req_timeout_config(char *value);
-/*
- *
- **/
+
+/**
+ * @brief  : Validate cp requst tries configured value
+ * @param  : value, configured value
+ * @return : Returns 0 in case of success, -1 otherwise
+ */
 int
 check_cp_req_tries_config(char *value);
-

@@ -195,6 +195,7 @@ struct acl_rules_table {
 	int (*compare_rule)(const void *r1p, const void *r2p);
 	void (*print_entry)(const void *nodep, const VISIT which, const int depth);
 	void (*add_entry)(const void *nodep, const VISIT which, const int depth);
+	uint16_t num_of_ue;
 };
 
 struct acl_config acl_config[MAX_ACL_TABLES];
@@ -373,11 +374,11 @@ swap_src_dst_ip(char *str)
 {
 	char *s, *sp, *in[CB_FLD_NUM], tmp[MAX_LEN] = {0};
 	static const char *dlm = " \t\n";
-	strncpy(tmp, str, strlen(str));
+	strncpy(tmp, str, MAX_LEN);
 	s = tmp;
 	in[0] = strtok_r(s, dlm, &sp);
 	in[1] = strtok_r(NULL, dlm, &sp);
-	sprintf(str, "%s %s %s\n", in[1], in[0], sp);
+	snprintf(str, MAX_LEN,"%s %s %s\n", in[1], in[0], sp);
 	clLog(clSystemLog, eCLSeverityDebug, "SDF: UL LINK: %s\n", str);
 }
 
@@ -399,7 +400,7 @@ parse_cb_ipv4vlan_rule(char *str, struct rte_acl_rule *v, int has_userdata)
 
 	char *src_low_port = "0", *src_high_port = "65535";
 	char *dst_low_port = "0", *dst_high_port = "65535";
-	strncpy(tmp, str, strlen(str));
+	strncpy(tmp, str, MAX_LEN);
 	s = tmp;
 
 	for (i = 0; i != dim; i++, s = NULL) {
@@ -578,8 +579,11 @@ static int acl_rule_prcdnc_compare(const void *r1p, const void *r2p)
 	r2 = (struct acl4_rule *) r2p;
 
 	/* compare precedence */
-	if (r1->data.userdata < r2->data.userdata)
+	if (r1->data.userdata < r2->data.userdata) {
+		clLog(clSystemLog, eCLSeverityDebug, "%s:%d Compare precendence failed\n",
+				__func__, __LINE__);
 		return -1;
+	}
 	else if (r1->data.userdata == r2->data.userdata)
 		return 0;
 	else
@@ -636,6 +640,7 @@ static int acl_rule_compare(const void *r1p, const void *r2p)
 				clLog(clSystemLog, eCLSeverityDebug, "SDF Rule matched...\n");
 				return 0;
 	}
+	clLog(clSystemLog, eCLSeverityDebug, "%s:%d SDF Rule mismatched\n",__func__, __LINE__);
 	return -1;
 }
 
@@ -656,7 +661,7 @@ up_acl_rules_table_create(uint32_t indx, uint32_t max_elements)
 
 	t->num_entries = 0;
 	t->max_entries = max_elements;
-	sprintf(t->name, "ACL_RULES_TABLE-%u", indx);
+	snprintf(t->name, MAX_LEN, "ACL_RULES_TABLE-%u", indx);
 	t->compare = acl_rule_prcdnc_compare;
 	t->compare_rule = acl_rule_compare;
 	t->print_entry = acl_rule_print;
@@ -739,22 +744,28 @@ acl_config_init(struct acl_config *acl_config,
 static int
 up_sdf_filter_table_create(uint32_t max_elements)
 {
-	char name[32];
+	char name[NAME_LEN];
 	char *buf = "ACLTable-";
 	acl_table_indx = acl_table_indx_offset;
 
 	/* Increment the New Created ACL tables */
-	sprintf(name, "%s%u", buf, acl_table_indx);
+	snprintf(name, NAME_LEN, "%s%u", buf, acl_table_indx);
 
 	/* Configure the ACL table */
 	if (acl_config_init(&acl_config[acl_table_indx], name,
 			max_elements, sizeof(struct acl4_rule)) < 0) {
+		clLog(clSystemLog, eCLSeverityCritical,
+				"%s:%d Acl config init failed\n",
+				__func__, __LINE__);
 		/* TODO: Error Handling */
 		return -1;
 	}
 
 	/* Create the local acl rules table copy */
 	if (up_acl_rules_table_create(acl_table_indx, max_elements)) {
+		clLog(clSystemLog, eCLSeverityCritical,
+				"%s:%d Up acl rules table create failed\n",
+				__func__, __LINE__);
 		/* TODO: Error Handling */
 		return -1;
 	}
@@ -845,7 +856,7 @@ up_rules_entry_add(struct acl_rules_table *t,
 	}
 	*new = *rule;
 	/* put node into the tree */
-	if (tsearch(new, &t->root, t->compare) == 0) {
+	if (tsearch(new, &t->root, t->compare_rule) == 0) {
 		clLog(clSystemLog, eCLSeverityDebug, FORMAT":Fail to add acl precedance %d\n", ERR_MSG,
 				rule->data.userdata - ACL_DENY_SIGNATURE);
 		return -1;
@@ -908,7 +919,8 @@ up_filter_entry_add(uint32_t indx, struct sdf_pkt_filter *pkt_filter)
 		clLog(clSystemLog, eCLSeverityDebug, "Search SDF Rule in ACL_Table_Index-%u\n", indx);
 		t = tfind(next, &ctx->root, ctx->compare_rule);
 		if (t != NULL) {
-			clLog(clSystemLog, eCLSeverityDebug, "SDF Rule match in ACL_Table_Index-%u\nDP: SDF Rule:%s\n",
+			clLog(clSystemLog, eCLSeverityDebug,
+					"SDF Rule match in ACL_Table_Index-%u\nDP: SDF Rule:%s\n",
 				indx, pkt_filter->u.rule_str);
 			return 0;
 		}
@@ -916,12 +928,17 @@ up_filter_entry_add(uint32_t indx, struct sdf_pkt_filter *pkt_filter)
 
 	if (up_rules_entry_add(&acl_rules_table[indx],
 				(struct acl4_rule *)next) < 0) {
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%d Up rules entry add failed\n",
+				__func__, __LINE__);
 		return -1;
 	}
 
-	if (reset_and_build_rules(indx) < 0)
+	if (reset_and_build_rules(indx) < 0) {
+		clLog(clSystemLog, eCLSeverityCritical,
+				"%s:%d Reset and build rules Failed\n",
+				__func__, __LINE__);
 		return -1;
-
+	}
 	clLog(clSystemLog, eCLSeverityDebug, "ACL ADD: %s, ACL_Indx:%u, precedence:%u, rule:%s\n",
 			"SDF RULE", indx, pkt_filter->precedence, pkt_filter->u.rule_str);
 	return 0;
@@ -938,6 +955,9 @@ up_sdf_filter_entry_add(uint32_t indx, struct sdf_pkt_filter *pkt_filter)
 	}
 
 	if (up_filter_entry_add(indx, pkt_filter)) {
+		clLog(clSystemLog, eCLSeverityCritical,
+				"%s:%d Failed in up filter entry addition\n",
+				__func__, __LINE__);
 		/* TODO: ERROR Handling */
 		return -1;
 	}
@@ -947,7 +967,7 @@ up_sdf_filter_entry_add(uint32_t indx, struct sdf_pkt_filter *pkt_filter)
 
 /* Function to retrive the acl table index */
 int
-get_acl_table_indx(struct sdf_pkt_filter *pkt_filter)
+get_acl_table_indx(struct sdf_pkt_filter *pkt_filter, uint8_t is_create)
 {
 	uint8_t prio = 0;
 	uint32_t it = 0;
@@ -990,27 +1010,43 @@ get_acl_table_indx(struct sdf_pkt_filter *pkt_filter)
 		if (t != NULL) {
 			clLog(clSystemLog, eCLSeverityDebug, "SDF Rule match in ACL_Table_Index-%u\nDP: SDF Rule:%s\n",
 				itr, pkt_filter->u.rule_str);
+			if(SESS_CREATE == is_create)
+				acl_rules_table[itr].num_of_ue++;
 			return itr;
 		}
 	}
 
+	if(SESS_CREATE != is_create)
+		return -1;
+
 	/* If ACL table is not present than create the new ACL table */
 	if ((it = up_sdf_filter_table_create(MAX_SDF_RULE_NUM)) < 0) {
+		clLog(clSystemLog, eCLSeverityCritical,
+				"%s:%d Failed to create up sdf filter table\n",
+				__func__, __LINE__);
 		return -1;
 	}
 
 	/* Add the sdf filter rule in ACL table */
 	if (up_rules_entry_add(&acl_rules_table[it],
 				(struct acl4_rule *)next) < 0) {
+		clLog(clSystemLog, eCLSeverityCritical,
+				"%s:%d up rules entry addtion failed\n",
+				__func__, __LINE__);
 		return -1;
 	}
+	acl_rules_table[it].num_of_ue++;
 
 	clLog(clSystemLog, eCLSeverityDebug, "ACL ADD:%s, precedence:%u, rule:%s\n",
 			"SDF", pkt_filter->precedence, pkt_filter->u.rule_str);
 
 	/* Rebuild the ACl table */
-	if (reset_and_build_rules(it) < 0)
+	if (reset_and_build_rules(it) < 0) {
+		clLog(clSystemLog, eCLSeverityCritical,
+				"%s:%d Failed in reset and build rules\n",
+				__func__, __LINE__);
 		return -1;
+	}
 	return it;
 }
 
@@ -1051,6 +1087,9 @@ up_sdf_filter_table_delete(uint32_t indx)
 
 	/* Delete entry from local table */
 	if(up_acl_rules_table_delete(t)) {
+		clLog(clSystemLog, eCLSeverityCritical,
+				"%s:%d Failed in up acl table delete\n",
+				__func__, __LINE__);
 		/* TODO: ERROR Handling */
 		return -1;
 	}
@@ -1060,7 +1099,10 @@ up_sdf_filter_table_delete(uint32_t indx)
 	acl_table_indx = 0;
 	clLog(clSystemLog, eCLSeverityDebug, "ACL table %s deleted", ctx->name);
 
-	rte_free(ctx);
+	if(ctx){
+		rte_free(ctx);
+		ctx = NULL;
+	}
 	return 0;
 }
 
@@ -1187,10 +1229,16 @@ default_up_filter_entry_add(uint32_t precedence, uint8_t direction)
 
 	/* If ACL table is not present than create the new ACL table */
 	if ((indx = up_sdf_filter_table_create(MAX_SDF_RULE_NUM)) < 0) {
+		clLog(clSystemLog, eCLSeverityCritical,
+				"%s:%d Failed to create up sdf filter table\n",
+				__func__, __LINE__);
 		return -1;
 	}
 
 	if (up_filter_entry_add(indx, &pktf)) {
+		clLog(clSystemLog, eCLSeverityCritical,
+				"%s:%d Failed to add up filter entry\n",
+				__func__, __LINE__);
 		/* TODO: ERROR Handling */
 		return -1;
 	}
@@ -1233,8 +1281,12 @@ int up_sdf_default_entry_add(uint32_t indx, uint32_t precedence, uint8_t directi
 			);
 	}
 
-	if (up_filter_entry_add(indx, &pktf))
+	if (up_filter_entry_add(indx, &pktf)){
+		clLog(clSystemLog, eCLSeverityCritical,
+				"%s:%d Failed to add up filter entry\n",
+				__func__, __LINE__);
 		return -1;
+	}
 
 	clLog(clSystemLog, eCLSeverityDebug, "ACL ADD:%s, precedence:%u, rule:%s\n",
 			"SDF", pktf.precedence, pktf.u.rule_str);
@@ -1337,6 +1389,14 @@ remove_rule_entry_acl(uint32_t indx,
 
 	struct acl_rules_table *t = &acl_rules_table[indx];
 
+	if(t->num_of_ue > 1){
+		t->num_of_ue--;
+		clLog(clSystemLog, eCLSeverityDebug, "[%s:%d]Rule is used for more then one Bearer/UE"
+											" So not removing that table rule left for %u UE\n",
+														__func__, __LINE__, t->num_of_ue);
+		return 0;
+	}
+
 	if(t->num_entries == 0){
 		clLog(clSystemLog, eCLSeverityDebug, "[%s:%d]No Acl Entery in Given Index table\n",__func__, __LINE__);
 		return 0;
@@ -1344,8 +1404,12 @@ remove_rule_entry_acl(uint32_t indx,
 	if(t->num_entries == 1)
 		return sdf_table_delete(indx, pkt_filter_entry);
 	else{
-		if(up_sdf_filter_entry_delete(indx, pkt_filter_entry))
+		if(up_sdf_filter_entry_delete(indx, pkt_filter_entry)) {
+			clLog(clSystemLog, eCLSeverityCritical,
+					"%s:%d Failed to delete up sdf filter entry\n",
+					__func__, __LINE__);
 			return -1;
+		}
 		return reset_and_build_rules(indx);
 	}
 }

@@ -133,7 +133,7 @@ ddn_by_session_id(uint64_t session_id)
 	}
 	ddn_sequence += 2;
 	++cp_stats.ddn;
-	
+
 
 	update_cli_stats(mme_s11_sockaddr_in.sin_addr.s_addr,
 					gtpv2c_tx->gtpc.message_type,SENT,S11);
@@ -216,7 +216,7 @@ set_downlink_data_notification(gtpv2c_header_t *gtpv2c_tx,
 		uint32_t sequence, ue_context *context, eps_bearer *bearer)
 {
 	set_gtpv2c_teid_header(gtpv2c_tx, GTP_DOWNLINK_DATA_NOTIFICATION,
-			htonl(context->s11_mme_gtpc_teid), sequence);
+			htonl(context->s11_mme_gtpc_teid), sequence, 0);
 	set_ebi_ie(gtpv2c_tx, IE_INSTANCE_ZERO, bearer->eps_bearer_id);
 	set_ar_priority_ie(gtpv2c_tx, IE_INSTANCE_ZERO, bearer);
 }

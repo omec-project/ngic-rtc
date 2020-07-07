@@ -98,6 +98,14 @@
 /* TODO: Revisit this for change in yang */
 #pragma pack(1)
 
+typedef enum sx_intf_t {
+    Sxa = 0,
+    Sxb = 1,
+    Sxa_Sxb = 2,
+    Sxc = 3,
+    N4 = 4
+} sx_intf_t;
+
 typedef struct pfcp_dnlnk_data_rpt_ie_t {
   pfcp_ie_header_t header;
   uint8_t pdr_id_count;
@@ -742,6 +750,8 @@ typedef struct pfcp_sess_mod_req_t {
 typedef struct pfcp_sess_mod_rsp_t {
   pfcp_header_t header;
   pfcp_cause_ie_t cause;
+  /* As per requirement added fqcsid in this sturcture*/
+  pfcp_fqcsid_ie_t sgw_u_fqcsid;
   pfcp_offending_ie_ie_t offending_ie;
   pfcp_created_pdr_ie_t created_pdr;
   pfcp_load_ctl_info_ie_t load_ctl_info;

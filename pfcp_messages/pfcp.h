@@ -57,13 +57,14 @@ extern struct sockaddr_in pfcp_sockaddr;
 
 extern in_port_t upf_pfcp_port;
 extern struct sockaddr_in upf_pfcp_sockaddr;
+#define RULE_NAME_LEN 256
 
 /**
  * @brief : Rule Name is key for Mapping of Rules and Bearer table.
  */
 typedef struct rule_name_bearer_id_map_key {
 	/** Rule Name */
-	char rule_name[255];
+	char rule_name[RULE_NAME_LEN];
 }rule_name_key_t;
 
 /**
@@ -287,6 +288,14 @@ generate_bar_id(void);
 uint32_t
 generate_far_id(void);
 
+/**
+ * @brief  : Generate the URR ID
+ * @param  : void
+ * @return : Returns far id  on success , 0 otherwise
+ */
+uint32_t
+generate_urr_id(void);
+
 /*
  * @brief  : Generate the QER ID
  * @param  : void
@@ -348,7 +357,9 @@ int8_t
 parse_gx_cca_msg(GxCCA *cca, pdn_connection **_pdn);
 
 /**
- * Updates the already existing bearer
+ * @brief  : Updates the already existing bearer
+ * @param  : pdn, pdn connection details
+ * @return : Returns 0 on success, -1 otherwise
  */
 
 int16_t
@@ -359,9 +370,17 @@ gx_update_bearer_req(pdn_connection *pdn);
  * @param  : rar holds data from gx rar message
  * @return : Returns 0 on success, -1 otherwise
  */
-int8_t
+int16_t
 parse_gx_rar_msg(GxRAR *rar);
 
+/**
+ * @brief  : Get details of charging rule
+ * @param  : pdn, pdn connection details
+ * @param  : lbi
+ * @param  : ded_ebi
+ * @param  : ber_cnt
+ * @return : Return nothing
+ */
 void
 get_charging_rule_remove_bearer_info(pdn_connection *pdn,
 	uint8_t *lbi, uint8_t *ded_ebi, uint8_t *ber_cnt);
@@ -386,6 +405,12 @@ get_bearer_info_install_rules(pdn_connection *pdn,
 int
 int_to_str(char *buf , uint32_t val);
 
+/**
+ * @brief  : Compare default bearer qos
+ * @param  : default_bearer_qos
+ * @param  : rule_qos
+ * @return : Returns 0 on success, -1 otherwise
+ */
 int8_t
 compare_default_bearer_qos(bearer_qos_ie *default_bearer_qos,
 		bearer_qos_ie *rule_qos);

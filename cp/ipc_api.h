@@ -51,9 +51,9 @@ bind_ipc_channel(int sock, struct sockaddr_un sock_addr,const  char *path);
  * @param  : sock, GX socket id
  * @param  : sock_addr, socket address info
  * @param  : path, Filepath
- * @return : Returns nothing
+ * @return : Returns 0 in case of success, -1 otherwise
  */
-void
+int
 connect_to_ipc_channel(int sock, struct sockaddr_un sock_addr, const char *path);
 
 /**
@@ -68,7 +68,7 @@ accept_from_ipc_channel(int sock, struct sockaddr_un sock_addr);
 /**
  * @brief  : Enables Unix Server waiting for Gx_app client connection
  * @param  : sock, socket id
- * @return : Returns nothing
+ * @return : Returns non-negative number that is File Descriptor , -1 otherwise
  */
 void
 listen_ipc_channel(int sock);
@@ -86,7 +86,7 @@ get_peer_name(int sock, struct sockaddr_un sock_addr);
  * @brief  : Accept data from created ipc channel
  * @param  : sock, socket id
  * @param  : buf, buffer to store incoming data
- * @return : Returns 0 in case of success , -1 otherwise
+ * @return : Returns number of bytes received in case of success , -1 otherwise
  */
 int
 recv_from_ipc_channel(int sock, char *buf);
@@ -96,10 +96,10 @@ recv_from_ipc_channel(int sock, char *buf);
  * @param  : sock, socket id
  * @param  : buf, buffer to store data to be sent
  * @param  : len, total data length
- * @return : Returns nothing
+ * @return : number of bytes sent in case of success, -1 otherwise
  */
-void
-send_to_ipc_channel(int sock, char *buf, int len);
+int
+send_to_ipc_channel(int sock, uint8_t *buf, int len);
 
 /**
  * @brief  : Close ipc channel

@@ -24,10 +24,16 @@
 #include "pfcp_messages.h"
 #include "gtp_messages.h"
 
+#define PROC_NAME_LEN 128
+#define STATE_NAME_LEN 128
+#define EVNT_NAME_LEN 128
 
 struct rte_hash *sm_hash;
-extern char state_name[40];
-extern char event_name[40];
+
+extern char state_name[STATE_NAME_LEN];
+extern char event_name[EVNT_NAME_LEN];
+extern struct rte_hash *li_df_by_imsi_hash;
+
 
 enum source_interface {
 	GX_IFACE = 1,
@@ -92,6 +98,8 @@ typedef struct msg_info{
 		del_pdn_conn_set_req_t del_pdn_req;
 		del_pdn_conn_set_rsp_t del_pdn_rsp;
 		del_bearer_cmd_t  del_ber_cmd;
+		change_noti_req_t change_not_req;
+		change_noti_rsp_t change_not_rsp;
 	}gtpc_msg;
 	union pfcp_msg_info_t {
 		pfcp_pfd_mgmt_rsp_t pfcp_pfd_resp;
@@ -118,9 +126,7 @@ struct resp_info {
 	uint8_t proc;
 	uint8_t state;
 	uint8_t msg_type;
-	uint8_t num_of_bearers;
 	uint8_t eps_bearer_id;
-	uint8_t list_bearer_ids[MAX_BEARERS];
 
 	/* Default Bearer Id */
 	uint8_t linked_eps_bearer_id;
@@ -132,14 +138,20 @@ struct resp_info {
 	uint32_t s5s8_sgw_gtpc_teid;
 	uint32_t s5s8_pgw_gtpc_ipv4;
 
-	uint8_t eps_bearer_lvl_tft[257];
-	uint8_t tft_header_len;
+	uint8_t eps_bearer_lvl_tft[MAX_BEARERS][257];
+	uint8_t tft_header_len[MAX_BEARERS];
 
 	union gtpc_msg {
 		create_sess_req_t csr;
+		create_sess_rsp_t cs_rsp;
 		mod_bearer_req_t mbr;
+		create_bearer_rsp_t cb_rsp;
+		create_bearer_req_t cb_req;
 		del_sess_req_t dsr;
 		del_bearer_cmd_t del_bearer_cmd;
+		change_noti_req_t change_not_req;
+		del_bearer_req_t db_req;
+		upd_bearer_req_t ub_req;
 	}gtpc_msg;
 }__attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
 

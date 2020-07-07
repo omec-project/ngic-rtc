@@ -75,7 +75,7 @@
 #include "gw_adapter.h"
 #include "clogger.h"
 #endif
-
+#include "pfcp_enum.h"
 
 #ifdef STATIC_ARP
 #define STATIC_ARP_FILE "../config/static_arp.cfg"
@@ -1662,7 +1662,7 @@ get_iface_name(int iface_index, char *iface_Name)
 		return -1;
 	}
 
-	strcpy(iface_Name, ifr.ifr_name);
+	strncpy(iface_Name, ifr.ifr_name, IF_NAMESIZE);
 	return 0;
 }
 
@@ -1676,6 +1676,7 @@ static int readCache(int Fd, char *Buffer)
 {
 	if (Fd < 0)
 	{
+		perror("Error");
 	    return -1;
 	}
 
@@ -1697,7 +1698,7 @@ static int readCache(int Fd, char *Buffer)
 		Buffer[Read] = 0;
 		return 0;
 	}
-
+	clLog(clSystemLog, eCLSeverityCritical, "%s:%d Failed to readCache\n",__func__, __LINE__);
 	return -1;
 
 }
@@ -1710,12 +1711,17 @@ static int readCache(int Fd, char *Buffer)
  */
 static char *getField(char *Line_Arg, int Field)
 {
-	char *ret;
-	char *s;
+	char *ret = NULL;
+	char *s = NULL;
 
-	char *Line = malloc(strlen(Line_Arg)), *ptr;
-	memcpy(Line, Line_Arg, strlen(Line_Arg));
-	ptr = Line;
+	char *Line = malloc(strnlen(Line_Arg, ARP_BUFFER_LEN)), *ptr;
+	if(Line != NULL){
+		memcpy(Line, Line_Arg, strnlen(Line_Arg, ARP_BUFFER_LEN));
+		ptr = Line;
+	} else {
+		clLog(clSystemLog, eCLSeverityCritical,"%s %d : failed to allocate memory.\n",
+				__func__,__LINE__);
+	}
 
 	s = strtok(Line, ARP_DELIM);
 	while (Field && s)
@@ -1726,9 +1732,10 @@ static char *getField(char *Line_Arg, int Field)
 
 	if (s)
 	{
-	    ret = (char*)malloc(strlen(s) + 1);
-	    memset(ret, 0, strlen(s) + 1);
-	    memcpy(ret, s, strlen(s));
+	    int len = strnlen(s,ARP_BUFFER_LEN);
+		ret = (char*)malloc(len + 1);
+	    memset(ret, 0, len + 1);
+	    memcpy(ret, s, len);
 	}
 	free(ptr);
 
@@ -1775,7 +1782,7 @@ get_gateWay_mac(uint32_t IP_gateWay, char *iface_Mac)
 			//fprintf(stdout, "%03d: here, Mac Address of [%s] on [%s] is \"%s\"\n",
 			//        ++count, Ip, IfaceStr, Mac);
 
-			strcpy(iface_Mac, Mac);
+			strncpy(iface_Mac, Mac, MAC_ADDR_LEN);
 			return 0;
 		}
 
@@ -1872,7 +1879,7 @@ static void
 						case RTA_GATEWAY:
 							{
 								gatway_flag = 1;
-								char mac[64];
+								char mac[MAC_ADDR_LEN];
 
 								route[i].gateWay = *(uint32_t *) RTA_DATA(rtap);
 								get_gateWay_mac(route[i].gateWay, mac);
@@ -2232,6 +2239,69 @@ static void *handle_kni_process(__rte_unused void *arg)
 	return NULL; //GCC_Security flag
 }
 
+void process_li_data(){
+
+	int ret = 0;
+	uint32_t li_ul_cnt = rte_ring_count(li_ul_ring);
+	if(li_ul_cnt){
+		li_data_t *li_data[li_ul_cnt];
+		uint32_t ul_cnt = rte_ring_dequeue_bulk(li_ul_ring,
+				(void**)li_data, li_ul_cnt, NULL);
+
+		for(uint32_t i = 0; i < ul_cnt; i++){
+
+			uint64_t imsi = li_data[i]->far->session->pdrs->session->imsi;
+			int size = li_data[i]->size;
+
+			create_li_header(li_data[i]->pkts, &size, CC_BASED, imsi, 0, 0, 0, 0, 0, 0);
+			for(uint32_t j=0; j < li_data[i]->far->dup_parms_cnt; j++){
+				ret = send_li_data_pkt(li_data[i]->far->tcp_sock_fd[j], li_data[i]->pkts, size);
+				if(li_data[i]->far->tcp_sock_fd[j] != 0 && ret < 0){
+					clLog(clSystemLog, eCLSeverityDebug, "%s:%d Failed to send UPLINK data on TCP sock with error %d\n",
+																								__func__, __LINE__, ret);
+					close(li_data[i]->far->tcp_sock_fd[j]);
+					li_data[i]->far->tcp_sock_fd[j] = 0;
+				}
+			}
+
+
+			rte_free(li_data[i]->pkts);
+			li_data[i]->far = NULL;
+			rte_free(li_data[i]);
+		}
+	}
+	uint32_t li_dl_cnt = rte_ring_count(li_dl_ring);
+	if(li_dl_cnt){
+		li_data_t *li_data[li_dl_cnt];
+		uint32_t dl_cnt = rte_ring_dequeue_bulk(li_dl_ring,
+				(void**)li_data, li_dl_cnt, NULL);
+
+		for(uint32_t i = 0; i < dl_cnt; i++){
+
+			uint64_t imsi = li_data[i]->far->session->pdrs->session->imsi;
+
+			int size = li_data[i]->size;
+
+			create_li_header(li_data[i]->pkts, &size, CC_BASED, imsi, 0, 0, 0, 0, 0, 0);
+
+			for(uint32_t j=0; j < li_data[i]->far->dup_parms_cnt; j++){
+				ret = send_li_data_pkt(li_data[i]->far->tcp_sock_fd[j], li_data[i]->pkts, size);
+				if(li_data[i]->far->tcp_sock_fd[j] != 0 && ret < 0){
+					clLog(clSystemLog, eCLSeverityDebug, "%s:%d Failed to send DOWNLINK data on TCP sock with error %d\n",
+																									__func__, __LINE__, ret);
+					close(li_data[i]->far->tcp_sock_fd[j]);
+					li_data[i]->far->tcp_sock_fd[j] = 0;
+				}
+			}
+			rte_free(li_data[i]->pkts);
+			li_data[i]->far = NULL;
+			rte_free(li_data[i]);
+		}
+	}
+
+	return;
+}
+
 void epc_arp(__rte_unused void *arg)
 {
 	struct epc_arp_params *param = &arp_params;
@@ -2246,4 +2316,5 @@ void epc_arp(__rte_unused void *arg)
 	epc_stats_core();
 #endif
 #endif
+	process_li_data();
 }

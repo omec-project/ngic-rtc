@@ -21,6 +21,7 @@
 
 #ifdef CP_BUILD
 #include "sm_struct.h"
+#include "seid_llist.h"
 #endif /* CP_BUILD */
 
 /**
@@ -54,7 +55,7 @@ fill_pfcp_association_update_req(pfcp_assn_upd_req_t *pfcp_ass_update_req);
  * @return : This function dose not return anything
  */
 void
-fill_pfcp_association_setup_resp(pfcp_assn_setup_rsp_t *pfcp_ass_setup_resp, uint8_t cause);
+fill_pfcp_association_setup_resp(pfcp_assn_setup_rsp_t *pfcp_ass_setup_resp, uint8_t cause, uint32_t peer_addr);
 
 /**
  * @brief  : This is a function to fill pfcp association release request

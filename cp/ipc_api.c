@@ -27,15 +27,15 @@ create_ipc_channel( void )
 	/* Unix Socket Creation and Verification */
 	sock = socket( AF_UNIX, SOCK_STREAM, 0);
 	if ( sock == -1 ){
-		fprintf(stderr,"%s: Gx Interface Unix socket creation failed error:%s\n",
+		fprintf(stderr,"%s: Unix socket creation failed. Error:%s\n",
 				__func__, strerror(errno));
-		/* Greacefull Exit */
-		exit(0);
+
+		return -1;
 	}
 	return sock;
 }
 
-void
+int
 connect_to_ipc_channel(int sock, struct sockaddr_un sock_addr, const char *path)
 {
 	int rc = 0;
@@ -45,17 +45,16 @@ connect_to_ipc_channel(int sock, struct sockaddr_un sock_addr, const char *path)
 
 	chmod( path, 755 );
 
-	strncpy(sock_addr.sun_path, path, strlen(path));
+	strncpy(sock_addr.sun_path, path, sizeof(sock_addr.sun_path));
 
 	rc = connect( sock, (struct sockaddr *) &sock_addr, len);
-	if ( rc == -1){
-		fprintf(stderr, "%s: Socket connect failed error: %s\n",
+	if ( rc == -1) {
+		fprintf(stderr, "%s: Could not connect to socket. Error: %s\n",
 				__func__, strerror(errno));
 		close_ipc_channel( sock );
-		/* Greacefull Exit */
-		exit(0);
 	}
-	fprintf(stderr, "GxApp: Gx_app client connection succesfully connected...!!!\n");
+
+	return rc;
 }
 
 void
@@ -67,7 +66,7 @@ bind_ipc_channel(int sock, struct sockaddr_un sock_addr,const char *path)
 
 	/* Assign Socket family and PATH */
 	sock_addr.sun_family = AF_UNIX;
-	strncpy(sock_addr.sun_path, path, strlen(path));
+	strncpy(sock_addr.sun_path, path, strnlen(path,MAX_PATH_LEN));
 
 	/* Remove the symbolic link of path names */
 	unlink(path);
@@ -75,9 +74,10 @@ bind_ipc_channel(int sock, struct sockaddr_un sock_addr,const char *path)
 	rc =  bind( sock, (struct sockaddr *) &sock_addr, LENGTH);
 	if( rc != 0 ){
 		close_ipc_channel(sock);
-		fprintf(stderr,"%s: Gx Socket Bind failed error: %s\n",
+		printf("%s: Could not bind to socket. Error: %s\n",
 				__func__, strerror(errno));
-		/* Greacefull Exit */
+
+		/*Greacefull Exit*/
 		exit(0);
 	}
 }
@@ -85,30 +85,27 @@ bind_ipc_channel(int sock, struct sockaddr_un sock_addr,const char *path)
 int
 accept_from_ipc_channel(int sock, struct sockaddr_un sock_addr)
 {
-	int gx_app_sock = 0;
+	int client_sock = 0;
 	socklen_t len ;
 	len = sizeof(sock_addr);
 
 	while (1) {
 		/* Accept incomming connection request receive on socket */
-		gx_app_sock = accept( sock, (struct sockaddr *) &sock_addr, &len);
-		if (gx_app_sock < 0){
-				if (errno == EINTR)
-					continue;
+		client_sock = accept( sock, (struct sockaddr *) &sock_addr, &len);
+		if (client_sock < 0){
+			if (errno == EINTR)
+				continue;
 
-				close_ipc_channel(sock);
-				fprintf(stderr,"%s: Socket connection accept failed error: %s\n", __func__,
-						strerror(errno));
-				/* Greacefull Exit */
-				exit(0);
+			close_ipc_channel(sock);
+			printf("%s: Could not accept socket connection."
+				"Error: %s\n", __func__,strerror(errno));
+
 		} else {
 			break;
 		}
 	}
 
-	fprintf(stderr, "CP: Gx_app client connection succesfully accepted...!!!\n");
-
-	return gx_app_sock;
+	return client_sock;
 }
 
 void
@@ -117,12 +114,12 @@ listen_ipc_channel( int sock )
 	/* Mark the socket as a passive socket to accept incomming connections */
 	if( listen(sock, BACKLOG) == -1){
 		close_ipc_channel(sock);
-		fprintf(stderr, "%s: Socket Listen failed error: %s\n",
+		printf("%s: Socket Listen failed error: %s\n",
 				__func__, strerror(errno));
+
 		/* Greacefull Exit */
 		exit(0);
 	}
-	fprintf(stderr, "CP: Unix Server waiting for Gx_app client connection...\n");
 }
 
 void
@@ -162,10 +159,11 @@ recv_from_ipc_channel(int sock, char *buf)
 	return bytes_recv;
 }
 
-void
-send_to_ipc_channel(int sock, char *buf, int len)
+int
+send_to_ipc_channel(int sock, uint8_t *buf, int len)
 {
-	if( send(sock, buf, len, 0) <= 0){
+	int rc = 0;
+	if ((rc = send(sock, buf, len, 0)) <= 0){
 		if(errno != EINTR){
 			fprintf(stderr, "%s: Socket send failed error: %s\n",
 					__func__, strerror(errno));
@@ -175,6 +173,7 @@ send_to_ipc_channel(int sock, char *buf, int len)
 		}
 	}
 
+	return rc;
 }
 
 void

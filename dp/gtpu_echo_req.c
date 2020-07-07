@@ -146,6 +146,9 @@ static __inline__ void create_ether_hdr(struct rte_mbuf *m, peerData *entry)
 
 void build_echo_request(struct rte_mbuf *echo_pkt, peerData *entry, uint16_t gtpu_seqnb)
 {
+	if (echo_pkt == NULL)
+		return;
+
 	echo_pkt->pkt_len = PKT_SIZE;
 	echo_pkt->data_len = PKT_SIZE;
 

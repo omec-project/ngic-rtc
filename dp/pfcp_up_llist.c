@@ -108,8 +108,10 @@ remove_sess_data_first_node(pfcp_session_datat_t *head)
 		head = NULL;
 
 	/* Free the 1st node from linked list */
-	rte_free(current);
-	current = NULL;
+	if (current != NULL) {
+		rte_free(current);
+		current = NULL;
+	}
 	return head;
 }
 
@@ -142,8 +144,10 @@ remove_sess_data_last_node(pfcp_session_datat_t *head)
 		head = NULL;
 
 	/* free the last node from linked list */
-	rte_free(current);
-	current = NULL;
+	if (current != NULL) {
+		rte_free(current);
+		current = NULL;
+	}
 	return head;
 }
 
@@ -183,8 +187,10 @@ remove_sess_data_node(pfcp_session_datat_t *head,
 		current->next = tmp->next;
 		tmp->next = NULL;
 		/* Free the next node */
-		rte_free(tmp);
-		tmp = NULL;
+		if(tmp != NULL){
+			rte_free(tmp);
+			tmp = NULL;
+		}
 	}
 	return head;
 }
@@ -298,8 +304,10 @@ remove_pdr_first_node(pdr_info_t *head)
 		head = NULL;
 
 	/* Free the 1st node from linked list */
-	rte_free(current);
-	current = NULL;
+	if (current != NULL) {
+		rte_free(current);
+		current = NULL;
+	}
 	return head;
 }
 
@@ -332,8 +340,10 @@ remove_pdr_last_node(pdr_info_t *head)
 		head = NULL;
 
 	/* free the last node from linked list */
-	rte_free(current);
-	current = NULL;
+	if (current != NULL) {
+		rte_free(current);
+		current = NULL;
+	}
 	return head;
 }
 
@@ -374,8 +384,10 @@ remove_pdr_node(pdr_info_t *head, pdr_info_t *node)
 		tmp->next = NULL;
 
 		/* Free the next node */
-		rte_free(tmp);
-		tmp = NULL;
+		if(tmp != NULL){
+			rte_free(tmp);
+			tmp = NULL;
+		}
 	}
 	return head;
 }
@@ -494,8 +506,10 @@ remove_qer_first_node(qer_info_t *head)
 		head = NULL;
 
 	/* Free the 1st node from linked list */
-	rte_free(current);
-	current = NULL;
+	if (current != NULL) {
+		rte_free(current);
+		current = NULL;
+	}
 	return head;
 }
 
@@ -528,8 +542,10 @@ remove_qer_last_node(qer_info_t *head)
 		head = NULL;
 
 	/* free the last node from linked list */
-	rte_free(current);
-	current = NULL;
+	if (current != NULL) {
+		rte_free(current);
+		current = NULL;
+	}
 	return head;
 }
 
@@ -570,8 +586,10 @@ remove_qer_node(qer_info_t *head, qer_info_t *node)
 		tmp->next = NULL;
 
 		/* Free the next node */
-		rte_free(tmp);
-		tmp = NULL;
+		if (tmp != NULL) {
+			rte_free(tmp);
+			tmp = NULL;
+		}
 	}
 	return head;
 }
@@ -690,8 +708,10 @@ remove_urr_first_node(urr_info_t *head)
 		head = NULL;
 
 	/* Free the 1st node from linked list */
-	rte_free(current);
-	current = NULL;
+	if (current != NULL) {
+		rte_free(current);
+		current = NULL;
+	}
 	return head;
 }
 
@@ -724,8 +744,10 @@ remove_urr_last_node(urr_info_t *head)
 		head = NULL;
 
 	/* free the last node from linked list */
-	rte_free(current);
-	current = NULL;
+	if (current != NULL) {
+		rte_free(current);
+		current = NULL;
+	}
 	return head;
 }
 
@@ -766,8 +788,10 @@ remove_urr_node(urr_info_t *head, urr_info_t *node)
 		tmp->next = NULL;
 
 		/* Free the next node */
-		rte_free(tmp);
-		tmp = NULL;
+		if(tmp != NULL){
+			rte_free(tmp);
+			tmp = NULL;
+		}
 	}
 	return head;
 }

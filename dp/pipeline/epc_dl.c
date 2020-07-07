@@ -48,6 +48,7 @@
 #include "up_main.h"
 #include "epc_packet_framework.h"
 #include "clogger.h"
+#include "gw_adapter.h"
 
 #ifdef TIMER_STATS
 #include "perf_timer.h"
@@ -269,7 +270,9 @@ static inline int epc_dl_port_out_ah(struct rte_pipeline *p, struct rte_mbuf **p
 		epc_dl_handler f = epc_dl_worker_func[portno];
 		/* ASR- NGCORE_SHRINK: worker_index:TBC */
 		/* Vishnu: cmntd return f(p, pkts, dl_ndata_pkts, worker_index); */
-		f(p, pkts, dl_ndata_pkts, worker_index);
+		if(f != NULL){
+			f(p, pkts, dl_ndata_pkts, worker_index);
+		}
 	}
 #ifdef TIMER_STATS
 #ifndef AUTO_ANALYSIS

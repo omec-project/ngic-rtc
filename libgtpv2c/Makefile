@@ -30,7 +30,7 @@ SOURCES := $(shell find $(SRCDIR) -type f -name '*.$(SRCEXT)')
 
 OBJECTS := $(patsubst $(SRCDIR)/%,$(BUILDDIR)/%,$(SOURCES:.$(SRCEXT)=.o))
 
-CFLAGS +=  -fPIC -Wall
+CFLAGS +=  -fPIC -Wall -Werror
 
 ifeq ($(DEBUG),1)
 	CFLAGS += -g3
@@ -39,8 +39,8 @@ else
 endif
 
 INCS := -I$(ROOT)/include
-LIB_PATH := 
-LIBS := 
+LIB_PATH :=
+LIBS :=
 
 LFLAGS := -shared
 

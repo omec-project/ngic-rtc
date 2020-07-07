@@ -87,8 +87,10 @@ int push_dns_ring(struct rte_mbuf *pkts)
 	void *msg;
 	int ret;
 
-	if (epc_mct_spns_dns_rx == NULL)
+	if (epc_mct_spns_dns_rx == NULL) {
+		clLog(clSystemLog, eCLSeverityCritical, "rte ring value is NULL\n");
 		return -1;
+	}
 
 	msg = (void *)rte_pktmbuf_clone(pkts, message_pool);
 	if (msg == NULL) {

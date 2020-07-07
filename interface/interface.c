@@ -69,6 +69,7 @@
 #ifdef CP_BUILD
 #ifdef GX_BUILD
 extern int gx_app_sock;
+extern int gx_app_sock_read;
 #endif /* GX_BUILD */
 #endif /* CP_BUILD */
 
@@ -1014,8 +1015,8 @@ void sig_handler(int signo)
 
 #ifdef CP_BUILD
 #ifdef GX_BUILD
-			if (gx_app_sock > 0)
-				close_ipc_channel(gx_app_sock);
+			if (gx_app_sock_read > 0)
+				close_ipc_channel(gx_app_sock_read);
 #endif /* GX_BUILD */
 #ifdef SYNC_STATS
 			retrive_stats_entry();

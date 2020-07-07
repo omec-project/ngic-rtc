@@ -1655,4 +1655,35 @@ int decode_mbms_sess_stop_req(uint8_t *buf,
     mbms_sess_stop_req_t *value);
 
 
+/**
+ * Decodes change_noti_req_t to buffer.
+ * @param value
+ *    change_noti_req_t
+ * @param buf
+ *   buffer to store decoded values.
+ * @return
+ *   number of decoded bytes.
+ */
+int decode_change_noti_req(uint8_t *buf,
+		change_noti_req_t *value);
+
+
+/**
+ * Decodes change_noti_req_t to buffer.
+ * @param value
+ *    change_noti_req_t
+ * @param buf
+ *   buffer to store decoded values.
+ * @return
+ *   number of decoded bytes.
+ */
+int decode_change_noti_rsp(uint8_t *buf,
+		change_noti_rsp_t *value);
+
+
+/*
+ *	TODO: ADD descreption
+ */
+int decode_gtp_del_bearer_response_bearer_ctxt_ie(uint8_t *buf,
+		 gtp_del_bearer_response_bearer_ctxt_ie_t *value);
 #endif /*__GTP_MESSAGES_DECODE_H__*/

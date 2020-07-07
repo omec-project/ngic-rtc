@@ -68,8 +68,15 @@ int main(int argc, char **argv)
 	argc -= ret;
 	argv += ret;
 
+	/* DP restart conter info */
+	dp_restart_cntr = get_dp_restart_cntr();
+
 	/* DP Init */
 	dp_init(argc, argv);
+
+	number_of_transmit_count = app.transmit_cnt;
+	periodic_timer_value = app.periodic_timer;
+	transmit_timer_value = app.transmit_timer;
 
 	init_cli_module(app.dp_logger);
 

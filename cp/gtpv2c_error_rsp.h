@@ -98,8 +98,39 @@ void get_error_rsp_info(msg_info *msg, err_rsp_info *err_rsp_info, uint8_t index
  */
 void get_info_filled(msg_info *msg, err_rsp_info *t2 , uint8_t index);
 
+/**
+ * @brief  : Set and send error response in case of processing update bearer request
+ * @param  : msg, holds information related to message caused error
+ * @param  : cause_value, cause type of error
+ * @param  : iface, interface on which response to be sent
+ * @return : Returns nothing
+ */
 void ubr_error_response(msg_info *msg, uint8_t cause_value, int iface);
 
+/**
+ * @brief  : set and send error response in case of processing delete bearer procedure.
+ * @param  : msg, information related to message which caused error
+ * @param  : cause value;cause type of error
+ * @param  : iface, interface on which response to be sent
+ * @return : Returns nothing
+ */
+void delete_bearer_error_response(msg_info *msg, uint8_t cause_value, int iface);
+
+/**
+ * @brief  : Set and send error response in case of processing create bearer request
+ * @param  : msg, holds information related to message caused error
+ * @param  : cause_value, cause type of error
+ * @param  : iface, interface on which response to be sent
+ * @return : Returns nothing
+ */
+void cbr_error_response(msg_info *msg, uint8_t cause_value, int iface);
+
+/**
+ * @brief  : Set and send RAA error response in case of reauthentication request failure
+ * @param  : pdn, pdn connection information
+ * @param  : error, error value
+ * @return : Returns nothing
+ */
 void gen_reauth_error_response(pdn_connection *pdn, int16_t error);
 #ifdef GX_BUILD
 /**
@@ -120,4 +151,21 @@ void send_ccr_t_req(msg_info *msg, uint8_t ebi, uint32_t teid);
  */
 void send_version_not_supported(int iface, uint32_t seq);
 
+/**
+ * @brief  : Select respective error response function as per proc
+ * @param  : msg, message info
+ * @param  : cause_value, error cause message
+ * @return : Returns nothing
+ */
+void
+pfcp_modification_error_response(struct resp_info *resp, msg_info *msg, uint8_t cause_value);
+
+/**
+ * @brief  : Select respective error response function as cca request type
+ * @param  : cause, cause value
+ * @param  : msg, message info
+ * @return : Returns nothing
+ */
+void
+gx_cca_error_response(uint8_t cause, msg_info *msg);
 #endif

@@ -44,6 +44,8 @@
 #include "vepc_cp_dp_api.h"
 #include "epc_packet_framework.h"
 
+#include "clogger.h"
+
 #ifdef USE_REST
 #include "../restoration/restoration_timer.h"
 #endif /* use_rest */
@@ -52,6 +54,10 @@
 #include "../pfcp_messages/csid_struct.h"
 #endif /* USE_CSID */
 
+/* File name of TEIDRI and peer node address */
+#define TEIDRI_FILENAME     "../config/up_teidri_cp_ip_data.csv"
+
+#define FILE_NAME "../config/dp_rstCnt.txt"
 /**
  * dataplane rte logs.
  */
@@ -266,9 +272,20 @@
  */
 #define NB_ECHO_MBUF  1024
 
+#define MAX_CP 7
+
+/* Max D-DF Interface Length */
+#define DDF_INTFC_LEN	64
+
+/* Interface selection */
+#define INTERFACE \
+			( (SAEGWU == app.spgw_cfg) ? Sxa_Sxb : ( (PGWU != app.spgw_cfg) ? Sxa : Sxb ) )
+
 struct rte_mempool *echo_mpool;
 
 extern int32_t conn_cnt;
+uint8_t dp_restart_cntr;
+
 
 /**
  * @brief  : Initialize restoration thread
@@ -311,7 +328,7 @@ add_node_conn_entry(uint32_t dstIp, uint64_t sess_id, uint8_t portId);
  *
  * hash handles connections for S1U, SGI and PFCP
  */
-extern struct rte_hash *conn_hash_handle;
+//extern struct rte_hash *conn_hash_handle;
 
 #endif /* CP_BUILD */
 
@@ -443,6 +460,16 @@ enum dp_config {
 	SAEGWU = 03,
 };
 
+/* @brief : Collection of assinged TEID range and connected CP node address */
+typedef struct teidri_info {
+	/* IP address of conneted CP */
+	uint32_t node_addr;
+	/* TEID range assinged to CP */
+	uint8_t teid_range;
+}teidri_info_t;
+
+
+
 /**
  * @brief  : Application configure structure .
  */
@@ -482,6 +509,10 @@ struct app_params {
 	uint32_t gtpu_seqnb_out;		/* outgoing GTP sequence number
 						 * 0 - do not include (default)
 						 * 1 - include */
+
+	uint8_t num_cp;                          /* Number of connected CP */
+	teidri_info_t teidri_info[MAX_CP];       /* Assinged TEIDRI connected CP node address */
+
 	uint32_t ports_mask;
 	uint8_t transmit_cnt;
 	int transmit_timer;
@@ -494,6 +525,7 @@ struct app_params {
 	struct ether_addr s5s8_sgwu_ether_addr;	/* s5s8_sgwu mac addr */
 	struct ether_addr s5s8_pgwu_ether_addr;	/* s5s8_pgwu mac addr */
 	struct ether_addr sgi_ether_addr;	/* sgi mac addr */
+	char ddf_intfc[DDF_INTFC_LEN];		/* D-Df interface name */ 
 
 #ifdef SGX_CDR
 	const char *dealer_in_ip;		/* dealerIn ip */
@@ -549,6 +581,14 @@ typedef struct ddn_info_t {
 	/* UP Seid */
 	uint64_t up_seid;
 }ddn_t;
+
+typedef struct  li_data_t
+{
+	uint8_t *pkts;
+	far_info_t *far;
+	int size;
+}li_data_t;
+
 
 /** CDR actions, N_A should never be accounted for */
 enum pkt_action_t {CHARGED, DROPPED, N_A};
@@ -984,6 +1024,66 @@ void dump_pcap(struct rte_mbuf **pkts, uint32_t n,
 
 #endif /* PCAP_GEN */
 
+/**
+ * @brief  : search and get node TEIDRI value if available in strored data.
+ * @param  : teid_range, TEIDRI value.
+ * @param  : node_addr, node address of CP .
+ * @return : Returns
+ *           1 - on success , node address and teidri found.
+ *           0 - node address not found.
+ */
+int
+get_node_teidri(uint8_t *teid_range, uint32_t node_addr);
+
+/**
+ * @brief  : Write TEIDRI value and node address into file in csv format.
+ * @param  : teid_range, TEIDRI value.
+ * @param  : node_addr, node address of CP .
+ * @return : Returns
+ *           0 - on success.
+ *           -1 - on fail.
+ */
+int
+add_teidri_node_entry(uint8_t teid_range, uint32_t node_addr, char *filename);
+
+/**
+ * @brief  : delete all containt from file.
+ * @param  : filename, file name,
+ * @return : Returns
+ *           0 - on success.
+ *           -1 - on fail.
+ */
+int
+flush_teidri_data(char *filename);
+
+/**
+ * @brief  : Delete  TEIDRI value and node address from file.
+ * @param  : filename, file name.
+ * @param  : node_addr, node address of CP .
+ * @return : Returns
+ *           0 - on success.
+ *           -1 - on fail.
+ */
+int
+delete_teidri_node_entry(char *filename, uint32_t node_addr);
+
+/**
+ * @brief  : get dp restart counter value.
+ * @param  : No Param.
+ * @return : Returns
+ *           dp restart counter value.
+ */
+uint8_t
+get_dp_restart_cntr(void);
+
+/**
+ * @brief  : update dp restart counter value.
+ * @param  : No Param.
+ * @return : Nothing
+ */
+void
+update_dp_restart_cntr(void);
+
 #ifdef USE_CSID
 int
 fill_peer_node_info_t(pfcp_session_t *sess);
@@ -999,7 +1099,7 @@ int8_t
 up_del_pfcp_peer_node_sess(uint32_t node_addr, uint8_t iface);
 
 int8_t
-del_sess_by_csid_entry(fqcsid_t *peer_csids, fqcsid_t *csids, uint64_t sess_id);
+del_sess_by_csid_entry(pfcp_session_t *sess, fqcsid_t *csids, uint8_t iface);
 
 #endif /* USE_CSID */
 

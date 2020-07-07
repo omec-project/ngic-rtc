@@ -2628,9 +2628,9 @@ int decode_pfcp_outer_hdr_creation_ie_t(uint8_t *buf,
     total_decoded += decode_pfcp_ie_header_t(buf + (total_decoded/CHAR_SIZE), &value->header);
     uint16_t decoded = 0;
 	value->outer_hdr_creation_desc = decode_bits(buf, total_decoded, 16, &decoded);
-    total_decoded += decoded;
-	value->teid = decode_bits(buf, total_decoded, 32, &decoded);
-    total_decoded += decoded;
+	total_decoded += decoded;
+	DECODE_TEID_COND_1(buf, total_decoded, 32, decoded, value);
+    //total_decoded += decoded;
     DECODE_IPV4_ADDRESS_COND_3(buf, total_decoded, 32, decoded, value);
     //total_decoded += decoded;
     DECODE_IPV6_ADDRESS_COND_3(buf, total_decoded, 8, decoded, value);
@@ -2664,7 +2664,7 @@ int decode_pfcp_fqcsid_ie_t(uint8_t *buf,
 	value->number_of_csids = decode_bits(buf, total_decoded, 4, &decoded);
 	total_decoded += decoded;
 	//DECODE_NODE_ADDRESS_COND_1(buf, total_decoded, 32, decoded, value);
-    	value->node_address = decode_bits(buf, total_decoded, 32, &decoded);
+	value->node_address = decode_bits(buf, total_decoded, 32, &decoded);
 	total_decoded += decoded;
 	/* TODO: Revisit this for change in yang */
 	//DECODE_PDN_CONN_SET_IDENT_COND(buf, total_decoded, 16, decoded, value);
@@ -2746,11 +2746,11 @@ int decode_pfcp_vol_thresh_ie_t(uint8_t *buf,
     value->tovol = decode_bits(buf, total_decoded, 1, &decoded);
     total_decoded += decoded;
     DECODE_TOTAL_VOLUME_COND_1(buf, total_decoded, 64, decoded, value);
-    total_decoded += decoded;
+    //total_decoded += decoded;
     DECODE_UPLINK_VOLUME_COND_1(buf, total_decoded, 64, decoded, value);
-    total_decoded += decoded;
+    //total_decoded += decoded;
     DECODE_DOWNLINK_VOLUME_COND_1(buf, total_decoded, 64, decoded, value);
-    total_decoded += decoded;
+    //total_decoded += decoded;
     return total_decoded/CHAR_SIZE;
 }
 

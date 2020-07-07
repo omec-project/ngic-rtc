@@ -28,9 +28,6 @@
 #include "pfcp_up_struct.h"
 #include "vepc_cp_dp_api.h"
 
-#define MAX_ACL_TABLES		1000
-#define MAX_SDF_RULE_NUM	32
-
 /**
  * Max pkt filter precedence.
  */
@@ -72,7 +69,7 @@ sdf_lookup(struct rte_mbuf **m, int nb_rx, uint32_t indx);
  * @return : Returns 0 in case of success , -1 otherwise
  */
 int
-get_acl_table_indx(struct sdf_pkt_filter *pkt_filter);
+get_acl_table_indx(struct sdf_pkt_filter *pkt_filter, uint8_t is_create);
 
 /**
  * @brief  : Add SDF rules

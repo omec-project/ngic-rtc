@@ -1642,16 +1642,29 @@ int encode_mbms_sess_upd_rsp(mbms_sess_upd_rsp_t *value,
     uint8_t *buf);
 
 /**
-* Encodes mbms_sess_stop_req_t to buffer.
-* @param value
-*    mbms_sess_stop_req_t
-* @param buf
-*   buffer to store encoded values.
-* @return
-*   number of encoded bytes.
-*/
-int encode_mbms_sess_stop_req(mbms_sess_stop_req_t *value,
-    uint8_t *buf);
+ * Encodes change_noti_req_t to buffer.
+ * @param value
+ *    change_noti_req_t
+ * @param buf
+ *   buffer to store encoded values.
+ * @return
+ *   number of encoded bytes.
+ */
+int encode_change_noti_req(change_noti_req_t *value,
+		uint8_t *buf);
+
+
+/**
+ * Encodes change_noti_rsp_t to buffer.
+ * @param value
+ *    change_noti_rsp_t
+ * @param buf
+ *   buffer to store encoded values.
+ * @return
+ *   number of encoded bytes.
+ */
+int encode_change_noti_rsp(change_noti_rsp_t *value,
+		uint8_t *buf);
 
 
 #endif /*__GTP_MESSAGES_ENCODE_H__*/

@@ -77,7 +77,6 @@ fill_pfcp_session_modify_resp(pfcp_sess_mod_rsp_t *pfcp_sess_modify_resp,
 		pfcp_sess_mod_req_t *pfcp_session_mod_req, uint8_t cause, int offend)
 {
 	uint32_t seq  = 1;
-	memset(pfcp_sess_modify_resp, 0, sizeof(pfcp_sess_mod_rsp_t));
 
 	set_pfcp_seid_header((pfcp_header_t *) &(pfcp_sess_modify_resp->header),
 			PFCP_SESSION_MODIFICATION_RESPONSE, HAS_SEID, seq);
@@ -128,7 +127,6 @@ fill_pfcp_sess_del_resp(pfcp_sess_del_rsp_t *
 {
 
 	uint32_t seq  = 1;
-	memset(pfcp_sess_del_resp, 0, sizeof(pfcp_sess_del_rsp_t));
 
 	set_pfcp_seid_header((pfcp_header_t *) &(pfcp_sess_del_resp->header), PFCP_SESSION_DELETION_RESPONSE,
 			HAS_SEID, seq);
@@ -169,8 +167,15 @@ int sess_modify_with_endmarker(far_info_t *far)
 
 	memcpy(&(edmk.destination_MAC), &(ret_arp_data->eth_addr) , sizeof(struct ether_addr));
 	edmk.dst_port = ret_arp_data->port;
-	edmk.source_MAC = app.s1u_ether_addr;
-	edmk.src_ip = app.s1u_ip;
+
+	if (app.spgw_cfg == SGWU || app.spgw_cfg == SAEGWU){
+		edmk.source_MAC = app.s1u_ether_addr;
+		edmk.src_ip = app.s1u_ip;
+	}else if(app.spgw_cfg == PGWU){
+		edmk.source_MAC = app.s5s8_pgwu_ether_addr;
+		edmk.src_ip = app.s5s8_pgwu_ip;
+	}
+
 	build_endmarker_and_send(&edmk);
 	return 0;
 }

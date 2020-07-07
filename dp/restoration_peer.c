@@ -51,6 +51,9 @@ extern uint16_t cp_comm_port;
 static struct sockaddr_in dest_addr[2];
 //#endif /* STATIC_ARP */
 
+/* DP restart conuter */
+extern uint8_t dp_restart_cntr;
+
 /**
  * rte hash handler.
  */
@@ -96,7 +99,7 @@ const char
 {
 
 	static char *str;
-	sprintf(str, "%02X:%02X:%02X:%02X:%02X:%02X",
+	snprintf(str, MAX_LEN, "%02X:%02X:%02X:%02X:%02X:%02X",
 			eth_h->addr_bytes[0],
 			eth_h->addr_bytes[1],
 			eth_h->addr_bytes[2],
@@ -162,7 +165,7 @@ uint8_t arp_req_send(peerData *conn_data)
 			tmp_buf[k] = 'v';
 		}
 		tmp_buf[512] = 0;
-
+		/*TODO : change strlen with strnlen with proper size (n)*/
 		if ((sendto(fd_array[conn_data->portId], tmp_buf, strlen(tmp_buf), 0, (struct sockaddr *)
 					&dest_addr[conn_data->portId], sizeof(struct sockaddr_in))) < 0) {
 			perror("send failed");
@@ -171,6 +174,49 @@ uint8_t arp_req_send(peerData *conn_data)
 	}
 
 	return 0;
+}
+
+uint8_t
+get_dp_restart_cntr(void) {
+	FILE *fd = NULL;
+	int tmp_rstcnt = 0;
+
+	if ((fd = fopen(FILE_NAME, "r")) == NULL ) {
+		/* Creating new file */
+		if ((fd = fopen(FILE_NAME,"w")) == NULL) {
+			clLog(clSystemLog, eCLSeverityCritical,
+					FORMAT"Error! creating dp_rstCnt.txt file\n", ERR_MSG);
+		}
+		return tmp_rstcnt;
+	}
+
+	/* */
+	if (fscanf(fd,"%d", &tmp_rstcnt) < 0) {
+		fclose(fd);
+		RTE_LOG(NOTICE, DP, "DP Restart Count : %d\n", tmp_rstcnt);
+		return tmp_rstcnt;
+	}
+
+	fclose(fd);
+	RTE_LOG(NOTICE, DP, "DP Restart Count : %d\n", tmp_rstcnt);
+	return tmp_rstcnt;
+}
+
+void
+update_dp_restart_cntr(void) {
+	FILE *fd;
+
+	if ((fd = fopen(FILE_NAME,"w")) == NULL){
+		clLog(clSystemLog, eCLSeverityCritical,
+				FORMAT"Error! creating dp_rstCnt.txt file\n", ERR_MSG);
+	}
+
+	fseek(fd, 0L, SEEK_SET);
+	fprintf(fd, "%d\n", ++dp_restart_cntr);
+
+	clLog(clSystemLog, eCLSeverityDebug,
+			"Updated restart counter Value of rstcnt=%d\n", dp_restart_cntr);
+	fclose(fd);
 }
 
 void timerCallback( gstimerinfo_t *ti, const void *data_t )
@@ -198,7 +244,7 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 		it = S5S8;
 	}
 
-
+	md->itr = number_of_transmit_count;
 	clLog(clSystemLog, eCLSeverityDebug, "%s - %s:%s:%u.%s (%dms) has expired\n", getPrintableTime(),
 	      md->name, inet_ntoa(*(struct in_addr *)&md->dstIP), md->portId,
 	      ti == &md->pt ? "Periodic_Timer" :
@@ -218,6 +264,9 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 		clLog(clSystemLog, eCLSeverityDebug, "Stopped Periodic/transmit timer, peer node %s is not reachable\n",
 				inet_ntoa(*(struct in_addr *)&md->dstIP));
 
+		printf("UP: Peer node %s is not reachable\n",
+				inet_ntoa(*(struct in_addr *)&md->dstIP));
+
 		update_peer_status(md->dstIP,FALSE);
 		delete_cli_peer(md->dstIP);
 
@@ -226,6 +275,13 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 			/* TODO: Future Enhancement */
 			/* flush_eNB_session(md); */
 			del_entry_from_hash(md->dstIP);
+#ifdef USE_CSID
+			if (md->portId == S1U_PORT_ID) {
+				up_del_pfcp_peer_node_sess(md->dstIP, S1U_PORT_ID);
+			} else {
+				up_del_pfcp_peer_node_sess(md->dstIP, SGI_PORT_ID);
+			}
+#endif /* USE_CSID */
 		} else if (md->portId == SX_PORT_ID) {
 			delete_entry_heartbeat_hash(&dest_addr);
 #ifdef USE_CSID
@@ -318,6 +374,10 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 			build_echo_request(pkt, md, gtpu_sgwu_seqnb);
 		}
 
+	}
+
+	if(pkt == NULL) {
+		return;
 	}
 
 	//struct rte_mbuf *mt = pkt;
@@ -444,8 +504,10 @@ flush_eNB_session(peerData *data_t)
 
 	/* VS: delete entry from connection hash table */
 	del_entry_from_hash(data_t->dstIP);
-	rte_free(data_t);
-	data_t = NULL;
+	if(data_t != NULL){
+		rte_free(data_t);
+		data_t = NULL;
+	}
 
 }
 

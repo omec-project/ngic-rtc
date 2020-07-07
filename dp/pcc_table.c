@@ -69,8 +69,10 @@ dp_pcc_entry_add(struct dp_id dp_id, struct pcc_rules *entry)
 
 	pcc = rte_zmalloc("data", sizeof(struct dp_pcc_rules),
 			   RTE_CACHE_LINE_SIZE);
-	if (pcc == NULL)
+	if (pcc == NULL) {
+		clLog(clSystemLog, eCLSeverityCritical, "Failed to allocate memory for pcc structre\n");
 		return -1;
+	}
 	memcpy(pcc, entry, sizeof(struct pcc_rules));
 
 	key32 = entry->rule_id;
@@ -114,8 +116,10 @@ dp_pcc_entry_delete(struct dp_id dp_id, struct pcc_rules *entry)
 		return -1;
 	}
 	ret = rte_hash_del_key(rte_pcc_hash, &key32);
-	if (ret < 0)
+	if (ret < 0) {
+		clLog(clSystemLog, eCLSeverityCritical, "Failed to delete pcc hash for %x\n",key32);
 		return -1;
+	}
 
 	rte_free(pcc);
 	return 0;
@@ -246,8 +250,10 @@ filter_pcc_entry_add(enum filter_pcc_type type, uint32_t pcc_id,
 		hash = rte_sdf_pcc_hash;
 	else if (type == FILTER_ADC)
 		hash = rte_adc_pcc_hash;
-	else
+	else {
+		clLog(clSystemLog, eCLSeverityCritical, "Invalid pcc filter type\n");
 		return -1;
+	}
 
 	for (i = 0; i < n; i++) {
 		ret = rte_hash_lookup_data(hash, &rule_ids[i], (void **)&pinfo);

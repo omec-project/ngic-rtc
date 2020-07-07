@@ -179,10 +179,10 @@ dp_adc_entry_add(struct dp_id dp_id, struct adc_rules *adc_filter_entry)
 
 		msg_payload.pcc_rule_id = adc_filter_entry->rule_id;
 		//msg_payload.precedence = adc_filter_entry->precedence;
-		sprintf(msg_payload.u.rule_str, "0.0.0.0/0 "IPV4_ADDR"/32 0 : 65535 0 : 65535 0x0/0x0 \n",
+		snprintf(msg_payload.u.rule_str, MAX_LEN, "0.0.0.0/0 "IPV4_ADDR"/32 0 : 65535 0 : 65535 0x0/0x0 \n",
 				IPV4_ADDR_HOST_FORMAT(ipv4));
 		dp_adc_filter_entry_add(dp_id, &msg_payload);
-		sprintf(msg_payload.u.rule_str, ""IPV4_ADDR"/32 0.0.0.0/0 0 : 65535 0 : 65535 0x0/0x0 \n",
+		snprintf(msg_payload.u.rule_str, MAX_LEN , ""IPV4_ADDR"/32 0.0.0.0/0 0 : 65535 0 : 65535 0x0/0x0 \n",
 				IPV4_ADDR_HOST_FORMAT(ipv4));
 		dp_adc_filter_entry_add(dp_id, &msg_payload);
 
@@ -198,10 +198,10 @@ dp_adc_entry_add(struct dp_id dp_id, struct adc_rules *adc_filter_entry)
 
 		msg_payload.pcc_rule_id = adc_filter_entry->rule_id;
 		//msg_payload.precedence = adc_filter_entry->precedence;
-		sprintf(msg_payload.u.rule_str, "0.0.0.0/0 "IPV4_ADDR"/%u 0 : 65535 0 : 65535 0x0/0x0 \n",
+		snprintf(msg_payload.u.rule_str, MAX_LEN , "0.0.0.0/0 "IPV4_ADDR"/%u 0 : 65535 0 : 65535 0x0/0x0 \n",
 				IPV4_ADDR_HOST_FORMAT(ipv4), prefix);
 		dp_adc_filter_entry_add(dp_id, &msg_payload);
-		sprintf(msg_payload.u.rule_str, ""IPV4_ADDR"/%u 0.0.0.0/0 0 : 65535 0 : 65535 0x0/0x0 \n",
+		snprintf(msg_payload.u.rule_str, MAX_LEN , ""IPV4_ADDR"/%u 0.0.0.0/0 0 : 65535 0 : 65535 0x0/0x0 \n",
 				IPV4_ADDR_HOST_FORMAT(ipv4), prefix);
 		dp_adc_filter_entry_add(dp_id, &msg_payload);
 
@@ -242,6 +242,7 @@ dp_adc_entry_delete(struct dp_id dp_id, struct adc_rules *adc_filter_entry)
 		return -1;
 	}
 	rte_free(*p);
+	p = NULL;
 	adc_table.num_entries--;
 	clLog(clSystemLog, eCLSeverityInfo, "ADC filter entry with rule_id %d deleted\n",
 					adc_filter_entry->rule_id);

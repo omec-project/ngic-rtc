@@ -30,7 +30,9 @@
 #include "gtp_messages.h"
 #include "../ipc/dp_ipc_api.h"
 #include "restoration_timer.h"
+#include "cp_app.h"
 #endif
+
 
 /* TODO: Move following lines to another file */
 #define HAS_SEID 1
@@ -167,6 +169,8 @@ typedef struct upf_context_t {
 	uint32_t s5s8_sgwu_ip;
 	uint32_t s5s8_pgwu_ip;
 	uint8_t  state;
+	/* TEDIRI base value */
+	uint8_t  teidri;
 	/* Add timer_entry for pfcp assoc req */
 	peerData *timer_entry;
 	create_sess_req_t csr;
@@ -200,6 +204,14 @@ struct rte_hash *gx_context_by_sess_id_hash;
  */
 uint32_t
 generate_seq_no(void);
+
+/**
+ * @brief  : Generates sequence number
+ * @param  : No parameters
+ * @return : Returns generated sequence number
+ */
+uint32_t
+generate_seq_no_urr(void);
 
 /**
  * @brief  : Generates sequence number for pfcp requests
@@ -280,10 +292,19 @@ process_pfcp_assoication_request(pdn_connection *pdn, uint8_t ebi_index);
  * @brief  : Process pfcp session establishment request
  * @param  : teid
  * @param  : ebi_index, index of ebi in array
+ * @param  : upf_ctx, upf information
  * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 process_pfcp_sess_est_request(uint32_t teid, pdn_connection *pdn,  upf_context_t *upf_ctx);
+
+/**
+ * @brief  : Retrives far id associated with pdr
+ * @param  : bearer, bearer struture
+ * @param  : interface_value, interface type access or core
+ * @return : Returns far id in case of success , 0 otherwise
+ */
+uint32_t get_far_id(eps_bearer *bearer, int interface_value);
 
 /**
  * @brief  : Process pfcp session modification request
@@ -292,6 +313,16 @@ process_pfcp_sess_est_request(uint32_t teid, pdn_connection *pdn,  upf_context_t
  */
 int
 process_pfcp_sess_mod_request(mod_bearer_req_t *mbr);
+
+/**
+ * @brief  : Process pfcp session modification request
+ * @param  : mb_req, holds information in session modification request
+ * @param  : gtpc_mbr_tx
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+int
+proc_pfcp_sess_mbr_udp_csid_req(mod_bearer_req_t *mb_req,
+		gtpv2c_header_t *gtpc_mbr_tx);
 
 /**
  * @brief  : Process pfcp session modification request for handover scenario
@@ -303,6 +334,8 @@ process_pfcp_sess_mod_req_handover(mod_bearer_req_t *mbr);
 
 /**
  * @brief  : Process pfcp session modification request for handover scenario
+ * @param  : pdn, pdn connection informatio
+ * @param  : bearer, bearer information
  * @param  : mbr, holds information in session modification request
  * @return : Returns 0 in case of success , -1 otherwise
  */
@@ -320,13 +353,28 @@ int
 process_pfcp_sess_del_request(del_sess_req_t *ds_req);
 
 /**
- * @brief  : Process delete session request on sgwc
- * @param  : ds_req, holds information in session deletion request
+ * @brief  : Process chnage notification request on sgwc
+ * @param  : change_not_req , holds information of
+ *           change notification request received from
+ *           MME.
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+int
+process_change_noti_request(change_noti_req_t  *change_not_req);
+
+/**
+ * @brief  : Process delete session request for delete bearer response case
+ * @param  : db_rsp, holds information in deletion bearer response
  * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 process_pfcp_sess_del_request_delete_bearer_rsp(del_bearer_rsp_t *db_rsp);
 
+/**
+ * @brief  : Process delete session request on sgwc
+ * @param  : ds_req, holds information in session deletion request
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 int
 process_sgwc_delete_session_request(del_sess_req_t *ds_req);
 
@@ -383,11 +431,13 @@ set_pdn_type(pfcp_pdn_type_ie_t *pdn);
  * @brief  : Set values in user plane ip resource info ie
  * @param  : up_ip_resource_info, ie structure to be filled
  * @param  : i, interface type access or core
+ * @param  : teidri_flag, 0 - Generate teidir.
+ *         : 1 - No action for TEIDRI.
  * @return : Returns nothing
  */
 void
 set_up_ip_resource_info(pfcp_user_plane_ip_rsrc_info_ie_t *up_ip_resource_info,
-					uint8_t i);
+					uint8_t i, uint8_t teidri_flag);
 #endif /* CP_BUILD */
 
 
@@ -462,10 +512,13 @@ set_up_inactivity_timer(pfcp_user_plane_inact_timer_ie_t *up_inact_timer);
 /**
  * @brief  : Set values in user id ie
  * @param  : user_id, ie structure to be filled
+ * @param  : imsi, value to be set in user id structure to be filled
  * @return : Returns nothing
  */
+#ifdef CP_BUILD
 void
-set_user_id(pfcp_user_id_ie_t *user_id);
+set_user_id(pfcp_user_id_ie_t *user_id, uint64_t imsi);
+#endif /* CP_BUILD */
 
 /**
  * @brief  : Set values in fseid ie
@@ -502,6 +555,14 @@ void
 set_cpf_features(pfcp_cp_func_feat_ie_t *cpf_feat);
 
 /**
+ * @brief  : Set values session report type ie
+ * @param  : rt, structure to be filled
+ * @return : Returns nothing
+ */
+void
+set_sess_report_type(pfcp_report_type_ie_t *rt);
+
+/**
  * @brief  : Set values in caues ie
  * @param  : cause, ie structure to be filled
  * @param  : cause_val, cause value to be filled
@@ -519,13 +580,18 @@ void
 removing_bar( pfcp_remove_bar_ie_t *remove_bar);
 
 /**
- * @brief  : Set values in
- * @param  : ie structure to be filled
+ * @brief  : Set values in remove pdr ie
+ * @param  : remove_pdr, ie structure to be filled
  * @return : Returns nothing
  */
 void
 removing_pdr( pfcp_remove_pdr_ie_t *remove_pdr);
 
+/**
+ * @brief  : Set values in traffic endpoint ie
+ * @param  : traffic_endpoint_id
+ * @return : Returns nothing
+ */
 void
 set_traffic_endpoint(pfcp_traffic_endpt_id_ie_t *traffic_endpoint_id);
 
@@ -983,9 +1049,28 @@ creating_pdr(pfcp_create_pdr_ie_t *create_pdr, int source_iface_value);
 void
 creating_far(pfcp_create_far_ie_t *create_far);
 
+/**
+ * @brief  : Set values in create urr ie
+ * @param  : create_far, ie structure to be filled
+ * @return : Returns nothing
+ */
+void
+creating_urr(pfcp_create_urr_ie_t *create_urr);
+
+/**
+ * @brief  : Set values in update pdr  ie
+ * @param  : update_pdr, ie structure to be filled
+ * @param  : source_iface_value
+ * @return : Returns nothing
+ */
 int
 updating_pdr(pfcp_update_pdr_ie_t *update_pdr, int source_iface_value);
 
+/**
+ * @brief  : Set values in update far  ie
+ * @param  : update_far, ie structure to be filled
+ * @return : Returns nothing
+ */
 void
 updating_far(pfcp_update_far_ie_t *update_far);
 
@@ -996,6 +1081,22 @@ updating_far(pfcp_update_far_ie_t *update_far);
  */
 uint16_t
 set_forwarding_param(pfcp_frwdng_parms_ie_t *frwdng_parms);
+
+/**
+ * @brief  : Set values in duplicating params ie
+ * @param  : dupng_parms, ie structure to be filled
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+uint16_t
+set_duplicating_param(pfcp_dupng_parms_ie_t *dupng_parms);
+
+/**
+ * @brief  : Set values in duplicating params ie in update far
+ * @param  : upd_dupng_parms, ie structure to be filled
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+uint16_t
+set_upd_duplicating_param(pfcp_upd_dupng_parms_ie_t *dupng_parms);
 
 /**
  * @brief  : Set values in upd forwarding params ie
@@ -1014,12 +1115,100 @@ uint16_t
 set_apply_action(pfcp_apply_action_ie_t *apply_action);
 
 /**
+ * @brief  : Set values in measurement method ie
+ * @param  : apply_action, ie structure to be filled
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+uint16_t
+set_measurement_method(pfcp_meas_mthd_ie_t *meas_mthd);
+
+/**
+ * @brief  : Set values in reporting triggers ie
+ * @param  : apply_action, ie structure to be filled
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+uint16_t
+set_reporting_trigger(pfcp_rptng_triggers_ie_t *rptng_triggers);
+
+/**
+ * @brief  : Set values in volume threshold ie
+ * @param  : apply_action, ie structure to be filled
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+int
+set_volume_threshold(pfcp_vol_thresh_ie_t *vol_thresh);
+
+/**
+ * @brief  : Set values in volume measuremnt ie
+ * @param  : vol_meas, ie structure to be filled
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+int
+set_volume_measurment(pfcp_vol_meas_ie_t *vol_meas);
+
+/**
+ * @brief  : Set values in duration measuremnt ie
+ * @param  : dur_meas, ie structure to be filled
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+int
+set_duration_measurment(pfcp_dur_meas_ie_t *dur_meas);
+
+/**
+ * @brief  : Set values in start time ie
+ * @param  : start_time, ie structure to be filled
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+int
+set_start_time(pfcp_start_time_ie_t *start_time);
+
+/**
+ * @brief  : Set values in end time ie
+ * @param  : end_time, ie structure to be filled
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+int
+set_end_time(pfcp_end_time_ie_t *end_time);
+
+/**
+ * @brief  : Set values in first pkt time ie
+ * @param  : first_pkt_time, ie structure to be filled
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+int
+set_first_pkt_time(pfcp_time_of_frst_pckt_ie_t *first_pkt_time);
+
+/**
+ * @brief  : Set values in last pkt time ie
+ * @param  : last_pkt_time, ie structure to be filled
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+int
+set_last_pkt_time(pfcp_time_of_lst_pckt_ie_t *last_pkt_time);
+
+/**
+ * @brief  : Set values in Time threshold ie
+ * @param  : apply_action, ie structure to be filled
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+int
+set_time_threshold(pfcp_time_threshold_ie_t *time_thresh);
+
+/**
  * @brief  : Set values in outer header creation ie
  * @param  : outer_hdr_creation, ie structure to be filled
  * @return : Returns 0 in case of success , -1 otherwise
  */
 uint16_t
 set_outer_header_creation(pfcp_outer_hdr_creation_ie_t *outer_hdr_creation);
+
+/**
+ * @brief  : Set values in forwarding policy ie
+ * @param  : frwdng_plcy, ie structure to be filled
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+uint16_t
+set_frwding_policy(pfcp_frwdng_plcy_ie_t *frwdng_plcy);
 
 /**
  * @brief  : Set values in destination interface ie
@@ -1058,7 +1247,7 @@ set_far_id_mbr(pfcp_far_id_ie_t *far_id);
  * @param  : urr_id, ie structure to be filled
  * @return : Returns nothing
  */
-void
+int
 set_urr_id(pfcp_urr_id_ie_t *urr_id);
 
 /**

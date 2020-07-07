@@ -38,6 +38,7 @@
 #ifndef GTPC_SESSION_H
 #define GTPC_SESSION_H
 
+#define DYN_RULE_CNT  (16)
 /**
  * @brief  : Maintains seid, bearer id, sgw teid , pgw ip for cp
  */
@@ -87,11 +88,12 @@ process_sgwc_s5s8_create_sess_rsp(create_sess_rsp_t *cs_rsp);
  * @param  : sequence, sequence number
  * @param  : context, ue context info
  * @param  : ebi_index, index of bearer in bearer array
+ * @param  : is_piggybacked, piggybacked message
  * @return : Returns nothing
  */
 void
 fill_pgwc_create_session_response(create_sess_rsp_t *cs_resp,
-		uint32_t sequence, struct ue_context_t *context, uint8_t ebi_index);
+		uint32_t sequence, struct ue_context_t *context, uint8_t ebi_index, uint8_t is_piggybacked);
 /**
  * @brief  : Fill delete session request
  * @param  : ds_req, request structure to be filled
@@ -128,6 +130,67 @@ process_pgwc_s5s8_delete_session_request(del_sess_req_t *ds_req);
  */
 int
 process_sgwc_s5s8_delete_session_response(del_sess_rsp_t *dsr, uint8_t *gtpv2c_tx);
+
+/**
+ * @brief  : Set values in create bearer request
+ * @param  : gtpv2c_tx, transmission buffer to contain 'create bearer request' message
+ * @param  : sequence, sequence number as described by clause 7.6 3gpp 29.274
+ * @param  : pdn, pdn data structure pertaining to the bearer to be created
+ * @param  : bearer, EPS Bearer data structure to be created
+ * @param  : lbi, 'Linked Bearer Identifier': indicates the default bearer identifier
+ *           associated to the PDN connection to which the dedicated bearer is to be
+ *           created
+ * @param  : pti, 'Procedure Transaction Identifier' according to clause 8.35 3gpp 29.274,
+ *           as specified by table 7.2.3-1 3gpp 29.274, 'shall be the same as the one
+ *           used in the corresponding bearer resource command'
+ * @param  : resp
+ * @return : Returns nothing
+ */
+int
+set_create_bearer_request(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
+	pdn_connection *pdn, uint8_t lbi, uint8_t pti, struct resp_info *resp, uint8_t piggybacked);
+
+/**
+ * @brief  : Set values in create bearer response
+ * @param  : gtpv2c_tx, transmission buffer to contain 'create bearer response' message
+ * @param  : sequence, sequence number as described by clause 7.6 3gpp 29.274
+ * @param  : pdn, pdn data structure pertaining to the bearer to be created
+ * @param  : bearer, EPS Bearer data structure to be created
+ * @param  : lbi, 'Linked Bearer Identifier': indicates the default bearer identifier
+ *           associated to the PDN connection to which the dedicated bearer is to be
+ *           created
+ * @param  : pti, 'Procedure Transaction Identifier' according to clause 8.35 3gpp 29.274,
+ *           as specified by table 7.2.3-1 3gpp 29.274, 'shall be the same as the one
+ *           used in the corresponding bearer resource command'
+ * @param  : resp
+ * @return : Returns nothing
+ */
+int
+set_create_bearer_response(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
+		pdn_connection *pdn, uint8_t lbi, uint8_t pti, struct resp_info *resp);
+
+/**
+ * @brief  : Set values in create bearer request
+ * @param  : gtpv2c_tx, transmission buffer to contain 'create bearer request' message
+ * @param  : sequence, sequence number as described by clause 7.6 3gpp 29.274
+ * @param  : pdn, pdn data structure pertaining to the bearer to be created
+ * @param  : bearer, EPS Bearer data structure to be created
+ * @param  : lbi, 'Linked Bearer Identifier': indicates the default bearer identifier
+ *           associated to the PDN connection to which the dedicated bearer is to be
+ *           created
+ * @param  : pti, 'Procedure Transaction Identifier' according to clause 8.35 3gpp 29.274,
+ *           as specified by table 7.2.3-1 3gpp 29.274, 'shall be the same as the one
+ *           used in the corresponding bearer resource command'
+ * @param  : resp
+ * @return : - 0 if successful
+ *           - > 0 if error occurs during packet filter parsing corresponds to 3gpp
+ *           specified cause error value
+ *           - < 0 for all other errors
+ */
+int8_t
+set_sgwc_create_bearer_request(gtpv2c_header_t *gtpv2c_tx,
+		      uint32_t sequence, pdn_connection *pdn, uint8_t lbi,
+		      uint8_t pti, struct resp_info *resp);
 
 /**
  * @brief  : Handles the processing at sgwc after receiving delete
@@ -167,14 +230,37 @@ process_pgwc_create_bearer_rsp(create_bearer_rsp_t *cb_rsp);
 int
 process_sgwc_create_bearer_rsp(create_bearer_rsp_t *cb_rsp);
 
+/**
+ * @brief  : Proccesses update bearer request
+ * @param  : ubr, holds data from request
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 int
 process_update_bearer_request(upd_bearer_req_t *ubr);
 
+/**
+ * @brief  : Proccesses update bearer response received on s11 interface
+ * @param  : ub_rsp, holds data from response
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 int
 process_s11_upd_bearer_response(upd_bearer_rsp_t *ub_rsp);
 
+/**
+ * @brief  : Proccesses update bearer response received on s5s8 interface
+ * @param  : ub_rsp, holds data from response
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 int
 process_s5s8_upd_bearer_response(upd_bearer_rsp_t *ub_rsp);
+
+/**
+ * @brief  : Process CSR request for Context Replacement.
+ * @param  : csr, Received CSR request.
+ * @return : Returns 0 on success, -1 otherwise
+ */
+int
+gtpc_context_replace_check(create_sess_req_t *csr);
 
 #endif /*CP_BUILD*/
 #endif

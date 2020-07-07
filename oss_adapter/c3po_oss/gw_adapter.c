@@ -37,6 +37,7 @@
 #include "../../interface/interface.h"
 #include "../../cp/gtpv2c.h"
 #include "../../cp/ue.h"
+#include "../../li_config.h"
 
 #else
 
@@ -49,6 +50,7 @@
 #include "crest.h"
 #include "clogger.h"
 #include "cstats.h"
+#include "cdadmfapi.h"
 
 #include "../../pfcp_messages/pfcp_set_ie.h"
 
@@ -61,466 +63,471 @@ SPeer *peer[MAX_PEER] = {NULL};
 int cnt_peer = 0;
 int nbr_of_peer = 0;
 uint64_t oss_reset_time;
+uint64_t reset_time = 0;
 
-int s11logger;
-int s5s8logger;
-int sxlogger;
-int gxlogger;
-int apilogger;
-int epclogger;
-int s_one_u_logger;
-int sgilogger;
-int knilogger;
-
+int number_of_transmit_count;
+int number_of_request_tries;
+int transmit_timer_value;
+int periodic_timer_value;
+int request_timeout_value;
 
 MessageType ossS5s8MessageDefs[] = {
-        {       3       , "Version Not Supported Indication",dNone      },
-        {       32      , "Create Session Request",  dIn        	},//if SGWC then send, if PGWC then recv
-        {       33      , "Create Session Response",dRespRcvd   	},//if SGWC then recv, if PGWC then send
-        {       36      , "Delete Session Request",  dIn        	},//if SGWC then send, if PGWC then recv
-        {       37      , "Delete Session Response",dRespRcvd   	},//if SGWC then recv, if PGWC then send
-        {       34      , "Modify Bearer Request",dIn 			},	  //if SGWC then send, if PGWC then recv
-        {       35      , "Modify Bearer Response",dRespRcvd    	},//if SGWC then recv, if PGWC then send
-        {       40      , "Remote UE Report Notification",dNone 	},
-        {       41      , "Remote UE Report Acknowledge",dNone  	},
-        {       38      , "Change Notification Request",dNone   	},
-        {       39      , "Change Notification Response",dNone  	},
-        {       164     , "Resume Notification",dNone   		},
-        {       165     , "Resume Acknowledge",dNone    		},
-        {       64      , "Modify Bearer Command",dNone 		},
-        {       65      , "Modify Bearer Failure Indication",dNone      },
-        {       66      , "Delete Bearer Command",dNone 		},
-        {       67      , "Delete Bearer Failure Indication",dNone      },
-        {       68      , "Bearer Resource Command",dNone       	},
-        {       69      , "Bearer Resource Failure Indication",dNone    },
-        {       71      , "Trace Session Activation",dNone      	},
-        {       72      , "Trace Session Deactivation",dNone    	},
-        {       95      , "Create Bearer Request",dIn 		},//if SGWC then recv, if PGWC then send
-        {       96      , "Create Bearer Response",dOut        	},//if SGWC then send, if PGWC then recv
-        {       97      , "Update Bearer Request",dNone 		},
-        {       98      , "Update Bearer Response",dNone        	},
-        {       99      , "Delete Bearer Request",dNone 		},
-        {       100     , "Delete Bearer Response",dNone        	},
-        {       101     , "Delete PDN Connection Set Request",dNone     },
-        {       102     , "Delete PDN Connection Set Response",dNone    },
-        {       103     , "PGW Downlink Triggering Notification",dNone  },
-        {       104     , "PGW Downlink Triggering Acknowledge",dNone   },
-        {       162     , "Suspend Notification",dNone  		},
-        {       163     , "Suspend Acknowledge",dNone   		},
-        {       200     , "Update PDN Connection Set Request",dNone     },
-        {       201     , "Update PDN Connection Set Response",dNone    },
-        {       -1      , NULL,dNone  					}
+	{       3       , "Version Not Supported Indication",dNone      },
+	{       32      , "Create Session Request",  dIn                },//if SGWC then send, if PGWC then recv
+	{       33      , "Create Session Response",dRespRcvd           },//if SGWC then recv, if PGWC then send
+	{       36      , "Delete Session Request",  dIn                },//if SGWC then send, if PGWC then recv
+	{       37      , "Delete Session Response",dRespRcvd           },//if SGWC then recv, if PGWC then send
+	{       34      , "Modify Bearer Request",dIn                   },  //if SGWC then send, if PGWC then recv
+	{       35      , "Modify Bearer Response",dRespRcvd            },//if SGWC then recv, if PGWC then send
+	{       40      , "Remote UE Report Notification",dNone         },
+	{       41      , "Remote UE Report Acknowledge",dNone          },
+	{       38      , "Change Notification Request",dNone           },
+	{       39      , "Change Notification Response",dNone          },
+	{       164     , "Resume Notification",dNone                   },
+	{       165     , "Resume Acknowledge",dNone                    },
+	{       64      , "Modify Bearer Command",dNone                 },
+	{       65      , "Modify Bearer Failure Indication",dNone      },
+	{       66      , "Delete Bearer Command",dIn                   },
+	{       67      , "Delete Bearer Failure Indication",dNone      },
+	{       68      , "Bearer Resource Command",dNone               },
+	{       69      , "Bearer Resource Failure Indication",dNone    },
+	{       71      , "Trace Session Activation",dNone              },
+	{       72      , "Trace Session Deactivation",dNone            },
+	{       95      , "Create Bearer Request",dIn                   },//if SGWC then recv, if PGWC then send
+	{       96      , "Create Bearer Response",dOut                 },//if SGWC then send, if PGWC then recv
+	{       97      , "Update Bearer Request",dIn                   },
+	{       98      , "Update Bearer Response",dRespSend            },
+	{       99      , "Delete Bearer Request",dIn                   },
+	{       100     , "Delete Bearer Response",dRespSend            },
+	{       101     , "Delete PDN Connection Set Request",dBoth     },
+	{       102     , "Delete PDN Connection Set Response",dBoth    },
+	{       103     , "PGW Downlink Triggering Notification",dNone  },
+	{       104     , "PGW Downlink Triggering Acknowledge",dNone   },
+	{       162     , "Suspend Notification",dNone                  },
+	{       163     , "Suspend Acknowledge",dNone                   },
+	{       200     , "Update PDN Connection Set Request",dNone     },
+	{       201     , "Update PDN Connection Set Response",dNone    },
+	{       -1      , NULL,dNone                                    }
 };
 
 MessageType ossS11MessageDefs[] = {
-        {       3       ,"Version Not Supported Indication", dNone 	},
-        {       32      ,"Create Session Request", dIn 			},
-        {       33      ,"Create Session Response", dRespSend 		},
-        {       36      ,"Delete Session Request", dIn 			},
-        {       37      ,"Delete Session Response", dRespSend 		},
-        {       34      ,"Modify Bearer Request", dIn 			},
-        {       35      ,"Modify Bearer Response", dRespSend 		},
-        {       40      ,"Remote UE Report Notification", dNone 	},
-        {       41      ,"Remote UE Report Acknowledge", dNone 		},
-        {       38      ,"Change Notification Request", dNone 		},
-        {       39      ,"Change Notification Response", dNone 		},
-        {       164     ,"Resume Notification", dNone 			},
-        {       165     ,"Resume Acknowledge", dNone 			},
-        {       64      ,"Modify Bearer Command", dNone 		},
-        {       65      ,"Modify Bearer Failure Indication", dNone 	},
-        {       66      ,"Delete Bearer Command", dNone 		},
-        {       67      ,"Delete Bearer Failure Indication", dNone 	},
-        {       68      ,"Bearer Resource Command", dNone 		},
-        {       69      ,"Bearer Resource Failure Indication", dNone 	},
-        {       70      ,"Downlink Data Notification Failure Indication", dNone },
-        {       71      ,"Trace Session Activation", dNone 		},
-        {       72      ,"Trace Session Deactivation", dNone 		},
-        {       73      ,"Stop Paging Indication", dNone 		},
-        {       95      ,"Create Bearer Request", dOut	 		},
-        {       96      ,"Create Bearer Response", dRespRcvd	 	},
-        {       97      ,"Update Bearer Request", dNone 		},
-        {       98      ,"Update Bearer Response", dNone 		},
-        {       99      ,"Delete Bearer Request", dNone 		},
-        {       100     ,"Delete Bearer Response", dNone 		},
-        {       101     ,"Delete PDN Connection Set Request", dNone 	},
-        {       102     ,"Delete PDN Connection Set Response", dNone 	},
-        {       103     ,"PGW Downlink Triggering Notification", dNone 	},
-        {       104     ,"PGW Downlink Triggering Acknowledge", dNone 	},
-        {       162     ,"Suspend Notification", dNone 			},
-        {       163     ,"Suspend Acknowledge", dNone 			},
-        {       160     ,"Create Forwarding Tunnel Request", dNone 	},
-        {       161     ,"Create Forwarding Tunnel Response", dNone 	},
-        {       166     ,"Create Indirect Data Forwarding Tunnel Request", dNone },
-        {       167     ,"Create Indirect Data Forwarding Tunnel Response", dNone },
-        {       168     ,"Delete Indirect Data Forwarding Tunnel Request", dNone },
-        {       169     ,"Delete Indirect Data Forwarding Tunnel Response", dNone },
-        {       170     ,"Release Access Bearers Request", dIn 		},
-        {       171     ,"Release Access Bearers Response", dRespSend 	},
-        {       176     ,"Downlink Data Notification", dOut 		},
-        {       177     ,"Downlink Data Notification Acknowledge", dRespRcvd },
-        {       179     ,"PGW Restart Notification", dNone 		},
-        {       180     ,"PGW Restart Notification Acknowledge", dNone 	},
-        {       211     ,"Modify Access Bearers Request", dNone 	},
-        {       212     ,"Modify Access Bearers Response", dNone 	},
-        {       -1      , NULL,dNone  					}
+	{       3       ,"Version Not Supported Indication", dNone                },
+	{       32      ,"Create Session Request", dIn                            },
+	{       33      ,"Create Session Response", dRespSend                     },
+	{       36      ,"Delete Session Request", dIn                            },
+	{       37      ,"Delete Session Response", dRespSend                     },
+	{       34      ,"Modify Bearer Request", dIn                             },
+	{       35      ,"Modify Bearer Response", dRespSend                      },
+	{       40      ,"Remote UE Report Notification", dNone                   },
+	{       41      ,"Remote UE Report Acknowledge", dNone                    },
+	{       38      ,"Change Notification Request", dIn                       },
+	{       39      ,"Change Notification Response", dRespSend                },
+	{       164     ,"Resume Notification", dNone                             },
+	{       165     ,"Resume Acknowledge", dNone                              },
+	{       64      ,"Modify Bearer Command", dNone                           },
+	{       65      ,"Modify Bearer Failure Indication", dNone                },
+	{       66      ,"Delete Bearer Command", dIn                             },
+	{       67      ,"Delete Bearer Failure Indication", dNone                },
+	{       68      ,"Bearer Resource Command", dNone                         },
+	{       69      ,"Bearer Resource Failure Indication", dNone              },
+	{       70      ,"Downlink Data Notification Failure Indication", dNone   },
+	{       71      ,"Trace Session Activation", dNone                        },
+	{       72      ,"Trace Session Deactivation", dNone                      },
+	{       73      ,"Stop Paging Indication", dNone                          },
+	{       95      ,"Create Bearer Request", dOut                            },
+	{       96      ,"Create Bearer Response", dRespRcvd                      },
+	{       97      ,"Update Bearer Request", dOut                            },
+	{       98      ,"Update Bearer Response", dRespRcvd                      },
+	{       99      ,"Delete Bearer Request", dOut                            },
+	{       100     ,"Delete Bearer Response", dRespRcvd                      },
+	{       101     ,"Delete PDN Connection Set Request", dBoth               },
+	{       102     ,"Delete PDN Connection Set Response", dBoth              },
+	{       103     ,"PGW Downlink Triggering Notification", dNone            },
+	{       104     ,"PGW Downlink Triggering Acknowledge", dNone             },
+	{       162     ,"Suspend Notification", dNone                            },
+	{       163     ,"Suspend Acknowledge", dNone                             },
+	{       160     ,"Create Forwarding Tunnel Request", dNone                },
+	{       161     ,"Create Forwarding Tunnel Response", dNone               },
+	{       166     ,"Create Indirect Data Forwarding Tunnel Request", dNone  },
+	{       167     ,"Create Indirect Data Forwarding Tunnel Response", dNone },
+	{       168     ,"Delete Indirect Data Forwarding Tunnel Request", dNone  },
+	{       169     ,"Delete Indirect Data Forwarding Tunnel Response", dNone },
+	{       170     ,"Release Access Bearers Request", dIn                    },
+	{       171     ,"Release Access Bearers Response", dRespSend             },
+	{       176     ,"Downlink Data Notification", dOut                       },
+	{       177     ,"Downlink Data Notification Acknowledge", dRespRcvd      },
+	{       179     ,"PGW Restart Notification", dOut                         },
+	{       180     ,"PGW Restart Notification Acknowledge", dRespRcvd        },
+	{       211     ,"Modify Access Bearers Request", dNone                   },
+	{       212     ,"Modify Access Bearers Response", dNone                  },
+	{       -1      , NULL,dNone                                              }
 };
 
 #ifdef CP_BUILD
 
 MessageType ossSxaMessageDefs[] = {
-        {	   1	  ,"PFCP Heartbeat Request",dNone		},
-        {	   2	  ,"PFCP Heartbeat Response",dNone		},
-        {	   5	  ,"PFCP Association Setup Request",dOut	},
-        {	   6	  ,"PFCP Association Setup Response",dRespRcvd	},
-        {	   7	  ,"PFCP Association Update Request",dNone	},
-        {	   8	  ,"PFCP Association Update Response",dNone	},
-        {	   9	  ,"PFCP Association Release Request",dNone	},
-        {	   10	  ,"PFCP Association Release Response",dNone	},
-        {	   11	  ,"PFCP Version Not Supported Response",dNone	},
-        {	   12	  ,"PFCP Node Report Request",dNone		},
-        {	   13	  ,"PFCP Node Report Response",dNone		},
-        {	   14	  ,"PFCP Session Set Deletion Request",dNone	},
-        {	   15	  ,"PFCP Session Set Deletion Response",dNone	},
-        {	   50	  ,"PFCP Session Establishment Request",dOut	},
-        {	   51	  ,"PFCP Session Establishment Response",dRespRcvd},
-        {	   52	  ,"PFCP Session Modification Request",dOut	},
-        {	   53	  ,"PFCP Session Modification Response",dRespRcvd},
-        {	   54	  ,"PFCP Session Deletion Request",dOut		},
-        {	   55	  ,"PFCP Session Deletion Response",dRespRcvd	},
-        {	   56	  ,"PFCP Session Report Request",dIn		},
-        {	   57	  ,"PFCP Session Report Response",dRespSend	},
-        {          -1     , NULL,dNone					}
+	{   1   ,"PFCP Heartbeat Request",dNone                  },
+	{   2   ,"PFCP Heartbeat Response",dNone                 },
+	{   5   ,"PFCP Association Setup Request",dOut           },
+	{   6   ,"PFCP Association Setup Response",dRespRcvd     },
+	{   7   ,"PFCP Association Update Request",dNone         },
+	{   8   ,"PFCP Association Update Response",dNone        },
+	{   9   ,"PFCP Association Release Request",dNone        },
+	{   10  ,"PFCP Association Release Response",dNone       },
+	{   11  ,"PFCP Version Not Supported Response",dNone     },
+	{   12  ,"PFCP Node Report Request",dNone                },
+	{   13  ,"PFCP Node Report Response",dNone               },
+	{   14  ,"PFCP Session Set Deletion Request",dBoth       },
+	{   15  ,"PFCP Session Set Deletion Response",dBoth      },
+	{   50  ,"PFCP Session Establishment Request",dOut       },
+	{   51  ,"PFCP Session Establishment Response",dRespRcvd },
+	{   52  ,"PFCP Session Modification Request",dOut        },
+	{   53  ,"PFCP Session Modification Response",dRespRcvd  },
+	{   54  ,"PFCP Session Deletion Request",dOut            },
+	{   55  ,"PFCP Session Deletion Response",dRespRcvd      },
+	{   56  ,"PFCP Session Report Request",dIn               },
+	{   57  ,"PFCP Session Report Response",dRespSend        },
+	{   -1     , NULL,dNone                                  }
 };
 
 MessageType ossSxbMessageDefs[] = {
-        {	  1	  ,"PFCP Heartbeat Request",dNone		},
-        {	  2	  ,"PFCP Heartbeat Response",dNone		},
-	{  	  3       ,"PFCP PFD Management Request",dOut           },
-	{         4       ,"PFCP PFD Management Response",dRespRcvd     },
-        {	  5	  ,"PFCP Association Setup Request",dOut	},
-        {	  6	  ,"PFCP Association Setup Response",dRespRcvd	},
-        {	  7	  ,"PFCP Association Update Request",dNone	},
-        {	  8	  ,"PFCP Association Update Response",dNone	},
-        {	  9	  ,"PFCP Association Release Request",dNone	},
-        {	  10	  ,"PFCP Association Release Response",dNone	},
-        {	  11	  ,"PFCP Version Not Supported Response",dNone	},
-        {	  12	  ,"PFCP Node Report Request",dNone		},
-        {	  13	  ,"PFCP Node Report Response",dNone		},
-        {	  14	  ,"PFCP Session Set Deletion Request",dNone	},
-        {	  15	  ,"PFCP Session Set Deletion Response",dNone	},
-        {	  50	  ,"PFCP Session Establishment Request",dOut	},
-        {	  51	  ,"PFCP Session Establishment Response",dRespRcvd},
-        {	  52	  ,"PFCP Session Modification Request",dOut	},
-        {	  53	  ,"PFCP Session Modification Response",dRespRcvd},
-        {	  54	  ,"PFCP Session Deletion Request",dOut		},
-        {	  55	  ,"PFCP Session Deletion Response",dRespRcvd	},
-        {	  56	  ,"PFCP Session Report Request",dIn		},
-        {	  57	  ,"PFCP Session Report Response",dRespSend	},
-        {         -1      , NULL,dNone  				}
+	{  1  ,"PFCP Heartbeat Request",dNone                  },
+	{  2  ,"PFCP Heartbeat Response",dNone                 },
+	{  3  ,"PFCP PFD Management Request",dOut               },
+	{  4  ,"PFCP PFD Management Response",dRespRcvd         },
+	{  5  ,"PFCP Association Setup Request",dOut           },
+	{  6  ,"PFCP Association Setup Response",dRespRcvd     },
+	{  7  ,"PFCP Association Update Request",dNone         },
+	{  8  ,"PFCP Association Update Response",dNone        },
+	{  9  ,"PFCP Association Release Request",dNone        },
+	{  10 ,"PFCP Association Release Response",dNone       },
+	{  11 ,"PFCP Version Not Supported Response",dNone     },
+	{  12 ,"PFCP Node Report Request",dNone                },
+	{  13 ,"PFCP Node Report Response",dNone               },
+	{  14 ,"PFCP Session Set Deletion Request",dBoth       },
+	{  15 ,"PFCP Session Set Deletion Response",dBoth      },
+	{  50 ,"PFCP Session Establishment Request",dOut       },
+	{  51 ,"PFCP Session Establishment Response",dRespRcvd },
+	{  52 ,"PFCP Session Modification Request",dOut        },
+	{  53 ,"PFCP Session Modification Response",dRespRcvd  },
+	{  54 ,"PFCP Session Deletion Request",dOut            },
+	{  55 ,"PFCP Session Deletion Response",dRespRcvd      },
+	{  56 ,"PFCP Session Report Request",dIn               },
+	{  57 ,"PFCP Session Report Response",dRespSend        },
+	{  -1      , NULL,dNone                                }
 };
 
 MessageType ossSxaSxbMessageDefs[] = {
-        {	  1	 ,"PFCP Heartbeat Request",dNone		},
-        {	  2	 ,"PFCP Heartbeat Response",dNone		},
-        {	  3	 ,"PFCP PFD Management Request",dOut		},
-        {	  4	 ,"PFCP PFD Management Response",dRespRcvd	},
-        {	  5	 ,"PFCP Association Setup Request",dOut		},
-        {	  6	 ,"PFCP Association Setup Response",dRespRcvd	},
-        {	  7	 ,"PFCP Association Update Request",dNone	},
-        {	  8	 ,"PFCP Association Update Response",dNone	},
-        {	  9	 ,"PFCP Association Release Request",dNone	},
-        {	  10	 ,"PFCP Association Release Response",dNone	},
-        {	  11	 ,"PFCP Version Not Supported Response",dNone	},
-        {	  12	 ,"PFCP Node Report Request",dNone		},
-        {	  13	 ,"PFCP Node Report Response",dNone		},
-        {	  14	 ,"PFCP Session Set Deletion Request",dNone	},
-        {	  15	 ,"PFCP Session Set Deletion Response",dNone	},
-        {	  50	 ,"PFCP Session Establishment Request",dOut	},
-        {	  51	 ,"PFCP Session Establishment Response",dRespRcvd},
-        {	  52	 ,"PFCP Session Modification Request",dOut	},
-        {	  53	 ,"PFCP Session Modification Response",dRespRcvd},
-        {	  54	 ,"PFCP Session Deletion Request",dOut		},
-        {	  55	 ,"PFCP Session Deletion Response",dRespRcvd	},
-        {	  56	 ,"PFCP Session Report Request",dIn		},
-        {	  57	 ,"PFCP Session Report Response",dRespSend	},
-        {         -1     , NULL,dNone  					}
+	{  1 ,"PFCP Heartbeat Request",dNone                   },
+	{  2 ,"PFCP Heartbeat Response",dNone                  },
+	{  3 ,"PFCP PFD Management Request",dOut               },
+	{  4 ,"PFCP PFD Management Response",dRespRcvd         },
+	{  5 ,"PFCP Association Setup Request",dOut            },
+	{  6 ,"PFCP Association Setup Response",dRespRcvd      },
+	{  7 ,"PFCP Association Update Request",dNone          },
+	{  8 ,"PFCP Association Update Response",dNone         },
+	{  9 ,"PFCP Association Release Request",dNone         },
+	{  10 ,"PFCP Association Release Response",dNone       },
+	{  11 ,"PFCP Version Not Supported Response",dNone     },
+	{  12 ,"PFCP Node Report Request",dNone                },
+	{  13 ,"PFCP Node Report Response",dNone               },
+	{  14 ,"PFCP Session Set Deletion Request",dBoth       },
+	{  15 ,"PFCP Session Set Deletion Response",dBoth      },
+	{  50 ,"PFCP Session Establishment Request",dOut       },
+	{  51 ,"PFCP Session Establishment Response",dRespRcvd },
+	{  52 ,"PFCP Session Modification Request",dOut        },
+	{  53 ,"PFCP Session Modification Response",dRespRcvd  },
+	{  54 ,"PFCP Session Deletion Request",dOut            },
+	{  55 ,"PFCP Session Deletion Response",dRespRcvd      },
+	{  56 ,"PFCP Session Report Request",dIn               },
+	{  57 ,"PFCP Session Report Response",dRespSend        },
+	{         -1     , NULL,dNone                          }
 };
 
 #else /* DP_BUILD */
 
 MessageType ossSxaMessageDefs[] = {
-        {          1      ,"PFCP Heartbeat Request",dNone               },
-        {          2      ,"PFCP Heartbeat Response",dNone              },
-        {          5      ,"PFCP Association Setup Request",dIn        },
-        {          6      ,"PFCP Association Setup Response",dRespSend  },
-        {          7      ,"PFCP Association Update Request",dNone      },
-        {          8      ,"PFCP Association Update Response",dNone     },
-        {          9      ,"PFCP Association Release Request",dNone     },
-        {          10     ,"PFCP Association Release Response",dNone    },
-        {          11     ,"PFCP Version Not Supported Response",dNone  },
-        {          12     ,"PFCP Node Report Request",dNone             },
-        {          13     ,"PFCP Node Report Response",dNone            },
-        {          14     ,"PFCP Session Set Deletion Request",dNone    },
-        {          15     ,"PFCP Session Set Deletion Response",dNone   },
-        {          50     ,"PFCP Session Establishment Request",dIn    },
-        {          51     ,"PFCP Session Establishment Response",dRespSend},
-        {          52     ,"PFCP Session Modification Request",dIn     },
-        {          53     ,"PFCP Session Modification Response",dRespSend},
-        {          54     ,"PFCP Session Deletion Request",dIn         },
-        {          55     ,"PFCP Session Deletion Response",dRespSend   },
-        {          56     ,"PFCP Session Report Request",dOut           },
-        {          57     ,"PFCP Session Report Response",dRespRcvd     },
-        {          -1     , NULL,dNone			  		}
+	{          1      ,"PFCP Heartbeat Request",dNone                  },
+	{          2      ,"PFCP Heartbeat Response",dNone                 },
+	{          5      ,"PFCP Association Setup Request",dIn            },
+	{          6      ,"PFCP Association Setup Response",dRespSend     },
+	{          7      ,"PFCP Association Update Request",dNone         },
+	{          8      ,"PFCP Association Update Response",dNone        },
+	{          9      ,"PFCP Association Release Request",dNone        },
+	{          10     ,"PFCP Association Release Response",dNone       },
+	{          11     ,"PFCP Version Not Supported Response",dNone     },
+	{          12     ,"PFCP Node Report Request",dNone                },
+	{          13     ,"PFCP Node Report Response",dNone               },
+	{          14     ,"PFCP Session Set Deletion Request",dBoth       },
+	{          15     ,"PFCP Session Set Deletion Response",dBoth      },
+	{          50     ,"PFCP Session Establishment Request",dIn        },
+	{          51     ,"PFCP Session Establishment Response",dRespSend },
+	{          52     ,"PFCP Session Modification Request",dIn         },
+	{          53     ,"PFCP Session Modification Response",dRespSend  },
+	{          54     ,"PFCP Session Deletion Request",dIn             },
+	{          55     ,"PFCP Session Deletion Response",dRespSend      },
+	{          56     ,"PFCP Session Report Request",dOut              },
+	{          57     ,"PFCP Session Report Response",dRespRcvd        },
+	{          -1     , NULL,dNone                                     }
 };
 MessageType ossSxbMessageDefs[] = {
-        {         1       ,"PFCP Heartbeat Request",dNone               },
-        {         2       ,"PFCP Heartbeat Response",dNone              },
-	{         3       ,"PFCP PFD Management Request",dIn           },
-	{         4       ,"PFCP PFD Management Response",dRespSend    },
-        {         5       ,"PFCP Association Setup Request",dIn        },
-        {         6       ,"PFCP Association Setup Response",dRespSend  },
-        {         7       ,"PFCP Association Update Request",dNone      },
-        {         8       ,"PFCP Association Update Response",dNone     },
-        {         9       ,"PFCP Association Release Request",dNone     },
-        {         10      ,"PFCP Association Release Response",dNone    },
-        {         11      ,"PFCP Version Not Supported Response",dNone  },
-        {         12      ,"PFCP Node Report Request",dNone             },
-        {         13      ,"PFCP Node Report Response",dNone            },
-        {         14      ,"PFCP Session Set Deletion Request",dNone    },
-        {         15      ,"PFCP Session Set Deletion Response",dNone   },
-        {         50      ,"PFCP Session Establishment Request",dIn    },
-        {         51      ,"PFCP Session Establishment Response",dRespSend},
-        {         52      ,"PFCP Session Modification Request",dIn     },
-        {         53      ,"PFCP Session Modification Response",dRespSend},
-        {         54      ,"PFCP Session Deletion Request",dIn         },
-        {         55      ,"PFCP Session Deletion Response",dRespSend   },
-        {         56      ,"PFCP Session Report Request",dOut           },
-        {         57      ,"PFCP Session Report Response",dRespRcvd     },
-        {         -1      , NULL,dNone  				}
+	{         1       ,"PFCP Heartbeat Request",dNone                  },
+	{         2       ,"PFCP Heartbeat Response",dNone                 },
+	{  	  3	  ,"PFCP PFD Management Request",dIn               },
+	{  	  4	  ,"PFCP PFD Management Response",dRespSend        },
+	{         5       ,"PFCP Association Setup Request",dIn            },
+	{         6       ,"PFCP Association Setup Response",dRespSend     },
+	{         7       ,"PFCP Association Update Request",dNone         },
+	{         8       ,"PFCP Association Update Response",dNone        },
+	{         9       ,"PFCP Association Release Request",dNone        },
+	{         10      ,"PFCP Association Release Response",dNone       },
+	{         11      ,"PFCP Version Not Supported Response",dNone     },
+	{         12      ,"PFCP Node Report Request",dNone                },
+	{         13      ,"PFCP Node Report Response",dNone               },
+	{         14      ,"PFCP Session Set Deletion Request",dBoth       },
+	{         15      ,"PFCP Session Set Deletion Response",dBoth      },
+	{         50      ,"PFCP Session Establishment Request",dIn        },
+	{         51      ,"PFCP Session Establishment Response",dRespSend },
+	{         52      ,"PFCP Session Modification Request",dIn         },
+	{         53      ,"PFCP Session Modification Response",dRespSend  },
+	{         54      ,"PFCP Session Deletion Request",dIn             },
+	{         55      ,"PFCP Session Deletion Response",dRespSend      },
+	{         56      ,"PFCP Session Report Request",dOut              },
+	{         57      ,"PFCP Session Report Response",dRespRcvd        },
+	{         -1      , NULL,dNone                                     }
 };
 MessageType ossSxaSxbMessageDefs[] = {
-        {         1      ,"PFCP Heartbeat Request",dNone                },
-        {         2      ,"PFCP Heartbeat Response",dNone               },
-        {         3      ,"PFCP PFD Management Request",dIn             },
-        {         4      ,"PFCP PFD Management Response",dRespSend      },
-        {         5      ,"PFCP Association Setup Request",dIn         },
-        {         6      ,"PFCP Association Setup Response",dRespSend   },
-        {         7      ,"PFCP Association Update Request",dNone       },
-        {         8      ,"PFCP Association Update Response",dNone      },
-        {         9      ,"PFCP Association Release Request",dNone      },
-        {         10     ,"PFCP Association Release Response",dNone     },
-        {         11     ,"PFCP Version Not Supported Response",dNone   },
-        {         12     ,"PFCP Node Report Request",dNone              },
-        {         13     ,"PFCP Node Report Response",dNone             },
-        {         14     ,"PFCP Session Set Deletion Request",dNone     },
-        {         15     ,"PFCP Session Set Deletion Response",dNone    },
-        {         50     ,"PFCP Session Establishment Request",dIn     },
-        {         51     ,"PFCP Session Establishment Response",dRespSend},
-        {         52     ,"PFCP Session Modification Request",dIn      },
-        {         53     ,"PFCP Session Modification Response",dRespSend},
-        {         54     ,"PFCP Session Deletion Request",dIn          },
-        {         55     ,"PFCP Session Deletion Response",dRespSend    },
-        {         56     ,"PFCP Session Report Request",dOut            },
-        {         57     ,"PFCP Session Report Response",dRespRcvd      },
-        {         -1     , NULL,dNone                                   }
+	{         1      ,"PFCP Heartbeat Request",dNone                  },
+	{         2      ,"PFCP Heartbeat Response",dNone                 },
+	{         3      ,"PFCP PFD Management Request",dIn               },
+	{         4      ,"PFCP PFD Management Response",dRespSend        },
+	{         5      ,"PFCP Association Setup Request",dIn            },
+	{         6      ,"PFCP Association Setup Response",dRespSend     },
+	{         7      ,"PFCP Association Update Request",dNone         },
+	{         8      ,"PFCP Association Update Response",dNone        },
+	{         9      ,"PFCP Association Release Request",dNone        },
+	{         10     ,"PFCP Association Release Response",dNone       },
+	{         11     ,"PFCP Version Not Supported Response",dNone     },
+	{         12     ,"PFCP Node Report Request",dNone                },
+	{         13     ,"PFCP Node Report Response",dNone               },
+	{         14     ,"PFCP Session Set Deletion Request",dBoth       },
+	{         15     ,"PFCP Session Set Deletion Response",dBoth      },
+	{         50     ,"PFCP Session Establishment Request",dIn        },
+	{         51     ,"PFCP Session Establishment Response",dRespSend },
+	{         52     ,"PFCP Session Modification Request",dIn         },
+	{         53     ,"PFCP Session Modification Response",dRespSend  },
+	{         54     ,"PFCP Session Deletion Request",dIn             },
+	{         55     ,"PFCP Session Deletion Response",dRespSend      },
+	{         56     ,"PFCP Session Report Request",dOut              },
+	{         57     ,"PFCP Session Report Response",dRespRcvd        },
+	{         -1     , NULL,dNone                                     }
 };
 #endif /* CP_BUILD */
 
 MessageType ossGxMessageDefs[] = {
-    {     120    ,"Credit Control Request Initial",dOut             },
-    {     121    ,"Credit Control Answer Initial",dIn               },
-    {     122    ,"Credit Control Request Update",dOut              },
-    {     123    ,"Credit Control Answer Update",dIn                },
-    {     124    ,"Credit Control Request Terminate",dOut         },
-    {     125    ,"Credit Control Answer Terminate",dIn           },
-    {     126    ,"Re-Auth-Request",dIn                            },
-    {     127    ,"Re-Auth Answer",dOut                             },
-    {     -1     , NULL,dNone                                       }
+	{     120    ,"Credit Control Request Initial",dOut   },
+	{     121    ,"Credit Control Answer Initial",dIn     },
+	{     122    ,"Credit Control Request Update",dOut    },
+	{     123    ,"Credit Control Answer Update",dIn      },
+	{     124    ,"Credit Control Request Terminate",dOut },
+	{     125    ,"Credit Control Answer Terminate",dIn   },
+	{     126    ,"Re-Auth-Request",dIn                   },
+	{     127    ,"Re-Auth Answer",dOut                   },
+	{     -1     , NULL,dNone                             }
 };
 
 
 MessageType ossSystemMessageDefs[] = {
-    {  0    ,"Number of active session",dNone	},
-    {  1    ,"Number of ues",dNone  		},
-    {  2    ,"Number of bearers",dNone          },
-    {  3    ,"Number of pdn connections",dNone  },
-    {  -1   , NULL,dNone  			}
+	{  0    ,"Number of active session",dNone  },
+	{  1    ,"Number of ues",dNone             },
+	{  2    ,"Number of bearers",dNone         },
+	{  3    ,"Number of pdn connections",dNone },
+	{  -1   , NULL,dNone                       }
 };
 
 char ossInterfaceStr[][10] = {
-    "s11" ,
-    "s5s8",
-    "sxa",
-    "sxb",
-    "sxasxb",
-    "gx",
+	"s11" ,
+	"s5s8",
+	"sxa",
+	"sxb",
+	"sxasxb",
+	"gx",
 	"s1u",
 	"sgi",
-    "none"
+	"none"
 };
 
 char ossInterfaceProtocolStr[][10] = {
-    "gtpv2" ,
+	"gtpv2" ,
 #ifdef CP_BUILD
-    "gtpv2",
+	"gtpv2",
 #else
 	"gtp",
 #endif
-    "pfcp",
-    "pfcp",
-    "pfcp",
-    "diameter",
+	"pfcp",
+	"pfcp",
+	"pfcp",
+	"diameter",
 	"gtp",
-    "none"
+	"none"
 };
 
 char ossGatewayStr[][10] = {
-    "none",
-    "SGWC",
-    "PGWC",
-    "SAEGWC",
-    "SGWU",
-    "PGWU",
-    "SAEGWU"
+	"none",
+	"SGWC",
+	"PGWC",
+	"SAEGWC",
+	"SGWU",
+	"PGWU",
+	"SAEGWU"
 };
 
 
 
 
 int s11MessageTypes [] = {
-    -1,-1,-1,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,2,5,6,3,4,9,10,
-    7,8,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-    -1,-1,-1,-1,13,14,15,16,17,18,19,20,21,22,-1,-1,-1,-1,-1,-1,
-    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,23,24,25,26,27,
-    28,29,30,31,32,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-    35,36,33,34,11,12,37,38,39,40,41,42,-1,-1,-1,-1,43,44,-1,45,
-    46,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,47,48
+	-1,-1,-1,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+	-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,2,5,6,3,4,9,10,
+	7,8,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+	-1,-1,-1,-1,13,14,15,16,17,18,19,20,21,22,-1,-1,-1,-1,-1,-1,
+	-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,23,24,25,26,27,
+	28,29,30,31,32,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+	-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+	-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+	35,36,33,34,11,12,37,38,39,40,41,42,-1,-1,-1,-1,43,44,-1,45,
+	46,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+	-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,47,48
 };
 
 int s5s8MessageTypes [] = {
-    -1,-1,-1,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,2,5,6,3,4,9,10,
-    7,8,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-    -1,-1,-1,-1,13,14,15,16,17,18,-1,19,20,-1,-1,-1,-1,-1,-1,-1,
-    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,21,22,23,24,25,
-    26,27,28,29,30,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-    -1,-1,31,32,11,12,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-    33,34
+	-1,-1,-1,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+	-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,2,5,6,3,4,9,10,
+	7,8,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+	-1,-1,-1,-1,13,14,15,16,17,18,-1,19,20,-1,-1,-1,-1,-1,-1,-1,
+	-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,21,22,23,24,25,
+	26,27,28,29,30,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+	-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+	-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+	-1,-1,31,32,11,12,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+	-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+	33,34
 };
 
 int sxaMessageTypes [] = {
-    -1,0,1,-1,-1,2,3,4,5,6,7,8,9,10,11,12,-1,-1,-1,-1,
-    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,13,14,15,16,17,18,19,20
+	-1,0,1,-1,-1,2,3,4,5,6,7,8,9,10,11,12,-1,-1,-1,-1,
+	-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+	-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,13,14,15,16,17,18,19,20
 };
 
 int sxbMessageTypes [] = {
-    -1,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,-1,-1,-1,-1,
-    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,15,16,17,18,19,20,21,22
+	-1,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,-1,-1,-1,-1,
+	-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+	-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,15,16,17,18,19,20,21,22
 };
 
 int sxasxbMessageTypes [] = {
-    -1,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,-1,-1,-1,-1,
-    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,15,16,17,18,19,20,21,22
+	-1,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,-1,-1,-1,-1,
+	-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+	-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,15,16,17,18,19,20,21,22
 };
 
 int gxMessageTypes [] = {
-  -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-  -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-  -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-  -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-  -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-  -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,0,
-  1,2,3,4,5,6,7
+	-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+	-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+	-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+	-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+	-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+	-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,0,
+	1,2,3,4,5,6,7
 };
 
+int supported_commands[][CMD_LIST_SIZE] = {
+	{0,0,0,0,0,0,0,0,0,0},
+	{1,1,1,1,1,0,0,0,0,0},
+	{1,1,1,1,1,0,0,0,0,0},
+	{1,1,1,1,1,0,0,0,0,0},
+	{1,1,1,0,0,0,0,0,0,0},
+	{1,1,1,0,0,0,0,0,0,0},
+	{1,1,1,0,0,0,0,0,0,0}
+};
 
 bool is_last_activity_update(uint8_t msg_type, CLIinterface it)
 {
-    EInterfaceType it_cli;
-    if(it == SX) {
+	EInterfaceType it_cli;
+	if(it == SX) {
 #ifdef DP_BUILD
-        if(app.spgw_cfg == SGWU)
-            it_cli = itSxa;
-        else if(app.spgw_cfg == PGWU)
-            it_cli = itSxb;
-        else
-            it_cli = itSxaSxb;
+		if(app.spgw_cfg == SGWU)
+			it_cli = itSxa;
+		else if(app.spgw_cfg == PGWU)
+			it_cli = itSxb;
+		else
+			it_cli = itSxaSxb;
 #else
-        if(pfcp_config.cp_type == SGWC)
-            it_cli = itSxa;
-        else if(pfcp_config.cp_type == PGWC)
-            it_cli = itSxb;
-        else
-            it_cli = itSxaSxb;
+		if(pfcp_config.cp_type == SGWC)
+			it_cli = itSxa;
+		else if(pfcp_config.cp_type == PGWC)
+			it_cli = itSxb;
+		else
+			it_cli = itSxaSxb;
 #endif
-    } else if(it == GX)
-        it_cli = itGx;
-    else if(it == S1U)
-        it_cli = itS1U;
-    else if(it == SGI)
-        it_cli = itSGI;
-    else if(it == S5S8)
-        it_cli = itS5S8;
-    else
-        it_cli = itS11;
+	} else if(it == GX)
+		it_cli = itGx;
+	else if(it == S1U)
+		it_cli = itS1U;
+	else if(it == SGI)
+		it_cli = itSGI;
+	else if(it == S5S8)
+		it_cli = itS5S8;
+	else
+		it_cli = itS11;
 
-    switch(it_cli) {
-    case itS11:
-        if((ossS11MessageDefs[s11MessageTypes[msg_type]].dir == dIn) ||
-            (ossS11MessageDefs[s11MessageTypes[msg_type]].dir == dRespRcvd))
-            return true;
-        break;
+	switch(it_cli) {
+		case itS11:
+			if((ossS11MessageDefs[s11MessageTypes[msg_type]].dir == dIn) ||
+					(ossS11MessageDefs[s11MessageTypes[msg_type]].dir == dRespRcvd))
+				return true;
+			break;
 
-    case itS5S8:
-        if((ossS5s8MessageDefs[s5s8MessageTypes[msg_type]].dir == dIn) ||
-            (ossS5s8MessageDefs[s5s8MessageTypes[msg_type]].dir == dRespRcvd))
-            return true;
-        break;
+		case itS5S8:
+			if((ossS5s8MessageDefs[s5s8MessageTypes[msg_type]].dir == dIn) ||
+					(ossS5s8MessageDefs[s5s8MessageTypes[msg_type]].dir == dRespRcvd))
+				return true;
+			break;
 
-    case itSxa:
-        if((ossSxaMessageDefs[sxaMessageTypes[msg_type]].dir == dIn) ||
-            (ossSxaMessageDefs[sxaMessageTypes[msg_type]].dir == dRespRcvd))
-            return true;
-        break;
+		case itSxa:
+			if((ossSxaMessageDefs[sxaMessageTypes[msg_type]].dir == dIn) ||
+					(ossSxaMessageDefs[sxaMessageTypes[msg_type]].dir == dRespRcvd))
+				return true;
+			break;
 
-    case itSxb:
-        if((ossSxbMessageDefs[sxbMessageTypes[msg_type]].dir == dIn) ||
-            (ossSxbMessageDefs[sxbMessageTypes[msg_type]].dir == dRespRcvd))
-            return true;
-        break;
+		case itSxb:
+			if((ossSxbMessageDefs[sxbMessageTypes[msg_type]].dir == dIn) ||
+					(ossSxbMessageDefs[sxbMessageTypes[msg_type]].dir == dRespRcvd))
+				return true;
+			break;
 
-    case itSxaSxb:
-        if((ossSxaSxbMessageDefs[sxasxbMessageTypes[msg_type]].dir == dIn) ||
-            (ossSxaSxbMessageDefs[sxasxbMessageTypes[msg_type]].dir == dRespRcvd))
-            return true;
-        break;
+		case itSxaSxb:
+			if((ossSxaSxbMessageDefs[sxasxbMessageTypes[msg_type]].dir == dIn) ||
+					(ossSxaSxbMessageDefs[sxasxbMessageTypes[msg_type]].dir == dRespRcvd))
+				return true;
+			break;
 
-    case itGx:
-        if((ossGxMessageDefs[gxMessageTypes[msg_type]].dir == dIn) ||
-            (ossGxMessageDefs[gxMessageTypes[msg_type]].dir == dRespRcvd))
-            return true;
-        break;
+		case itGx:
+			if((ossGxMessageDefs[gxMessageTypes[msg_type]].dir == dIn) ||
+					(ossGxMessageDefs[gxMessageTypes[msg_type]].dir == dRespRcvd))
+				return true;
+			break;
 
-    case itS1U:
-        /*TODO*/
-        break;
+		case itS1U:
+			/*TODO*/
+			break;
 
-    case itSGI:
-        /*TODO*/
-        break;
-    }
+		case itSGI:
+			/*TODO*/
+			break;
+	}
 
-    return false;
+	return false;
 }
 
 
@@ -577,28 +584,28 @@ int update_cli_stats(uint32_t ip_addr, uint8_t msg_type, int dir, CLIinterface i
 		switch(cli_node.peer[index]->intfctype) {
 			case itS11:
 				__sync_add_and_fetch(&cli_node.peer[index]->stats.s11[s11MessageTypes[msg_type]].cnt[dir], 1);
-				strcpy(cli_node.peer[index]->stats.s11[s11MessageTypes[msg_type]].ts, stat_timestamp);
+				strncpy(cli_node.peer[index]->stats.s11[s11MessageTypes[msg_type]].ts, stat_timestamp, LAST_TIMER_SIZE);
 				break;
 			case itS5S8:
 				__sync_add_and_fetch(&cli_node.peer[index]->stats.s5s8[s5s8MessageTypes[msg_type]].cnt[dir], 1);
-				strcpy(cli_node.peer[index]->stats.s5s8[s5s8MessageTypes[msg_type]].ts, stat_timestamp);
+				strncpy(cli_node.peer[index]->stats.s5s8[s5s8MessageTypes[msg_type]].ts, stat_timestamp, LAST_TIMER_SIZE);
 				break;
 			case itSxa:
 				__sync_add_and_fetch(&cli_node.peer[index]->stats.sxa[sxaMessageTypes[msg_type]].cnt[dir], 1);
-				strcpy(cli_node.peer[index]->stats.sxa[sxaMessageTypes[msg_type]].ts, stat_timestamp);
+				strncpy(cli_node.peer[index]->stats.sxa[sxaMessageTypes[msg_type]].ts, stat_timestamp, LAST_TIMER_SIZE);
 				break;
 			case itSxb:
 				__sync_add_and_fetch(&cli_node.peer[index]->stats.sxb[sxbMessageTypes[msg_type]].cnt[dir], 1);
-				strcpy(cli_node.peer[index]->stats.sxb[sxbMessageTypes[msg_type]].ts, stat_timestamp);
+				strncpy(cli_node.peer[index]->stats.sxb[sxbMessageTypes[msg_type]].ts, stat_timestamp, LAST_TIMER_SIZE);
 				break;
 			case itSxaSxb:
 				__sync_add_and_fetch(&cli_node.peer[index]->stats.sxasxb[sxasxbMessageTypes[msg_type]].cnt[dir], 1);
-				strcpy(cli_node.peer[index]->stats.sxasxb[sxasxbMessageTypes[msg_type]].ts, stat_timestamp);
+				strncpy(cli_node.peer[index]->stats.sxasxb[sxasxbMessageTypes[msg_type]].ts, stat_timestamp, LAST_TIMER_SIZE);
 				break;
-               		case itGx:
-                                __sync_add_and_fetch(&cli_node.peer[index]->stats.gx[gxMessageTypes[msg_type]].cnt[dir], 1);
-                                strcpy(cli_node.peer[index]->stats.gx[gxMessageTypes[msg_type]].ts, stat_timestamp);
-                                break;
+			case itGx:
+				__sync_add_and_fetch(&cli_node.peer[index]->stats.gx[gxMessageTypes[msg_type]].cnt[dir], 1);
+				strncpy(cli_node.peer[index]->stats.gx[gxMessageTypes[msg_type]].ts, stat_timestamp, LAST_TIMER_SIZE);
+				break;
 			default:
 				clLog(clSystemLog, eCLSeverityCritical, "CLI:No such a interface");
 				break;
@@ -610,8 +617,8 @@ int update_cli_stats(uint32_t ip_addr, uint8_t msg_type, int dir, CLIinterface i
 
 void add_cli_peer(uint32_t ip_addr,CLIinterface it)
 {
-        int index = -1;
-        SPeer temp_peer;
+	int index = -1;
+	SPeer temp_peer;
 
 	EInterfaceType it_cli;
 
@@ -653,48 +660,48 @@ void add_cli_peer(uint32_t ip_addr,CLIinterface it)
 		it_cli = itS11;
 	}
 
-        clLog(clSystemLog, eCLSeverityTrace,
-                        "CLI:Request rcvd for ip addr:%s\n",
-                        inet_ntoa(*((struct in_addr *)&ip_addr)));
+	clLog(clSystemLog, eCLSeverityTrace,
+			"CLI:Request rcvd for ip addr:%s\n",
+			inet_ntoa(*((struct in_addr *)&ip_addr)));
 
-        /*Check peer is allready added or not*/
-        index = get_peer_index(ip_addr);
+	/*Check peer is allready added or not*/
+	index = get_peer_index(ip_addr);
 
-        if (index == -1)  /*peer is not added yet*/
-        {
-                index = get_first_index(); /*find the postn*/
-                cli_node.peer[index] = calloc(1,sizeof(temp_peer));
+	if (index == -1)  /*peer is not added yet*/
+	{
+		index = get_first_index(); /*find the postn*/
+		cli_node.peer[index] = calloc(1,sizeof(temp_peer));
 
-                //Initialization
-                cli_node.peer[index]->ipaddr = (*(struct in_addr *)&ip_addr);
-                cli_node.peer[index]->intfctype = it_cli;
-                cli_node.peer[index]->status = FALSE;
+		//Initialization
+		cli_node.peer[index]->ipaddr = (*(struct in_addr *)&ip_addr);
+		cli_node.peer[index]->intfctype = it_cli;
+		cli_node.peer[index]->status = FALSE;
 
 		/*TODO Need to revisit after DP timer counter get*/
 #ifdef DP_BUILD
-				cli_node.peer[index]->response_timeout = app.transmit_timer;
-				cli_node.peer[index]->maxtimeout = app.transmit_cnt + 1;
+				cli_node.peer[index]->response_timeout = &transmit_timer_value;
+				cli_node.peer[index]->maxtimeout = &number_of_transmit_count;
 #else
-				cli_node.peer[index]->response_timeout = pfcp_config.transmit_timer;
-				cli_node.peer[index]->maxtimeout = pfcp_config.transmit_cnt + 1;
+				cli_node.peer[index]->response_timeout = &transmit_timer_value;
+				cli_node.peer[index]->maxtimeout = &number_of_transmit_count;
 #endif
 
-                cli_node.peer[index]->timeouts = 0;
+				cli_node.peer[index]->timeouts = 0;
 
-                clLog(clSystemLog, eCLSeverityTrace,
-                                                "Interface type is : %d\n",it);
-                clLog(clSystemLog, eCLSeverityTrace,
-                                                "Added peer with ip addr : %s\n\n",
-                                                inet_ntoa(cli_node.peer[index]->ipaddr));
+				clLog(clSystemLog, eCLSeverityTrace,
+						"Interface type is : %d\n",it);
+				clLog(clSystemLog, eCLSeverityTrace,
+						"Added peer with ip addr : %s\n\n",
+						inet_ntoa(cli_node.peer[index]->ipaddr));
 
-                nbr_of_peer++; /*peer count incremented*/
+				nbr_of_peer++; /*peer count incremented*/
 
-                if (index == cnt_peer)
-                        cnt_peer++;
-        }
-        else {
-                clLog(clSystemLog, eCLSeverityTrace,"CLI:peer already exist\n");
-        }
+				if (index == cnt_peer)
+					cnt_peer++;
+	}
+	else {
+		clLog(clSystemLog, eCLSeverityTrace,"CLI:peer already exist\n");
+	}
 }
 
 int get_peer_index(uint32_t ip_addr)
@@ -709,6 +716,9 @@ int get_peer_index(uint32_t ip_addr)
 				return i;
 		}
 	}
+	clLog(clSystemLog, eCLSeverityTrace,
+			"peer :%s doesn't exist\n ",
+			inet_ntoa(*((struct in_addr *)&ip_addr)));
 
 	return -1;
 }
@@ -807,7 +817,7 @@ int update_last_activity(uint32_t ip_addr, char *time_stamp)
 		return -1;
 	}
 
-	strcpy(cli_node.peer[index]->lastactivity, time_stamp);
+	strncpy(cli_node.peer[index]->lastactivity, time_stamp, LAST_TIMER_SIZE);
 
 	return 0;
 }
@@ -820,6 +830,129 @@ int update_sys_stat(int index, int operation)
 		__sync_add_and_fetch(&cli_node.stats[index],-1);
 
 	return 0;
+}
+
+void reset_sys_stat(void)
+{
+	uint8_t itr_sys_stats = 0;
+
+	for (itr_sys_stats = 0;  itr_sys_stats < MAX_SYS_STATS; itr_sys_stats++ ) {
+		cli_node.stats[itr_sys_stats] = 0;
+	}
+}
+
+int update_periodic_timer_value(int periodic_timer_value) {
+
+	peerData *conn_data = NULL;
+
+#ifdef CP_BUILD
+	pfcp_config.periodic_timer = periodic_timer_value;
+#else
+	app.periodic_timer = periodic_timer_value;
+#endif
+
+	const void *key;
+	uint32_t iter = 0;
+
+	if(conn_hash_handle != NULL) {
+		while (rte_hash_iterate(conn_hash_handle, &key, (void **)&conn_data, &iter) >= 0) {
+
+			conn_data->pt.ti_ms = (periodic_timer_value * 1000);
+		}
+	}
+
+	return 0;
+}
+
+int update_transmit_timer_value(int transmit_timer_value)
+{
+
+	peerData *conn_data = NULL;
+
+#ifdef CP_BUILD
+	pfcp_config.transmit_timer = transmit_timer_value;
+#else
+	app.transmit_timer = transmit_timer_value;
+#endif
+
+	const void *key;
+	uint32_t iter = 0;
+
+	if(conn_hash_handle != NULL) {
+		while (rte_hash_iterate(conn_hash_handle, &key, (void **)&conn_data, &iter) >= 0) {
+
+			conn_data->tt.ti_ms = (transmit_timer_value * 1000);
+		}
+	}
+
+	return 0;
+}
+
+int change_config_file(const char *path, const char *param, const char *value)
+{
+
+	char buffer[LINE_SIZE], temp[ENTRY_VALUE_SIZE+ENTRY_NAME_SIZE+2];
+	char *ptr;
+	const char *new = "temp.cfg";
+
+	strncpy(temp, param, ENTRY_NAME_SIZE);
+	strncat(temp, "=", 1);
+	strncat(temp, value, ENTRY_VALUE_SIZE);
+	strncat(temp, "\n", 1);
+
+	FILE *file=fopen(path,"r+");
+
+	if(file==NULL){
+		clLog(clSystemLog, eCLSeverityCritical,"error while opening %s file\n",path);
+		return 1;
+	}
+
+	FILE *file_1=fopen("temp.cfg","w");
+	if(file==NULL){
+		clLog(clSystemLog, eCLSeverityCritical,"error while creating file\n");
+		return 1;
+	}
+
+	while(fgets(buffer,sizeof(buffer),file)!=NULL)
+	{
+		if((ptr=strstr(buffer,param))!=NULL && buffer[0]!='#' && buffer[0]!=';')
+		{
+			fputs(temp,file_1);
+			continue;
+		}
+		fputs(buffer,file_1);
+	}
+	fclose(file);
+	fclose(file_1);
+
+	if((remove(path))!=0)
+		clLog(clSystemLog, eCLSeverityCritical,"delete file ERROR\n");
+
+	rename(new,path);
+
+	return 0;
+}
+
+uint8_t get_gw_type(void) {
+
+	uint8_t gw_type = 0;
+
+#ifdef CP_BUILD
+	gw_type = pfcp_config.cp_type;
+#else
+	gw_type = app.spgw_cfg + 3;
+#endif
+
+return gw_type;
+
+}
+
+bool is_cmd_supported(int cmd_number) {
+
+	if(!supported_commands[get_gw_type()][cmd_number])
+		return false;
+
+	return true;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////
@@ -903,6 +1036,199 @@ post_stat_frequency(const char *request_body, char **response_body)
 
 	return csUpdateInterval(request_body, response_body);
 }
+
+static int
+post_request_tries(const char *request_body, char **response_body)
+{
+	clLog(clSystemLog, eCLSeverityInfo, "post_request_tries() body=[%s]",
+			request_body);
+
+	const char *param="REQUEST_TRIES";
+	const char *path="../config/cp.cfg";
+	char value[ENTRY_VALUE_SIZE]={0};
+	char temp[JSON_RESP_SIZE]={0};
+
+	if(!is_cmd_supported(REQUEST_TRIES_INDEX)) {
+		return resp_cmd_not_supported(get_gw_type(), response_body);
+	}
+
+	number_of_request_tries = get_request_tries_value(request_body, response_body);
+	snprintf(value, ENTRY_VALUE_SIZE, "%d", number_of_request_tries);
+
+	change_config_file(path, param, value);
+	construct_json(param,value,temp);
+	*response_body=strdup((const char *)temp);
+
+	return REST_SUCESSS;
+}
+
+static int
+get_request_tries(const char *request_body, char **response_body)
+{
+
+	clLog(clSystemLog, eCLSeverityInfo, "get_request_tries() body=[%s]",
+			request_body);
+
+	if(!is_cmd_supported(REQUEST_TRIES_INDEX)) {
+		return resp_cmd_not_supported(get_gw_type(), response_body);
+	}
+
+	return get_number_of_request_tries(response_body, number_of_request_tries);
+}
+
+static int
+get_transmit_count(const char *request_body, char **response_body)
+{
+
+	clLog(clSystemLog, eCLSeverityInfo, "get_transmit_count() body=[%s]",
+			request_body);
+
+	return get_number_of_transmit_count(response_body, number_of_transmit_count);
+}
+
+static int
+post_transmit_count(const char *request_body, char **response_body)
+{
+	clLog(clSystemLog, eCLSeverityInfo, "post_transmit_count() body=[%s]",
+			request_body);
+
+	const char *param="TRANSMIT_COUNT";
+#ifdef CP_BUILD
+	const char *path="../config/cp.cfg";
+#else
+	const char *path="../config/dp_config.cfg";
+#endif
+
+	char value[ENTRY_VALUE_SIZE]={0};
+	char temp[JSON_RESP_SIZE]={0};
+
+	number_of_transmit_count = get_transmit_count_value(request_body, response_body);
+	snprintf(value, ENTRY_VALUE_SIZE, "%d", number_of_transmit_count);
+
+	change_config_file(path, param, value);
+	construct_json(param,value,temp);
+	*response_body=strdup((const char *)temp);
+
+	return REST_SUCESSS;
+}
+
+static int
+get_transmit_timer(const char *request_body, char **response_body)
+{
+
+	clLog(clSystemLog, eCLSeverityInfo, "get_transmit_timer() body=[%s]",
+			request_body);
+
+	return get_transmit_timer_value(response_body, transmit_timer_value);
+}
+
+static int
+post_transmit_timer(const char *request_body, char **response_body)
+{
+	clLog(clSystemLog, eCLSeverityInfo, "post_transmit_timer() body=[%s]",
+			request_body);
+
+	const char *param="TRANSMIT_TIMER";
+#ifdef CP_BUILD
+	const char *path="../config/cp.cfg";
+#else
+	const char *path="../config/dp_config.cfg";
+#endif
+
+	char value[ENTRY_VALUE_SIZE]={0};
+	char temp[JSON_RESP_SIZE]={0};
+
+	transmit_timer_value = get_transmit_timer_value_in_seconds(request_body, response_body);
+	update_transmit_timer_value(transmit_timer_value);
+	snprintf(value, ENTRY_VALUE_SIZE, "%d", transmit_timer_value);
+
+	change_config_file(path, param, value);
+	construct_json(param,value,temp);
+	*response_body=strdup((const char *)temp);
+
+	return REST_SUCESSS;
+
+}
+
+static int
+get_request_timeout(const char *request_body, char **response_body)
+{
+
+	clLog(clSystemLog, eCLSeverityInfo, "get_request_timeout() body=[%s]",
+			request_body);
+
+	if(!is_cmd_supported(REQUEST_TIMEOUT_INDEX)) {
+		return resp_cmd_not_supported(get_gw_type(), response_body);
+	}
+
+	return get_request_timeout_value(response_body, request_timeout_value);
+}
+
+static int
+post_request_timeout(const char *request_body, char **response_body)
+{
+	clLog(clSystemLog, eCLSeverityInfo, "post_request_timeout() body=[%s]",
+			request_body);
+
+	if(!is_cmd_supported(REQUEST_TIMEOUT_INDEX)) {
+		return resp_cmd_not_supported(get_gw_type(), response_body);
+	}
+
+	request_timeout_value = get_request_timeout_value_in_milliseconds(request_body, response_body);
+#ifdef CP_BUILD
+	const char *param="REQUEST_TIMEOUT";
+	const char *path="../config/cp.cfg";
+	char value[ENTRY_VALUE_SIZE]={0};
+	char temp[JSON_RESP_SIZE]={0};
+	pfcp_config.request_timeout = request_timeout_value;
+	snprintf(value, ENTRY_VALUE_SIZE, "%d", request_timeout_value);
+
+	change_config_file(path, param, value);
+	construct_json(param,value,temp);
+	*response_body=strdup((const char *)temp);
+
+#endif /* CP_BUILD */
+	return REST_SUCESSS;
+}
+
+static int
+get_periodic_timer(const char *request_body, char **response_body)
+{
+
+	clLog(clSystemLog, eCLSeverityInfo, "get_periodic_timer() body=[%s]",
+			request_body);
+
+	return get_periodic_timer_value(response_body, periodic_timer_value);
+}
+
+static int
+post_periodic_timer(const char *request_body, char **response_body)
+{
+	clLog(clSystemLog, eCLSeverityInfo, "post_periodic_timer() body=[%s]",
+			request_body);
+
+	const char *param="PERIODIC_TIMER";
+#ifdef CP_BUILD
+	const char *path="../config/cp.cfg";
+#else
+	const char *path="../config/dp_config.cfg";
+#endif
+
+	char value[ENTRY_VALUE_SIZE]={0};
+	char temp[JSON_RESP_SIZE]={0};
+
+	periodic_timer_value = get_periodic_timer_value_in_seconds(request_body, response_body);
+	update_periodic_timer_value(periodic_timer_value);
+	snprintf(value, ENTRY_VALUE_SIZE, "%d", periodic_timer_value);
+
+	change_config_file(path, param, value);
+	construct_json(param,value,temp);
+	*response_body=strdup((const char *)temp);
+
+	return REST_SUCESSS;
+
+}
+
 	static int
 get_stat_logging(const char *request_body, char **response_body)
 {
@@ -929,6 +1255,23 @@ get_stat_live(const char *request_body, char **response_body)
 	return csGetLive(response_body);
 }
 
+
+static int
+reset_cli_stats(const char *request_body, char **response_body)
+{
+	int value;
+	clLog(clSystemLog, eCLSeverityInfo, "reset_stats() body=[%s]",
+			request_body);
+
+	value =  csResetStats(request_body, response_body);
+	if(value == REST_SUCESSS)
+	{
+		reset_stats();
+		return value;
+	}
+	return value;
+}
+
 	static int
 get_stat_live_all(const char *request_body, char **response_body)
 {
@@ -938,14 +1281,67 @@ get_stat_live_all(const char *request_body, char **response_body)
 	return csGetLiveAll(response_body);
 }
 
+#ifdef CP_BUILD
+static int
+get_add_ue_entry_details(const char *request_body, char **response_body)
+{
+	int iRet;
+	struct li_df_config_t li_config = {0};
+
+	clLog(clSystemLog, eCLSeverityInfo, "get_add_ue_entry_details() body=[%s]",
+			request_body);
+
+	iRet = parseJsonReqFillStruct(request_body, response_body, &li_config);
+
+	fillup_li_df_hash(&li_config, 1);
+
+	return iRet;
+}
+
+static int
+get_update_ue_entry_details(const char *request_body, char **response_body)
+{
+	int iRet;
+	struct li_df_config_t li_config = {0};
+
+	li_config.uiOperation = MAX_UINT16_T;
+	li_config.uiAction = MAX_UINT16_T;
+
+	clLog(clSystemLog, eCLSeverityInfo, "get_update_ue_entry_details() body=[%s]",
+			request_body);
+
+	iRet = parseJsonReqFillStruct(request_body, response_body, &li_config);
+
+	fillup_li_df_hash(&li_config, 1);
+
+	return iRet;
+}
+
+static int
+get_delete_ue_entry_details(const char *request_body, char **response_body)
+{
+	int iRet;
+	uint64_t uiImsi;
+
+	clLog(clSystemLog, eCLSeverityInfo, "get_delete_ue_entry_details() body=[%s]",
+			request_body);
+
+	iRet = parseJsonReqForImsi(request_body, response_body, &uiImsi);
+
+	del_li_imsi_entry(uiImsi);
+
+	return iRet;
+}
+#endif
+
 void
 get_current_time_oss(char *last_time_stamp)
 {
-        struct tm * last_timer;
-        time_t rawtime;
-        time (&rawtime);
-        last_timer = localtime (&rawtime);
-        strftime (last_time_stamp,LAST_TIMER_SIZE,"%FT%T",last_timer);
+	struct tm * last_timer;
+	time_t rawtime;
+	time (&rawtime);
+	last_timer = gmtime(&rawtime);
+	strftime (last_time_stamp,LAST_TIMER_SIZE,"%FT%T",last_timer);
 }
 
 
@@ -972,8 +1368,27 @@ init_rest_methods(int port_no, size_t thread_count)
 	crRegisterStaticHandler(eCRCommandGet, "/statlogging", get_stat_logging);
 	crRegisterStaticHandler(eCRCommandPost, "/statlogging", post_stat_logging);
 
+	crRegisterStaticHandler(eCRCommandPost, "/request_tries", post_request_tries);
+	crRegisterStaticHandler(eCRCommandPost, "/transmit_count", post_transmit_count);
+	crRegisterStaticHandler(eCRCommandGet, "/request_tries", get_request_tries);
+	crRegisterStaticHandler(eCRCommandGet, "/transmit_count", get_transmit_count);
+	crRegisterStaticHandler(eCRCommandPost, "/request_timeout", post_request_timeout);
+	crRegisterStaticHandler(eCRCommandPost, "/periodic_timer", post_periodic_timer);
+	crRegisterStaticHandler(eCRCommandPost, "/transmit_timer", post_transmit_timer);
+	crRegisterStaticHandler(eCRCommandGet, "/request_timeout", get_request_timeout);
+	crRegisterStaticHandler(eCRCommandGet, "/periodic_timer", get_periodic_timer);
+	crRegisterStaticHandler(eCRCommandGet, "/transmit_timer", get_transmit_timer);
+
 	crRegisterStaticHandler(eCRCommandGet, "/statlive", get_stat_live);
 	crRegisterStaticHandler(eCRCommandGet, "/statliveall", get_stat_live_all);
+
+
+	crRegisterStaticHandler(eCRCommandPost, "/reset_stats", reset_cli_stats);
+#ifdef CP_BUILD
+	crRegisterStaticHandler(eCRCommandPost, "/addueentry", get_add_ue_entry_details);
+	crRegisterStaticHandler(eCRCommandPost, "/updateueentry", get_update_ue_entry_details);
+	crRegisterStaticHandler(eCRCommandPost, "/deleteueentry", get_delete_ue_entry_details);
+#endif
 
 	crStart();
 
@@ -985,35 +1400,26 @@ void init_cli_module(uint8_t gw_logger)
 #ifdef DP_BUILD
 
 	if (app.spgw_cfg == SGWU){
-            cli_node.gw_type = OSS_SGWU;
-        } else if (app.spgw_cfg == PGWU){
-	    cli_node.gw_type = OSS_PGWU;
-        } else{
-            cli_node.gw_type = OSS_SAEGWU;
-        }
+		cli_node.gw_type = OSS_SGWU;
+	} else if (app.spgw_cfg == PGWU){
+		cli_node.gw_type = OSS_PGWU;
+	} else{
+		cli_node.gw_type = OSS_SAEGWU;
+	}
 
 	clSetOption(eCLOptLogFileName, "logs/dp.log");
 	clSetOption(eCLOptStatFileName, "logs/dp_stat.log");
 	clSetOption(eCLOptAuditFileName, "logs/dp_sys.log");
 
-        if (app.spgw_cfg == SGWU){
+	if (app.spgw_cfg == SGWU){
 		clInit("sgwu", gw_logger);
-		s_one_u_logger = clAddLogger("s1u", gw_logger);
-		s5s8logger = clAddLogger("s5s8", gw_logger);
+
 	} else if (app.spgw_cfg == PGWU){
 		clInit("pgwu", gw_logger);
-		sgilogger = clAddLogger("sgi", gw_logger);
-		s5s8logger = clAddLogger("s5s8", gw_logger);
 	} else{
 		clInit("saegwu", gw_logger);
-		sgilogger = clAddLogger("sgi", gw_logger);
-		s_one_u_logger = clAddLogger("s1u", gw_logger);
 	}
 
-	knilogger = clAddLogger("kni", gw_logger);
-	sxlogger = clAddLogger("sx", gw_logger);
-	apilogger = clAddLogger("api", gw_logger);
-	epclogger = clAddLogger("epc", gw_logger);
 	clAddRecentLogger("sgwu-001","dp",5);
 #else
 
@@ -1021,35 +1427,23 @@ void init_cli_module(uint8_t gw_logger)
 	clSetOption(eCLOptStatFileName, "logs/cp_stat.log");
 	clSetOption(eCLOptAuditFileName, "logs/cp_sys.log");
 
-	    switch(pfcp_config.cp_type) {
-        case SGWC:
-            cli_node.gw_type = OSS_SGWC;
+	switch(pfcp_config.cp_type) {
+		case SGWC:
+			cli_node.gw_type = OSS_SGWC;
 			clInit("sgwc", gw_logger);
-            break;
-        case PGWC:
-            cli_node.gw_type = OSS_PGWC;
+			break;
+		case PGWC:
+			cli_node.gw_type = OSS_PGWC;
 			clInit("pgwc", gw_logger);
-            break;
-        case SAEGWC:
-            cli_node.gw_type = OSS_SAEGWC;
+			break;
+		case SAEGWC:
+			cli_node.gw_type = OSS_SAEGWC;
 			clInit("saegw", gw_logger);
-            break;
-    }
-
-	if (spgw_cfg == SGWC || spgw_cfg == SAEGWC) {
-		s11logger = clAddLogger("s11", gw_logger);
+			break;
 	}
-	if (spgw_cfg == SGWC || spgw_cfg == PGWC)
-		s5s8logger = clAddLogger("s5s8", gw_logger);
-	if (spgw_cfg == SAEGWC || spgw_cfg == PGWC)
-		gxlogger = clAddLogger("Gx", gw_logger);
 
-	sxlogger = clAddLogger("sx", gw_logger);
-	apilogger = clAddLogger("api", gw_logger);
-	epclogger = clAddLogger("epc", gw_logger);
 	clAddRecentLogger("sgwc-001","cp",5);
 #endif
-	clStart();
 	csInit(clGetStatsLogger(), 5000);
 	csStart();
 	cli_node.upsecs = &oss_reset_time;
@@ -1057,3 +1451,82 @@ void init_cli_module(uint8_t gw_logger)
 	init_rest_methods(12997, 1);
 }
 
+int reset_stats(void) {
+
+	reset_time = *(cli_node.upsecs);
+
+	int peer_itr = 0, msgs_itr = 0;
+
+	for(peer_itr=0; peer_itr<nbr_of_peer; peer_itr++) {
+
+		if (cli_node.peer[peer_itr] != NULL)
+		{
+			switch(cli_node.peer[peer_itr]->intfctype)
+			{
+				case itS11:
+
+					for (msgs_itr=0; msgs_itr<S11_STATS_SIZE; msgs_itr++) {
+						cli_node.peer[peer_itr]->stats.s11[msgs_itr].cnt[0] = 0;
+						cli_node.peer[peer_itr]->stats.s11[msgs_itr].cnt[1] = 0;
+						memset(cli_node.peer[peer_itr]->stats.s11[msgs_itr].ts, '\0', LAST_TIMER_SIZE);
+					}
+					break;
+				case itS5S8:
+					for (msgs_itr=0; msgs_itr<S5S8_STATS_SIZE; msgs_itr++) {
+						cli_node.peer[peer_itr]->stats.s5s8[msgs_itr].cnt[0] = 0;
+						cli_node.peer[peer_itr]->stats.s5s8[msgs_itr].cnt[1] = 0;
+						memset(cli_node.peer[peer_itr]->stats.s5s8[msgs_itr].ts, '\0', LAST_TIMER_SIZE);
+					}
+					break;
+				case itSxa:
+
+					for (msgs_itr=0; msgs_itr<SXA_STATS_SIZE; msgs_itr++) {
+						cli_node.peer[peer_itr]->stats.sxa[msgs_itr].cnt[0] = 0;
+						cli_node.peer[peer_itr]->stats.sxa[msgs_itr].cnt[1] = 0;
+						memset(cli_node.peer[peer_itr]->stats.sxa[msgs_itr].ts, '\0', LAST_TIMER_SIZE);
+					}
+					break;
+				case itSxb:
+
+					for (msgs_itr=0; msgs_itr<SXB_STATS_SIZE; msgs_itr++)
+					{
+						cli_node.peer[peer_itr]->stats.sxb[msgs_itr].cnt[0] = 0;
+						cli_node.peer[peer_itr]->stats.sxb[msgs_itr].cnt[1] = 0;
+						memset(cli_node.peer[peer_itr]->stats.sxb[msgs_itr].ts, '\0', LAST_TIMER_SIZE);
+					}
+					break;
+				case itSxaSxb:
+
+					for (msgs_itr=0; msgs_itr<SXASXB_STATS_SIZE; msgs_itr++)
+					{
+						cli_node.peer[peer_itr]->stats.sxasxb[msgs_itr].cnt[0] = 0;
+						cli_node.peer[peer_itr]->stats.sxasxb[msgs_itr].cnt[1] = 0;
+						memset(cli_node.peer[peer_itr]->stats.sxasxb[msgs_itr].ts, '\0', LAST_TIMER_SIZE);
+					}
+					break;
+				case itGx:
+
+					for (msgs_itr=0; msgs_itr<GX_STATS_SIZE; msgs_itr++)
+					{
+						cli_node.peer[peer_itr]->stats.gx[msgs_itr].cnt[0] = 0;
+						cli_node.peer[peer_itr]->stats.gx[msgs_itr].cnt[1] = 0;
+						memset(cli_node.peer[peer_itr]->stats.gx[msgs_itr].ts, '\0', LAST_TIMER_SIZE);
+					}
+					break;
+				default:
+					clLog(clSystemLog, eCLSeverityCritical, "not supprted interface");
+					break;
+			}
+
+		cli_node.peer[peer_itr]->hcrequest[0] = 0;
+		cli_node.peer[peer_itr]->hcrequest[1] = 0;
+		cli_node.peer[peer_itr]->hcresponse[0] = 0;
+		cli_node.peer[peer_itr]->hcresponse[1] = 0;
+		memset(cli_node.peer[peer_itr]->lastactivity, '\0', LAST_TIMER_SIZE);
+
+		}
+
+	}
+
+return 0;
+}

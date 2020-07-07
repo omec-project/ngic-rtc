@@ -56,6 +56,7 @@ SRCS-y := up_main.c\
 	$(SRCDIR)/../interface/udp/vepc_udp.o\
 	$(SRCDIR)/../interface/ipc/dp_ipc_api.o\
 	$(SRCDIR)/../cp_dp_api/vepc_cp_dp_api.o\
+	$(SRCDIR)/../cp_dp_api/tcp_client.o\
 	$(SRCDIR)/../pfcp_messages/pfcp_util.o\
 	$(SRCDIR)/../pfcp_messages/pfcp_set_ie.o\
 	$(SRCDIR)/../pfcp_messages/pfcp_up_sess.o\
@@ -95,6 +96,7 @@ CFLAGS += -I$(LIBDNSCLIENT_ROOT)/include
 LDLIBS += $(LIBDNSCLIENT_ROOT)/lib/liboss-util.a -lstdc++ -lpistache
 LDLIBS += -L$(LIBDNSCLIENT_ROOT)/modules/c-ares -lcares
 
+CFLAGS += -Wall
 CFLAGS += -Werror
 CFLAGS += -Wunused-variable
 
@@ -151,11 +153,11 @@ endif
 # ngic-dp debug/testing/profiling options CFLAGS
 # #############################################################
 # gdb: un-comment 'CFLAGS += -g -O0' comment 'CFLAGS += -O3'
-#CFLAGS += -O0
-CFLAGS += -g -O0
+CFLAGS += -O0
+#CFLAGS += -g -O0
 
 #un-comment below line to remove all log level for preformance testing.
-#CFLAGS += -DPERF_TEST
+CFLAGS += -DPERF_TEST
 
 #un-comment below line to generate pcap on east-west interfaces
 CFLAGS += -DPCAP_GEN
@@ -236,6 +238,7 @@ ifneq (,$(findstring USE_CSID, $(CFLAGS)))
 	SRCS-y += $(SRCDIR)/../pfcp_messages/csid_api.o
 	SRCS-y += $(SRCDIR)/../pfcp_messages/csid_peer_init.o
 	SRCS-y += $(SRCDIR)/../pfcp_messages/csid_up_cleanup.o
+	SRCS-y += $(SRCDIR)/../pfcp_messages/seid_llist.o
 endif
 
 # ngic-dp  CFLAGS to be deprecated

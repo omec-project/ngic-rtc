@@ -30,7 +30,7 @@
 
 #include "sgx_quote.h"
 
-#include "main.h"
+#include "up_main.h"
 #include "ssl_client.h"
 
 #define OID(N) {0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF8, 0x4D, 0x8A, 0x39, N}
@@ -234,7 +234,7 @@ get_quote_from_report(const uint8_t *report,
 	if (p_begin == NULL)
 		return -1;
 
-	p_begin += strlen(json_string);
+	p_begin += strnlen(json_string,report_len);
 
 	const char *p_end = strchr(p_begin, '"');
 

@@ -110,8 +110,8 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 	dest_addr.sin_addr.s_addr = md->dstIP;
 	dest_addr.sin_port = htons(GTPC_UDP_PORT);
 
-	CLIinterface it;
-	if (md->portId == S11_SGW_PORT_ID)
+	//CLIinterface it;
+	/*if (md->portId == S11_SGW_PORT_ID)
 	{
 		it = S11;
 	} else if (md->portId == SX_PORT_ID)
@@ -120,7 +120,9 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 	} else if (md->portId == S5S8_SGWC_PORT_ID || md->portId == S5S8_PGWC_PORT_ID)
 	{
 		it = S5S8;
-	}
+	}*/
+
+	md->itr = number_of_transmit_count;
 
 	clLog(clSystemLog, eCLSeverityDebug, "%s - %s:%s:%u.%s (%dms) has expired\n", getPrintableTime(),
 		md->name, inet_ntoa(*(struct in_addr *)&md->dstIP), md->portId,
@@ -138,28 +140,31 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 		/* Deinit transmit timer for specific Peer Node */
 		deinitTimer( &md->pt );
 
-		clLog(clSystemLog, eCLSeverityDebug, "Stopped Periodic/transmit timer, peer node %s is not reachable\n",
-				inet_ntoa(*(struct in_addr *)&md->dstIP));
+		clLog(clSystemLog, eCLSeverityDebug, "Stopped Periodic/transmit timer, peer node:port %s:%u is not reachable\n",
+				inet_ntoa(*(struct in_addr *)&md->dstIP), md->portId);
+
+		printf("CP: Peer node IP:PortId%s:%u is not reachable\n",
+				inet_ntoa(*(struct in_addr *)&md->dstIP), md->portId);
 
 		update_peer_status(md->dstIP,FALSE);
 		delete_cli_peer(md->dstIP);
 
 		if (md->portId == S11_SGW_PORT_ID)
 		{
-			clLog(s11logger, eCLSeverityDebug, "MME status : Inactive\n");
+			clLog(clSystemLog, eCLSeverityDebug, "MME status : Inactive\n");
 		}
 
 		if (md->portId == SX_PORT_ID)
 		{
-			clLog(sxlogger, eCLSeverityDebug, " SGWU/SPGWU/PGWU status : Inactive\n");
+			clLog(clSystemLog, eCLSeverityDebug, " SGWU/SPGWU/PGWU status : Inactive\n");
 		}
 		if (md->portId == S5S8_SGWC_PORT_ID)
 		{
-			clLog(s5s8logger, eCLSeverityDebug, "PGWC status : Inactive\n");
+			clLog(clSystemLog, eCLSeverityDebug, "PGWC status : Inactive\n");
 		}
 		if (md->portId == S5S8_PGWC_PORT_ID)
 		{
-			clLog(s5s8logger, eCLSeverityDebug, "SGWC status : Inactive\n");
+			clLog(clSystemLog, eCLSeverityDebug, "SGWC status : Inactive\n");
 		}
 
 		/* TODO: Flush sessions */
@@ -173,8 +178,10 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 		/* Flush sessions */
 		if (md->portId == S11_SGW_PORT_ID) {
 #ifdef USE_CSID
-			del_pfcp_peer_node_sess(md->dstIP, S11_SGW_PORT_ID);
+			del_pfcp_peer_node_sess(ntohl(md->dstIP), S11_SGW_PORT_ID);
+			/* TODO: Need to Check */
 			del_peer_node_sess(ntohl(md->dstIP), S11_SGW_PORT_ID);
+			//del_peer_node_sess(md->dstIP, S11_SGW_PORT_ID);
 #endif /* USE_CSID */
 		}
 
@@ -205,15 +212,15 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 	if (md->portId == S11_SGW_PORT_ID) {
 		if (ti == &md->pt)
 			gtpu_mme_seqnb++;
-		build_gtpv2_echo_request(gtpv2c_tx, gtpu_mme_seqnb);
+		build_gtpv2_echo_request(gtpv2c_tx, gtpu_mme_seqnb, S11_SGW_PORT_ID);
 	} else if (md->portId == S5S8_SGWC_PORT_ID) {
 		if (ti == &md->pt)
 			gtpu_sgwc_seqnb++;
-		build_gtpv2_echo_request(gtpv2c_tx, gtpu_sgwc_seqnb);
+		build_gtpv2_echo_request(gtpv2c_tx, gtpu_sgwc_seqnb, S5S8_SGWC_PORT_ID);
 	} else if (md->portId == S5S8_PGWC_PORT_ID) {
 		if (ti == &md->pt)
 			gtpu_pgwc_seqnb++;
-		build_gtpv2_echo_request(gtpv2c_tx, gtpu_pgwc_seqnb);
+		build_gtpv2_echo_request(gtpv2c_tx, gtpu_pgwc_seqnb, S5S8_PGWC_PORT_ID);
 	}
 
 	payload_length = ntohs(gtpv2c_tx->gtpc.message_len)
@@ -222,7 +229,7 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 	if (md->portId == S11_SGW_PORT_ID) {
 		gtpv2c_send(s11_fd, echo_tx_buf, payload_length,
 		               (struct sockaddr *) &dest_addr,
-		               s11_mme_sockaddr_len);
+		               s11_mme_sockaddr_len,SENT);
 
 		if (ti == &md->tt)
 		{
@@ -234,7 +241,7 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 
 		gtpv2c_send(s5s8_fd, echo_tx_buf, payload_length,
 		                (struct sockaddr *) &dest_addr,
-		                s5s8_sockaddr_len);
+		                s5s8_sockaddr_len,SENT);
 
 		if (ti == &md->tt)
 		{
@@ -244,7 +251,7 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 	} else if (md->portId == S5S8_PGWC_PORT_ID) {
 		gtpv2c_send(s5s8_fd, echo_tx_buf, payload_length,
 		                (struct sockaddr *) &dest_addr,
-		                s5s8_sockaddr_len);
+		                s5s8_sockaddr_len,SENT);
 
 		if (ti == &md->tt)
 		{
@@ -273,12 +280,12 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 	}
 
 	/*CLI:update echo/hbt req sent count*/
-	if (md->portId != SX_PORT_ID)
+	/*if (md->portId != SX_PORT_ID)
 	{
 		update_cli_stats(md->dstIP,GTP_ECHO_REQ,SENT,it);
 	} else {
 		update_cli_stats(md->dstIP,PFCP_HEARTBEAT_REQUEST,SENT,it);
-	}
+	}*/
 
 	if(ti == &md->tt)
 	{
@@ -308,8 +315,8 @@ uint8_t add_node_conn_entry(uint32_t dstIp, uint8_t portId)
 
 	if ( ret < 0) {
 
-		clLog(clSystemLog, eCLSeverityDebug, " Add entry in conn table :%s\n",
-					inet_ntoa(*((struct in_addr *)&dstIp)));
+		clLog(clSystemLog, eCLSeverityDebug, " Add entry in conn table :%s, portId:%u\n",
+					inet_ntoa(*((struct in_addr *)&dstIp)), portId);
 
 		/* No conn entry for dstIp
 		 * Add conn_data for dstIp at

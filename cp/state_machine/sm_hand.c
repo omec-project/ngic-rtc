@@ -32,6 +32,7 @@
 #include "cp_timer.h"
 #include "cp_config.h"
 #include "clogger.h"
+#include "cdr.h"
 
 #ifdef USE_REST
 #include "main.h"
@@ -54,6 +55,16 @@ extern struct cp_stats_t cp_stats;
 extern int gx_app_sock;
 #endif /* GX_BUILD */
 
+
+/*
+int
+(void *data, void *unused_param)
+{
+	RTE_SET_USED(unused_param);
+	RTE_SET_USED(data);
+	return ret;
+}
+*/
 int
 gx_setup_handler(void *data, void *unused_param)
 {
@@ -69,9 +80,18 @@ gx_setup_handler(void *data, void *unused_param)
 								spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
 			process_error_occured_handler(data, unused_param);
 		}
-		clLog(sxlogger, eCLSeverityCritical, "[%s]:[%s]:[%d] Error: %d \n",
+		clLog(clSystemLog, eCLSeverityCritical, "[%s]:[%s]:[%d] Error: %d \n",
 				__file__, __func__, __LINE__, ret);
 		return -1;
+	}
+
+	if (PGWC == pfcp_config.cp_type) {
+		uint8_t ebi = msg->gtpc_msg.csr.bearer_contexts_to_be_created[0].eps_bearer_id.ebi_ebi - 5;
+		process_msg_for_li(context, msg, ntohl(context->pdns[ebi]->s5s8_sgw_gtpc_ipv4.s_addr),
+			pfcp_config.s5s8_ip.s_addr, context->pdns[ebi]->s5s8_sgw_gtpc_teid, pfcp_config.s5s8_port);
+	} else {
+		process_msg_for_li(context, msg, pfcp_config.s11_mme_ip.s_addr,
+			pfcp_config.s11_ip.s_addr, pfcp_config.s11_mme_port, pfcp_config.s11_port);
 	}
 
 	RTE_SET_USED(unused_param);
@@ -81,6 +101,8 @@ gx_setup_handler(void *data, void *unused_param)
 int
 association_setup_handler(void *data, void *unused_param)
 {
+	uint8_t ebi_index = 0;
+	uint8_t default_bearer_id = 0;
 	msg_info *msg = (msg_info *)data;
 	ue_context *context = NULL;
 	pdn_connection *pdn = NULL;
@@ -98,25 +120,37 @@ association_setup_handler(void *data, void *unused_param)
 								spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
 			process_error_occured_handler(data, unused_param);
 		}
-		clLog(sxlogger, eCLSeverityCritical, "[%s]:[%s]:[%d] Error: %d \n",
+		clLog(clSystemLog, eCLSeverityCritical, "[%s]:[%s]:[%d] Error: %d \n",
 				__file__, __func__, __LINE__, ret);
 		return -1;
 	}
 
-	uint32_t ebi_index = msg->gtpc_msg.csr.bearer_contexts_to_be_created.eps_bearer_id.ebi_ebi - 5;
-	ret = process_pfcp_assoication_request(context->pdns[ebi_index], ebi_index);
+	ebi_index = msg->gtpc_msg.csr.bearer_contexts_to_be_created[0].eps_bearer_id.ebi_ebi - 5;
+
+	if (PGWC == pfcp_config.cp_type) {
+		process_msg_for_li(context, msg, ntohl(context->pdns[ebi_index]->s5s8_sgw_gtpc_ipv4.s_addr),
+			pfcp_config.s5s8_ip.s_addr, context->pdns[ebi_index]->s5s8_sgw_gtpc_teid, pfcp_config.s5s8_port);
+	} else {
+		process_msg_for_li(context, msg, pfcp_config.s11_mme_ip.s_addr,
+			pfcp_config.s11_ip.s_addr, pfcp_config.s11_mme_port, pfcp_config.s11_port);
+	}
+
+	/*Extracting the default bearer*/
+	default_bearer_id = context->eps_bearers[ebi_index]->pdn->default_bearer_id;
+
+	pdn = context->eps_bearers[ebi_index]->pdn;
+
+	ret = process_pfcp_assoication_request(pdn, default_bearer_id - 5);
 	if(ret){
 		if(ret != -1){
 			cs_error_response(msg, ret,
 								spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
 			process_error_occured_handler(data, unused_param);
 		}
-		clLog(sxlogger, eCLSeverityCritical, "%s:%s:%d Error: %d \n",
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d Error: %d \n",
 				__file__, __func__, __LINE__, ret);
 	return -1;
 	}
-
-	pdn = context->pdns[ebi_index];
 
 	/* Retrive association state based on UPF IP. */
 	ret = rte_hash_lookup_data(upf_context_by_ip_hash,
@@ -128,7 +162,7 @@ association_setup_handler(void *data, void *unused_param)
 		}
 	}
 	if (upf_context->state == PFCP_ASSOC_RESP_RCVD_STATE) {
- 		ret = get_sess_entry(pdn->seid, &resp);
+		ret = get_sess_entry(pdn->seid, &resp);
 		if(ret != -1 && resp != NULL){
 			resp->gtpc_msg.csr = msg->gtpc_msg.csr;
 		}
@@ -151,7 +185,7 @@ process_assoc_resp_handler(void *data, void *addr)
 							spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
 			process_error_occured_handler(data, addr);
 		}
-		clLog(sxlogger, eCLSeverityCritical, "%s : Error: %d \n", __func__, ret);
+		clLog(clSystemLog, eCLSeverityCritical, "%s : Error: %d \n", __func__, ret);
 		return -1;
 	}
 	return 0;
@@ -168,7 +202,7 @@ process_cs_resp_handler(void *data, void *unused_param)
 				cs_error_response(msg, ret, S11_IFACE);
 				process_error_occured_handler(data, unused_param);
 			}
-			clLog(s11logger, eCLSeverityCritical, "%s:%d Error: %d \n",
+			clLog(clSystemLog, eCLSeverityCritical, "%s:%d Error: %d \n",
 					__func__, __LINE__, ret);
 			return -1;
 	}
@@ -188,11 +222,7 @@ process_sess_est_resp_handler(void *data, void *unused_param)
 	gtpv2c_header_t *gtpv2c_tx = (gtpv2c_header_t *)tx_buf;
 
 	ret = process_pfcp_sess_est_resp(
-			&msg->pfcp_msg.pfcp_sess_est_resp, gtpv2c_tx);
-	//ret = process_pfcp_sess_est_resp(
-	//		msg->pfcp_msg.pfcp_sess_est_resp.header.seid_seqno.has_seid.seid,
-	//		gtpv2c_tx,
-	//		msg->pfcp_msg.pfcp_sess_est_resp.up_fseid.seid);
+			&msg->pfcp_msg.pfcp_sess_est_resp, gtpv2c_tx, 0);
 
 	if (ret) {
 		if(ret != -1){
@@ -200,7 +230,7 @@ process_sess_est_resp_handler(void *data, void *unused_param)
 								spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
 			process_error_occured_handler(data, unused_param);
 		}
-		clLog(sxlogger, eCLSeverityCritical, "%s:%d Error: %d \n",
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%d Error: %d \n",
 				__func__, __LINE__, ret);
 		return -1;
 	}
@@ -210,11 +240,9 @@ process_sess_est_resp_handler(void *data, void *unused_param)
 	if ((pfcp_config.cp_type == SGWC) || (pfcp_config.cp_type == PGWC)) {
 		gtpv2c_send(s5s8_fd, tx_buf, payload_length,
 				(struct sockaddr *) &s5s8_recv_sockaddr,
-				s5s8_sockaddr_len);
+				s5s8_sockaddr_len, SENT);
 
 
-		update_cli_stats(s5s8_recv_sockaddr.sin_addr.s_addr,
-							gtpv2c_tx->gtpc.message_type,SENT,S5S8);
 
 		if (SGWC == pfcp_config.cp_type) {
 			add_gtpv2c_if_timer_entry(
@@ -224,16 +252,24 @@ process_sess_est_resp_handler(void *data, void *unused_param)
 				S5S8_IFACE);
 		}
 
+		process_cp_li_msg(
+				msg->pfcp_msg.pfcp_sess_est_resp.header.seid_seqno.has_seid.seid,
+				tx_buf, payload_length,
+				pfcp_config.s5s8_ip.s_addr, s5s8_recv_sockaddr.sin_addr.s_addr,
+				pfcp_config.s5s8_port, s5s8_recv_sockaddr.sin_port);
+
 		//s5s8_sgwc_msgcnt++;
 	} else {
 		/* Send response on s11 interface */
 		gtpv2c_send(s11_fd, tx_buf, payload_length,
 				(struct sockaddr *) &s11_mme_sockaddr,
-				s11_mme_sockaddr_len);
+				s11_mme_sockaddr_len, ACC);
 
-		update_cli_stats(s11_mme_sockaddr.sin_addr.s_addr,
-				gtpv2c_tx->gtpc.message_type, ACC,S11);
-
+		process_cp_li_msg(
+				msg->pfcp_msg.pfcp_sess_est_resp.header.seid_seqno.has_seid.seid,
+				tx_buf, payload_length,
+				pfcp_config.s11_ip.s_addr, s11_mme_sockaddr.sin_addr.s_addr,
+				pfcp_config.s11_port, s11_mme_sockaddr.sin_port);
 	}
 	RTE_SET_USED(unused_param);
 	return 0;
@@ -249,9 +285,36 @@ process_mb_req_handler(void *data, void *unused_param)
 		if(ret != -1)
 			mbr_error_response(msg, ret,
 					spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
-		clLog(s11logger, eCLSeverityCritical, "%s:%d Error: %d \n",
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%d Error: %d \n",
 				__func__, __LINE__, ret);
 		return ret;
+	}
+
+	RTE_SET_USED(unused_param);
+	return 0;
+}
+
+int
+process_mb_req_for_mod_proc_handler(void *data, void *unused_param)
+{
+	msg_info *msg = (msg_info *)data;
+
+	if(SGWC == pfcp_config.cp_type){
+		ret = process_pfcp_sess_mod_request(&msg->gtpc_msg.mbr);
+		if (ret != 0) {
+			if(ret != -1)
+				mbr_error_response(msg, ret,
+						spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
+			clLog(clSystemLog, eCLSeverityCritical, "%s:%d Error: %d \n",
+					__func__, __LINE__, ret);
+			return ret;
+		}
+	}else{
+		ret = process_pfcp_sess_mod_req_handover(&msg->gtpc_msg.mbr);
+		if (ret) {
+			clLog(clSystemLog, eCLSeverityCritical, "%s : Error: %d \n", __func__, ret);
+			return ret;
+		}
 	}
 
 	RTE_SET_USED(unused_param);
@@ -268,14 +331,13 @@ process_sess_mod_resp_handler(void *data, void *unused_param)
 	bzero(&tx_buf, sizeof(tx_buf));
 	gtpv2c_header_t *gtpv2c_tx = (gtpv2c_header_t *)tx_buf;
 
-	ret = process_pfcp_sess_mod_resp(
-			msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid,
+	ret = process_pfcp_sess_mod_resp(&msg->pfcp_msg.pfcp_sess_mod_resp,
 			gtpv2c_tx);
 	if (ret != 0) {
 		if(ret != -1)
 			mbr_error_response(msg, ret,
 								spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
-		clLog(sxlogger, eCLSeverityCritical, "%s:%d Error: %d \n",
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%d Error: %d \n",
 				__func__, __LINE__, ret);
 		return ret;
 	}
@@ -285,11 +347,81 @@ process_sess_mod_resp_handler(void *data, void *unused_param)
 
 	gtpv2c_send(s11_fd, tx_buf, payload_length,
 			(struct sockaddr *) &s11_mme_sockaddr,
-			s11_mme_sockaddr_len);
+			s11_mme_sockaddr_len,ACC);
 
-	update_cli_stats(s11_mme_sockaddr.sin_addr.s_addr,
-				gtpv2c_tx->gtpc.message_type,ACC,S11);
+	process_cp_li_msg(
+				msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid,
+				tx_buf, payload_length,
+				pfcp_config.s11_ip.s_addr, s11_mme_sockaddr.sin_addr.s_addr,
+				pfcp_config.s11_port, s11_mme_sockaddr.sin_port);
 
+	RTE_SET_USED(unused_param);
+	return 0;
+}
+
+
+/**
+ * @brief  : This handler will be called after receiving pfcp_sess_mod_resp in
+			 case of mod_proc procedure
+ * @param  : data( message received on the sx interface)
+ * @param  : unused_param
+ * @retrun : Returns 0 in case of success
+ */
+
+int
+process_mod_resp_for_mod_proc_handler(void *data, void *unused_param)
+{
+	uint16_t payload_length = 0;
+
+	msg_info *msg = (msg_info *)data;
+
+	bzero(&tx_buf, sizeof(tx_buf));
+	gtpv2c_header_t *gtpv2c_tx = (gtpv2c_header_t *)tx_buf;
+
+	ret = process_pfcp_sess_mod_resp_for_mod_proc(
+			msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid,
+			gtpv2c_tx);
+	if (ret != 0) {
+		if(ret != -1)
+			mbr_error_response(msg, ret,
+								spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%d Error: %d \n",
+				__func__, __LINE__, ret);
+		return ret;
+	}
+
+	payload_length = ntohs(gtpv2c_tx->gtpc.message_len)
+		+ sizeof(gtpv2c_tx->gtpc);
+
+	if(pfcp_config.cp_type == SAEGWC) {
+		/* SAEGW will send MBR response to mme */
+		gtpv2c_send(s11_fd, tx_buf, payload_length,
+				(struct sockaddr *) &s11_mme_sockaddr,
+				s11_mme_sockaddr_len, ACC);
+
+		process_cp_li_msg(
+				msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid,
+				tx_buf, payload_length,
+				pfcp_config.s11_ip.s_addr, s11_mme_sockaddr.sin_addr.s_addr,
+				pfcp_config.s11_port, s11_mme_sockaddr.sin_port);
+
+	}else{
+		/* SGWC will send MBR to PGWC */
+		/* PGWC will send MBR response to SGWC */
+		gtpv2c_send(s5s8_fd, tx_buf, payload_length,
+				(struct sockaddr *) &s5s8_recv_sockaddr,
+				s5s8_sockaddr_len, SENT);
+
+		update_cli_stats(s5s8_recv_sockaddr.sin_addr.s_addr,
+				gtpv2c_tx->gtpc.message_type,SENT,S5S8);
+
+		process_cp_li_msg(
+				msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid,
+				tx_buf, payload_length,
+				pfcp_config.s5s8_ip.s_addr, s5s8_recv_sockaddr.sin_addr.s_addr,
+				pfcp_config.s5s8_port, s5s8_recv_sockaddr.sin_port);
+
+	}
 	RTE_SET_USED(unused_param);
 	return 0;
 }
@@ -303,7 +435,7 @@ process_rel_access_ber_req_handler(void *data, void *unused_param)
 	ret = process_release_access_bearer_request(&msg->gtpc_msg.rel_acc_ber_req_t,
 			msg->proc);
 	if (ret) {
-			clLog(s11logger, eCLSeverityCritical, "%s : Error: %d \n", __func__, ret);
+			clLog(clSystemLog, eCLSeverityCritical, "%s : Error: %d \n", __func__, ret);
 			return -1;
 	}
 
@@ -311,6 +443,74 @@ process_rel_access_ber_req_handler(void *data, void *unused_param)
 	return 0;
 }
 
+int
+process_change_noti_req_handler(void *data, void *unused_param)
+{
+	msg_info *msg = (msg_info *)data;
+	pdn_connection *pdn = NULL;
+
+	if(pfcp_config.cp_type == PGWC || pfcp_config.cp_type == SAEGWC) {
+
+		ret = process_change_noti_request(&msg->gtpc_msg.change_not_req);
+		if (ret) {
+			clLog(clSystemLog, eCLSeverityCritical, "%s : Error: %d \n", __func__, ret);
+			return -1;
+		}
+
+	} else if(pfcp_config.cp_type == SGWC) {
+
+		bzero(&tx_buf, sizeof(tx_buf));
+		gtpv2c_header_t *gtpv2c_tx = (gtpv2c_header_t *)tx_buf;
+
+		set_change_notification_request(gtpv2c_tx, &msg->gtpc_msg.change_not_req, &pdn);
+	}
+
+	RTE_SET_USED(data);
+	RTE_SET_USED(unused_param);
+
+	return 0;
+}
+
+
+int
+process_change_noti_resp_handler(void *data, void *unused_param)
+{
+	ue_context *context = NULL;
+	uint16_t payload_length = 0;
+	msg_info *msg = (msg_info *)data;
+
+	bzero(&tx_buf, sizeof(tx_buf));
+	gtpv2c_header_t *gtpv2c_tx = (gtpv2c_header_t *)tx_buf;
+
+	ret = process_change_noti_response(&msg->gtpc_msg.change_not_rsp, gtpv2c_tx);
+	//if (ret) {
+	//}
+
+	payload_length = ntohs(gtpv2c_tx->gtpc.message_len)
+		+ sizeof(gtpv2c_tx->gtpc);
+
+	gtpv2c_send(s11_fd, tx_buf, payload_length,
+			(struct sockaddr *) &s11_mme_sockaddr,
+			s11_mme_sockaddr_len,SENT);
+
+	ret = get_ue_context_by_sgw_s5s8_teid(
+			msg->gtpc_msg.change_not_rsp.header.teid.has_teid.teid,
+			&context);
+	if (ret < 0 || !context) {
+		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+	}
+
+	process_cp_li_msg_using_context(
+		context, tx_buf, payload_length,
+		pfcp_config.s11_ip.s_addr, s11_mme_sockaddr.sin_addr.s_addr,
+		pfcp_config.s11_port, s11_mme_sockaddr.sin_port);
+
+
+	RTE_SET_USED(data);
+	RTE_SET_USED(unused_param);
+
+	return 0;
+}
 int
 process_ds_req_handler(void *data, void *unused_param)
 {
@@ -324,9 +524,8 @@ process_ds_req_handler(void *data, void *unused_param)
 
 	if (ret){
 		if(ret != -1)
-			ds_error_response(msg, ret,
-								spgw_cfg != PGWC ? S11_IFACE :S5S8_IFACE);
-		return ret;
+			ds_error_response(msg, ret,spgw_cfg != PGWC ? S11_IFACE :S5S8_IFACE);
+		    return -1;
 	}
 
 	RTE_SET_USED(unused_param);
@@ -336,17 +535,26 @@ process_ds_req_handler(void *data, void *unused_param)
 int
 process_sess_del_resp_handler(void *data, void *unused_param)
 {
+	int li_sock_fd = -1;
+	uint64_t uiImsi = 0;
 	uint16_t payload_length = 0;
 	msg_info *msg = (msg_info *)data;
 
 #ifdef GX_BUILD
 	uint16_t msglen = 0;
-	char *buffer = NULL;
+	uint8_t *buffer = NULL;
 	gx_msg ccr_request = {0};
 #endif
 
 	bzero(&tx_buf, sizeof(tx_buf));
 	gtpv2c_header_t *gtpv2c_tx = (gtpv2c_header_t *)tx_buf;
+	uint64_t seid = msg->pfcp_msg.pfcp_sess_del_resp.header.seid_seqno.has_seid.seid;
+
+	if (msg->pfcp_msg.pfcp_sess_del_resp.usage_report_count != 0) {
+		for(int i=0 ; i< msg->pfcp_msg.pfcp_sess_del_resp.usage_report_count; i++)
+			fill_cdr_info_sess_del_resp(seid,
+					&msg->pfcp_msg.pfcp_sess_del_resp.usage_report[i]);
+	}
 
 	if( pfcp_config.cp_type != SGWC ) {
 		/* Lookup value in hash using session id and fill pfcp response and delete entry from hash*/
@@ -354,44 +562,56 @@ process_sess_del_resp_handler(void *data, void *unused_param)
 
 		ret = process_pfcp_sess_del_resp(
 				msg->pfcp_msg.pfcp_sess_del_resp.header.seid_seqno.has_seid.seid,
-				gtpv2c_tx, &ccr_request, &msglen);
+				gtpv2c_tx, &ccr_request, &msglen, &uiImsi, &li_sock_fd);
 
-		buffer = rte_zmalloc_socket(NULL, msglen + sizeof(ccr_request.msg_type),
-				RTE_CACHE_LINE_SIZE, rte_socket_id());
+		buffer = rte_zmalloc_socket(NULL, msglen + GX_HEADER_LEN,
+									RTE_CACHE_LINE_SIZE, rte_socket_id());
 		if (buffer == NULL) {
-			clLog(sxlogger, eCLSeverityCritical, "Failure to allocate CCR Buffer memory"
+			clLog(clSystemLog, eCLSeverityCritical, "Failure to allocate CCR Buffer memory"
 					"structure: %s (%s:%d)\n",
 					rte_strerror(rte_errno),
 					__FILE__,
 					__LINE__);
+			ds_error_response(msg, GTPV2C_CAUSE_SYSTEM_FAILURE,spgw_cfg != PGWC ? S11_IFACE :S5S8_IFACE);
 			return -1;
 		}
-
 		memcpy(buffer, &ccr_request.msg_type, sizeof(ccr_request.msg_type));
+		memcpy(buffer + sizeof(ccr_request.msg_type),
+								&ccr_request.msg_len,
+						sizeof(ccr_request.msg_len));
 
 		if (gx_ccr_pack(&(ccr_request.data.ccr),
-					(unsigned char *)(buffer + sizeof(ccr_request.msg_type)), msglen) == 0) {
+					(unsigned char *)(buffer + GX_HEADER_LEN), msglen) == 0) {
 			clLog(clSystemLog, eCLSeverityCritical, "ERROR:%s:%d Packing CCR Buffer... \n", __func__, __LINE__);
+			ds_error_response(msg, GTPV2C_CAUSE_SYSTEM_FAILURE,spgw_cfg != PGWC ? S11_IFACE :S5S8_IFACE);
+			if(buffer != NULL){
+				rte_free(buffer);
+				buffer = NULL;
+			}
 			return -1;
 		}
 #else
 		ret = process_pfcp_sess_del_resp(
 				msg->pfcp_msg.pfcp_sess_del_resp.header.seid_seqno.has_seid.seid,
-				gtpv2c_tx, NULL, NULL);
+				gtpv2c_tx, NULL, NULL, &uiImsi, &li_sock_fd);
 
 #endif /* GX_BUILD */
 	}  else {
 		/**/
 		ret = process_pfcp_sess_del_resp(
 				msg->pfcp_msg.pfcp_sess_del_resp.header.seid_seqno.has_seid.seid,
-				gtpv2c_tx, NULL, NULL);
+				gtpv2c_tx, NULL, NULL, &uiImsi, &li_sock_fd);
 	}
 
 	if (ret) {
 		ds_error_response(msg, ret,
 				spgw_cfg != PGWC ? S11_IFACE :S5S8_IFACE);
-		clLog(sxlogger, eCLSeverityCritical, "%s:%d Error: %d \n",
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%d Error: %d \n",
 				__func__, __LINE__, ret);
+		if(buffer != NULL){
+			rte_free(buffer);
+			buffer = NULL;
+		}
 		return -1;
 	}
 
@@ -402,39 +622,47 @@ process_sess_del_resp_handler(void *data, void *unused_param)
 		/* Forward s11 delete_session_request on s5s8 */
 		gtpv2c_send(s5s8_fd, tx_buf, payload_length,
 				(struct sockaddr *) &s5s8_recv_sockaddr,
-				s5s8_sockaddr_len);
+				s5s8_sockaddr_len,SENT);
 
-		update_cli_stats(s5s8_recv_sockaddr.sin_addr.s_addr,
-						gtpv2c_tx->gtpc.message_type, SENT,S5S8);
 		update_sys_stat(number_of_users, DECREMENT);
 		update_sys_stat(number_of_active_session, DECREMENT);
+
+		process_cp_li_msg_for_cleanup(
+				uiImsi, li_sock_fd, tx_buf, payload_length,
+				pfcp_config.s5s8_ip.s_addr, s5s8_recv_sockaddr.sin_addr.s_addr,
+				pfcp_config.s5s8_port, s5s8_recv_sockaddr.sin_port);
+
 		//s5s8_sgwc_msgcnt++;
 	} else {
 		/* Send response on s11 interface */
 		gtpv2c_send(s11_fd, tx_buf, payload_length,
 				(struct sockaddr *) &s11_mme_sockaddr,
-				s11_mme_sockaddr_len);
+				s11_mme_sockaddr_len,ACC);
 
-		/*CLI:CSResp sent cnt*/
-		update_cli_stats(s11_mme_sockaddr.sin_addr.s_addr,
-				gtpv2c_tx->gtpc.message_type, ACC,S11);
 		update_sys_stat(number_of_users, DECREMENT);
 		update_sys_stat(number_of_active_session, DECREMENT);
 
+		process_cp_li_msg_for_cleanup(
+				uiImsi, li_sock_fd, tx_buf, payload_length,
+				pfcp_config.s11_ip.s_addr, s11_mme_sockaddr.sin_addr.s_addr,
+				pfcp_config.s11_port, s11_mme_sockaddr.sin_port);
 	}
 #ifdef GX_BUILD
 	/* VS: Write or Send CCR -T msg to Gx_App */
 	if ( pfcp_config.cp_type != SGWC) {
 		send_to_ipc_channel(gx_app_sock, buffer,
-				msglen + sizeof(ccr_request.msg_type));
+				msglen + GX_HEADER_LEN);
 	}
 
-    	struct sockaddr_in saddr_in;
-    	saddr_in.sin_family = AF_INET;
-    	inet_aton("127.0.0.1", &(saddr_in.sin_addr));
-    	update_cli_stats(saddr_in.sin_addr.s_addr, OSS_CCR_TERMINATE, SENT, GX);
+	struct sockaddr_in saddr_in;
+	saddr_in.sin_family = AF_INET;
+	inet_aton("127.0.0.1", &(saddr_in.sin_addr));
+	update_cli_stats(saddr_in.sin_addr.s_addr, OSS_CCR_TERMINATE, SENT, GX);
 #endif
-
+	if(buffer != NULL){
+		rte_free(buffer);
+		buffer = NULL;
+	}
 	RTE_SET_USED(unused_param);
 	return 0;
 }
@@ -451,7 +679,7 @@ process_ds_resp_handler(void *data, void *unused_param)
 				ds_error_response(msg, ret,
 						           spgw_cfg != PGWC ? S11_IFACE :S5S8_IFACE);
 			/* Error handling not implemented */
-			clLog(sxlogger, eCLSeverityCritical, "%s : Error: %d \n", __func__, ret);
+			clLog(clSystemLog, eCLSeverityCritical, "%s : Error while processing delete session response %d \n", __func__, ret);
 			return -1;
 		}
 	} else {
@@ -517,27 +745,20 @@ process_sess_est_resp_sgw_reloc_handler(void *data, void *unused_param)
 	gtpv2c_header_t *gtpv2c_tx = (gtpv2c_header_t *)tx_buf;
 
 	ret = process_pfcp_sess_est_resp(
-			&msg->pfcp_msg.pfcp_sess_est_resp, gtpv2c_tx);
-	//ret = process_pfcp_sess_est_resp(
-	//		msg->pfcp_msg.pfcp_sess_est_resp.header.seid_seqno.has_seid.seid,
-	//		gtpv2c_tx,
-	//		msg->pfcp_msg.pfcp_sess_est_resp.up_fseid.seid);
+			&msg->pfcp_msg.pfcp_sess_est_resp, gtpv2c_tx, 0);
 
 	if (ret) {
-		clLog(sxlogger, eCLSeverityCritical, "%s : Error: %d \n", __func__, ret);
+		clLog(clSystemLog, eCLSeverityCritical, "%s : Error: %d \n", __func__, ret);
 		return -1;
 	}
 	payload_length = ntohs(gtpv2c_tx->gtpc.message_len)
 		+ sizeof(gtpv2c_tx->gtpc);
 
-//	if ((pfcp_config.cp_type == SGWC) || (pfcp_config.cp_type == PGWC)) {
 
 	gtpv2c_send(s5s8_fd, tx_buf, payload_length,
 				(struct sockaddr *) &s5s8_recv_sockaddr,
-				s5s8_sockaddr_len);
+				s5s8_sockaddr_len,SENT);
 
-	update_cli_stats(s5s8_recv_sockaddr.sin_addr.s_addr,
-						gtpv2c_tx->gtpc.message_type, SENT,S5S8);
 
 	if (SGWC == pfcp_config.cp_type) {
 		add_gtpv2c_if_timer_entry(
@@ -546,6 +767,12 @@ process_sess_est_resp_sgw_reloc_handler(void *data, void *unused_param)
 			UE_BEAR_ID(msg->pfcp_msg.pfcp_sess_est_resp.header.seid_seqno.has_seid.seid) - 5,
 			S5S8_IFACE);
 	}
+
+	process_cp_li_msg(
+				msg->pfcp_msg.pfcp_sess_est_resp.header.seid_seqno.has_seid.seid,
+				tx_buf, payload_length,
+				pfcp_config.s5s8_ip.s_addr, s5s8_recv_sockaddr.sin_addr.s_addr,
+				pfcp_config.s5s8_port, s5s8_recv_sockaddr.sin_port);
 
 	RTE_SET_USED(data);
 	RTE_SET_USED(unused_param);
@@ -578,8 +805,10 @@ cca_t_msg_handler(void *data, void *unused_param)
 				"%s %s - Error on gx_context_by_sess_id_hash deletion\n",__file__,
 				strerror(ret));
 	}
-
-	rte_free(gx_context);
+	if(gx_context != NULL){
+		rte_free(gx_context);
+		gx_context = NULL;
+	}
 	return 0;
 }
 
@@ -597,40 +826,45 @@ int cca_u_msg_handler_handover(void *data, void *unused)
 	pdn_connection *pdn = NULL;
 	struct resp_info *resp = NULL;
 	uint8_t ebi_index = 0;
+	ue_context *context = NULL;
 	eps_bearer *bearer = NULL;
+	mod_bearer_req_t *mb_req = NULL;
+
+	bzero(&tx_buf, sizeof(tx_buf));
+	gtpv2c_header_t *gtpv2c_tx = (gtpv2c_header_t *)tx_buf;
 
 	/* Extract the call id from session id */
 	ret = retrieve_call_id((char *)&msg->gx_msg.cca.session_id.val, &call_id);
 	if (ret < 0) {
-	        clLog(clSystemLog, eCLSeverityCritical, "%s:No Call Id found from session id:%s\n", __func__,
-	                       (char*) &msg->gx_msg.cca.session_id.val);
-	        return -1;
+		clLog(clSystemLog, eCLSeverityCritical, "%s:No Call Id found from session id:%s\n", __func__,
+				(char*) &msg->gx_msg.cca.session_id.val);
+		return -1;
 	}
 
 	/* Retrieve PDN context based on call id */
 	pdn = get_pdn_conn_entry(call_id);
 	if (pdn == NULL)
 	{
-	      clLog(clSystemLog, eCLSeverityCritical, "%s:No valid pdn cntxt found for CALL_ID:%u\n",
-	                          __func__, call_id);
-	      return -1;
+		clLog(clSystemLog, eCLSeverityCritical, "%s:No valid pdn cntxt found for CALL_ID:%u\n",
+				__func__, call_id);
+		return -1;
 	}
 
 	/* Extract the call id from session id */
 	ret = retrieve_call_id((char *)&msg->gx_msg.cca.session_id.val, &call_id);
 	if (ret < 0) {
-	        clLog(clSystemLog, eCLSeverityCritical, "%s:No Call Id found from session id:%s\n", __func__,
-	                       (char*) &msg->gx_msg.cca.session_id.val);
-	        return -1;
+		clLog(clSystemLog, eCLSeverityCritical, "%s:No Call Id found from session id:%s\n", __func__,
+				(char*) &msg->gx_msg.cca.session_id.val);
+		return -1;
 	}
 
 	/* Retrieve PDN context based on call id */
 	pdn = get_pdn_conn_entry(call_id);
 	if (pdn == NULL)
 	{
-	      clLog(clSystemLog, eCLSeverityCritical, "%s:No valid pdn cntxt found for CALL_ID:%u\n",
-	                          __func__, call_id);
-	      return -1;
+		clLog(clSystemLog, eCLSeverityCritical, "%s:No valid pdn cntxt found for CALL_ID:%u\n",
+				__func__, call_id);
+		return -1;
 	}
 
 	/*Retrive the session information based on session id. */
@@ -639,7 +873,8 @@ int cca_u_msg_handler_handover(void *data, void *unused)
 		return -1;
 	}
 
-	ebi_index = resp->gtpc_msg.mbr.bearer_contexts_to_be_modified.eps_bearer_id.ebi_ebi -5  ;
+	//ebi_index = resp->gtpc_msg.mbr.bearer_contexts_to_be_modified.eps_bearer_id.ebi_ebi -5  ;
+	ebi_index = UE_BEAR_ID(pdn->seid) - 5;
 
 	if (!(pdn->context->bearer_bitmap & (1 << ebi_index))) {
 		clLog(clSystemLog, eCLSeverityCritical,
@@ -649,11 +884,41 @@ int cca_u_msg_handler_handover(void *data, void *unused)
 	}
 
 	bearer = pdn->eps_bearers[ebi_index];
+	context = pdn->context;
+	mb_req = &resp->gtpc_msg.mbr;
 
-	ret = send_pfcp_sess_mod_req_handover(pdn, bearer, &resp->gtpc_msg.mbr);
-	 if (ret) {
-	        clLog(clSystemLog, eCLSeverityCritical, "%s : Error: %d \n", __func__, ret);
-	         return ret;
+	if((PGWC == pfcp_config.cp_type) && ((context->second_rat_flag == TRUE) || (context->sgwu_not_changed == TRUE))) {
+
+		set_modify_bearer_response_handover(gtpv2c_tx, mb_req->header.teid.has_teid.seq, context,
+				bearer, mb_req);
+
+		int payload_length = ntohs(gtpv2c_tx->gtpc.message_len)
+			+ sizeof(gtpv2c_tx->gtpc);
+
+		s5s8_recv_sockaddr.sin_addr.s_addr =
+			htonl(pdn->s5s8_sgw_gtpc_ipv4.s_addr);
+
+		gtpv2c_send(s5s8_fd, tx_buf, payload_length,
+				(struct sockaddr *) &s5s8_recv_sockaddr,
+				s5s8_sockaddr_len, SENT);
+
+		process_cp_li_msg_using_context(
+				context, tx_buf, payload_length,
+				pfcp_config.s5s8_ip.s_addr, s5s8_recv_sockaddr.sin_addr.s_addr,
+				pfcp_config.s5s8_port, s5s8_recv_sockaddr.sin_port);
+
+		context->second_rat_flag = FALSE;
+		pdn->state =  CONNECTED_STATE;
+
+		return 0;
+	} else {
+
+		context->second_rat_flag = FALSE;
+		ret = send_pfcp_sess_mod_req_handover(pdn, bearer, &resp->gtpc_msg.mbr);
+		if (ret) {
+			clLog(clSystemLog, eCLSeverityCritical, "%s : Error: %d \n", __func__, ret);
+			return ret;
+		}
 	}
 
 	RTE_SET_USED(data);
@@ -680,7 +945,7 @@ cca_msg_handler(void *data, void *unused_param)
 #ifdef GX_BUILD
 	/* Handle the CCR-T Message */
 	if (msg->gx_msg.cca.cc_request_type == TERMINATION_REQUEST) {
-		clLog(gxlogger, eCLSeverityDebug, FORMAT"Received GX CCR-T Response..!! \n",
+		clLog(clSystemLog, eCLSeverityDebug, FORMAT"Received GX CCR-T Response..!! \n",
 				ERR_MSG);
 		return 0;
 	}
@@ -693,7 +958,46 @@ cca_msg_handler(void *data, void *unused_param)
 				gx_type_str(msg->msg_type), ebi_index,
 				(ebi_index < 0 ? strerror(-ebi_index) : cause_str(ebi_index)));
 		clLog(clSystemLog, eCLSeverityCritical, "Failed to establish session on PGWU, Send Failed CSResp back to SGWC\n");
-		return ret;
+		gx_cca_error_response(ret, msg);
+		return -1;
+	}
+	/*update proc if there are two rules*/
+	if(pdn->policy.num_charg_rule_install != 1)
+		pdn->proc = ATTACH_DEDICATED_PROC;
+
+	if (msg->gx_msg.cca.cc_request_type == UPDATE_REQUEST) {
+
+		bzero(&tx_buf, sizeof(tx_buf));
+		gtpv2c_header_t *gtpv2c_tx = (gtpv2c_header_t *)tx_buf;
+		set_change_notification_response(gtpv2c_tx, pdn, TRUE);
+
+		uint8_t payload_length = 0;
+		payload_length = ntohs(gtpv2c_tx->gtpc.message_len)
+			+ sizeof(gtpv2c_tx->gtpc);
+
+		if(pfcp_config.cp_type == PGWC) {
+			gtpv2c_send(s5s8_fd, tx_buf, payload_length,
+					(struct sockaddr *) &s5s8_recv_sockaddr,
+					s5s8_sockaddr_len, SENT);
+
+			process_cp_li_msg_using_context(
+				pdn->context, tx_buf, payload_length,
+				pfcp_config.s5s8_ip.s_addr, s5s8_recv_sockaddr.sin_addr.s_addr,
+				pfcp_config.s5s8_port, s5s8_recv_sockaddr.sin_port);
+
+		} else if (pfcp_config.cp_type == SAEGWC) {
+			gtpv2c_send(s11_fd, tx_buf, payload_length,
+					(struct sockaddr *) &s11_mme_sockaddr,
+					s11_mme_sockaddr_len, SENT);
+
+			process_cp_li_msg_using_context(
+				pdn->context, tx_buf, payload_length,
+				pfcp_config.s11_ip.s_addr, s11_mme_sockaddr.sin_addr.s_addr,
+				pfcp_config.s11_port, s11_mme_sockaddr.sin_port);
+		}
+
+		pdn->state = CONNECTED_STATE;
+		return 0;
 	}
 
 #endif /* GX_BUILD */
@@ -705,7 +1009,7 @@ cca_msg_handler(void *data, void *unused_param)
 			cs_error_response(msg, ret, spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
 			process_error_occured_handler(data, unused_param);
 		}
-		clLog(sxlogger, eCLSeverityCritical, "%s:%s:%d Error: %d \n",
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d Error: %d \n",
 				__FILE__, __func__, __LINE__, ret);
 		return -1;
 	}
@@ -722,7 +1026,7 @@ cca_msg_handler(void *data, void *unused_param)
 	                        upf_context->csr.sender_fteid_ctl_plane.teid_gre_key = pdn->context->s11_mme_gtpc_teid;
 	                }
 	                upf_context->csr.header.teid.has_teid.seq = pdn->context->sequence;
-	                upf_context->csr.bearer_contexts_to_be_created.eps_bearer_id.ebi_ebi = ebi_index + 5;
+	                upf_context->csr.bearer_contexts_to_be_created[ebi_index].eps_bearer_id.ebi_ebi = ebi_index + 5;
 	                if (pfcp_config.cp_type == PGWC) {
 	                        /* : we need teid for send ccr-T to GX  */
 	                        upf_context->csr.header.teid.has_teid.teid = pdn->s5s8_pgw_gtpc_teid;
@@ -735,25 +1039,25 @@ cca_msg_handler(void *data, void *unused_param)
 	}
 	/* send error response in case of pfcp est. fail using this data */
 	if(upf_context->state == PFCP_ASSOC_RESP_RCVD_STATE) {
-                ret = get_sess_entry(pdn->seid, &resp);
-                if(ret != -1 && resp != NULL){
-                        if(pfcp_config.cp_type == PGWC) {
-                                resp->gtpc_msg.csr.sender_fteid_ctl_plane.teid_gre_key = pdn->s5s8_sgw_gtpc_teid;
-                        }
-                        if(pfcp_config.cp_type == SAEGWC) {
-                                resp->gtpc_msg.csr.sender_fteid_ctl_plane.teid_gre_key = pdn->context->s11_mme_gtpc_teid;
-                        }
-                        resp->gtpc_msg.csr.header.teid.has_teid.seq = pdn->context->sequence;
-                        resp->gtpc_msg.csr.bearer_contexts_to_be_created.eps_bearer_id.ebi_ebi = ebi_index + 5;
-                        if (pfcp_config.cp_type == PGWC) {
-                                /* : we need teid for send ccr-T to PCRF  */
-                                resp->gtpc_msg.csr.header.teid.has_teid.teid = pdn->s5s8_pgw_gtpc_teid;
-                        }
-                        if(pfcp_config.cp_type == SAEGWC) {
-                                 resp->gtpc_msg.csr.header.teid.has_teid.teid = pdn->context->s11_sgw_gtpc_teid;
-                        }
-                }
-        }
+		ret = get_sess_entry(pdn->seid, &resp);
+		if(ret != -1 && resp != NULL){
+			if(pfcp_config.cp_type == PGWC) {
+				resp->gtpc_msg.csr.sender_fteid_ctl_plane.teid_gre_key = pdn->s5s8_sgw_gtpc_teid;
+			}
+			if(pfcp_config.cp_type == SAEGWC) {
+				resp->gtpc_msg.csr.sender_fteid_ctl_plane.teid_gre_key = pdn->context->s11_mme_gtpc_teid;
+			}
+			resp->gtpc_msg.csr.header.teid.has_teid.seq = pdn->context->sequence;
+			resp->gtpc_msg.csr.bearer_contexts_to_be_created[ebi_index].eps_bearer_id.ebi_ebi = ebi_index + 5;
+			if (pfcp_config.cp_type == PGWC) {
+				/* : we need teid for send ccr-T to PCRF  */
+				resp->gtpc_msg.csr.header.teid.has_teid.teid = pdn->s5s8_pgw_gtpc_teid;
+			}
+			if(pfcp_config.cp_type == SAEGWC) {
+				resp->gtpc_msg.csr.header.teid.has_teid.teid = pdn->context->s11_sgw_gtpc_teid;
+			}
+		}
+	}
 
 	RTE_SET_USED(unused_param);
 	return 0;
@@ -799,7 +1103,7 @@ process_sess_mod_resp_sgw_reloc_handler(void *data, void *unused_param)
 	if (ret) {
 		if(ret != -1)
 			mbr_error_response(msg, ret, spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
-		clLog(sxlogger, eCLSeverityCritical, "%s : Error: %d \n", __func__, ret);
+		clLog(clSystemLog, eCLSeverityCritical, "%s : Error: %d \n", __func__, ret);
 		return ret;
 	}
 
@@ -808,10 +1112,7 @@ process_sess_mod_resp_sgw_reloc_handler(void *data, void *unused_param)
 
 	gtpv2c_send(s5s8_fd, tx_buf, payload_length,
 		       (struct sockaddr *) &s5s8_recv_sockaddr,
-		          s5s8_sockaddr_len);
-
-	update_cli_stats(s5s8_recv_sockaddr.sin_addr.s_addr,
-						gtpv2c_tx->gtpc.message_type, SENT,S5S8);
+		          s5s8_sockaddr_len,SENT);
 
 
 	if (SGWC == pfcp_config.cp_type) {
@@ -821,6 +1122,12 @@ process_sess_mod_resp_sgw_reloc_handler(void *data, void *unused_param)
 			UE_BEAR_ID(msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid) - 5,
 			S5S8_IFACE);
 	}
+
+	process_cp_li_msg(
+				msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid,
+				tx_buf, payload_length,
+				pfcp_config.s5s8_ip.s_addr, s5s8_recv_sockaddr.sin_addr.s_addr,
+				pfcp_config.s5s8_port, s5s8_recv_sockaddr.sin_port);
 
 	RTE_SET_USED(data);
 	RTE_SET_USED(unused_param);
@@ -838,17 +1145,15 @@ process_pfcp_sess_mod_resp_cbr_handler(void *data, void *unused_param)
 	bzero(&tx_buf, sizeof(tx_buf));
 	gtpv2c_header_t *gtpv2c_tx = (gtpv2c_header_t *)tx_buf;
 
-	ret = process_pfcp_sess_mod_resp(
-			msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid,
+	ret = process_pfcp_sess_mod_resp(&msg->pfcp_msg.pfcp_sess_mod_resp,
+			//msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid,
 			gtpv2c_tx);
 	if (ret != 0) {
 		if(ret != -1)
-			/* TODO for cbr
-			 * mbr_error_response(&msg->gtpc_msg.mbr, ret,
-								spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE); */
-		clLog(sxlogger, eCLSeverityCritical, "%s:%d Error: %d \n",
+			cbr_error_response(msg, ret, spgw_cfg != PGWC ? S5S8_IFACE : GX_IFACE);
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%d Error : pfcp session modification response failed %d \n",
 				__func__, __LINE__, ret);
-		return ret;
+		return -1;
 	}
 
 	payload_length = ntohs(gtpv2c_tx->gtpc.message_len)
@@ -858,14 +1163,15 @@ process_pfcp_sess_mod_resp_cbr_handler(void *data, void *unused_param)
 																			&resp) != 0){
 		clLog(clSystemLog, eCLSeverityCritical, "%s:%d NO Session Entry Found for sess ID:%lu\n",
 				__func__, __LINE__, msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid);
-		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+		cbr_error_response(msg, ret, spgw_cfg != PGWC ? S5S8_IFACE : GX_IFACE);
+		return -1;
 	}
 
 	if ((SAEGWC != pfcp_config.cp_type) && ((resp->msg_type == GTP_CREATE_BEARER_RSP) ||
 			(resp->msg_type == GX_RAR_MSG))){
 	    gtpv2c_send(s5s8_fd, tx_buf, payload_length,
 	            (struct sockaddr *) &s5s8_recv_sockaddr,
-	            s5s8_sockaddr_len);
+	            s5s8_sockaddr_len,SENT);
 		if(resp->msg_type != GTP_CREATE_BEARER_RSP){
 			add_gtpv2c_if_timer_entry(
 					UE_SESS_ID(msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid),
@@ -875,20 +1181,22 @@ process_pfcp_sess_mod_resp_cbr_handler(void *data, void *unused_param)
 		}
 		if (resp->msg_type == GTP_CREATE_BEARER_RSP) {
 
-			update_cli_stats(s5s8_recv_sockaddr.sin_addr.s_addr,
-						gtpv2c_tx->gtpc.message_type, ACC,S5S8);
 		}
 		else {
 
-			update_cli_stats(s5s8_recv_sockaddr.sin_addr.s_addr,
-						gtpv2c_tx->gtpc.message_type, SENT,S5S8);
 		}
+
+		process_cp_li_msg(
+				msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid,
+				tx_buf, payload_length,
+				pfcp_config.s5s8_ip.s_addr, s5s8_recv_sockaddr.sin_addr.s_addr,
+				pfcp_config.s5s8_port, s5s8_recv_sockaddr.sin_port);
 
 	} else {
 		if(resp->msg_type != GX_RAA_MSG) {
 		    gtpv2c_send(s11_fd, tx_buf, payload_length,
 		            (struct sockaddr *) &s11_mme_sockaddr,
-		            s11_mme_sockaddr_len);
+		            s11_mme_sockaddr_len,SENT);
 
 			add_gtpv2c_if_timer_entry(
 					UE_SESS_ID(msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid),
@@ -896,8 +1204,12 @@ process_pfcp_sess_mod_resp_cbr_handler(void *data, void *unused_param)
 					UE_BEAR_ID(msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid) - 5,
 					S11_IFACE);
 
-			update_cli_stats(s11_mme_sockaddr.sin_addr.s_addr,
-				gtpv2c_tx->gtpc.message_type, SENT,S11);
+			process_cp_li_msg(
+				msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid,
+				tx_buf, payload_length,
+				pfcp_config.s11_ip.s_addr, s11_mme_sockaddr.sin_addr.s_addr,
+				pfcp_config.s11_port, s11_mme_sockaddr.sin_port);
+
 		}
 	}
 
@@ -912,8 +1224,10 @@ process_cbresp_handler(void *data, void *unused_param)
 
 	ret = process_pgwc_create_bearer_rsp(&msg->gtpc_msg.cb_rsp);
 	if (ret) {
-		clLog(sxlogger, eCLSeverityCritical, "%s : Error: %d \n", __func__, ret);
-		return ret;
+		if(ret != -1)
+			cbr_error_response(msg, ret, spgw_cfg != PGWC ? S5S8_IFACE : GX_IFACE);
+		clLog(clSystemLog, eCLSeverityCritical, "%s : Error : received error while create bearer response at pgwc %d %d \n", __func__,__LINE__,ret);
+		return -1;
 	}
 
 	RTE_SET_USED(unused_param);
@@ -922,7 +1236,7 @@ process_cbresp_handler(void *data, void *unused_param)
 
 int process_mbr_resp_handover_handler(void *data, void *rx_buf)
 {
-
+	ue_context *context = NULL;
 	uint16_t payload_length = 0;
 	msg_info *msg = (msg_info *)data;
 
@@ -932,8 +1246,8 @@ int process_mbr_resp_handover_handler(void *data, void *rx_buf)
 
 	if (ret) {
 		mbr_error_response(msg, ret, spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
-		clLog(sxlogger, eCLSeverityCritical, "%s : Error: %d \n", __func__, ret);
-		return ret;
+		clLog(clSystemLog, eCLSeverityCritical, "%s : Error: context not found%d \n", __func__, ret);
+		return -1;
 	}
 
 	payload_length = ntohs(gtpv2c_tx->gtpc.message_len)
@@ -941,12 +1255,68 @@ int process_mbr_resp_handover_handler(void *data, void *rx_buf)
 
 	gtpv2c_send(s11_fd, tx_buf, payload_length,
 			(struct sockaddr *) &s11_mme_sockaddr,
-			s11_mme_sockaddr_len);
+			s11_mme_sockaddr_len,ACC);
 
-	update_cli_stats(s11_mme_sockaddr.sin_addr.s_addr,
-						gtpv2c_tx->gtpc.message_type, ACC,S11);
 	update_sys_stat(number_of_users, INCREMENT);
 	update_sys_stat(number_of_active_session, INCREMENT);
+
+	ret = get_ue_context_by_sgw_s5s8_teid(
+			msg->gtpc_msg.mb_rsp.header.teid.has_teid.teid, &context);
+	if (ret < 0 || !context) {
+		clLog(clSystemLog, eCLSeverityCritical, "%s : Error:Context not found  %d \n", __func__,__LINE__);
+		mbr_error_response(msg, GTPV2C_CAUSE_CONTEXT_NOT_FOUND, spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
+		return -1;
+	}
+
+	process_cp_li_msg_using_context(
+		context, tx_buf, payload_length,
+		pfcp_config.s11_ip.s_addr, s11_mme_sockaddr.sin_addr.s_addr,
+		pfcp_config.s11_port, s11_mme_sockaddr.sin_port);
+
+	RTE_SET_USED(data);
+	RTE_SET_USED(rx_buf);
+
+	return 0;
+}
+
+int process_mbr_resp_for_mod_proc_handler(void *data, void *rx_buf){
+
+	ue_context *context = NULL;
+	uint16_t payload_length = 0;
+	msg_info *msg = (msg_info *)data;
+
+	bzero(&tx_buf, sizeof(tx_buf));
+	gtpv2c_header_t *gtpv2c_tx = (gtpv2c_header_t *)tx_buf;
+	ret = process_sgwc_s5s8_mbr_for_mod_proc(&(msg->gtpc_msg.mb_rsp) ,gtpv2c_tx);
+
+	if (ret) {
+		mbr_error_response(msg, ret, spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
+		clLog(clSystemLog, eCLSeverityCritical, "%s : Error: Failed to process Modify Bearer procedure %d \n", __func__, ret);
+		return -1;
+	}
+
+	payload_length = ntohs(gtpv2c_tx->gtpc.message_len)
+		+ sizeof(gtpv2c_tx->gtpc);
+
+	gtpv2c_send(s11_fd, tx_buf, payload_length,
+			(struct sockaddr *) &s11_mme_sockaddr,
+			s11_mme_sockaddr_len,ACC);
+
+	update_sys_stat(number_of_users, INCREMENT);
+	update_sys_stat(number_of_active_session, INCREMENT);
+
+	ret = get_ue_context_by_sgw_s5s8_teid(
+			msg->gtpc_msg.mb_rsp.header.teid.has_teid.teid, &context);
+	 if (ret < 0 || !context) {
+	    mbr_error_response(msg, GTPV2C_CAUSE_CONTEXT_NOT_FOUND, spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
+		clLog(clSystemLog, eCLSeverityCritical, "%s : Error:Context not found %d \n", __func__,__LINE__);
+		return -1;
+	}
+
+	 process_cp_li_msg_using_context(
+		context, tx_buf, payload_length,
+		pfcp_config.s11_ip.s_addr, s11_mme_sockaddr.sin_addr.s_addr,
+		pfcp_config.s11_port, s11_mme_sockaddr.sin_port);
 
 	RTE_SET_USED(data);
 	RTE_SET_USED(rx_buf);
@@ -961,9 +1331,10 @@ process_create_bearer_resp_handler(void *data, void *unused_param)
 
 	ret = process_sgwc_create_bearer_rsp(&msg->gtpc_msg.cb_rsp);
 	if (ret) {
-			clLog(s11logger, eCLSeverityCritical, "%s:%d Error: %d \n",
-					__func__, __LINE__, ret);
-			return -1;
+		if(ret != -1)
+			cbr_error_response(msg, ret, spgw_cfg != PGWC ? S5S8_IFACE : GX_IFACE);
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%d Error:received error while create bearer response at sgwc %d \n",__func__, __LINE__, ret);
+		return -1;
 	}
 
 	RTE_SET_USED(unused_param);
@@ -977,9 +1348,10 @@ process_create_bearer_request_handler(void *data, void *unused_param)
 
 	ret = process_create_bearer_request(&msg->gtpc_msg.cb_req);
 	if (ret) {
-			clLog(s11logger, eCLSeverityCritical, "%s:%d Error: %d \n",
-					__func__, __LINE__, ret);
-			return -1;
+		if(ret != -1)
+			cbr_error_response(msg, ret, spgw_cfg != PGWC ? S5S8_IFACE : GX_IFACE);
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%d Error: received error while create bearer request %d \n",__func__, __LINE__, ret);
+		return -1;
 	}
 
 	RTE_SET_USED(unused_param);
@@ -989,33 +1361,34 @@ process_create_bearer_request_handler(void *data, void *unused_param)
 int
 process_rar_request_handler(void *data, void *unused_param)
 {
+	int16_t ret_temp = 0;
 #ifdef GX_BUILD
 	msg_info *msg = (msg_info *)data;
 
-	ret = parse_gx_rar_msg(&msg->gx_msg.rar);
-	if (ret) {
-		if(ret != -1){
+	ret_temp = parse_gx_rar_msg(&msg->gx_msg.rar);
+	if (ret_temp) {
+		if(ret_temp != -1){
 			uint32_t call_id = 0;
 			pdn_connection *pdn_cntxt = NULL;
 			ret = retrieve_call_id((char *)&msg->gx_msg.rar.session_id.val, &call_id);
 			if (ret < 0) {
-	        		clLog(clSystemLog, eCLSeverityCritical, "%s:No Call Id found from session id:%s\n", __func__,
-	                        msg->gx_msg.rar.session_id.val);
-	        			return -1;
+				clLog(clSystemLog, eCLSeverityCritical, "%s:No Call Id found from session id:%s\n", __func__,
+						msg->gx_msg.rar.session_id.val);
+				return -1;
 			}
 
 			/* Retrieve PDN context based on call id */
 			pdn_cntxt = get_pdn_conn_entry(call_id);
 			if (pdn_cntxt == NULL)
 			{
-	      		clLog(clSystemLog, eCLSeverityCritical, "%s:No valid pdn cntxt found for CALL_ID:%u\n",
-	         	                 								__func__, call_id);
-	      		return -1;
+				clLog(clSystemLog, eCLSeverityCritical, "%s:No valid pdn cntxt found for CALL_ID:%u\n",
+						__func__, call_id);
+				return -1;
 			}
-			gen_reauth_error_response(pdn_cntxt, ret);
+			gen_reauth_error_response(pdn_cntxt, ret_temp);
 		}
-		clLog(sxlogger, eCLSeverityCritical, "%s:%s:%d Error: %d \n",
-				__FILE__, __func__, __LINE__, ret);
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d Error: %d \n",
+				__FILE__, __func__, __LINE__, ret_temp);
 		return -1;
 	}
 #else
@@ -1028,7 +1401,7 @@ process_rar_request_handler(void *data, void *unused_param)
 int
 pfd_management_handler(void *data, void *unused_param)
 {
-	clLog(sxlogger, eCLSeverityDebug,
+	clLog(clSystemLog, eCLSeverityDebug,
 		"Pfcp Pfd Management Response Recived Successfully \n");
 
 	RTE_SET_USED(data);
@@ -1046,13 +1419,13 @@ process_mod_resp_delete_handler(void *data, void *unused_param)
 	bzero(&tx_buf, sizeof(tx_buf));
 	gtpv2c_header_t *gtpv2c_tx = (gtpv2c_header_t *)tx_buf;
 
-	ret = process_pfcp_sess_mod_resp(
-			msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid,
+	ret = process_pfcp_sess_mod_resp(&msg->pfcp_msg.pfcp_sess_mod_resp,
+			//msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid,
 			gtpv2c_tx);
 	if (ret) {
-		mbr_error_response(msg, ret, spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
-		clLog(sxlogger, eCLSeverityCritical, "%s : Error: %d \n", __func__, ret);
-		return ret;
+		ds_error_response(msg, ret, spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
+		clLog(clSystemLog, eCLSeverityCritical, "%s : Error: while session modification response for delete session request %d \n", __func__, ret);
+		return -1;
 	}
 
 	payload_length = ntohs(gtpv2c_tx->gtpc.message_len)
@@ -1062,15 +1435,19 @@ process_mod_resp_delete_handler(void *data, void *unused_param)
 		/* Forward s11 delete_session_request on s5s8 */
 		gtpv2c_send(s5s8_fd, tx_buf, payload_length,
 				(struct sockaddr *) &s5s8_recv_sockaddr,
-				s5s8_sockaddr_len);
+				s5s8_sockaddr_len,SENT);
 
-		update_cli_stats(s5s8_recv_sockaddr.sin_addr.s_addr,
-						gtpv2c_tx->gtpc.message_type, SENT,S5S8);
 		add_gtpv2c_if_timer_entry(
 			UE_SESS_ID(msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid),
 			&s5s8_recv_sockaddr, tx_buf, payload_length,
 			UE_BEAR_ID(msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid) - 5,
 			S5S8_IFACE);
+
+		process_cp_li_msg(
+				msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid,
+				tx_buf, payload_length,
+				pfcp_config.s5s8_ip.s_addr, s5s8_recv_sockaddr.sin_addr.s_addr,
+				pfcp_config.s5s8_port, s5s8_recv_sockaddr.sin_port);
 
 	} else {
 		/*Code should not reach here since this handler is only for SGWC*/
@@ -1094,14 +1471,22 @@ process_pfcp_sess_mod_resp_dbr_handler(void *data, void *unused_param)
 
 	bzero(&tx_buf, sizeof(tx_buf));
 	gtpv2c_header_t *gtpv2c_tx = (gtpv2c_header_t *)tx_buf;
+	uint64_t seid = msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid;
+
+	if (msg->pfcp_msg.pfcp_sess_mod_resp.usage_report_count != 0) {
+		for(int i=0 ; i< msg->pfcp_msg.pfcp_sess_mod_resp.usage_report_count; i++)
+			fill_cdr_info_sess_mod_resp(seid,
+					&msg->pfcp_msg.pfcp_sess_mod_resp.usage_report[i]);
+	}
 
 	ret = process_delete_bearer_pfcp_sess_response(
 		msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid,
 		gtpv2c_tx);
-	if (ret != 0) {
-		clLog(sxlogger, eCLSeverityCritical, "%s:%d Error: %d \n",
+	if (ret && ret!=-1) {
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%d Error: pfcp session response failed %d \n",
 				__func__, __LINE__, ret);
-		return ret;
+			delete_bearer_error_response(msg,ret,spgw_cfg != PGWC ? S5S8_IFACE : GX_IFACE);
+		return -1;
 	}
 
 	payload_length = ntohs(gtpv2c_tx->gtpc.message_len)
@@ -1110,12 +1495,12 @@ process_pfcp_sess_mod_resp_dbr_handler(void *data, void *unused_param)
 	if (get_sess_entry(
 		msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid,
 		&resp) != 0) {
-		clLog(sxlogger, eCLSeverityCritical,
+		clLog(clSystemLog, eCLSeverityCritical,
 			"%s:%d NO Session Entry Found for sess ID:%lu\n",
 			__func__, __LINE__,
 			msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid);
-
-		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+		delete_bearer_error_response(msg, ret, spgw_cfg != PGWC ? S5S8_IFACE : GX_IFACE);
+		return -1;
 	}
 
 	if ((SAEGWC != pfcp_config.cp_type) &&
@@ -1123,10 +1508,8 @@ process_pfcp_sess_mod_resp_dbr_handler(void *data, void *unused_param)
 		(resp->msg_type == GX_RAR_MSG))) {
 		gtpv2c_send(s5s8_fd, tx_buf, payload_length,
 	            (struct sockaddr *) &s5s8_recv_sockaddr,
-	            s5s8_sockaddr_len);
+	            s5s8_sockaddr_len,SENT);
 
-		update_cli_stats(s5s8_recv_sockaddr.sin_addr.s_addr,
-				gtpv2c_tx->gtpc.message_type, SENT, S5S8);
 
 		if (resp->msg_type != GTP_DELETE_BEARER_RSP) {
 			add_gtpv2c_if_timer_entry(
@@ -1136,10 +1519,15 @@ process_pfcp_sess_mod_resp_dbr_handler(void *data, void *unused_param)
 				S5S8_IFACE);
 		}
 
-	} else if (resp->msg_type != GX_RAA_MSG) {
+		process_cp_li_msg(
+				msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid,
+				tx_buf, payload_length,
+				pfcp_config.s5s8_ip.s_addr, s5s8_recv_sockaddr.sin_addr.s_addr,
+				pfcp_config.s5s8_port, s5s8_recv_sockaddr.sin_port);
+	} else if(resp->msg_type != GX_RAA_MSG) {
 		gtpv2c_send(s11_fd, tx_buf, payload_length,
 				(struct sockaddr *) &s11_mme_sockaddr,
-				s11_mme_sockaddr_len);
+				s11_mme_sockaddr_len,SENT);
 
 		add_gtpv2c_if_timer_entry(
 				UE_SESS_ID(msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid),
@@ -1147,9 +1535,11 @@ process_pfcp_sess_mod_resp_dbr_handler(void *data, void *unused_param)
 				UE_BEAR_ID(msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid) - 5,
 				S11_IFACE);
 
-		update_cli_stats(s11_mme_sockaddr.sin_addr.s_addr,
-				gtpv2c_tx->gtpc.message_type, SENT,
-				S11);
+		process_cp_li_msg(
+				msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid,
+				tx_buf, payload_length,
+				pfcp_config.s11_ip.s_addr, s11_mme_sockaddr.sin_addr.s_addr,
+				pfcp_config.s11_port, s11_mme_sockaddr.sin_port);
 	}
 
 	RTE_SET_USED(unused_param);
@@ -1163,9 +1553,10 @@ process_delete_bearer_request_handler(void *data, void *unused_param)
 	msg_info *msg = (msg_info *)data;
 
 	ret = process_delete_bearer_request(&msg->gtpc_msg.db_req ,0);
-	if (ret) {
-		clLog(s11logger, eCLSeverityCritical, "%s:%d Error: %d \n",
+	if (ret && ret!=-1) {
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%d Error: Delete Bearer Request Failed %d \n",
 			__func__, __LINE__, ret);
+		delete_bearer_error_response(msg,ret,spgw_cfg != PGWC ? S5S8_IFACE : GX_IFACE);
 		return -1;
 	}
 
@@ -1175,7 +1566,6 @@ process_delete_bearer_request_handler(void *data, void *unused_param)
 	return 0;
 }
 
-
 int
 process_delete_bearer_resp_handler(void *data, void *unused_param)
 {
@@ -1183,10 +1573,23 @@ process_delete_bearer_resp_handler(void *data, void *unused_param)
 
 	if (msg->gtpc_msg.db_rsp.lbi.header.len != 0) {
 		/* Delete Default Bearer. Send PFCP Session Deletion Request */
-		process_pfcp_sess_del_request_delete_bearer_rsp(&msg->gtpc_msg.db_rsp);
-	} else {
+		ret	= process_pfcp_sess_del_request_delete_bearer_rsp(&msg->gtpc_msg.db_rsp);
+		if (ret && ret!=-1)
+			{
+				clLog(clSystemLog, eCLSeverityCritical, "%s:%d Error:Error Sending Delete Bearer Response %d \n",__func__, __LINE__, ret);
+				delete_bearer_error_response(msg,ret,spgw_cfg != PGWC ? S5S8_IFACE:GX_IFACE);
+				return -1;
+			}
+	}
+	else {
 		/* Delete Dedicated Bearer. Send PFCP Session Modification Request */
-		process_delete_bearer_resp(&msg->gtpc_msg.db_rsp , 0);
+		ret = process_delete_bearer_resp(&msg->gtpc_msg.db_rsp , 0);
+		if (ret && ret!=-1)
+			{
+				clLog(clSystemLog, eCLSeverityCritical, "%s:%d Error:Error Sending Delete Bearer Response %d \n",__func__, __LINE__, ret);
+				delete_bearer_error_response(msg,ret,spgw_cfg !=  PGWC ? S5S8_IFACE:GX_IFACE);
+				return -1;
+			}
 	}
 
 	RTE_SET_USED(data);
@@ -1207,39 +1610,43 @@ process_pfcp_sess_del_resp_dbr_handler(void *data, void *unused_param)
 	bzero(&tx_buf, sizeof(tx_buf));
 	gtpv2c_header_t *gtpv2c_tx = (gtpv2c_header_t *)tx_buf;
 
-	ret = process_delete_bearer_pfcp_sess_response(
-		msg->pfcp_msg.pfcp_sess_del_resp.header.seid_seqno.has_seid.seid,
-		gtpv2c_tx);
-	if (ret != 0) {
-		clLog(sxlogger, eCLSeverityCritical, "%s:%d Error: %d \n",
+	ret = process_delete_bearer_pfcp_sess_response(msg->pfcp_msg.pfcp_sess_del_resp.header.seid_seqno.has_seid.seid,gtpv2c_tx);
+	if (ret && ret!=-1) {
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%d Error:Failed to process pfcp procedure for Delete bearer procedure %d \n",
 				__func__, __LINE__, ret);
-		return ret;
+		delete_bearer_error_response(msg,ret,spgw_cfg !=  PGWC ? S5S8_IFACE:GX_IFACE);
+		return -1;
 	}
 
 	payload_length = ntohs(gtpv2c_tx->gtpc.message_len)
 		+ sizeof(gtpv2c_tx->gtpc);
-
-	if (get_sess_entry(
-		msg->pfcp_msg.pfcp_sess_del_resp.header.seid_seqno.has_seid.seid,
-		&resp) != 0) {
-		clLog(sxlogger, eCLSeverityCritical,
+	ret = get_sess_entry(msg->pfcp_msg.pfcp_sess_del_resp.header.seid_seqno.has_seid.seid,&resp);
+	if (ret && ret!=-1) {
+		clLog(clSystemLog, eCLSeverityCritical,
 			"%s:%d NO Session Entry Found for sess ID:%lu\n",
 			__func__, __LINE__,
 			msg->pfcp_msg.pfcp_sess_del_resp.header.seid_seqno.has_seid.seid);
-
-		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+		delete_bearer_error_response(msg,ret,spgw_cfg !=  PGWC ? S5S8_IFACE:GX_IFACE);
+		return -1;
 	}
 
 	if ((SAEGWC != pfcp_config.cp_type) &&
 		((resp->msg_type == GTP_DELETE_BEARER_RSP))) {
 			gtpv2c_send(s5s8_fd, tx_buf, payload_length,
 		            (struct sockaddr *) &s5s8_recv_sockaddr,
-	        	    s5s8_sockaddr_len);
+	        	    s5s8_sockaddr_len,SENT);
 
-		if (resp->msg_type == GTP_DELETE_BEARER_RSP) {
-			update_cli_stats(s5s8_recv_sockaddr.sin_addr.s_addr,
-				gtpv2c_tx->gtpc.message_type, SENT, S5S8);
-		}
+		// if (resp->msg_type == GTP_DELETE_BEARER_RSP) {
+		// 	update_cli_stats(s5s8_recv_sockaddr.sin_addr.s_addr,
+		// 		gtpv2c_tx->gtpc.message_type, SENT, S5S8);
+		// }
+
+		process_cp_li_msg(
+				msg->pfcp_msg.pfcp_sess_del_resp.header.seid_seqno.has_seid.seid,
+				tx_buf, payload_length,
+				pfcp_config.s5s8_ip.s_addr, s5s8_recv_sockaddr.sin_addr.s_addr,
+				pfcp_config.s5s8_port, s5s8_recv_sockaddr.sin_port);
+
 	}
 
 	RTE_SET_USED(unused_param);
@@ -1264,7 +1671,7 @@ int process_update_bearer_response_handler(void *data, void *unused_param)
 				ubr_error_response(msg, ret, GX_IFACE);
 	}
 	if (ret) {
-			clLog(s11logger, eCLSeverityCritical, "%s:%d Error: %d \n",
+			clLog(clSystemLog, eCLSeverityCritical, "%s:%d Error: %d \n",
 					__func__, __LINE__, ret);
 			return -1;
 	}
@@ -1281,7 +1688,7 @@ int process_update_bearer_request_handler(void *data, void *unused_param)
 	if (ret) {
 		if(ret != -1)
 			ubr_error_response(msg, ret, S5S8_IFACE);
-		clLog(s11logger, eCLSeverityCritical, "%s:%d Error: %d \n",
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%d Error: %d \n",
 					__func__, __LINE__, ret);
 		return -1;
 	}
@@ -1301,6 +1708,7 @@ int process_update_bearer_request_handler(void *data, void *unused_param)
 int
 process_delete_bearer_command_handler(void *data, void *unused_param)
 {
+	ue_context *context = NULL;
 	uint16_t payload_length = 0;
 
 	msg_info *msg = (msg_info *)data;
@@ -1311,18 +1719,30 @@ process_delete_bearer_command_handler(void *data, void *unused_param)
 
 	if(ret != 0) {
 	/* TODO:set error response*/
-	clLog(sxlogger, eCLSeverityCritical, "%s : Error: %d \n", __func__, ret);
+	clLog(clSystemLog, eCLSeverityCritical, "%s : Error: %d \n", __func__, ret);
 	}
 
 	if (SGWC == pfcp_config.cp_type ) {
-	payload_length = ntohs(gtpv2c_tx->gtpc.message_len)
-		+ sizeof(gtpv2c_tx->gtpc);
+		payload_length = ntohs(gtpv2c_tx->gtpc.message_len)
+			+ sizeof(gtpv2c_tx->gtpc);
 
-
-	gtpv2c_send(s5s8_fd, tx_buf, payload_length,
-			(struct sockaddr *) &s5s8_recv_sockaddr,
-				   s5s8_sockaddr_len);
+		gtpv2c_send(s5s8_fd, tx_buf, payload_length,
+				(struct sockaddr *) &s5s8_recv_sockaddr,
+				s5s8_sockaddr_len,SENT);
 	}
+
+	ret = get_ue_context(msg->gtpc_msg.del_ber_cmd.header.teid.has_teid.teid,
+			&context);
+	if (ret < 0) {
+		clLog(clSystemLog, eCLSeverityCritical,
+				"%s:%d Failed to get UE context for teid: %u\n", __func__, __LINE__,
+	                  msg->gtpc_msg.del_ber_cmd.header.teid.has_teid.teid);
+	}
+
+	process_cp_li_msg_using_context(
+		context, tx_buf, payload_length,
+		pfcp_config.s5s8_ip.s_addr, s5s8_recv_sockaddr.sin_addr.s_addr,
+		pfcp_config.s5s8_port, s5s8_recv_sockaddr.sin_port);
 
 	RTE_SET_USED(unused_param);
 
@@ -1364,7 +1784,7 @@ int del_bearer_cmd_ccau_handler(void *data, void *unused_param)
 
 	ret = process_sess_mod_req_del_cmd(pdn);
 	if (ret != 0) {
-		clLog(s11logger, eCLSeverityCritical, "%s:%d Error: %d \n",
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%d Error: %d \n",
 				__func__, __LINE__, ret);
 		return ret;
 	}
@@ -1384,9 +1804,10 @@ process_delete_bearer_response_handler(void *data, void *unused_param)
 	msg_info *msg = (msg_info *)data;
 	int ret = 0;
 	ret = process_delete_bearer_resp(&msg->gtpc_msg.db_rsp, 1);
-	if (ret != 0) {
-		clLog(s11logger, eCLSeverityCritical, "%s:%d Error: %d \n",
+	if (ret && ret!=-1) {
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%d Error:Error Sending Delete Bearer Response %d \n",
 				__func__, __LINE__, ret);
+	//	delete_bearer_error_response(msg,ret,spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
 		return ret;
 	}
 	RTE_SET_USED(unused_param);
@@ -1415,7 +1836,7 @@ del_bearer_cmd_mbr_resp_handler(void *data, void *unused_param)
 			 gtpv2c_tx ,&flag);
 
 	if (ret) {
-		clLog(sxlogger, eCLSeverityCritical, "%s : Error: %d \n", __func__, ret);
+		clLog(clSystemLog, eCLSeverityCritical, "%s : Error: %d \n", __func__, ret);
 		return ret;
 	}
 	if(flag == 0){
@@ -1428,16 +1849,25 @@ del_bearer_cmd_mbr_resp_handler(void *data, void *unused_param)
 	if (PGWC == pfcp_config.cp_type ) {
 		gtpv2c_send(s5s8_fd, tx_buf, payload_length,
 				(struct sockaddr *) &s5s8_recv_sockaddr,
-				s5s8_sockaddr_len);
-		update_cli_stats(s5s8_recv_sockaddr.sin_addr.s_addr,
-				gtpv2c_tx->gtpc.message_type, SENT,
-				S5S8);
+				s5s8_sockaddr_len,SENT);
+		process_cp_li_msg(
+				msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid,
+				tx_buf, payload_length,
+				pfcp_config.s5s8_ip.s_addr, s5s8_recv_sockaddr.sin_addr.s_addr,
+				pfcp_config.s5s8_port, s5s8_recv_sockaddr.sin_port);
+
 	} else if ((SGWC == pfcp_config.cp_type) ||
 				(SAEGWC == pfcp_config.cp_type)) {
 
 		gtpv2c_send(s11_fd, tx_buf, payload_length,
 				(struct sockaddr *) &s11_mme_sockaddr,
-				s11_mme_sockaddr_len);
+				s11_mme_sockaddr_len,SENT);
+		process_cp_li_msg(
+				msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid,
+				tx_buf, payload_length,
+				pfcp_config.s11_ip.s_addr, s11_mme_sockaddr.sin_addr.s_addr,
+				pfcp_config.s11_port, s11_mme_sockaddr.sin_port);
+
 	}
 
 	RTE_SET_USED(unused_param);
@@ -1452,25 +1882,247 @@ int process_delete_bearer_req_handler(void *data, void *unused_param)
 	int ret = process_delete_bearer_request(&msg->gtpc_msg.db_req, 1);
 	if(ret !=0 ) {
 		/*TODO: set error response*/
-		clLog(sxlogger, eCLSeverityCritical, "%s : Error: %d \n", __func__, ret);
+		clLog(clSystemLog, eCLSeverityCritical, "%s %s : Error:Delete Bearer Request failed %d \n", __func__,__FILE__, ret);
 	}
 
 	RTE_SET_USED(unused_param);
 	return 0;
 }
 
+/*Attach with  Dedicated bearer flow*/
+int  process_sess_est_resp_dedicated_handler(void *data, void *unused_param)
+{
+	uint16_t payload_length = 0;
+
+	msg_info *msg = (msg_info *)data;
+	gtpv2c_header_t *gtpv2c_cbr_t = NULL;;
+
+	bzero(&tx_buf, sizeof(tx_buf));
+	gtpv2c_header_t *gtpv2c_tx = (gtpv2c_header_t *)tx_buf;
+
+	ret = process_pfcp_sess_est_resp(
+			&msg->pfcp_msg.pfcp_sess_est_resp, gtpv2c_tx, 1);
+
+	if (ret) {
+		if(ret != -1){
+			cs_error_response(msg, ret,
+								spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
+			process_error_occured_handler(data, unused_param);
+		}
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%d Error: %d \n",
+				__func__, __LINE__, ret);
+		return -1;
+	}
+
+	gtpv2c_cbr_t = (gtpv2c_header_t *)((uint8_t *)gtpv2c_tx + ntohs(gtpv2c_tx->gtpc.message_len) + sizeof(gtpv2c_tx->gtpc));
+
+	payload_length = ntohs(gtpv2c_tx->gtpc.message_len) + ntohs(gtpv2c_cbr_t->gtpc.message_len)
+		+ sizeof(gtpv2c_tx->gtpc) + sizeof(gtpv2c_cbr_t->gtpc);
+
+
+	if (pfcp_config.cp_type == PGWC) {
+		gtpv2c_send(s5s8_fd, tx_buf, payload_length,
+				(struct sockaddr *) &s5s8_recv_sockaddr,
+				s5s8_sockaddr_len, SENT);
+
+
+		update_cli_stats(s5s8_recv_sockaddr.sin_addr.s_addr,
+							gtpv2c_tx->gtpc.message_type,SENT,S5S8);
+
+		process_cp_li_msg(
+				msg->pfcp_msg.pfcp_sess_est_resp.header.seid_seqno.has_seid.seid,
+				tx_buf, payload_length,
+				pfcp_config.s5s8_ip.s_addr, s5s8_recv_sockaddr.sin_addr.s_addr,
+				pfcp_config.s5s8_port, s5s8_recv_sockaddr.sin_port);
+
+	} else {
+		/* Send response on s11 interface */
+		gtpv2c_send(s11_fd, tx_buf, payload_length,
+				(struct sockaddr *) &s11_mme_sockaddr,
+				s11_mme_sockaddr_len, SENT);
+
+		update_cli_stats(s11_mme_sockaddr.sin_addr.s_addr,
+				gtpv2c_tx->gtpc.message_type, ACC,S11);
+
+		process_cp_li_msg(
+				msg->pfcp_msg.pfcp_sess_est_resp.header.seid_seqno.has_seid.seid,
+				tx_buf, payload_length,
+				pfcp_config.s11_ip.s_addr, s11_mme_sockaddr.sin_addr.s_addr,
+				pfcp_config.s11_port, s11_mme_sockaddr.sin_port);
+	}
+	RTE_SET_USED(unused_param);
+	return 0;
+}
+
+/* handles create session response with create bearer request on
+ * SGWC and sends pfcp modification request*/
+
+int
+process_cs_resp_dedicated_handler(void *data, void *unused)
+{
+	msg_info *msg = (msg_info *)data;
+
+	ret = process_cs_resp_cb_request(&msg->gtpc_msg.cb_req);
+	if (ret) {
+			clLog(clSystemLog, eCLSeverityCritical, "%s:%d Error: %d \n",
+					__func__, __LINE__, ret);
+			return -1;
+	}
+
+	RTE_SET_USED(unused);
+	return 0;
+}
+
+/*handles modification response from up side for attach with dedicated flow*/
+int
+process_pfcp_sess_mod_resp_cs_dedicated_handler(void *data, void *unused)
+{
+	uint16_t payload_length = 0;
+	struct resp_info *resp = NULL;
+
+	gtpv2c_header_t *gtpv2c_cbr_t = NULL;;
+	msg_info *msg = (msg_info *)data;
+
+	bzero(&tx_buf, sizeof(tx_buf));
+	gtpv2c_header_t *gtpv2c_tx = (gtpv2c_header_t *)tx_buf;
+
+	ret =  process_pfcp_sess_mod_resp_cs_cbr_request(
+			msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid,
+			gtpv2c_tx);
+	if (ret != 0) {
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%d Error: %d \n",
+				__func__, __LINE__, ret);
+		return ret;
+	}
+
+
+	if (get_sess_entry(
+		msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid,
+		&resp) != 0) {
+		clLog(clSystemLog, eCLSeverityCritical,
+			"%s:%d NO Session Entry Found for sess ID:%lu\n",
+			__func__, __LINE__,
+			msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid);
+
+		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+	}
+
+	if(resp->msg_type == GTP_MODIFY_BEARER_REQ){
+		if(pfcp_config.cp_type == SGWC) {
+			gtpv2c_cbr_t = (gtpv2c_header_t *)((uint8_t *)gtpv2c_tx + ntohs(gtpv2c_tx->gtpc.message_len) + sizeof(gtpv2c_tx->gtpc));
+
+			payload_length = ntohs(gtpv2c_tx->gtpc.message_len) + sizeof(gtpv2c_tx->gtpc);
+
+			gtpv2c_send(s11_fd, tx_buf, payload_length,
+					(struct sockaddr *) &s11_mme_sockaddr,
+					s11_mme_sockaddr_len, SENT);
+
+			update_cli_stats(s11_mme_sockaddr.sin_addr.s_addr,
+					gtpv2c_tx->gtpc.message_type,ACC,S11);
+
+			uint16_t payload_length_s11 = payload_length;
+
+			payload_length = ntohs(gtpv2c_cbr_t->gtpc.message_len) + sizeof(gtpv2c_cbr_t->gtpc);
+			gtpv2c_send(s5s8_fd, tx_buf, payload_length,
+					(struct sockaddr *) &s5s8_recv_sockaddr,
+					s5s8_sockaddr_len, SENT);
+
+			update_cli_stats(s5s8_recv_sockaddr.sin_addr.s_addr,
+					gtpv2c_tx->gtpc.message_type, SENT, S5S8);
+
+			uint8_t tx_buf_temp[MAX_GTPV2C_UDP_LEN] = {0};
+			memcpy(tx_buf_temp, tx_buf, payload_length);
+
+			process_cp_li_msg(
+				msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid,
+				tx_buf, payload_length_s11,
+				pfcp_config.s11_ip.s_addr, s11_mme_sockaddr.sin_addr.s_addr,
+				pfcp_config.s11_port, s11_mme_sockaddr.sin_port);
+
+			process_cp_li_msg(
+				msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid,
+				tx_buf_temp, payload_length,
+				pfcp_config.s5s8_ip.s_addr, s5s8_recv_sockaddr.sin_addr.s_addr,
+				pfcp_config.s5s8_port, s5s8_recv_sockaddr.sin_port);
+
+		} else if (pfcp_config.cp_type == SAEGWC){
+			payload_length = ntohs(gtpv2c_tx->gtpc.message_len) + sizeof(gtpv2c_tx->gtpc);
+
+			gtpv2c_send(s11_fd, tx_buf, payload_length,
+					(struct sockaddr *) &s11_mme_sockaddr,
+					s11_mme_sockaddr_len, SENT);
+
+			update_cli_stats(s11_mme_sockaddr.sin_addr.s_addr,
+					gtpv2c_tx->gtpc.message_type,ACC,S11);
+
+			process_cp_li_msg(
+				msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid,
+				tx_buf, payload_length,
+				pfcp_config.s11_ip.s_addr, s11_mme_sockaddr.sin_addr.s_addr,
+				pfcp_config.s11_port, s11_mme_sockaddr.sin_port);
+
+		}
+
+	} else {
+
+		gtpv2c_cbr_t = (gtpv2c_header_t *)((uint8_t *)gtpv2c_tx + ntohs(gtpv2c_tx->gtpc.message_len) + sizeof(gtpv2c_tx->gtpc));
+
+		payload_length = ntohs(gtpv2c_tx->gtpc.message_len) + ntohs(gtpv2c_cbr_t->gtpc.message_len)
+			+ sizeof(gtpv2c_tx->gtpc) + sizeof(gtpv2c_cbr_t->gtpc);
+
+		gtpv2c_send(s11_fd, tx_buf, payload_length,
+				(struct sockaddr *) &s11_mme_sockaddr,
+				s11_mme_sockaddr_len, SENT);
+
+		update_cli_stats(s11_mme_sockaddr.sin_addr.s_addr,
+				gtpv2c_tx->gtpc.message_type,ACC,S11);
+
+		process_cp_li_msg(
+				msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid,
+				tx_buf, payload_length,
+				pfcp_config.s11_ip.s_addr, s11_mme_sockaddr.sin_addr.s_addr,
+				pfcp_config.s11_port, s11_mme_sockaddr.sin_port);
+	}
+	RTE_SET_USED(unused);
+	return 0;
+}
+
+/*Handles mbr request and cbr response
+ * in ATTACH with DEDICATED flow
+ */
+int
+process_mb_request_cb_resp_handler(void *data, void *unused)
+{
+
+	msg_info *msg = (msg_info *)data;
+
+	ret = process_mb_request_cb_response(&msg->gtpc_msg.mbr);
+	if (ret) {
+			clLog(clSystemLog, eCLSeverityCritical, "%s:%d Error: %d \n",
+					__func__, __LINE__, ret);
+			return -1;
+	}
+	RTE_SET_USED(unused);
+	RTE_SET_USED(msg);
+	return 0;
+}
 
 void
 get_info_filled(msg_info *msg, err_rsp_info *info_resp , uint8_t index)
 {
 	struct resp_info *resp = NULL;
-	//pdn_connection *pdn = NULL;
+	pdn_connection *pdn = NULL;
 
 	switch(msg->msg_type){
 		case GTP_CREATE_SESSION_REQ:
-			info_resp->ebi_index = msg->gtpc_msg.csr.bearer_contexts_to_be_created.eps_bearer_id.ebi_ebi - 5;
+			for(uint8_t i = 0; i < msg->gtpc_msg.csr.bearer_count; i++) {
+				if(msg->gtpc_msg.csr.bearer_contexts_to_be_created[index].header.len){
+					info_resp->ebi_index = msg->gtpc_msg.csr.bearer_contexts_to_be_created[i].eps_bearer_id.ebi_ebi - 5;
+					info_resp->bearer_id[i] =  msg->gtpc_msg.csr.bearer_contexts_to_be_created[i].eps_bearer_id.ebi_ebi;
+				}
+			}
 			info_resp->teid =  msg->gtpc_msg.csr.header.teid.has_teid.teid;
-	   		break;
+			break;
 
 		case PFCP_ASSOCIATION_SETUP_RESPONSE:{
 
@@ -1499,14 +2151,21 @@ get_info_filled(msg_info *msg, err_rsp_info *info_resp , uint8_t index)
 
 			info_resp->teid = UE_SESS_ID(msg->pfcp_msg.pfcp_sess_est_resp.header.seid_seqno.has_seid.seid);
 			if(resp)
+				info_resp->bearer_count =  resp->bearer_count;
 				info_resp->ebi_index = resp->eps_bearer_id + 5;
+				for(uint8_t i = 0;i< resp->bearer_count; i++){
+					info_resp->bearer_id[i] = resp->eps_bearer_ids[i];
+				}
 			break;
 		}
 
 		case GTP_CREATE_SESSION_RSP:{
 
-			if(msg->gtpc_msg.cs_rsp.bearer_contexts_created.eps_bearer_id.ebi_ebi)
-				info_resp->ebi_index = msg->gtpc_msg.cs_rsp.bearer_contexts_created.eps_bearer_id.ebi_ebi - 5;
+			info_resp->bearer_count =  msg->gtpc_msg.cs_rsp.bearer_count;
+			for(uint8_t i = 0; i< msg->gtpc_msg.cs_rsp.bearer_count; i++) {
+				info_resp->ebi_index = msg->gtpc_msg.cs_rsp.bearer_contexts_created[i].eps_bearer_id.ebi_ebi;
+				info_resp->bearer_id[i] = msg->gtpc_msg.cs_rsp.bearer_contexts_created[i].eps_bearer_id.ebi_ebi;
+			}
 			info_resp->teid = msg->gtpc_msg.cs_rsp.header.teid.has_teid.teid;
 			break;
 		}
@@ -1519,6 +2178,35 @@ get_info_filled(msg_info *msg, err_rsp_info *info_resp , uint8_t index)
 			break;
 		}
 
+#ifdef GX_BUILD
+		case GX_CCA_MSG: {
+			uint32_t call_id = 0;
+
+			/* Extract the call id from session id */
+			ret = retrieve_call_id((char *)msg->gx_msg.cca.session_id.val, &call_id);
+			if (ret < 0) {
+			        clLog(clSystemLog, eCLSeverityCritical, "%s:No Call Id "
+						"found from session id:%s\n", __func__,
+				        msg->gx_msg.cca.session_id.val);
+				return;
+			}
+			/* Retrieve PDN context based on call id */
+			pdn = get_pdn_conn_entry(call_id);
+			if (pdn == NULL) {
+				clLog(clSystemLog, eCLSeverityCritical, "%s:No valid pdn "
+					"cntxt found for CALL_ID:%u\n", __func__, call_id);
+				return;
+			}
+
+			if (msg->gx_msg.cca.cc_request_type == INITIAL_REQUEST) {
+				if(pdn != NULL && pdn->context != NULL ) {
+					info_resp->ebi_index = pdn->default_bearer_id;
+					info_resp->teid = pdn->context->s11_sgw_gtpc_teid;
+				}
+			}
+			break;
+		}
+#endif /*GX_BUILD*/
 	}
 }
 
@@ -1536,7 +2224,7 @@ process_del_pdn_conn_set_req(void *data, void *unused_param)
 	ret = process_del_pdn_conn_set_req_t(&msg->gtpc_msg.del_pdn_req,
 			gtpv2c_tx);
 	if (ret) {
-			clLog(s11logger, eCLSeverityCritical, FORMAT"Error: %d \n",
+			clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %d \n",
 					ERR_MSG, ret);
 			return -1;
 	}
@@ -1548,7 +2236,7 @@ process_del_pdn_conn_set_req(void *data, void *unused_param)
 		/* Send the delete PDN set request to MME */
 		gtpv2c_send(s11_fd, tx_buf, payload_length,
 				(struct sockaddr *) &s11_mme_sockaddr,
-				s11_mme_sockaddr_len);
+				s11_mme_sockaddr_len, SENT);
 
 		memset(gtpv2c_tx, 0, sizeof(gtpv2c_header_t));
 	}
@@ -1558,17 +2246,18 @@ process_del_pdn_conn_set_req(void *data, void *unused_param)
 		if (pfcp_config.cp_type == SGWC ) {
 			gtpv2c_send(s5s8_fd, tx_buf, payload_length,
 					(struct sockaddr *) &s5s8_recv_sockaddr,
-					s5s8_sockaddr_len);
+					s5s8_sockaddr_len, SENT);
 
 		}
 		memset(gtpv2c_tx, 0, sizeof(gtpv2c_header_t));
 	}
+
 	/* Send Response back to peer node */
 	ret = fill_gtpc_del_set_pdn_conn_rsp(gtpv2c_tx,
 			msg->gtpc_msg.del_pdn_req.header.teid.has_teid.seq,
 			GTPV2C_CAUSE_REQUEST_ACCEPTED);
 	if (ret) {
-			clLog(s11logger, eCLSeverityCritical, FORMAT"Error: %d \n",
+			clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %d \n",
 					ERR_MSG, ret);
 			return -1;
 	}
@@ -1576,19 +2265,22 @@ process_del_pdn_conn_set_req(void *data, void *unused_param)
 	payload_length = ntohs(gtpv2c_tx->gtpc.message_len)
 		+ sizeof(gtpv2c_tx->gtpc);
 
-	if (msg->gtpc_msg.del_pdn_req.pgw_fqcsid.number_of_csids) {
+	if ((msg->gtpc_msg.del_pdn_req.pgw_fqcsid.number_of_csids) ||
+			(msg->gtpc_msg.del_pdn_req.sgw_fqcsid.number_of_csids)) {
 		/* Send response to PGW */
 		gtpv2c_send(s5s8_fd, tx_buf, payload_length,
 				(struct sockaddr *) &s5s8_recv_sockaddr,
-				s5s8_sockaddr_len);
+				s5s8_sockaddr_len, ACC);
 	}
 
 	if (msg->gtpc_msg.del_pdn_req.mme_fqcsid.number_of_csids) {
 		/* Send the delete PDN set request to MME */
 		gtpv2c_send(s11_fd, tx_buf, payload_length,
 				(struct sockaddr *) &s11_mme_sockaddr,
-				s11_mme_sockaddr_len);
+				s11_mme_sockaddr_len, ACC);
 	}
+	clLog(clSystemLog, eCLSeverityDebug, FORMAT"Send GTPv2C Delete PDN Connection Set Response..!!!\n",
+			ERR_MSG);
 #else
 	RTE_SET_USED(data);
 #endif /* USE_CSID */
@@ -1598,69 +2290,15 @@ process_del_pdn_conn_set_req(void *data, void *unused_param)
 }
 
 /* Function */
-//int
-//process_s5s8_del_pdn_conn_set_req(void *data, void *unused_param)
-//{
-//#ifdef USE_CSID
-//	uint16_t payload_length = 0;
-//	msg_info *msg = (msg_info *)data;
-//
-//	bzero(&tx_buf, sizeof(tx_buf));
-//	gtpv2c_header_t *gtpv2c_tx = (gtpv2c_header_t *)tx_buf;
-//
-//	ret = process_del_pdn_conn_set_req_t(&msg->gtpc_msg.del_pdn_req,
-//			gtpv2c_tx);
-//	if (ret) {
-//			clLog(s11logger, eCLSeverityCritical, FORMAT"Error: %d \n",
-//					ERR_MSG, ret);
-//			return -1;
-//	}
-//
-//	payload_length = ntohs(gtpv2c_tx->gtpc.message_len)
-//		+ sizeof(gtpv2c_tx->gtpc);
-//
-//	/* Send the delete PDN set request to MME */
-//	if (pfcp_config.cp_type == SGWC ) {
-//		gtpv2c_send(s11_fd, tx_buf, payload_length,
-//				(struct sockaddr *) &s11_mme_sockaddr,
-//				s11_mme_sockaddr_len);
-//	}
-//
-//	/* Send Response back to peer node */
-//	ret = fill_gtpc_del_set_pdn_conn_rsp(gtpv2c_tx,
-//			msg->gtpc_msg.del_pdn_req.header.teid.has_teid.seq,
-//			GTPV2C_CAUSE_REQUEST_ACCEPTED);
-//	if (ret) {
-//			clLog(s11logger, eCLSeverityCritical, FORMAT"Error: %d \n",
-//					ERR_MSG, ret);
-//			return -1;
-//	}
-//
-//	payload_length = ntohs(gtpv2c_tx->gtpc.message_len)
-//		+ sizeof(gtpv2c_tx->gtpc);
-//
-//	/* Send response to PGW */
-//	gtpv2c_send(s5s8_fd, tx_buf, payload_length,
-//			(struct sockaddr *) &s5s8_recv_sockaddr,
-//			s5s8_sockaddr_len);
-//#else
-//	RTE_SET_USED(data);
-//#endif /* USE_CSID */
-//
-//	RTE_SET_USED(unused_param);
-//	return 0;
-//}
-/* Function */
 int
 process_del_pdn_conn_set_rsp(void *data, void *unused_param)
 {
 #ifdef USE_CSID
-	//uint16_t payload_length = 0;
 	msg_info *msg = (msg_info *)data;
 
 	ret = process_del_pdn_conn_set_rsp_t(&msg->gtpc_msg.del_pdn_rsp);
 	if (ret) {
-			clLog(s11logger, eCLSeverityCritical, FORMAT"Error: %d \n",
+			clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %d \n",
 					ERR_MSG, ret);
 			return -1;
 	}
@@ -1682,7 +2320,7 @@ process_upd_pdn_conn_set_req(void *data, void *unused_param)
 
 	ret = process_upd_pdn_conn_set_req_t(&msg->gtpc_msg.upd_pdn_req);
 	if (ret) {
-			clLog(s11logger, eCLSeverityCritical, FORMAT"Error: %d \n",
+			clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %d \n",
 					ERR_MSG, ret);
 			return -1;
 	}
@@ -1704,7 +2342,7 @@ process_upd_pdn_conn_set_rsp(void *data, void *unused_param)
 
 	ret = process_upd_pdn_conn_set_rsp_t(&msg->gtpc_msg.upd_pdn_rsp);
 	if (ret) {
-			clLog(s11logger, eCLSeverityCritical, FORMAT"Error: %d \n",
+			clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %d \n",
 					ERR_MSG, ret);
 			return -1;
 	}
@@ -1723,7 +2361,7 @@ process_pgw_rstrt_notif_ack(void *data, void *unused_param)
 #ifdef USE_CSID
 	msg_info *msg = (msg_info *)data;
 
-	if (msg->gtpc_msg.pgw_rstrt_notif_ack.cause.cause_value ==
+	if (msg->gtpc_msg.pgw_rstrt_notif_ack.cause.cause_value !=
 			GTPV2C_CAUSE_REQUEST_ACCEPTED) {
 		clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
 				strerror(errno));
@@ -1740,7 +2378,6 @@ process_pgw_rstrt_notif_ack(void *data, void *unused_param)
 int process_pfcp_sess_set_del_req(void *data, void *unused_param)
 {
 #ifdef USE_CSID
-	//uint16_t payload_length = 0;
 	msg_info *msg = (msg_info *)data;
 
 	bzero(&tx_buf, sizeof(tx_buf));
@@ -1749,10 +2386,11 @@ int process_pfcp_sess_set_del_req(void *data, void *unused_param)
 	ret = process_pfcp_sess_set_del_req_t(&msg->pfcp_msg.pfcp_sess_set_del_req,
 			gtpv2c_tx);
 	if (ret) {
-			clLog(sxlogger, eCLSeverityCritical, FORMAT"Error: %d \n",
+			clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %d \n",
 					ERR_MSG, ret);
 			return -1;
 	}
+
 #else
 	RTE_SET_USED(data);
 #endif /* USE_CSID */
@@ -1768,13 +2406,95 @@ int process_pfcp_sess_set_del_rsp(void *data, void *unused_param)
 
 	ret = process_pfcp_sess_set_del_rsp_t(&msg->pfcp_msg.pfcp_sess_set_del_rsp);
 	if (ret) {
-			clLog(sxlogger, eCLSeverityCritical, FORMAT"Error: %d \n",
+			clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %d \n",
 					ERR_MSG, ret);
 			return -1;
 	}
 #else
 	RTE_SET_USED(data);
 #endif /* USE_CSID */
+	RTE_SET_USED(unused_param);
+	return 0;
+}
+
+/*Partial Failure handler*/
+int
+process_mbr_req_partial_failure_handler(void *data, void *unused_param)
+{
+	clLog(clSystemLog, eCLSeverityDebug, FORMAT"MBRequest RCVD From SGWC \n",
+			ERR_MSG);
+	ue_context *context = NULL;
+	uint16_t payload_length = 0;
+
+	msg_info *msg = (msg_info *)data;
+
+	bzero(&tx_buf, sizeof(tx_buf));
+	gtpv2c_header_t *gtpv2c_tx = (gtpv2c_header_t *)tx_buf;
+
+	ret = proc_pfcp_sess_mbr_udp_csid_req(&msg->gtpc_msg.mbr, gtpv2c_tx);
+	if (ret != 0) {
+		if(ret != -1)
+			mbr_error_response(msg, ret,
+					spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%d Error: %d \n",
+				__func__, __LINE__, ret);
+		return ret;
+	}
+
+	payload_length = ntohs(gtpv2c_tx->gtpc.message_len)
+		+ sizeof(gtpv2c_tx->gtpc);
+
+	gtpv2c_send(s5s8_fd, tx_buf, payload_length,
+			(struct sockaddr *) &s5s8_recv_sockaddr,
+			s5s8_sockaddr_len, ACC);
+
+	//if (SGWC == pfcp_config.cp_type) {
+	//	add_gtpv2c_if_timer_entry(teid,
+	//		&s5s8_recv_sockaddr, s5s8_tx_buf, payload_length, ebi_index);
+	//}
+
+	ret = rte_hash_lookup_data(ue_context_by_fteid_hash,
+			(const void *) &msg->gtpc_msg.mbr.header.teid.has_teid.teid,
+			(void **) &context);
+	if (ret < 0 || !context) {
+		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+	}
+
+	process_cp_li_msg_using_context(
+		context, tx_buf, payload_length,
+		pfcp_config.s5s8_ip.s_addr, s5s8_recv_sockaddr.sin_addr.s_addr,
+		pfcp_config.s5s8_port, s5s8_recv_sockaddr.sin_port);
+
+	RTE_SET_USED(data);
+	RTE_SET_USED(unused_param);
+	return 0;
+}
+
+int
+process_mbr_resp_partial_failure_handler(void *data, void *unused_param)
+{
+	clLog(clSystemLog, eCLSeverityDebug, FORMAT"MBResponse RCVD From PGWC \n",
+			ERR_MSG);
+	RTE_SET_USED(data);
+	RTE_SET_USED(unused_param);
+	return 0;
+}
+
+int
+process_pfcp_sess_mod_partial_failure(void *data, void *unused_param)
+{
+	int ret = 0;
+	msg_info *msg = (msg_info *)data;
+
+	ret = process_pfcp_sess_upd_mod_resp(&msg->pfcp_msg.pfcp_sess_mod_resp);
+	if (ret != 0) {
+		if(ret != -1)
+			mbr_error_response(msg, ret,
+								spgw_cfg != PGWC ? S11_IFACE : S5S8_IFACE);
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%d Error: %d \n",
+				__func__, __LINE__, ret);
+		return -1;
+	}
 	RTE_SET_USED(unused_param);
 	return 0;
 }
@@ -1799,30 +2519,57 @@ process_error_occured_handler(void *data, void *unused_param)
 			&& (msg->pfcp_msg.pfcp_ass_resp.cause.cause_value != REQUESTACCEPTED)){
 		count = upf_ctx->csr_cnt;
 	}
+
 	for (uint8_t i = 0; i < count; i++) {
 	get_info_filled(msg, &info_resp, i);
 	uint8_t ebi_index = info_resp.ebi_index;
 	uint32_t teid = info_resp.teid;
 
+	if (msg->msg_type == PFCP_SESSION_DELETION_RESPONSE) {
+		uint64_t seid = msg->pfcp_msg.pfcp_sess_del_resp.header.seid_seqno.has_seid.seid;
+
+		if (msg->pfcp_msg.pfcp_sess_del_resp.usage_report_count != 0) {
+			for(int i=0 ; i< msg->pfcp_msg.pfcp_sess_del_resp.usage_report_count; i++)
+				fill_cdr_info_sess_del_resp(seid,
+						&msg->pfcp_msg.pfcp_sess_del_resp.usage_report[i]);
+		}
+	}
 
 		if (get_ue_context_while_error(teid, &context) == 0){
 			pdn = GET_PDN(context ,ebi_index);
+			if(pdn == NULL){
+				clLog(clSystemLog, eCLSeverityCritical,
+						"%s:%d Failed to get pdn \n", __func__, __LINE__);
+				return -1;
+			}
+
 			if ((upf_context_entry_lookup(pdn->upf_ipv4.s_addr,&upf_ctx)) ==  0) {
 				if(upf_ctx->state < PFCP_ASSOC_RESP_RCVD_STATE){
 					rte_hash_del_key(upf_context_by_ip_hash, (const void *) &pdn->upf_ipv4.s_addr);
 
 					for (i = 0; i < upf_ctx->csr_cnt; i++) {
-						rte_free(upf_ctx->pending_csr[i]);
-						rte_free(upf_ctx->pending_csr_teid[i]);
+						if(upf_ctx->pending_csr[i] != NULL){
+							rte_free(upf_ctx->pending_csr[i]);
+							upf_ctx->pending_csr[i] = NULL;
+						}
+						if(upf_ctx->pending_csr_teid[i] != NULL){
+							rte_free(upf_ctx->pending_csr_teid[i]);
+							upf_ctx->pending_csr_teid[i] = NULL;
+						}
 						upf_ctx->csr_cnt--;
 					}
-					rte_free(upf_ctx);
-					upf_ctx = NULL;
+					if(upf_ctx != NULL){
+						rte_free(upf_ctx);
+						upf_ctx = NULL;
+					}
 				}
 			}
 			if (get_sess_entry(pdn->seid, &resp) == 0) {
 				rte_hash_del_key(sm_hash, (const void *) &(pdn->seid));
-				rte_free(resp);
+				if(resp != NULL){
+					rte_free(resp);
+					resp = NULL;
+				}
 			}
 			for(int8_t idx = 0; idx < MAX_BEARERS; idx++) {
 				if(context->eps_bearers[idx] == NULL) {
@@ -1847,15 +2594,18 @@ process_error_occured_handler(void *data, void *unused_param)
 				}
 				if(pdn != NULL) {
 					rte_free(pdn);
+					pdn = NULL;
 					context->num_pdns --;
 				}
 			}
 			if (context->num_pdns == 0){
 				rte_hash_del_key(ue_context_by_imsi_hash,(const void *) &(*context).imsi);
 				rte_hash_del_key(ue_context_by_fteid_hash,(const void *) &teid);
-				if(context != NULL )
+
+				if(context != NULL ){
 					rte_free(context);
-				context = NULL;
+					context = NULL;
+				}
 			}
 
 
@@ -1876,9 +2626,9 @@ process_default_handler(void *data, void *unused_param)
 {
 	msg_info *msg = (msg_info *)data;
 
-	clLog(clSystemLog, eCLSeverityCritical, "%s:%d:SM_ERROR: No handler found for UE_Proc: %u UE_State: %u UE_event"
-			"%u and Message_Type:%s\n", __func__, __LINE__,
-			msg->proc, msg->state,msg->event,
+	clLog(clSystemLog, eCLSeverityCritical, "%s:%d:SM_ERROR: No handler found for UE_Proc: %s UE_State: %s UE_event: "
+			"%s and Message_Type: %s\n", __func__, __LINE__,
+			get_proc_string(msg->proc), get_state_string(msg->state),get_event_string(msg->event),
 			gtp_type_str(msg->msg_type));
 
 	RTE_SET_USED(unused_param);
@@ -1903,8 +2653,9 @@ int process_pfcp_sess_mod_resp_ubr_handler(void *data, void *unused_param)
 				__func__, __LINE__, msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid);
 		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 	}
-	if(resp->num_of_bearers)
-		ebi_index = resp->list_bearer_ids[0] - 5;
+	/* TODO : remove harcoded index value */
+	if(resp->bearer_count)
+		ebi_index = resp->eps_bearer_ids[0] - 5;
 
 	/* Retrieve the UE context */
 	ret = get_ue_context(teid, &context);
@@ -1922,5 +2673,47 @@ int process_pfcp_sess_mod_resp_ubr_handler(void *data, void *unused_param)
 
 	RTE_SET_USED(unused_param);
 	return 0;
+}
 
+int process_recov_asso_resp_handler(void *data, void *addr) {
+
+	int ret = 0;
+	struct sockaddr_in *peer_addr = (struct sockaddr_in *)addr;
+	msg_info *msg = (msg_info *)data;
+
+	ret = process_asso_resp(msg, peer_addr);
+	if(ret < 0) {
+		clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %d \n", ERR_MSG, ret);
+		return -1;
+	}
+	return 0;
+}
+
+int process_recov_est_resp_handler(void *data, void *unused_param) {
+
+	int ret = 0;
+	msg_info *msg = (msg_info *)data;
+
+	ret = process_sess_est_resp(&msg->pfcp_msg.pfcp_sess_est_resp);
+	if(ret < 0) {
+		clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %d \n", ERR_MSG, ret);
+		return -1;
+	}
+
+	RTE_SET_USED(unused_param);
+	return 0;
+}
+
+int
+process_sess_mod_resp_li_handler(void *data, void *unused_param)
+{
+	msg_info *msg = (msg_info *)data;
+
+	clLog(clSystemLog, eCLSeverityDebug, "%s:%d:Processes response for modification response for  %s UE_State: %s UE_event: "
+			"%s and Message_Type: %s\n", __func__, __LINE__,
+			get_proc_string(msg->proc), get_state_string(msg->state),get_event_string(msg->event),
+			gtp_type_str(msg->msg_type));
+
+	RTE_SET_USED(unused_param);
+	return 0;
 }

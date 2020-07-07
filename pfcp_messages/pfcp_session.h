@@ -99,7 +99,7 @@ fill_pfcp_session_modify_resp(pfcp_sess_mod_rsp_t *pfcp_sess_modify_resp,
  */
 void
 fill_pfcp_sess_est_req( pfcp_sess_estab_req_t *pfcp_sess_est_req,
-		pdn_connection *pdn, uint32_t seq);
+		pdn_connection *pdn, uint32_t seq, struct ue_context_t *context);
 
 /**
  * @brief  : Checks and returns interface type if it access or core
@@ -117,12 +117,13 @@ check_interface_type(uint8_t iface);
  * @param  : pdn , pdn information
  * @param  : update_far ,  array of update far rules
  * @param  : handover_flag ,  flag to check if it is handover scenario or not
+ * @param  : beaer_count , number of bearer to be modified.
  * @return : Returns nothing
  */
 void
 fill_pfcp_sess_mod_req( pfcp_sess_mod_req_t *pfcp_sess_mod_req,
-		gtpv2c_header_t *header, eps_bearer *bearer,
-		pdn_connection *pdn, pfcp_update_far_ie_t update_far[],  uint8_t handover_flag);
+		gtpv2c_header_t *header, eps_bearer **bearers,
+		pdn_connection *pdn, pfcp_update_far_ie_t update_far[],  uint8_t handover_flag, uint8_t bearer_count, ue_context *context);
 
 /**
  * @brief  : Fill pfcp session modification request for delete session request
@@ -136,14 +137,34 @@ void
 fill_pfcp_gx_sess_mod_req( pfcp_sess_mod_req_t *pfcp_sess_mod_req,
 		pdn_connection *pdn);
 
+/**
+ * @brief  : Create and Send pfcp session modification request for LI scenario
+ * @param  : li_config, li structure
+ * @return : Returns nothing
+ */
 void
-fill_pfcp_sess_mod_req_delete( pfcp_sess_mod_req_t *pfcp_sess_mod_req,
-		gtpv2c_header_t *header, ue_context *context, pdn_connection *pdn);
+send_pfcp_sess_mod_req_for_li(struct li_df_config_t *li_config);
 
+/**
+ * @brief  : Fill pfcp session modification request for handover scenario
+ * @param  : pfcp_sess_mod_req , structure to be filled
+ * @param  : header, holds info in gtpv2c header
+ * @param  : pdn , pdn information
+ * @return : Returns nothing
+ */
 void
-fill_pfcp_sess_mod_req_pgw_init_update_far(pfcp_sess_mod_req_t *pfcp_sess_mod_req,
+fill_pfcp_sess_mod_req_delete(pfcp_sess_mod_req_t *pfcp_sess_mod_req,
 		pdn_connection *pdn, eps_bearer *bearers[], uint8_t bearer_cntr);
 
+/**
+ * @brief  : Fill pfcp session modification request for delete bearer scenario
+ *           to fill remove_pdr ie
+ * @param  : pfcp_sess_mod_req , structure to be filled
+ * @param  : pdn , pdn information
+ * @param  : bearers, pointer to bearer structure
+ * @param  : bearer_cntr , number of bearer to be modified.
+ * @return : Returns nothing
+ */
 void
 fill_pfcp_sess_mod_req_pgw_init_remove_pdr(pfcp_sess_mod_req_t *pfcp_sess_mod_req,
 		pdn_connection *pdn, eps_bearer *bearers[], uint8_t bearer_cntr);
@@ -152,14 +173,11 @@ fill_pfcp_sess_mod_req_pgw_init_remove_pdr(pfcp_sess_mod_req_t *pfcp_sess_mod_re
  * @brief  : Process pfcp session establishment response
  * @param  : pfcp_sess_est_rsp, structure to be filled
  * @param  : gtpv2c_tx, holds info in gtpv2c header
+ * @param  : is_piggybacked flag to indicate whether message is to piggybacked.
  * @retrun : Returns 0 in case of success
  */
 int8_t
-process_pfcp_sess_est_resp(pfcp_sess_estab_rsp_t *pfcp_sess_est_rsp, gtpv2c_header_t *gtpv2c_tx);
-
-void
-fill_pfcp_sess_mod_req_pgw_del_cmd_update_far(pfcp_sess_mod_req_t *pfcp_sess_mod_req,
-		pdn_connection *pdn, eps_bearer *bearers[], uint8_t bearer_cntr);
+process_pfcp_sess_est_resp(pfcp_sess_estab_rsp_t *pfcp_sess_est_rsp, gtpv2c_header_t *gtpv2c_tx,  uint8_t is_piggybacked);
 
 /**
  * @brief  : Process pfcp session modification response for handover scenario
@@ -177,17 +195,64 @@ process_pfcp_sess_mod_resp_handover(uint64_t sess_id, gtpv2c_header_t *gtpv2c_tx
  * @retrun : Returns 0 in case of success
  */
 uint8_t
-process_pfcp_sess_mod_resp(uint64_t sess_id, gtpv2c_header_t *gtpv2c_tx);
+process_pfcp_sess_mod_resp(pfcp_sess_mod_rsp_t *pfcp_sess_mod_rsp, gtpv2c_header_t *gtpv2c_tx);
 
+/**
+ * @brief  : Process pfcp session modification response for modification procedure
+ * @param  : sess_id, session id
+ * @param  : gtpv2c_tx, holds info in gtpv2c header
+ * @param  : is_handover, indicates if it is handover scenario or not
+ * @retrun : Returns 0 in case of success
+ */
+uint8_t
+process_pfcp_sess_mod_resp_for_mod_proc(uint64_t sess_id, gtpv2c_header_t *gtpv2c_tx);
+
+/**
+ * @brief  : Process pfcp session modification response
+ * @param  : sess_id, session id
+ * @retrun : Returns 0 in case of success
+ */
+uint8_t
+process_pfcp_sess_upd_mod_resp(pfcp_sess_mod_rsp_t *pfcp_sess_mod_rsp);
+
+
+/**
+ * @brief  : Process pfcp session modification response for delete bearer scenario
+ * @param  : sess_id, session id
+ * @param  : gtpv2c_tx, buffer to hold incoming data
+ * @retrun : Returns 0 in case of success
+ */
 uint8_t
 process_delete_bearer_pfcp_sess_response(uint64_t sess_id, gtpv2c_header_t *gtpv2c_tx);
 
+/**
+ * @brief  : Process pfcp session modification response for delete bearer scenario
+ * @param  : sess_id, session id
+ * @param  : gtpv2c_tx, buffer to hold incoming data
+ * @param  : flag, flag to differntiate parent request
+ * @retrun : Returns 0 in case of success, -1 otherwise
+ */
 int
 process_pfcp_sess_mod_resp_del_cmd(uint64_t sess_id, gtpv2c_header_t *gtpv2c_tx, uint8_t *flag);
 
+/**
+ * @brief  : Process pfcp session modification request for delete bearer scenario
+ * @param  : pdn, details of pdn connection
+ * @retrun : Returns 0 in case of success, -1 otherwise
+ */
 int
 process_sess_mod_req_del_cmd(pdn_connection *pdn);
 
+/**
+* @brief  : Process pfcp session modification response
+*           in case of attach with dedicated flow
+* @param  : sess_id, session id
+* @param  : gtpv2c_tx, holds info in gtpv2c header
+* @retrun : Returns 0 in case of success
+*/
+
+int
+process_pfcp_sess_mod_resp_cs_cbr_request(uint64_t sess_id, gtpv2c_header_t *gtpv2c_tx);
 
 /**
  * @brief  : Fill pdr entry
@@ -198,12 +263,29 @@ process_sess_mod_req_del_cmd(pdn_connection *pdn);
  * @param  : itr, index in pdr array stored in bearer context
  * @retrun : Returns 0 in case of success , -1 otherwise
  */
-int
-process_delete_bearer_cmd_request(del_bearer_cmd_t *del_bearer_cmd, gtpv2c_header_t *gtpv2c_tx);
-
 pdr_t*
 fill_pdr_entry(ue_context *context, pdn_connection *pdn,
 		eps_bearer *bearer, uint8_t iface, uint8_t itr);
+
+/**
+ * @brief  : Process delete bearer command request
+ * @param  : del_bearer_cmd
+ * @param  : gtpv2c_tx
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+int
+process_delete_bearer_cmd_request(del_bearer_cmd_t *del_bearer_cmd, gtpv2c_header_t *gtpv2c_tx);
+
+/**
+ * @brief  : Fill pfcp  entry
+ * @param  : bearer, pointer to bearer structure
+ * @param  : dyn_rule, rule information
+ * @param  : rule_action
+ * @retrun : Returns 0 in case of success , -1 otherwise
+ */
+int
+fill_pfcp_entry(eps_bearer *bearer, dynamic_rule_t *dyn_rule,
+		enum rule_action_t rule_action);
 
 /**
  * @brief  : Fill qer entry
@@ -213,10 +295,6 @@ fill_pdr_entry(ue_context *context, pdn_connection *pdn,
  * @retrun : Returns 0 in case of success , -1 otherwise
  */
 int
-fill_pfcp_entry(eps_bearer *bearer, dynamic_rule_t *dyn_rule,
-		enum rule_action_t rule_action);
-
-int
 fill_qer_entry(pdn_connection *pdn, eps_bearer *bearer,uint8_t itr);
 
 /**
@@ -225,11 +303,13 @@ fill_qer_entry(pdn_connection *pdn, eps_bearer *bearer,uint8_t itr);
  * @param  : gtpv2c_tx, holds info in gtpv2c header
  * @param  : ccr_request, structure to be filled for ccr request
  * @param  : msglen, total length
+ * @param  : uiImsi, for lawful interception
+ * @param  : li_sock_fd for lawful interception
  * @retrun : Returns 0 in case of success
  */
 int8_t
 process_pfcp_sess_del_resp(uint64_t sess_id, gtpv2c_header_t *gtpv2c_tx,
-		gx_msg *ccr_request, uint16_t *msglen);
+		gx_msg *ccr_request, uint16_t *msglen, uint64_t *uiImsi, int *li_sock_fd);
 
 /**
  * @brief  : fill create session response on PGWC
@@ -237,11 +317,12 @@ process_pfcp_sess_del_resp(uint64_t sess_id, gtpv2c_header_t *gtpv2c_tx,
  * @param  : sequence, seq number of request
  * @param  : context , pointer to ue context structure
  * @param  : ebi_index, index of bearer in array
+ * @param  : is_piggybacked, piggybacked message
  * @return : Returns nothing
  */
 void
 fill_pgwc_create_session_response(create_sess_rsp_t *cs_resp,
-				uint32_t sequence, struct ue_context_t *context, uint8_t ebi_index);
+				uint32_t sequence, struct ue_context_t *context, uint8_t ebi_index, uint8_t piggybacked);
 /**
  * @brief  : function to proces create session response on SGWC received from PGWC
  * @param  : cs_rsp, holds information in create session response
@@ -282,10 +363,17 @@ process_pgwc_s5s8_delete_session_request(del_sess_req_t *ds_req);
  * @retrun : Returns 0 in case of success , -1 otherwise
  */
 int
-delete_dedicated_bearers(pdn_connection *pdn, uint8_t bearer_ids[], uint8_t bearer_cntr);
-
-int
 del_rule_entries(ue_context *context, uint8_t ebi_index);
+
+/**
+ * @brief  : Delete dedicated bearers entry
+ * @param  : pdn , pdn information
+ * @param  : bearer_ids, array of bearer ids
+ * @param  : bearer_cntr , number of bearer to be modified.
+ * @retrun : Returns 0 in case of success , -1 otherwise
+ */
+int
+delete_dedicated_bearers(pdn_connection *pdn, uint8_t bearer_ids[], uint8_t bearer_cntr);
 
 /**
  * @brief  : Generate string using sdf packet filters
@@ -308,28 +396,8 @@ sdf_pkt_filter_to_string(sdf_pkt_fltr *sdf_flow, char *sdf_str,uint8_t direction
  * @param  : direction, data flow direction
  * @return : Returns nothing
  */
-void sdf_pkt_filter_add(pfcp_sess_estab_req_t* pfcp_sess_est_req, dynamic_rule_t *dynamic_rules,
-		int pdr_counter, int sdf_filter_count, int flow_cnt, uint8_t direction);
-
-
-/**
- * @brief  : Fill sdf packet filters in pfcp session modification request
- * @param  : pfcp_sess_mod_req, structure to be filled
- * @param  : bearer, pointer to bearer structure
- * @param  : pdr_counter , index to pdr
- * @param  : sdf_filter_count
- * @param  : dynamic_filter_cnt
- * @param  : flow_cnt
- * @param  : direction, data flow direction
- * @return : Returns nothing
- */
-void
-sdf_pkt_filter_mod(pfcp_sess_mod_req_t* pfcp_sess_mod_req,
-		eps_bearer* bearer,int pdr_counter,
-		int sdf_filter_count, int dynamic_filter_cnt, int flow_cnt,
-		uint8_t direction);
-
-void sdf_pkt_filter_gx_mod(pfcp_create_pdr_ie_t *pdr, dynamic_rule_t *dyn_rule, int sdf_filter_count, int flow_cnt, uint8_t direction);
+int sdf_pkt_filter_add(pfcp_pdi_ie_t* pdi, dynamic_rule_t *dynamic_rules,
+		int sdf_filter_count, int flow_cnt, uint8_t direction);
 
 /**
  * @brief  : Fill sdf rules in pfcp session establishment  request
@@ -339,19 +407,9 @@ void sdf_pkt_filter_gx_mod(pfcp_create_pdr_ie_t *pdr, dynamic_rule_t *dyn_rule, 
  * @retrun : Returns 0 in case of success , -1 otherwise
  */
 int
-fill_sdf_rules(pfcp_sess_estab_req_t *pfcp_sess_est_req,
+fill_create_pdr_sdf_rules(pfcp_create_pdr_ie_t *create_pdr,
 		dynamic_rule_t *dynamic_rules, int pdr_counter);
 
-/**
- * @brief  : Fill sdf rules in pfcp session mod request
- * @param  : pfcp_sess_mod_req, structure to be filled
- * @param  : bearer, pointer to bearer structure
- * @param  : pdr_counter , index to pdr
- * @retrun : Returns 0 in case of success , -1 otherwise
- */
-int
-fill_sdf_rules_modification(pfcp_sess_mod_req_t *pfcp_sess_mod_req,
-		eps_bearer *bearer, int pdr_counter);
 
 /**
  * @brief  : Fill pdr , far and qer in pfcp session mod request from bearer
@@ -361,7 +419,7 @@ fill_sdf_rules_modification(pfcp_sess_mod_req_t *pfcp_sess_mod_req,
  */
 void
 fill_pdr_far_qer_using_bearer(pfcp_sess_mod_req_t *pfcp_sess_mod_req,
-		eps_bearer *bearer);
+		eps_bearer *bearer, ue_context *context);
 
 /**
  * @brief  : Fill dedicated bearer information
@@ -382,45 +440,95 @@ fill_dedicated_bearer_info(eps_bearer *bearer, ue_context *context, pdn_connecti
  */
 void fill_gate_status(pfcp_sess_estab_req_t *pfcp_sess_est_req,int qer_counter,enum flow_status f_status);
 
+/**
+ * @brief  : Get bearer information
+ * @param  : pdn , pointer to pdn connection structure
+ * @param  : qos, qos information
+ * @retrun : Returns bearer structure pointer in case of success , NULL otherwise
+ */
 eps_bearer *
 get_bearer(pdn_connection *pdn, bearer_qos_ie *qos);
 
+/**
+ * @brief  : Get dedicated bearer information
+ * @param  : pdn , pointer to pdn connection structure
+ * @retrun : Returns bearer structure pointer in case of success , NULL  otherwise
+ */
 eps_bearer *
 get_default_bearer(pdn_connection *pdn);
 
+/**
+ * @brief  : Fill create pfcp information
+ * @param  : pfcp_sess_mod_req, structure to be filled
+ * @param  : dyn_rule, rule information
+ * @param  : context , pointer to ue context structure
+ * @retrun : Returns 0 in case of success , -1 otherwise
+ */
 int
-fill_create_pfcp_info(pfcp_sess_mod_req_t *pfcp_sess_mod_req, dynamic_rule_t *dyn_rule);
+fill_create_pfcp_info(pfcp_sess_mod_req_t *pfcp_sess_mod_req, dynamic_rule_t *dyn_rule,
+																	ue_context *context);
 
+/**
+ * @brief  : Fill update pfcp information
+ * @param  : pfcp_sess_mod_req, structure to be filled
+ * @param  : dyn_rule, rule information
+ * @param  : context, ue_context
+ * @retrun : Returns 0 in case of success , -1 otherwise
+ */
 int
-fill_update_pfcp_info(pfcp_sess_mod_req_t *pfcp_sess_mod_req, dynamic_rule_t *dyn_rule);
+fill_update_pfcp_info(pfcp_sess_mod_req_t *pfcp_sess_mod_req, dynamic_rule_t *dyn_rule,
+		ue_context *context);
+
 #ifdef GX_BUILD
+/**
+ * @brief  : Generate reauth response
+ * @param  : context , pointer to ue context structure
+ * @param  : ebi_index, index in array where eps bearer is stored
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 int
 gen_reauth_response(ue_context *context, uint8_t ebi_index);
 #endif /* GX_BUILD */
 
+/**
+ * @brief  : Fill remove pfcp information
+ * @param  : pfcp_sess_mod_req, structure to be filled
+ * @param  : bearer, bearer information
+ * @retrun : Returns 0 in case of success , -1 otherwise
+ */
 int
 fill_remove_pfcp_info(pfcp_sess_mod_req_t *pfcp_sess_mod_req, eps_bearer *bearer);
 
+/**
+ * @brief  : Create new bearer id
+ * @param  : pdn_cntxt, pdn connection information
+ * @retrun : Returns 0 in case of success , -1 otherwise
+ */
 int8_t
 get_new_bearer_id(pdn_connection *pdn_cntxt);
 
 #else
-/**
- * @brief  : Fill pfcp session establishment request
- * @param  : pfcp_sess_est_req , structure to be filled
- * @return : Returns nothing
- */
-void
-fill_pfcp_sess_est_req( pfcp_sess_estab_req_t *pfcp_sess_est_req);
+#endif /* CP_BUILD */
 
 /**
- * @brief  : Fill pfcp session modification request
- * @param  : pfcp_sess_mod_req , structure to be filled
- * @return : Returns nothing
+ * @brief  : Fill pfcp duplicating paramers IE of create FAR
+ * @param  : dup_params , structure to be filled
+ * @param  : ipv4_address, ip address of source for dupilicating
+ * @param  : port_number, port number of source for dupilicating
+ * @return : Returns 0 for success and -1 for failure
  */
-void
-fill_pfcp_sess_mod_req( pfcp_sess_mod_req_t *pfcp_sess_mod_req);
-#endif /* CP_BUILD */
+uint16_t fill_dup_param(pfcp_dupng_parms_ie_t *dup_params, uint32_t ipv4_address,
+										uint16_t port_number, uint16_t li_policy);
+
+/**
+ * @brief  : Fill pfcp duplicating paramers IE of update FAR
+ * @param  : dup_params , structure to be filled
+ * @param  : ipv4_address, ip address of source for dupilicating
+ * @param  : port_number, port number of source for dupilicating
+ * @return : Returns 0 for success and -1 for failure
+ */
+uint16_t fill_upd_dup_param(pfcp_upd_dupng_parms_ie_t *dup_params, uint32_t ipv4_address,
+										uint16_t port_number, uint16_t li_policy);
 
 /**
  * @brief  : Fill pfcp session delete request
@@ -438,19 +546,33 @@ void
 fill_pfcp_sess_set_del_req( pfcp_sess_set_del_req_t *pfcp_sess_set_del_req);
 
 #ifdef CP_BUILD
+/**
+ * @brief  : Update ue context information
+ * @param  : mb_req, buffer which contains incoming request data
+ * @retrun : Returns 0 in case of success , -1 otherwise
+ */
+int8_t
+update_ue_context(mod_bearer_req_t *mb_req);
+
+/**
+ * @brief  : Fill update pdr information
+ * @param  : pfcp_sess_mod_req, structure to be filled
+ * @param  : bearer, bearer information
+ * @retrun : Returns nothing
+ */
 void
 fill_update_pdr(pfcp_sess_mod_req_t *pfcp_sess_mod_req, eps_bearer *bearer);
 
-int fill_upd_bearer_sdf_rule(pfcp_sess_mod_req_t* pfcp_sess_mod_req,
-								eps_bearer* bearer, int pdr_counter);
 
-void sdf_pkt_filter_upd_bearer(pfcp_sess_mod_req_t* pfcp_sess_mod_req,
-    eps_bearer* bearer,
-    int pdr_counter,
-    int sdf_filter_count,
-    int dynamic_filter_cnt,
-    int flow_cnt,
-    uint8_t direction);
+/**
+ * @brief  : Fill update pdr information
+ * @param  : update_pdr, structure to be filled
+ * @param  : bearer, bearer information
+ * @param  : pdr_counter, No of PDR
+ * @retrun : Returns 0 in case of success , -1 otherwise
+ */
+int fill_update_pdr_sdf_rule(pfcp_update_pdr_ie_t* update_pdr,
+								eps_bearer* bearer, int pdr_counter);
 
 #endif /* CP_BUILD */
 #endif /* PFCP_SESSION_H */

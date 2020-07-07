@@ -96,11 +96,8 @@ process_heartbeat_request(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 #endif /* USE_REST */
 
 #ifdef CP_BUILD
-	if ( pfcp_send(my_sock.sock_fd, pfcp_msg, encoded, peer_addr) < 0 ) {
+	if ( pfcp_send(my_sock.sock_fd, pfcp_msg, encoded, peer_addr,SENT) < 0 ) {
 		clLog(clSystemLog, eCLSeverityDebug, "Error sending in heartbeat request: %i\n",errno);
-	} else {
-		update_cli_stats(peer_addr->sin_addr.s_addr,
-						PFCP_HEARTBEAT_RESPONSE,SENT,SX);
 	}
 #endif /* CP_BUILD */
 	free(pfcp_heartbeat_req);
@@ -139,11 +136,17 @@ process_heartbeat_response(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 	process_response((uint32_t)peer_addr->sin_addr.s_addr);
 #endif /*USE_REST*/
 
+	int ret = 0;
+	uint32_t *recov_time;
+	uint32_t update_recov_time = 0;
 	pfcp_hrtbeat_rsp_t pfcp_hearbeat_resp = {0};
-	decode_pfcp_hrtbeat_rsp_t(buf_rx, &pfcp_hearbeat_resp);
-	uint32_t *recov_time ;
 
-	int ret = rte_hash_lookup_data(heartbeat_recovery_hash , &peer_addr->sin_addr.s_addr ,
+	ret = decode_pfcp_hrtbeat_rsp_t(buf_rx, &pfcp_hearbeat_resp);
+	if (ret <= 0) {
+		/* TODO: Handle the appropriate error handling here */
+	}
+
+	ret = rte_hash_lookup_data(heartbeat_recovery_hash , &peer_addr->sin_addr.s_addr ,
 			(void **) &(recov_time));
 
 	if (ret == -ENOENT) {
@@ -151,16 +154,31 @@ process_heartbeat_response(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 
 	} else {
 		/*TODO: Restoration part to be added if recovery time is found greater*/
-		uint32_t update_recov_time = 0;
-		update_recov_time =  (pfcp_hearbeat_resp.rcvry_time_stmp.rcvry_time_stmp_val);
+		update_recov_time = (pfcp_hearbeat_resp.rcvry_time_stmp.rcvry_time_stmp_val);
 
 		if(update_recov_time > *recov_time) {
+			/* CODE_REVIEW: Check the following value updated or not */
+			/* Updated time stamp of user-plane */
+			*recov_time = update_recov_time;
 
-			ret = rte_hash_add_key_data (heartbeat_recovery_hash,
-					&peer_addr->sin_addr.s_addr, &update_recov_time);
+			//ret = rte_hash_add_key_data (heartbeat_recovery_hash,
+			//		&peer_addr->sin_addr.s_addr, &update_recov_time);
 
-			ret = rte_hash_lookup_data(heartbeat_recovery_hash , &peer_addr->sin_addr.s_addr,
-					(void **) &(recov_time));
+			//ret = rte_hash_lookup_data(heartbeat_recovery_hash , &peer_addr->sin_addr.s_addr,
+			//		(void **) &(recov_time));
+#ifdef CP_BUILD
+			clLog(clSystemLog, eCLSeverityDebug, FORMAT"WARNING : DP Restart Detected and INITIATED RECOVERY MODE\n",
+								ERR_MSG);
+			/* SET recovery initiated flag */
+			recovery_flag = 1;
+
+			/* Send association request to peer node */
+			if(process_aasociation_setup_req(peer_addr->sin_addr.s_addr) < 0) {
+				clLog(clSystemLog, eCLSeverityDebug, FORMAT"Error sending\n\n", ERR_MSG);
+				return -1;
+			}
+
+#endif /* CP_BUILD */
 		}
 	}
 
@@ -212,15 +230,23 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 		/*Reset periodic timers*/
 		process_response(peer_addr->sin_addr.s_addr);
 
-		if ((ret = pfcp_pcnd_check(buf_rx, &msg, bytes_rx)) != 0) {
+		if ((ret = pfcp_pcnd_check(buf_rx, &msg, bytes_rx, peer_addr)) != 0) {
 			clLog(clSystemLog, eCLSeverityCritical, "%s: Failed to process pfcp precondition check\n", __func__);
 
-			update_cli_stats(peer_addr->sin_addr.s_addr,
-							pfcp_header->message_type, REJ,SX);
+			if(msg.pfcp_msg.pfcp_sess_del_resp.cause.cause_value != REQUESTACCEPTED){
+				update_cli_stats(peer_addr->sin_addr.s_addr,
+						pfcp_header->message_type, REJ,SX);
+			}
+			else {
+				update_cli_stats(peer_addr->sin_addr.s_addr,
+						pfcp_header->message_type, ACC,SX);
+			}
 			return -1;
 		}
 
-		if(pfcp_header->message_type == PFCP_SESSION_REPORT_REQUEST)
+		if(pfcp_header->message_type == PFCP_SESSION_REPORT_REQUEST ||
+		   pfcp_header->message_type == PFCP_SESSION_SET_DELETION_REQUEST ||
+		   pfcp_header->message_type == PFCP_SESSION_SET_DELETION_RESPONSE)
 			update_cli_stats(peer_addr->sin_addr.s_addr,
 							pfcp_header->message_type, RCVD,SX);
 		else
@@ -236,20 +262,20 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 			} else if (SAEGWC == pfcp_config.cp_type) {
 			    ret = (*state_machine_saegwc[msg.proc][msg.state][msg.event])(&msg, peer_addr);
 			} else {
-				clLog(sxlogger, eCLSeverityCritical, "%s : "
+				clLog(clSystemLog, eCLSeverityCritical, "%s : "
 						"Invalid Control Plane Type: %d \n",
 						__func__, pfcp_config.cp_type);
 				return -1;
 			}
 
 			if (ret) {
-				clLog(sxlogger, eCLSeverityCritical, "%s : "
+				clLog(clSystemLog, eCLSeverityCritical, "%s : "
 						"State_Machine Callback failed with Error: %d \n",
 						__func__, ret);
 				return -1;
 			}
 		} else {
-			clLog(s11logger, eCLSeverityCritical, "%s : "
+			clLog(clSystemLog, eCLSeverityCritical, "%s : "
 						"Invalid Procedure or State or Event \n",
 						__func__);
 			return -1;
@@ -257,8 +283,13 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 	}
 #else /* End CP_BUILD , Start DP_BUILD */
 
+	pfcp_session_t *sess = NULL;
+	pfcp_session_t *tmp_sess = NULL;
+	tmp_sess = malloc(sizeof(pfcp_session_t));
+
+	memset(tmp_sess, 0, sizeof(pfcp_session_t));
 	/* TODO: Move this rx */
-	if ((bytes_rx = udp_recv(pfcp_rx, 1024,
+	if ((bytes_rx = udp_recv(pfcp_rx, 2048,
 					peer_addr)) < 0) {
 		perror("msgrecv");
 		return -1;
@@ -266,7 +297,7 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 
 	int encoded = 0;
 	int decoded = 0;
-	uint8_t pfcp_msg[1024]= {0};
+	uint8_t pfcp_msg[2048]= {0};
 	struct msgbuf rule_msg = {0} ;
 
 	uint8_t cli_cause = 0;
@@ -305,7 +336,7 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 			break;
 		case PFCP_ASSOCIATION_SETUP_REQUEST:
 			{
-				memset(pfcp_msg, 0, 1024);
+				memset(pfcp_msg, 0, 2048);
 				pfcp_assn_setup_req_t pfcp_ass_setup_req = {0};
 				pfcp_assn_setup_rsp_t pfcp_ass_setup_resp = {0} ;
 
@@ -322,6 +353,7 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 				//}
 
 				uint8_t cause_id = 0;
+				uint32_t value = 0;
 				int offend_id = 0;
 				cause_check_association(&pfcp_ass_setup_req, &cause_id, &offend_id);
 				// TODO: /handle hash error handling
@@ -333,7 +365,6 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 				{
 					//Adding NODE ID into nodeid hash in DP
 					int ret ;
-					uint32_t value;
 					uint64_t *data = rte_zmalloc_socket(NULL, sizeof(uint8_t),
 							RTE_CACHE_LINE_SIZE, rte_socket_id());
 					if (data == NULL)
@@ -360,12 +391,14 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 						pfcp_ass_setup_req.rcvry_time_stmp.rcvry_time_stmp_val);
 
 #ifdef USE_REST
-				if ((add_node_conn_entry((uint32_t)peer_addr->sin_addr.s_addr, 0, SX_PORT_ID)) != 0) {
-					clLog(clSystemLog, eCLSeverityCritical, "Failed to add connection entry for SGWU/SAEGWU");
+				if (peer_addr->sin_addr.s_addr != 0) {
+					if ((add_node_conn_entry((uint32_t)peer_addr->sin_addr.s_addr, 0, SX_PORT_ID)) != 0) {
+						clLog(clSystemLog, eCLSeverityCritical, "Failed to add connection entry for SGWU/SAEGWU");
+					}
 				}
 #endif
 
-				fill_pfcp_association_setup_resp(&pfcp_ass_setup_resp, cause_id);
+				fill_pfcp_association_setup_resp(&pfcp_ass_setup_resp, cause_id, value);
 
 				pfcp_ass_setup_resp.header.seid_seqno.no_seid.seq_no =
 					pfcp_ass_setup_req.header.seid_seqno.no_seid.seq_no;
@@ -383,7 +416,7 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 			}
 		case PFCP_PFD_MGMT_REQUEST:
 			{
-				memset(pfcp_msg, 0, 1024);
+				memset(pfcp_msg, 0, 2048);
 				memset(&rule_msg, 0, sizeof(struct msgbuf));
 				int offend_id = 0;
 				uint8_t cause_id = 0;
@@ -483,24 +516,16 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 
 
 			}
-
 		case PFCP_SESSION_ESTABLISHMENT_REQUEST:
 			{
-				memset(pfcp_msg, 0, 1024);
+				memset(pfcp_msg, 0, 2048);
 				pfcp_sess_estab_req_t *pfcp_session_request = malloc(sizeof(pfcp_sess_estab_req_t));
 				memset(pfcp_session_request, 0, sizeof(pfcp_sess_estab_req_t));
 				pfcp_sess_estab_rsp_t pfcp_session_response = {0};
 
-				decoded = decode_pfcp_sess_estab_req_t(buf_rx, pfcp_session_request);
+				decoded = decode_pfcp_sess_estab_req_t(buf_rx, pfcp_session_request, INTERFACE);
 				clLog(clSystemLog, eCLSeverityDebug, "DECOED bytes in sesson is %d\n\n", decoded);
 
-#ifdef USE_CSID
-				if (app.spgw_cfg == PGWU) {
-					memcpy(&pfcp_session_request->pgw_c_fqcsid,
-						&pfcp_session_request->sgw_c_fqcsid, sizeof(pfcp_fqcsid_ie_t));
-					memset(&pfcp_session_request->sgw_c_fqcsid, 0, sizeof(pfcp_fqcsid_ie_t));
-				}
-#endif /* USE_CSID */
 				if (process_up_session_estab_req(pfcp_session_request, &pfcp_session_response)) {
 					/* TODO: ERROR HANDLING */
 					return -1;
@@ -528,7 +553,7 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 					update_sys_stat(number_of_active_session,INCREMENT);
 
 				encoded = encode_pfcp_sess_estab_rsp_t(&pfcp_session_response,
-						pfcp_msg);
+						pfcp_msg, INTERFACE);
 
 				pfcp_header_t *pfcp_hdr = (pfcp_header_t *) pfcp_msg;
 				pfcp_hdr->message_len = htons(encoded - 4);
@@ -537,7 +562,13 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 				pfcp_hdr->seid_seqno.has_seid.seid =
 						bswap_64(pfcp_session_request->cp_fseid.seid);
 
-				free(pfcp_session_request);
+				sess = get_sess_info_entry(pfcp_session_response.up_fseid.seid, SESS_MODIFY);
+				if (sess != NULL ) {
+					memcpy(tmp_sess, sess, sizeof(pfcp_session_t));
+				}
+				if (pfcp_session_request != NULL) {
+					free(pfcp_session_request);
+				}
 				break;
 			}
 		case PFCP_SESSION_MODIFICATION_REQUEST:
@@ -545,32 +576,14 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 
 				int offend_id = 0;
 				uint8_t cause_id = REQUESTACCEPTED;
-				memset(pfcp_msg, 0, 1024);
+				memset(pfcp_msg, 0, 2048);
 
 				pfcp_sess_mod_req_t pfcp_session_mod_req = {0};
 
 				pfcp_sess_mod_rsp_t pfcp_sess_mod_res = {0};
 
-				decoded = decode_pfcp_sess_mod_req_t(buf_rx, &pfcp_session_mod_req);
+				decoded = decode_pfcp_sess_mod_req_t(buf_rx, &pfcp_session_mod_req, INTERFACE);
 				clLog(clSystemLog, eCLSeverityDebug, "DECOED bytes in sesson modification is %d\n\n", decoded);
-#ifdef USE_CSID
-				if (app.spgw_cfg == SGWU) {
-					memcpy(&pfcp_session_mod_req.pgw_c_fqcsid,
-						&pfcp_session_mod_req.sgw_c_fqcsid, sizeof(pfcp_fqcsid_ie_t));
-					memset(&pfcp_session_mod_req.sgw_c_fqcsid, 0, sizeof(pfcp_fqcsid_ie_t));
-				}
-#endif /* USE_CSID */
-
-				if (process_up_session_modification_req(&pfcp_session_mod_req,
-						&pfcp_sess_mod_res)) {
-					/* TODO: ERROR HANDLING */
-					return -1;
-				}
-
-				/*cause_check_sess_modification(&pfcp_session_mod_req, &cause_id, &offend_id);
-	      			if (ret == SESSIONCONTEXTNOTFOUND ){
-					cause_id = SESSIONCONTEXTNOTFOUND;
-				} */
 
 				cli_cause = cause_id;
 
@@ -581,8 +594,25 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 				pfcp_sess_mod_res.header.seid_seqno.has_seid.seid =
 						pfcp_session_mod_req.cp_fseid.seid;
 
+				sess = get_sess_info_entry(pfcp_session_mod_req.header.seid_seqno.has_seid.seid, SESS_MODIFY);
+				if (sess != NULL ) {
+					memcpy(tmp_sess, sess, sizeof(pfcp_session_t));
+				}
 				pfcp_sess_mod_res.header.seid_seqno.has_seid.seq_no =
 					pfcp_session_mod_req.header.seid_seqno.has_seid.seq_no;
+
+				if (process_up_session_modification_req(&pfcp_session_mod_req,
+						&pfcp_sess_mod_res)) {
+					/* TODO: ERROR HANDLING */
+					clLog(clSystemLog, eCLSeverityDebug, "Failure in process_up_session_modification_req function\n");
+					return -1;
+				}
+
+				/*cause_check_sess_modification(&pfcp_session_mod_req, &cause_id, &offend_id);
+				 * if (ret == SESSIONCONTEXTNOTFOUND ){
+					cause_id = SESSIONCONTEXTNOTFOUND;
+				} */
+
 
 				encoded = encode_pfcp_sess_mod_rsp_t(&pfcp_sess_mod_res, pfcp_msg);
 
@@ -601,7 +631,7 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 				int offend_id = 0;
 				uint8_t cause_id = 0;
 				uint64_t cp_seid = 0;
-				memset(pfcp_msg, 0, 1024);
+				memset(pfcp_msg, 0, 2048);
 
 				pfcp_sess_del_req_t *pfcp_session_del_req =
 						malloc(sizeof(pfcp_sess_del_req_t));
@@ -611,9 +641,14 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 				decoded = decode_pfcp_sess_del_req_t(buf_rx, pfcp_session_del_req);
 				clLog(clSystemLog, eCLSeverityDebug, "DECOED bytes in sesson deletion is %d\n\n", decoded);
 
+				sess = get_sess_info_entry(pfcp_session_del_req->header.seid_seqno.has_seid.seid, SESS_MODIFY);
+				if (sess != NULL) {
+					memcpy(tmp_sess, sess, sizeof(pfcp_session_t));
+				}
 				if (process_up_session_deletion_req(pfcp_session_del_req,
 						&pfcp_sess_del_res)) {
 					/* TODO: ERROR HANDLING */
+					clLog(clSystemLog, eCLSeverityDebug, "Failure in process_up_session_deletion_req function\n");
 					return -1;
 				}
 
@@ -642,7 +677,9 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 				pfcp_hdr->message_len = htons(encoded - 4);
 				clLog(clSystemLog, eCLSeverityDebug, "sending response of sess [%d] from dp\n",pfcp_hdr->message_type);
 
-				free(pfcp_session_del_req);
+				if (pfcp_session_del_req != NULL) {
+					free(pfcp_session_del_req);
+				}
 				break;
 
 			}
@@ -669,7 +706,10 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 					return -1;
 				}
 
-
+				sess = get_sess_info_entry(pfcp_sess_rep_resp.header.seid_seqno.has_seid.seid, SESS_MODIFY);
+				if (sess != NULL) {
+					memcpy(tmp_sess, sess, sizeof(pfcp_session_t));
+				}
 				clLog(clSystemLog, eCLSeverityDebug, "Received Report Response for sess_id:%lu\n\n",
 						pfcp_sess_rep_resp.header.seid_seqno.has_seid.seid);
 
@@ -680,7 +720,7 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 #ifdef USE_CSID
 				int offend_id = 0;
 				uint8_t cause_id = 0;
-				memset(pfcp_msg, 0, 1024);
+				memset(pfcp_msg, 0, 2048);
 
 				/* Handle PFCP Session SET Deletion Response */
 				pfcp_sess_set_del_req_t pfcp_sess_set_del_req = {0};
@@ -689,26 +729,21 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 
 				/*Decode the received msg and stored into the struct. */
 				decoded = decode_pfcp_sess_set_del_req_t(buf_rx,
-						&pfcp_sess_set_del_req);
+						&pfcp_sess_set_del_req, INTERFACE);
 
 				clLog(clSystemLog, eCLSeverityDebug, "DECOED bytes in sesson set deletion req is %d\n\n",
-						 decoded);
-
-				if (app.spgw_cfg == PGWU) {
-					memcpy(&pfcp_sess_set_del_req.pgw_c_fqcsid,
-						&pfcp_sess_set_del_req.sgw_c_fqcsid, sizeof(pfcp_fqcsid_ie_t));
-					memset(&pfcp_sess_set_del_req.sgw_c_fqcsid, 0, sizeof(pfcp_fqcsid_ie_t));
-				}
+						decoded);
 
 				if (process_up_sess_set_del_req(&pfcp_sess_set_del_req)) {
 					/* TODO: Handling ERROR */
+					clLog(clSystemLog, eCLSeverityDebug, "Failure in process_up_sess_set_del_req function\n");
 					return -1;
 				}
 
 				/* Fill PFCP SESS SET DEL RESP */
 				cause_id = REQUESTACCEPTED;
 				fill_pfcp_sess_set_del_resp(&pfcp_sess_set_del_rsp,
-								cause_id, offend_id);
+						cause_id, offend_id);
 
 				if (pfcp_sess_set_del_req.header.s) {
 					pfcp_sess_set_del_rsp.header.seid_seqno.no_seid.seq_no =
@@ -744,9 +779,8 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 
 					/* TODO: Add handling to send association to next upf
 					 * for each buffered CSR */
-					return -1;
+							return -1;
 				}
-
 				clLog(clSystemLog, eCLSeverityDebug, FORMAT"Received PFCP Session Set Deletion Response\n", ERR_MSG);
 				break;
 			}
@@ -764,10 +798,21 @@ process_pfcp_msg(uint8_t *buf_rx, struct sockaddr_in *peer_addr)
 				clLog(clSystemLog, eCLSeverityDebug, "Error sending: %i\n",errno);
 			} else {
 				pfcp_header_t *pfcp_hdr = (pfcp_header_t *) pfcp_msg;
+				if(pfcp_header->message_type != PFCP_SESSION_SET_DELETION_REQUEST &&
+						pfcp_header->message_type != PFCP_SESSION_SET_DELETION_RESPONSE)
 				update_cli_stats(peer_addr->sin_addr.s_addr,
 						pfcp_hdr->message_type,
 				(cli_cause == REQUESTACCEPTED) ? ACC:REJ, SX);
+				else
+					update_cli_stats(peer_addr->sin_addr.s_addr,pfcp_hdr->message_type,SENT,SX);
 			}
+		}
+
+		if(sess != NULL) {
+			process_event_li(tmp_sess, buf_rx, bytes_rx, pfcp_msg, encoded,
+				peer_addr->sin_addr.s_addr, peer_addr->sin_port);
+			free(tmp_sess);
+			tmp_sess = NULL;
 		}
 #endif /* DP_BUILD */
 		return 0;

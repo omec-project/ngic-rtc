@@ -52,6 +52,8 @@
 #include "clogger.h"
 #include "gw_adapter.h"
 struct rte_ring *epc_mct_spns_dns_rx;
+struct rte_ring *li_dl_ring;
+struct rte_ring *li_ul_ring;
 
 /**
  * @brief  : Maintains epc parameters
@@ -129,9 +131,9 @@ static void epc_iface_core(__rte_unused void *args)
 	uint32_t lcore;
 
 	lcore = rte_lcore_id();
-	clLog(apilogger, eCLSeverityMajor, "RTE NOTICE enabled on lcore %d\n", lcore);
-	clLog(apilogger, eCLSeverityInfo, "RTE INFO enabled on lcore %d\n", lcore);
-	clLog(apilogger, eCLSeverityDebug, "RTE DEBUG enabled on lcore %d\n", lcore);
+	clLog(clSystemLog, eCLSeverityMajor, "RTE NOTICE enabled on lcore %d\n", lcore);
+	clLog(clSystemLog, eCLSeverityInfo, "RTE INFO enabled on lcore %d\n", lcore);
+	clLog(clSystemLog, eCLSeverityDebug, "RTE DEBUG enabled on lcore %d\n", lcore);
 
 #if defined(SDN_ODL_BUILD)
 	pthread_t t;
@@ -139,9 +141,9 @@ static void epc_iface_core(__rte_unused void *args)
 
 	err = pthread_create(&t, NULL, &dp_zmq_thread, NULL);
 	if (err != 0)
-		clLog(apilogger, eCLSeverityInfo, "\ncan't create ZMQ read thread :[%s]", strerror(err));
+		clLog(clSystemLog, eCLSeverityInfo, "\ncan't create ZMQ read thread :[%s]", strerror(err));
 	else
-		clLog(apilogger, eCLSeverityInfo, "\n ZMQ read thread created successfully\n");
+		clLog(clSystemLog, eCLSeverityInfo, "\n ZMQ read thread created successfully\n");
 #endif  /* DP:(SDN_ODL_BUILD */
 
 	/*
@@ -292,6 +294,27 @@ static void epc_init_rings(void)
 
 		}
 	}
+
+	/* Creating UL and DL rings for LI*/
+	li_dl_ring = rte_ring_create("LI_DL_RING",
+								DL_PKTS_RING_SIZE,
+								rte_socket_id(),
+								RING_F_SP_ENQ
+								|
+								RING_F_SC_DEQ);
+	if (li_dl_ring == NULL)
+		rte_panic("Cannot create LI DL ring \n");
+
+	li_ul_ring = rte_ring_create("LI_UL_RING",
+								UL_PKTS_RING_SIZE,
+								rte_socket_id(),
+								RING_F_SP_ENQ
+								|
+								RING_F_SC_DEQ);
+	if (li_ul_ring == NULL)
+		rte_panic("Cannot create LI UL ring \n");
+
+
 }
 
 /**

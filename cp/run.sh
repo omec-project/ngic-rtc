@@ -47,6 +47,11 @@ if [ -z "$1" ]; then
 
 	$APP_PATH/$APP $ARGS
 
+elif [ "$1" == "core" ]; then
+	/bin/rm -f ./core
+	ulimit -c unlimited
+	$APP_PATH/$APP $ARGS
+
 elif [ "$1" == "pcap" ]; then
     $APP_PATH/$APP $ARGS -x ../pcap/cp_in.pcap -y ../pcap/cp_out.pcap
 

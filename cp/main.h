@@ -112,6 +112,11 @@
 #define NUM_CONN	500
 
 /**
+ * max li supported limit
+ */
+#define LI_MAX_SIZE								1024
+
+/**
  * no. of mbuf.
  */
 #define NB_ECHO_MBUF  1024

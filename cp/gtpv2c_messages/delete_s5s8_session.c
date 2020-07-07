@@ -84,7 +84,7 @@ struct gw_info {
 //	    (void **) &context);
 //	if (ret < 0 || !context) {
 //
-//		clLog(s5s8logger, eCLSeverityDebug, "NGIC- delete_s5s8_session.c::"
+//		clLog(clSystemLog, eCLSeverityDebug, "NGIC- delete_s5s8_session.c::"
 //				"\n\tprocess_pgwc_s5s8_delete_session_request:"
 //				"\n\tdelete_pgwc_context-ERROR!!!"
 //				"\n\tprocess_pgwc_s5s8_ds_req_cnt= %u;"
@@ -154,7 +154,7 @@ struct gw_info {
 //	resp->s5s8_sgw_gtpc_teid = pdn->s5s8_sgw_gtpc_teid;
 //	resp->s5s8_pgw_gtpc_ipv4 = pdn->s5s8_sgw_gtpc_ipv4.s_addr;
 //
-//	clLog(s5s8logger, eCLSeverityDebug, "NGIC- delete_s5s8_session.c::"
+//	clLog(clSystemLog, eCLSeverityDebug, "NGIC- delete_s5s8_session.c::"
 //			"\n\tdelete_pgwc_context(...);"
 //			"\n\tprocess_pgwc_s5s8_ds_req_cnt= %u;"
 //			"\n\tue_ip= pdn->ipv4= %s;"
@@ -313,7 +313,7 @@ struct gw_info {
 //	    (void **) &context);
 //	if (ret < 0 || !context) {
 //
-//		clLog(s5s8logger, eCLSeverityDebug, "NGIC- delete_s5s8_session.c::"
+//		clLog(clSystemLog, eCLSeverityDebug, "NGIC- delete_s5s8_session.c::"
 //				"\n\tprocess_sgwc_s5s8_delete_session_request:"
 //				"\n\tdelete_sgwc_context-ERROR!!!"
 //				"\n\tprocess_sgwc_s5s8_ds_rep_cnt= %u;"
@@ -327,7 +327,7 @@ struct gw_info {
 //		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 //	}
 //
-//	clLog(s5s8logger, eCLSeverityDebug, "NGIC- delete_s5s8_session.c::"
+//	clLog(clSystemLog, eCLSeverityDebug, "NGIC- delete_s5s8_session.c::"
 //			"\n\tdelete_sgwc_context(...);"
 //			"\n\tprocess_sgwc_s5s8_ds_rsp_cnt= %u;"
 //			"\n\tgtpv2c_rx->teid_u.has_teid.teid= %X"
@@ -386,7 +386,7 @@ gen_sgwc_s5s8_delete_session_request(gtpv2c_header_t *gtpv2c_rx,
 	gtpv2c_ie *limit_rx_ie;
 
 	set_gtpv2c_teid_header(gtpv2c_tx, GTP_DELETE_SESSION_REQ,
-		    pgw_gtpc_del_teid, sequence);
+		    pgw_gtpc_del_teid, sequence, 0);
 
 	FOR_EACH_GTPV2C_IE(gtpv2c_rx, current_rx_ie, limit_rx_ie)
 	{
@@ -471,7 +471,7 @@ int process_sgwc_delete_handover(uint64_t sess_id, gtpv2c_header_t *gtpv2c_tx)
 	}
 
 	set_gtpv2c_teid_header((gtpv2c_header_t *) &del_resp, GTP_DELETE_SESSION_RSP,
-			context->s11_mme_gtpc_teid, context->sequence);
+			context->s11_mme_gtpc_teid, context->sequence, 0);
 	set_cause_accepted_ie((gtpv2c_header_t *) &del_resp, IE_INSTANCE_ZERO);
 
 	del_resp.cause.header.len = ntohs(del_resp.cause.header.len);
@@ -484,7 +484,7 @@ int process_sgwc_delete_handover(uint64_t sess_id, gtpv2c_header_t *gtpv2c_tx)
 	s11_mme_sockaddr.sin_addr.s_addr =
 		htonl(context->s11_mme_gtpc_ipv4.s_addr);
 
-	clLog(s11logger, eCLSeverityDebug, "SAEGWC:%s:"
+	clLog(clSystemLog, eCLSeverityDebug, "SAEGWC:%s:"
 			"s11_mme_sockaddr.sin_addr.s_addr :%s\n", __func__,
 			inet_ntoa(*((struct in_addr *)&s11_mme_sockaddr.sin_addr.s_addr)));
 

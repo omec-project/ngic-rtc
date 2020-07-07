@@ -259,7 +259,7 @@ int encode_pfcp_sess_set_del_rsp_t(pfcp_sess_set_del_rsp_t *value,
 *   number of encoded bytes.
 */
 int encode_pfcp_sess_estab_req_t(pfcp_sess_estab_req_t *value,
-    uint8_t *buf);
+    uint8_t *buf, sx_intf_t intf_type);
 
 /**
 * Encodes pfcp_create_pdr_ie_t to buffer.
@@ -415,7 +415,7 @@ int encode_pfcp_create_traffic_endpt_ie_t(pfcp_create_traffic_endpt_ie_t *value,
 *   number of encoded bytes.
 */
 int encode_pfcp_sess_estab_rsp_t(pfcp_sess_estab_rsp_t *value,
-    uint8_t *buf);
+    uint8_t *buf, sx_intf_t intf_type);
 
 /**
 * Encodes pfcp_created_pdr_ie_t to buffer.
@@ -475,7 +475,7 @@ int encode_pfcp_created_traffic_endpt_ie_t(pfcp_created_traffic_endpt_ie_t *valu
 *   number of encoded bytes.
 */
 int encode_pfcp_sess_mod_req_t(pfcp_sess_mod_req_t *value,
-    uint8_t *buf);
+    uint8_t *buf, sx_intf_t intf_type);
 
 /**
 * Encodes pfcp_update_pdr_ie_t to buffer.

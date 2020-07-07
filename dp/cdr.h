@@ -32,8 +32,9 @@
 
 #define RECORD_TIME_FORMAT "%Y%m%d%H%M%S"
 #define RECORD_TIME_LENGTH 16 /* buffer size for RECORD_TIME_FORMAT-ed string */
-#define BUFFER_SIZE 4096
-
+#define BUFFER_SIZE        4096
+#define MAX_FORMAT_LEN     128
+#define MAX_FORMAT_COUNT   8
 
 /* cdr field type callbacks
  * all callbacks must have the same parameters

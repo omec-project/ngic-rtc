@@ -63,6 +63,23 @@ int process_sess_est_resp_handler(void *arg1, void *arg2);
  */
 int process_mb_req_handler(void *arg1, void *arg2);
 
+/**
+ * @brief  : Handles processing of modify bearer request for modification procedure
+ * @param  : arg1, data contained in message
+ * @param  : arg2, optional parameter
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+int process_mb_req_for_mod_proc_handler(void *arg1, void *arg2);
+
+/**
+ * @brief  : Handles processing of pfcp session modification response for
+ *           modification sent in li scenario
+ * @param  : arg1, data contained in message
+ * @param  : arg2, optional parameter
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+int process_sess_mod_resp_li_handler(void *arg1, void *arg2);
+
 /* Function */
 /**
  * @brief  : Handles processing of release access bearer request
@@ -81,6 +98,14 @@ int process_rel_access_ber_req_handler(void *arg1, void *arg2);
  */
 int process_sess_mod_resp_handler(void *arg1, void *arg2);
 
+/**
+ * @brief  : Handles processing of pfcp session modification response for modification procedure
+ * @param  : arg1, data contained in message
+ * @param  : arg2, optional parameter
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+int process_mod_resp_for_mod_proc_handler(void *arg1, void *arg2);
+
 /* Function */
 /**
  * @brief  : Handles processing of delete session request
@@ -89,6 +114,15 @@ int process_sess_mod_resp_handler(void *arg1, void *arg2);
  * @return : Returns 0 in case of success , -1 otherwise
  */
 int process_ds_req_handler(void *arg1, void *arg2);
+
+/* Function */
+/**
+ * @brief  : Handles processing of change notification request
+ * @param  : arg1, data contained in message
+ * @param  : arg2, optional parameter
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+int process_change_noti_req_handler(void *arg1, void *arg2);
 
 /* Function */
 /**
@@ -261,6 +295,14 @@ int process_mb_req_sgw_reloc_handler(void *arg1, void *arg2);
 int process_mbr_resp_handover_handler(void *arg1, void *arg2);
 
 /**
+ * @brief  : Handles processing of modify bearer response for modification procedure
+ * @param  : arg1, data contained in message
+ * @param  : arg2, optional parameter
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+int process_mbr_resp_for_mod_proc_handler(void *arg1, void *arg2);
+
+/**
  * @brief  : Handles processing of pfcp session delete response in handover scenario
  * @param  : arg1, data contained in message
  * @param  : arg2, optional parameter
@@ -340,3 +382,90 @@ int process_pfcp_sess_set_del_rsp(void *arg1, void *arg2);
 /* Function */
 int cca_u_msg_handler_handover(void *arg1, void *argu2);
 
+/**
+ * @brief  : Handles processing of modify bearer request in partial failure scenario
+ * @param  : arg1, data contained in message
+ * @param  : arg2, optional parameter
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+int process_mbr_req_partial_failure_handler(void *arg1, void *arg2);
+
+/**
+ * @brief  : Handles processing of modify bearer response in partial failure scenario
+ * @param  : arg1, data contained in message
+ * @param  : arg2, optional parameter
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+int process_mbr_resp_partial_failure_handler(void *arg1, void *arg2);
+
+/**
+ * @brief  : Handles processing of session establishment if there's
+ * creation of deciated bearer with deafult scenario
+ * @param  : arg1, data contained in message
+ * @param  : arg2, optional parameter
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+int
+process_sess_est_resp_dedicated_handler(void *arg1, void  *arg2);
+
+/**
+ * @brief  : Handles processing of create session response if there's
+ * creation of deciated bearer with deafult scenario
+ * @param  : arg1, data contained in message
+ * @param  : arg2, optional parameter
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+int
+process_cs_resp_dedicated_handler(void *arg1, void  *arg2);
+
+/**
+ * @brief  : Handles processing of session modification response while there's
+ * creation of deciated bearer with deafult scenario
+ * @param  : arg1, data contained in message
+ * @param  : arg2, optional parameter
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+int
+process_pfcp_sess_mod_resp_cs_dedicated_handler(void *arg1, void  *arg2);
+
+
+/**
+ * @brief  : Handles processing of mbr request and create bearer response
+ * while there's deciated bearer with deafult scenario
+ * @param  : arg1, data contained in message
+ * @param  : arg2, optional parameter
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+int
+process_mb_request_cb_resp_handler(void *arg1, void *arg2);
+
+/**
+ * @brief  : Handles the processing of change notification
+ *           response message received
+ * @param  : arg1, data contained in message
+ * @param  : arg2, optional parameter
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+int
+process_change_noti_resp_handler(void *arg1, void *argu2);
+
+int process_pfcp_sess_mod_partial_failure(void *arg1, void *arg2);
+
+/**
+ * @brief  : Handles the processing of Pfcp Association setup response,
+ *			 in Recovery mode.
+ * @param  : arg1, data contained in message
+ * @param  : arg2, Peer node address
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+
+int process_recov_asso_resp_handler(void *data, void *addr);
+
+/**
+ * @brief  : Handles the processing of pfcp estblishment
+ *           response message received, in Recovery mode.
+ * @param  : arg1, data contained in message
+ * @param  : arg2, optional parameter
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+int process_recov_est_resp_handler(void *data, void *unused_param);

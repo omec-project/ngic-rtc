@@ -185,6 +185,8 @@
 #define GTP_IE_SECDRY_RAT_USAGE_DATA_RPT (201)
 #define GTP_IE_UP_FUNC_SEL_INDCTN_FLGS (202)
 #define GTP_IE_MAX_PCKT_LOSS_RATE (206)
+/* TODO: No type defined in Spec, need to revisit */
+#define GTP_IE_MM_CTXT_TYPE (225)
 /*Indication Flag Length*/
 #define INDICATION_OCT_5  1
 #define INDICATION_OCT_6  2
@@ -194,6 +196,7 @@
 #define INDICATION_OCT_10 6
 #define INDICATION_OCT_11 7
 
+#define START_REPORT_TAI_ECGI 6
 
 #pragma pack(1)
 
@@ -1262,6 +1265,7 @@ typedef struct gtp_user_csg_info_ie_t {
   uint8_t mnc_digit_2 :4;
   uint8_t mnc_digit_1 :4;
   uint8_t spare2 :5;
+  uint32_t csg_id :3;
   uint32_t csg_id2 :24;
   uint8_t access_mode :2;
   uint8_t spare3 :4;
@@ -1683,16 +1687,16 @@ typedef struct gtp_secdry_rat_usage_data_rpt_ie_t {
   uint8_t secdry_rat_type;
   uint8_t spare3 :4;
   uint8_t ebi :4;
-  uint8_t start_timestamp;
-  uint8_t end_timestamp;
-  uint8_t usage_data_dl;
-  uint8_t usage_data_ul;
+  uint32_t start_timestamp;
+  uint32_t end_timestamp;
+  uint64_t usage_data_dl;
+  uint64_t usage_data_ul;
 } gtp_secdry_rat_usage_data_rpt_ie_t;
 
 typedef struct gtp_up_func_sel_indctn_flgs_ie_t {
-  ie_header_t header;
-  uint8_t spare2 :7;
-  uint8_t dcnr :1;
+	ie_header_t header;
+	uint8_t spare2 :7;
+	uint8_t dcnr :1;
 } gtp_up_func_sel_indctn_flgs_ie_t;
 
 typedef struct gtp_max_pckt_loss_rate_ie_t {

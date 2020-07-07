@@ -62,32 +62,32 @@ delete_context(gtp_eps_bearer_id_ie_t lbi, uint32_t teid,
 	if (!lbi.header.len) {
 		/* TODO: should be responding with response indicating error
 		 * in request */
-		clLog(sxlogger, eCLSeverityCritical,
+		clLog(clSystemLog, eCLSeverityCritical,
 			"%s : Received delete session without ebi! - dropping\n", __func__);
 		return GTPV2C_CAUSE_INVALID_MESSAGE_FORMAT;
 	}
 
 	uint8_t ebi_index = lbi.ebi_ebi - 5;
 	if (!(context->bearer_bitmap & (1 << ebi_index))) {
-		clLog(sxlogger, eCLSeverityCritical,
+		clLog(clSystemLog, eCLSeverityCritical,
 		    "Received delete session on non-existent EBI - "
 		    "Dropping packet\n");
-		clLog(sxlogger, eCLSeverityCritical, "ebi %u\n", lbi.ebi_ebi);
-		clLog(sxlogger, eCLSeverityCritical, "ebi_index %u\n", ebi_index);
-		clLog(sxlogger, eCLSeverityCritical, "bearer_bitmap %04x\n", context->bearer_bitmap);
-		clLog(sxlogger, eCLSeverityCritical, "mask %04x\n", (1 << ebi_index));
+		clLog(clSystemLog, eCLSeverityCritical, "ebi %u\n", lbi.ebi_ebi);
+		clLog(clSystemLog, eCLSeverityCritical, "ebi_index %u\n", ebi_index);
+		clLog(clSystemLog, eCLSeverityCritical, "bearer_bitmap %04x\n", context->bearer_bitmap);
+		clLog(clSystemLog, eCLSeverityCritical, "mask %04x\n", (1 << ebi_index));
 		return GTPV2C_CAUSE_INVALID_MESSAGE_FORMAT;
 	}
 
 	pdn_connection *pdn = context->eps_bearers[ebi_index]->pdn;
 	if (!pdn) {
-		clLog(sxlogger, eCLSeverityCritical, "Received delete session on "
+		clLog(clSystemLog, eCLSeverityCritical, "Received delete session on "
 				"non-existent EBI\n");
 		return GTPV2C_CAUSE_MANDATORY_IE_INCORRECT;
 	}
 
 	if (pdn->default_bearer_id != lbi.ebi_ebi) {
-		clLog(sxlogger, eCLSeverityCritical,
+		clLog(clSystemLog, eCLSeverityCritical,
 		    "Received delete session referencing incorrect "
 		    "default bearer ebi");
 		return GTPV2C_CAUSE_MANDATORY_IE_INCORRECT;
@@ -95,7 +95,7 @@ delete_context(gtp_eps_bearer_id_ie_t lbi, uint32_t teid,
 
 	eps_bearer *bearer = context->eps_bearers[ebi_index];
 	if (!bearer) {
-		clLog(sxlogger, eCLSeverityCritical,
+		clLog(clSystemLog, eCLSeverityCritical,
 			"Received delete session on non-existent default EBI\n");
 		return GTPV2C_CAUSE_MANDATORY_IE_INCORRECT;
 	}
@@ -105,7 +105,7 @@ delete_context(gtp_eps_bearer_id_ie_t lbi, uint32_t teid,
 		*s5s8_pgw_gtpc_teid = htonl(pdn->s5s8_pgw_gtpc_teid);
 		*s5s8_pgw_gtpc_ipv4 = htonl(pdn->s5s8_pgw_gtpc_ipv4.s_addr);
 
-		clLog(s5s8logger, eCLSeverityDebug, "s5s8_pgw_gtpc_teid:%u, s5s8_pgw_gtpc_ipv4:%u\n",
+		clLog(clSystemLog, eCLSeverityDebug, "s5s8_pgw_gtpc_teid:%u, s5s8_pgw_gtpc_ipv4:%u\n",
 				*s5s8_pgw_gtpc_teid, *s5s8_pgw_gtpc_ipv4);
 	}
 
@@ -115,20 +115,6 @@ delete_context(gtp_eps_bearer_id_ie_t lbi, uint32_t teid,
 
 		if (context->eps_bearers[i] == pdn->eps_bearers[i]) {
 			bearer = context->eps_bearers[i];
-			struct session_info si;
-			memset(&si, 0, sizeof(si));
-
-			/**
-			 * ebi and s1u_sgw_teid is set here for zmq/sdn
-			 */
-			si.bearer_id = lbi.ebi_ebi;
-			si.ue_addr.u.ipv4_addr =
-				htonl(pdn->ipv4.s_addr);
-			si.ul_s1_info.sgw_teid =
-				bearer->s1u_sgw_gtpu_teid;
-			si.sess_id = SESS_ID(
-					context->s11_sgw_gtpc_teid,
-					si.bearer_id);
 		} else {
 			rte_panic("Incorrect provisioning of bearers\n");
 		}
@@ -200,7 +186,7 @@ process_delete_session_request(gtpv2c_header_t *gtpv2c_rx,
 		return ret;
 
 	set_gtpv2c_teid_header(gtpv2c_s11_tx, GTP_DELETE_SESSION_RSP,
-	    htonl(context->s11_mme_gtpc_teid), gtpv2c_rx->teid.has_teid.seq);
+	    htonl(context->s11_mme_gtpc_teid), gtpv2c_rx->teid.has_teid.seq, 0);
 	set_cause_accepted_ie(gtpv2c_s11_tx, IE_INSTANCE_ZERO);
 
 	return 0;

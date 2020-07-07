@@ -23,6 +23,7 @@
  */
 #include <rte_ether.h>
 #include <rte_rwlock.h>
+#include "../cp_dp_api/tcp_client.h"
 
 /**
  * seconds between ARP request retransmission.
@@ -48,6 +49,9 @@
  * set to enable debug.
  */
 #define ARPICMP_DEBUG 0
+
+extern struct rte_ring *li_dl_ring;
+extern struct rte_ring *li_ul_ring;
 
 /**
  * @brief  : Maintains pipeline arguments

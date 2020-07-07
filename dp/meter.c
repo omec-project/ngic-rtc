@@ -264,6 +264,7 @@ mtr_cfg_entry(int msg_id, struct rte_meter_srtcm *msg_payload)
 
 	if ((msg_id == 0) || (app_srtcm_params->cir == 0)) {
 		memset(m, 0, sizeof(struct rte_meter_srtcm));
+		clLog(clSystemLog, eCLSeverityCritical, "%s:%d Error in mtr_cfg_entry function\n",__func__, __LINE__);
 		return -1;
 	}
 

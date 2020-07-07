@@ -28,7 +28,7 @@
 #include "pfcp_up_struct.h"
 #include "clogger.h"
 
-#define NUM_OF_TABLES 7
+#define NUM_OF_TABLES 9
 
 #define MAX_HASH_SIZE (1 << 15)
 #define MAX_PDN_HASH_SIZE (1 << 8)
@@ -44,9 +44,11 @@ extern struct rte_hash *sess_ctx_by_sessid_hash;
 extern struct rte_hash *sess_by_teid_hash;
 extern struct rte_hash *sess_by_ueip_hash;
 extern struct rte_hash *pdr_by_id_hash;
+extern struct rte_hash *sock_by_ddf_ip_hash;
 extern struct rte_hash *far_by_id_hash;
 extern struct rte_hash *qer_by_id_hash;
 extern struct rte_hash *urr_by_id_hash;
+extern struct rte_hash *timer_by_id_hash;
 
 int8_t
 add_sess_info_entry(uint64_t up_sess_id, pfcp_session_t *sess_cntxt)
@@ -104,7 +106,7 @@ get_sess_info_entry(uint64_t up_sess_id, uint8_t is_mod)
 	if ( ret < 0) {
 		/* allocate memory only if request is from session establishment */
 		if (is_mod != SESS_CREATE) {
-			clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d Entry not found for UP_SESS_ID: %lu...\n",
+			clLog(clSystemLog, eCLSeverityDebug, "%s:%s:%d Entry not found for UP_SESS_ID: %lu...\n",
 					__file__, __func__, __LINE__, up_sess_id);
 			return NULL;
 		}
@@ -319,7 +321,11 @@ add_sess_by_ueip_entry(uint32_t ue_ip, pfcp_session_datat_t **sess_cntxt)
 
 	if ( ret < 0) {
 		if (*sess_cntxt == NULL)
+		{
+			clLog(clSystemLog, eCLSeverityCritical, "%s:%d No data found for sess_by_ueip_hash : %s\n",
+					__func__, __LINE__,inet_ntoa(*((struct in_addr *)&ue_ip)));
 			return -1;
+		}
 
 		/* Session Entry not present. Add new session entry */
 		ret = rte_hash_add_key_data(sess_by_ueip_hash,
@@ -788,20 +794,20 @@ del_qer_info_entry(uint32_t qer_id)
 }
 
 int8_t
-add_urr_info_entry(uint32_t urr_id, urr_info_t **urr)
+add_urr_info_entry(uint32_t urr_id, urr_info_t **head)
 {
 	int ret = 0;
-	urr_info_t *tmp = NULL;
+	urr_info_t *urr = NULL;
 
 	/* Lookup for URR entry. */
 	ret = rte_hash_lookup_data(urr_by_id_hash,
-				&urr_id, (void **)&tmp);
+				&urr_id, (void **)&urr);
 
 	if ( ret < 0) {
 		/* allocate memory for session info*/
-		*urr = rte_zmalloc("URR", sizeof(urr_info_t),
+		urr = rte_zmalloc("URR", sizeof(urr_info_t),
 		        RTE_CACHE_LINE_SIZE);
-		if (*urr == NULL){
+		if (urr == NULL){
 		    clLog(clSystemLog, eCLSeverityCritical, "Failed to allocate memory for URR info\n");
 		    return -1;
 		}
@@ -809,7 +815,7 @@ add_urr_info_entry(uint32_t urr_id, urr_info_t **urr)
 
 		/* URR Entry not present. Add URR Entry in table */
 		ret = rte_hash_add_key_data(urr_by_id_hash,
-						&urr_id, *urr);
+						&urr_id, urr);
 		if (ret) {
 			clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d Failed to add URR entry for URR_ID = %u"
 					"\n\tError= %s\n", __file__,
@@ -817,12 +823,21 @@ add_urr_info_entry(uint32_t urr_id, urr_info_t **urr)
 					rte_strerror(abs(ret)));
 
 			/* free allocated memory */
-			rte_free(*urr);
-			*urr = NULL;
+			rte_free(urr);
+			urr = NULL;
 			return -1;
 		}
-	} else {
-		memcpy(tmp, *urr, sizeof(urr_info_t));
+
+		if (insert_urr_node(*head, urr)) {
+			clLog(clSystemLog, eCLSeverityCritical, FORMAT"Failed to add node entry in LL for URR_ID = %u"
+																		"\n\tError= %s\n", ERR_MSG,
+																		urr_id, rte_strerror(abs(ret)));
+		}
+		if(*head == NULL)
+			*head = urr;
+	}else {
+		if(*head == NULL)
+			*head = urr;
 	}
 
 	clLog(clSystemLog, eCLSeverityDebug, "%s: URR entry add for URR_ID:%u\n",
@@ -931,6 +946,20 @@ init_up_hash_tables(void)
 			.hash_func = rte_hash_crc,
 			.hash_func_init_val = 0,
 			.socket_id = rte_socket_id()
+		},
+		{	.name = "SESSION_TIMER_HASH",
+			.entries = MAX_HASH_SIZE,
+			.key_len = sizeof(uint32_t),
+			.hash_func = rte_hash_crc,
+			.hash_func_init_val = 0,
+			.socket_id = rte_socket_id()
+		},
+		{	.name = "SOCK_DDFIP_HASH",
+			.entries = MAX_HASH_SIZE,
+			.key_len = sizeof(uint32_t),
+			.hash_func = rte_hash_crc,
+			.hash_func_init_val = 0,
+			.socket_id = rte_socket_id()
 		}
 	};
 
@@ -976,6 +1005,13 @@ init_up_hash_tables(void)
 		    rte_strerror(rte_errno), rte_errno);
 	}
 
+	timer_by_id_hash = rte_hash_create(&pfcp_hash_params[7]);
+	if (!timer_by_id_hash) {
+		rte_panic("%s: hash create failed: %s (%u)\n",
+				pfcp_hash_params[0].name,
+		    rte_strerror(rte_errno), rte_errno);
+	}
+
 	if ((app.spgw_cfg == PGWU) || (app.spgw_cfg == SAEGWU)) {
 		sess_by_ueip_hash = rte_hash_create(&pfcp_hash_params[6]);
 		if (!sess_by_ueip_hash) {
@@ -984,6 +1020,14 @@ init_up_hash_tables(void)
 			    rte_strerror(rte_errno), rte_errno);
 		}
 	}
+
+	sock_by_ddf_ip_hash = rte_hash_create(&pfcp_hash_params[8]);
+	if (!sock_by_ddf_ip_hash) {
+		rte_panic("%s: hash create failed: %s (%u)\n",
+				pfcp_hash_params[6].name,
+		    rte_strerror(rte_errno), rte_errno);
+	}
+
 
 	printf("Session, Session Data, PDR, QER, URR, BAR and FAR "
 			"hash table created successfully \n");
