@@ -184,6 +184,11 @@ process_modify_bearer_request(gtpv2c_header *gtpv2c_rx,
 			context->s11_sgw_gtpc_teid,
 			bearer->eps_bearer_id);
 
+	 RTE_LOG_DP(INFO, CP, "Sending session modify bearer request with ue IPv4 addr: ");
+	 RTE_LOG_DP(INFO, CP, "%d.%d.%d.%d", ((session.ue_addr.u.ipv4_addr >> 24) & 0xFF),
+		((session.ue_addr.u.ipv4_addr >> 16) & 0xFF),
+		((session.ue_addr.u.ipv4_addr >> 8) & 0xFF),
+		((session.ue_addr.u.ipv4_addr & 0xFF)));
 	/* Fetch subscriber using teid and then find the dpId */
 	if (session_modify(dp_id, session) < 0)
 #if defined(ZMQ_COMM) && defined(MULTI_UPFS)

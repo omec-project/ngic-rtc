@@ -353,8 +353,8 @@ fetch_s1u_sgw_ip(uint32_t dpId)
 		}
 	}
 
-	rte_panic("Could not find s1u ip address for dpid: %u\n", dpId);
-	rte_exit(EXIT_FAILURE, "Could not find s1u ip address for dpid: %u\n", dpId);
+	rte_panic("Could not find s1u ip address for an unregistered DP\n");
+
 	/* control should never reach here */
 	RTE_SET_USED(a);
 	return a;
