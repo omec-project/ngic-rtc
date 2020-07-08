@@ -181,6 +181,11 @@ static inline void epc_dl_set_port_id(struct rte_mbuf *m)
 				}
 			}
 #endif /* USE_REST */
+			/* Ignore/Skip DHCP Pkts from the pipeline */
+			if (likely(udph->dst_port == UDP_PORT_DHCP_NW_ORDER)) {
+				return;
+			}
+
 			*port_id_offset = 0;
 			dl_sgi_pkt = 1;
 			dl_arp_pkt = 0;

@@ -58,6 +58,7 @@
 #define UDP_HDR_LEN    8
 
 #define UDP_PORT_GTPU_NW_ORDER 26632 /* GTP UDP port(2152) in NW order */
+#define UDP_PORT_DHCP_NW_ORDER 17152 /* UDP port(67) in NW order */
 
 #pragma pack(1)
 /**
