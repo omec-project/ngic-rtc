@@ -99,7 +99,7 @@ process_release_access_bearer_request(gtpv2c_header *gtpv2c_rx,
 		struct session_info session;
 		memset(&session, 0, sizeof(session));
 		session.ue_addr.iptype = IPTYPE_IPV4;
-		session.ue_addr.u.ipv4_addr = ntohl(bearer->pdn->ipv4.s_addr);
+		session.ue_addr.u.ipv4_addr = (bearer->pdn->ipv4.s_addr);
 		session.ul_s1_info.sgw_teid =
 		    ntohl(bearer->s1u_sgw_gtpu_teid);
 		session.ul_s1_info.sgw_addr.iptype = IPTYPE_IPV4;
@@ -107,7 +107,7 @@ process_release_access_bearer_request(gtpv2c_header *gtpv2c_rx,
 		    ntohl(bearer->s1u_sgw_gtpu_ipv4.s_addr);
 		session.ul_s1_info.enb_addr.iptype = IPTYPE_IPV4;
 		session.ul_s1_info.enb_addr.u.ipv4_addr =
-		    ntohl(bearer->s1u_enb_gtpu_ipv4.s_addr);
+		    (bearer->s1u_enb_gtpu_ipv4.s_addr);
 		session.dl_s1_info.enb_teid =
 		    ntohl(bearer->s1u_enb_gtpu_teid);
 		session.dl_s1_info.enb_addr.iptype = IPTYPE_IPV4;
@@ -133,6 +133,11 @@ process_release_access_bearer_request(gtpv2c_header *gtpv2c_rx,
 			sending DP message */
 		resp_t.msg_type = GTP_RELEASE_ACCESS_BEARERS_REQ;
 
+		RTE_LOG_DP(INFO, CP, "Sending session modify release access bearer request with ue IPv4 addr: ");
+		RTE_LOG_DP(INFO, CP, "%d.%d.%d.%d", ((session.ue_addr.u.ipv4_addr >> 24) & 0xFF),
+			((session.ue_addr.u.ipv4_addr >> 16) & 0xFF),
+			((session.ue_addr.u.ipv4_addr >> 8) & 0xFF),
+			((session.ue_addr.u.ipv4_addr & 0xFF)));
 		if (session_modify(dp_id, session) < 0)
 			rte_exit(EXIT_FAILURE,
 				"Bearer Session modify fail !!!");
