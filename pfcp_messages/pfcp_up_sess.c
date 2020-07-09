@@ -1445,6 +1445,7 @@ process_up_session_estab_req(pfcp_sess_estab_req_t *sess_req,
 
 	/* Get the CP Session Id  */
 	sess->cp_seid = sess_req->cp_fseid.seid;
+	sess->cp_ip = cp_ip;
 
 	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT": CP_Sess_ID: %lu, UP_Sess_ID:%lu\n",
 			LOG_VALUE, sess->cp_seid, sess->up_seid);
@@ -2681,8 +2682,8 @@ up_delete_session_entry(pfcp_session_t *sess, pfcp_sess_del_rsp_t *sess_del_rsp,
 	uint32_t ue_ip_addr = 0;
 	pfcp_usage_rpt_sess_del_rsp_ie_t usage_report[MAX_LIST_SIZE]= {0};
 
-	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT" CP_Sess_ID: %lu, UP_Sess_ID:%lu\n",
-			LOG_VALUE, sess->cp_seid, sess->up_seid);
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT" CP_Sess_ID: %lu, UP_Sess_ID:%lu, CP_IP:%u\n",
+			LOG_VALUE, sess->cp_seid, sess->up_seid, cp_ip);
 	/* Flush the Session data info from the hash tables based on teid*/
 	pfcp_session_datat_t *session = sess->sessions;
 

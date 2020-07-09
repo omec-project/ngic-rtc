@@ -567,7 +567,7 @@ add_qer_info_entry(uint32_t qer_id, uint32_t peer_ip, qer_info_t **head)
 	ret = rte_hash_lookup_data(qer_by_id_hash,
 				&hash_key, (void **)&qer);
 
-	if ( ret < 0) {
+	if ((ret < 0) || (qer == NULL)) {
 		/* allocate memory for session info*/
 		qer = rte_zmalloc("QER", sizeof(qer_info_t),
 		        RTE_CACHE_LINE_SIZE);
@@ -605,15 +605,19 @@ add_qer_info_entry(uint32_t qer_id, uint32_t peer_ip, qer_info_t **head)
 		if (*head == NULL)
 			*head = qer;
 
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"QER entry add for QER ID:%u\n",
+				LOG_VALUE, qer_id);
+		return 0;
+
 	} else {
 		if (head == NULL) {
 		 	*head = qer;
 		}
 	}
-
-	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"QER entry add for QER ID:%u\n",
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Found QER entry for QER ID:%u\n",
 			LOG_VALUE, qer_id);
 	return 0;
+
 }
 
 qer_info_t *
@@ -664,9 +668,13 @@ get_qer_info_entry(uint32_t qer_id, uint32_t peer_ip, qer_info_t **head)
 		}
 		if (*head == NULL)
 			*head = qer;
+
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Add QER Entry for QER ID: %u\n",
+				LOG_VALUE, qer_id);
+		return qer;
 	}
 
-	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"QER ID: %u\n",
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Found entry for QER ID: %u\n",
 			LOG_VALUE, qer_id);
 	return qer;
 
@@ -693,11 +701,13 @@ del_qer_info_entry(uint32_t qer_id, uint32_t peer_ip)
 				"for QER_ID: %u\n", LOG_VALUE, qer_id);
 			return -1;
 		}
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"QER ID: %u\n",
+			LOG_VALUE, qer_id);
+		return 0;
 	}
 
-	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"QER ID: %u\n",
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Not Deleted entry for QER ID: %u\n",
 		LOG_VALUE, qer_id);
-
 	return 0;
 }
 

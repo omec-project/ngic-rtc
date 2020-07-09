@@ -615,6 +615,10 @@ cleanup_sess_by_csid_entry(fqcsid_t *csids, node_addr_t *dst_addr_t, uint8_t ifa
 									break;
 								}
 							}
+							if (!match) {
+								up_csids.local_csid[up_csids.num_csid++] = ((context)->up_fqcsid)->local_csid[itr2];
+								match = 0;
+							}
 						}
 						/* node address */
 						up_csids.node_addr = ((context)->up_fqcsid)->node_addr;
@@ -677,7 +681,7 @@ cleanup_sess_by_csid_entry(fqcsid_t *csids, node_addr_t *dst_addr_t, uint8_t ifa
 	/* Cleanup UP FQ-CSID */
 	if (SX_PORT_ID != iface) {
 		if(up_csids.num_csid != 0) {
-			if(cleanup_csid_by_csid_entry(&up_csids, csids, iface) < 0) {
+			if(cleanup_csid_by_csid_entry(&up_csids, csids, SX_PORT_ID) < 0) {
 			clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT"Error on "
 				"Deleting UP FQ-CSID entry\n", LOG_VALUE);
 				return -1;

@@ -315,6 +315,7 @@ typedef struct pfcp_session_t {
 	uint64_t up_seid;
 	uint64_t imsi;
 
+	uint32_t cp_ip;
 	uint8_t ber_cnt;
 	uint32_t teids[MAX_BEARERS];
 

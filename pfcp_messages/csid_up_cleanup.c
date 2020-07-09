@@ -187,11 +187,8 @@ cleanup_sess_by_csid_entry(fqcsid_t *csids)
 
 			/* Cleanup Session dependant information such as PDR, QER and FAR */
 			uint32_t cp_ip = 0;
-			if (eb_fqcsid.num_csid != 0) {
-				cp_ip = sgwc_fqcsid.node_addr;
-			} else {
-				/* TODO: VISHAL Think about Combined GW */
-				cp_ip = pgwc_fqcsid.node_addr;
+			if (!cp_ip) {
+				cp_ip = sess->cp_ip;
 			}
 
 			if (up_delete_session_entry(sess, NULL, cp_ip))
