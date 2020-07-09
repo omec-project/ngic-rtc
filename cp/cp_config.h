@@ -150,6 +150,10 @@ uint32_t select_dp_for_key(struct dp_key *);
  */
 uint8_t resolve_upf_context_to_dpInfo(struct upf_context *upf, char *hostname, struct in_addr s1u_sgw_ip);
 
+/* Search UPF with name as key and fill dp_id. Success return 1 else 0  */
+uint8_t
+resolve_upf_name_to_id(char *hostname, uint32_t *dp_id);
+
 /**
  * Given dpId, what is the s1u's IP address of dp (as stored in the apl_config list)
  */

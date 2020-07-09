@@ -950,6 +950,13 @@ control_plane(void)
 							gtp_type_str(gtpv2c_s11_rx->gtpc.type), ret,
 							(ret < 0 ? strerror(-ret) : cause_str(ret)));
 					/* Error handling not implemented */
+					payload_length = ntohs(gtpv2c_s11_tx->gtpc.length)
+							+ sizeof(gtpv2c_s11_tx->gtpc);
+					if(payload_length > 0 ) {
+						gtpv2c_send(s11_fd, s11_tx_buf, payload_length,
+									(struct sockaddr *) &s11_mme_sockaddr,
+									sizeof(s11_mme_sockaddr));
+					}
 					return;
 				}
 				if (spgw_cfg == SGWC) {
@@ -1315,6 +1322,17 @@ cb_ddn(uint64_t sess_id)
 	return ret;
 }
 
+int
+cb_keepalive(struct dp_id dp_id)
+{
+	int ret = send_keepalive_ack(dp_id);
+	if (ret) {
+		fprintf(stderr, "Error on sending keep alive ack %s: (%d) %s\n",
+				gtp_type_str(ret), ret,
+				(ret < 0 ? strerror(-ret) : cause_str(ret)));
+	}
+	return ret;
+}
 /**
  * @brief callback initated by nb listener thread
  * @param arg

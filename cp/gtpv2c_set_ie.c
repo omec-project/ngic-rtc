@@ -172,6 +172,19 @@ set_ie_header(ie_header_t *header, uint8_t type,
 }
 
 void
+set_cause_rejected(cause_ie_t *cause,
+		enum ie_instance instance, uint16_t cause_no)
+{
+	set_ie_header(&cause->header, IE_CAUSE, instance,
+	    sizeof(struct cause_ie_hdr_t));
+	cause->cause_value = cause_no; 
+	cause->pdn_connection_error = 0;
+	cause->bearer_context_error = 0;
+	cause->cause_source = 0;
+	cause->spare_1 = 0;
+}
+
+void
 set_cause_accepted(cause_ie_t *cause,
 		enum ie_instance instance)
 {
