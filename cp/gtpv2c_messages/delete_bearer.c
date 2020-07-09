@@ -142,6 +142,11 @@ process_delete_bearer_response(gtpv2c_header *gtpv2c_rx)
 		si.sess_id =
 			SESS_ID(delete_bearer_rsp.context->s11_sgw_gtpc_teid,
 				delete_bearer_rsp.ded_bearer->eps_bearer_id);
+			RTE_LOG_DP(INFO, CP, "Sending session delete bearer request with ue IPv4 addr: ");
+			RTE_LOG_DP(INFO, CP, "%d.%d.%d.%d", ((si.ue_addr.u.ipv4_addr >> 24) & 0xFF),
+				((si.ue_addr.u.ipv4_addr >> 16) & 0xFF),
+				((si.ue_addr.u.ipv4_addr >> 8) & 0xFF),
+				((si.ue_addr.u.ipv4_addr & 0xFF)));
 		session_delete(dp_id, si);
 
 		rte_free(delete_bearer_rsp.ded_bearer);

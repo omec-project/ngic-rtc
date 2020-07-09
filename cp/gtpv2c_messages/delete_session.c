@@ -117,13 +117,18 @@ delete_context(delete_session_request_t *ds_req,
 			 */
 			si.bearer_id = ds_req->linked_ebi.eps_bearer_id;
 			si.ue_addr.u.ipv4_addr =
-				htonl(pdn->ipv4.s_addr);
+				(pdn->ipv4.s_addr);
 			si.ul_s1_info.sgw_teid =
 				htonl(bearer->s1u_sgw_gtpu_teid);
 			si.sess_id = SESS_ID(
 					context->s11_sgw_gtpc_teid,
 					si.bearer_id);
 			struct dp_id dp_id = { .id = context->dpId };
+			RTE_LOG_DP(INFO, CP, "Sending session delete request with ue IPv4 addr: ");
+			RTE_LOG_DP(INFO, CP, "%d.%d.%d.%d", ((si.ue_addr.u.ipv4_addr >> 24) & 0xFF),
+				((si.ue_addr.u.ipv4_addr >> 16) & 0xFF),
+				((si.ue_addr.u.ipv4_addr >> 8) & 0xFF),
+				((si.ue_addr.u.ipv4_addr & 0xFF)));
 			session_delete(dp_id, si);
 
 			rte_free(pdn->eps_bearers[i]);
