@@ -353,7 +353,8 @@ generate_cdr_info(cdr *fill_cdr)
 	get_apn_name((pdn->apn_in_use)->apn_name_label, apn_name);
 	fill_cdr->ue_ip.s_addr = ntohl(pdn->ipv4.s_addr);
 
-	fill_cdr->sgw_addr.s_addr = ntohl(pfcp_config.pfcp_ip.s_addr);
+	/* Fill the CP Redis interface IP */
+	fill_cdr->sgw_addr.s_addr = pfcp_config.cp_redis_ip.s_addr;
 	snprintf(sgw_addr_buff, CDR_BUFF_SIZE,"%s",
 			inet_ntoa(*((struct in_addr *)&fill_cdr->sgw_addr.s_addr)));
 	snprintf(upf_addr_buff, CDR_BUFF_SIZE,"%s",
