@@ -367,6 +367,7 @@ typedef struct {
 	uint32_t upf_s5s8_ip;
 	uint32_t upf_s5s8_mask;
 	uint8_t is_gx_interface;
+	struct in_addr dadmf_local_addr;
 }cp_configuration_t;
 
 /**

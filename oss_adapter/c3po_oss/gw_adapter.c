@@ -683,6 +683,7 @@ void fill_cp_configuration(void)
 	cp_configuration.ddf2_port = pfcp_config.ddf2_port;
 	strncpy(cp_configuration.redis_cert_path, pfcp_config.redis_cert_path, REDIS_CERT_PATH_LEN);
 	strncpy(cp_configuration.ddf2_intfc, pfcp_config.ddf2_intfc, DDF_INTFC_LEN);
+	cp_configuration.dadmf_local_addr.s_addr = pfcp_config.dadmf_local_addr.s_addr;
 	cp_configuration.use_gx = pfcp_config.use_gx;
 	cp_configuration.generate_sgw_cdr = pfcp_config.generate_sgw_cdr;
 	cp_configuration.sgw_cc = pfcp_config.sgw_cc;

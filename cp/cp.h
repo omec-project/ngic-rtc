@@ -408,6 +408,7 @@ typedef struct pfcp_config_t {
 
 	/* DDF2 Interface Name */
 	char ddf2_intfc[DDF_INTFC_LEN];
+	struct in_addr dadmf_local_addr;
 
 	/* Control-Plane IPs and Ports Params. */
 	uint16_t s11_port;

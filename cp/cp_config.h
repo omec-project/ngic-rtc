@@ -45,6 +45,7 @@
 #define DDF2_INTFC				"DDF2_INTFC"
 #define DADMF_IPS               "DADMF_IP"
 #define DADMF_PORTS             "DADMF_PORT"
+#define DADMF_LOCAL_IPS         "DADMF_LOCAL_IP"
 #define MME_S11_IPS             "MME_S11_IP"
 #define MME_S11_PORTS           "MME_S11_PORT"
 #define UPF_PFCP_IPS            "UPF_PFCP_IP"

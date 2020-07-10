@@ -304,7 +304,7 @@ main(int argc, char **argv)
 	}
 
 	ret = registerCpOnDadmf(pfcp_config.dadmf_ip,
-			pfcp_config.dadmf_port, pfcp_config.pfcp_ip,
+			pfcp_config.dadmf_port, pfcp_config.dadmf_local_addr,
 			li_df_config, &uiLiCntr);
 	if (ret < 0) {
 		clLog(clSystemLog, eCLSeverityCritical,

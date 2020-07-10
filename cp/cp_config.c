@@ -179,6 +179,15 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 			fprintf(stderr, "CP: DADMF_PORT   : %d\n",
 					pfcp_config->dadmf_port);
 
+		} else if (strncmp(DADMF_LOCAL_IPS , global_entries[i].name,
+					ENTRY_NAME_SIZE) == 0) {
+
+			inet_aton(global_entries[i].value,
+					&(pfcp_config->dadmf_local_addr));
+
+			fprintf(stderr, "CP: DADMF_LOCAL_IP     : %s\n",
+					inet_ntoa(pfcp_config->dadmf_local_addr));
+
 		} else if (strncmp(MME_S11_IPS, global_entries[i].name,
 					ENTRY_NAME_SIZE) == 0) {
 
