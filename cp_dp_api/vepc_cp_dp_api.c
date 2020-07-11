@@ -109,6 +109,8 @@ build_dp_msg(enum dp_msg_type mtype, struct dp_id dp_id,
 		msg_payload->msg_union.dl_ddn =
 				*(struct downlink_data_notification *)param;
 		break;
+    case MSG_KEEPALIVE_ACK:
+		break;
 	default:
 		RTE_LOG_DP(ERR, API, "build_dp_msg: Invalid msg type\n");
 		return -1;
@@ -542,5 +544,25 @@ ue_cdr_flush(struct dp_id dp_id, struct msg_ue_cdr ue_cdr)
     return send_dp_msg(dp_id, &msg_payload);
 #else
     return dp_ue_cdr_flush(dp_id, &ue_cdr);
+#endif
+}
+
+int 
+send_keepalive_ack(struct dp_id dp_id)
+{
+#ifdef CP_BUILD
+    struct msgbuf msg_payload;
+    if(dp_id.id == 0) 
+    {
+      uint32_t id = 0;
+      resolve_upf_name_to_id(dp_id.name, &id);
+      dp_id.id = id;
+      if(id == 0)
+        return 1;
+    }
+    build_dp_msg(MSG_KEEPALIVE_ACK, dp_id, NULL, &msg_payload);
+    return send_dp_msg(dp_id, &msg_payload);
+#else
+    return 0;
 #endif
 }

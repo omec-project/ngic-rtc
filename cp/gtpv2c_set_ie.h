@@ -65,6 +65,21 @@ void
 set_cause_accepted(cause_ie_t *cause, enum ie_instance instance);
 
 /**
+ * Populates cause information element with given value
+ *
+ * @param cause ie
+ *   cause ie
+ * @param instance
+ *   Information element instance as specified by 3gpp 29.274 clause 6.1.3
+ * @return
+ *   void
+ */
+
+void
+set_cause_rejected(cause_ie_t *cause, enum ie_instance instance, uint16_t cause_no);
+
+
+/**
  * Creates and populates cause information element with accepted value
  * within transmission buffer with the GTP header '*header'
  *

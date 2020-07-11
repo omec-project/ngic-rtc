@@ -374,6 +374,18 @@ fetch_dp_context(uint32_t dpId)
 	return NULL;
 }
 
+uint8_t
+resolve_upf_name_to_id(char *hostname, uint32_t *dp_id)
+{
+	struct dp_info *dp;
+	LIST_FOREACH(dp, &appl_config->dpList, dpentries) {
+		if (!strcmp(hostname, dp->dpName)) {
+			*dp_id = dp->dpId;
+			return 1;
+		}
+	}
+	return 0;
+}
 struct upf_context *
 fetch_upf_context(uint32_t dpId)
 {

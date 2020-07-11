@@ -832,4 +832,7 @@ meter_profile_entry_delete(struct dp_id dp_id, struct mtr_entry mtr_entry);
 int
 ue_cdr_flush(struct dp_id dp_id, struct msg_ue_cdr ue_cdr);
 
+int 
+send_keepalive_ack(struct dp_id dp_id);
+
 #endif /* _CP_DP_API_H_ */

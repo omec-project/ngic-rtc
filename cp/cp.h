@@ -193,6 +193,8 @@ del_resp_op_id(uint64_t resp_op_id);
 int
 cb_ddn(uint64_t sess_id);
 
+int
+cb_keepalive(struct dp_id id);
 #endif  /* ZMQ_COMM */
 
 /**

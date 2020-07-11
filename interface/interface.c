@@ -329,6 +329,10 @@ int process_resp_msg(void *buf)
 				return -1;
 		break;
 
+    case MSG_KEEPALIVE:
+        /* keepalive handler cp<-->DP */
+        cb_keepalive(rbuf->dp_id);
+        break;
 	default:
 		break;
 	}

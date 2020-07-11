@@ -48,6 +48,8 @@ enum dp_msg_type {
 	/* DDN from DP to CP*/
 	MSG_DDN,
 	MSG_DDN_ACK,
+    MSG_KEEPALIVE = 100,
+    MSG_KEEPALIVE_ACK=101,
 
 	MSG_END,
 };

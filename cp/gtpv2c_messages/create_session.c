@@ -161,6 +161,25 @@ build_pco_response(char *pco_buf, pco_ie_t *req_pco, uint32_t dpId)
 	return index;
 }
 
+static void
+set_reject_create_session_response(gtpv2c_header *gtpv2c_tx,
+		uint32_t sequence, uint16_t cause, uint32_t teid )
+{
+
+	create_session_response_t cs_resp = {0};
+
+	set_gtpv2c_teid_header((gtpv2c_header *)&cs_resp.header,
+			GTP_CREATE_SESSION_RSP, teid,
+			sequence);
+
+	set_cause_rejected(&cs_resp.cause, IE_INSTANCE_ZERO, cause);
+
+	uint16_t msg_len = 0;
+	encode_create_session_response_t(&cs_resp, (uint8_t *)gtpv2c_tx,
+			&msg_len);
+	gtpv2c_tx->gtpc.length = htons(msg_len - 4);
+}
+
 void
 set_create_session_response(gtpv2c_header *gtpv2c_tx,
 		uint32_t sequence, ue_context *context, pdn_connection *pdn,
@@ -333,7 +352,16 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 
 	/* TODO : need to do similar things for PGW only */
 	dataplane_id = select_dp_for_key(&dpkey);
-	RTE_LOG_DP(INFO, CP, "dpid.%d imsi.%llu \n", dataplane_id, (long long unsigned int)context->imsi);
+	RTE_LOG_DP(INFO, CP, "dpid.%d imsi.%llx \n", dataplane_id, (long long unsigned int)context->imsi);
+    if(dataplane_id == DPN_ID)
+    {
+	    RTE_LOG_DP(INFO, CP, "Rejecting CSReq message - dpid.%d imsi.%s \n", dataplane_id, csr.imsi.imsi);
+	    set_reject_create_session_response(gtpv2c_s11_tx, 
+                        csr.header.teid.has_teid.seq,
+			            GTPV2C_CAUSE_REQUEST_REJECTED, 
+                        csr.sender_ftied.teid_gre);
+		return GTPV2C_CAUSE_REQUEST_REJECTED;
+    }
 #endif
 
 	if (csr.paa.pdn_type == PDN_IP_TYPE_IPV4 && csr.paa.ip_type.ipv4.s_addr != 0) {
