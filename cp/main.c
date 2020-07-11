@@ -952,7 +952,7 @@ control_plane(void)
 					/* Error handling not implemented */
 					payload_length = ntohs(gtpv2c_s11_tx->gtpc.length)
 							+ sizeof(gtpv2c_s11_tx->gtpc);
-					if(payload_length > 0 ) {
+					if (payload_length > 0 ) {
 						gtpv2c_send(s11_fd, s11_tx_buf, payload_length,
 									(struct sockaddr *) &s11_mme_sockaddr,
 									sizeof(s11_mme_sockaddr));
@@ -1333,6 +1333,7 @@ cb_keepalive(struct dp_id dp_id)
 	}
 	return ret;
 }
+
 /**
  * @brief callback initated by nb listener thread
  * @param arg

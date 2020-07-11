@@ -185,8 +185,8 @@ process_create_bearer_response(gtpv2c_header *gtpv2c_rx)
 	session.sess_id = SESS_ID(create_bearer_rsp.context->s11_sgw_gtpc_teid,
 				create_bearer_rsp.ded_bearer->eps_bearer_id);
 
-	RTE_LOG_DP(INFO, CP, "Sending session create bearer request with ue IPv4 addr: ");
-	RTE_LOG_DP(INFO, CP, "%d.%d.%d.%d", ((session.ue_addr.u.ipv4_addr >> 24) & 0xFF),
+	RTE_LOG_DP(DEBUG, CP, "Sending session create bearer request with ue IPv4 addr: ");
+	RTE_LOG_DP(DEBUG, CP, "%d.%d.%d.%d", ((session.ue_addr.u.ipv4_addr >> 24) & 0xFF),
 		((session.ue_addr.u.ipv4_addr >> 16) & 0xFF),
 		((session.ue_addr.u.ipv4_addr >> 8) & 0xFF),
 		((session.ue_addr.u.ipv4_addr & 0xFF)));

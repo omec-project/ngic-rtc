@@ -386,6 +386,7 @@ resolve_upf_name_to_id(char *hostname, uint32_t *dp_id)
 	}
 	return 0;
 }
+
 struct upf_context *
 fetch_upf_context(uint32_t dpId)
 {

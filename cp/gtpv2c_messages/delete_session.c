@@ -124,8 +124,8 @@ delete_context(delete_session_request_t *ds_req,
 					context->s11_sgw_gtpc_teid,
 					si.bearer_id);
 			struct dp_id dp_id = { .id = context->dpId };
-			RTE_LOG_DP(INFO, CP, "Sending session delete request with ue IPv4 addr: ");
-			RTE_LOG_DP(INFO, CP, "%d.%d.%d.%d", ((si.ue_addr.u.ipv4_addr >> 24) & 0xFF),
+			RTE_LOG_DP(DEBUG, CP, "Sending session delete request with ue IPv4 addr: ");
+			RTE_LOG_DP(DEBUG, CP, "%d.%d.%d.%d", ((si.ue_addr.u.ipv4_addr >> 24) & 0xFF),
 				((si.ue_addr.u.ipv4_addr >> 16) & 0xFF),
 				((si.ue_addr.u.ipv4_addr >> 8) & 0xFF),
 				((si.ue_addr.u.ipv4_addr & 0xFF)));

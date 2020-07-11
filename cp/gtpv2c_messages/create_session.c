@@ -353,15 +353,14 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 	/* TODO : need to do similar things for PGW only */
 	dataplane_id = select_dp_for_key(&dpkey);
 	RTE_LOG_DP(INFO, CP, "dpid.%d imsi.%llx \n", dataplane_id, (long long unsigned int)context->imsi);
-    if(dataplane_id == DPN_ID)
-    {
-	    RTE_LOG_DP(INFO, CP, "Rejecting CSReq message - dpid.%d imsi.%s \n", dataplane_id, csr.imsi.imsi);
-	    set_reject_create_session_response(gtpv2c_s11_tx, 
-                        csr.header.teid.has_teid.seq,
-			            GTPV2C_CAUSE_REQUEST_REJECTED, 
-                        csr.sender_ftied.teid_gre);
+	if (dataplane_id == DPN_ID) {
+		RTE_LOG_DP(INFO, CP, "Rejecting CSReq message - dpid.%d imsi.%s \n", dataplane_id, csr.imsi.imsi);
+		set_reject_create_session_response(gtpv2c_s11_tx,
+						   csr.header.teid.has_teid.seq,
+						   GTPV2C_CAUSE_REQUEST_REJECTED,
+						   csr.sender_ftied.teid_gre);
 		return GTPV2C_CAUSE_REQUEST_REJECTED;
-    }
+	}
 #endif
 
 	if (csr.paa.pdn_type == PDN_IP_TYPE_IPV4 && csr.paa.ip_type.ipv4.s_addr != 0) {
@@ -577,8 +576,8 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 	session.sess_id = SESS_ID(context->s11_sgw_gtpc_teid,
 						bearer->eps_bearer_id);
 
-	RTE_LOG_DP(INFO, CP, "Sending session create request with ue IPv4 addr: ");
-	RTE_LOG_DP(INFO, CP, "%d.%d.%d.%d", ((session.ue_addr.u.ipv4_addr >> 24) & 0xFF),
+	RTE_LOG_DP(DEBUG, CP, "Sending session create request with ue IPv4 addr: ");
+	RTE_LOG_DP(DEBUG, CP, "%d.%d.%d.%d", ((session.ue_addr.u.ipv4_addr >> 24) & 0xFF),
 		((session.ue_addr.u.ipv4_addr >> 16) & 0xFF),
 		((session.ue_addr.u.ipv4_addr >> 8) & 0xFF),
 		((session.ue_addr.u.ipv4_addr & 0xFF)));
@@ -598,8 +597,8 @@ process_create_session_request(gtpv2c_header *gtpv2c_rx,
 		for (i = 0; i < num_adc_rules; ++i)
 			        session.adc_rule_id[i] = adc_rule_id[i];
 
-	RTE_LOG_DP(INFO, CP, "Sending session modify request with ue IPv4 addr: ");
-	RTE_LOG_DP(INFO, CP, "%d.%d.%d.%d", ((session.ue_addr.u.ipv4_addr >> 24) & 0xFF),
+	RTE_LOG_DP(DEBUG, CP, "Sending session modify request with ue IPv4 addr: ");
+	RTE_LOG_DP(DEBUG, CP, "%d.%d.%d.%d", ((session.ue_addr.u.ipv4_addr >> 24) & 0xFF),
 		((session.ue_addr.u.ipv4_addr >> 16) & 0xFF),
 		((session.ue_addr.u.ipv4_addr >> 8) & 0xFF),
 		((session.ue_addr.u.ipv4_addr & 0xFF)));
