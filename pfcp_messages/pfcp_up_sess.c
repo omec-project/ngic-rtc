@@ -2667,6 +2667,8 @@ fill_sess_del_usage_report(pfcp_usage_rpt_sess_del_rsp_ie_t *usage_report,
 					data = NULL;
 				}
 			}
+		}else {
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"No timer entery found for URR %u\n", LOG_VALUE, urr->urr_id);
 		}
 	}
 	return size;
@@ -2850,17 +2852,16 @@ up_delete_session_entry(pfcp_session_t *sess, pfcp_sess_del_rsp_t *sess_del_rsp,
 
 	/* Flush the Session data info from the hash tables based on ue_ip */
 	for (int itr = 0; itr < inx; itr++) {
-		if (ue_ip[inx] != 0) {
+		if(ue_ip[itr] == 0) {
+			continue;
+		}else if (del_sess_by_ueip_entry(ue_ip[itr]) < 0){
 			/* Session Entry is present. Delete Session Entry */
-			ret = del_sess_by_ueip_entry(ue_ip[inx]);
-			if ( ret < 0) {
 				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Entry not found for UE_IP:"IPV4_ADDR"...\n",
 							LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ue_ip[inx]));
 				return -1;
-			}
-			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT": UE_IP:"IPV4_ADDR"\n",
-					LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ue_ip[inx]));
 		}
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT": UE_IP:"IPV4_ADDR"\n",
+					LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ue_ip[itr]));
 	}
 
 	for (int itr1 = 0; itr1 < sess->ber_cnt; itr1++) {
