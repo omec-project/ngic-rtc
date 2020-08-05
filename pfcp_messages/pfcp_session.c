@@ -182,11 +182,16 @@ void add_pdr_qer_for_rule(eps_bearer *bearer, bool prdef_rule)
 
 	if (bearer->pdn->context->cp_mode != SGWC){
 		if(!prdef_rule){
-			for(uint8_t itr=bearer->qer_count; itr < bearer->qer_count + NUMBER_OF_QER_PER_RULE; itr++){
+			for(uint8_t itr = bearer->qer_count; itr < bearer->qer_count + NUMBER_OF_QER_PER_RULE; itr++){
 				bearer->qer_id[itr].qer_id = generate_qer_id();
 				fill_qer_entry(bearer->pdn, bearer, itr);
 			}
 			bearer->qer_count += NUMBER_OF_QER_PER_RULE;
+
+			/* TODO: Added handling for QER Approprietly */
+			for(uint8_t itr1 = 0; itr1 < bearer->pdr_count; itr1++){
+				bearer->pdrs[itr1]->qer_id[0].qer_id = bearer->qer_id[itr1].qer_id;
+			}
 		}
 	}
 	return;
@@ -2400,7 +2405,7 @@ fill_dedicated_bearer_info(eps_bearer *bearer,
 	if(!prdef_rule && (pfcp_config.use_gx)){
 		/* TODO: Revisit this for change in yang*/
 		if (context->cp_mode != SGWC){
-			for(uint8_t itr=bearer->qer_count;
+			for(uint8_t itr = bearer->qer_count;
 				itr < bearer->qer_count + NUMBER_OF_QER_PER_RULE;
 				itr++){
 
@@ -2483,6 +2488,15 @@ fill_dedicated_bearer_info(eps_bearer *bearer,
 											context->cp_mode, &upf_teid_info_head);
 		update_pdr_teid(bearer, bearer->s5s8_pgw_gtpu_teid, upf_ctx->s5s8_pgwu_ip,
 											SOURCE_INTERFACE_VALUE_ACCESS);
+	}
+
+	/* TODO: Added handling for QER Approprietly */
+	if(!prdef_rule && (pfcp_config.use_gx)){
+		if (context->cp_mode != SGWC){
+			for(uint8_t itr = 0; itr < bearer->pdr_count; itr++){
+				bearer->pdrs[itr]->qer_id[0].qer_id = bearer->qer_id[itr].qer_id;
+			}
+		}
 	}
 
 	RTE_SET_USED(context);
@@ -4859,8 +4873,9 @@ process_pfcp_sess_est_request(uint32_t teid, pdn_connection *pdn, upf_context_t 
 				}
 				bearer->qer_count += NUMBER_OF_QER_PER_RULE;
 
-				for(uint8_t itr=0; itr < bearer->pdr_count; itr++){
-					bearer->pdrs[itr]->qer_id[0].qer_id = bearer->qer_id[itr].qer_id;
+				/* TODO: Added handling for QER Approprietly */
+				for(uint8_t itr1 = 0; itr1 < bearer->pdr_count; itr1++){
+					bearer->pdrs[itr1]->qer_id[0].qer_id = bearer->qer_id[itr1].qer_id;
 				}
 			}
 

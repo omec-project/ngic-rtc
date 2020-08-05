@@ -78,6 +78,8 @@ init_teid_info(teid_info *upf_info){
 
 	upf_info->ip= 0;
 	upf_info->up_gtpu_teid_offset = 0;
+#define MAX_TEID_OFFSET 0xFFFFFFFF
+	upf_info->up_gtpu_max_teid_offset = MAX_TEID_OFFSET;
 	upf_info->next = NULL;
 
 }
@@ -168,7 +170,12 @@ set_base_teid(uint8_t ri_val, uint8_t val, uint32_t ip,
 		/* e.g: if teidri = 3, then CLEAR_BYTE  = 0001 1111 1111 1111 1111 1111 1111 1111
 		 *      if teidri = 8, then CLEAR_BYTE  = 0000 0000 1111 1111 1111 1111 1111 1111
 		 */
-		CLEAR_BYTE = (CLEAR_BYTE >> (MAX_RI_BITS - ri_val));
+		CLEAR_BYTE = (CLEAR_BYTE >> (ri_val));
+
+		/* e.g: if teidri = 3, then max teid offset = 0001 1111 1111 1111 1111 1111 1111 1111
+		 *      if teidri = 8, then max teid offset = 0000 0000 1111 1111 1111 1111 1111 1111
+		 */
+		upf_info->up_gtpu_max_teid_offset = CLEAR_BYTE;
 
 		/* Set the TEID Base value based on the received TEID_Range*/
 		upf_info->up_gtpu_base_teid = (upf_info->teid_range << SHIFT_BITS);
@@ -203,7 +210,11 @@ get_s1u_sgw_gtpu_teid(uint32_t upf_ip, int cp_type, teid_info **head){
 
 	if ((cp_type == CP_TYPE_SGWC) || (cp_type == CP_TYPE_SAEGWC)) {
 		upf_info->up_gtpu_teid = upf_info->up_gtpu_base_teid + upf_info->up_gtpu_teid_offset;
-		++upf_info->up_gtpu_teid_offset;
+		if (upf_info->up_gtpu_teid_offset >= upf_info->up_gtpu_max_teid_offset) {
+			upf_info->up_gtpu_teid_offset = 0;
+		} else {
+			++upf_info->up_gtpu_teid_offset;
+		}
 	}
 
 	s1u_sgw_gtpu_teid = (upf_info->up_gtpu_teid & CLEAR_BYTE)
@@ -230,7 +241,11 @@ get_s5s8_sgw_gtpu_teid(uint32_t upf_ip, int cp_type, teid_info **head){
 
 	if ((cp_type == CP_TYPE_SGWC) || (cp_type == CP_TYPE_SAEGWC)) {
 		upf_info->up_gtpu_teid = upf_info->up_gtpu_base_teid + upf_info->up_gtpu_teid_offset;
-		++upf_info->up_gtpu_teid_offset;
+		if (upf_info->up_gtpu_teid_offset >= upf_info->up_gtpu_max_teid_offset) {
+			upf_info->up_gtpu_teid_offset = 0;
+		} else {
+			++upf_info->up_gtpu_teid_offset;
+		}
 	}
 
 	s5s8_sgw_gtpu_teid = (upf_info->up_gtpu_teid & CLEAR_BYTE)
@@ -254,7 +269,11 @@ get_s5s8_pgw_gtpu_teid(uint32_t upf_ip, int cp_type, teid_info **head){
 
 	if (cp_type == CP_TYPE_PGWC){
 		upf_info->up_gtpu_teid = upf_info->up_gtpu_base_teid + upf_info->up_gtpu_teid_offset;
-		++upf_info->up_gtpu_teid_offset;
+		if (upf_info->up_gtpu_teid_offset >= upf_info->up_gtpu_max_teid_offset) {
+			upf_info->up_gtpu_teid_offset = 0;
+		} else {
+			++upf_info->up_gtpu_teid_offset;
+		}
 	}
 	s5s8_pgw_gtpu_teid = (upf_info->up_gtpu_teid & CLEAR_BYTE)
 		| ((upf_info->teid_range) << SHIFT_BITS);

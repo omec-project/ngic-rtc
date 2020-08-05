@@ -381,7 +381,12 @@ init_sdf_rules(void)
 		if (entry) {
 			pf.proto = atoi(entry);
 			pf.proto_mask = UINT8_MAX;
+		} else {
+			/* Validate Protocol is set or not */
+			rte_panic("ERROR: PROTOCOL type field is not configured in SDF Rule,"
+					" Check the configured rules in sdf_rules.cfg file..!!\n\n");
 		}
+
 
 		entry = rte_cfgfile_get_entry(file, sectionname, "IPV4_LOCAL");
 		if (entry) {

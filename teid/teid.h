@@ -39,6 +39,9 @@ struct teid_info_t{
 	uint32_t up_gtpu_teid_offset;
 	uint32_t up_gtpu_teid;
 
+	/* max teid value in range, after which teid value should loopback */
+	uint32_t up_gtpu_max_teid_offset;
+
 	struct teid_info_t *next;
 };
 

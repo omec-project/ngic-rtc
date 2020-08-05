@@ -157,7 +157,7 @@ fill_create_pdr(pfcp_create_pdr_ie_t *create_pdr, pdr_t *pdr, eps_bearer *bearer
 
 	create_pdr->far_id.far_id_value = pdr->far.far_id_value;
 
-	/* UUR ID */
+	/* URR ID */
 	if (bearer->pdn->generate_cdr) {
 		create_pdr->urr_id_count = pdr->urr_id_count;
 		for (uint8_t itr = 0; itr < pdr->urr_id_count; itr++) {
@@ -177,15 +177,13 @@ fill_create_pdr(pfcp_create_pdr_ie_t *create_pdr, pdr_t *pdr, eps_bearer *bearer
 
 	/* QER ID */
 	if((pfcp_config.use_gx) && bearer->pdn->context->cp_mode != SGWC) {
-		uint8_t idx = 0;
 		create_pdr->qer_id_count = pdr->qer_id_count;
 		for(int itr1 = 0; itr1 < pdr->qer_id_count; itr1++) {
 			pfcp_set_ie_header(&(create_pdr->qer_id[itr1].header), PFCP_IE_QER_ID,
 								(sizeof(pfcp_qer_id_ie_t) - sizeof(pfcp_ie_header_t)));
 			pdr_header_len += sizeof(pfcp_qer_id_ie_t);
 
-			create_pdr->qer_id[itr1].qer_id_value = bearer->qer_id[idx].qer_id;
-			idx++;
+			create_pdr->qer_id[itr1].qer_id_value = pdr->qer_id[itr1].qer_id;
 		}
 	}
 
@@ -559,19 +557,6 @@ process_pfcp_sess_est_req(ue_context *context, uint32_t node_addr)
 			}
 
 			if((pfcp_config.use_gx) && pdn->context->cp_mode != SGWC) {
-				/* Need to think about it. */
-				int idx = 0;
-				uint8_t qer_count = 0;
-				for (uint8_t itr3 = 0; itr3 < bearer->pdr_count; itr3++) {
-					qer_count = bearer->pdrs[itr3]->qer_id_count;
-					for(uint8_t itr4 = 0; itr4 < qer_count; itr4++) {
-						pfcp_sess_est_req.create_pdr[itr3].qer_id[itr4].qer_id_value =
-							bearer->qer_id[idx].qer_id;
-					}
-					idx++;
-
-				}
-
 				fill_create_qer(&(pfcp_sess_est_req), bearer);
 				pfcp_sess_est_req.create_qer_count += bearer->qer_count;
 

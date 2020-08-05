@@ -2667,8 +2667,9 @@ fill_sess_del_usage_report(pfcp_usage_rpt_sess_del_rsp_ie_t *usage_report,
 					data = NULL;
 				}
 			}
-		}else {
-			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"No timer entery found for URR %u\n", LOG_VALUE, urr->urr_id);
+		} else {
+			clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"No timer entery found for URR %u\n", LOG_VALUE, urr->urr_id);
 		}
 	}
 	return size;
