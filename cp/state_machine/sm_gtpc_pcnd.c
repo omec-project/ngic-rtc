@@ -316,7 +316,7 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 			/*CLI*/
 			/*add entry of MME(if cp is SGWC) and SGWC (if cp PGWC)*/
 			if (msg->gtpc_msg.csr.sender_fteid_ctl_plane.ipv4_address != 0) {
-				add_cli_peer(htonl(msg->gtpc_msg.csr.sender_fteid_ctl_plane.ipv4_address), S5S8);
+				add_cli_peer(htonl(msg->gtpc_msg.csr.sender_fteid_ctl_plane.ipv4_address), msg->cp_mode != PGWC ? S11:S5S8);
 				add_node_conn_entry(msg->gtpc_msg.csr.sender_fteid_ctl_plane.ipv4_address,
 											msg->cp_mode != PGWC ? S11_SGW_PORT_ID : S5S8_PGWC_PORT_ID,
 											msg->cp_mode);
