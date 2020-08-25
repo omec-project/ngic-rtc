@@ -371,7 +371,7 @@ int decode_gtp_prot_cfg_opts_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->pco = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+	return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -3860,7 +3860,7 @@ int decode_gtp_addtl_prot_cfg_opts_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->apco = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+	return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -4126,7 +4126,7 @@ int decode_gtp_extnded_prot_cfg_opts_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->epco = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+	return value->header.len + IE_HEADER_SIZE;
 }
 
 /**

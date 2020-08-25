@@ -86,6 +86,31 @@
 #define CSR_SEQUENCE(x) (\
 	(x->header.gtpc.teid_flag == 1)? x->header.teid.has_teid.seq : x->header.teid.no_teid.seq \
 	)
+
+#define DEFAULT_RULE_COUNT                  1
+#define QCI_VALUE                           6
+#define GX_PRIORITY_LEVEL                   1
+#define PREEMPTION_CAPABILITY_DISABLED      1
+#define PREEMPTION_VALNERABILITY_ENABLED    0
+#define GX_ENABLE                           2
+#define PRECEDENCE                          2
+#define SERVICE_INDENTIFIRE                 11
+#define RATING_GROUP                        1
+#define REQUESTED_BANDWIDTH_UL              16500
+#define REQUESTED_BANDWIDTH_DL              16500
+#define GURATEED_BITRATE_UL                 0
+#define GURATEED_BITRATE_DL                 0
+#define RULE_NAME                           "default rule"
+#define RULE_LENGTH                         strlen(RULE_NAME)
+#define PROTO_ID                            0
+#define LOCAL_IP_MASK                       0
+#define LOCAL_IP_ADDR                       0
+#define PORT_LOW                            0
+#define PORT_HIGH                           65535
+#define REMOTE_IP_MASK                      0
+#define REMOTE_IP_ADDR                      0
+#define GX_FLOW_COUNT                       1
+
 struct eps_bearer_t;
 struct pdn_connection_t;
 
