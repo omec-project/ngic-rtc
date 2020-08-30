@@ -227,10 +227,10 @@ init_spgwc_dynamic_config(struct app_config *cfg )
             entry = rte_cfgfile_get_entry(file, sectionname, "IMSIs");
             if(entry)
             {   
-                char * imsis = "";             
+                char * imsis ;             
                 memcpy(&imsis, &entry, sizeof(entry));
                 char * token = strtok(imsis, " ");
-                int imsis_counter=0;
+                unsigned int imsis_counter=0;
                 while( token != NULL && imsis_counter<dpInfo->key.num_imsis) {
                     dpInfo->key.imsis[imsis_counter]=atol(token);
                     imsis_counter++;
@@ -351,8 +351,8 @@ select_dp_for_key(struct dp_key *key)
 		//we compare imsi only if it is present in the key otherwise ignore it
 		if(np->key.num_imsis) {
 			bool imsifound=false;
-            for (int ind = 0; ind < dpInfo->key.num_imsis; ind++) {                
-                if (key->imsi_to_compare==dpInfo->key.imsis[ind])
+            for (unsigned ind = 0; ind < np->key.num_imsis; ind++) {                
+                if (key->imsi_to_compare==np->key.imsis[ind])
                 {
                     imsifound=true;
                     break;
