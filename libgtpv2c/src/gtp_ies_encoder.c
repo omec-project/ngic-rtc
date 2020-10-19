@@ -29,7 +29,7 @@
  * @return
  *   number of encoded bytes.
  */
-int encode_gtpv2c_header_t(gtpv2c_header_t *value,
+int encode_gtpv2c_header_t(const gtpv2c_header_t *value,
 	uint8_t *buf)
 {
 	uint16_t encoded = 0;
@@ -63,7 +63,7 @@ int encode_gtpv2c_header_t(gtpv2c_header_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_ie_header_t(ie_header_t *value,
+int encode_ie_header_t(const ie_header_t *value,
 	uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -84,7 +84,7 @@ int encode_ie_header_t(ie_header_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_macro_enb_id_fld(macro_enb_id_fld_t *value,
+int encode_macro_enb_id_fld(const macro_enb_id_fld_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -111,7 +111,7 @@ int encode_macro_enb_id_fld(macro_enb_id_fld_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_umts_key_and_quintuplets_ie(gtp_umts_key_and_quintuplets_ie_t *value,
+int encode_gtp_umts_key_and_quintuplets_ie(const gtp_umts_key_and_quintuplets_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -174,7 +174,7 @@ int encode_gtp_umts_key_and_quintuplets_ie(gtp_umts_key_and_quintuplets_ie_t *va
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_channel_needed_ie(gtp_channel_needed_ie_t *value,
+int encode_gtp_channel_needed_ie(const gtp_channel_needed_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -194,7 +194,7 @@ int encode_gtp_channel_needed_ie(gtp_channel_needed_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_rfsp_index_ie(gtp_rfsp_index_ie_t *value,
+int encode_gtp_rfsp_index_ie(const gtp_rfsp_index_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -214,7 +214,7 @@ int encode_gtp_rfsp_index_ie(gtp_rfsp_index_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_guti_ie(gtp_guti_ie_t *value,
+int encode_gtp_guti_ie(const gtp_guti_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -243,7 +243,7 @@ encode_imsi(uint64_t val, int len, uint8_t *imsi)
     for (int i=0; i<len; i++)
          imsi[i] = ((buf[i*2 + 1] & 0xF) << 4) | ((buf[i*2] & 0xF));
 
-    uint8_t odd = strlen((const char *)buf)%2;
+    uint8_t odd = strlen((char *)buf)%2;
     if (odd)
         imsi[len -1] = (0xF << 4) | ((buf[(len-1)*2] & 0xF));
 
@@ -259,7 +259,7 @@ encode_imsi(uint64_t val, int len, uint8_t *imsi)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_imsi_ie(gtp_imsi_ie_t *value,
+int encode_gtp_imsi_ie(const gtp_imsi_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -282,7 +282,7 @@ int encode_gtp_imsi_ie(gtp_imsi_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_eps_bearer_id_ie(gtp_eps_bearer_id_ie_t *value,
+int encode_gtp_eps_bearer_id_ie(const gtp_eps_bearer_id_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -303,7 +303,7 @@ int encode_gtp_eps_bearer_id_ie(gtp_eps_bearer_id_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_emlpp_priority_ie(gtp_emlpp_priority_ie_t *value,
+int encode_gtp_emlpp_priority_ie(const gtp_emlpp_priority_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -323,7 +323,7 @@ int encode_gtp_emlpp_priority_ie(gtp_emlpp_priority_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_prot_cfg_opts_ie(gtp_prot_cfg_opts_ie_t *value,
+int encode_gtp_prot_cfg_opts_ie(const gtp_prot_cfg_opts_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -343,7 +343,7 @@ int encode_gtp_prot_cfg_opts_ie(gtp_prot_cfg_opts_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mdt_cfg_ie(gtp_mdt_cfg_ie_t *value,
+int encode_gtp_mdt_cfg_ie(const gtp_mdt_cfg_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -381,7 +381,7 @@ int encode_gtp_mdt_cfg_ie(gtp_mdt_cfg_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_src_id_ie(gtp_src_id_ie_t *value,
+int encode_gtp_src_id_ie(const gtp_src_id_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -403,7 +403,7 @@ int encode_gtp_src_id_ie(gtp_src_id_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_auth_quintuplet(auth_quintuplet_t *value,
+int encode_auth_quintuplet(const auth_quintuplet_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -431,7 +431,7 @@ int encode_auth_quintuplet(auth_quintuplet_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_trgt_id_type_macro_ng_enb(trgt_id_type_macro_ng_enb_t *value,
+int encode_trgt_id_type_macro_ng_enb(const trgt_id_type_macro_ng_enb_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -458,7 +458,7 @@ int encode_trgt_id_type_macro_ng_enb(trgt_id_type_macro_ng_enb_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_ran_nas_cause_ie(gtp_ran_nas_cause_ie_t *value,
+int encode_gtp_ran_nas_cause_ie(const gtp_ran_nas_cause_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -480,7 +480,7 @@ int encode_gtp_ran_nas_cause_ie(gtp_ran_nas_cause_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_trgt_id_type_rnc_id(trgt_id_type_rnc_id_t *value,
+int encode_trgt_id_type_rnc_id(const trgt_id_type_rnc_id_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -508,7 +508,7 @@ int encode_trgt_id_type_rnc_id(trgt_id_type_rnc_id_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_pdn_type_ie(gtp_pdn_type_ie_t *value,
+int encode_gtp_pdn_type_ie(const gtp_pdn_type_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -529,7 +529,7 @@ int encode_gtp_pdn_type_ie(gtp_pdn_type_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_eps_secur_ctxt_and_quadruplets_ie(gtp_eps_secur_ctxt_and_quadruplets_ie_t *value,
+int encode_gtp_eps_secur_ctxt_and_quadruplets_ie(const gtp_eps_secur_ctxt_and_quadruplets_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -609,7 +609,7 @@ int encode_gtp_eps_secur_ctxt_and_quadruplets_ie(gtp_eps_secur_ctxt_and_quadrupl
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_s103_pdn_data_fwdng_info_ie(gtp_s103_pdn_data_fwdng_info_ie_t *value,
+int encode_gtp_s103_pdn_data_fwdng_info_ie(const gtp_s103_pdn_data_fwdng_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -633,7 +633,7 @@ int encode_gtp_s103_pdn_data_fwdng_info_ie(gtp_s103_pdn_data_fwdng_info_ie_t *va
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_fully_qual_domain_name_ie(gtp_fully_qual_domain_name_ie_t *value,
+int encode_gtp_fully_qual_domain_name_ie(const gtp_fully_qual_domain_name_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -654,12 +654,13 @@ int encode_gtp_fully_qual_domain_name_ie(gtp_fully_qual_domain_name_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_traffic_agg_desc_ie(gtp_traffic_agg_desc_ie_t *value,
+int encode_gtp_traffic_agg_desc_ie(const gtp_traffic_agg_desc_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
     encoded += encode_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-    encoded += encode_bits(value->traffic_agg_desc, 8, buf + (encoded/8), encoded % CHAR_SIZE);
+	memcpy(buf + (encoded/8), &value->traffic_agg_desc, value->header.len);
+	encoded += value->header.len * CHAR_SIZE;
 
     return encoded/CHAR_SIZE;
 }
@@ -674,7 +675,7 @@ int encode_gtp_traffic_agg_desc_ie(gtp_traffic_agg_desc_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_flow_qlty_of_svc_ie(gtp_flow_qlty_of_svc_ie_t *value,
+int encode_gtp_flow_qlty_of_svc_ie(const gtp_flow_qlty_of_svc_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -698,7 +699,7 @@ int encode_gtp_flow_qlty_of_svc_ie(gtp_flow_qlty_of_svc_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_fully_qual_tunn_endpt_idnt_ie(gtp_fully_qual_tunn_endpt_idnt_ie_t *value,
+int encode_gtp_fully_qual_tunn_endpt_idnt_ie(const gtp_fully_qual_tunn_endpt_idnt_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -726,7 +727,7 @@ int encode_gtp_fully_qual_tunn_endpt_idnt_ie(gtp_fully_qual_tunn_endpt_idnt_ie_t
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_recovery_ie(gtp_recovery_ie_t *value,
+int encode_gtp_recovery_ie(const gtp_recovery_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -746,7 +747,7 @@ int encode_gtp_recovery_ie(gtp_recovery_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_srvng_plmn_rate_ctl_ie(gtp_srvng_plmn_rate_ctl_ie_t *value,
+int encode_gtp_srvng_plmn_rate_ctl_ie(const gtp_srvng_plmn_rate_ctl_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -767,7 +768,7 @@ int encode_gtp_srvng_plmn_rate_ctl_ie(gtp_srvng_plmn_rate_ctl_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mbms_dist_ack_ie(gtp_mbms_dist_ack_ie_t *value,
+int encode_gtp_mbms_dist_ack_ie(const gtp_mbms_dist_ack_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -788,7 +789,7 @@ int encode_gtp_mbms_dist_ack_ie(gtp_mbms_dist_ack_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_ue_time_zone_ie(gtp_ue_time_zone_ie_t *value,
+int encode_gtp_ue_time_zone_ie(const gtp_ue_time_zone_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -810,7 +811,7 @@ int encode_gtp_ue_time_zone_ie(gtp_ue_time_zone_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_s1u_data_fwdng_ie(gtp_s1u_data_fwdng_ie_t *value,
+int encode_gtp_s1u_data_fwdng_ie(const gtp_s1u_data_fwdng_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -833,7 +834,7 @@ int encode_gtp_s1u_data_fwdng_ie(gtp_s1u_data_fwdng_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_pres_rptng_area_act_ie(gtp_pres_rptng_area_act_ie_t *value,
+int encode_gtp_pres_rptng_area_act_ie(const gtp_pres_rptng_area_act_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -878,7 +879,7 @@ int encode_gtp_pres_rptng_area_act_ie(gtp_pres_rptng_area_act_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_trstd_wlan_mode_indctn_ie(gtp_trstd_wlan_mode_indctn_ie_t *value,
+int encode_gtp_trstd_wlan_mode_indctn_ie(const gtp_trstd_wlan_mode_indctn_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -900,7 +901,7 @@ int encode_gtp_trstd_wlan_mode_indctn_ie(gtp_trstd_wlan_mode_indctn_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_proc_trans_id_ie(gtp_proc_trans_id_ie_t *value,
+int encode_gtp_proc_trans_id_ie(const gtp_proc_trans_id_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -920,7 +921,7 @@ int encode_gtp_proc_trans_id_ie(gtp_proc_trans_id_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_wlan_offldblty_indctn_ie(gtp_wlan_offldblty_indctn_ie_t *value,
+int encode_gtp_wlan_offldblty_indctn_ie(const gtp_wlan_offldblty_indctn_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -942,7 +943,7 @@ int encode_gtp_wlan_offldblty_indctn_ie(gtp_wlan_offldblty_indctn_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_uli_timestamp_ie(gtp_uli_timestamp_ie_t *value,
+int encode_gtp_uli_timestamp_ie(const gtp_uli_timestamp_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -962,7 +963,7 @@ int encode_gtp_uli_timestamp_ie(gtp_uli_timestamp_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_max_pckt_loss_rate_ie(gtp_max_pckt_loss_rate_ie_t *value,
+int encode_gtp_max_pckt_loss_rate_ie(const gtp_max_pckt_loss_rate_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -986,7 +987,7 @@ int encode_gtp_max_pckt_loss_rate_ie(gtp_max_pckt_loss_rate_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_cn_oper_sel_entity_ie(gtp_cn_oper_sel_entity_ie_t *value,
+int encode_gtp_cn_oper_sel_entity_ie(const gtp_cn_oper_sel_entity_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1007,7 +1008,7 @@ int encode_gtp_cn_oper_sel_entity_ie(gtp_cn_oper_sel_entity_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_rai_field(rai_field_t *value,
+int encode_rai_field(const rai_field_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1033,7 +1034,7 @@ int encode_rai_field(rai_field_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_alloc_reten_priority_ie(gtp_alloc_reten_priority_ie_t *value,
+int encode_gtp_alloc_reten_priority_ie(const gtp_alloc_reten_priority_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1057,7 +1058,7 @@ int encode_gtp_alloc_reten_priority_ie(gtp_alloc_reten_priority_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_apn_restriction_ie(gtp_apn_restriction_ie_t *value,
+int encode_gtp_apn_restriction_ie(const gtp_apn_restriction_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1077,7 +1078,7 @@ int encode_gtp_apn_restriction_ie(gtp_apn_restriction_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_sai_field(sai_field_t *value,
+int encode_sai_field(const sai_field_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1103,7 +1104,7 @@ int encode_sai_field(sai_field_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_trgt_id_type_extnded_macro_ng_enb(trgt_id_type_extnded_macro_ng_enb_t *value,
+int encode_trgt_id_type_extnded_macro_ng_enb(const trgt_id_type_extnded_macro_ng_enb_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1131,7 +1132,7 @@ int encode_trgt_id_type_extnded_macro_ng_enb(trgt_id_type_extnded_macro_ng_enb_t
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_ptmsi_signature_ie(gtp_ptmsi_signature_ie_t *value,
+int encode_gtp_ptmsi_signature_ie(const gtp_ptmsi_signature_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1151,7 +1152,7 @@ int encode_gtp_ptmsi_signature_ie(gtp_ptmsi_signature_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_paging_and_svc_info_ie(gtp_paging_and_svc_info_ie_t *value,
+int encode_gtp_paging_and_svc_info_ie(const gtp_paging_and_svc_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1176,7 +1177,7 @@ int encode_gtp_paging_and_svc_info_ie(gtp_paging_and_svc_info_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_ovrld_ctl_info_ie(gtp_ovrld_ctl_info_ie_t *value,
+int encode_gtp_ovrld_ctl_info_ie(const gtp_ovrld_ctl_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1197,7 +1198,7 @@ int encode_gtp_ovrld_ctl_info_ie(gtp_ovrld_ctl_info_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_ecgi_list_ie(gtp_ecgi_list_ie_t *value,
+int encode_gtp_ecgi_list_ie(const gtp_ecgi_list_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1218,7 +1219,7 @@ int encode_gtp_ecgi_list_ie(gtp_ecgi_list_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_agg_max_bit_rate_ie(gtp_agg_max_bit_rate_ie_t *value,
+int encode_gtp_agg_max_bit_rate_ie(const gtp_agg_max_bit_rate_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1239,7 +1240,7 @@ int encode_gtp_agg_max_bit_rate_ie(gtp_agg_max_bit_rate_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_tai_field(tai_field_t *value,
+int encode_tai_field(const tai_field_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1263,7 +1264,7 @@ int encode_tai_field(tai_field_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_acc_pt_name_ie(gtp_acc_pt_name_ie_t *value,
+int encode_gtp_acc_pt_name_ie(const gtp_acc_pt_name_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1284,7 +1285,7 @@ int encode_gtp_acc_pt_name_ie(gtp_acc_pt_name_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_bss_container(bss_container_t *value,
+int encode_bss_container(const bss_container_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1312,7 +1313,7 @@ int encode_bss_container(bss_container_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_trgt_id_type_gnode_id(trgt_id_type_gnode_id_t *value,
+int encode_trgt_id_type_gnode_id(const trgt_id_type_gnode_id_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1340,7 +1341,7 @@ int encode_trgt_id_type_gnode_id(trgt_id_type_gnode_id_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_umts_key_quadruplets_and_quintuplets_ie(gtp_umts_key_quadruplets_and_quintuplets_ie_t *value,
+int encode_gtp_umts_key_quadruplets_and_quintuplets_ie(const gtp_umts_key_quadruplets_and_quintuplets_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1395,7 +1396,7 @@ int encode_gtp_umts_key_quadruplets_and_quintuplets_ie(gtp_umts_key_quadruplets_
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_cmplt_req_msg_ie(gtp_cmplt_req_msg_ie_t *value,
+int encode_gtp_cmplt_req_msg_ie(const gtp_cmplt_req_msg_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1416,7 +1417,7 @@ int encode_gtp_cmplt_req_msg_ie(gtp_cmplt_req_msg_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_epc_timer_ie(gtp_epc_timer_ie_t *value,
+int encode_gtp_epc_timer_ie(const gtp_epc_timer_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1437,7 +1438,7 @@ int encode_gtp_epc_timer_ie(gtp_epc_timer_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_csg_id_ie(gtp_csg_id_ie_t *value,
+int encode_gtp_csg_id_ie(const gtp_csg_id_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1459,7 +1460,7 @@ int encode_gtp_csg_id_ie(gtp_csg_id_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_trgt_id_type_extnded_macro_enb(trgt_id_type_extnded_macro_enb_t *value,
+int encode_trgt_id_type_extnded_macro_enb(const trgt_id_type_extnded_macro_enb_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1487,7 +1488,7 @@ int encode_trgt_id_type_extnded_macro_enb(trgt_id_type_extnded_macro_enb_t *valu
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_packet_flow_id_ie(gtp_packet_flow_id_ie_t *value,
+int encode_gtp_packet_flow_id_ie(const gtp_packet_flow_id_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1509,7 +1510,7 @@ int encode_gtp_packet_flow_id_ie(gtp_packet_flow_id_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_tmgi_ie(gtp_tmgi_ie_t *value,
+int encode_gtp_tmgi_ie(const gtp_tmgi_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1529,7 +1530,7 @@ int encode_gtp_tmgi_ie(gtp_tmgi_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mntrng_evnt_info_ie(gtp_mntrng_evnt_info_ie_t *value,
+int encode_gtp_mntrng_evnt_info_ie(const gtp_mntrng_evnt_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1552,7 +1553,7 @@ int encode_gtp_mntrng_evnt_info_ie(gtp_mntrng_evnt_info_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_rmt_ue_ip_info_ie(gtp_rmt_ue_ip_info_ie_t *value,
+int encode_gtp_rmt_ue_ip_info_ie(const gtp_rmt_ue_ip_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1572,7 +1573,7 @@ int encode_gtp_rmt_ue_ip_info_ie(gtp_rmt_ue_ip_info_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_ecgi_field(ecgi_field_t *value,
+int encode_ecgi_field(const ecgi_field_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1598,7 +1599,7 @@ int encode_ecgi_field(ecgi_field_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_bearer_qlty_of_svc_ie(gtp_bearer_qlty_of_svc_ie_t *value,
+int encode_gtp_bearer_qlty_of_svc_ie(const gtp_bearer_qlty_of_svc_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1627,7 +1628,7 @@ int encode_gtp_bearer_qlty_of_svc_ie(gtp_bearer_qlty_of_svc_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mapped_ue_usage_type_ie(gtp_mapped_ue_usage_type_ie_t *value,
+int encode_gtp_mapped_ue_usage_type_ie(const gtp_mapped_ue_usage_type_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1647,7 +1648,7 @@ int encode_gtp_mapped_ue_usage_type_ie(gtp_mapped_ue_usage_type_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_svc_indctr_ie(gtp_svc_indctr_ie_t *value,
+int encode_gtp_svc_indctr_ie(const gtp_svc_indctr_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1667,7 +1668,7 @@ int encode_gtp_svc_indctr_ie(gtp_svc_indctr_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_umts_key_used_cipher_and_quintuplets_ie(gtp_umts_key_used_cipher_and_quintuplets_ie_t *value,
+int encode_gtp_umts_key_used_cipher_and_quintuplets_ie(const gtp_umts_key_used_cipher_and_quintuplets_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1728,7 +1729,7 @@ int encode_gtp_umts_key_used_cipher_and_quintuplets_ie(gtp_umts_key_used_cipher_
 * @return
 *   number of encoded bytes.
 */
-int encode_auth_triplet(auth_triplet_t *value,
+int encode_auth_triplet(const auth_triplet_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1750,7 +1751,7 @@ int encode_auth_triplet(auth_triplet_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_local_distgsd_name_ie(gtp_local_distgsd_name_ie_t *value,
+int encode_gtp_local_distgsd_name_ie(const gtp_local_distgsd_name_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1770,7 +1771,7 @@ int encode_gtp_local_distgsd_name_ie(gtp_local_distgsd_name_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_csg_info_rptng_act_ie(gtp_csg_info_rptng_act_ie_t *value,
+int encode_gtp_csg_info_rptng_act_ie(const gtp_csg_info_rptng_act_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1793,7 +1794,7 @@ int encode_gtp_csg_info_rptng_act_ie(gtp_csg_info_rptng_act_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_secdry_rat_usage_data_rpt_ie(gtp_secdry_rat_usage_data_rpt_ie_t *value,
+int encode_gtp_secdry_rat_usage_data_rpt_ie(const gtp_secdry_rat_usage_data_rpt_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1822,7 +1823,7 @@ int encode_gtp_secdry_rat_usage_data_rpt_ie(gtp_secdry_rat_usage_data_rpt_ie_t *
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_rat_type_ie(gtp_rat_type_ie_t *value,
+int encode_gtp_rat_type_ie(const gtp_rat_type_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1842,7 +1843,7 @@ int encode_gtp_rat_type_ie(gtp_rat_type_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_trgt_id_type_macro_enb(trgt_id_type_macro_enb_t *value,
+int encode_trgt_id_type_macro_enb(const trgt_id_type_macro_enb_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1869,7 +1870,7 @@ int encode_trgt_id_type_macro_enb(trgt_id_type_macro_enb_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_global_cn_id_ie(gtp_global_cn_id_ie_t *value,
+int encode_gtp_global_cn_id_ie(const gtp_global_cn_id_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1895,7 +1896,7 @@ int encode_gtp_global_cn_id_ie(gtp_global_cn_id_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_charging_id_ie(gtp_charging_id_ie_t *value,
+int encode_gtp_charging_id_ie(const gtp_charging_id_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1915,7 +1916,7 @@ int encode_gtp_charging_id_ie(gtp_charging_id_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_counter_ie(gtp_counter_ie_t *value,
+int encode_gtp_counter_ie(const gtp_counter_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1936,7 +1937,7 @@ int encode_gtp_counter_ie(gtp_counter_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_serving_network_ie(gtp_serving_network_ie_t *value,
+int encode_gtp_serving_network_ie(const gtp_serving_network_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1961,7 +1962,7 @@ int encode_gtp_serving_network_ie(gtp_serving_network_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_node_identifier_ie(gtp_node_identifier_ie_t *value,
+int encode_gtp_node_identifier_ie(const gtp_node_identifier_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1984,7 +1985,7 @@ int encode_gtp_node_identifier_ie(gtp_node_identifier_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_extnded_macro_enb_id_fld(extnded_macro_enb_id_fld_t *value,
+int encode_extnded_macro_enb_id_fld(const extnded_macro_enb_id_fld_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2012,7 +2013,7 @@ int encode_extnded_macro_enb_id_fld(extnded_macro_enb_id_fld_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_trc_info_ie(gtp_trc_info_ie_t *value,
+int encode_gtp_trc_info_ie(const gtp_trc_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2045,7 +2046,7 @@ int encode_gtp_trc_info_ie(gtp_trc_info_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mbms_ip_multcst_dist_ie(gtp_mbms_ip_multcst_dist_ie_t *value,
+int encode_gtp_mbms_ip_multcst_dist_ie(const gtp_mbms_ip_multcst_dist_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2072,7 +2073,7 @@ int encode_gtp_mbms_ip_multcst_dist_ie(gtp_mbms_ip_multcst_dist_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_full_qual_cntnr_ie(gtp_full_qual_cntnr_ie_t *value,
+int encode_gtp_full_qual_cntnr_ie(const gtp_full_qual_cntnr_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2094,7 +2095,7 @@ int encode_gtp_full_qual_cntnr_ie(gtp_full_qual_cntnr_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mbms_data_xfer_abs_time_ie(gtp_mbms_data_xfer_abs_time_ie_t *value,
+int encode_gtp_mbms_data_xfer_abs_time_ie(const gtp_mbms_data_xfer_abs_time_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2114,7 +2115,7 @@ int encode_gtp_mbms_data_xfer_abs_time_ie(gtp_mbms_data_xfer_abs_time_ie_t *valu
 * @return
 *   number of encoded bytes.
 */
-int encode_auth_quadruplet(auth_quadruplet_t *value,
+int encode_auth_quadruplet(const auth_quadruplet_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2140,7 +2141,7 @@ int encode_auth_quadruplet(auth_quadruplet_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_gsm_key_used_cipher_and_quintuplets_ie(gtp_gsm_key_used_cipher_and_quintuplets_ie_t *value,
+int encode_gtp_gsm_key_used_cipher_and_quintuplets_ie(const gtp_gsm_key_used_cipher_and_quintuplets_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2194,7 +2195,7 @@ int encode_gtp_gsm_key_used_cipher_and_quintuplets_ie(gtp_gsm_key_used_cipher_an
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_twan_idnt_ts_ie(gtp_twan_idnt_ts_ie_t *value,
+int encode_gtp_twan_idnt_ts_ie(const gtp_twan_idnt_ts_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2214,7 +2215,7 @@ int encode_gtp_twan_idnt_ts_ie(gtp_twan_idnt_ts_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_tmsi_ie(gtp_tmsi_ie_t *value,
+int encode_gtp_tmsi_ie(const gtp_tmsi_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2234,15 +2235,15 @@ int encode_gtp_tmsi_ie(gtp_tmsi_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_pdn_addr_alloc_ie(gtp_pdn_addr_alloc_ie_t *value,
+int encode_gtp_pdn_addr_alloc_ie(const gtp_pdn_addr_alloc_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
     encoded += encode_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
     encoded += encode_bits(value->spare2, 5, buf + (encoded/8), encoded % CHAR_SIZE);
     encoded += encode_bits(value->pdn_type, 3, buf + (encoded/8), encoded % CHAR_SIZE);
-    memcpy(buf + (encoded/8), &value->pdn_addr_and_pfx, value->header.len - 1);
-    encoded += (value->header.len - 1) * CHAR_SIZE;
+
+	encoded += encode_bits(value->pdn_addr_and_pfx, 32, buf + (encoded/8), encoded % CHAR_SIZE);
 
     return encoded/CHAR_SIZE;
 }
@@ -2257,7 +2258,7 @@ int encode_gtp_pdn_addr_alloc_ie(gtp_pdn_addr_alloc_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_twan_identifier_ie(gtp_twan_identifier_ie_t *value,
+int encode_gtp_twan_identifier_ie(const gtp_twan_identifier_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2295,7 +2296,7 @@ int encode_gtp_twan_identifier_ie(gtp_twan_identifier_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_cgi_field(cgi_field_t *value,
+int encode_cgi_field(const cgi_field_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2321,7 +2322,7 @@ int encode_cgi_field(cgi_field_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_user_loc_info_ie(gtp_user_loc_info_ie_t *value,
+int encode_gtp_user_loc_info_ie(const gtp_user_loc_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2365,7 +2366,7 @@ int encode_gtp_user_loc_info_ie(gtp_user_loc_info_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_ptmsi_ie(gtp_ptmsi_ie_t *value,
+int encode_gtp_ptmsi_ie(const gtp_ptmsi_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2385,7 +2386,7 @@ int encode_gtp_ptmsi_ie(gtp_ptmsi_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_node_type_ie(gtp_node_type_ie_t *value,
+int encode_gtp_node_type_ie(const gtp_node_type_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2405,7 +2406,7 @@ int encode_gtp_node_type_ie(gtp_node_type_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_user_csg_info_ie(gtp_user_csg_info_ie_t *value,
+int encode_gtp_user_csg_info_ie(const gtp_user_csg_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2437,7 +2438,7 @@ int encode_gtp_user_csg_info_ie(gtp_user_csg_info_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_integer_number_ie(gtp_integer_number_ie_t *value,
+int encode_gtp_integer_number_ie(const gtp_integer_number_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2457,7 +2458,7 @@ int encode_gtp_integer_number_ie(gtp_integer_number_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mbms_sess_dur_ie(gtp_mbms_sess_dur_ie_t *value,
+int encode_gtp_mbms_sess_dur_ie(const gtp_mbms_sess_dur_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2477,7 +2478,7 @@ int encode_gtp_mbms_sess_dur_ie(gtp_mbms_sess_dur_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_msisdn_ie(gtp_msisdn_ie_t *value,
+int encode_gtp_msisdn_ie(const gtp_msisdn_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2499,7 +2500,7 @@ int encode_gtp_msisdn_ie(gtp_msisdn_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_metric_ie(gtp_metric_ie_t *value,
+int encode_gtp_metric_ie(const gtp_metric_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2519,7 +2520,7 @@ int encode_gtp_metric_ie(gtp_metric_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_bearer_context_ie(gtp_bearer_context_ie_t *value,
+int encode_gtp_bearer_context_ie(const gtp_bearer_context_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2540,7 +2541,7 @@ int encode_gtp_bearer_context_ie(gtp_bearer_context_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_ciot_optim_supp_indctn_ie(gtp_ciot_optim_supp_indctn_ie_t *value,
+int encode_gtp_ciot_optim_supp_indctn_ie(const gtp_ciot_optim_supp_indctn_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2567,7 +2568,7 @@ int encode_gtp_ciot_optim_supp_indctn_ie(gtp_ciot_optim_supp_indctn_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_pdu_numbers_ie(gtp_pdu_numbers_ie_t *value,
+int encode_gtp_pdu_numbers_ie(const gtp_pdu_numbers_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2592,7 +2593,7 @@ int encode_gtp_pdu_numbers_ie(gtp_pdu_numbers_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_rab_context_ie(gtp_rab_context_ie_t *value,
+int encode_gtp_rab_context_ie(const gtp_rab_context_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2617,7 +2618,7 @@ int encode_gtp_rab_context_ie(gtp_rab_context_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_addtl_flgs_srvcc_ie(gtp_addtl_flgs_srvcc_ie_t *value,
+int encode_gtp_addtl_flgs_srvcc_ie(const gtp_addtl_flgs_srvcc_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2639,7 +2640,7 @@ int encode_gtp_addtl_flgs_srvcc_ie(gtp_addtl_flgs_srvcc_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_gsm_key_and_triplets_ie(gtp_gsm_key_and_triplets_ie_t *value,
+int encode_gtp_gsm_key_and_triplets_ie(const gtp_gsm_key_and_triplets_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2691,7 +2692,7 @@ int encode_gtp_gsm_key_and_triplets_ie(gtp_gsm_key_and_triplets_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_node_number_ie(gtp_node_number_ie_t *value,
+int encode_gtp_node_number_ie(const gtp_node_number_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2712,7 +2713,7 @@ int encode_gtp_node_number_ie(gtp_node_number_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_load_ctl_info_ie(gtp_load_ctl_info_ie_t *value,
+int encode_gtp_load_ctl_info_ie(const gtp_load_ctl_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2733,7 +2734,7 @@ int encode_gtp_load_ctl_info_ie(gtp_load_ctl_info_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_rmt_ue_ctxt_ie(gtp_rmt_ue_ctxt_ie_t *value,
+int encode_gtp_rmt_ue_ctxt_ie(const gtp_rmt_ue_ctxt_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2754,7 +2755,7 @@ int encode_gtp_rmt_ue_ctxt_ie(gtp_rmt_ue_ctxt_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_full_qual_cause_ie(gtp_full_qual_cause_ie_t *value,
+int encode_gtp_full_qual_cause_ie(const gtp_full_qual_cause_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2776,67 +2777,97 @@ int encode_gtp_full_qual_cause_ie(gtp_full_qual_cause_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_indication_ie(gtp_indication_ie_t *value,
+int encode_gtp_indication_ie(const gtp_indication_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
+	uint8_t indic_len = value->header.len;
+
     encoded += encode_ie_header_t(&value->header, buf + (encoded/CHAR_SIZE));
-    encoded += encode_bits(value->indication_daf, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_dtf, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_hi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_dfi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_oi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_isrsi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_israi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_sgwci, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_sqci, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_uimsi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_cfsi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_crsi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_p, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_pt, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_si, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_msv, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_retloc, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_pbic, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_srni, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_s6af, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_s4af, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_mbmdt, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_israu, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_ccrsi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_cprai, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_arrl, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_ppof, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_ppon_ppei, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_ppsi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_csfbi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_clii, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_cpsr, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_nsi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_uasi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_dtci, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_bdwi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_psci, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_pcri, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_aosi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_aopi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_roaai, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_epcosi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_cpopci, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_pmtsmi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_s11tf, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_pnsi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_unaccsi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_wpmsi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_spare2, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_spare3, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_spare4, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_eevrsi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_ltemui, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_ltempi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_enbcrsi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
-    encoded += encode_bits(value->indication_tspcmi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+
+	if(indic_len == INDICATION_LEN_1 || indic_len > INDICATION_LEN_1)
+	{
+		encoded += encode_bits(value->indication_daf, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	    encoded += encode_bits(value->indication_dtf, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_hi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	    encoded += encode_bits(value->indication_dfi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_oi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	    encoded += encode_bits(value->indication_isrsi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_israi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	    encoded += encode_bits(value->indication_sgwci, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	}
+
+	if(indic_len == INDICATION_LEN_2 || indic_len > INDICATION_LEN_2)
+	{
+		encoded += encode_bits(value->indication_sqci, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_uimsi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_cfsi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_crsi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_p, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_pt, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_si, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_msv, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	}
+
+	if(indic_len == INDICATION_LEN_3 || indic_len > INDICATION_LEN_3)
+	{
+		encoded += encode_bits(value->indication_retloc, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_pbic, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_srni, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_s6af, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_s4af, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_mbmdt, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_israu, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_ccrsi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	}
+
+	if(indic_len == INDICATION_LEN_4 || indic_len > INDICATION_LEN_4)
+	{
+		encoded += encode_bits(value->indication_cprai, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_arrl, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_ppof, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_ppon_ppei, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_ppsi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_csfbi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_clii, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_cpsr, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	}
+
+	if(indic_len == INDICATION_LEN_5 || indic_len > INDICATION_LEN_5)
+	{
+		encoded += encode_bits(value->indication_nsi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_uasi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_dtci, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_bdwi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_psci, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_pcri, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_aosi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_aopi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	}
+
+	if(indic_len == INDICATION_LEN_6 || indic_len > INDICATION_LEN_6)
+	{
+		encoded += encode_bits(value->indication_roaai, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_epcosi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_cpopci, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_pmtsmi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_s11tf, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_pnsi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_unaccsi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_wpmsi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	}
+
+	if(indic_len == INDICATION_LEN_7)
+	{
+		encoded += encode_bits(value->indication_spare2, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_spare3, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_spare4, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_eevrsi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_ltemui, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_ltempi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_enbcrsi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+		encoded += encode_bits(value->indication_tspcmi, 1, buf + (encoded/8), encoded % CHAR_SIZE);
+	}
 
     return encoded/CHAR_SIZE;
 }
@@ -2851,7 +2882,7 @@ int encode_gtp_indication_ie(gtp_indication_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_ipv4_cfg_parms_ie(gtp_ipv4_cfg_parms_ie_t *value,
+int encode_gtp_ipv4_cfg_parms_ie(const gtp_ipv4_cfg_parms_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2872,7 +2903,7 @@ int encode_gtp_ipv4_cfg_parms_ie(gtp_ipv4_cfg_parms_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_trace_reference_ie(gtp_trace_reference_ie_t *value,
+int encode_gtp_trace_reference_ie(const gtp_trace_reference_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2898,7 +2929,7 @@ int encode_gtp_trace_reference_ie(gtp_trace_reference_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_node_features_ie(gtp_node_features_ie_t *value,
+int encode_gtp_node_features_ie(const gtp_node_features_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2918,7 +2949,7 @@ int encode_gtp_node_features_ie(gtp_node_features_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_remote_user_id_ie(gtp_remote_user_id_ie_t *value,
+int encode_gtp_remote_user_id_ie(const gtp_remote_user_id_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2944,7 +2975,7 @@ int encode_gtp_remote_user_id_ie(gtp_remote_user_id_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_fqcsid_ie(gtp_fqcsid_ie_t *value,
+int encode_gtp_fqcsid_ie(const gtp_fqcsid_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2970,7 +3001,7 @@ int encode_gtp_fqcsid_ie(gtp_fqcsid_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_port_number_ie(gtp_port_number_ie_t *value,
+int encode_gtp_port_number_ie(const gtp_port_number_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2990,7 +3021,7 @@ int encode_gtp_port_number_ie(gtp_port_number_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_addtl_mm_ctxt_srvcc_ie(gtp_addtl_mm_ctxt_srvcc_ie_t *value,
+int encode_gtp_addtl_mm_ctxt_srvcc_ie(const gtp_addtl_mm_ctxt_srvcc_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3015,7 +3046,7 @@ int encode_gtp_addtl_mm_ctxt_srvcc_ie(gtp_addtl_mm_ctxt_srvcc_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_act_indctn_ie(gtp_act_indctn_ie_t *value,
+int encode_gtp_act_indctn_ie(const gtp_act_indctn_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3035,7 +3066,7 @@ int encode_gtp_act_indctn_ie(gtp_act_indctn_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_plmn_id_ie(gtp_plmn_id_ie_t *value,
+int encode_gtp_plmn_id_ie(const gtp_plmn_id_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3060,7 +3091,7 @@ int encode_gtp_plmn_id_ie(gtp_plmn_id_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mbms_flow_idnt_ie(gtp_mbms_flow_idnt_ie_t *value,
+int encode_gtp_mbms_flow_idnt_ie(const gtp_mbms_flow_idnt_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3080,7 +3111,7 @@ int encode_gtp_mbms_flow_idnt_ie(gtp_mbms_flow_idnt_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_hdr_comp_cfg_ie(gtp_hdr_comp_cfg_ie_t *value,
+int encode_gtp_hdr_comp_cfg_ie(const gtp_hdr_comp_cfg_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3101,7 +3132,7 @@ int encode_gtp_hdr_comp_cfg_ie(gtp_hdr_comp_cfg_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_sgnllng_priority_indctn_ie(gtp_sgnllng_priority_indctn_ie_t *value,
+int encode_gtp_sgnllng_priority_indctn_ie(const gtp_sgnllng_priority_indctn_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3122,7 +3153,7 @@ int encode_gtp_sgnllng_priority_indctn_ie(gtp_sgnllng_priority_indctn_ie_t *valu
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_cause_ie(gtp_cause_ie_t *value,
+int encode_gtp_cause_ie(const gtp_cause_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3150,7 +3181,7 @@ int encode_gtp_cause_ie(gtp_cause_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mbms_time_to_data_xfer_ie(gtp_mbms_time_to_data_xfer_ie_t *value,
+int encode_gtp_mbms_time_to_data_xfer_ie(const gtp_mbms_time_to_data_xfer_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3170,7 +3201,7 @@ int encode_gtp_mbms_time_to_data_xfer_ie(gtp_mbms_time_to_data_xfer_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_addtl_prot_cfg_opts_ie(gtp_addtl_prot_cfg_opts_ie_t *value,
+int encode_gtp_addtl_prot_cfg_opts_ie(const gtp_addtl_prot_cfg_opts_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3190,7 +3221,7 @@ int encode_gtp_addtl_prot_cfg_opts_ie(gtp_addtl_prot_cfg_opts_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_trgt_id_ie(gtp_trgt_id_ie_t *value,
+int encode_gtp_trgt_id_ie(const gtp_trgt_id_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3211,7 +3242,7 @@ int encode_gtp_trgt_id_ie(gtp_trgt_id_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mbms_flags_ie(gtp_mbms_flags_ie_t *value,
+int encode_gtp_mbms_flags_ie(const gtp_mbms_flags_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3233,7 +3264,7 @@ int encode_gtp_mbms_flags_ie(gtp_mbms_flags_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_trans_idnt_ie(gtp_trans_idnt_ie_t *value,
+int encode_gtp_trans_idnt_ie(const gtp_trans_idnt_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3253,7 +3284,7 @@ int encode_gtp_trans_idnt_ie(gtp_trans_idnt_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_trgt_id_type_home_enb(trgt_id_type_home_enb_t *value,
+int encode_trgt_id_type_home_enb(const trgt_id_type_home_enb_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3281,7 +3312,7 @@ int encode_trgt_id_type_home_enb(trgt_id_type_home_enb_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_bearer_flags_ie(gtp_bearer_flags_ie_t *value,
+int encode_gtp_bearer_flags_ie(const gtp_bearer_flags_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3305,7 +3336,7 @@ int encode_gtp_bearer_flags_ie(gtp_bearer_flags_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_lai_field(lai_field_t *value,
+int encode_lai_field(const lai_field_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3330,7 +3361,7 @@ int encode_lai_field(lai_field_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_msec_time_stmp_ie(gtp_msec_time_stmp_ie_t *value,
+int encode_gtp_msec_time_stmp_ie(const gtp_msec_time_stmp_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3350,7 +3381,7 @@ int encode_gtp_msec_time_stmp_ie(gtp_msec_time_stmp_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_chg_to_rpt_flgs_ie(gtp_chg_to_rpt_flgs_ie_t *value,
+int encode_gtp_chg_to_rpt_flgs_ie(const gtp_chg_to_rpt_flgs_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3372,7 +3403,7 @@ int encode_gtp_chg_to_rpt_flgs_ie(gtp_chg_to_rpt_flgs_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_scef_pdn_conn_ie(gtp_scef_pdn_conn_ie_t *value,
+int encode_gtp_scef_pdn_conn_ie(const gtp_scef_pdn_conn_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3393,7 +3424,7 @@ int encode_gtp_scef_pdn_conn_ie(gtp_scef_pdn_conn_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_chg_rptng_act_ie(gtp_chg_rptng_act_ie_t *value,
+int encode_gtp_chg_rptng_act_ie(const gtp_chg_rptng_act_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3413,7 +3444,7 @@ int encode_gtp_chg_rptng_act_ie(gtp_chg_rptng_act_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_extnded_prot_cfg_opts_ie(gtp_extnded_prot_cfg_opts_ie_t *value,
+int encode_gtp_extnded_prot_cfg_opts_ie(const gtp_extnded_prot_cfg_opts_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3433,7 +3464,7 @@ int encode_gtp_extnded_prot_cfg_opts_ie(gtp_extnded_prot_cfg_opts_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_delay_value_ie(gtp_delay_value_ie_t *value,
+int encode_gtp_delay_value_ie(const gtp_delay_value_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3453,7 +3484,7 @@ int encode_gtp_delay_value_ie(gtp_delay_value_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_pdn_connection_ie(gtp_pdn_connection_ie_t *value,
+int encode_gtp_pdn_connection_ie(const gtp_pdn_connection_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3472,7 +3503,7 @@ int encode_gtp_pdn_connection_ie(gtp_pdn_connection_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_detach_type_ie(gtp_detach_type_ie_t *value,
+int encode_gtp_detach_type_ie(const gtp_detach_type_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3492,7 +3523,7 @@ int encode_gtp_detach_type_ie(gtp_detach_type_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mbms_svc_area_ie(gtp_mbms_svc_area_ie_t *value,
+int encode_gtp_mbms_svc_area_ie(const gtp_mbms_svc_area_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3512,7 +3543,7 @@ int encode_gtp_mbms_svc_area_ie(gtp_mbms_svc_area_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_chrgng_char_ie(gtp_chrgng_char_ie_t *value,
+int encode_gtp_chrgng_char_ie(const gtp_chrgng_char_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3532,7 +3563,7 @@ int encode_gtp_chrgng_char_ie(gtp_chrgng_char_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_henb_info_rptng_ie(gtp_henb_info_rptng_ie_t *value,
+int encode_gtp_henb_info_rptng_ie(const gtp_henb_info_rptng_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3553,7 +3584,7 @@ int encode_gtp_henb_info_rptng_ie(gtp_henb_info_rptng_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_mm_context(mm_context_t *value,
+int encode_mm_context(const mm_context_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3571,7 +3602,7 @@ int encode_mm_context(mm_context_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_throttling_ie(gtp_throttling_ie_t *value,
+int encode_gtp_throttling_ie(const gtp_throttling_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3593,7 +3624,7 @@ int encode_gtp_throttling_ie(gtp_throttling_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_csg_memb_indctn_ie(gtp_csg_memb_indctn_ie_t *value,
+int encode_gtp_csg_memb_indctn_ie(const gtp_csg_memb_indctn_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3614,7 +3645,7 @@ int encode_gtp_csg_memb_indctn_ie(gtp_csg_memb_indctn_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_ip_address_ie(gtp_ip_address_ie_t *value,
+int encode_gtp_ip_address_ie(const gtp_ip_address_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3634,7 +3665,7 @@ int encode_gtp_ip_address_ie(gtp_ip_address_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_src_rnc_pdcp_ctxt_info_ie(gtp_src_rnc_pdcp_ctxt_info_ie_t *value,
+int encode_gtp_src_rnc_pdcp_ctxt_info_ie(const gtp_src_rnc_pdcp_ctxt_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3654,7 +3685,7 @@ int encode_gtp_src_rnc_pdcp_ctxt_info_ie(gtp_src_rnc_pdcp_ctxt_info_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_hop_counter_ie(gtp_hop_counter_ie_t *value,
+int encode_gtp_hop_counter_ie(const gtp_hop_counter_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3674,7 +3705,7 @@ int encode_gtp_hop_counter_ie(gtp_hop_counter_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_pres_rptng_area_info_ie(gtp_pres_rptng_area_info_ie_t *value,
+int encode_gtp_pres_rptng_area_info_ie(const gtp_pres_rptng_area_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3699,7 +3730,7 @@ int encode_gtp_pres_rptng_area_info_ie(gtp_pres_rptng_area_info_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mbms_sess_idnt_ie(gtp_mbms_sess_idnt_ie_t *value,
+int encode_gtp_mbms_sess_idnt_ie(const gtp_mbms_sess_idnt_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3719,7 +3750,7 @@ int encode_gtp_mbms_sess_idnt_ie(gtp_mbms_sess_idnt_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_apn_and_rltv_cap_ie(gtp_apn_and_rltv_cap_ie_t *value,
+int encode_gtp_apn_and_rltv_cap_ie(const gtp_apn_and_rltv_cap_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3741,7 +3772,7 @@ int encode_gtp_apn_and_rltv_cap_ie(gtp_apn_and_rltv_cap_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_selection_mode_ie(gtp_selection_mode_ie_t *value,
+int encode_gtp_selection_mode_ie(const gtp_selection_mode_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3762,7 +3793,7 @@ int encode_gtp_selection_mode_ie(gtp_selection_mode_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_up_func_sel_indctn_flgs_ie(gtp_up_func_sel_indctn_flgs_ie_t *value,
+int encode_gtp_up_func_sel_indctn_flgs_ie(const gtp_up_func_sel_indctn_flgs_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3783,7 +3814,7 @@ int encode_gtp_up_func_sel_indctn_flgs_ie(gtp_up_func_sel_indctn_flgs_ie_t *valu
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mbl_equip_idnty_ie(gtp_mbl_equip_idnty_ie_t *value,
+int encode_gtp_mbl_equip_idnty_ie(const gtp_mbl_equip_idnty_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3803,7 +3834,7 @@ int encode_gtp_mbl_equip_idnty_ie(gtp_mbl_equip_idnty_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_priv_ext_ie(gtp_priv_ext_ie_t *value,
+int encode_gtp_priv_ext_ie(const gtp_priv_ext_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3824,7 +3855,7 @@ int encode_gtp_priv_ext_ie(gtp_priv_ext_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_eps_bearer_lvl_traffic_flow_tmpl_ie(gtp_eps_bearer_lvl_traffic_flow_tmpl_ie_t *value,
+int encode_gtp_eps_bearer_lvl_traffic_flow_tmpl_ie(const gtp_eps_bearer_lvl_traffic_flow_tmpl_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3845,7 +3876,7 @@ int encode_gtp_eps_bearer_lvl_traffic_flow_tmpl_ie(gtp_eps_bearer_lvl_traffic_fl
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_sequence_number_ie(gtp_sequence_number_ie_t *value,
+int encode_gtp_sequence_number_ie(const gtp_sequence_number_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;

@@ -43,7 +43,7 @@
 #include "csid_struct.h"
 #endif /* USE_CSID */
 
-/* LI-DF Parameter */
+/* li parameter */
 #define LI_DF_CSV_IMSI_COLUMN			0
 #define LI_DF_CSV_LI_DEBUG_COLUMN		1
 #define LI_DF_CSV_EVENT_CC_COLUMN		2
@@ -51,6 +51,8 @@
 #define LI_DF_CSV_DDF2_PORT_COLUMN		4
 #define LI_DF_CSV_DDF3_IP_COLUMN		5
 #define LI_DF_CSV_DDF3_PORT_COLUMN		6
+
+#define LI_LDB_ENTRIES_DEFAULT						1024
 
 #define SDF_FILTER_TABLE "sdf_filter_table"
 #define ADC_TABLE "adc_rule_table"
@@ -66,13 +68,14 @@
 
 #define DPN_ID                       (12345)
 
-#define MAX_BEARERS                  (15)
+#define MAX_BEARERS                  (14)
 #define MAX_FILTERS_PER_UE           (16)
 
 #define MAX_NETCAP_LEN               (64)
-#define MAX_RULE_NAME_LEN            (256)
 #define MAX_APN_LEN                  (64)
 #define MAX_SDF_DESC_LEN             (512)
+#define RULE_CNT                     (16)
+#define PROC_LEN					 (64)
 
 #define GET_UE_IP(ue_index) \
 			(((pfcp_config.ip_pool_ip.s_addr | (~pfcp_config.ip_pool_mask.s_addr)) \
@@ -85,11 +88,11 @@
 #define FQDN_LEN 256
 #endif
 
-/* Need to handle case of multiple charging rule for signle bearer
- * this count will change once added handling
- * */
-#define NUMBER_OF_PDR_PER_BEARER 2
-#define NUMBER_OF_QER_PER_BEARER 2
+#define NUMBER_OF_PDR_PER_RULE 2
+#define NUMBER_OF_QER_PER_RULE 2
+#define MAX_RULE_PER_BEARER 16
+#define NUMBER_OF_PDR_PER_BEARER 32
+#define NUMBER_OF_QER_PER_BEARER 32
 
 #define QER_INDEX_FOR_ACCESS_INTERFACE 0
 #define QER_INDEX_FOR_CORE_INTERFACE 1
@@ -98,6 +101,31 @@
 #define CSR_SEQUENCE(x) (\
 	(x->header.gtpc.teid_flag == 1)? x->header.teid.has_teid.seq : x->header.teid.no_teid.seq \
 	)
+#define LEN                                 12
+#define DEFAULT_RULE_COUNT                  1
+#define QCI_VALUE                           6
+#define GX_PRIORITY_LEVEL                   1
+#define PREEMPTION_CAPABILITY_DISABLED      1
+#define PREEMPTION_VALNERABILITY_ENABLED    0
+#define GX_ENABLE                           2
+#define PRECEDENCE                          2
+#define SERVICE_INDENTIFIRE                 11
+#define RATING_GROUP                        1
+#define REQUESTED_BANDWIDTH_UL              16500
+#define REQUESTED_BANDWIDTH_DL              16500
+#define GURATEED_BITRATE_UL                 0
+#define GURATEED_BITRATE_DL                 0
+#define RULE_NAME                           "default rule"
+#define RULE_LENGTH                         strnlen(RULE_NAME, LEN)
+#define PROTO_ID                            0
+#define LOCAL_IP_MASK                       0
+#define LOCAL_IP_ADDR                       0
+#define PORT_LOW                            0
+#define PORT_HIGH                           65535
+#define REMOTE_IP_MASK                      0
+#define REMOTE_IP_ADDR                      0
+#define GX_FLOW_COUNT                       1
+
 struct eps_bearer_t;
 struct pdn_connection_t;
 
@@ -268,7 +296,7 @@ typedef struct apn_t {
 	int downlink_volume_th;
 	int time_th;
 	size_t apn_name_length;
-	uint8_t apn_idx;
+	int8_t apn_idx;
 } apn;
 
 /**
@@ -317,6 +345,7 @@ typedef struct sdf_pkt_fltr_t {
  * @brief  : Maintains flow description data
  */
 typedef struct flow_description {
+	uint8_t pckt_fltr_identifier;
 	int32_t flow_direction;
 	sdf_pkt_fltr sdf_flw_desc;
 	char sdf_flow_description[MAX_SDF_DESC_LEN];
@@ -335,20 +364,23 @@ typedef struct dynamic_rule{
 	uint32_t service_id;
 	uint32_t rating_group;
 	uint32_t def_bearer_indication;
-	char rule_name[MAX_RULE_NAME_LEN];
+	char rule_name[RULE_NAME_LEN];
 	char af_charging_id_string[256];
+	bool predefined_rule;
 	bearer_qos_ie qos;
 	/* Need to think on it */
 	uint8_t num_flw_desc;
 	flow_desc_t flow_desc[32];
-	pdr_t *pdr[2];
+	pdr_t *pdr[NUMBER_OF_PDR_PER_RULE];
 }dynamic_rule_t;
 
 enum rule_action_t {
 	RULE_ACTION_INVALID,
 	RULE_ACTION_ADD = 1,
 	RULE_ACTION_MODIFY = 2,
-	RULE_ACTION_DELETE = 3,
+	RULE_ACTION_MODIFY_ADD_RULE = 3,
+	RULE_ACTION_MODIFY_REMOVE_RULE = 4,
+	RULE_ACTION_DELETE = 5,
 	RULE_ACTION_MAX
 };
 
@@ -357,7 +389,10 @@ enum rule_action_t {
  */
 typedef struct pcc_rule{
 	enum rule_action_t action;
+	bool predefined_rule;
 	dynamic_rule_t dyn_rule;
+	/* maintain the predefined rule info */
+	dynamic_rule_t pdef_rule;
 }pcc_rule_t;
 
 /**
@@ -401,6 +436,7 @@ typedef struct indication_flag_t {
 	uint8_t cprai:1; /* Change of Presence Reporting Area information Indication */
 	uint8_t clii:1;  /* Change of Location Information Indication */
 	uint8_t dfi:1;   /* Direct Forwarding Indication */
+	uint8_t arrl:1; /* Abnormal Release of Radio Link */
 
 }indication_flag_t;
 
@@ -440,9 +476,65 @@ typedef struct counter_t{
 }counter;
 
 /**
+ * @brief  : Maintains li configurations
+ */
+typedef struct li_data {
+	uint64_t id;
+	uint8_t s11;
+	uint8_t sgw_s5s8c;
+	uint8_t pgw_s5s8c;
+	uint8_t sxa;
+	uint8_t sxb;
+	uint8_t sxa_sxb;
+	uint8_t forward;
+} li_data_t;
+
+/**
+ * @brief  : Maintains imsi to li mapping
+ */
+typedef struct imsi_id_hash {
+	uint8_t cntr;
+	uint64_t ids[MAX_LI_ENTRIES_PER_UE];
+} imsi_id_hash_t;
+
+/**
+ * @brief  : Status of mbr processing
+ */
+enum mbr_status_t {
+	MBR_PROCESS_DONE = 0,
+	MBR_IN_PROGRESS = 1
+};
+
+/**
+ * @brief  : Status of dsr processing
+ */
+enum dsr_status_t {
+	DSR_PROCESS_DONE = 0,
+	DSR_IN_PROGRESS = 1
+};
+
+/**
+ * @brief  : Maintains status of current MBR in progress
+ */
+typedef struct mbr_req_info {
+	uint32_t seq;
+	enum mbr_status_t status;
+}mbr_req_info_t;
+
+/**
+ * @brief  : Maintains status of current DSR in progress
+ */
+typedef struct dsr_req_info {
+	uint32_t seq;
+	enum dsr_status_t status;
+}dsr_req_info_t;
+
+/**
  * @brief  : Maintains ue related information
  */
 typedef struct ue_context_t {
+	bool cp_mode_flag;
+	uint8_t cp_mode;
 	uint64_t imsi;
 	uint8_t imsi_len;
 	uint8_t unathenticated_imsi;
@@ -450,13 +542,30 @@ typedef struct ue_context_t {
 	uint64_t msisdn;
 	uint8_t msisdn_len;
 
+	/* MBR sequence number and status for identifying
+	 * retransmitted MBR req.
+	 */
+
+	mbr_req_info_t mbr_info;
+	/*DSR sequence number and status for identifying
+	 * retransmitted DSR req.
+	 */
+	dsr_req_info_t dsr_info;
+
+	uint8_t proc_trans_id;
+	uint32_t ue_initiated_seq_no;
+
 	ambr_ie mn_ambr;
-	bool sgwu_not_changed;
-	/*TODO: Move below 3 lines into PDN*/
-	bool uli_flag;
+	bool sgwu_changed;
+
+	uint8_t uli_flag;
 	user_loc_info_t uli;
 	user_loc_info_t old_uli;
-	bool old_uli_valid;
+
+	//ue_tz ue_tz;
+	ue_tz old_ue_tz;
+	bool old_ue_tz_valid;
+
 	bool eci_changed;
 
 	bool ltem_rat_type_flag;
@@ -467,10 +576,14 @@ typedef struct ue_context_t {
 	rat_type_t old_rat_type;
 	bool old_rat_valid;
 
-	secondary_rat_t second_rat;
+	uint8_t is_sent_bearer_rsc_failure_indc;
+
+	secondary_rat_t second_rat[MAX_BEARERS];
 	bool second_rat_flag;
+	uint8_t second_rat_count;
 	uint8_t change_report_action;
 	bool change_report;
+	bool piggback;
 
 	indication_flag_t indication_flag;
 	bool ue_time_zone_flag;
@@ -481,6 +594,7 @@ typedef struct ue_context_t {
 	counter mo_exception_data_counter;
 	uint8_t bearer_count;
 
+	bool flag_fqcsid_modified;
 #ifdef USE_CSID
 	/* Temp cyclic linking of the MME and SGW FQ-CSID */
 	fqcsid_t *mme_fqcsid;
@@ -489,15 +603,14 @@ typedef struct ue_context_t {
 	fqcsid_t *up_fqcsid;
 #endif /* USE_CSID */
 
-	int16_t mapped_ue_usage_type;
 	uint32_t sequence;
-
+	uint8_t pfcp_sess_count;
 	uint8_t selection_flag;
 	selection_mode select_mode;
 
 	uint8_t up_selection_flag;
+	uint8_t promotion_flag;
 	uint8_t dcnr_flag;
-	//gtp_secdry_rat_usage_data_rpt_ie_t secdry_rat_usage_data_rpt;
 	uint32_t s11_sgw_gtpc_teid;
 	struct in_addr s11_sgw_gtpc_ipv4;
 	uint32_t s11_mme_gtpc_teid;
@@ -510,14 +623,19 @@ typedef struct ue_context_t {
 	struct pdn_connection_t *pdns[MAX_BEARERS];
 
 	/*VS: TODO: Move bearer information in pdn structure and remove from UE context */
-	struct eps_bearer_t *eps_bearers[MAX_BEARERS*2]; /* index by ebi - 5 */
+	struct eps_bearer_t *eps_bearers[MAX_BEARERS*2]; /* index by ebi - 1 */
 
 	/* temporary bearer to be used during resource bearer cmd -
 	 * create/deletee bearer req - rsp */
 	struct eps_bearer_t *ded_bearer;
 	uint64_t event_trigger;
-	int li_sock_fd;
+	uint8_t procedure;
+	uint8_t upd_pdn_set_ebi_index;
+
+	/* User Level Packet Copying Configurations */
 	uint8_t dupl;
+	uint8_t li_data_cntr;
+	li_data_t li_data[MAX_LI_ENTRIES_PER_UE];
 
 } ue_context;
 
@@ -565,6 +683,7 @@ typedef struct pdn_connection_t {
 	uint8_t old_ret_type;
 	bool old_rat_type_valid;
 
+	int16_t mapped_ue_usage_type;
 
 	/* VS: Support partial failure functionality of FQ-CSID */
 #ifdef USE_CSID
@@ -593,7 +712,7 @@ typedef struct pdn_connection_t {
 	struct eps_bearer_t *packet_filter_map[MAX_FILTERS_PER_UE];
 
 	char gx_sess_id[MAX_LEN];
-	dynamic_rule_t *dynamic_rules[16];
+	dynamic_rule_t *dynamic_rules[MAX_RULE_PER_BEARER];
 
 	/* need to maintain reqs ptr for RAA*/
 	unsigned long rqst_ptr;
@@ -604,7 +723,11 @@ typedef struct pdn_connection_t {
 
 	/* CSR sequence number for identify CSR retransmission req. */
 	uint32_t csr_sequence;
+	/* need to maintain DNS query Domain type */
+	uint8_t dns_query_domain;
 
+	void *node_sel;
+	uint8_t generate_cdr;
 } pdn_connection;
 
 /**
@@ -622,9 +745,15 @@ typedef struct eps_bearer_t {
 
 	bearer_qos_ie qos;
 
+	/* To store seq number of incoming req for bearer*/
+	uint32_t sequence;
+
 	/*VSD: Fill the ID in intial attach */
 	/* Generate ID while creating default bearer */
 	uint32_t charging_id;
+
+	/*seq no for each bearer used as CDR field*/
+	uint32_t cdr_seq_no;
 
 	struct in_addr s1u_sgw_gtpu_ipv4;
 	uint32_t s1u_sgw_gtpu_teid;
@@ -642,62 +771,43 @@ typedef struct eps_bearer_t {
 
 	uint8_t num_packet_filters;
 	int packet_filter_map[MAX_FILTERS_PER_UE];
-
+	int flow_desc_check;
+	int qos_bearer_check;
 	uint8_t num_dynamic_filters;
-	dynamic_rule_t *dynamic_rules[16];
+	dynamic_rule_t *dynamic_rules[MAX_RULE_PER_BEARER];
+
+	/* Predefined rule support */
+	uint8_t num_prdef_filters;
+	dynamic_rule_t *prdef_rules[MAX_RULE_PER_BEARER];
+	enum rule_action_t action;
 
 } eps_bearer;
 
+#pragma pack(1)
+/**
+ * @brief : Stores data TEID and Msg_type as data for the use of error handling.
+ */
+typedef struct teid_value_t
+{
+	uint32_t teid;
+	uint8_t msg_type;
+} teid_value_t;
+
+/**
+ * @brief : Rule Name is key for Mapping of Rules and Bearer table.
+ */
+typedef struct teid_seq_map_key {
+	/** Rule Name */
+	char teid_key[RULE_NAME_LEN];
+}teid_key_t;
+
+#pragma pack()
 
 extern struct rte_hash *ue_context_by_imsi_hash;
 extern struct rte_hash *ue_context_by_fteid_hash;
-extern struct rte_hash *pdn_by_fteid_hash;
-extern struct rte_hash *sock_by_ddf_ip_hash;
 
 extern apn apn_list[MAX_NB_DPN];
 extern int apnidx;
-
-/**
- * @brief  : sets base teid value given range by DP
- * @param  : val
- *           teid range assigned by DP
- * @return : Returns nothing
- */
-void
-set_base_teid(uint8_t val);
-
-/**
- * @brief  : sets the s1u_sgw gtpu teid given the bearer
- * @param  : bearer
- *           bearer whose tied is to be set
- * @param  : context
- *           ue context of bearer, whose teid is to be set
- * @return : Returns nothing
- */
-void
-set_s1u_sgw_gtpu_teid(eps_bearer *bearer, ue_context *context);
-
-
-/**
- * @brief  : sets the s5s8_sgw gtpu teid given the bearer
- * @param  : bearer
- *           bearer whose tied is to be set
- * @param  : context
- *           ue context of bearer, whose teid is to be set
- * @return : Returns nothing
- */
-void
-set_s5s8_sgw_gtpu_teid(eps_bearer *bearer, ue_context *context);
-
-
-/**
- * @brief  : sets the s5s8_pgw gtpc teid given the pdn_connection
- * @param  : pdn
- *           pdn_connection whose s5s8 tied is to be set
- * @return : Returns nothing
- */
-void
-set_s5s8_pgw_gtpc_teid(pdn_connection *pdn);
 
 /**
  * @brief  : Initializes UE hash table
@@ -706,28 +816,6 @@ set_s5s8_pgw_gtpc_teid(pdn_connection *pdn);
  */
 void
 create_ue_hash(void);
-
-/**
- * @brief  : sets the s5s8_pgw gtpu teid given the bearer
- * @param  : bearer
- *           bearer whose tied is to be set
- * @param  : context
- *           ue context of bearer, whose teid is to be set
- * @return : Returns nothing
- */
-void
-set_s5s8_pgw_gtpu_teid_using_pdn(eps_bearer *bearer, pdn_connection *pdn);
-
-/**
- * @brief  : sets the s5s8_pgw gtpu teid given the bearer
- * @param  : bearer
- *           bearer whose tied is to be set
- * @param  : context
- *           ue context of bearer, whose teid is to be set
- * @return : Returns nothing
- */
-void
-set_s5s8_pgw_gtpu_teid(eps_bearer *bearer, ue_context *context);
 
 /**
  * @brief  : creates an UE Context (if needed), and pdn connection with a default bearer
@@ -740,6 +828,8 @@ set_s5s8_pgw_gtpu_teid(eps_bearer *bearer, ue_context *context);
  *           Eps Bearer Identifier of default bearer
  * @param  : context
  *           UE context to be created
+ * @param  : cp_mode
+ *           [SGWC/SAEGWC/PGWC]
  * @return : - 0 if successful
  *           - > 0 if error occurs during packet filter parsing corresponds to
  *           3gpp specified cause error value
@@ -748,7 +838,8 @@ set_s5s8_pgw_gtpu_teid(eps_bearer *bearer, ue_context *context);
 int
 create_ue_context(uint64_t *imsi_val, uint16_t imsi_len,
 		uint8_t ebi, ue_context **context, apn *apn_requested,
-		uint32_t sequence, uint8_t *check_ue_hash);
+		uint32_t sequence, uint8_t *check_ue_hash,
+		uint8_t cp_mode);
 
 /**
  * Create the ue eps Bearer context by PDN (if needed), and key is sgwc s5s8 teid.
@@ -843,6 +934,6 @@ print_ue_context_by(struct rte_hash *h, ue_context *context);
  * @return : Returns nothing
  */
 void
-create_li_df_hash(void);
+create_li_info_hash(void);
 
 #endif /* UE_H */

@@ -14,15 +14,18 @@
  * limitations under the License.
  */
 
+#include <limits.h>
+
 #include "hiredis.h"
 #include "hiredis_ssl.h"
 #include "clogger.h"
 
-#define REDIS_CONN_TIMEOUT 5
+#define REDIS_CONN_TIMEOUT 3
+#define IP_STR_LEN 16
 
 typedef enum redis_conn_type_t {
 	REDIS_TCP,
-	REDIS_SSL
+	REDIS_TLS
 } redis_conn_type_t;
 
 /**
@@ -31,21 +34,22 @@ typedef enum redis_conn_type_t {
 typedef struct redis_config_t {
 
 	redis_conn_type_t type;
-	char *cp_ip;
+	char cp_ip[IP_STR_LEN];
 
 	union conf {
 		struct tcp {
-			char* host;
+			char host[IP_STR_LEN];
 			int port;
 			struct timeval timeout;
 		} tcp;
-		struct ssl {
-			char* host;
+		struct tls {
+			char host[IP_STR_LEN];
 			int port;
-			char* ca_cert;
-			char* cert;
-			char* key;
-		} ssl;
+			char ca_cert_path[PATH_MAX];
+			char cert_path[PATH_MAX];
+			char key_path[PATH_MAX];
+			struct timeval timeout;
+		} tls;
 	} conf;
 } redis_config_t;
 

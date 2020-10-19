@@ -23,10 +23,7 @@
  * and rating group processing functions.
  */
 
-#ifdef PCAP_GEN
 #include <pcap.h>
-#endif /* PCAP_GEN */
-
 #include <rte_hash.h>
 #include <rte_errno.h>
 #include <rte_debug.h>
@@ -43,6 +40,7 @@
 #include "interface.h"
 #include "vepc_cp_dp_api.h"
 #include "epc_packet_framework.h"
+#include "teid_upf.h"
 
 #include "clogger.h"
 
@@ -53,9 +51,6 @@
 #ifdef USE_CSID
 #include "../pfcp_messages/csid_struct.h"
 #endif /* USE_CSID */
-
-/* File name of TEIDRI and peer node address */
-#define TEIDRI_FILENAME     "../config/up_teidri_cp_ip_data.csv"
 
 #define FILE_NAME "../config/dp_rstCnt.txt"
 /**
@@ -95,28 +90,6 @@
  * Session Deletion.
  */
 #define SESS_DEL 2
-
-#ifndef PERF_TEST
-/** Temp. work around for support debug log level into DP, DPDK version 16.11.4 */
-#if (RTE_VER_YEAR >= 16) && (RTE_VER_MONTH >= 11)
-#undef RTE_LOG_LEVEL
-#define RTE_LOG_LEVEL RTE_LOG_DEBUG
-#define RTE_LOG_DP RTE_LOG
-#elif (RTE_VER_YEAR >= 18) && (RTE_VER_MONTH >= 02)
-#undef RTE_LOG_DP_LEVEL
-#define RTE_LOG_DP_LEVEL RTE_LOG_DEBUG
-#endif
-#else /* Work around for skip LOG statements at compile time in DP, DPDK 16.11.4 and 18.02 */
-#if (RTE_VER_YEAR >= 16) && (RTE_VER_MONTH >= 11)
-#undef RTE_LOG_LEVEL
-#define RTE_LOG_LEVEL RTE_LOG_WARNING
-#define RTE_LOG_DP_LEVEL RTE_LOG_LEVEL
-#define RTE_LOG_DP RTE_LOG
-#elif (RTE_VER_YEAR >= 18) && (RTE_VER_MONTH >= 02)
-#undef RTE_LOG_DP_LEVEL
-#define RTE_LOG_DP_LEVEL RTE_LOG_WARNING
-#endif
-#endif /* PERF_TEST */
 
 /**
  * max prefetch.
@@ -217,7 +190,6 @@
 #define PCC_TABLE_SIZE               (1025)
 #define METER_PROFILE_SDF_TABLE_SIZE (2048)
 
-#ifdef PCAP_GEN
 /**
  * pcap filename length.
  */
@@ -226,23 +198,13 @@
 /**
  * pcap filenames.
  */
-#define SPGW_S1U_PCAP_FILE "logs/saegw_uplnk.pcap"
-#define SPGW_SGI_PCAP_FILE "logs/saegw_dwlnk.pcap"
+#define UPLINK_PCAP_FILE   "logs/wstbnd"
+#define DOWNLINK_PCAP_FILE "logs/estbnd"
 
-#define SGW_S1U_PCAP_FILE "logs/sgwu_uplnk.pcap"
-#define SGW_S5S8_PCAP_FILE "logs/sgwu_dwlnk.pcap"
+#define PCAP_EXTENTION  ".pcap"
 
-#define PGW_S5S8_PCAP_FILE "logs/pgwu_uplnk.pcap"
-#define PGW_SGI_PCAP_FILE "logs/pgwu_dwlnk.pcap"
 
-#endif /* PCAP_GEN */
-
-#define __file__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
-
-#define FORMAT "%s:%s:%d:"
-#define ERR_MSG __file__, __func__, __LINE__
-
-/* TODO: KNI releted parameters and struct define here */
+/* KNI releted parameters and struct define here */
 
 /* Max size of a single packet */
 #define MAX_PACKET_SZ           2048
@@ -254,6 +216,16 @@
 #define KNI_ENET_FCS_SIZE       4
 
 #define KNI_SECOND_PER_DAY      86400
+
+/* User Level Packet Copying */
+#define UPLINK_DIRECTION		1
+#define DOWNLINK_DIRECTION		2
+#define COPY_UP_PKTS			1
+#define COPY_DOWN_PKTS			2
+#define COPY_UP_DOWN_PKTS		3
+#define COPY_HEADER_ONLY		1
+#define COPY_HEADER_DATA_ONLY		2
+#define COPY_DATA_ONLY			3
 
 /* How many packets to attempt to read from NIC in one go */
 #define PKT_BURST_SZ            32
@@ -272,20 +244,27 @@
  */
 #define NB_ECHO_MBUF  1024
 
-#define MAX_CP 7
-
 /* Max D-DF Interface Length */
 #define DDF_INTFC_LEN	64
+#define ARP_SEND_BUFF 512
 
-/* Interface selection */
-#define INTERFACE \
-			( (SAEGWU == app.spgw_cfg) ? Sxa_Sxb : ( (PGWU != app.spgw_cfg) ? Sxa : Sxb ) )
+#define WEST_INTFC	0
+#define EAST_INTFC	1
+
+#define FWD_MASK	0
+#define ENCAP_MASK	1
+#define DECAP_MASK	2
 
 struct rte_mempool *echo_mpool;
 
 extern int32_t conn_cnt;
+extern udp_sock_t my_sock;
 uint8_t dp_restart_cntr;
+uint32_t li_seq_no;
 
+extern teidri_info *upf_teidri_allocated_list;
+extern teidri_info *upf_teidri_free_list;
+extern teidri_info *upf_teidri_blocked_list;
 
 /**
  * @brief  : Initialize restoration thread
@@ -322,13 +301,6 @@ update_rstCnt(void);
  */
 uint8_t
 add_node_conn_entry(uint32_t dstIp, uint64_t sess_id, uint8_t portId);
-
-/**
- * rte hash handler.
- *
- * hash handles connections for S1U, SGI and PFCP
- */
-//extern struct rte_hash *conn_hash_handle;
 
 #endif /* CP_BUILD */
 
@@ -441,110 +413,127 @@ void free_kni_ports(void);
 extern struct rte_hash *gateway_arp_hash_handle;
 
 /**
- * rte hash handler.
+ *  @brief  :rte hash handler.
  */
 extern struct rte_hash *route_hash_handle;
 
 #pragma pack(1)
-
-/**
- * Define type of DP
- * SGW - Service GW user plane
- * PGW - Packet GW user plane
- * SPGW - Combined userplane service for SGW an PGW
- */
-enum dp_config {
-	UNKNOWN = 0,
-	SGWU = 01,
-	PGWU = 02,
-	SAEGWU = 03,
-};
-
-/* @brief : Collection of assinged TEID range and connected CP node address */
-typedef struct teidri_info {
-	/* IP address of conneted CP */
-	uint32_t node_addr;
-	/* TEID range assinged to CP */
-	uint8_t teid_range;
-}teidri_info_t;
-
 
 
 /**
  * @brief  : Application configure structure .
  */
 struct app_params {
-	enum	 dp_config spgw_cfg;
-
-	uint32_t s1u_ip;			/* s1u ipv4 address */
-	uint32_t s1u_net;			/* s1u network address */
-	uint32_t s1u_bcast_addr;		/* s1u broadcast ipv4 address */
-	uint32_t s1u_gw_ip;			/* s1u gateway ipv4 address */
-	uint32_t s1u_mask;			/* s1u network mask */
-	uint32_t sgw_s5s8gw_ip;			/* SGW_S5S8 gateway ipv4 address */
-	uint32_t sgw_s5s8gw_net;		/* SGW_S5S8 gateway network address */
-	uint32_t sgw_s5s8gw_mask;		/* SGW_S5S8 network mask */
-	uint32_t s5s8_sgwu_ip;			/* s5s8_sgwu gateway ipv4 address */
-	uint32_t s5s8_pgwu_ip;			/* s5s8_pgwu gateway ipv4 address */
-	uint32_t pgw_s5s8gw_ip;			/* PGW_S5S8 gateway ipv4 address */
-	uint32_t pgw_s5s8gw_net;		/* PGW_S5S8 gateway network address */
-	uint32_t pgw_s5s8gw_mask;		/* PGW_S5S8 network mask */
-	uint32_t sgi_ip;			/* sgi ipv4 address */
-	uint32_t sgi_net;			/* sgi network address */
-	uint32_t sgi_bcast_addr;		/* sgi broadcast ipv4 address */
-	uint32_t sgi_gw_ip;			/* sgi gateway ipv4 address */
-	uint32_t sgi_mask;			/* sgi network mask */
-	uint32_t s1u_port;			/* port no. to act as s1u */
-	uint32_t s5s8_sgwu_port;		/* port no. to act as s5s8_sgwu */
-	uint32_t s5s8_pgwu_port;		/* port no. to act as s5s8_pgwu */
-	uint32_t sgi_port;			/* port no. to act as sgi */
-	uint32_t log_level;			/* log level default - INFO,
-						 * 1 - DEBUG	 */
-	uint32_t numa_on;			/* Numa socket default 0 - disable,
-						 * 1 - enable	 */
-	uint32_t gtpu_seqnb_in;			/* incoming GTP sequence number
-						 * 0 - dynamic (default)
-						 * 1 - not included
-						 * 2 - included  */
-	uint32_t gtpu_seqnb_out;		/* outgoing GTP sequence number
-						 * 0 - do not include (default)
-						 * 1 - include */
-
-	uint8_t num_cp;                          /* Number of connected CP */
-	teidri_info_t teidri_info[MAX_CP];       /* Assinged TEIDRI connected CP node address */
-
-	uint32_t ports_mask;
-	uint8_t transmit_cnt;
-	int transmit_timer;
-	int periodic_timer;
-	int teidri_val;
+	/* Gateway Mode*/
+	//enum dp_config spgw_cfg;
+	/* DP Logger */
 	uint8_t dp_logger;
-	char ul_iface_name[MAX_LEN];
-	char dl_iface_name[MAX_LEN];
-	struct ether_addr s1u_ether_addr;	/* s1u mac addr */
-	struct ether_addr s5s8_sgwu_ether_addr;	/* s5s8_sgwu mac addr */
-	struct ether_addr s5s8_pgwu_ether_addr;	/* s5s8_pgwu mac addr */
-	struct ether_addr sgi_ether_addr;	/* sgi mac addr */
-	char ddf_intfc[DDF_INTFC_LEN];		/* D-Df interface name */ 
+	/* Enable DP PCAPS Generation */
+	/* Start: 1, Restart: 2, Default: 0 Stop*/
+	uint8_t generate_pcap;
+	/* Numa Socket
+	 * Default: 0:disable, 1:enable */
+	uint8_t numa_on;
+	/* incoming GTP sequence number, 0 - dynamic (default), 1 - not included,
+	 * 2 - included */
+	uint8_t gtpu_seqnb_in;
+	/* outgoing GTP sequence number, 0 - do not include (default), 1 - include*/
+	uint8_t gtpu_seqnb_out;
+	/* Transmit Count */
+	uint8_t transmit_cnt;
 
-#ifdef SGX_CDR
-	const char *dealer_in_ip;		/* dealerIn ip */
-	/* TODO : Change type */
-	const char *dealer_in_port;		/* dealerIn port */
+	/* D-DF2 PORT */
+	uint16_t ddf2_port;
+	/* D-DF3 PORT */
+	uint16_t ddf3_port;
 
-	const char *dealer_in_mrenclave;	/* dealerIn mrenclave */
-	const char *dealer_in_mrsigner;		/* dealerIn mrsigner */
-	const char *dealer_in_isvsvn;		/* dealerIn isvsvn */
+	/* Transmit Timer*/
+	int transmit_timer;
+	/* Peridoic Timer */
+	int periodic_timer;
+	/* TEIDRI value */
+	int teidri_val;
+	/* TEIDRI Timeout */
+	int teidri_timeout;
 
-	const char *dp_cert_path;		/* dp cert path */
-	const char *dp_pkey_path;		/* dp publickey path */
-#endif /* SGX_CDR */
+	/* RTE Log Level*/
+	uint32_t log_level;
+	/* West Bound S1U/S5S8 Port */
+	uint32_t wb_port;
+	/* East Bound S5S8/SGI Port */
+	uint32_t eb_port;
+	/* West Bound S1U/S5S8 IP Address */
+	uint32_t wb_ip;
+	/* West Bound S5S8 Logical Interface IP Address */
+	uint32_t wb_li_ip;
+	/* East Bound S5S8/SGI IP Address */
+	uint32_t eb_ip;
+	/* East Bound S5S8 Logical Interface IP Address */
+	uint32_t eb_li_ip;
+	/* Ports Masks */
+	uint32_t ports_mask;
+	/* West Bound Gateway IP Address */
+	uint32_t wb_gw_ip;
+	/* East Bound Gateway IP Address */
+	uint32_t eb_gw_ip;
+	/* West Bound S1U/S5S8 Subnet Mask */
+	uint32_t wb_mask;
+	/* West Bound S5S8 Logical iface Subnet Mask*/
+	uint32_t wb_li_mask;
+	/* East Bound S5S8/SGI Subnet Mask */
+	uint32_t eb_mask;
+	/* East Bound S5S8 Logical iface Subnet Mask*/
+	uint32_t eb_li_mask;
+	/* West Bound S1U/S5S8 subnet */
+	uint32_t wb_net;
+	/* West Bound S5S8 Logical iface Subnet*/
+	uint32_t wb_li_net;
+	/* East Bound S5S8/SGI subnet */
+	uint32_t eb_net;
+	/* East Bound S5S8 Logical iface Subnet*/
+	uint32_t eb_li_net;
+	/* West Bound Gateway Broadcast Address*/
+	uint32_t wb_bcast_addr;
+	/* West Bound logical iface Gateway Broadcast Address*/
+	uint32_t wb_li_bcast_addr;
+	/* East Bound Gateway Broadcast Address*/
+	uint32_t eb_bcast_addr;
+	/* East Bound logical iface Gateway Broadcast Address*/
+	uint32_t eb_li_bcast_addr;
+	/* D-DF2 IP Address */
+	uint32_t ddf2_ip;
+	/* D-DF3 IP Address */
+	uint32_t ddf3_ip;
+
+	/* D-DF2 Interface Name */
+	char ddf2_intfc[DDF_INTFC_LEN];
+	/* D-DF3 Interface Name */
+	char ddf3_intfc[DDF_INTFC_LEN];
+	/* West Bound Interface Name */
+	char wb_iface_name[MAX_LEN];
+	/* West Bound Logical Interface Name */
+	char wb_li_iface_name[MAX_LEN];
+	/* East Bound Interface Name */
+	char eb_iface_name[MAX_LEN];
+	/* East Bound Logical Interface Name */
+	char eb_li_iface_name[MAX_LEN];
+	/* West Bound S1U/S5S8 physical address MAC */
+	struct ether_addr wb_ether_addr;
+	/* East Bound S5S8/SGI physical address MAC */
+	struct ether_addr eb_ether_addr;
+
 };
 
 #pragma pack()
 
 /** extern the app config struct */
 struct app_params app;
+
+/* file descriptor of ddf2 */
+int ddf2_fd;
+
+/* file descriptor of ddf3 */
+int ddf3_fd;
 
 /** ethernet addresses of ports */
 struct ether_addr ports_eth_addr[RTE_MAX_ETHPORTS];
@@ -582,12 +571,16 @@ typedef struct ddn_info_t {
 	uint64_t up_seid;
 }ddn_t;
 
-typedef struct  li_data_t
+#pragma pack(push, 1)
+typedef struct li_data_ring
 {
-	uint8_t *pkts;
-	far_info_t *far;
+	uint64_t id;
+	uint64_t imsi;
 	int size;
-}li_data_t;
+	uint8_t forward;
+	uint8_t *pkts;
+} li_data_t;
+#pragma pack(pop)
 
 
 /** CDR actions, N_A should never be accounted for */
@@ -659,11 +652,12 @@ dp_init(int argc, char **argv);
  * @param  : pkts, pointer to mbuf of incoming packets.
  * @param  : n, number of pkts.
  * @param  : pkts_mask, bit mask to process the pkts, reset bit to free the pkt.
+ * @param  : fd_pkts_mask, bit mask to process the pkts, reset bit to free the pkt.
  * @return : Returns nothing
  */
 void
 gtpu_decap(struct rte_mbuf **pkts, uint32_t n,
-		uint64_t *pkts_mask);
+		uint64_t *pkts_mask, uint64_t *fd_pkts_mask);
 
 /**
  * @brief  : Encap gtpu header.
@@ -672,16 +666,17 @@ gtpu_decap(struct rte_mbuf **pkts, uint32_t n,
  * @param  : pkts, pointer to mbuf of incoming packets.
  * @param  : n, number of pkts.
  * @param  : pkts_mask, bit mask to process the pkts, reset bit to free the pkt.
+ * @param  : fd_pkts_mask, bit mask to process the pkts, reset bit to free the pkt.
  * @param  : pkts_queue_mask, packet queue mask
  * @return : Returns nothing
  */
 void
 gtpu_encap(pdr_info_t **pdrs, pfcp_session_datat_t **sess_info, struct rte_mbuf **pkts,
-		uint32_t n, uint64_t *pkts_mask, uint64_t *pkts_queue_mask);
+		uint32_t n, uint64_t *pkts_mask, uint64_t *fd_pkts_mask, uint64_t *pkts_queue_mask);
 
 /*************************pkt_handler.ci functions start*********************/
 /**
- * @brief  : Function to handle incoming pkts on s1u interface.
+ * @brief  : Function to handle incoming pkts on west bound interface.
  * @param  : p, pointer to pipeline.
  * @param  : pkts, pointer to pkts.
  * @param  : n, number of pkts.
@@ -689,11 +684,10 @@ gtpu_encap(pdr_info_t **pdrs, pfcp_session_datat_t **sess_info, struct rte_mbuf 
  * @return : Returns 0 in case of success , -1 otherwise
  */
 int
-s1u_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
+wb_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
 		int wk_index);
-
 /**
- * @brief  : Function to handle incoming pkts on s5s8 SGW interface.
+ * @brief  : Function to handle incoming pkts on east bound interface.
  * @param  : p, pointer to pipeline.
  * @param  : pkts, pointer to pkts.
  * @param  : n, number of pkts.
@@ -701,31 +695,7 @@ s1u_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
  * @return : Returns 0 in case of success , -1 otherwise
  */
 int
-sgw_s5_s8_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts,
-		uint32_t n,	int wk_index);
-
-/**
- * @brief  : Function to handle incoming pkts on s5s8 PGW interface.
- * @param  : p, pointer to pipeline.
- * @param  : pkts, pointer to pkts.
- * @param  : n, number of pkts.
- * @param  : wk_index,
- * @return : Returns 0 in case of success , -1 otherwise
- */
-int
-pgw_s5_s8_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts,
-		uint32_t n,	int wk_index);
-
-/**
- * @brief  : Function to handle incoming pkts on sgi interface.
- * @param  : p, pointer to pipeline.
- * @param  : pkts, pointer to pkts.
- * @param  : n, number of pkts.
- * @param  : wk_index,
- * @return : Returns 0 in case of success , -1 otherwise
- */
-int
-sgi_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
+eb_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
 		int wk_index);
 
 /**
@@ -800,20 +770,6 @@ dl_sess_info_get(struct rte_mbuf **pkts, uint32_t n,
 		uint64_t *pkts_mask, pfcp_session_datat_t **si,
 		uint64_t *pkts_queue_mask);
 
-
-/**
- * @brief  : Get the DL session info from table lookup.
- * @param  : pkts, pointer to mbuf of incoming packets.
- * @param  : n, number of pkts.
- * @param  : pkts_mask, bit mask to process the pkts, reset bit to free the pkt.
- * @param  : sess_info, session information returned after hash lookup.
- * @param  : pkts_queue_mask, packet queue mask
- * @return : Returns nothing
- */
-void
-dl_get_sess_info(struct rte_mbuf **pkts, uint32_t n,
-		uint64_t *pkts_mask,
-		pfcp_session_datat_t **sess_data, uint64_t *pkts_queue_mask);
 /**
  * @brief  : Gate the incoming pkts based on PCC entry info.
  * @param  : sdf_info, list of pcc id precedence struct pionters.
@@ -965,26 +921,28 @@ process_pfcp_session_report_req(struct sockaddr_in *peer_addr,
  * @param  : pkts, pointer to mbuf of packets.
  * @param  : n, number of pkts.
  * @param  : pkts_mask, bit mask to process the pkts, reset bit to free the pkt.
+ * @param  : fd_pkts_mask, bit mask to process the pkts, reset bit to free the pkt.
  * @param  : sess_data, pointer to session bear info
  * @param  : pdrs, pdr information
  * @return : Returns nothing
  */
 void
 update_nexts5s8_info(struct rte_mbuf **pkts, uint32_t n, uint64_t *pkts_mask,
-		pfcp_session_datat_t **sess_data, pdr_info_t **pdrs);
+		uint64_t *fd_pkts_mask, pfcp_session_datat_t **sess_data, pdr_info_t **pdrs);
 
 /**
  * @brief  : update enb ip in ip header and s1u tied in gtp header.
  * @param  : pkts, pointer to mbuf of packets.
  * @param  : n, number of pkts.
  * @param  : pkts_mask, bit mask to process the pkts, reset bit to free the pkt.
+ * @param  : fd_pkts_mask, bit mask to process the pkts, reset bit to free the pkt.
  * @param  : sess_data, pointer to session bear info
  * @param  : pdrs, pdr information
  * @return : Returns nothing
  */
 void
 update_enb_info(struct rte_mbuf **pkts, uint32_t n,
-		uint64_t *pkts_mask, pfcp_session_datat_t **sess_info,
+		uint64_t *pkts_mask, uint64_t *fd_pkts_mask, pfcp_session_datat_t **sess_info,
 		pdr_info_t **pdr);
 
 
@@ -995,7 +953,6 @@ update_enb_info(struct rte_mbuf **pkts, uint32_t n,
  */
 int sess_modify_with_endmarker(far_info_t *far);
 
-#ifdef PCAP_GEN
 /**
  * @brief  : initalizes user plane pcap feature
  * @param  : No param
@@ -1004,6 +961,18 @@ int sess_modify_with_endmarker(far_info_t *far);
 void
 up_pcap_init(void);
 
+
+/**
+ * @brief  : initalizes user plane pcap feature
+ * @param  : command, content pcap generation command.
+ * @param  : pcap_dumper, pointer to pcap dumper.
+ * @param  : pkts, pointer to mbuf of packets.
+ * @param  : n,number of pkts.
+ * @return : Returns nothing
+ */
+void
+up_pcap_dumper(pcap_dumper_t *pcap_dumper,
+		struct rte_mbuf **pkts, uint32_t n);
 /**
  * @brief  : initialize pcap dumper.
  * @param  : pcap_filename, pointer to pcap output filename.
@@ -1021,51 +990,6 @@ init_pcap(char* pcap_filename);
  */
 void dump_pcap(struct rte_mbuf **pkts, uint32_t n,
 		pcap_dumper_t *pcap_dumper);
-
-#endif /* PCAP_GEN */
-
-/**
- * @brief  : search and get node TEIDRI value if available in strored data.
- * @param  : teid_range, TEIDRI value.
- * @param  : node_addr, node address of CP .
- * @return : Returns
- *           1 - on success , node address and teidri found.
- *           0 - node address not found.
- */
-int
-get_node_teidri(uint8_t *teid_range, uint32_t node_addr);
-
-/**
- * @brief  : Write TEIDRI value and node address into file in csv format.
- * @param  : teid_range, TEIDRI value.
- * @param  : node_addr, node address of CP .
- * @return : Returns
- *           0 - on success.
- *           -1 - on fail.
- */
-int
-add_teidri_node_entry(uint8_t teid_range, uint32_t node_addr, char *filename);
-
-/**
- * @brief  : delete all containt from file.
- * @param  : filename, file name,
- * @return : Returns
- *           0 - on success.
- *           -1 - on fail.
- */
-int
-flush_teidri_data(char *filename);
-
-/**
- * @brief  : Delete  TEIDRI value and node address from file.
- * @param  : filename, file name.
- * @param  : node_addr, node address of CP .
- * @return : Returns
- *           0 - on success.
- *           -1 - on fail.
- */
-int
-delete_teidri_node_entry(char *filename, uint32_t node_addr);
 
 /**
  * @brief  : get dp restart counter value.
@@ -1085,47 +1009,146 @@ void
 update_dp_restart_cntr(void);
 
 #ifdef USE_CSID
+/**
+ * @brief  : Function to fill the peer node address and generate unique CSID.
+ * @param  : pfcp_session_t session info.
+ * @param  : Control-Plane node address.
+ * @return : Returns 0 sucess -1 otherwise
+ */
 int
-fill_peer_node_info_t(pfcp_session_t *sess);
+fill_peer_node_info_t(pfcp_session_t *sess, uint32_t cp_ip);
 
+/**
+ * @brief  : Function to fill the FQ-CSID in session establishment response.
+ * @param  : pfcp_sess_est_rsp, Session EST Resp Obj
+ * @param  : pfcp_session_t session info.
+ * @return : Returns 0 sucess -1 otherwise
+ */
 int8_t
 fill_fqcsid_sess_est_rsp(pfcp_sess_estab_rsp_t *pfcp_sess_est_rsp, pfcp_session_t *sess);
 
+/**
+ * @brief  : Function to process received pfcp session set deletion request.
+ * @param  : pfcp_sess_set_del_req, decoded request info
+ * @return : Returns 0 sucess -1 otherwise
+ */
 int8_t
 process_up_sess_set_del_req(pfcp_sess_set_del_req_t *pfcp_sess_set_del_req);
 
-/* Cleanup Session information by local csid*/
+/**
+ * @brief  : Function to Cleanup Session information by local csid.
+ * @param  : node_addr, peer node address
+ * @param  : iface, interface info.
+ * @return : Returns 0 sucess -1 otherwise
+ */
 int8_t
 up_del_pfcp_peer_node_sess(uint32_t node_addr, uint8_t iface);
 
+/**
+ * @brief  : Function to cleanup session by linked CSID.
+ * @param  : pfcp_session_t session info.
+ * @param  : csids, local csids list
+ * @param  : iface, interface info
+ * @return : Returns 0 sucess -1 otherwise
+ */
 int8_t
 del_sess_by_csid_entry(pfcp_session_t *sess, fqcsid_t *csids, uint8_t iface);
 
 #endif /* USE_CSID */
 
 #ifdef PRINT_NEW_RULE_ENTRY
+/**
+ * @brief  : Function to print received pcc rule information.
+ * @param  : pcc, pcc rule info
+ * @return : Nothing
+ */
 void
 print_pcc_val(struct pcc_rules *pcc);
 
+/**
+ * @brief  : Function to print adc received rule type.
+ * @param  : adc, adc rule info
+ * @return : Nothing
+ */
 void
 print_sel_type_val(struct adc_rules *adc);
 
+/**
+ * @brief  : Function to print the received adc rule info.
+ * @param  : adc, adc info
+ * @return : Nothing
+ */
 void
 print_adc_val(struct adc_rules *adc);
 
+/**
+ * @brief  : Function to print the meter rule info.
+ * @param  : mtr, meter info
+ * @return : Nothing
+ */
 void
 print_mtr_val(struct mtr_entry *mtr);
 
+/**
+ * @brief  : Function to print the sdf rule info.
+ * @param  : sdf, sdf info
+ * @return : Nothing
+ */
 void
 print_sdf_val(struct pkt_filter *sdf);
 #endif /* PRINT_NEW_RULE_ENTRY */
 
+
+/**
+ * @brief  : Function to handle signals on dp side.
+ * @param  : signo
+ *           signal number signal to be handled
+ * @return : Returns nothing
+ */
+void dp_sig_handler(int signo);
+
+/**
+ * @brief  : Function to process received adc type info.
+ * @param  : sel_type, adce rule info
+ * @param  : arm, string pointer
+ * @param  : adc, adc info
+ * @return : 0: Success, -1: otherwise
+ */
 int
 parse_adc_buf(int sel_type, char *arm, struct adc_rules *adc);
 
+/**
+ * @Name : get_sdf_indices
+ * @argument :
+ * [IN] sdf_idx : String containing comma separater SDF index values
+ * [OUT] out_sdf_idx : Array of integers converted from sdf_idx
+ * @return : 0 - success, -1 fail
+ * @Description : Convert sdf_idx array in to array of integers for SDF index
+ * values.
+ * Sample input : "[0, 1, 2, 3]"
+ */
 uint32_t
 get_sdf_indices(char *sdf_idx, uint32_t *out_sdf_idx);
 
 /***********************ddn_utils.c functions end**********************/
+
+/**
+ * @brief  : Start Timer for flush inactive TEIDRI value and peer addr.
+ * @param  : No Param.
+ * @return : Returns
+ *           true - on success.
+ *           false - on fail.
+ */
+bool
+start_dp_teidri_timer(void);
+
+/**
+ * @brief  : TEIDRI Timer Callback.
+ * @param  : ti, holds information about timer
+ * @param  : data_t, Peer node related information
+ * @return : Returns nothing
+ */
+void
+teidri_timer_cb(gstimerinfo_t *ti, const void *data_t );
 #endif /* _MAIN_H_ */
 

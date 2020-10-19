@@ -24,6 +24,7 @@
 #include "seid_llist.h"
 #endif /* CP_BUILD */
 
+
 /**
  * @brief  : This is a function to fill pfcp association update response
  * @param  : pfcp_asso_update_resp is pointer to structure of pfcp association update response
@@ -120,10 +121,12 @@ fill_pfcp_heartbeat_req(pfcp_hrtbeat_req_t *pfcp_heartbeat_req, uint32_t seq);
  * @brief  : This is a function to fill pfcp session report request
  * @param  : pfcp_sess_req_resp is pointer to structure of pfcp session report request
  * @param  : seq indicates the sequence number
+ * @param  : cp_type, [SGWC/SAEGWC/PGWC]
  * @return : This function dose not return anything
  */
 void
-fill_pfcp_sess_report_resp(pfcp_sess_rpt_rsp_t *pfcp_sess_rep_resp, uint32_t seq);
+fill_pfcp_sess_report_resp(pfcp_sess_rpt_rsp_t *pfcp_sess_rep_resp, uint32_t seq,
+		uint8_t cp_type);
 
 #ifdef CP_BUILD
 /**
@@ -145,6 +148,14 @@ process_pfcp_ass_resp(msg_info *msg, struct sockaddr_in *peer_addr);
 int
 buffer_csr_request(ue_context *context,
 		upf_context_t *upf_context, uint8_t ebi);
+
+/**
+ * @brief  : fills default rule and qos values
+ * @param  : pdn
+ * @return : Returns nothing
+ */
+void
+fill_rule_and_qos_inform_in_pdn(pdn_connection *pdn);
 
 /**
  * @brief  : This function processes incoming create session request

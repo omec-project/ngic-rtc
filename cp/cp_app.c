@@ -15,6 +15,7 @@
  */
 #include <stdlib.h>
 #include <math.h>
+#include "cp_config.h"
 #include "cp_app.h"
 #include "ipc_api.h"
 #include "sm_arr.h"
@@ -38,22 +39,6 @@ int gx_app_sock = 0;
 /*Socket used by CP to read CCR and RAA*/
 int gx_app_sock_read = 0;
 int ret ;
-
-/*
-This function Handles the RAR msg received from PCEF
-*/
-void
-handle_gx_rar(unsigned char * recv_buf )
-{
-	GxRAR *gx_rar = (GxRAR*)malloc(sizeof(*gx_rar));
-	memset((void*)gx_rar, 0, sizeof(*gx_rar));
-
-	gx_rar_unpack((unsigned char *)recv_buf, gx_rar );
-
-	clLog(clSystemLog, eCLSeverityDebug,"Gx RAR : \n  Session Id [%s]  \n re_auth_request_type[%d]\n",
-			gx_rar->session_id.val,
-			gx_rar->re_auth_request_type );
-}
 
 void
 fill_rat_type_ie( int32_t *ccr_rat_type, uint8_t csr_rat_type )
@@ -93,7 +78,7 @@ fill_qos_info( GxQosInformation *ccr_qos_info,
 		(1 + (uint32_t)log10(bearer->eps_bearer_id));
 	if (ccr_qos_info->bearer_identifier.len >= 255) {
 		clLog(clSystemLog, eCLSeverityCritical,
-				FORMAT"Error: Insufficient memory to copy bearer identifier\n", ERR_MSG);
+				LOG_FORMAT"Error: Insufficient memory to copy bearer identifier\n", LOG_VALUE);
 		return;
 	} else {
 		strncpy((char *)ccr_qos_info->bearer_identifier.val,
@@ -206,8 +191,8 @@ fill_subscription_id( GxSubscriptionIdList *subs_id, uint64_t imsi, uint64_t msi
 	if( imsi != 0 ) {
 		subs_id->list = malloc(sizeof( GxSubscriptionId));
 		if(subs_id->list == NULL){
-			clLog(clSystemLog, eCLSeverityCritical,"[%s]:[%s]:[%d] Memory allocation fails\n",
-					__file__, __func__, __LINE__);
+			clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT"Memory allocation fails\n",
+					LOG_VALUE);
 		}
 
 		subs_id->list[subs_id->count].presence.subscription_id_type = PRESENT;
@@ -227,8 +212,8 @@ fill_subscription_id( GxSubscriptionIdList *subs_id, uint64_t imsi, uint64_t msi
 
 		subs_id->list = malloc(sizeof( GxSubscriptionId));
 		if(subs_id->list == NULL){
-			clLog(clSystemLog, eCLSeverityCritical,"[%s]:[%s]:[%d] Memory allocation fails\n",
-					__file__, __func__, __LINE__);
+			clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT"Memory allocation fails\n",
+					LOG_VALUE);
 		}
 
 		subs_id->list[subs_id->count].presence.subscription_id_type = PRESENT;
@@ -260,21 +245,32 @@ fill_3gpp_ue_timezone( Gx3gppMsTimezoneOctetString *ccr_tgpp_ms_timezone,
 	memcpy( ccr_tgpp_ms_timezone->val, &(csr_ue_timezone.time_zone), ccr_tgpp_ms_timezone->len);
 }
 
-/* VS: Fill the Credit Crontrol Request to send PCRF */
+/* Fill the Credit Crontrol Request to send PCRF */
 int
 fill_ccr_request(GxCCR *ccr, ue_context *context,
-		uint8_t ebi_index, char *sess_id)
+		int ebi_index, char *sess_id, uint8_t flow_flag)
 {
-	uint16_t len = 0;
 	char apn[MAX_APN_LEN] = {0};
 
 	eps_bearer *bearer = NULL;
 	pdn_connection *pdn = NULL;
 
-	bearer = context->eps_bearers[ebi_index];
-	pdn = context->eps_bearers[ebi_index]->pdn;
+	if (ebi_index > 0) {
+		bearer = context->eps_bearers[ebi_index];
+	} else {
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Invalid EBI ID \n", LOG_VALUE);
+		return -1;
+	}
 
-	/* VS: Assign the Session ID in the request */
+	pdn = GET_PDN(context, ebi_index);
+	if ( pdn == NULL) {
+		clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT"Failed to get pdn"
+			" for ebi_index: %d\n",
+			LOG_VALUE, ebi_index);
+		return -1;
+	}
+
+	/* Assign the Session ID in the request */
 	if (sess_id != NULL) {
 		ccr->presence.session_id = PRESENT;
 		ccr->session_id.len = strnlen(sess_id, MAX_LEN);
@@ -300,7 +296,7 @@ fill_ccr_request(GxCCR *ccr, ue_context *context,
 				/* Make this number generic */
 				ccr->cc_request_number = 0 ;
 
-				/* VS: TODO: Need to Check condition handling */
+				/* TODO: Need to Check condition handling */
 				ccr->presence.ip_can_type = PRESENT;
 				ccr->ip_can_type = TGPP_GPRS;
 
@@ -316,59 +312,48 @@ fill_ccr_request(GxCCR *ccr, ue_context *context,
 				/* Make this number generic */
 				ccr->cc_request_number =  ++cc_request_number ;
 
-				/* VS: TODO: Need to Check condition handling */
+				/* TODO: Need to Check condition handling */
 				ccr->presence.ip_can_type = PRESENT;
 				ccr->ip_can_type = TGPP_GPRS;
 				break;
 
 			default:
-				clLog(clSystemLog, eCLSeverityCritical, "%s : Error: %s \n", __func__,
-						strerror(errno));
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Unknown "
+				"Message type request %s \n", LOG_VALUE, strerror(errno));
 				return -1;
 		}
 	}
 
-	/* VS: TODO */
-	/* TODO: Need to Discuss with Varun and Himanshu for make following AVP's are generic or
+	/* TODO: Need to Discuss to make following AVP's generic or
 	 * to be based on MSG TYPE OR condition basis */
 
-	/* VS: Fill the APN Vaule */
+	/* Fill the APN Vaule */
 	if ((pdn->apn_in_use)->apn_name_length != 0) {
 		ccr->presence.called_station_id = PRESENT;
 
-		for(int i=0; i < MAX_APN_LEN; ){
-
-			len = (pdn->apn_in_use)->apn_name_label[i];
-			if((pdn->apn_in_use)->apn_name_label[i] != '\0'){
-				strncat(apn,(const char *) &((pdn->apn_in_use)->apn_name_label[i + 1]), len);
-				apn[len] = '.';
-				i += len+1;
-			} else {
-				apn[i-1] = '\0';
-				break;
-			}
-		}
+		get_apn_name((pdn->apn_in_use)->apn_name_label, apn);
 
 		ccr->called_station_id.len = strnlen(apn, MAX_APN_LEN);
 		memcpy(ccr->called_station_id.val, apn, ccr->called_station_id.len);
 
 	}
 
-	/* VS: Fill the RAT type in CCR */
+	/* Fill the RAT type in CCR */
 	if( context->rat_type.len != 0 ){
 		ccr->presence.rat_type = PRESENT;
 		fill_rat_type_ie(&ccr->rat_type, context->rat_type.rat_type);
 	}
 
-	/* VS: Set the bearer eps qos values received in CSR */
+	/* Set the bearer eps qos values received in CSR */
 	ccr->presence.default_eps_bearer_qos = PRESENT;
 	fill_default_eps_bearer_qos( &(ccr->default_eps_bearer_qos),
 			bearer);
 
-	/* VS: Set the bearer apn ambr and Uplink/Downlink MBR/GBR values received in CSR */
-	ccr->presence.qos_information = PRESENT;
-	fill_qos_info(&(ccr->qos_information), bearer, &pdn->apn_ambr);
-
+	/* Set the bearer apn ambr and Uplink/Downlink MBR/GBR values received in CSR */
+	if (flow_flag != 1) {
+		ccr->presence.qos_information = PRESENT;
+		fill_qos_info(&(ccr->qos_information), bearer, &pdn->apn_ambr);
+	}
 
 	/* Need to Handle IMSI and MSISDN */
 	if( context->imsi != 0 || context->msisdn != 0 )
@@ -377,7 +362,7 @@ fill_ccr_request(GxCCR *ccr, ue_context *context,
 		fill_subscription_id( &ccr->subscription_id, context->imsi, context->msisdn );
 	}
 
-	///* VS: TODO Need to check later on */
+	/* TODO Need to check later on */
 	if(context->mei != 0)
 	{
 		ccr->presence.user_equipment_info = PRESENT;
@@ -398,9 +383,6 @@ process_create_bearer_resp_and_send_raa( int sock )
 
 	/* Filling Header value of RAA */
 	resp->msg_type = GX_RAA_MSG ;
-	//create_bearer_resp_t cbresp = {0};
-
-	//fill_raa_msg( &(resp->data.cp_raa), &cbresp );
 
 	/* Cal the length of buffer needed */
 	buflen = gx_raa_calc_length (&resp->data.cp_raa);
@@ -416,18 +398,24 @@ process_create_bearer_resp_and_send_raa( int sock )
 						sizeof(resp->msg_len));
 
 	if ( gx_raa_pack(&(resp->data.cp_raa),
-			(unsigned char *)(send_buf + GX_HEADER_LEN),
-			buflen ) == 0 ){
-		clLog(clSystemLog, eCLSeverityDebug,"RAA Packing failure on sock [%d] \n", sock);
+		(unsigned char *)(send_buf + GX_HEADER_LEN),
+		buflen ) == 0 ){
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"RAA Packing failure on sock [%d] \n", LOG_VALUE, sock);
 	}
-	//send_to_ipc_channel( sock, send_buf );
+
+	if (resp != NULL) {
+		free(resp);
+		resp = NULL;
+	}
 	free(send_buf);
+
 }
 
 int
 msg_handler_gx( void )
 {
 	int bytes_rx = 0;
+	int ret = 0;
 	msg_info msg = {0};
 	gx_msg *gxmsg = NULL;
 	char recv_buf[BUFFSIZE] = {0};
@@ -439,52 +427,46 @@ msg_handler_gx( void )
 			/* Greacefull Exit */
 			exit(0);
 	}
-	while(bytes_rx > 0){
+
+	while(bytes_rx > 0) {
 		gxmsg = (gx_msg *)(recv_buf + msg_len);
 
-		clLog(clSystemLog, eCLSeverityDebug, "%s:%d Btyes Recevied to process is [%d]"
-			"and GX msg len is %u\n",__func__, __LINE__, bytes_rx, gxmsg->msg_len);
-
 		if ((ret = gx_pcnd_check(gxmsg, &msg)) != 0) {
-			clLog(clSystemLog, eCLSeverityCritical, "%s:%d Failure in gx "
-									"precondion check\n",__func__, __LINE__);
-				gx_cca_error_response(ret, &msg);
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT" Failure in gx "
+				"precondion check\n",LOG_VALUE);
+			if(msg.msg_type == GX_CCA_MSG)
+					gx_cca_error_response(ret, &msg);
+			if(msg.msg_type == GX_RAR_MSG)
+					gen_reauth_error_resp_for_wrong_seid_rcvd(&msg, gxmsg, ret);
 			if(bytes_rx == gxmsg->msg_len)
 				return -1;
 		}else{
+
 			if ((msg.proc < END_PROC) && (msg.state < END_STATE) && (msg.event < END_EVNT)) {
-				if (SGWC == pfcp_config.cp_type) {
+				if (SGWC == msg.cp_mode) {
 				    ret = (*state_machine_sgwc[msg.proc][msg.state][msg.event])(&msg, gxmsg);
-				} else if (PGWC == pfcp_config.cp_type) {
+				} else if (PGWC == msg.cp_mode) {
 				    ret = (*state_machine_pgwc[msg.proc][msg.state][msg.event])(&msg, gxmsg);
-				} else if (SAEGWC == pfcp_config.cp_type) {
+				} else if (SAEGWC == msg.cp_mode) {
 				    ret = (*state_machine_saegwc[msg.proc][msg.state][msg.event])(&msg, gxmsg);
 				} else {
-					/* clLog(clSystemLog, eCLSeverityCritical, "%s : "
-							"Invalid Control Plane Type: %d \n",
-							__func__, pfcp_config.cp_type); */
 					if(bytes_rx == gxmsg->msg_len)
 						return -1;
 				}
 
 				if (ret) {
-					/* clLog(clSystemLog, eCLSeverityCritical, "%s : "
-							"State_Machine Callback failed with Error: %d \n",
-							__func__, ret); */
 					if(bytes_rx == gxmsg->msg_len)
 						return -1;
 				}
 			} else {
-				/* clLog(clSystemLog, eCLSeverityCritical, "%s : "
-							"Invalid Procedure or State or Event \n",
-							__func__); */
 				if(bytes_rx == gxmsg->msg_len)
-						return -1;
+					return -1;
 			}
 		}
 		msg_len = gxmsg->msg_len;
 		bytes_rx = bytes_rx - msg_len;
 	}
+
 	return 0;
 }
 
@@ -513,8 +495,8 @@ start_cp_app(void )
 		/*Gracefully exit*/
 		exit(0);
 	}
-	/* Wait for few seconds and connect to gx_app socket for sending CCR and RAA */
-	/*sleep(5);*/
+	/* Remove this sleep to resolved the delay issue in between CSR and CCR */
+	/* sleep(5); */
 
 	int ret = -1;
 	while (ret) {

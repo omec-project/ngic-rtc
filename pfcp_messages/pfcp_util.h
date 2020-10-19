@@ -26,30 +26,66 @@
 #include "ue.h"
 #include "gtp_messages.h"
 #include "sm_struct.h"
+#else
+#define LDB_ENTRIES_DEFAULT (1024 * 1024 * 4)
 #endif /* CP_BUILD */
+
+#ifdef CP_BUILD
+#define S11_INTFC_IN						1
+#define S11_INTFC_OUT						2
+#define S5S8_C_INTFC_IN						3
+#define S5S8_C_INTFC_OUT					4
+#define SX_INTFC_IN						5
+#define SX_INTFC_OUT						6
+#endif /* CP_BUILD */
+
+#define COPY_SIG_MSG_ON						2
+#define SX_COPY_CP_MSG						1
+#define SX_COPY_DP_MSG						2
+#define SX_COPY_CP_DP_MSG					3
+
+#define FRWDING_PLCY_SX						0
+#define FRWDING_PLCY_WEST_DIRECTION			1
+#define FRWDING_PLCY_WEST_CONTENT			2
+#define FRWDING_PLCY_EAST_DIRECTION			3
+#define FRWDING_PLCY_EAST_CONTENT			4
+#define FRWDING_PLCY_FORWARD				5
+#define FRWDING_PLCY_ID						6
 
 extern uint32_t start_time;
 extern struct rte_hash *node_id_hash;
 extern struct rte_hash *heartbeat_recovery_hash;
 
-#ifdef CP_BUILD
-/**
- * @brief  : Get upf list
- * @param  : pdn, pdn connection information
- * @return : Returns upf count in case of success , 0 if dn list not found, -1 otherwise
- */
-int
-get_upf_list(pdn_connection *pdn);
+#define QUERY_RESULT_COUNT 16
+#define MAX_ENODEB_LEN     16
+#define PFCP_MSG_LEN       4096
 
+#ifdef CP_BUILD
+
+#define FAILED_ENB_FILE "logs/failed_enb_queries.log"
+
+typedef enum {
+	NO_DNS_QUERY,
+	ENODEB_BASE_QUERY,
+	APN_BASE_QUERY,
+	TAC_BASE_QUERY = 4
+}dns_domain;
 /**
- * @brief  : Get upf ip
- * @param  : context, ue context information
- * @param  : eps_index, index of entry in array for particular bearer
- * @param  : upf_ip, param to store resulting ip
+ * @brief  : send DNS query
+ * @param  : pdn, pdn connection context information
  * @return : Returns 0 in case of success , -1 otherwise
  */
 int
-dns_query_lookup(pdn_connection *pdn, uint32_t **upf_ip);
+push_dns_query(pdn_connection *pdn);
+
+/**
+ * @brief  : DNS callback.
+ * @param  : node_sel, node selectore information
+ * @param  : data, contain callback information
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+int dns_callback(void *node_sel, void *data, void *user_data);
+
 #endif /* CP_BUILD */
 
 /**
@@ -126,6 +162,17 @@ time_to_ntp(struct timeval *tv, uint8_t *ntp);
 void
 ntp_to_unix_time(uint32_t *ntp, struct timeval *unix_tm);
 
+/* VS: */
+/**
+ * @brief  : Validate the IP Address is in the subnet or not
+ * @param  : addr, IP address for search
+ * @param  : net_init, Starting value of the subnet
+ * @param  : net_end, End value of the subnet
+ * @return : Returns 1 if addr within the range, 0 not in the range
+ * */
+int
+validate_Subnet(uint32_t addr, uint32_t net_init, uint32_t net_end);
+
 /**
  * @brief  : Retrive UE Database From SEID and If require copy the message to LI server
  * @param  : sess_id, key for search
@@ -135,8 +182,27 @@ ntp_to_unix_time(uint32_t *ntp, struct timeval *unix_tm);
  */
 #ifdef CP_BUILD
 /**
+ * @brief  : Check LI is enabled or not
+ * @param  : li_data, li_data information from context
+ * @param  : intfc_name, interface name
+ * @return : Returns 1 if yes, 0 otherwise
+ */
+uint8_t
+is_li_enabled(li_data_t *li_data, uint8_t intfc_name, uint8_t cp_type);
+
+/**
+ * @brief  : Check LI is enabled or not using imsi
+ * @param  : uiImsi, IMSI of UE
+ * @param  : intfc_name, interface name
+ * @return : Returns 1 if yes, 0 otherwise
+ */
+uint8_t
+is_li_enabled_using_imsi(uint64_t uiImsi, uint8_t intfc_name, uint8_t cp_type);
+
+/**
  * @brief  : Process li message
  * @param  : sess_id, session id
+ * @param  : intfc_name, interface name
  * @param  : buf_tx
  * @param  : buf_tx_size, size of buf_tx
  * @param  : uiSrcIp, source ip address
@@ -146,27 +212,14 @@ ntp_to_unix_time(uint32_t *ntp, struct timeval *unix_tm);
  * @return : Returns 0 on success, -1 otherwise
  */
 int
-process_cp_li_msg(uint64_t sess_id, uint8_t *buf_tx,
-		int buf_tx_size, uint32_t uiSrcIp, uint32_t uiDstIp,
-		uint16_t uiSrcPort, uint16_t uiDstPort);
-/**
- * @brief  : Process li message using ue context
- * @param  : context, ue context details
- * @param  : buf_tx
- * @param  : buf_tx_size, size of buf_tx
- * @param  : uiSrcIp, source ip address
- * @param  : uiDstIp, destination ip address
- * @param  : uiSrcPort, source port number
- * @param  : uiDstPort, destination port number
- * @return : Returns 0 on success, -1 otherwise
- */
-int
-process_cp_li_msg_using_context(ue_context *context, uint8_t *buf_tx, int buf_tx_size,
-		uint32_t uiSrcIp, uint32_t uiDstIp, uint16_t uiSrcPort, uint16_t uiDstPort);
+process_cp_li_msg(uint64_t sess_id, uint8_t intfc_name, uint8_t *buf_tx,
+		int buf_tx_size, uint32_t uiSrcIp, uint32_t uiDstIp, uint16_t uiSrcPort,
+		uint16_t uiDstPort);
 
 /**
  * @brief  : Process messages for li
  * @param  : context, ue context details
+ * @param  : intfc_name, interface name
  * @param  : msg, msg_info structure
  * @param  : uiSrcIp, source ip address
  * @param  : uiDstIp, destination ip address
@@ -175,24 +228,46 @@ process_cp_li_msg_using_context(ue_context *context, uint8_t *buf_tx, int buf_tx
  * @return : Returns 0 on success, -1 otherwise
  */
 int
-process_msg_for_li(ue_context *context, msg_info *msg, uint32_t uiSrcIp,
-		uint32_t uiDstIp, uint16_t uiSrcPort, uint16_t uiDstPort);
+process_msg_for_li(ue_context *context, uint8_t intfc_name, msg_info *msg,
+		uint32_t uiSrcIp, uint32_t uiDstIp, uint16_t uiSrcPort, uint16_t uiDstPort);
 
 /**
- * @brief  : Process li message using imsi and li socket file descriptor
- * @param  : uiImsi, imsi of UE
- * @param  : li_sock_fd, li socket file descriptor
+ * @brief  : Process li message. Sender must check li is enabled or not
+ * @param  : li_data, configurations for li
+ * @param  : uiLiDataCntr, Number of li entries for single ue
+ * @param  : intfc_name, interface name
  * @param  : buf_tx
  * @param  : buf_tx_size, size of buf_tx
  * @param  : uiSrcIp, source ip address
  * @param  : uiDstIp, destination ip address
  * @param  : uiSrcPort, source port number
  * @param  : uiDstPort, destination port number
+ * @param  : uiCpMode, control plane mode
+ * @param  : uiImsi, imsi of ue
  * @return : Returns 0 on success, -1 otherwise
  */
 int
-process_cp_li_msg_for_cleanup(uint64_t uiImsi, int li_sock_fd, uint8_t *buf_tx, int buf_tx_size,
-		uint32_t uiSrcIp, uint32_t uiDstIp, uint16_t uiSrcPort, uint16_t uiDstPort);
+process_cp_li_msg_for_cleanup(li_data_t *li_data, uint8_t li_data_cntr, uint8_t intfc_name,
+		uint8_t *buf_tx, int buf_tx_size, uint32_t uiSrcIp, uint32_t uiDstIp,
+		uint16_t uiSrcPort, uint16_t uiDstPort, uint8_t uiCpMode, uint64_t uiImsi);
+
+/**
+ * @brief  : Process packet for li.
+ * @param  : context, context of ue
+ * @param  : intfc_name, interface name
+ * @param  : buf_tx, packet
+ * @param  : buf_tx_size, size of buf_tx
+ * @param  : uiSrcIp, source ip address
+ * @param  : uiDstIp, destination ip address
+ * @param  : uiSrcPort, source port number
+ * @param  : uiDstPort, destination port number
+ * @param  : uiForward, forward to df2 or not
+ * @return : Returns 0 on success, -1 otherwise
+ */
+int
+process_pkt_for_li(ue_context *context, uint8_t intfc_name, uint8_t *buf_tx,
+		int buf_tx_size, uint32_t uiSrcIp, uint32_t uiDstIp, uint16_t uiSrcPort,
+		uint16_t uiDstPort);
 
 #endif /* CP_BUILD */
 

@@ -26,7 +26,7 @@
 pfcp_config_t pfcp_config;
 extern struct cp_stats_t cp_stats;
 
-uint8_t
+uint32_t
 gx_pcnd_check(gx_msg *gx_rx, msg_info *msg)
 {
 	int ret = 0;
@@ -36,14 +36,16 @@ gx_pcnd_check(gx_msg *gx_rx, msg_info *msg)
 
 	struct sockaddr_in saddr_in;
 	saddr_in.sin_family = AF_INET;
-	inet_aton("127.0.0.1", &(saddr_in.sin_addr));
+	inet_aton(CLI_GX_IP, &(saddr_in.sin_addr));
 
 	msg->msg_type = gx_rx->msg_type;
+
 	switch(msg->msg_type) {
 		case GX_CCA_MSG: {
 			if (gx_cca_unpack((unsigned char *)gx_rx + GX_HEADER_LEN,
 						&msg->gx_msg.cca) <= 0) {
-				clLog(clSystemLog, eCLSeverityCritical, "Failure in gx cca unpacking\n");
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failure in gx CCA "
+					"unpacking \n", LOG_VALUE);
 			    return -1;
 			}
 
@@ -64,44 +66,49 @@ gx_pcnd_check(gx_msg *gx_rx, msg_info *msg)
 					(const void*)(msg->gx_msg.cca.session_id.val),
 					(void **)&gx_context);
 			if (ret < 0) {
-			    clLog(clSystemLog, eCLSeverityCritical, "%s: NO ENTRY FOUND IN Gx HASH [%s]\n", __func__,
-						msg->gx_msg.cca.session_id.val);
+			    clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"NO ENTRY FOUND "
+					"IN Gx HASH [%s]\n", LOG_VALUE,
+					msg->gx_msg.cca.session_id.val);
 			    return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 			}
 
 			if(msg->gx_msg.cca.presence.result_code &&
 					msg->gx_msg.cca.result_code != 2001){
-				clLog(clSystemLog, eCLSeverityCritical, "%s:Received CCA with DIAMETER Failure [%d]\n", __func__,
-						msg->gx_msg.cca.result_code);
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"received CCA with "
+					"DIAMETER Failure [%d]\n", LOG_VALUE,
+					msg->gx_msg.cca.result_code);
 				return GTPV2C_CAUSE_INVALID_REPLY_FROM_REMOTE_PEER;
 			}
 
 			/* Extract the call id from session id */
 			ret = retrieve_call_id((char *)msg->gx_msg.cca.session_id.val, &call_id);
 			if (ret < 0) {
-			        clLog(clSystemLog, eCLSeverityCritical, "%s:No Call Id found from session id:%s\n", __func__,
-			                        msg->gx_msg.cca.session_id.val);
+			        clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"No Call Id "
+						"found for session id:%s\n", LOG_VALUE,
+			            msg->gx_msg.cca.session_id.val);
 			        return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 			}
+
 
 			/* Retrieve PDN context based on call id */
 			pdn_cntxt = get_pdn_conn_entry(call_id);
 			if (pdn_cntxt == NULL)
 			{
-			      clLog(clSystemLog, eCLSeverityCritical, "%s:No valid pdn cntxt found for CALL_ID:%u\n",
-			                          __func__, call_id);
-			      return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to get "
+						"PDN for CALL_ID:%u\n", LOG_VALUE, call_id);
+					return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 			}
 
 			/* Retrive the Session state and set the event */
+			msg->cp_mode = gx_context->cp_mode;
 			msg->state = gx_context->state;
 			msg->event = CCA_RCVD_EVNT;
 			msg->proc = gx_context->proc;
 
-			clLog(clSystemLog, eCLSeverityDebug, "%s: Callback called for"
+			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Callback called for"
 					"Msg_Type:%s[%u], Session Id:%s, "
 					"State:%s, Event:%s\n",
-					__func__, gx_type_str(msg->msg_type), msg->msg_type,
+					LOG_VALUE, gx_type_str(msg->msg_type), msg->msg_type,
 					msg->gx_msg.cca.session_id.val,
 					get_state_string(msg->state), get_event_string(msg->event));
 			break;
@@ -115,33 +122,35 @@ gx_pcnd_check(gx_msg *gx_rx, msg_info *msg)
 
 			if (gx_rar_unpack((unsigned char *)gx_rx + GX_HEADER_LEN,
 						&msg->gx_msg.rar) <= 0) {
-				clLog(clSystemLog, eCLSeverityCritical, "Failure in gx rar unpacking\n");
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failure in gx "
+					"rar unpacking\n", LOG_VALUE);
 			    return -1;
 			}
-
 			ret = retrieve_call_id((char *)&msg->gx_msg.rar.session_id.val, &call_id);
 			if (ret < 0) {
-	        	clLog(clSystemLog, eCLSeverityCritical, "%s:No Call Id found from session id:%s\n", __func__,
-	        	                msg->gx_msg.rar.session_id.val);
-	       	 	return -1;
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"No Call Id found "
+					"for session id:%s\n", LOG_VALUE,
+					msg->gx_msg.rar.session_id.val);
+				return DIAMETER_UNKNOWN_SESSION_ID;
 			}
 			pdn_connection *pdn_cntxt = NULL;
 			/* Retrieve PDN context based on call id */
 			pdn_cntxt = get_pdn_conn_entry(call_id);
 			if (pdn_cntxt == NULL)
 			{
-	     		 clLog(clSystemLog, eCLSeverityCritical, "%s:No valid pdn cntxt found for CALL_ID:%u\n",
-	                								          __func__, call_id);
-	     		 return -1;
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to get "
+					"PDN for CALL_ID:%u\n", LOG_VALUE, call_id);
+				return DIAMETER_UNKNOWN_SESSION_ID;
 			}
 			/* Retrive Gx_context based on Sess ID. */
 			ret = rte_hash_lookup_data(gx_context_by_sess_id_hash,
 					(const void*)(msg->gx_msg.rar.session_id.val),
 					(void **)&gx_context);
 			if (ret < 0) {
-			    clLog(clSystemLog, eCLSeverityCritical, "%s: NO ENTRY FOUND IN Gx HASH [%s]\n", __func__,
-						msg->gx_msg.rar.session_id.val);
-			    return -1;
+			    clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"NO ENTRY FOUND "
+					"IN Gx HASH [%s]\n", LOG_VALUE,
+					msg->gx_msg.rar.session_id.val);
+					return DIAMETER_UNKNOWN_SESSION_ID;
 			}
 
 			/* Reteive the rqst ptr for RAA */
@@ -151,25 +160,25 @@ gx_pcnd_check(gx_msg *gx_rx, msg_info *msg)
 					sizeof(unsigned long));
 
 			pdn_cntxt->rqst_ptr = gx_context->rqst_ptr;
+			msg->cp_mode = pdn_cntxt->context->cp_mode;
 			/* Retrive the Session state and set the event */
 			msg->state = CONNECTED_STATE;
 			msg->event = RE_AUTH_REQ_RCVD_EVNT;
 			msg->proc = DED_BER_ACTIVATION_PROC;
 
-			clLog(clSystemLog, eCLSeverityDebug, "%s: Callback called for"
+			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Callback called for"
 					"Msg_Type:%s[%u], Session Id:%s, "
 					"State:%s, Event:%s\n",
-					__func__, gx_type_str(msg->msg_type), msg->msg_type,
+					LOG_VALUE, gx_type_str(msg->msg_type), msg->msg_type,
 					msg->gx_msg.cca.session_id.val,
 					get_state_string(msg->state), get_event_string(msg->event));
 			break;
 		}
 	default:
-				clLog(clSystemLog, eCLSeverityCritical, "%s::process_msgs-"
-					"\n\tcase: SAEGWC::spgw_cfg= %d;"
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"process_msgs-"
+					"\n\tcase: GateWay"
 					"\n\tReceived Gx Message : "
-					"%d not supported... Discarding\n", __func__,
-					spgw_cfg, gx_rx->msg_type);
+					"%d not supported... Discarding\n", LOG_VALUE, gx_rx->msg_type);
 			return -1;
 	}
 

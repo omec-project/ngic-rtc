@@ -25,13 +25,11 @@
 #include <netdb.h>
 #include <openssl/err.h>
 #include <arpa/inet.h>
-
 #include <rte_log.h>
-
-#include "sgx_quote.h"
 
 #include "up_main.h"
 #include "ssl_client.h"
+#include "sgx_quote.h"
 
 #define OID(N) {0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF8, 0x4D, 0x8A, 0x39, N}
 #define ENCLAVE_QUOTE "\"isvEnclaveQuoteBody\":\""
@@ -348,7 +346,6 @@ verify_sgx_crt_info(X509 *crt, const char *mrenclave,
 
 	sgx_report_body_t *body = &quote.report_body;
 
-#if 1
 	clLog(clSystemLog, eCLSeverityDebug,"Certificate's SGX information: \n");
 	clLog(clSystemLog, eCLSeverityDebug,"MRENCLAVE = ");
 
@@ -364,7 +361,6 @@ verify_sgx_crt_info(X509 *crt, const char *mrenclave,
 	clLog(clSystemLog, eCLSeverityDebug,"ISVSVN  = ");
 	clLog(clSystemLog, eCLSeverityDebug,"%02x\n", body->isv_svn);
 	clLog(clSystemLog, eCLSeverityDebug,"\n");
-#endif
 
 	char cert_mr_enclave[SGX_HASH_SIZE * 2 + 1] = {0,};
 	char cert_mr_signer[SGX_HASH_SIZE * 2 + 1] = {0,};

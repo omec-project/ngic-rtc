@@ -46,6 +46,7 @@ int gx_send_ccr(void *data)
 	struct msg *msg = NULL;
 	struct avp *avp_ptr = NULL;;
 	union avp_value val;
+
 	GxCCR gx_ccr = {0};
 
 	gx_ccr_unpack((unsigned char *)data, &gx_ccr );
@@ -231,14 +232,6 @@ int gx_send_ccr(void *data)
 		FDCHECK_MSG_ADD_AVP_OSTR( gxDict.avp_3gpp_ms_timezone, msg, MSG_BRW_LAST_CHILD, gx_ccr.tgpp_ms_timezone.val,
 				gx_ccr.tgpp_ms_timezone.len, rval, goto err );
 
-	/* VS: test selection mode AVP */
-//	if( gx_ccr.presence.tgpp_selection_mode)
-//		FDCHECK_MSG_ADD_AVP_OSTR( gxDict.avp_3gpp_selection_mode, msg,
-//				MSG_BRW_LAST_CHILD, gx_ccr.tgpp_selection_mode.val,
-//				gx_ccr.tgpp_selection_mode.len, rval, goto err );
-
-	/*AALI: Test Serving Network*/
-
 
 	if( gx_ccr.presence.tgpp_user_location_info)
 		FDCHECK_MSG_ADD_AVP_OSTR( gxDict.avp_3gpp_user_location_info, msg,
@@ -252,13 +245,7 @@ int gx_send_ccr(void *data)
 			FDCHECK_MSG_ADD_AVP_U32( gxDict.avp_event_trigger, msg, MSG_BRW_LAST_CHILD,
 										gx_ccr.event_trigger.list[k], rval, goto err )
 		}
-		free(gx_ccr.event_trigger.list);
 	}
-
-//	if( gx_ccr.presence.tgpp_sgsn_mcc_mnc)
-//		FDCHECK_MSG_ADD_AVP_OSTR( gxDict.avp_3gpp_sgsn_mcc_mnc, msg,
-//				MSG_BRW_LAST_CHILD, gx_ccr.tgpp_sgsn_mcc_mnc.val,
-//				gx_ccr.tgpp_sgsn_mcc_mnc.len, rval, goto err );
 
 	if(gx_ccr.presence.fixed_user_location_info ){
 
@@ -398,16 +385,18 @@ int gx_send_ccr(void *data)
 
 	/* Adding avp_packet_filter_information list params */
 	if( gx_ccr.presence.packet_filter_information ){
-		CHECK_FCT_DO(fd_msg_avp_new(gxDict.avp_packet_filter_information, 0, &avp_ptr), return -1);
-		CHECK_FCT_DO(fd_msg_avp_add(msg, MSG_BRW_LAST_CHILD, avp_ptr), return -1);
 
 		for(int i=0; i < gx_ccr.packet_filter_information.count; i++){
+
+			CHECK_FCT_DO(fd_msg_avp_new(gxDict.avp_packet_filter_information, 0, &avp_ptr), return -1);
+			CHECK_FCT_DO(fd_msg_avp_add(msg, MSG_BRW_LAST_CHILD, avp_ptr), return -1);
 
 			if( gx_ccr.packet_filter_information.list[i].presence.packet_filter_identifier ){
 				val.os.len = gx_ccr.packet_filter_information.list[i].packet_filter_identifier.len;
 				val.os.data = gx_ccr.packet_filter_information.list[i].packet_filter_identifier.val;
 				add_fd_msg(&val, gxDict.avp_packet_filter_identifier, (struct msg**)&avp_ptr);
 			}
+
 			if( gx_ccr.packet_filter_information.list[i].presence.precedence ){
 				val.u32 = gx_ccr.packet_filter_information.list[i].precedence;
 				add_fd_msg(&val, gxDict.avp_precedence, (struct msg**)&avp_ptr);
@@ -657,10 +646,11 @@ int gx_send_ccr(void *data)
 	/* Adding charging rule report  params */
 	if( gx_ccr.presence.charging_rule_report ){
 
-		CHECK_FCT_DO(fd_msg_avp_new(gxDict.avp_charging_rule_report ,0, &avp_ptr), return -1);
-		CHECK_FCT_DO(fd_msg_avp_add(msg, MSG_BRW_LAST_CHILD, avp_ptr), return -1);
 
 		for(int i = 0; i < gx_ccr.charging_rule_report.count; i++){
+
+		CHECK_FCT_DO(fd_msg_avp_new(gxDict.avp_charging_rule_report ,0, &avp_ptr), return -1);
+		CHECK_FCT_DO(fd_msg_avp_add(msg, MSG_BRW_LAST_CHILD, avp_ptr), return -1);
 
 			if( gx_ccr.charging_rule_report.list[i].presence.charging_rule_name ){
 
@@ -1029,7 +1019,7 @@ int gx_send_ccr(void *data)
 			}
 
 			if( gx_ccr.event_report_indication.trace_data.presence.trace_collection_entity){
-				/*TODO :need to addres on the basis of type in Fdaddress  *//* TODO: Pls check typecast */
+				/*TODO :need to addres on the basis of type in Fdaddress  */
 				val.os.len = strnlen((char *)gx_ccr.event_report_indication.trace_data.trace_collection_entity.address,MAX_FD_ADDRESS_LEN);
 				val.os.data = gx_ccr.event_report_indication.trace_data.trace_collection_entity.address;
 				add_fd_msg(&val,gxDict.avp_trace_collection_entity, (struct msg**)&avp_ptr);
@@ -1235,19 +1225,19 @@ int gx_send_ccr(void *data)
 			add_fd_msg(&val,gxDict.avp_3gpp_ms_timezone, (struct msg**)&avp_ptr);
 		}
 		if( gx_ccr.event_report_indication.presence.routing_ip_address){
-			/*TODO :Need to fill according to type*/ /* TODO: Pls check typecast */
-			val.os.len = strnlen((char *)gx_ccr.event_report_indication.routing_ip_address.address,MAX_FD_ADDRESS_LEN);
+			/*TODO :Need to fill according to type*/
+			val.os.len = strnlen((char *) gx_ccr.event_report_indication.routing_ip_address.address,MAX_FD_ADDRESS_LEN);
 			val.os.data = gx_ccr.event_report_indication.routing_ip_address.address;
 			add_fd_msg(&val,gxDict.avp_routing_ip_address, (struct msg**)&avp_ptr);
 		}
 		if( gx_ccr.event_report_indication.presence.ue_local_ip_address){
-			/*TODO :Need to fill according to type*/ /* TODO: Pls check typecast */
+			/*TODO :Need to fill according to type*/
 			val.os.len = strnlen((char *) gx_ccr.event_report_indication.ue_local_ip_address.address,MAX_FD_ADDRESS_LEN);
 			val.os.data = gx_ccr.event_report_indication.ue_local_ip_address.address;
 			add_fd_msg(&val,gxDict.avp_ue_local_ip_address, (struct msg**)&avp_ptr);
 		}
 		if( gx_ccr.event_report_indication.presence.henb_local_ip_address){
-			/*TODO :Need to fill according to type*/ /* TODO: Pls check typecast */
+			/*TODO :Need to fill according to type*/
 			val.os.len = strnlen((char *) gx_ccr.event_report_indication.henb_local_ip_address.address,MAX_FD_ADDRESS_LEN);
 			val.os.data = gx_ccr.event_report_indication.henb_local_ip_address.address;
 			add_fd_msg(&val,gxDict.avp_henb_local_ip_address, (struct msg**)&avp_ptr);
@@ -1377,7 +1367,7 @@ int gx_send_ccr(void *data)
 			}
 
 			if( gx_ccr.coa_information.list[i].presence.coa_ip_address ){
-				/*TODO address need to fill on the basis of type */ /* TODO: Pls check typecast */
+				/*TODO address need to fill on the basis of type */
 				val.os.len = strnlen((char *)gx_ccr.coa_information.list[i].coa_ip_address.address,MAX_FD_ADDRESS_LEN);
 				val.os.data = gx_ccr.coa_information.list[i].coa_ip_address.address;
 				add_fd_msg(&val,gxDict.avp_coa_ip_address, (struct msg**)&avp_ptr);
@@ -1685,7 +1675,7 @@ int gx_send_ccr(void *data)
 				}
 
 				if( gx_ccr.routing_rule_install.routing_rule_definition.list[i].presence.routing_ip_address ){
-					/*TODO address need to fill on the basis of type *//* TODO: Pls check typecast */
+					/*TODO address need to fill on the basis of type */
 					val.os.len = strnlen((char *) gx_ccr.routing_rule_install.routing_rule_definition.
 							list[i].routing_ip_address.address,MAX_FD_ADDRESS_LEN);
 					val.os.data = gx_ccr.routing_rule_install.routing_rule_definition.

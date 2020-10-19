@@ -70,6 +70,8 @@ int number_of_request_tries;
 int transmit_timer_value;
 int periodic_timer_value;
 int request_timeout_value;
+cp_configuration_t cp_configuration = {0};
+dp_configuration_t dp_configuration = {0};
 
 MessageType ossS5s8MessageDefs[] = {
 	{       3       , "Version Not Supported Indication",dNone      },
@@ -105,8 +107,8 @@ MessageType ossS5s8MessageDefs[] = {
 	{       104     , "PGW Downlink Triggering Acknowledge",dNone   },
 	{       162     , "Suspend Notification",dNone                  },
 	{       163     , "Suspend Acknowledge",dNone                   },
-	{       200     , "Update PDN Connection Set Request",dNone     },
-	{       201     , "Update PDN Connection Set Response",dNone    },
+	{       200     , "Update PDN Connection Set Request",dIn     },
+	{       201     , "Update PDN Connection Set Response",dRespRcvd    },
 	{       -1      , NULL,dNone                                    }
 };
 
@@ -124,12 +126,12 @@ MessageType ossS11MessageDefs[] = {
 	{       39      ,"Change Notification Response", dRespSend                },
 	{       164     ,"Resume Notification", dNone                             },
 	{       165     ,"Resume Acknowledge", dNone                              },
-	{       64      ,"Modify Bearer Command", dNone                           },
-	{       65      ,"Modify Bearer Failure Indication", dNone                },
+	{       64      ,"Modify Bearer Command", dIn                             },
+	{       65      ,"Modify Bearer Failure Indication", dRespSend            },
 	{       66      ,"Delete Bearer Command", dIn                             },
-	{       67      ,"Delete Bearer Failure Indication", dNone                },
-	{       68      ,"Bearer Resource Command", dNone                         },
-	{       69      ,"Bearer Resource Failure Indication", dNone              },
+	{       67      ,"Delete Bearer Failure Indication", dRespSend            },
+	{       68      ,"Bearer Resource Command", dIn                           },
+	{       69      ,"Bearer Resource Failure Indication", dRespSend          },
 	{       70      ,"Downlink Data Notification Failure Indication", dNone   },
 	{       71      ,"Trace Session Activation", dNone                        },
 	{       72      ,"Trace Session Deactivation", dNone                      },
@@ -158,66 +160,15 @@ MessageType ossS11MessageDefs[] = {
 	{       177     ,"Downlink Data Notification Acknowledge", dRespRcvd      },
 	{       179     ,"PGW Restart Notification", dOut                         },
 	{       180     ,"PGW Restart Notification Acknowledge", dRespRcvd        },
-	{       211     ,"Modify Access Bearers Request", dNone                   },
-	{       212     ,"Modify Access Bearers Response", dNone                  },
+	{       211     ,"Modify Access Bearers Request", dIn                     },
+	{       212     ,"Modify Access Bearers Response", dRespSend              },
 	{       -1      , NULL,dNone                                              }
 };
 
 #ifdef CP_BUILD
 
-MessageType ossSxaMessageDefs[] = {
-	{   1   ,"PFCP Heartbeat Request",dNone                  },
-	{   2   ,"PFCP Heartbeat Response",dNone                 },
-	{   5   ,"PFCP Association Setup Request",dOut           },
-	{   6   ,"PFCP Association Setup Response",dRespRcvd     },
-	{   7   ,"PFCP Association Update Request",dNone         },
-	{   8   ,"PFCP Association Update Response",dNone        },
-	{   9   ,"PFCP Association Release Request",dNone        },
-	{   10  ,"PFCP Association Release Response",dNone       },
-	{   11  ,"PFCP Version Not Supported Response",dNone     },
-	{   12  ,"PFCP Node Report Request",dNone                },
-	{   13  ,"PFCP Node Report Response",dNone               },
-	{   14  ,"PFCP Session Set Deletion Request",dBoth       },
-	{   15  ,"PFCP Session Set Deletion Response",dBoth      },
-	{   50  ,"PFCP Session Establishment Request",dOut       },
-	{   51  ,"PFCP Session Establishment Response",dRespRcvd },
-	{   52  ,"PFCP Session Modification Request",dOut        },
-	{   53  ,"PFCP Session Modification Response",dRespRcvd  },
-	{   54  ,"PFCP Session Deletion Request",dOut            },
-	{   55  ,"PFCP Session Deletion Response",dRespRcvd      },
-	{   56  ,"PFCP Session Report Request",dIn               },
-	{   57  ,"PFCP Session Report Response",dRespSend        },
-	{   -1     , NULL,dNone                                  }
-};
 
-MessageType ossSxbMessageDefs[] = {
-	{  1  ,"PFCP Heartbeat Request",dNone                  },
-	{  2  ,"PFCP Heartbeat Response",dNone                 },
-	{  3  ,"PFCP PFD Management Request",dOut               },
-	{  4  ,"PFCP PFD Management Response",dRespRcvd         },
-	{  5  ,"PFCP Association Setup Request",dOut           },
-	{  6  ,"PFCP Association Setup Response",dRespRcvd     },
-	{  7  ,"PFCP Association Update Request",dNone         },
-	{  8  ,"PFCP Association Update Response",dNone        },
-	{  9  ,"PFCP Association Release Request",dNone        },
-	{  10 ,"PFCP Association Release Response",dNone       },
-	{  11 ,"PFCP Version Not Supported Response",dNone     },
-	{  12 ,"PFCP Node Report Request",dNone                },
-	{  13 ,"PFCP Node Report Response",dNone               },
-	{  14 ,"PFCP Session Set Deletion Request",dBoth       },
-	{  15 ,"PFCP Session Set Deletion Response",dBoth      },
-	{  50 ,"PFCP Session Establishment Request",dOut       },
-	{  51 ,"PFCP Session Establishment Response",dRespRcvd },
-	{  52 ,"PFCP Session Modification Request",dOut        },
-	{  53 ,"PFCP Session Modification Response",dRespRcvd  },
-	{  54 ,"PFCP Session Deletion Request",dOut            },
-	{  55 ,"PFCP Session Deletion Response",dRespRcvd      },
-	{  56 ,"PFCP Session Report Request",dIn               },
-	{  57 ,"PFCP Session Report Response",dRespSend        },
-	{  -1      , NULL,dNone                                }
-};
-
-MessageType ossSxaSxbMessageDefs[] = {
+MessageType ossSxMessageDefs[] = {
 	{  1 ,"PFCP Heartbeat Request",dNone                   },
 	{  2 ,"PFCP Heartbeat Response",dNone                  },
 	{  3 ,"PFCP PFD Management Request",dOut               },
@@ -246,57 +197,7 @@ MessageType ossSxaSxbMessageDefs[] = {
 
 #else /* DP_BUILD */
 
-MessageType ossSxaMessageDefs[] = {
-	{          1      ,"PFCP Heartbeat Request",dNone                  },
-	{          2      ,"PFCP Heartbeat Response",dNone                 },
-	{          5      ,"PFCP Association Setup Request",dIn            },
-	{          6      ,"PFCP Association Setup Response",dRespSend     },
-	{          7      ,"PFCP Association Update Request",dNone         },
-	{          8      ,"PFCP Association Update Response",dNone        },
-	{          9      ,"PFCP Association Release Request",dNone        },
-	{          10     ,"PFCP Association Release Response",dNone       },
-	{          11     ,"PFCP Version Not Supported Response",dNone     },
-	{          12     ,"PFCP Node Report Request",dNone                },
-	{          13     ,"PFCP Node Report Response",dNone               },
-	{          14     ,"PFCP Session Set Deletion Request",dBoth       },
-	{          15     ,"PFCP Session Set Deletion Response",dBoth      },
-	{          50     ,"PFCP Session Establishment Request",dIn        },
-	{          51     ,"PFCP Session Establishment Response",dRespSend },
-	{          52     ,"PFCP Session Modification Request",dIn         },
-	{          53     ,"PFCP Session Modification Response",dRespSend  },
-	{          54     ,"PFCP Session Deletion Request",dIn             },
-	{          55     ,"PFCP Session Deletion Response",dRespSend      },
-	{          56     ,"PFCP Session Report Request",dOut              },
-	{          57     ,"PFCP Session Report Response",dRespRcvd        },
-	{          -1     , NULL,dNone                                     }
-};
-MessageType ossSxbMessageDefs[] = {
-	{         1       ,"PFCP Heartbeat Request",dNone                  },
-	{         2       ,"PFCP Heartbeat Response",dNone                 },
-	{  	  3	  ,"PFCP PFD Management Request",dIn               },
-	{  	  4	  ,"PFCP PFD Management Response",dRespSend        },
-	{         5       ,"PFCP Association Setup Request",dIn            },
-	{         6       ,"PFCP Association Setup Response",dRespSend     },
-	{         7       ,"PFCP Association Update Request",dNone         },
-	{         8       ,"PFCP Association Update Response",dNone        },
-	{         9       ,"PFCP Association Release Request",dNone        },
-	{         10      ,"PFCP Association Release Response",dNone       },
-	{         11      ,"PFCP Version Not Supported Response",dNone     },
-	{         12      ,"PFCP Node Report Request",dNone                },
-	{         13      ,"PFCP Node Report Response",dNone               },
-	{         14      ,"PFCP Session Set Deletion Request",dBoth       },
-	{         15      ,"PFCP Session Set Deletion Response",dBoth      },
-	{         50      ,"PFCP Session Establishment Request",dIn        },
-	{         51      ,"PFCP Session Establishment Response",dRespSend },
-	{         52      ,"PFCP Session Modification Request",dIn         },
-	{         53      ,"PFCP Session Modification Response",dRespSend  },
-	{         54      ,"PFCP Session Deletion Request",dIn             },
-	{         55      ,"PFCP Session Deletion Response",dRespSend      },
-	{         56      ,"PFCP Session Report Request",dOut              },
-	{         57      ,"PFCP Session Report Response",dRespRcvd        },
-	{         -1      , NULL,dNone                                     }
-};
-MessageType ossSxaSxbMessageDefs[] = {
+MessageType ossSxMessageDefs[] = {
 	{         1      ,"PFCP Heartbeat Request",dNone                  },
 	{         2      ,"PFCP Heartbeat Response",dNone                 },
 	{         3      ,"PFCP PFD Management Request",dIn               },
@@ -347,12 +248,14 @@ MessageType ossSystemMessageDefs[] = {
 
 char ossInterfaceStr[][10] = {
 	"s11" ,
+#ifdef CP_BUILD
 	"s5s8",
-	"sxa",
-	"sxb",
-	"sxasxb",
+#else
+	"gtpv1",
+#endif
+	"sx",
 	"gx",
-	"s1u",
+	"gtpv1",
 	"sgi",
 	"none"
 };
@@ -362,24 +265,18 @@ char ossInterfaceProtocolStr[][10] = {
 #ifdef CP_BUILD
 	"gtpv2",
 #else
-	"gtp",
+	"gtpv1",
 #endif
 	"pfcp",
-	"pfcp",
-	"pfcp",
 	"diameter",
-	"gtp",
+	"gtpv1",
 	"none"
 };
 
-char ossGatewayStr[][10] = {
+char ossGatewayStr[][16] = {
 	"none",
-	"SGWC",
-	"PGWC",
-	"SAEGWC",
-	"SGWU",
-	"PGWU",
-	"SAEGWU"
+	"Control Plane",
+	"User Plane"
 };
 
 
@@ -413,19 +310,7 @@ int s5s8MessageTypes [] = {
 	33,34
 };
 
-int sxaMessageTypes [] = {
-	-1,0,1,-1,-1,2,3,4,5,6,7,8,9,10,11,12,-1,-1,-1,-1,
-	-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-	-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,13,14,15,16,17,18,19,20
-};
-
-int sxbMessageTypes [] = {
-	-1,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,-1,-1,-1,-1,
-	-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-	-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,15,16,17,18,19,20,21,22
-};
-
-int sxasxbMessageTypes [] = {
+int sxMessageTypes [] = {
 	-1,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,-1,-1,-1,-1,
 	-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
 	-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,15,16,17,18,19,20,21,22
@@ -444,42 +329,14 @@ int gxMessageTypes [] = {
 int supported_commands[][CMD_LIST_SIZE] = {
 	{0,0,0,0,0,0,0,0,0,0},
 	{1,1,1,1,1,0,0,0,0,0},
-	{1,1,1,1,1,0,0,0,0,0},
-	{1,1,1,1,1,0,0,0,0,0},
-	{1,1,1,0,0,0,0,0,0,0},
-	{1,1,1,0,0,0,0,0,0,0},
 	{1,1,1,0,0,0,0,0,0,0}
 };
 
 bool is_last_activity_update(uint8_t msg_type, CLIinterface it)
 {
 	EInterfaceType it_cli;
-	if(it == SX) {
-#ifdef DP_BUILD
-		if(app.spgw_cfg == SGWU)
-			it_cli = itSxa;
-		else if(app.spgw_cfg == PGWU)
-			it_cli = itSxb;
-		else
-			it_cli = itSxaSxb;
-#else
-		if(pfcp_config.cp_type == SGWC)
-			it_cli = itSxa;
-		else if(pfcp_config.cp_type == PGWC)
-			it_cli = itSxb;
-		else
-			it_cli = itSxaSxb;
-#endif
-	} else if(it == GX)
-		it_cli = itGx;
-	else if(it == S1U)
-		it_cli = itS1U;
-	else if(it == SGI)
-		it_cli = itSGI;
-	else if(it == S5S8)
-		it_cli = itS5S8;
-	else
-		it_cli = itS11;
+
+	it_cli = it;
 
 	switch(it_cli) {
 		case itS11:
@@ -494,21 +351,9 @@ bool is_last_activity_update(uint8_t msg_type, CLIinterface it)
 				return true;
 			break;
 
-		case itSxa:
-			if((ossSxaMessageDefs[sxaMessageTypes[msg_type]].dir == dIn) ||
-					(ossSxaMessageDefs[sxaMessageTypes[msg_type]].dir == dRespRcvd))
-				return true;
-			break;
-
-		case itSxb:
-			if((ossSxbMessageDefs[sxbMessageTypes[msg_type]].dir == dIn) ||
-					(ossSxbMessageDefs[sxbMessageTypes[msg_type]].dir == dRespRcvd))
-				return true;
-			break;
-
-		case itSxaSxb:
-			if((ossSxaSxbMessageDefs[sxasxbMessageTypes[msg_type]].dir == dIn) ||
-					(ossSxaSxbMessageDefs[sxasxbMessageTypes[msg_type]].dir == dRespRcvd))
+		case itSx:
+			if((ossSxMessageDefs[sxMessageTypes[msg_type]].dir == dIn) ||
+					(ossSxMessageDefs[sxMessageTypes[msg_type]].dir == dRespRcvd))
 				return true;
 			break;
 
@@ -543,20 +388,18 @@ int update_cli_stats(uint32_t ip_addr, uint8_t msg_type, int dir, CLIinterface i
 
 	get_current_time_oss(stat_timestamp);
 
-	if(is_last_activity_update(msg_type,it))
-			update_last_activity(ip_addr, stat_timestamp);
-
-	clLog(clSystemLog, eCLSeverityTrace, "Updating update_cli_stats\n"
-										"msg_type:%d,"
-										"dir:%d,"
-										"ip_addr is :%s\n",
-											msg_type,dir,
-											inet_ntoa(*((struct in_addr*)&ip_addr)));
+	clLog(clSystemLog, eCLSeverityTrace, LOG_FORMAT"Updating CLI Stats: "
+		"Msg Type: %d,"
+		" Direction: %d,"
+		" IP Address: %s\n",
+		LOG_VALUE, msg_type, dir,
+		inet_ntoa(*((struct in_addr*)&ip_addr)));
 
 	index = get_peer_index(ip_addr);
 
 	if(index == -1) {
-		clLog(clSystemLog, eCLSeverityTrace, "peer not found\n");
+		clLog(clSystemLog, eCLSeverityTrace,
+			LOG_FORMAT"CLI: Peer not found\n", LOG_VALUE);
 		return -1;
 	}
 #ifdef CP_BUILD
@@ -581,6 +424,9 @@ int update_cli_stats(uint32_t ip_addr, uint8_t msg_type, int dir, CLIinterface i
 #endif
 	} else {
 
+		if(is_last_activity_update(msg_type,it))
+			update_last_activity(ip_addr, stat_timestamp);
+
 		switch(cli_node.peer[index]->intfctype) {
 			case itS11:
 				__sync_add_and_fetch(&cli_node.peer[index]->stats.s11[s11MessageTypes[msg_type]].cnt[dir], 1);
@@ -590,24 +436,17 @@ int update_cli_stats(uint32_t ip_addr, uint8_t msg_type, int dir, CLIinterface i
 				__sync_add_and_fetch(&cli_node.peer[index]->stats.s5s8[s5s8MessageTypes[msg_type]].cnt[dir], 1);
 				strncpy(cli_node.peer[index]->stats.s5s8[s5s8MessageTypes[msg_type]].ts, stat_timestamp, LAST_TIMER_SIZE);
 				break;
-			case itSxa:
-				__sync_add_and_fetch(&cli_node.peer[index]->stats.sxa[sxaMessageTypes[msg_type]].cnt[dir], 1);
-				strncpy(cli_node.peer[index]->stats.sxa[sxaMessageTypes[msg_type]].ts, stat_timestamp, LAST_TIMER_SIZE);
-				break;
-			case itSxb:
-				__sync_add_and_fetch(&cli_node.peer[index]->stats.sxb[sxbMessageTypes[msg_type]].cnt[dir], 1);
-				strncpy(cli_node.peer[index]->stats.sxb[sxbMessageTypes[msg_type]].ts, stat_timestamp, LAST_TIMER_SIZE);
-				break;
-			case itSxaSxb:
-				__sync_add_and_fetch(&cli_node.peer[index]->stats.sxasxb[sxasxbMessageTypes[msg_type]].cnt[dir], 1);
-				strncpy(cli_node.peer[index]->stats.sxasxb[sxasxbMessageTypes[msg_type]].ts, stat_timestamp, LAST_TIMER_SIZE);
+			case itSx:
+				__sync_add_and_fetch(&cli_node.peer[index]->stats.sx[sxMessageTypes[msg_type]].cnt[dir], 1);
+				strncpy(cli_node.peer[index]->stats.sx[sxMessageTypes[msg_type]].ts, stat_timestamp, LAST_TIMER_SIZE);
 				break;
 			case itGx:
 				__sync_add_and_fetch(&cli_node.peer[index]->stats.gx[gxMessageTypes[msg_type]].cnt[dir], 1);
 				strncpy(cli_node.peer[index]->stats.gx[gxMessageTypes[msg_type]].ts, stat_timestamp, LAST_TIMER_SIZE);
 				break;
 			default:
-				clLog(clSystemLog, eCLSeverityCritical, "CLI:No such a interface");
+				clLog(clSystemLog, eCLSeverityCritical,
+					LOG_FORMAT"CLI: Not supported interface", LOG_VALUE);
 				break;
 
 		}
@@ -622,47 +461,11 @@ void add_cli_peer(uint32_t ip_addr,CLIinterface it)
 
 	EInterfaceType it_cli;
 
-	/*NK:need to optimize*/
-	if (it == SX)
-	{
-#ifdef DP_BUILD
-		if (app.spgw_cfg == SGWU){
-			it_cli = itSxa;
-		} else if (app.spgw_cfg == PGWU){
-			it_cli = itSxb;
-		} else{
-			it_cli = itSxaSxb;
-		}
-#else
-		if (pfcp_config.cp_type == SGWC){
-			it_cli = itSxa;
-		} else if (pfcp_config.cp_type == PGWC){
-			it_cli = itSxb;
-		} else{
-			it_cli = itSxaSxb;
-		}
-#endif
-
-	} else if (it == GX)
-	{
-		it_cli = itGx;
-	} else if (it == S1U)
-	{
-		it_cli = itS1U;
-	} else if (it == SGI)
-	{
-		it_cli = itSGI;
-	}else if (it == S5S8)
-	{
-		it_cli = itS5S8;
-	}else
-	{
-		it_cli = itS11;
-	}
+	it_cli = it;
 
 	clLog(clSystemLog, eCLSeverityTrace,
-			"CLI:Request rcvd for ip addr:%s\n",
-			inet_ntoa(*((struct in_addr *)&ip_addr)));
+			LOG_FORMAT"CLI: Request rcvd for IP Address: %s\n",
+			LOG_VALUE, inet_ntoa(*((struct in_addr *)&ip_addr)));
 
 	/*Check peer is allready added or not*/
 	index = get_peer_index(ip_addr);
@@ -689,10 +492,10 @@ void add_cli_peer(uint32_t ip_addr,CLIinterface it)
 				cli_node.peer[index]->timeouts = 0;
 
 				clLog(clSystemLog, eCLSeverityTrace,
-						"Interface type is : %d\n",it);
+					LOG_FORMAT"Interface type is: %d\n", LOG_VALUE, it);
 				clLog(clSystemLog, eCLSeverityTrace,
-						"Added peer with ip addr : %s\n\n",
-						inet_ntoa(cli_node.peer[index]->ipaddr));
+					LOG_FORMAT"Added peer with IP Address: %s\n", LOG_VALUE,
+					inet_ntoa(cli_node.peer[index]->ipaddr));
 
 				nbr_of_peer++; /*peer count incremented*/
 
@@ -700,7 +503,8 @@ void add_cli_peer(uint32_t ip_addr,CLIinterface it)
 					cnt_peer++;
 	}
 	else {
-		clLog(clSystemLog, eCLSeverityTrace,"CLI:peer already exist\n");
+		clLog(clSystemLog, eCLSeverityTrace,
+			LOG_FORMAT"CLI: Peer already exist\n", LOG_VALUE);
 	}
 }
 
@@ -717,9 +521,8 @@ int get_peer_index(uint32_t ip_addr)
 		}
 	}
 	clLog(clSystemLog, eCLSeverityTrace,
-			"peer :%s doesn't exist\n ",
+			LOG_FORMAT"Peer: %s doesn't exist\n", LOG_VALUE,
 			inet_ntoa(*((struct in_addr *)&ip_addr)));
-
 	return -1;
 }
 
@@ -748,7 +551,7 @@ int update_peer_timeouts(uint32_t ip_addr,uint8_t val)
 	if (index == -1)
 	{
 		clLog(clSystemLog, eCLSeverityTrace,
-				"peer :%s doesn't exist\n ",
+				LOG_FORMAT"Peer: %s doesn't exist\n", LOG_VALUE,
 				inet_ntoa(*((struct in_addr *)&ip_addr)));
 		return ret;
 	}
@@ -770,8 +573,8 @@ int update_peer_status(uint32_t ip_addr,bool val)
 	if (index == -1)
 	{
 		clLog(clSystemLog, eCLSeverityTrace,
-				"peer :%s doesn't exist\n ",
-				inet_ntoa(*((struct in_addr *)&ip_addr)));
+			LOG_FORMAT"Peer: %s doesn't exist\n", LOG_VALUE,
+			inet_ntoa(*((struct in_addr *)&ip_addr)));
 		return ret;
 	}
 
@@ -791,8 +594,8 @@ int delete_cli_peer(uint32_t ip_addr)
 	if (index == -1)
 	{
 		clLog(clSystemLog, eCLSeverityTrace,
-				"peer :%s doesn't exist\n ",
-				inet_ntoa(*((struct in_addr *)&ip_addr)));
+			LOG_FORMAT"Peer: %s doesn't exist\n", LOG_VALUE,
+			inet_ntoa(*((struct in_addr *)&ip_addr)));
 		return ret;
 	}
 
@@ -813,7 +616,8 @@ int update_last_activity(uint32_t ip_addr, char *time_stamp)
 
 	if(index == -1)
 	{
-		clLog(clSystemLog, eCLSeverityTrace,"peer not found\n");
+		clLog(clSystemLog, eCLSeverityTrace,
+			LOG_FORMAT"Peer not found\n", LOG_VALUE);
 		return -1;
 	}
 
@@ -841,6 +645,142 @@ void reset_sys_stat(void)
 	}
 }
 
+#ifdef CP_BUILD
+void fill_cp_configuration(void)
+{
+	cp_configuration.cp_type = OSS_CONTROL_PLANE;
+	cp_configuration.s11_mme_ip.s_addr = pfcp_config.s11_mme_ip.s_addr;
+	cp_configuration.s11_mme_port = pfcp_config.s11_mme_port;
+	cp_configuration.s11_port = pfcp_config.s11_port;
+	cp_configuration.s5s8_port = pfcp_config.s5s8_port;
+	cp_configuration.pfcp_port = pfcp_config.pfcp_port;
+	cp_configuration.dadmf_port = pfcp_config.dadmf_port;
+	cp_configuration.dadmf_ip.s_addr = pfcp_config.dadmf_ip.s_addr;
+	cp_configuration.upf_pfcp_port = pfcp_config.upf_pfcp_port;
+	cp_configuration.upf_pfcp_ip.s_addr = pfcp_config.upf_pfcp_ip.s_addr;
+	cp_configuration.redis_port = pfcp_config.redis_port;
+	cp_configuration.redis_ip.s_addr = pfcp_config.redis_ip.s_addr;
+	cp_configuration.request_tries = pfcp_config.request_tries;
+	cp_configuration.request_timeout = pfcp_config.request_timeout;
+	cp_configuration.cp_logger = pfcp_config.cp_logger;
+	cp_configuration.use_dns = pfcp_config.use_dns;
+	cp_configuration.trigger_type = pfcp_config.trigger_type;
+	cp_configuration.uplink_volume_th = pfcp_config.uplink_volume_th;
+	cp_configuration.downlink_volume_th = pfcp_config.downlink_volume_th;
+	cp_configuration.time_th = pfcp_config.time_th;
+	cp_configuration.ip_pool_ip.s_addr = pfcp_config.ip_pool_ip.s_addr;
+	cp_configuration.generate_cdr = pfcp_config.generate_cdr;
+	cp_configuration.generate_sgw_cdr = pfcp_config.generate_sgw_cdr;
+	cp_configuration.sgw_cc = pfcp_config.sgw_cc;
+	cp_configuration.ip_pool_mask.s_addr = pfcp_config.ip_pool_mask.s_addr;
+	cp_configuration.num_apn = pfcp_config.num_apn;
+	cp_configuration.restoration_params.transmit_cnt = pfcp_config.transmit_cnt;
+	cp_configuration.restoration_params.transmit_timer = pfcp_config.transmit_timer;
+	cp_configuration.restoration_params.periodic_timer = pfcp_config.periodic_timer;
+	cp_configuration.cp_redis_ip.s_addr = pfcp_config.cp_redis_ip.s_addr;
+	cp_configuration.ddf2_ip.s_addr = pfcp_config.ddf2_ip.s_addr;
+	cp_configuration.add_default_rule = pfcp_config.add_default_rule;
+	cp_configuration.ddf2_port = pfcp_config.ddf2_port;
+	strncpy(cp_configuration.redis_cert_path, pfcp_config.redis_cert_path, REDIS_CERT_PATH_LEN);
+	strncpy(cp_configuration.ddf2_intfc, pfcp_config.ddf2_intfc, DDF_INTFC_LEN);
+	cp_configuration.dadmf_local_addr.s_addr = pfcp_config.dadmf_local_addr.s_addr;
+	cp_configuration.use_gx = pfcp_config.use_gx;
+	cp_configuration.generate_sgw_cdr = pfcp_config.generate_sgw_cdr;
+	cp_configuration.sgw_cc = pfcp_config.sgw_cc;
+	cp_configuration.upf_s5s8_ip = htonl(pfcp_config.upf_s5s8_ip);
+	cp_configuration.upf_s5s8_mask = htonl(pfcp_config.upf_s5s8_mask);
+	if(pfcp_config.cp_type != SGWC)
+	{
+		cp_configuration.is_gx_interface = PRESENT;
+	}
+
+	if(cp_configuration.ip_byte_order_changed == PRESENT)
+	{
+		cp_configuration.s11_ip.s_addr = htonl(pfcp_config.s11_ip.s_addr);
+		cp_configuration.s5s8_ip.s_addr = htonl(pfcp_config.s5s8_ip.s_addr);
+		cp_configuration.pfcp_ip.s_addr = htonl(pfcp_config.pfcp_ip.s_addr);
+	}
+	else
+	{
+		cp_configuration.s11_ip.s_addr = pfcp_config.s11_ip.s_addr;
+		cp_configuration.s5s8_ip.s_addr = pfcp_config.s5s8_ip.s_addr;
+		cp_configuration.pfcp_ip.s_addr = pfcp_config.pfcp_ip.s_addr;
+	}
+
+	for(uint8_t itr_apn = 0; itr_apn < cp_configuration.num_apn; itr_apn++)
+	{
+		cp_configuration.apn_list[itr_apn].apn_usage_type = apn_list[itr_apn].apn_usage_type;
+		cp_configuration.apn_list[itr_apn].trigger_type = apn_list[itr_apn].trigger_type;
+		cp_configuration.apn_list[itr_apn].uplink_volume_th = apn_list[itr_apn].uplink_volume_th;
+		cp_configuration.apn_list[itr_apn].downlink_volume_th = apn_list[itr_apn].downlink_volume_th;
+		cp_configuration.apn_list[itr_apn].time_th = apn_list[itr_apn].time_th;
+		strncpy(cp_configuration.apn_list[itr_apn].apn_name_label,
+				apn_list[itr_apn].apn_name_label+1, APN_NAME_LEN);
+		strncpy(cp_configuration.apn_list[itr_apn].apn_net_cap, apn_list[itr_apn].apn_net_cap, MAX_NETCAP_LEN);
+	}
+
+	cp_configuration.dns_cache.concurrent = pfcp_config.dns_cache.concurrent;
+	cp_configuration.dns_cache.sec = pfcp_config.dns_cache.sec;
+	cp_configuration.dns_cache.percent = pfcp_config.dns_cache.percent;
+	cp_configuration.dns_cache.timeoutms = pfcp_config.dns_cache.timeoutms;
+	cp_configuration.dns_cache.tries = pfcp_config.dns_cache.tries;
+
+	cp_configuration.app_dns.freq_sec = pfcp_config.app_dns.freq_sec;
+	cp_configuration.app_dns.nameserver_cnt = pfcp_config.app_dns.nameserver_cnt;
+	strncpy(cp_configuration.app_dns.filename, pfcp_config.app_dns.filename, PATH_LEN);
+	strncpy(cp_configuration.app_dns.nameserver_ip[pfcp_config.app_dns.nameserver_cnt-DNS_IP_INDEX],
+			pfcp_config.app_dns.nameserver_ip[pfcp_config.app_dns.nameserver_cnt-DNS_IP_INDEX], INET_ADDRSTRLEN);
+
+	cp_configuration.ops_dns.freq_sec = pfcp_config.ops_dns.freq_sec;
+	cp_configuration.ops_dns.nameserver_cnt = pfcp_config.ops_dns.nameserver_cnt;
+	strncpy(cp_configuration.ops_dns.filename, pfcp_config.ops_dns.filename, PATH_LEN);
+	strncpy(cp_configuration.ops_dns.nameserver_ip[pfcp_config.ops_dns.nameserver_cnt-DNS_IP_INDEX],
+			pfcp_config.ops_dns.nameserver_ip[pfcp_config.ops_dns.nameserver_cnt-DNS_IP_INDEX], INET_ADDRSTRLEN);
+}
+#else
+void fill_dp_configuration(void)
+{
+	dp_configuration.dp_type = OSS_USER_PLANE;
+	dp_configuration.restoration_params.transmit_cnt = app.transmit_cnt;
+	dp_configuration.restoration_params.transmit_timer = app.transmit_timer;
+	dp_configuration.restoration_params.periodic_timer = app.periodic_timer;
+
+	dp_configuration.ddf2_ip = app.ddf2_ip;
+	dp_configuration.ddf3_ip = app.ddf3_ip;
+	dp_configuration.ddf2_port = app.ddf2_port;
+	dp_configuration.ddf3_port = app.ddf3_port;
+	strncpy(dp_configuration.ddf2_intfc, app.ddf2_intfc, DDF_INTFC_LEN);
+	strncpy(dp_configuration.ddf3_intfc, app.ddf3_intfc, DDF_INTFC_LEN);
+
+	strncpy(dp_configuration.wb_iface_name, app.wb_iface_name, MAX_LEN);
+	strncpy(dp_configuration.eb_iface_name, app.eb_iface_name, MAX_LEN);
+	dp_configuration.wb_li_mask = htonl(app.wb_li_mask);
+	dp_configuration.wb_li_ip = htonl(app.wb_li_ip);
+	strncpy(dp_configuration.wb_li_iface_name, app.wb_li_iface_name, MAX_LEN);
+	dp_configuration.gtpu_seqnb_out = app.gtpu_seqnb_out;
+	dp_configuration.gtpu_seqnb_in = app.gtpu_seqnb_in;
+
+	dp_configuration.numa_on = app.numa_on;
+	dp_configuration.teidri_val = app.teidri_val;
+	dp_configuration.teidri_timeout = app.teidri_timeout;
+	dp_configuration.dp_logger = app.dp_logger;
+	dp_configuration.generate_pcap = app.generate_pcap;
+	dp_configuration.cp_comm_ip.s_addr = htonl(cp_comm_ip.s_addr);
+	dp_configuration.dp_comm_ip.s_addr = htonl(dp_comm_ip.s_addr);
+	dp_configuration.cp_comm_port = cp_comm_port;
+	dp_configuration.dp_comm_port = dp_comm_port;
+
+	dp_configuration.wb_ip = htonl(app.wb_ip);
+	dp_configuration.wb_mask = htonl(app.wb_mask);
+	set_mac_value(dp_configuration.wb_mac, app.wb_ether_addr.addr_bytes);
+
+	dp_configuration.eb_ip = htonl(app.eb_ip);
+	dp_configuration.eb_mask = htonl(app.eb_mask);
+	set_mac_value(dp_configuration.eb_mac, app.eb_ether_addr.addr_bytes);
+
+}
+#endif
+
 int update_periodic_timer_value(int periodic_timer_value) {
 
 	peerData *conn_data = NULL;
@@ -856,8 +796,15 @@ int update_periodic_timer_value(int periodic_timer_value) {
 
 	if(conn_hash_handle != NULL) {
 		while (rte_hash_iterate(conn_hash_handle, &key, (void **)&conn_data, &iter) >= 0) {
-
-			conn_data->pt.ti_ms = (periodic_timer_value * 1000);
+			/* If Initial timer value was set to 0, then start the timer */
+			if (!conn_data->pt.ti_ms) {
+				conn_data->pt.ti_ms = (periodic_timer_value * 1000);
+				if ( startTimer( &conn_data->pt ) < 0) {
+					clLog(clSystemLog, eCLSeverityCritical, "Periodic Timer failed to start...\n");
+				}
+			} else {
+				conn_data->pt.ti_ms = (periodic_timer_value * 1000);
+			}
 		}
 	}
 
@@ -880,8 +827,15 @@ int update_transmit_timer_value(int transmit_timer_value)
 
 	if(conn_hash_handle != NULL) {
 		while (rte_hash_iterate(conn_hash_handle, &key, (void **)&conn_data, &iter) >= 0) {
-
-			conn_data->tt.ti_ms = (transmit_timer_value * 1000);
+			/* If Initial timer value was set to 0, then start the timer */
+			if (!conn_data->tt.ti_ms) {
+				conn_data->tt.ti_ms = (transmit_timer_value * 1000);
+				if ( startTimer( &conn_data->tt ) < 0) {
+					clLog(clSystemLog, eCLSeverityCritical, "Transmit Timer failed to start...\n");
+				}
+			} else {
+				conn_data->tt.ti_ms = (transmit_timer_value * 1000);
+			}
 		}
 	}
 
@@ -903,13 +857,15 @@ int change_config_file(const char *path, const char *param, const char *value)
 	FILE *file=fopen(path,"r+");
 
 	if(file==NULL){
-		clLog(clSystemLog, eCLSeverityCritical,"error while opening %s file\n",path);
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"Error while opening %s file\n", LOG_VALUE, path);
 		return 1;
 	}
 
 	FILE *file_1=fopen("temp.cfg","w");
 	if(file==NULL){
-		clLog(clSystemLog, eCLSeverityCritical,"error while creating file\n");
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"Error while creating file\n", LOG_VALUE);
 		return 1;
 	}
 
@@ -926,7 +882,8 @@ int change_config_file(const char *path, const char *param, const char *value)
 	fclose(file_1);
 
 	if((remove(path))!=0)
-		clLog(clSystemLog, eCLSeverityCritical,"delete file ERROR\n");
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"Delete file ERROR\n", LOG_VALUE);
 
 	rename(new,path);
 
@@ -938,9 +895,9 @@ uint8_t get_gw_type(void) {
 	uint8_t gw_type = 0;
 
 #ifdef CP_BUILD
-	gw_type = pfcp_config.cp_type;
+	gw_type = OSS_CONTROL_PLANE;
 #else
-	gw_type = app.spgw_cfg + 3;
+	gw_type = OSS_USER_PLANE;
 #endif
 
 return gw_type;
@@ -963,8 +920,8 @@ get_logger(const char *request_body, char **response_body)
 {
 	char *loggers = NULL;
 
-	clLog(clSystemLog, eCLSeverityInfo, "get_logger() body=[%s]",
-			request_body);
+	clLog(clSystemLog, eCLSeverityInfo,
+		LOG_FORMAT"get_logger() body=[%s]", LOG_VALUE, request_body);
 
 	loggers = clGetLoggers();
 	*response_body = strdup(loggers);
@@ -980,8 +937,8 @@ get_logger(const char *request_body, char **response_body)
 	static int
 post_logger(const char *request_body, char **response_body)
 {
-	clLog(clSystemLog, eCLSeverityInfo, "post_logger() body=[%s]",
-			request_body);
+	clLog(clSystemLog, eCLSeverityInfo,
+		LOG_FORMAT"post_logger() body=[%s]", LOG_VALUE, request_body);
 
 	return clUpdateLogger(request_body, response_body);
 }
@@ -990,7 +947,8 @@ post_logger(const char *request_body, char **response_body)
 	static int
 get_cp_logger(const char *request_body, char **response_body)
 {
-	clLog(clSystemLog, eCLSeverityInfo,"get_cp_logger() body=[%s]",request_body);
+	clLog(clSystemLog, eCLSeverityInfo,
+		LOG_FORMAT"get_cp_logger() body=[%s]", LOG_VALUE, request_body);
 
 	return clRecentLogger(request_body, response_body);
 }
@@ -999,8 +957,8 @@ get_cp_logger(const char *request_body, char **response_body)
 	static int
 post_max_size(const char *request_body, char **response_body)
 {
-	clLog(clSystemLog, eCLSeverityInfo, "post_max_size() body=[%s]",
-			request_body);
+	clLog(clSystemLog, eCLSeverityInfo,
+		LOG_FORMAT"post_max_size() body=[%s]", LOG_VALUE, request_body);
 
 	return clRecentSetMaxsize(request_body, response_body);
 }
@@ -1009,7 +967,8 @@ post_max_size(const char *request_body, char **response_body)
 get_max_size(const char *request_body, char **response_body)
 {
 
-	clLog(clSystemLog, eCLSeverityMajor, "get_max_size() body=[%s]",request_body);
+	clLog(clSystemLog, eCLSeverityMajor,
+		LOG_FORMAT"get_max_size() body=[%s]", LOG_VALUE, request_body);
 
 	return clRecentLogMaxsize(request_body, response_body);
 
@@ -1021,8 +980,8 @@ get_max_size(const char *request_body, char **response_body)
 	static int
 get_stat_frequency(const char *request_body, char **response_body)
 {
-	clLog(clSystemLog, eCLSeverityInfo, "get_stat_frequency() body=[%s]",
-			request_body);
+	clLog(clSystemLog, eCLSeverityInfo,
+		LOG_FORMAT"get_stat_frequency() body=[%s]", LOG_VALUE, request_body);
 
 	return csGetInterval(response_body);
 }
@@ -1031,8 +990,8 @@ get_stat_frequency(const char *request_body, char **response_body)
 	static int
 post_stat_frequency(const char *request_body, char **response_body)
 {
-	clLog(clSystemLog, eCLSeverityInfo, "post_stat_frequency() body=[%s]",
-			request_body);
+	clLog(clSystemLog, eCLSeverityInfo,
+		LOG_FORMAT"post_stat_frequency() body=[%s]", LOG_VALUE, request_body);
 
 	return csUpdateInterval(request_body, response_body);
 }
@@ -1040,8 +999,8 @@ post_stat_frequency(const char *request_body, char **response_body)
 static int
 post_request_tries(const char *request_body, char **response_body)
 {
-	clLog(clSystemLog, eCLSeverityInfo, "post_request_tries() body=[%s]",
-			request_body);
+	clLog(clSystemLog, eCLSeverityInfo,
+		LOG_FORMAT"post_request_tries() body=[%s]", LOG_VALUE, request_body);
 
 	const char *param="REQUEST_TRIES";
 	const char *path="../config/cp.cfg";
@@ -1055,6 +1014,10 @@ post_request_tries(const char *request_body, char **response_body)
 	number_of_request_tries = get_request_tries_value(request_body, response_body);
 	snprintf(value, ENTRY_VALUE_SIZE, "%d", number_of_request_tries);
 
+#ifdef CP_BUILD
+	pfcp_config.request_tries = number_of_request_tries;
+#endif
+
 	change_config_file(path, param, value);
 	construct_json(param,value,temp);
 	*response_body=strdup((const char *)temp);
@@ -1066,8 +1029,8 @@ static int
 get_request_tries(const char *request_body, char **response_body)
 {
 
-	clLog(clSystemLog, eCLSeverityInfo, "get_request_tries() body=[%s]",
-			request_body);
+	clLog(clSystemLog, eCLSeverityInfo,
+		LOG_FORMAT"get_request_tries() body=[%s]", LOG_VALUE, request_body);
 
 	if(!is_cmd_supported(REQUEST_TRIES_INDEX)) {
 		return resp_cmd_not_supported(get_gw_type(), response_body);
@@ -1076,12 +1039,24 @@ get_request_tries(const char *request_body, char **response_body)
 	return get_number_of_request_tries(response_body, number_of_request_tries);
 }
 
+#ifdef DP_BUILD
+static int
+get_generate_pcap_status(const char *request_body, char **response_body)
+{
+
+	clLog(clSystemLog, eCLSeverityInfo,
+		LOG_FORMAT"get_generate_pcap_status() body=[%s]", LOG_VALUE, request_body);
+
+	return get_pcap_generation_status(response_body, app.generate_pcap);
+}
+#endif
+
 static int
 get_transmit_count(const char *request_body, char **response_body)
 {
 
-	clLog(clSystemLog, eCLSeverityInfo, "get_transmit_count() body=[%s]",
-			request_body);
+	clLog(clSystemLog, eCLSeverityInfo,
+		LOG_FORMAT"get_transmit_count() body=[%s]", LOG_VALUE, request_body);
 
 	return get_number_of_transmit_count(response_body, number_of_transmit_count);
 }
@@ -1089,14 +1064,14 @@ get_transmit_count(const char *request_body, char **response_body)
 static int
 post_transmit_count(const char *request_body, char **response_body)
 {
-	clLog(clSystemLog, eCLSeverityInfo, "post_transmit_count() body=[%s]",
-			request_body);
+	clLog(clSystemLog, eCLSeverityInfo,
+		LOG_FORMAT"post_transmit_count() body=[%s]", LOG_VALUE, request_body);
 
 	const char *param="TRANSMIT_COUNT";
 #ifdef CP_BUILD
 	const char *path="../config/cp.cfg";
 #else
-	const char *path="../config/dp_config.cfg";
+	const char *path="../config/dp.cfg";
 #endif
 
 	char value[ENTRY_VALUE_SIZE]={0};
@@ -1104,6 +1079,12 @@ post_transmit_count(const char *request_body, char **response_body)
 
 	number_of_transmit_count = get_transmit_count_value(request_body, response_body);
 	snprintf(value, ENTRY_VALUE_SIZE, "%d", number_of_transmit_count);
+
+#ifdef CP_BUILD
+	pfcp_config.transmit_cnt = number_of_transmit_count;
+#else
+	app.transmit_cnt = number_of_transmit_count;
+#endif
 
 	change_config_file(path, param, value);
 	construct_json(param,value,temp);
@@ -1116,8 +1097,8 @@ static int
 get_transmit_timer(const char *request_body, char **response_body)
 {
 
-	clLog(clSystemLog, eCLSeverityInfo, "get_transmit_timer() body=[%s]",
-			request_body);
+	clLog(clSystemLog, eCLSeverityInfo,
+		LOG_FORMAT"get_transmit_timer() body=[%s]", LOG_VALUE, request_body);
 
 	return get_transmit_timer_value(response_body, transmit_timer_value);
 }
@@ -1125,14 +1106,14 @@ get_transmit_timer(const char *request_body, char **response_body)
 static int
 post_transmit_timer(const char *request_body, char **response_body)
 {
-	clLog(clSystemLog, eCLSeverityInfo, "post_transmit_timer() body=[%s]",
-			request_body);
+	clLog(clSystemLog, eCLSeverityInfo,
+		LOG_FORMAT"post_transmit_timer() body=[%s]", LOG_VALUE, request_body);
 
 	const char *param="TRANSMIT_TIMER";
 #ifdef CP_BUILD
 	const char *path="../config/cp.cfg";
 #else
-	const char *path="../config/dp_config.cfg";
+	const char *path="../config/dp.cfg";
 #endif
 
 	char value[ENTRY_VALUE_SIZE]={0};
@@ -1154,8 +1135,8 @@ static int
 get_request_timeout(const char *request_body, char **response_body)
 {
 
-	clLog(clSystemLog, eCLSeverityInfo, "get_request_timeout() body=[%s]",
-			request_body);
+	clLog(clSystemLog, eCLSeverityInfo,
+		LOG_FORMAT"get_request_timeout() body=[%s]", LOG_VALUE, request_body);
 
 	if(!is_cmd_supported(REQUEST_TIMEOUT_INDEX)) {
 		return resp_cmd_not_supported(get_gw_type(), response_body);
@@ -1167,8 +1148,8 @@ get_request_timeout(const char *request_body, char **response_body)
 static int
 post_request_timeout(const char *request_body, char **response_body)
 {
-	clLog(clSystemLog, eCLSeverityInfo, "post_request_timeout() body=[%s]",
-			request_body);
+	clLog(clSystemLog, eCLSeverityInfo,
+		LOG_FORMAT"post_request_timeout() body=[%s]", LOG_VALUE, request_body);
 
 	if(!is_cmd_supported(REQUEST_TIMEOUT_INDEX)) {
 		return resp_cmd_not_supported(get_gw_type(), response_body);
@@ -1195,8 +1176,8 @@ static int
 get_periodic_timer(const char *request_body, char **response_body)
 {
 
-	clLog(clSystemLog, eCLSeverityInfo, "get_periodic_timer() body=[%s]",
-			request_body);
+	clLog(clSystemLog, eCLSeverityInfo,
+		LOG_FORMAT"get_periodic_timer() body=[%s]", LOG_VALUE, request_body);
 
 	return get_periodic_timer_value(response_body, periodic_timer_value);
 }
@@ -1204,14 +1185,14 @@ get_periodic_timer(const char *request_body, char **response_body)
 static int
 post_periodic_timer(const char *request_body, char **response_body)
 {
-	clLog(clSystemLog, eCLSeverityInfo, "post_periodic_timer() body=[%s]",
-			request_body);
+	clLog(clSystemLog, eCLSeverityInfo,
+		LOG_FORMAT"post_periodic_timer() body=[%s]", LOG_VALUE, request_body);
 
 	const char *param="PERIODIC_TIMER";
 #ifdef CP_BUILD
 	const char *path="../config/cp.cfg";
 #else
-	const char *path="../config/dp_config.cfg";
+	const char *path="../config/dp.cfg";
 #endif
 
 	char value[ENTRY_VALUE_SIZE]={0};
@@ -1232,8 +1213,8 @@ post_periodic_timer(const char *request_body, char **response_body)
 	static int
 get_stat_logging(const char *request_body, char **response_body)
 {
-	clLog(clSystemLog, eCLSeverityInfo, "get_stat_logging() body=[%s]",
-			request_body);
+	clLog(clSystemLog, eCLSeverityInfo,
+		LOG_FORMAT"get_stat_logging() body=[%s]", LOG_VALUE, request_body);
 
 	return csGetStatLogging(response_body);
 }
@@ -1241,27 +1222,77 @@ get_stat_logging(const char *request_body, char **response_body)
 static int
 post_stat_logging(const char *request_body, char **response_body)
 {
-	clLog(clSystemLog, eCLSeverityInfo, "post_stat_logging() body=[%s]",
-			request_body);
+	clLog(clSystemLog, eCLSeverityInfo,
+		LOG_FORMAT"post_stat_logging() body=[%s]", LOG_VALUE, request_body);
 
 	return csUpdateStatLogging(request_body, response_body);
 }
+
+#ifdef DP_BUILD
+static int
+post_generate_pcap_cmd(const char *request_body, char **response_body)
+{
+
+	clLog(clSystemLog, eCLSeverityInfo,
+		LOG_FORMAT"post_generate_pcap_cmd() body=[%s]", LOG_VALUE, request_body);
+
+	uint8_t res = 0;
+	const char *param= "PCAP_GENERATION";
+	char value[ENTRY_VALUE_SIZE]= {0};
+	char temp[JSON_RESP_SIZE]= {0};
+
+	res = get_pcap_generation_cmd_value(request_body, response_body);
+	if (res == REST_FAIL) {
+		snprintf(value, ENTRY_VALUE_SIZE, "%s", "REST_FAIL");
+		construct_json(param,value,temp);
+		*response_body=strdup((const char *)temp);
+		return REST_FAIL;
+	}
+	/* update pcap generation command */
+	app.generate_pcap = res;
+
+	snprintf(value, ENTRY_VALUE_SIZE, "%s", ((res) ? ((res == START_PCAP_GEN) ?
+				"START" : ((res == RESTART_PCAP_GEN) ? "RESTART" :
+				"INVALID CMD" )) : "STOP"));
+
+	construct_json(param,value,temp);
+	*response_body=strdup((const char *)temp);
+
+	return REST_SUCESSS;
+}
+#endif
+
 	static int
 get_stat_live(const char *request_body, char **response_body)
 {
-	clLog(clSystemLog, eCLSeverityInfo, "get_stat_live() body=[%s]",
-			request_body);
+	clLog(clSystemLog, eCLSeverityInfo,
+		LOG_FORMAT"get_stat_live() body=[%s]", LOG_VALUE, request_body);
 
 	return csGetLive(response_body);
 }
 
 
 static int
+get_configuration(const char *request_body, char **response_body)
+{
+	clLog(clSystemLog, eCLSeverityInfo, "get_configuration() body=[%s]",
+			request_body);
+#ifdef CP_BUILD
+	fill_cp_configuration();
+	return get_cp_configuration(response_body, &cp_configuration);
+#else
+	fill_dp_configuration();
+	return get_dp_configuration(response_body, &dp_configuration);
+#endif
+
+}
+
+static int
 reset_cli_stats(const char *request_body, char **response_body)
 {
 	int value;
-	clLog(clSystemLog, eCLSeverityInfo, "reset_stats() body=[%s]",
-			request_body);
+	clLog(clSystemLog, eCLSeverityInfo,
+		LOG_FORMAT"reset_stats() body=[%s]", LOG_VALUE, request_body);
 
 	value =  csResetStats(request_body, response_body);
 	if(value == REST_SUCESSS)
@@ -1275,8 +1306,8 @@ reset_cli_stats(const char *request_body, char **response_body)
 	static int
 get_stat_live_all(const char *request_body, char **response_body)
 {
-	clLog(clSystemLog, eCLSeverityInfo, "get_stat_live_all() body=[%s]",
-			request_body);
+	clLog(clSystemLog, eCLSeverityInfo,
+		LOG_FORMAT"get_stat_live_all() body=[%s]", LOG_VALUE, request_body);
 
 	return csGetLiveAll(response_body);
 }
@@ -1286,14 +1317,15 @@ static int
 get_add_ue_entry_details(const char *request_body, char **response_body)
 {
 	int iRet;
-	struct li_df_config_t li_config = {0};
+	uint16_t uiCntr = 0;
+	struct li_df_config_t li_config[MAX_LI_ENTRIES] = {0};
 
-	clLog(clSystemLog, eCLSeverityInfo, "get_add_ue_entry_details() body=[%s]",
-			request_body);
+	clLog(clSystemLog, eCLSeverityInfo,
+		LOG_FORMAT"get_add_ue_entry_details() body=[%s]", LOG_VALUE, request_body);
 
-	iRet = parseJsonReqFillStruct(request_body, response_body, &li_config);
+	iRet = parseJsonReqFillStruct(request_body, response_body, li_config, &uiCntr);
 
-	fillup_li_df_hash(&li_config, 1);
+	fillup_li_df_hash(li_config, uiCntr);
 
 	return iRet;
 }
@@ -1302,17 +1334,15 @@ static int
 get_update_ue_entry_details(const char *request_body, char **response_body)
 {
 	int iRet;
-	struct li_df_config_t li_config = {0};
+	uint16_t uiCntr = 0;
+	struct li_df_config_t li_config[MAX_LI_ENTRIES] = {0};
 
-	li_config.uiOperation = MAX_UINT16_T;
-	li_config.uiAction = MAX_UINT16_T;
+	clLog(clSystemLog, eCLSeverityInfo,
+		LOG_FORMAT"get_update_ue_entry_details() body=[%s]", LOG_VALUE, request_body);
 
-	clLog(clSystemLog, eCLSeverityInfo, "get_update_ue_entry_details() body=[%s]",
-			request_body);
+	iRet = parseJsonReqFillStruct(request_body, response_body, li_config, &uiCntr);
 
-	iRet = parseJsonReqFillStruct(request_body, response_body, &li_config);
-
-	fillup_li_df_hash(&li_config, 1);
+	fillup_li_df_hash(li_config, uiCntr);
 
 	return iRet;
 }
@@ -1321,14 +1351,15 @@ static int
 get_delete_ue_entry_details(const char *request_body, char **response_body)
 {
 	int iRet;
-	uint64_t uiImsi;
+	uint16_t uiCntr = 0;
+	uint64_t uiIds[MAX_LI_ENTRIES] = {0};
 
-	clLog(clSystemLog, eCLSeverityInfo, "get_delete_ue_entry_details() body=[%s]",
-			request_body);
+	clLog(clSystemLog, eCLSeverityInfo,
+		LOG_FORMAT"get_delete_ue_entry_details() body=[%s]", LOG_VALUE, request_body);
 
-	iRet = parseJsonReqForImsi(request_body, response_body, &uiImsi);
+	iRet = parseJsonReqForId(request_body, response_body, uiIds, &uiCntr);
 
-	del_li_imsi_entry(uiImsi);
+	del_li_entry(uiIds, uiCntr);
 
 	return iRet;
 }
@@ -1378,6 +1409,12 @@ init_rest_methods(int port_no, size_t thread_count)
 	crRegisterStaticHandler(eCRCommandGet, "/request_timeout", get_request_timeout);
 	crRegisterStaticHandler(eCRCommandGet, "/periodic_timer", get_periodic_timer);
 	crRegisterStaticHandler(eCRCommandGet, "/transmit_timer", get_transmit_timer);
+	crRegisterStaticHandler(eCRCommandGet, "/configlive", get_configuration);
+
+#ifdef DP_BUILD
+	crRegisterStaticHandler(eCRCommandGet, "/generate_pcap", get_generate_pcap_status);
+	crRegisterStaticHandler(eCRCommandPost, "/generate_pcap", post_generate_pcap_cmd);
+#endif
 
 	crRegisterStaticHandler(eCRCommandGet, "/statlive", get_stat_live);
 	crRegisterStaticHandler(eCRCommandGet, "/statliveall", get_stat_live_all);
@@ -1399,50 +1436,27 @@ void init_cli_module(uint8_t gw_logger)
 
 #ifdef DP_BUILD
 
-	if (app.spgw_cfg == SGWU){
-		cli_node.gw_type = OSS_SGWU;
-	} else if (app.spgw_cfg == PGWU){
-		cli_node.gw_type = OSS_PGWU;
-	} else{
-		cli_node.gw_type = OSS_SAEGWU;
-	}
+	cli_node.gw_type = OSS_USER_PLANE;
 
 	clSetOption(eCLOptLogFileName, "logs/dp.log");
 	clSetOption(eCLOptStatFileName, "logs/dp_stat.log");
 	clSetOption(eCLOptAuditFileName, "logs/dp_sys.log");
 
-	if (app.spgw_cfg == SGWU){
-		clInit("sgwu", gw_logger);
+	clInit("User Plane", gw_logger);
 
-	} else if (app.spgw_cfg == PGWU){
-		clInit("pgwu", gw_logger);
-	} else{
-		clInit("saegwu", gw_logger);
-	}
-
-	clAddRecentLogger("sgwu-001","dp",5);
+	clAddRecentLogger("User Plane","dp",5);
 #else
 
 	clSetOption(eCLOptLogFileName, "logs/cp.log");
 	clSetOption(eCLOptStatFileName, "logs/cp_stat.log");
 	clSetOption(eCLOptAuditFileName, "logs/cp_sys.log");
 
-	switch(pfcp_config.cp_type) {
-		case SGWC:
-			cli_node.gw_type = OSS_SGWC;
-			clInit("sgwc", gw_logger);
-			break;
-		case PGWC:
-			cli_node.gw_type = OSS_PGWC;
-			clInit("pgwc", gw_logger);
-			break;
-		case SAEGWC:
-			cli_node.gw_type = OSS_SAEGWC;
-			clInit("saegw", gw_logger);
-			break;
-	}
 
-	clAddRecentLogger("sgwc-001","cp",5);
+	cli_node.gw_type = OSS_CONTROL_PLANE;
+
+	clInit("Control Plane", gw_logger);
+
+	clAddRecentLogger("Control Plane","cp",5);
 #endif
 	csInit(clGetStatsLogger(), 5000);
 	csStart();
@@ -1478,30 +1492,13 @@ int reset_stats(void) {
 						memset(cli_node.peer[peer_itr]->stats.s5s8[msgs_itr].ts, '\0', LAST_TIMER_SIZE);
 					}
 					break;
-				case itSxa:
+				case itSx:
 
-					for (msgs_itr=0; msgs_itr<SXA_STATS_SIZE; msgs_itr++) {
-						cli_node.peer[peer_itr]->stats.sxa[msgs_itr].cnt[0] = 0;
-						cli_node.peer[peer_itr]->stats.sxa[msgs_itr].cnt[1] = 0;
-						memset(cli_node.peer[peer_itr]->stats.sxa[msgs_itr].ts, '\0', LAST_TIMER_SIZE);
-					}
-					break;
-				case itSxb:
-
-					for (msgs_itr=0; msgs_itr<SXB_STATS_SIZE; msgs_itr++)
+					for (msgs_itr=0; msgs_itr<SX_STATS_SIZE; msgs_itr++)
 					{
-						cli_node.peer[peer_itr]->stats.sxb[msgs_itr].cnt[0] = 0;
-						cli_node.peer[peer_itr]->stats.sxb[msgs_itr].cnt[1] = 0;
-						memset(cli_node.peer[peer_itr]->stats.sxb[msgs_itr].ts, '\0', LAST_TIMER_SIZE);
-					}
-					break;
-				case itSxaSxb:
-
-					for (msgs_itr=0; msgs_itr<SXASXB_STATS_SIZE; msgs_itr++)
-					{
-						cli_node.peer[peer_itr]->stats.sxasxb[msgs_itr].cnt[0] = 0;
-						cli_node.peer[peer_itr]->stats.sxasxb[msgs_itr].cnt[1] = 0;
-						memset(cli_node.peer[peer_itr]->stats.sxasxb[msgs_itr].ts, '\0', LAST_TIMER_SIZE);
+						cli_node.peer[peer_itr]->stats.sx[msgs_itr].cnt[0] = 0;
+						cli_node.peer[peer_itr]->stats.sx[msgs_itr].cnt[1] = 0;
+						memset(cli_node.peer[peer_itr]->stats.sx[msgs_itr].ts, '\0', LAST_TIMER_SIZE);
 					}
 					break;
 				case itGx:
@@ -1514,7 +1511,8 @@ int reset_stats(void) {
 					}
 					break;
 				default:
-					clLog(clSystemLog, eCLSeverityCritical, "not supprted interface");
+					clLog(clSystemLog, eCLSeverityCritical,
+						LOG_FORMAT"CLI: Not supported interface", LOG_VALUE);
 					break;
 			}
 
@@ -1529,4 +1527,21 @@ int reset_stats(void) {
 	}
 
 return 0;
+}
+
+void set_mac_value(char *mac_addr_char_ptr, uint8_t *mac_addr_int_ptr)
+{
+	uint8_t itr = 0;
+	for(itr = 0; itr < MAC_ADDR_BYTES_IN_INT_ARRAY; itr++) {
+		if(itr != MAC_ADDR_BYTES_IN_INT_ARRAY - 1)
+			/* we need to add two bytes in char array */
+			if(mac_addr_int_ptr[itr] > FOUR_BIT_MAX_VALUE)
+				snprintf((mac_addr_char_ptr+(itr*3)), 4, "%x:", mac_addr_int_ptr[itr]);
+			else snprintf((mac_addr_char_ptr+(itr*3)), 4, "0%x:", mac_addr_int_ptr[itr]);
+		else
+			if(mac_addr_int_ptr[itr] > FOUR_BIT_MAX_VALUE)
+				snprintf((mac_addr_char_ptr+(itr*3)), 3, "%x", mac_addr_int_ptr[itr]);
+			else
+				snprintf((mac_addr_char_ptr+(itr*3)), 3, "0%x", mac_addr_int_ptr[itr]);
+	}
 }

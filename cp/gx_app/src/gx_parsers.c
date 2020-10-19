@@ -3989,7 +3989,7 @@ static int parseGxPacketFilterInformation
     {
         fd_msg_avp_hdr (child_avp, &hdr);
 
-        if (IS_AVP(davp_packet_filter_identifier)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->packet_filter_identifier, GX_PACKET_FILTER_IDENTIFIER_LEN); data->presence.packet_filter_identifier=1; }
+        if (IS_AVP(davp_packet_filter_identifier)) {FD_PARSE_OCTETSTRING(hdr->avp_value, data->packet_filter_identifier, GX_PACKET_FILTER_IDENTIFIER_LEN); data->presence.packet_filter_identifier=1; }
         else if (IS_AVP(davp_precedence)) { data->precedence = hdr->avp_value->u32; data->presence.precedence=1; }
         else if (IS_AVP(davp_packet_filter_content)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->packet_filter_content, GX_PACKET_FILTER_CONTENT_LEN); data->presence.packet_filter_content=1; }
         else if (IS_AVP(davp_tos_traffic_class)) { FD_PARSE_OCTETSTRING(hdr->avp_value, data->tos_traffic_class, GX_TOS_TRAFFIC_CLASS_LEN); data->presence.tos_traffic_class=1; }

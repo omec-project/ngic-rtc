@@ -24,12 +24,13 @@
 #define SGW_CDR			84
 #define PGW_CDR			85
 
-#define CDR_BUFF_SIZE		256
+#define CDR_BUFF_SIZE		512
 #define MCC_BUFF_SIZE		5
 #define MNC_BUFF_SIZE		5
 #define CDR_TIME_BUFF		16
 #define CDR_PDN_BUFF		8
 #define CDR_TRIGG_BUFF		16
+#define MAX_ULI_LENGTH 256
 
 
 #define VOLUME_LIMIT        "Volume_Limit"
@@ -170,3 +171,25 @@ generate_cdr_seq_no(void);
  */
 int
 get_bearer_index_by_urr_id(uint32_t urr_id, pdn_connection *pdn);
+
+/**
+ * @brief  : Get rule name on the basis of urr id
+ * @param  : urr_id
+ * @param  : bearer, pointer to bearer
+ * @param  : rule_name, out parameter
+ * @return : Returns 0 on
+ *           success,else -1
+ */
+int
+get_rule_name_by_urr_id(uint32_t urr_id, eps_bearer *bearer,
+								char *rule_name);
+/**
+ * @brief  : Fill different ULI parameter in buffer
+ * @param  : uli, pointer to User Location Info in context
+ * @param  : uli_buff, buffer as a out parameter
+ * @return : Returns 0 on success
+ *
+ */
+
+int
+fill_user_loc_info(user_loc_info_t *uli, char *uli_buff);

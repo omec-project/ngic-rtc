@@ -1,8 +1,9 @@
 variables:
     LOCAL_ARTIFACT_DIR: "/home/gitlab-runner/artifacts/"
     GIT_IP: "10.155.205.206"
-    OSS_UTIL_BRANCH: "delivery_1.7"
-    FDM_BRANCH: "delivery_1.5"
+    OSS_UTIL_BRANCH: "delivery_1.8"
+    FDM_BRANCH: "gx"
+    FDM_GIT_URL: "https://github.com/omec-project/freediameter.git"
 
 stages:
     - build
@@ -10,7 +11,7 @@ stages:
 build:
     stage: build
     only:
-        - delivery_1.7
+        - delivery_1.8
     before_script:
         - echo -e "*************************************\n\tNGIC Build Started\n*************************************"
     script:
@@ -18,7 +19,7 @@ build:
         - ssh-keyscan $GIT_IP >> ~/.ssh/known_hosts
         - cd $CI_PROJECT_DIR/oss_adapter/c3po_oss/  && git clone git@$GIT_IP:C3PO-NGIC/oss-util.git -b $OSS_UTIL_BRANCH
         - sudo chown gitlab-runner:gitlab-runner -R $CI_PROJECT_DIR/oss_adapter/c3po_oss
-        - mkdir -p $CI_PROJECT_DIR/third_party && cd $CI_PROJECT_DIR/third_party && git clone git@$GIT_IP:C3PO-NGIC/freediameter.git -b $FDM_BRANCH
+        - mkdir -p $CI_PROJECT_DIR/third_party && cd $CI_PROJECT_DIR/third_party && git clone $FDM_GIT_URL -b $FDM_BRANCH
         - sudo chown gitlab-runner:gitlab-runner -R $CI_PROJECT_DIR/third_party/freediameter
         - cd $CI_PROJECT_DIR && chmod +x install_builddeps.sh && sudo ./install_builddeps.sh
         - cd $CI_PROJECT_DIR && source setenv.sh && cd cp && make

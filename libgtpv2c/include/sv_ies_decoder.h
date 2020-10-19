@@ -15,6 +15,11 @@
 
 #ifndef __SV_IES_DECODE_H__
 #define __SV_IES_DECODE_H__
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "sv_ies.h"
 /**
 * Decodes stn_sr to buffer.
@@ -27,5 +32,9 @@
 */
 int decode_gtp_stn_sr_ie(uint8_t *buf,
     gtp_stn_sr_ie_t *value);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /*__GTP_IES_DECODE_H__*/

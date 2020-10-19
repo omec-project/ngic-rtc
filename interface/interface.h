@@ -26,32 +26,11 @@
 
 #include <rte_hash.h>
 
-#ifdef SDN_ODL_BUILD
-	#include "zmqsub.h"
-#endif		/* SDN_ODL_BUILD  */
-
 #include "vepc_cp_dp_api.h"
-#include "vepc_udp.h"
 
 //#define RTE_LOGTYPE_CP RTE_LOGTYPE_USER4
 
 extern int num_dp;
-
-uint8_t zmq_comm_switch;
-
-#ifdef SDN_ODL_BUILD
-char zmq_sub_ifconnect[128];
-char zmq_pub_ifconnect[128];
-
-extern struct in_addr fpc_ip;
-extern uint16_t fpc_port;
-extern uint16_t fpc_topology_port;
-extern struct in_addr cp_nb_ip;
-extern uint16_t cp_nb_port;
-
-#endif
-
-extern udp_sock_t my_sock;
 
 /**
  * @brief  : CP DP communication message type
@@ -73,52 +52,20 @@ struct comm_node {
 	int (*recv)(void *msg_payload, uint32_t size);	/*receive function*/
 	int (*destroy)(void);			/*uninit and free function*/
 };
+
+/**
+ * @brief udp socket structure.
+ */
+typedef struct udp_sock_t {
+	struct sockaddr_in my_addr;
+	struct sockaddr_in other_addr;
+	int sock_fd;
+	int sock_fd_s11;
+	int sock_fd_s5s8;
+} udp_sock_t;
+
 struct comm_node comm_node[COMM_END];
 struct comm_node *active_comm_msg;
-
-/**
- * @brief  : Registor CP DP Communication message type.
- * @param  : id
- *           id - identifier for type of communication.
- * @param  : init
- *           init - initialize function.
- * @param  : send
- *           send - send function.
- * @param  : recv
- *           recv - receive function.
- * @param  : destroy
- *           destroy - destroy function.
- * @return : Returns nothing
- */
-void register_comm_msg_cb(enum cp_dp_comm id,
-		int (*init)(void),
-		int (*send)(void *msg_payload, uint32_t size),
-		int (*recv)(void *msg_payload, uint32_t size),
-		int (*destroy)(void));
-
-/**
- * @brief  : Set CP DP Communication type.
- * @param  : id
- *           id - identifier for type of communication.
- * @return : Returns 0 in case of success , -1 otherwise
- */
-int set_comm_type(enum cp_dp_comm id);
-
-/**
- * @brief  : Unset CP DP Communication type.
- * @param  : id
- *           id - identifier for type of communication.
- * @return : Returns 0 in case of success , -1 otherwise
- */
-int unset_comm_type(enum cp_dp_comm id);
-
-/**
- * @brief  : Process CP DP Communication msg type.
- * @param  : buf
- *           buf - message buffer.
- * @return : Returns 0 in case of success , -1 otherwise
- */
-int process_comm_msg(void *buf);
 
 /**
  * @brief  : Process PFCP message.
@@ -132,14 +79,6 @@ int process_pfcp_msg(uint8_t *buf_rx,
 		struct sockaddr_in *peer_addr);
 
 /**
- * @brief  : Process DP CP Response
- * @param  : buf
- *           buf - message buffer.
- * @return : Returns 0 in case of success , -1 otherwise
- */
-int process_resp_msg(void *buf);
-
-/**
  * @brief  : Initialize iface message passing
  *           This function is not thread safe and should only be called once by DP.
  * @param  : No param
@@ -149,10 +88,28 @@ void iface_module_constructor(void);
 
 /**
  * @brief  : Functino to handle signals.
- * @param  : signo
- *           signal number signal to be handled
+ * @param  : msg_payload,
+ * @param  : size,
+ * @param  : peer_addr,
  * @return : Returns nothing
  */
-void sig_handler(int signo);
+int
+udp_recv(void *msg_payload, uint32_t size, struct sockaddr_in *peer_addr);
 
+#ifdef CP_BUILD
+/**
+ * @brief Function to recv the IPC message and process them.
+ *
+ * This function is not thread safe and should only be called once by CP.
+ */
+void process_cp_msgs(void);
+
+#else /*END CP_BUILD*/
+/**
+ * @brief Function to recv the IPC message and process them.
+ *
+ * This function is not thread safe and should only be called once by DP.
+ */
+void process_dp_msgs(void);
+#endif /*DP_BUILD*/
 #endif /* _INTERFACE_H_ */

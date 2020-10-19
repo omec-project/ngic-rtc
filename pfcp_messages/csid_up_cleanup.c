@@ -15,6 +15,7 @@
  */
 
 #include "up_main.h"
+#include "teid_upf.h"
 #include "pfcp_util.h"
 #include "pfcp_enum.h"
 #include "csid_struct.h"
@@ -24,6 +25,8 @@
 #include "gw_adapter.h"
 #include "seid_llist.h"
 #include "pfcp_messages_encoder.h"
+
+extern bool assoc_available;
 
 /**
  * @brief  : Cleanup csid using csid entry
@@ -58,13 +61,36 @@ cleanup_csid_by_csid_entry(fqcsid_t *peer_fqcsid, fqcsid_t *local_fqcsid, uint8_
 
 		if (!local_csids->num_csid) {
 			if (del_peer_csid_entry(&key_t, iface)) {
-				clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
-						strerror(errno));
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to delete "
+					" CSID entry: %s \n", LOG_VALUE, strerror(errno));
 				return -1;
 			}
 		}
 	}
 
+
+	return 0;
+}
+
+static int8_t
+get_peer_assoc_csids(fqcsid_t *peer_fqcsid, fqcsid_t *local_fqcsid)
+{
+	for(uint8_t itr = 0; itr < peer_fqcsid->num_csid; itr++) {
+		uint8_t match = 0;
+		for(uint8_t itr1 = 0; itr1 < local_fqcsid->num_csid; itr1++) {
+			if (local_fqcsid->local_csid[itr1] == peer_fqcsid->local_csid[itr]){
+				match = 1;
+				break;
+			}
+		}
+
+		if (!match) {
+			local_fqcsid->local_csid[local_fqcsid->num_csid++] =
+				peer_fqcsid->local_csid[itr];
+		}
+	}
+	/* Node Addr */
+	local_fqcsid->node_addr = peer_fqcsid->node_addr;
 
 	return 0;
 }
@@ -77,33 +103,34 @@ cleanup_csid_by_csid_entry(fqcsid_t *peer_fqcsid, fqcsid_t *local_fqcsid, uint8_
 static int8_t
 cleanup_sess_by_csid_entry(fqcsid_t *csids)
 {
-	fqcsid_t enb_fqcsid = {0};
+	int ret = 0;
 	fqcsid_t mme_fqcsid = {0};
 	fqcsid_t sgwc_fqcsid = {0};
-	fqcsid_t sgwu_fqcsid = {0};
 	fqcsid_t pgwc_fqcsid = {0};
-	fqcsid_t pgwu_fqcsid = {0};
+	fqcsid_t wb_fqcsid = {0};
+	fqcsid_t eb_fqcsid = {0};
 
 	/* Get the session ID by csid */
 	for (uint16_t itr = 0; itr < csids->num_csid; itr++) {
-		sess_csid *tmp = NULL;
+		sess_csid *tmp_t = NULL;
 		sess_csid *current = NULL;
 
-		tmp = get_sess_csid_entry(csids->local_csid[itr], REMOVE_NODE);
-		if (tmp == NULL) {
+		tmp_t = get_sess_csid_entry(csids->local_csid[itr], REMOVE_NODE);
+		if (tmp_t == NULL) {
 			clLog(clSystemLog, eCLSeverityDebug,
-					FORMAT"Entry not found, CSID: %u\n", ERR_MSG, csids->local_csid[itr]);
+					LOG_FORMAT"Entry not found, CSID: %u\n", LOG_VALUE, csids->local_csid[itr]);
 			continue;
 		}
 
 		/* TODO: Temp handling the corner scenarios for temp allocated CSIDs */
 		/* Check SEID is not ZERO */
-		if ((tmp->up_seid == 0) && (tmp->next == 0)) {
+		if ((tmp_t->up_seid == 0) && (tmp_t->next == 0)) {
 			continue;
 		}
 
-		current = tmp;
+		current = tmp_t;
 		while(current != NULL) {
+			sess_csid *tmp = NULL;
 			pfcp_session_t *sess = NULL;
 			/* Get the session information from session table based on UP_SESSION_ID*/
 			sess = get_sess_info_entry(current->up_seid,
@@ -114,170 +141,94 @@ cleanup_sess_by_csid_entry(fqcsid_t *csids)
 				current->next = NULL;
 
 				/* free node  */
-				if(current != NULL)
+				if(current != NULL) {
 					rte_free(current);
-
+					current = NULL;
+				}
 				current = tmp;
 				continue;
 			}
 
 			/* MME FQ-CSID */
-			if(sess->mme_fqcsid != 0) {
-				for(uint8_t itr = 0; itr < (sess->mme_fqcsid)->num_csid; itr++) {
-					uint8_t match = 0;
-					for(uint8_t itr1 = 0; itr1 < mme_fqcsid.num_csid; itr1++) {
-						if (mme_fqcsid.local_csid[itr1] == (sess->mme_fqcsid)->local_csid[itr]) {
-							match = 1;
-							break;
-						}
-					}
-
-					if (!match) {
-						mme_fqcsid.local_csid[mme_fqcsid.num_csid++] =
-							sess->mme_fqcsid->local_csid[itr];
-					}
+			if(sess->mme_fqcsid != NULL) {
+				if (get_peer_assoc_csids(sess->mme_fqcsid, &mme_fqcsid) < 0) {
+					/* TODO: ERR Handling */
 				}
-				/* Node Addr */
-				mme_fqcsid.node_addr = (sess->mme_fqcsid)->node_addr;
 			}
 
-			/* MME FQ-CSID */
-			if((PGWU != app.spgw_cfg) && (sess->enb_fqcsid != 0)) {
-				for(uint8_t itr = 0; itr < (sess->enb_fqcsid)->num_csid; itr++) {
-					uint8_t match = 0;
-					for(uint8_t itr1 = 0; itr1 < enb_fqcsid.num_csid; itr1++) {
-						if (enb_fqcsid.local_csid[itr1] == (sess->enb_fqcsid)->local_csid[itr]) {
-							match = 1;
-							break;
-						}
-					}
-
-					if (!match) {
-						enb_fqcsid.local_csid[enb_fqcsid.num_csid++] =
-							sess->enb_fqcsid->local_csid[itr];
-					}
-				}
-				/* Node Addr */
-				enb_fqcsid.node_addr = (sess->enb_fqcsid)->node_addr;
-			}
-
-			/* Cleanup Session dependant information such as PDR, QER and FAR */
-			if (up_delete_session_entry(sess, NULL))
-				continue;
-
-
-			/* Cleanup Peer node CSID with are associated with the local CSID */
 			/* SGWC FQ-CSID */
-			if (sess->sgw_fqcsid != 0) {
-				for(uint8_t itr = 0; itr < sess->sgw_fqcsid->num_csid; itr++ ) {
-					uint8_t match = 0;
-					for(uint8_t itr1 = 0; itr1 < sgwc_fqcsid.num_csid; itr1++) {
-						if(sgwc_fqcsid.local_csid[itr1] == sess->sgw_fqcsid->local_csid[itr]) {
-							match = 1;
-							break;
-						}
-					}
-
-					if(!match) {
-						sgwc_fqcsid.local_csid[sgwc_fqcsid.num_csid++] =
-							sess->sgw_fqcsid->local_csid[itr];
-					}
+			if (sess->sgw_fqcsid != NULL) {
+				if (get_peer_assoc_csids(sess->sgw_fqcsid, &sgwc_fqcsid) < 0) {
+					/* TODO: ERR Handling */
 				}
-				/* Node Addr */
-				sgwc_fqcsid.node_addr = sess->sgw_fqcsid->node_addr;
-			}
-
-			/* SGWU FQ-CSID */
-			if ((PGWU == app.spgw_cfg) && (sess->sgwu_fqcsid != 0)) {
-				for(uint8_t itr = 0; itr < sess->sgwu_fqcsid->num_csid; itr++ ) {
-					uint8_t match = 0;
-					for(uint8_t itr1 = 0; itr1 < sgwu_fqcsid.num_csid; itr1++) {
-						if(sgwu_fqcsid.local_csid[itr1] == sess->sgwu_fqcsid->local_csid[itr]) {
-							match = 1;
-							break;
-						}
-					}
-
-					if(!match) {
-						sgwu_fqcsid.local_csid[sgwu_fqcsid.num_csid++] =
-							sess->sgwu_fqcsid->local_csid[itr];
-					}
-				}
-				/* Node Addr */
-				sgwu_fqcsid.node_addr = sess->sgwu_fqcsid->node_addr;
 			}
 
 			/* PGWC FQ-CSID */
-			if (sess->pgw_fqcsid != 0) {
-				for(uint8_t itr = 0; itr < sess->pgw_fqcsid->num_csid; itr++ ) {
-					uint8_t match = 0;
-					for(uint8_t itr1 = 0; itr1 < pgwc_fqcsid.num_csid; itr1++) {
-						if(pgwc_fqcsid.local_csid[itr1] == sess->pgw_fqcsid->local_csid[itr]) {
-							match = 1;
-							break;
-						}
-					}
-
-					if(!match) {
-						pgwc_fqcsid.local_csid[pgwc_fqcsid.num_csid++] =
-							sess->pgw_fqcsid->local_csid[itr];
-					}
+			if (sess->pgw_fqcsid != NULL) {
+				if (get_peer_assoc_csids(sess->pgw_fqcsid, &pgwc_fqcsid) < 0) {
+					/* TODO: ERR Handling */
 				}
-				/* Node Addr */
-				pgwc_fqcsid.node_addr = sess->pgw_fqcsid->node_addr;
 			}
 
-			/* PGWU FQ-CSID */
-			if ((SGWU == app.spgw_cfg) && (sess->pgwu_fqcsid != 0)) {
-				for(uint8_t itr = 0; itr < sess->pgwu_fqcsid->num_csid; itr++ ) {
-					uint8_t match = 0;
-					for(uint8_t itr1 = 0; itr1 < pgwu_fqcsid.num_csid; itr1++) {
-						if(pgwu_fqcsid.local_csid[itr1] == sess->pgwu_fqcsid->local_csid[itr]) {
-							match = 1;
-							break;
-						}
-					}
-
-					if(!match) {
-						pgwu_fqcsid.local_csid[pgwu_fqcsid.num_csid++] =
-							sess->pgwu_fqcsid->local_csid[itr];
-					}
+			/* West Bound/eNB/SGWU FQ-CSID */
+			if(sess->wb_peer_fqcsid != NULL) {
+				if (get_peer_assoc_csids(sess->wb_peer_fqcsid, &wb_fqcsid) < 0) {
+					/* TODO: ERR Handling */
 				}
-				/* Node Addr */
-				pgwu_fqcsid.node_addr = sess->pgwu_fqcsid->node_addr;
 			}
+
+			/* East Bound/PGWU FQ-CSID */
+			if(sess->eb_peer_fqcsid != NULL) {
+				if (get_peer_assoc_csids(sess->eb_peer_fqcsid, &eb_fqcsid) < 0) {
+					/* TODO: ERR Handling */
+				}
+			}
+
+
+			/* Cleanup Session dependant information such as PDR, QER and FAR */
+			uint32_t cp_ip = 0;
+			if (!cp_ip) {
+				cp_ip = sess->cp_ip;
+			}
+
+			if (up_delete_session_entry(sess, NULL, cp_ip))
+				continue;
 
 			/* Cleanup the session */
 			if (sess != NULL) {
 				rte_free(sess);
-				sess = NULL;
 			}
+			sess = NULL;
 
 			tmp = current->next;
 			current->next = NULL;
 
 			/* free node  */
-			if(current != NULL)
+			if(current != NULL) {
 				rte_free(current);
+				current = NULL;
+			}
 
 			current = tmp;
+		}
+		/* Update CSID Entry in table */
+	    	ret = rte_hash_add_key_data(seids_by_csid_hash,
+				&csids->local_csid[itr], current);
+		if (ret) {
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Failed to update Session IDs entry for CSID = %u"
+					"\n\tError= %s\n",
+					LOG_VALUE, csids->local_csid[itr],
+					rte_strerror(abs(ret)));
 		}
 	}
 
 	/* Cleanup MME FQ-CSID */
 	if (mme_fqcsid.num_csid != 0) {
 		if(cleanup_csid_by_csid_entry(&mme_fqcsid, csids, SX_PORT_ID) < 0) {
-			clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
-							strerror(errno));
-			return -1;
-		}
-	}
-
-	/* Cleanup eNB FQ-CSID */
-	if ((PGWU != app.spgw_cfg) && (enb_fqcsid.num_csid != 0)) {
-		if(cleanup_csid_by_csid_entry(&enb_fqcsid, csids, S1U_PORT_ID) < 0) {
-			clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
-							strerror(errno));
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to delete "
+				"MME FQ-CSID entry while cleanup session by CSID entry, "
+				"Error: %s \n", LOG_VALUE, strerror(errno));
 			return -1;
 		}
 	}
@@ -285,17 +236,9 @@ cleanup_sess_by_csid_entry(fqcsid_t *csids)
 	/* Cleanup SGWC FQ-CSID associte with peer CSID */
 	if (sgwc_fqcsid.num_csid != 0) {
 		if(cleanup_csid_by_csid_entry(&sgwc_fqcsid, csids, SX_PORT_ID) < 0) {
-			clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
-							strerror(errno));
-			return -1;
-		}
-	}
-
-	/* Cleanup SGWU FQ-CSID associte with peer CSID */
-	if ((PGWU == app.spgw_cfg) && (sgwu_fqcsid.num_csid != 0)) {
-		if(cleanup_csid_by_csid_entry(&sgwu_fqcsid, csids, S1U_PORT_ID) < 0) {
-			clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
-							strerror(errno));
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to delete "
+				"SGW-C FQ-CSID entry while cleanup session by CSID entry, "
+				"Error: %s \n", LOG_VALUE, strerror(errno));
 			return -1;
 		}
 	}
@@ -303,17 +246,29 @@ cleanup_sess_by_csid_entry(fqcsid_t *csids)
 	/* Cleanup PGWC FQ-CSID associte with peer CSID */
 	if (pgwc_fqcsid.num_csid != 0) {
 		if(cleanup_csid_by_csid_entry(&pgwc_fqcsid, csids, SX_PORT_ID) < 0) {
-			clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
-							strerror(errno));
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to delete "
+				"PGW-C FQ-CSID entry while cleanup session by CSID entry, "
+				"Error: %s \n", LOG_VALUE, strerror(errno));
 			return -1;
 		}
 	}
 
-	/* Cleanup PGWU FQ-CSID associte with peer CSID */
-	if ((SGWU == app.spgw_cfg) && (pgwu_fqcsid.num_csid != 0)) {
-		if(cleanup_csid_by_csid_entry(&pgwu_fqcsid, csids, SGI_PORT_ID) < 0) {
-			clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
-							strerror(errno));
+	/* Cleanup West_Bound/eNB/SGWU FQ-CSID */
+	if (wb_fqcsid.num_csid != 0) {
+		if(cleanup_csid_by_csid_entry(&wb_fqcsid, csids, S1U_PORT_ID) < 0) {
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to delete "
+				"eNB/SGWU/WB FQ-CSID entry while cleanup session by CSID entry, "
+				"Error: %s \n", LOG_VALUE, strerror(errno));
+			return -1;
+		}
+	}
+
+	/* Cleanup East_Bound/PGWU FQ-CSID */
+	if (eb_fqcsid.num_csid != 0) {
+		if(cleanup_csid_by_csid_entry(&eb_fqcsid, csids, SGI_PORT_ID) < 0) {
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to delete "
+				"PGW-U/EB FQ-CSID entry while cleanup session by CSID entry, "
+				"Error: %s \n", LOG_VALUE, strerror(errno));
 			return -1;
 		}
 	}
@@ -330,15 +285,31 @@ up_del_pfcp_peer_node_sess(uint32_t node_addr, uint8_t iface)
 	fqcsid_t csids = {0};
 	fqcsid_t *peer_csids = NULL;
 
-	clLog(clSystemLog, eCLSeverityDebug,
-			"UP Cleanup Internal data Structures For peer node \n");
+	clLog(clSystemLog, eCLSeverityDebug,LOG_FORMAT
+			"UP Cleanup Internal data Structures For peer node \n", LOG_VALUE);
+
+	if (iface == SX_PORT_ID) {
+		if (app.teidri_val != 0) {
+			/* cleanup teidri entry for node*/
+			ret =  delete_teidri_node_entry(TEIDRI_FILENAME, htonl(node_addr), &upf_teidri_allocated_list,
+					&upf_teidri_free_list, app.teidri_val);
+			if (ret) {
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to delete TEIDRI "
+						"node entry, Node Addr: "IPV4_ADDR", Error: %s \n", LOG_VALUE,
+						IPV4_ADDR_HOST_FORMAT((node_addr)), strerror(errno));
+			}
+		} else {
+			assoc_available = true;
+		}
+	}
+
 	/* Get peer CSID associated with node */
-	peer_csids = get_peer_addr_csids_entry(ntohl(node_addr),
+	peer_csids = get_peer_addr_csids_entry(node_addr,
 			UPDATE_NODE);
 	if (peer_csids == NULL) {
-		clLog(clSystemLog, eCLSeverityCritical,
-				FORMAT"Peer CSIDs are already cleanup, Node_Addr:"IPV4_ADDR"\n",
-				ERR_MSG, IPV4_ADDR_HOST_FORMAT(node_addr));
+		clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"Peer CSIDs are already cleanup, Node_Addr:"IPV4_ADDR"\n",
+				LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ntohl(node_addr)));
 		return 0;
 	}
 
@@ -351,8 +322,8 @@ up_del_pfcp_peer_node_sess(uint32_t node_addr, uint8_t iface)
 
 		tmp = get_peer_csid_entry(&key, iface);
 		if (tmp == NULL) {
-			clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
-					strerror(errno));
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to get peer "
+				"CSID entry, Error: %s \n", LOG_VALUE, strerror(errno));
 			return -1;
 		}
 
@@ -362,27 +333,28 @@ up_del_pfcp_peer_node_sess(uint32_t node_addr, uint8_t iface)
 
 		csids.node_addr = tmp->node_addr;
 		clLog(clSystemLog, eCLSeverityDebug,
-				FORMAT"Found Local CSIDs, Node_Addr:"IPV4_ADDR", Num_CSID:%u\n",
-				ERR_MSG, IPV4_ADDR_HOST_FORMAT(csids.node_addr), csids.num_csid);
+				LOG_FORMAT"Found Local CSIDs, Node_Addr:"IPV4_ADDR", Num_CSID:%u\n",
+				LOG_VALUE, IPV4_ADDR_HOST_FORMAT(csids.node_addr), csids.num_csid);
 	}
 
 	if (!csids.num_csid) {
 		clLog(clSystemLog, eCLSeverityDebug,
-				FORMAT"CSIDs are already cleanup\n", ERR_MSG);
+				LOG_FORMAT"CSIDs are already cleanup\n", LOG_VALUE);
 		return 0;
 	}
 
 	/* Cleanup Internal data structures */
 	ret = cleanup_sess_by_csid_entry(&csids);
 	if (ret) {
-		clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s\n", ERR_MSG);
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to cleanup session "
+			"CSID entry, Error: %s \n", LOG_VALUE, strerror(errno));
 		return 0;
 	}
 
 	ret = del_csid_entry_hash(peer_csids, &csids, iface);
 	if (ret) {
-		clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
-				strerror(errno));
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to delete CSID "
+			"hash, Error: %s \n", LOG_VALUE, strerror(errno));
 		return -1;
 	}
 
@@ -394,7 +366,7 @@ up_del_pfcp_peer_node_sess(uint32_t node_addr, uint8_t iface)
 		int encoded = encode_pfcp_sess_set_del_req_t(&del_set_req_t, pfcp_msg);
 
 		pfcp_header_t *header = (pfcp_header_t *) pfcp_msg;
-		header->message_len = htons(encoded - 4);
+		header->message_len = htons(encoded - PFCP_IE_HDR_SIZE);
 
 		/* TODO: here we need SGWC or PGWC node address , ask vishal where we found node address for send req */
 		if (sendto(my_sock.sock_fd,
@@ -403,16 +375,20 @@ up_del_pfcp_peer_node_sess(uint32_t node_addr, uint8_t iface)
 			MSG_DONTWAIT,
 			(struct sockaddr *)&dest_addr_t,
 			sizeof(struct sockaddr_in)) < 0) {
-			clLog(clSystemLog, eCLSeverityDebug, "Error sending: %i\n",errno);
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to Send PFCP "
+				"Session Set Deletion Request, Error: %s \n",
+				LOG_VALUE, strerror(errno));
 				return -1;
 		}
 		else {
 			update_cli_stats(dest_addr_t.sin_addr.s_addr, header->message_type, SENT, SX);
 		}
-		clLog(clSystemLog, eCLSeverityDebug, "UP: Send the PFCP Session Set Deletion Request \n");
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"UP: Send the PFCP Session "
+			"Set Deletion Request \n", LOG_VALUE);
 	}
 
-	clLog(clSystemLog, eCLSeverityDebug, "UP Cleanup completed for peer node \n");
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT" UP Cleanup completed for peer "
+		"node \n", LOG_VALUE);
 	return 0;
 }
 
@@ -423,7 +399,7 @@ process_up_sess_set_del_req(pfcp_sess_set_del_req_t *pfcp_sess_set_del_req)
 	fqcsid_t csids = {0};
 	fqcsid_t peer_csids = {0};
 
-	clLog(clSystemLog, eCLSeverityDebug, "PFCP Session Set Deletion Request :: START \n");
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"PFCP Session Set Deletion Request :: START \n", LOG_VALUE);
 	/* MME FQ-CSID */
 	if (pfcp_sess_set_del_req->mme_fqcsid.header.len) {
 		if (pfcp_sess_set_del_req->mme_fqcsid.number_of_csids) {
@@ -438,8 +414,8 @@ process_up_sess_set_del_req(pfcp_sess_set_del_req_t *pfcp_sess_set_del_req)
 				tmp = get_peer_csid_entry(&key, SX_PORT_ID);
 
 				if (tmp == NULL) {
-					clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
-							strerror(errno));
+					clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to get peer "
+						"MME CSID entry, Error: %s \n", LOG_VALUE, strerror(errno));
 					return -1;
 				}
 				/* TODO: Hanlde Multiple CSID with single MME CSID */
@@ -468,8 +444,8 @@ process_up_sess_set_del_req(pfcp_sess_set_del_req_t *pfcp_sess_set_del_req)
 				tmp = get_peer_csid_entry(&key, SX_PORT_ID);
 
 				if (tmp == NULL) {
-					clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
-							strerror(errno));
+					clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to get peer "
+						"SGW-C CSID entry, Error: %s \n", LOG_VALUE, strerror(errno));
 					return -1;
 				}
 				/* TODO: Hanlde Multiple CSID with single MME CSID */
@@ -497,8 +473,8 @@ process_up_sess_set_del_req(pfcp_sess_set_del_req_t *pfcp_sess_set_del_req)
 
 				tmp = get_peer_csid_entry(&key, SX_PORT_ID);
 				if (tmp == NULL) {
-					clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
-							strerror(errno));
+					clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to get peer "
+						"PGW-C CSID entry, Error: %s \n", LOG_VALUE, strerror(errno));
 					return -1;
 				}
 				/* TODO: Hanlde Multiple CSID with single MME CSID */
@@ -515,25 +491,36 @@ process_up_sess_set_del_req(pfcp_sess_set_del_req_t *pfcp_sess_set_del_req)
 
 	if (csids.num_csid == 0) {
 		clLog(clSystemLog, eCLSeverityCritical,
-				FORMAT"Not found peer CSIDs \n", ERR_MSG);
+				LOG_FORMAT"Not found peer CSIDs \n", LOG_VALUE);
 		return -1;
 	}
 
 	/* Cleanup Internal data structures */
 	ret = cleanup_sess_by_csid_entry(&csids);
 	if (ret) {
-		clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
-				strerror(errno));
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to cleanup session "
+			"CSID entry, Error: %s \n", LOG_VALUE, strerror(errno));
 		return -1;
 	}
 
 	ret = del_csid_entry_hash(&peer_csids, &csids, SX_PORT_ID);
 	if (ret) {
-		clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
-				strerror(errno));
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to delete CSID "
+			"hash while Processing UP Session Set Delete Request, "
+			"Error: %s \n", LOG_VALUE, strerror(errno));
 		return -1;
 	}
-	clLog(clSystemLog, eCLSeverityDebug, "PFCP Session Set Deletion Request :: END \n\n");
+	/* Delete Local CSID */
+	for (uint8_t itr = 0; itr < csids.num_csid; itr++) {
+		ret = del_sess_csid_entry(csids.local_csid[itr]);
+		if (ret < 0) {
+			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT
+				"Failed to delete Local CSID hash entry : %u\n",
+				LOG_VALUE, csids.local_csid[itr]);
+		}
+
+	}
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"PFCP Session Set Deletion Request :: END \n", LOG_VALUE);
 	return 0;
 }
 
@@ -549,117 +536,96 @@ del_sess_by_csid_entry(pfcp_session_t *sess, fqcsid_t *csids, uint8_t iface)
 
 		seids = get_sess_csid_entry(csids->local_csid[itr], REMOVE_NODE);
 		if (seids == NULL) {
-			clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
-				strerror(errno));
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to get Session "
+				"ID by CSID entry, Error: %s \n", LOG_VALUE, strerror(errno));
 			return -1;
 		}
 
 		seids = remove_sess_csid_data_node(seids, sess->up_seid);
 
 		/* Update CSID Entry in table */
-	    ret = rte_hash_add_key_data(seids_by_csid_hash,
+	    	ret = rte_hash_add_key_data(seids_by_csid_hash,
 				&csids->local_csid[itr], seids);
 		if (ret) {
 			clLog(clSystemLog, eCLSeverityCritical,
-					FORMAT"Failed to add Session IDs entry for CSID = %u"
+					LOG_FORMAT"Failed to add Session IDs entry for CSID = %u"
 					"\n\tError= %s\n",
-					ERR_MSG, csids->local_csid[itr],
+					LOG_VALUE, csids->local_csid[itr],
 					rte_strerror(abs(ret)));
 			return -1;
 		}
 
 		if (seids == NULL) {
-			if (app.spgw_cfg != PGWU) {
-				clLog(clSystemLog, eCLSeverityDebug, FORMAT"PDSR:SGWC/SAEGWC Node Addr:"IPV4_ADDR"\n",
-						ERR_MSG, IPV4_ADDR_HOST_FORMAT((sess->sgw_fqcsid)->node_addr));
+			if (sess->sgw_fqcsid != NULL) {
+				clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"SGWC/SAEGWC Node Addr:"IPV4_ADDR"\n",
+						LOG_VALUE, IPV4_ADDR_HOST_FORMAT((sess->sgw_fqcsid)->node_addr));
 				if (del_csid_entry_hash(sess->sgw_fqcsid, csids,
 							SX_PORT_ID)) {
-					clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
-							strerror(errno));
+							clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to delete SGW CSID "
+							"entry from hash , Error: %s \n", LOG_VALUE, strerror(errno));
 					return -1;
 				}
-				if (app.spgw_cfg != SAEGWU) {
-					clLog(clSystemLog, eCLSeverityDebug, FORMAT"PDSR:PGWC Node Addr:"IPV4_ADDR"\n",
-							ERR_MSG, IPV4_ADDR_HOST_FORMAT((sess->pgw_fqcsid)->node_addr));
-					if (del_csid_entry_hash(sess->pgw_fqcsid, csids,
-							SX_PORT_ID)) {
-						clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
-								strerror(errno));
-						return -1;
-					}
-					if (sess->pgwu_fqcsid) {
-						clLog(clSystemLog, eCLSeverityDebug, FORMAT"PDSR:PGWU Node Addr:"IPV4_ADDR"\n",
-								ERR_MSG, IPV4_ADDR_HOST_FORMAT((sess->pgwu_fqcsid)->node_addr));
-						if (del_csid_entry_hash(sess->pgwu_fqcsid, csids,
-								SGI_PORT_ID)) {
-							clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
-									strerror(errno));
-							return -1;
-						}
-					}
-				}
+			}
 
-				if (sess->mme_fqcsid) {
-					clLog(clSystemLog, eCLSeverityDebug, FORMAT"PDSR:MME Node Addr:"IPV4_ADDR"\n",
-							ERR_MSG, IPV4_ADDR_HOST_FORMAT((sess->mme_fqcsid)->node_addr));
-					if (del_csid_entry_hash(sess->mme_fqcsid, csids,
-								SX_PORT_ID)) {
-						clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
-								strerror(errno));
-						return -1;
-					}
-				}
-
-				if (sess->enb_fqcsid) {
-					clLog(clSystemLog, eCLSeverityDebug, FORMAT"PDSR:eNB Node Addr:"IPV4_ADDR"\n",
-							ERR_MSG, IPV4_ADDR_HOST_FORMAT((sess->enb_fqcsid)->node_addr));
-					if (del_csid_entry_hash(sess->enb_fqcsid, csids,
-							S1U_PORT_ID)) {
-						clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
-								strerror(errno));
-						return -1;
-					}
-				}
-			} else {
-				clLog(clSystemLog, eCLSeverityDebug, FORMAT"PDSR:PGWC Node Addr:"IPV4_ADDR"\n",
-						ERR_MSG, IPV4_ADDR_HOST_FORMAT((sess->pgw_fqcsid)->node_addr));
+			if (sess->pgw_fqcsid != NULL) {
+				clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"PGWC Node Addr:"IPV4_ADDR"\n",
+						LOG_VALUE, IPV4_ADDR_HOST_FORMAT((sess->pgw_fqcsid)->node_addr));
 				if (del_csid_entry_hash(sess->pgw_fqcsid, csids,
 						SX_PORT_ID)) {
-					clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
+					clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Error: %s \n", LOG_VALUE,
 							strerror(errno));
 					return -1;
 				}
-				clLog(clSystemLog, eCLSeverityDebug, FORMAT"PDSR:SGWC Node Addr:"IPV4_ADDR"\n",
-						ERR_MSG, IPV4_ADDR_HOST_FORMAT((sess->sgw_fqcsid)->node_addr));
-				if (del_csid_entry_hash(sess->sgw_fqcsid, csids,
-						SX_PORT_ID)) {
-					clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
+			}
+
+			/* TODO: VISHAL */
+			if (sess->up_fqcsid != NULL) {
+				clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"UP Node Addr:"IPV4_ADDR"\n",
+						LOG_VALUE, IPV4_ADDR_HOST_FORMAT((sess->up_fqcsid)->node_addr));
+				if (del_csid_entry_hash(sess->up_fqcsid, csids,
+						SGI_PORT_ID)) {
+					clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Error: %s \n", LOG_VALUE,
 							strerror(errno));
 					return -1;
 				}
-				clLog(clSystemLog, eCLSeverityDebug, FORMAT"PDSR:MME Node Addr:"IPV4_ADDR"\n",
-						ERR_MSG, IPV4_ADDR_HOST_FORMAT((sess->mme_fqcsid)->node_addr));
+			}
+
+			if (sess->mme_fqcsid != NULL) {
+				clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"MME Node Addr:"IPV4_ADDR"\n",
+						LOG_VALUE, IPV4_ADDR_HOST_FORMAT((sess->mme_fqcsid)->node_addr));
 				if (del_csid_entry_hash(sess->mme_fqcsid, csids,
 						SX_PORT_ID)) {
-					clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
+					clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to delete MME CSID "
+						"entry from hash , Error: %s \n", LOG_VALUE, strerror(errno));
+					return -1;
+				}
+			}
+
+			if (sess->wb_peer_fqcsid != NULL) {
+				clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"eNB/SGWU/West Bound Node Addr:"IPV4_ADDR"\n",
+						LOG_VALUE, IPV4_ADDR_HOST_FORMAT((sess->wb_peer_fqcsid)->node_addr));
+				if (del_csid_entry_hash(sess->wb_peer_fqcsid, csids,
+						S1U_PORT_ID)) {
+					clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Error: %s \n", LOG_VALUE,
 							strerror(errno));
 					return -1;
 				}
-				if (sess->sgwu_fqcsid) {
-					clLog(clSystemLog, eCLSeverityDebug, FORMAT"PDSR:SGWU Node Addr:"IPV4_ADDR"\n",
-							ERR_MSG, IPV4_ADDR_HOST_FORMAT((sess->sgwu_fqcsid)->node_addr));
-					if (del_csid_entry_hash(sess->sgwu_fqcsid, csids,
-							S1U_PORT_ID)) {
-						clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
-								strerror(errno));
-						return -1;
-					}
+			}
+
+			if (sess->eb_peer_fqcsid != NULL) {
+				clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"PGWU/East Bound Node Addr:"IPV4_ADDR"\n",
+						LOG_VALUE, IPV4_ADDR_HOST_FORMAT((sess->eb_peer_fqcsid)->node_addr));
+				if (del_csid_entry_hash(sess->eb_peer_fqcsid, csids,
+						SGI_PORT_ID)) {
+					clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Error: %s \n", LOG_VALUE,
+							strerror(errno));
+					return -1;
 				}
 			}
 
 			if (del_sess_csid_entry(csids->local_csid[itr])) {
-				clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
-						strerror(errno));
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to delete session by CSID "
+					"entry , Error: %s \n", LOG_VALUE, strerror(errno));
 				return -1;
 			}
 			/* Decrement the csid counters */
@@ -670,73 +636,4 @@ del_sess_by_csid_entry(pfcp_session_t *sess, fqcsid_t *csids, uint8_t iface)
 
 	return 0;
 }
-
-//int8_t
-//del_sess_by_csid_entry(fqcsid_t *peer_csids, fqcsid_t *csids, uint64_t sess_id, uint8_t iface)
-//{
-//	int ret = 0;
-//
-//	/* Get the session ID by csid */
-//	for (uint16_t itr = 0; itr < csids->num_csid; itr++) {
-//		sess_csid *seids = NULL;
-//
-//		seids = get_sess_csid_entry(csids->local_csid[itr], REMOVE_NODE);
-//		if (seids == NULL) {
-//			ret = del_csid_entry_hash(peer_csids, csids, iface);
-//			if (ret) {
-//				clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
-//						strerror(errno));
-//				return -1;
-//			}
-//			return 0;
-//		}
-//
-//		seids = remove_sess_csid_data_node(seids, sess_id);
-//
-//		/* Update CSID Entry in table */
-//	    ret = rte_hash_add_key_data(seids_by_csid_hash,
-//				&csids->local_csid[itr], seids);
-//		if (ret) {
-//			clLog(clSystemLog, eCLSeverityCritical,
-//					FORMAT"Failed to add Session IDs entry for CSID = %u"
-//					"\n\tError= %s\n",
-//					ERR_MSG, csids->local_csid[itr],
-//					rte_strerror(abs(ret)));
-//			return -1;
-//		}
-//
-//		if (seids == NULL) {
-//			ret = del_csid_entry_hash(peer_csids, csids, iface);
-//			if (ret) {
-//				clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
-//						strerror(errno));
-//				return -1;
-//			}
-//
-//			if (del_sess_csid_entry(csids->local_csid[itr])) {
-//				clLog(clSystemLog, eCLSeverityCritical, FORMAT"Error: %s \n", ERR_MSG,
-//						strerror(errno));
-//				//return -1;
-//			}
-//			/* Decrement the csid counters */
-//			//csids->num_csid--;
-//		}
-//
-//	}
-//	return 0;
-//}
-/* Function */
-//int
-//process_pfcp_sess_set_del_rsp_t(pfcp_sess_set_del_rsp_t *del_set_rsp)
-//{
-//	if(del_set_rsp->cause.cause_value != REQUESTACCEPTED){
-//		clLog(clSystemLog, eCLSeverityCritical, FORMAT"ERROR:Cause received Session Set deletion response is %d\n",
-//				ERR_MSG, del_set_rsp->cause.cause_value);
-//
-//		/* TODO: Add handling to send association to next upf
-//		 * for each buffered CSR */
-//		return -1;
-//	}
-//	return 0;
-//}
 

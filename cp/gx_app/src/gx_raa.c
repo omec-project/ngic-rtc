@@ -35,6 +35,7 @@ extern void hexDump(char *desc, void *address, int len);
 int gx_send_raa(void *data)
 {
 	int ret = FD_REASON_OK;
+	//uint32_t buflen;
 	struct msg *ans = NULL;
 #ifdef GX_DEBUG
 	printf("length is %d\n", *(uint32_t*)data );
@@ -44,6 +45,7 @@ int gx_send_raa(void *data)
 	memset((void*)gx_raa, 0, sizeof(*gx_raa));
 
 	gx_raa_unpack((unsigned char *)data, gx_raa);
+	//gx_raa_calc_length (gx_raa);
 
 	//memcpy(&rqst_ptr, ((unsigned char *)data + buflen -1), sizeof(unsigned long));
 	memcpy(&ans, ((unsigned char *)data + *(uint32_t*)data), sizeof(ans));

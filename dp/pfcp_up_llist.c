@@ -21,15 +21,8 @@ int8_t
 insert_sess_data_node(pfcp_session_datat_t *head,
 		pfcp_session_datat_t *new_node)
 {
-	/* Allocate memory for new node */
-	//pfcp_session_datat_t *new_node = rte_malloc_socket(NULL, sizeof(pfcp_session_datat_t),
-	//		RTE_CACHE_LINE_SIZE, rte_socket_id());
-
-	//if (new_node == NULL)
-	//	return -1;
-
-	///* Next pointing to NULL */
-	//new_node = sess_data;
+	/* Allocate memory for new node
+	 * Next pointing to NULL */
 	new_node->next = NULL;
 
 	/* Check linked list is empty or not */
@@ -45,44 +38,6 @@ insert_sess_data_node(pfcp_session_datat_t *head,
 		tmp->next = new_node;
 	}
 	return 0;
-}
-
-/* Function to get a node from session data Linked List. */
-pfcp_session_datat_t *
-get_sess_data_node(pfcp_session_datat_t *head,
-		pfcp_session_datat_t *sess_data)
-{
-	/* Pointing to head node */
-	pfcp_session_datat_t *current = head;
-
-	/* Check linked list is empty or not */
-	while(current != NULL) {
-		/* Validate the expected node or not */
-		/* VS: Need to put appropriate compare condition */
-		if (current->ue_ip_addr == sess_data->ue_ip_addr)
-			return current;
-
-		/* Pointing to next node */
-		current = current->next;
-	}
-	/* Node is not present in linked list */
-	return NULL;
-}
-
-/* Function to get the next node from session data Linked List. */
-pfcp_session_datat_t *
-get_sess_data_next_node(pfcp_session_datat_t *head)
-{
-	/* Pointing to head node */
-	pfcp_session_datat_t *current = head;
-
-	/* Check linked list is empty or not */
-	while(current != NULL) {
-		/* Pointing to next node */
-		return current->next;
-	}
-	/* Node is not present in linked list */
-	return NULL;
 }
 
 /* @brief  : Function to remove the 1st node from the session data Linked List.
@@ -108,10 +63,8 @@ remove_sess_data_first_node(pfcp_session_datat_t *head)
 		head = NULL;
 
 	/* Free the 1st node from linked list */
-	if (current != NULL) {
-		rte_free(current);
-		current = NULL;
-	}
+	rte_free(current);
+	current = NULL;
 	return head;
 }
 
@@ -144,10 +97,8 @@ remove_sess_data_last_node(pfcp_session_datat_t *head)
 		head = NULL;
 
 	/* free the last node from linked list */
-	if (current != NULL) {
-		rte_free(current);
-		current = NULL;
-	}
+	rte_free(current);
+	current = NULL;
 	return head;
 }
 
@@ -187,36 +138,10 @@ remove_sess_data_node(pfcp_session_datat_t *head,
 		current->next = tmp->next;
 		tmp->next = NULL;
 		/* Free the next node */
-		if(tmp != NULL){
-			rte_free(tmp);
-			tmp = NULL;
-		}
+		rte_free(tmp);
+		tmp = NULL;
 	}
 	return head;
-}
-
-/* Function to delete a node from the session data Linked List. */
-int8_t
-flush_sess_data_list(pfcp_session_datat_t *head)
-{
-	pfcp_session_datat_t *current = NULL;
-	pfcp_session_datat_t *tmp = NULL;
-
-	/* Check linked list head pointer is not NULL */
-	if (head != NULL) {
-		/* Get the next node */
-		tmp = head->next;
-		head->next = NULL;
-
-		while(tmp != NULL) {
-			current = tmp->next;
-			/* free the node */
-			rte_free(tmp);
-			tmp = current;
-		}
-	}
-
-	return 0;
 }
 
 
@@ -262,22 +187,6 @@ get_pdr_node(pdr_info_t *head, uint32_t precedence)
 	return NULL;
 }
 
-/* Function to get the node from PDR Linked List. */
-pdr_info_t *
-get_pdr_next_node(pdr_info_t *head)
-{
-	/* Pointing to head node */
-	pdr_info_t *current = head;
-
-	/* Check linked list is empty or not */
-	while(current != NULL) {
-		/* Pointing to next node */
-		return current->next;
-	}
-	/* Node is not present in linked list */
-	return NULL;
-}
-
 /**
  * @brief  : Function to remove the 1st node from the PDR Linked List.
  * @param  : head, linked list head pointer
@@ -304,10 +213,8 @@ remove_pdr_first_node(pdr_info_t *head)
 		head = NULL;
 
 	/* Free the 1st node from linked list */
-	if (current != NULL) {
-		rte_free(current);
-		current = NULL;
-	}
+	rte_free(current);
+	current = NULL;
 	return head;
 }
 
@@ -340,10 +247,8 @@ remove_pdr_last_node(pdr_info_t *head)
 		head = NULL;
 
 	/* free the last node from linked list */
-	if (current != NULL) {
-		rte_free(current);
-		current = NULL;
-	}
+	rte_free(current);
+	current = NULL;
 	return head;
 }
 
@@ -384,36 +289,10 @@ remove_pdr_node(pdr_info_t *head, pdr_info_t *node)
 		tmp->next = NULL;
 
 		/* Free the next node */
-		if(tmp != NULL){
-			rte_free(tmp);
-			tmp = NULL;
-		}
+		rte_free(tmp);
+		tmp = NULL;
 	}
 	return head;
-}
-
-/* Function to delete a node from the PDR Linked List. */
-int8_t
-flush_pdr_list(pdr_info_t *head)
-{
-	pdr_info_t *current = NULL;
-	pdr_info_t *tmp = NULL;
-
-	/* Check linked list head pointer is not NULL */
-	if (head != NULL) {
-		/* Get the next node */
-		tmp = head->next;
-		head->next = NULL;
-
-		while(tmp != NULL) {
-			current = tmp->next;
-			/* free the node */
-			rte_free(tmp);
-			tmp = current;
-		}
-	}
-
-	return 0;
 }
 
 /* Function to add a node in QER Linked List. */
@@ -443,43 +322,6 @@ insert_qer_node(qer_info_t *head, qer_info_t *new_node)
 	return 0;
 }
 
-/* Function to get a node from QER Linked List. */
-qer_info_t *
-get_qer_node(qer_info_t *head, qer_info_t *qer)
-{
-	/* Pointing to head node */
-	qer_info_t *current = head;
-
-	/* Check linked list is empty or not */
-	while(current != NULL) {
-		/* Validate the expected node or not */
-		/* VS: Need to put appropriate compare condition */
-		if (current->qer_corr_id_val == qer->qer_corr_id_val)
-			return current;
-
-		/* Pointing to next node */
-		current = current->next;
-	}
-	/* Node is not present in linked list */
-	return NULL;
-}
-
-/* Function to get the node from QER Linked List. */
-qer_info_t *
-get_qer_next_node(qer_info_t *head)
-{
-	/* Pointing to head node */
-	qer_info_t *current = head;
-
-	/* Check linked list is empty or not */
-	while(current != NULL) {
-		/* Pointing to next node */
-		return current->next;
-	}
-	/* Node is not present in linked list */
-	return NULL;
-}
-
 /**
  * @brief  : Function to remove the 1st node from the QER Linked List.
  * @param  : head, linked list head pointer
@@ -506,10 +348,8 @@ remove_qer_first_node(qer_info_t *head)
 		head = NULL;
 
 	/* Free the 1st node from linked list */
-	if (current != NULL) {
-		rte_free(current);
-		current = NULL;
-	}
+	rte_free(current);
+	current = NULL;
 	return head;
 }
 
@@ -542,10 +382,8 @@ remove_qer_last_node(qer_info_t *head)
 		head = NULL;
 
 	/* free the last node from linked list */
-	if (current != NULL) {
-		rte_free(current);
-		current = NULL;
-	}
+	rte_free(current);
+	current = NULL;
 	return head;
 }
 
@@ -586,48 +424,16 @@ remove_qer_node(qer_info_t *head, qer_info_t *node)
 		tmp->next = NULL;
 
 		/* Free the next node */
-		if (tmp != NULL) {
-			rte_free(tmp);
-			tmp = NULL;
-		}
+		rte_free(tmp);
+		tmp = NULL;
 	}
 	return head;
-}
-
-/* Function to delete a node from the QER Linked List. */
-int8_t
-flush_qer_list(qer_info_t *head)
-{
-	qer_info_t *current = NULL;
-	qer_info_t *tmp = NULL;
-
-	/* Check linked list head pointer is not NULL */
-	if (head != NULL) {
-		/* Get the next node */
-		tmp = head->next;
-		head->next = NULL;
-
-		while(tmp != NULL) {
-			current = tmp->next;
-			/* free the node */
-			rte_free(tmp);
-			tmp = current;
-		}
-	}
-
-	return 0;
 }
 
 /* Function to add a node in URR Linked List. */
 int8_t
 insert_urr_node(urr_info_t *head, urr_info_t *new_node)
 {
-	/* Allocate memory for new node */
-	//urr_info_t *new_node = rte_malloc_socket(NULL, sizeof(urr_info_t),
-	//		RTE_CACHE_LINE_SIZE, rte_socket_id());
-
-	/* Next pointing to NULL */
-	//new_node = urr;
 	new_node->next = NULL;
 
 	/* Check linked list is empty or not */
@@ -645,43 +451,6 @@ insert_urr_node(urr_info_t *head, urr_info_t *new_node)
 	return 0;
 }
 
-/* Function to get a node from URR Linked List. */
-urr_info_t *
-get_urr_node(urr_info_t *head, urr_info_t *urr)
-{
-	/* Pointing to head node */
-	urr_info_t *current = head;
-
-	/* Check linked list is empty or not */
-	while(current != NULL) {
-		/* Validate the expected node or not */
-		/* VS: Need to put appropriate compare condition */
-		if (current->urr_id == urr->urr_id)
-			return current;
-
-		/* Pointing to next node */
-		current = current->next;
-	}
-	/* Node is not present in linked list */
-	return NULL;
-}
-
-/* Function to get the node from URR Linked List. */
-urr_info_t *
-get_urr_next_node(urr_info_t *head)
-{
-	/* Pointing to head node */
-	urr_info_t *current = head;
-
-	/* Check linked list is empty or not */
-	while(current != NULL) {
-		/* Pointing to next node */
-		return current->next;
-	}
-	/* Node is not present in linked list */
-	return NULL;
-}
-
 /**
  * @brief  : Function to remove the 1st node from the URR Linked List.
  * @param  : head, linked list head pointer
@@ -697,21 +466,20 @@ remove_urr_first_node(urr_info_t *head)
 	/* Point to head node */
 	urr_info_t *current = head;
 
-	/* Access the next node */
-	head = head->next;
+	/* Check this the last node in the linked list or not */
+	if (current == head){
+		head = NULL;
+	}else{
+		/* Access the next node */
+		head = head->next;
+	}
 
 	/* Free next node address form current node*/
 	current->next = NULL;
 
-	/* Check this the last node in the linked list or not */
-	if (current == head)
-		head = NULL;
-
 	/* Free the 1st node from linked list */
-	if (current != NULL) {
-		rte_free(current);
-		current = NULL;
-	}
+	rte_free(current);
+	current = NULL;
 	return head;
 }
 
@@ -744,10 +512,8 @@ remove_urr_last_node(urr_info_t *head)
 		head = NULL;
 
 	/* free the last node from linked list */
-	if (current != NULL) {
-		rte_free(current);
-		current = NULL;
-	}
+	rte_free(current);
+	current = NULL;
 	return head;
 }
 
@@ -788,36 +554,10 @@ remove_urr_node(urr_info_t *head, urr_info_t *node)
 		tmp->next = NULL;
 
 		/* Free the next node */
-		if(tmp != NULL){
-			rte_free(tmp);
-			tmp = NULL;
-		}
+		rte_free(tmp);
+		tmp = NULL;
 	}
 	return head;
-}
-
-/* Function to delete a node from the URR Linked List. */
-int8_t
-flush_urr_list(urr_info_t *head)
-{
-	urr_info_t *current = NULL;
-	urr_info_t *tmp = NULL;
-
-	/* Check linked list head pointer is not NULL */
-	if (head != NULL) {
-		/* Get the next node */
-		tmp = head->next;
-		head->next = NULL;
-
-		while(tmp != NULL) {
-			current = tmp->next;
-			/* free the node */
-			rte_free(tmp);
-			tmp = current;
-		}
-	}
-
-	return 0;
 }
 
 /* Function to add a node in Predefined rules Linked List. */
@@ -846,4 +586,3 @@ insert_predef_rule_node(predef_rules_t *head, predef_rules_t *rules)
 	}
 	return 0;
 }
-

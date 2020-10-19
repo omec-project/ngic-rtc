@@ -18,13 +18,14 @@
 #include <rte_cfgfile.h>
 
 #include "ue.h"
+#include "cp.h"
 #include "util.h"
+#include "clogger.h"
 #include "packet_filters.h"
 #include "vepc_cp_dp_api.h"
-#include "clogger.h"
-#ifdef SDN_ODL_BUILD
-#include "nb.h"
-#endif
+#include "predef_rule_init.h"
+
+extern pfcp_config_t pfcp_config;
 
 const char *direction_str[] = {
 		[TFT_DIRECTION_DOWNLINK_ONLY] = "DOWNLINK_ONLY ",
@@ -145,7 +146,7 @@ push_sdf_rules(uint16_t index)
 	    inet_ntoa(sdf_filters[index]->remote_ip_addr));
 
 	struct pkt_filter pktf = {
-			.pcc_rule_id = index
+			.rule_id = index
 	};
 
 	if (sdf_filters[index]->direction & TFT_DIRECTION_DOWNLINK_ONLY) {
@@ -161,8 +162,8 @@ push_sdf_rules(uint16_t index)
 			sdf_filters[index]->proto, sdf_filters[index]->proto_mask);
 		if (sdf_filters[index]->direction ==
 				TFT_DIRECTION_BIDIRECTIONAL)
-			clLog(clSystemLog, eCLSeverityCritical, "Ignoring uplink portion of packet "
-					"filter for now\n");
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Ignoring uplink portion of packet "
+					"filter for now\n", LOG_VALUE);
 	} else if (sdf_filters[index]->direction & TFT_DIRECTION_UPLINK_ONLY) {
 		snprintf(pktf.u.rule_str, MAX_LEN, "%s/%"PRIu8" %s/%"PRIu8" %"
 			PRIu16" : %"PRIu16" %"PRIu16" : %"PRIu16" 0x%"
@@ -176,133 +177,12 @@ push_sdf_rules(uint16_t index)
 			sdf_filters[index]->proto, sdf_filters[index]->proto_mask);
 	}
 
-	clLog(clSystemLog, eCLSeverityDebug,"Installing %s pkt_filter #%"PRIu16" : %s",
+	clLog(clSystemLog, eCLSeverityDebug,LOG_FORMAT"Installing %s pkt_filter #%"PRIu16" : %s", LOG_VALUE,
 	    direction_str[sdf_filters[index]->direction], index,
 		pktf.u.rule_str);
 
 	if (sdf_filter_entry_add(dp_id, pktf) < 0)
 		rte_exit(EXIT_FAILURE,"SDF filter entry add fail !!!");
-}
-
-/**
- * @brief  : Installs a sdf rules in the CP & DP.
- * @param  : new_packet_filter
- *           A sdf rules yet to be installed
- * @return : - >= 0 - on success - indicates index of sdf rules
- *           - < 0 - on error
- */
-static int
-install_sdf_rules(const pkt_fltr *new_packet_filter)
-{
-	if (num_sdf_filters >= SDF_FILTER_TABLE_SIZE)
-		return -ENOMEM;
-
-	pkt_fltr *filter = rte_zmalloc_socket(NULL, sizeof(pkt_fltr),
-	    RTE_CACHE_LINE_SIZE, rte_socket_id());
-	if (filter == NULL) {
-		clLog(clSystemLog, eCLSeverityCritical, "Failure to allocate dedicated packet filter "
-				"structure: %s (%s:%d)\n",
-				rte_strerror(rte_errno),
-				__FILE__,
-				__LINE__);
-		return -ENOMEM;
-	}
-
-	memcpy(filter, new_packet_filter, sizeof(pkt_fltr));
-	uint16_t index = num_sdf_filters;
-
-	num_sdf_filters++;
-	sdf_filters[index] = filter;
-
-#ifdef SDN_ODL_BUILD
-	if (dpn_id)
-		push_sdf_rules(index);
-#else
-	push_sdf_rules(index);
-#endif
-	return index;
-}
-
-/**
- * @brief  : Installs a pcc rules in the CP & DP.
- * @param  : new_pcc_entry
- *           A pcc rules yet to be installed
- * @return : - >= 0 - on success - indicates num_pcc_filter of pcc rules
- *           - < 0 - on error
- */
-static int
-install_pcc_rules(struct pcc_rules new_pcc_entry)
-{
-	struct dp_id dp_id = { .id = DPN_ID };
-
-	if (num_pcc_filter >= PCC_TABLE_SIZE)
-		return -ENOMEM;
-
-	struct pcc_rules *pcc_filter = rte_zmalloc_socket(NULL,
-			sizeof(new_pcc_entry),
-			RTE_CACHE_LINE_SIZE, rte_socket_id());
-	if (NULL == pcc_filter) {
-		clLog(clSystemLog, eCLSeverityCritical, "Failure to allocate memeory for pcc filter "
-				"structure: %s (%s:%d)\n",
-				rte_strerror(rte_errno),
-				__FILE__,
-				__LINE__);
-		return -ENOMEM;
-	}
-
-	memcpy(pcc_filter, &new_pcc_entry, sizeof(new_pcc_entry));
-
-	pcc_filters[num_pcc_filter] = pcc_filter;
-	new_pcc_entry.rule_id = num_pcc_filter;
-	num_pcc_filter++;
-
-#ifdef SDN_ODL_BUILD
-	if (dpn_id)
-		if (pcc_entry_add(dp_id, new_pcc_entry) < 0 )
-			rte_exit(EXIT_FAILURE,"PCC entry add fail !!!");
-#else
-	if (pcc_entry_add(dp_id, new_pcc_entry) < 0 )
-		rte_exit(EXIT_FAILURE,"PCC entry add fail !!!");
-#endif
-	return num_pcc_filter;
-}
-
-/**
- * @brief  : Creates and adds meter profile entries
- * @param  : dp_id , dp id
- * @param  : new_mtr_entry, meter entry to be added
- * @return : Returns 0 in case of success , -1 otherwise
- */
-static int
-install_meter_profiles(struct dp_id dp_id, struct mtr_entry new_mtr_entry)
-{
-	if (num_mtr_profiles >= METER_PROFILE_SDF_TABLE_SIZE)
-		return -ENOMEM;
-
-	struct mtr_entry *mtr_profile = rte_zmalloc_socket(NULL,
-			sizeof(new_mtr_entry),
-			RTE_CACHE_LINE_SIZE, rte_socket_id());
-	if (mtr_profile == NULL) {
-		clLog(clSystemLog, eCLSeverityCritical, "Failure to allocate memeory for meter profile "
-				"structure: %s (%s:%d)\n",
-				rte_strerror(rte_errno),
-				__FILE__,
-				__LINE__);
-		return -ENOMEM;
-	}
-
-	memcpy(mtr_profile, &new_mtr_entry, sizeof(new_mtr_entry));
-
-	mtr_profiles[num_mtr_profiles] = mtr_profile;
-	num_mtr_profiles++;
-
-#ifdef SDN_ODL_BUILD
-	if (dpn_id)
-		meter_profile_entry_add(dp_id, new_mtr_entry);
-#else
-	meter_profile_entry_add(dp_id, new_mtr_entry);
-#endif
-	return num_mtr_profiles;
 }
 
 /**
@@ -318,7 +198,7 @@ init_mtr_profile(void)
 	struct rte_cfgfile *file =
 			rte_cfgfile_load(METER_PROFILE_FILE, 0);
 	const char *entry;
-	struct dp_id dp_id = { .id = DPN_ID };
+//	struct dp_id dp_id = { .id = DPN_ID };
 
 	if (file == NULL)
 		rte_panic("Cannot load configuration file %s\n",
@@ -331,7 +211,7 @@ init_mtr_profile(void)
 
 	for (i = 1; i <= no_of_idx; ++i) {
 		char sectionname[64];
-		struct mtr_entry mtr_entry;
+		struct mtr_entry mtr_entry = {0};
 
 		snprintf(sectionname, sizeof(sectionname),
 				"ENTRY_%u", i);
@@ -355,13 +235,62 @@ init_mtr_profile(void)
 		mtr_entry.mtr_param.ebs = atoi(entry);
 
 		entry = rte_cfgfile_get_entry(file, sectionname,
+				"UL_MBR");
+		if (!entry)
+			rte_panic("Invalid UL_MBR configuration\n");
+		mtr_entry.ul_mbr = atoi(entry);
+
+		entry = rte_cfgfile_get_entry(file, sectionname,
+				"DL_MBR");
+		if (!entry)
+			rte_panic("Invalid DL_MBR configuration\n");
+		mtr_entry.dl_mbr = atoi(entry);
+
+		entry = rte_cfgfile_get_entry(file, sectionname,
+				"UL_GBR");
+		if (entry)
+			mtr_entry.ul_gbr = atoi(entry);
+
+		entry = rte_cfgfile_get_entry(file, sectionname,
+				"DL_GBR");
+		if (entry)
+			mtr_entry.dl_gbr = atoi(entry);
+
+		entry = rte_cfgfile_get_entry(file, sectionname,
+				"UL_AMBR");
+		if (entry)
+			mtr_entry.ul_ambr = atoi(entry);
+
+		entry = rte_cfgfile_get_entry(file, sectionname,
+				"DL_AMBR");
+		if (entry)
+			mtr_entry.dl_ambr = atoi(entry);
+
+		entry = rte_cfgfile_get_entry(file, sectionname,
 				"MTR_PROFILE_IDX");
 		if (!entry)
 			rte_panic("Invalid MTR_PROFILE_IDX configuration\n");
 		mtr_entry.mtr_profile_index = atoi(entry);
+		int ret = 0;
+		ret = get_predef_rule_entry(mtr_entry.mtr_profile_index,
+				MTR_HASH, ADD_RULE, (void **)&mtr_entry);
+		if (ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical,
+			       LOG_FORMAT"Error: Failed to add Meter Rule in the internal table, MTR_Indx:%u\n",
+			       LOG_VALUE, mtr_entry.mtr_profile_index);
+		} else {
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"MTR Rule Added in the internal table,"
+					"Rule_Index:%u\n", LOG_VALUE, mtr_entry.mtr_profile_index);
+		}
+	}
 
-		install_meter_profiles(dp_id, mtr_entry);
-
+	if (file != NULL) {
+		rte_cfgfile_close(file);
+		file = NULL;
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT
+				"%s file operation is successfully performed\n",
+				LOG_VALUE, METER_PROFILE_FILE);
 	}
 }
 
@@ -403,8 +332,6 @@ init_sdf_rules(void)
 		if (entry) {
 			if (strcmp(entry, "bidirectional") == 0){
 				pf.direction = TFT_DIRECTION_BIDIRECTIONAL;
-				rte_panic("Invalid SDF direction. Supported : uplink_only,"
-						"downlink_only\n");
 			}
 			else if (strcmp(entry, "uplink_only") == 0)
 				pf.direction = TFT_DIRECTION_UPLINK_ONLY;
@@ -430,11 +357,9 @@ init_sdf_rules(void)
 			if (ret == 0
 			    || __builtin_clzl(~tmp_addr.s_addr)
 				+ __builtin_ctzl(tmp_addr.s_addr) != 32){
-				/*rte_panic("Invalid address %s in section %s "
-						"sdf config file %s\n",
-						entry, sectionname, SDF_RULE_FILE);*/
-				clLog(clSystemLog, eCLSeverityCritical, "Invalid address %s in section %s "
-						"sdf config file %s. Setting to default 32.\n",
+
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Invalid address %s in section %s "
+						"sdf config file %s. Setting to default 32.\n", LOG_VALUE,
 						entry, sectionname, SDF_RULE_FILE);
 				 pf.remote_ip_mask = 32;
 			} else
@@ -456,7 +381,12 @@ init_sdf_rules(void)
 		if (entry) {
 			pf.proto = atoi(entry);
 			pf.proto_mask = UINT8_MAX;
+		} else {
+			/* Validate Protocol is set or not */
+			rte_panic("ERROR: PROTOCOL type field is not configured in SDF Rule,"
+					" Check the configured rules in sdf_rules.cfg file..!!\n\n");
 		}
+
 
 		entry = rte_cfgfile_get_entry(file, sectionname, "IPV4_LOCAL");
 		if (entry) {
@@ -473,11 +403,9 @@ init_sdf_rules(void)
 			if (ret == 0
 			    || __builtin_clzl(~tmp_addr.s_addr)
 			    + __builtin_ctzl(tmp_addr.s_addr) != 32){
-				/*rte_panic("Invalid address %s in section %s "
-						"sdf config file %s\n",
-						entry, sectionname, SDF_RULE_FILE);*/
-				clLog(clSystemLog, eCLSeverityCritical, "Invalid address %s in section %s "
-						"sdf config file %s. Setting to default 32.\n",
+
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Invalid address %s in section %s "
+						"sdf config file %s. Setting to default 32.\n", LOG_VALUE,
 						entry, sectionname, SDF_RULE_FILE);
 				pf.remote_ip_mask = 32;
 			} else
@@ -495,14 +423,28 @@ init_sdf_rules(void)
 		if (entry)
 			pf.local_port_high = htons((uint16_t) atoi(entry));
 
-		ret = install_sdf_rules(&pf);
+		/* Sotred the SDF rules in centralized location by sdf_index */
+		ret = get_predef_rule_entry(i, SDF_HASH, ADD_RULE, (void **)&pf);
 		if (ret < 0) {
-			rte_panic("Failure to install sdf rules: "
-					"%s (%s:%d)\n",
-					rte_strerror(rte_errno), __FILE__, __LINE__);
+			clLog(clSystemLog, eCLSeverityCritical,
+					LOG_FORMAT"Error: Failed to add SDF Rule in the internal table\n",
+					LOG_VALUE);
+		} else {
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"SDF Rule Added in the internal table,"
+					"Rule_Index: %u\n", LOG_VALUE, i);
 		}
+
 	}
-	num_sdf_filters = FIRST_FILTER_ID; /*Reset num_sdf_filters*/
+
+	if (file != NULL) {
+		rte_cfgfile_close(file);
+		file = NULL;
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT
+			"%s file operation is successfully performed\n",
+			LOG_VALUE, SDF_RULE_FILE);
+	}
+
 }
 
 /**
@@ -526,31 +468,23 @@ init_pcc_rules(void)
 
 	if (!entry)
 		rte_panic("Invalid pcc configuration file format\n");
+
 	num_pcc_rules = atoi(entry);
-
-	entry = rte_cfgfile_get_entry(file,
-				"GLOBAL", "UL_AMBR_MTR_PROFILE_IDX");
-	if (!entry)
-		rte_panic("Invalid AMBR configuration file format\n");
-	ulambr_idx = atoi(entry);
-
-	entry = rte_cfgfile_get_entry(file,
-				"GLOBAL", "DL_AMBR_MTR_PROFILE_IDX");
-	if (!entry)
-		rte_panic("Invalid AMBR configuration file format\n");
-	dlambr_idx = atoi(entry);
 
 	for (i = 1; i <= num_pcc_rules; ++i) {
 		char sectionname[64] = {0};
-		int ret = 0;
 		struct pcc_rules tmp_pcc = {0};
+		pcc_rule_name key = {0};
+		memset(key.rname, '\0', sizeof(key.rname));
 
 		snprintf(sectionname, sizeof(sectionname),
 				"PCC_FILTER_%u", i);
 
 		entry = rte_cfgfile_get_entry(file, sectionname, "RULE_NAME");
-		if (entry)
+		if (entry) {
 			strncpy(tmp_pcc.rule_name, entry, sizeof(tmp_pcc.rule_name));
+			strncpy(key.rname, entry, sizeof(key.rname));
+		}
 
 		entry = rte_cfgfile_get_entry(file, sectionname, "RATING_GROUP");
 		if (!entry)
@@ -573,9 +507,13 @@ init_pcc_rules(void)
 		if (entry)
 			tmp_pcc.rule_status = atoi(entry);
 
-		entry = rte_cfgfile_get_entry(file, sectionname, "GATE_STATUS");
+		entry = rte_cfgfile_get_entry(file, sectionname, "UL_GATE_STATUS");
 		if (entry)
-			tmp_pcc.gate_status = atoi(entry);
+			tmp_pcc.ul_gate_status = atoi(entry);
+
+		entry = rte_cfgfile_get_entry(file, sectionname, "DL_GATE_STATUS");
+		if (entry)
+			tmp_pcc.dl_gate_status = atoi(entry);
 
 		entry = rte_cfgfile_get_entry(file, sectionname, "SESSION_CONT");
 		if (entry)
@@ -617,21 +555,43 @@ init_pcc_rules(void)
 		if (entry)
 			tmp_pcc.drop_pkt_count = atoi(entry);
 
+		entry = rte_cfgfile_get_entry(file, sectionname, "ONLINE");
+		if (entry)
+			tmp_pcc.online = atoi(entry);
+
+		entry = rte_cfgfile_get_entry(file, sectionname, "OFFLINE");
+		if (entry)
+			tmp_pcc.offline = atoi(entry);
+
+		entry = rte_cfgfile_get_entry(file, sectionname, "FLOW_STATUS");
+		if (entry)
+			tmp_pcc.flow_status = atoi(entry);
+
+		entry = rte_cfgfile_get_entry(file, sectionname, "QoS_CLASS_IDENTIFIER");
+		if (entry)
+			tmp_pcc.qos.qci = atoi(entry);
+
+		entry = rte_cfgfile_get_entry(file, sectionname, "PRIORITY_LEVEL");
+		if (entry)
+			tmp_pcc.qos.arp.priority_level = atoi(entry);
+
+		entry = rte_cfgfile_get_entry(file, sectionname, "PRE_EMPTION_CAPABILITY");
+		if (entry)
+			tmp_pcc.qos.arp.pre_emption_capability = atoi(entry);
+
+		entry = rte_cfgfile_get_entry(file, sectionname, "PRE_EMPTION_VULNERABILITY");
+		if (entry)
+			tmp_pcc.qos.arp.pre_emption_vulnerability = atoi(entry);
+
 		entry = rte_cfgfile_get_entry(file,
-					sectionname, "UL_MBR_MTR_PROFILE_IDX");
+					sectionname, "MTR_PROFILE_IDX");
 		if (!entry)
 			rte_panic("Invalid MTR_PROFILE_IDX configuration\n");
 
-		tmp_pcc.qos.ul_mtr_profile_index = atoi(entry);
+		tmp_pcc.qos.mtr_profile_index = atoi(entry);
 
-		entry = rte_cfgfile_get_entry(file,
-					sectionname, "DL_MBR_MTR_PROFILE_IDX");
-		if (!entry)
-			rte_panic("Invalid MTR_PROFILE_IDX configuration\n");
-		tmp_pcc.qos.dl_mtr_profile_index = atoi(entry);
-
-		/*Read mapped ADC or SDF rules. Either ADC or SDF rules will be p
-		 * resent, not both. SDF count will be 0 if ADC rules are present.*/
+		/** Read mapped ADC or SDF rules. Either ADC or SDF rules will be
+		 * present, not both. SDF count will be 0 if ADC rules are present.*/
 		tmp_pcc.sdf_idx_cnt = 0;
 		entry = rte_cfgfile_get_entry(file,
 					sectionname, "ADC_FILTER_IDX");
@@ -663,18 +623,87 @@ init_pcc_rules(void)
 			}
 			tmp_pcc.sdf_idx_cnt = sdf_cnt;
 		} else {
-			tmp_pcc.adc_idx = atoi(entry);
+			char *next = NULL;
+			uint16_t adc_cnt = 0;
+			/* ADC entries format : "1, 2: 10, 30"*/
+			for(int x=0; x < MAX_ADC_IDX_COUNT; ++x) {
+				errno = 0;
+				int adc_idx = strtol(entry, &next, 10);
+				if (errno != 0) {
+					perror("strtol");
+					rte_panic("Invalid ADC index value\n");
+				}
+				if('\0' == *entry) break;
+				/*If non number e.g.',', then ignore and continue*/
+				if(entry == next && (0 == adc_idx)){
+					entry = ++next;
+					continue;
+				}
+				entry = next;
+				tmp_pcc.adc_idx[adc_cnt++] = adc_idx;
+			}
+			tmp_pcc.adc_idx_cnt = adc_cnt;
 		}
 
-		ret = install_pcc_rules(tmp_pcc);
-		if (ret < 0) {
-			rte_panic("Failure to install packet filters: "
-					"%s (%s:%d)\n",
-					rte_strerror(rte_errno),
-					__FILE__,
-					__LINE__);
+		/* Stored the PCC rule in centralized location by using Rule Name*/
+		struct pcc_rules *pcc = NULL;
+		pcc = get_predef_pcc_rule_entry(&key, ADD_RULE);
+		if (pcc != NULL) {
+			memcpy(pcc, &tmp_pcc, sizeof(struct pcc_rules));
+
+			/* Add PCC rule name in centralized location to dump rules on UP*/
+			rules_struct *rule = NULL;
+			rule = get_map_rule_entry(ntohl(pfcp_config.pfcp_ip.s_addr), ADD_RULE);
+			if (rule != NULL) {
+				if (rule->rule_cnt != 0) {
+					rules_struct *new_node = NULL;
+					/* Calculate the memory size to allocate */
+					uint16_t size = sizeof(rules_struct);
+
+					/* allocate memory for rule entry*/
+					new_node = rte_zmalloc("Rules_Infos", size, RTE_CACHE_LINE_SIZE);
+					if (new_node == NULL) {
+						clLog(clSystemLog, eCLSeverityCritical,
+								LOG_FORMAT"Failed to allocate memory for rule entry.\n",
+								LOG_VALUE);
+						return;
+					}
+
+					/* Set/Stored the rule name in the centralized location */
+					memcpy(new_node->rule_name.rname, key.rname, sizeof(key.rname));
+
+					/* Insert the node into the LL */
+					if (insert_rule_name_node(rule, new_node) < 0) {
+						clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to add node entry in LL\n",
+								LOG_VALUE);
+						return;
+					}
+				}else {
+					/* Set/Stored the rule name in the centralized location */
+					memcpy(rule->rule_name.rname, key.rname, sizeof(key.rname));
+					rule->rule_cnt++;
+				}
+				clLog(clSystemLog, eCLSeverityDebug,
+						LOG_FORMAT"PCC Rule add/inserted in the internal table and map,"
+						"Rule_Name: %s, Node_Count:%u\n", LOG_VALUE, key.rname, rule->rule_cnt);
+			} else {
+				clLog(clSystemLog, eCLSeverityCritical,
+						LOG_FORMAT"Error: Failed to add PCC Rule in the centralized map table\n",
+						LOG_VALUE);
+			}
+		} else {
+			clLog(clSystemLog, eCLSeverityCritical,
+					LOG_FORMAT"Error: Failed to add PCC Rule in the internal table\n",
+					LOG_VALUE);
 		}
 
+	}
+	if (file != NULL) {
+		rte_cfgfile_close(file);
+		file = NULL;
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT
+			"%s file operation is successfully performed\n",
+			LOG_VALUE, PCC_RULE_FILE);
 	}
 	num_pcc_filter = FIRST_FILTER_ID; /*Reset num_pcc_filter*/
 }
@@ -683,13 +712,25 @@ void
 init_packet_filters(void)
 {
 	/* init pcc rule tables on dp*/
+	clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Reading predefined PCC rules\n", LOG_VALUE);
 	init_pcc_rules();
+	clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Reading predefined pcc rules completed\n", LOG_VALUE);
 
 	/* init dpn meter profile table before configuring pcc/adc rules*/
+	clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Reading predefined meter rules\n", LOG_VALUE);
 	init_mtr_profile();
+	clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Reading predefined meter rules completed\n", LOG_VALUE);
 
 	/* init dpn sdf rules table configuring on dp*/
+	clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Reading predefined sdf rules\n", LOG_VALUE);
 	init_sdf_rules();
+	clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Reading predefined sdf rules completed\n", LOG_VALUE);
 }
 
 /**
@@ -711,10 +752,11 @@ static void print_adc_rule(struct adc_rules adc_rule)
 			adc_rule.u.domain_prefix.prefix);
 		break;
 	case DOMAIN_NAME:
-		clLog(clSystemLog, eCLSeverityDebug,"%-10s %-35s ", "DOMAIN", adc_rule.u.domain_name);
+		clLog(clSystemLog, eCLSeverityDebug,"%-10s %-35s ", "DOMAIN",
+			 adc_rule.u.domain_name);
 		break;
 	default:
-		clLog(clSystemLog, eCLSeverityCritical,"ERROR IN ADC RULE");
+		clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT"ERROR IN ADC RULE", LOG_VALUE);
 	}
 }
 
@@ -725,7 +767,7 @@ parse_adc_rules(void)
 	unsigned i = 0;
 	uint32_t rule_id = 1;
 	const char *entry = NULL;
-	struct dp_id dp_id = { .id = DPN_ID };
+	//struct dp_id dp_id = { .id = DPN_ID };
 	struct rte_cfgfile *file = rte_cfgfile_load(ADC_RULE_FILE, 0);
 
 	if (file == NULL)
@@ -802,12 +844,31 @@ parse_adc_rules(void)
 		/* Add Default rule */
 		adc_rule_id[rule_id - 1] = rule_id;
 		tmp_adc.rule_id = rule_id++;
-		if (adc_entry_add(dp_id, tmp_adc) < 0)
-			rte_exit(EXIT_FAILURE, "ADC entry add fail !!!");
-		print_adc_rule(tmp_adc);
-
+		int ret = 0;
+		ret = get_predef_rule_entry(tmp_adc.rule_id, ADC_HASH, ADD_RULE, (void **)&tmp_adc);
+		if (ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical,
+					LOG_FORMAT"Error: Failed to add ADC Rule in the internal table\n",
+					LOG_VALUE);
+		} else {
+			print_adc_rule(tmp_adc);
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"ADC Rule Added in the internal table, ADC_Indx:%u\n",
+					LOG_VALUE, tmp_adc.rule_id);
+		}
+		//if (adc_entry_add(dp_id, tmp_adc) < 0)
+		//	rte_exit(EXIT_FAILURE, "ADC entry add fail !!!");
+		//print_adc_rule(tmp_adc);
+	}
+	if (file != NULL) {
+		rte_cfgfile_close(file);
+		file = NULL;
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT
+			"%s file operation is successfully performed\n",
+			LOG_VALUE, ADC_RULE_FILE);
 	}
 	num_adc_rules = rule_id - 1;
+
 
 }
 

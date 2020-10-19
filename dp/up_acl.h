@@ -118,18 +118,6 @@ int
 up_sdf_default_entry_add(uint32_t indx, uint32_t precedence, uint8_t direction);
 
 /**
- * @brief  : Modify default SDF entry action
- * @param  : rule_id, sdf rule_id
- * @return : Returns 0 in case of success , -1 otherwise
- */
-//int
-//up_sdf_default_entry_action_modify(uint32_t rule_id);
-
-
-//int
-//cb_sdf_filter_entry_add(struct msgbuf *msg_payload);
-
-/**
  * @brief  : Check Gate Status
  * @param  : pdr, pdr information
  * @param  : n, number of packets
@@ -140,7 +128,7 @@ up_sdf_default_entry_add(uint32_t indx, uint32_t precedence, uint8_t direction);
  */
 void
 qer_gating(pdr_info_t **pdr, uint32_t n, uint64_t *pkts_mask,
-			uint64_t *pkts_queue_mask, uint8_t direction);
+			uint64_t *pkts_queue_mask, uint64_t *fd_pkts_mask, uint8_t direction);
 
 
 /**
@@ -150,10 +138,22 @@ qer_gating(pdr_info_t **pdr, uint32_t n, uint64_t *pkts_mask,
  */
 void swap_src_dst_ip(char *str);
 
+/**
+ * @brief  : Remove a single rule entry from ACL table .
+ * @param  : indx, ACL table index to identify the ACL table.
+ * @param  : pkt_filter_entry, rule which need to remove from  the ACL table.
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 int
 remove_rule_entry_acl(uint32_t indx,
 			struct sdf_pkt_filter *pkt_filter_entry);
 
+/**
+ * @brief  : Delete the entire ACL table .
+ * @param  : indx, ACL table index to identify the ACL table.
+ * @param  : pkt_filter_entry, rule in the ACL table.
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 int
 sdf_table_delete(uint32_t indx,
 				struct sdf_pkt_filter *pkt_filter_entry);

@@ -19,6 +19,9 @@
 
 #include "pfcp_messages.h"
 
+#ifdef CP_BUILD
+#include "gtp_ies.h"
+#endif /*CP_BUILD*/
 
 #define ADD_NODE    0
 #define UPDATE_NODE 1
@@ -28,7 +31,7 @@
 #define MAX_CSID 15
 
 
-/*TODO: Temp using this static value, later on need to implement linked list */
+/* Temp using this static value, later on need to implement linked list */
 #define MAX_SESS_IDS 500
 
 /**
@@ -83,6 +86,7 @@ struct rte_hash *local_csids_by_pgwcsid_hash;
  */
 struct rte_hash *local_csids_by_sgwcsid_hash;
 
+#ifdef CP_BUILD
 /**
  * @brief : Collection of the associated peer node informations
  */
@@ -97,19 +101,34 @@ typedef struct peer_node_info_t {
 	uint32_t pgwc_ip;
 	/* Sx || S5/S8 IP Address */
 	uint32_t pgwu_ip;
-	/*TODO: CLEANUP */
-#ifdef CP_BUILD
-	/* CP: eNB ID */
-	//uint32_t enodeb_id; /* Optional for UP */
-	//uint32_t enodeb_ip; /* Optional for CP */
-#else
-	/* Temp solution for multiple SGW and PGW */
-	//uint16_t peer_csid;
-	/* UP: Used the enodeb ip address for peer node */
-	//uint32_t enodeb_ip; /* Optional for CP */
-#endif /* CP_BUILD */
+	/* eNB Address */
 	uint32_t enodeb_ip; /* Optional for CP */
 }csid_key;
+
+typedef struct peer_node_addr {
+	/* Node type */
+	uint8_t node_type;
+	/* Count of the peer node address */
+	uint8_t node_cnt;
+	/* Peer Node Address */
+	uint32_t node_addr[MAX_CSID];
+}node_addr_t;
+
+#else
+/**
+ * @brief : Collection of the associated peer node informations
+ */
+typedef struct peer_node_info_t {
+	/* S11 || Sx || S5/S8 IP Address */
+	uint32_t cp_ip;
+	/* eNB || Sx || S5/S8 IP Address */
+	uint32_t up_ip;
+	/* eNB/SGWU Address*/
+	uint32_t wb_peer_ip;
+	/* PGWU Address*/
+	uint32_t eb_peer_ip;
+}csid_key;
+#endif /* CP_BUILD */
 
 /**
  * @brief : Collection of the associated peer node CSIDs
@@ -154,12 +173,16 @@ typedef struct csid_info {
 /**
  * @brief : Key the local csid
  */
-typedef struct csid_info_t {
+struct csid_info_t {
 	/* SGWC, SAEGWC, SGWU, SAEGWU, PGWC, and PGWU local csid */
 	uint16_t local_csid;
 	/* SGWC, PGWC and MME IP Address */
 	uint32_t node_addr;
-}csid_key_t;
+}__attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
+
+/* typecast key struct */
+typedef struct csid_info_t csid_key_t;
+
 
 /**
  * @brief : FQ-CSID structure
@@ -209,6 +232,31 @@ get_csid_entry(csid_key *key);
 int16_t
 update_csid_entry(csid_key *old_key, csid_key *new_key);
 
+#ifdef CP_BUILD
+/* Linked the Peer CSID with local CSID */
+int8_t
+link_gtpc_peer_csids(fqcsid_t *peer_fqcsid, fqcsid_t *local_fqcsid,
+		uint8_t iface);
+
+/**
+ * @brief  : Fills pfcp sess set delete request for cp
+ * @param  : pfcp_sess_set_del_req , structure to be filled
+ * @param  : local_csids
+ * @return : Returns nothing
+ */
+void
+cp_fill_pfcp_sess_set_del_req_t(pfcp_sess_set_del_req_t *pfcp_sess_set_del_req,
+		fqcsid_t *local_csids);
+
+/**
+ * @brief  : Process session establishment respone
+ * @param  : fqcsid, fqcsid to be filled in context
+ * @param  : context_fqcsid, fqcsid pointer of context structure
+ * @return : Returns 0 on success, -1 otherwise
+ */
+int
+add_fqcsid_entry(gtp_fqcsid_ie_t *fqcsid, fqcsid_t *context_fqcsid);
+
 /**
  * @brief  : Compare the peer node information with exsting peer node entry.
  * @param  : struct peer_node_info peer1
@@ -217,6 +265,29 @@ update_csid_entry(csid_key *old_key, csid_key *new_key);
  */
 int8_t
 compare_peer_info(csid_key *peer1, csid_key *peer2);
+#else
+
+/**
+ * @brief  : Linked Peer Csid With Local Csid
+ * @param  : Peer CSID
+ * @param  : Local CSID
+ * @param  : iface
+ * @return : Returns 0 on success, -1 otherwise
+ */
+int8_t
+link_peer_csid_with_local_csid(fqcsid_t *peer_fqcsid,
+		fqcsid_t *local_fqcsid, uint8_t iface);
+
+/**
+ * @brief  : Linked Peer Csid With Local Csid
+ * @param  : Peer CSID
+ * @param  : Local Memory location to stored CSID
+ * @return : Returns 0 on success, -1 otherwise
+ */
+int8_t
+stored_recvd_peer_fqcsid(pfcp_fqcsid_ie_t *peer_fqcsid, fqcsid_t *local_fqcsid);
+
+#endif /* CP_BUILD */
 
 /**
  * @brief  : Delete csid entry from csid hash table.
@@ -365,18 +436,6 @@ void
 fill_pfcp_sess_set_del_req_t(pfcp_sess_set_del_req_t *pfcp_sess_set_del_req,
 		fqcsid_t *local_csids, uint8_t iface);
 
-#ifdef CP_BUILD
-/**
- * @brief  : Fills pfcp sess set delete request for cp
- * @param  : pfcp_sess_set_del_req , structure to be filled
- * @param  : local_csids
- * @return : Returns nothing
- */
-void
-cp_fill_pfcp_sess_set_del_req_t(pfcp_sess_set_del_req_t *pfcp_sess_set_del_req,
-		fqcsid_t *local_csids);
-#endif /* CP_BUILD */
-
 /**
  * @brief  : Create and Fill the FQ-CSIDs
  * @param  : fq_csid, structure to be filled
@@ -442,4 +501,5 @@ process_asso_resp(void *msg, struct sockaddr_in *peer_addr);
  */
 int
 process_sess_est_resp(pfcp_sess_estab_rsp_t *pfcp_sess_est_rsp);
+
 #endif /* _CSID_STRUCT_H */

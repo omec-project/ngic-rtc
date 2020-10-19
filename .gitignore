@@ -3,7 +3,11 @@ lib/libsponsdn/x86_64-native-linuxapp-gcc/
 test/sponsdn/sponsdn/
 test/sponsdn/x86_64-native-linuxapp-gcc/
 config/cp_rstCnt.txt
+config/dp_rstCnt.txt
 config/hrtbeat_recov_time.txt
+config/upf_teid_range_data.csv
+config/up_teidri_cp_ip_data.csv
+cp/appqueries.json
 cp/gx_app/gx_app
 cp/gx_app/demoCA
 cp/gx_app/cacert.pem

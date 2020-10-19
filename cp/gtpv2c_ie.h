@@ -60,23 +60,34 @@ enum cause_value {
 	GTPV2C_CAUSE_MANDATORY_IE_MISSING = 70,
 	GTPV2C_CAUSE_SYSTEM_FAILURE = 72,
 	GTPV2C_CAUSE_NO_RESOURCES_AVAILABLE = 73,
+	GTPV2C_CAUSE_SEMANTIC_ERR_IN_PKT_FLTRS = 76,
+	GTPV2C_CAUSE_SYNTACTIC_ERR_IN_PKT_FLTRS = 77,
 	GTPV2C_CAUSE_MISSING_UNKNOWN_APN = 78,
 	GTPV2C_CAUSE_PREFERRED_PDN_TYPE_UNSUPPORTED = 83,
 	GTPV2C_CAUSE_ALL_DYNAMIC_ADDRESSES_OCCUPIED = 84,
+	GTPV2C_CAUSE_UE_CONTEXT_WITHOUT_TFT_ALRDY_ACTIVETED = 85,
+	GTPV2C_CAUSE_SERVICE_DENIED = 89,
 	GTPV2C_CAUSE_NO_MEMORY_AVAILABLE = 91,
 	GTPV2C_CAUSE_REQUEST_REJECTED = 94,
 	GTPV2C_CAUSE_IMSI_NOT_KNOWN = 96,
+	GTPV2C_CAUSE_SEMANTIC_ERR_IN_TAD_OP = 97,
+	GTPV2C_CAUSE_SYNTACTIC_ERR_IN_TAD_OP = 98,
 	GTPV2C_CAUSE_REMOTE_PEER_NOT_RESPONDING = 100,
+	GTPV2C_CAUSE_COLLISION_WITH_NW_INIT_REQ = 101,
 	GTPV2C_CAUSE_CONDITIONAL_IE_MISSING = 103,
 	GTPV2C_CAUSE_INVALID_REPLY_FROM_REMOTE_PEER = 107,
-	GTPV2C_CAUSE_INVALID_PEER = 109
+	GTPV2C_CAUSE_INVALID_PEER = 109,
+	GTPV2C_CAUSE_BEARER_HANDLING_NOT_SUPPORTED = 114,
+	GTPV2C_CAUSE_MULTIPLE_PDN_CONNECTIONS_FOR_APN_NOT_ALLOWED = 116
 };
 
 #define PDN_IP_TYPE_IPV4                                      (1)
 #define PDN_IP_TYPE_IPV6                                      (2)
 #define PDN_IP_TYPE_IPV4V6                                    (3)
 /* Custom error code */
-#define GTPC_RE_TRANSMITTED_CSR                              (-2)
+#define GTPC_RE_TRANSMITTED_REQ                              (-2)
+#define GTPC_CONTEXT_REPLACEMENT							 (-3)
+#define GTPC_ZERO_TEID_FOUND							 	 (-4)
 
 #pragma pack(1)
 
@@ -319,6 +330,7 @@ typedef struct bearer_tft_ie_t {
 } bearer_tft_ie;
 
 /* for use in bearer_tft.tft_op_code */
+#define TFT_OP_IGNORE                    (0)
 #define TFT_OP_CREATE_NEW                (1)
 #define TFT_OP_DELETE_EXISTING           (2)
 #define TFT_OP_ADD_FILTER_EXISTING       (3)
@@ -332,6 +344,8 @@ typedef struct bearer_tft_ie_t {
 
 #define TFT_CREATE_NEW							(32)
 #define TFT_REPLACE_FILTER_EXISTING				(128)
+#define TFT_ADD_FILTER_EXISTING					(96)
+#define TFT_REMOVE_FILTER_EXISTING				(160)
 #define TFT_PROTO_IDENTIFIER_NEXT_HEADER_TYPE	(48)
 #define TFT_SINGLE_SRC_PORT_TYPE				(64)
 #define TFT_SINGLE_REMOTE_PORT_TYPE				(80)
@@ -355,6 +369,12 @@ typedef struct delete_pkt_filter_t {
 	uint8_t spare :4;
 } delete_pkt_filter;
 
+
+typedef struct parameter_list_t {
+	uint8_t param_id;
+	uint8_t len;
+	uint8_t packet_id;
+}param_list;
 /**
  * Packet filter component from Table 10.5.162/3GPP TS 24.008
  */

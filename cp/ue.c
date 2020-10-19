@@ -19,120 +19,20 @@
 #include "interface.h"
 #include "clogger.h"
 #include "sm_struct.h"
+#include "teid.h"
 
 extern pfcp_config_t pfcp_config;
 struct rte_hash *ue_context_by_imsi_hash;
 struct rte_hash *ue_context_by_fteid_hash;
-struct rte_hash *pdn_by_fteid_hash;
 struct rte_hash *bearer_by_fteid_hash;
-struct rte_hash *li_df_by_imsi_hash;
-struct rte_hash *sock_by_ddf_ip_hash;
+struct rte_hash *li_info_by_id_hash;
+struct rte_hash *li_id_by_imsi_hash;
 
 static struct in_addr ip_pool_ip;
 static struct in_addr ip_pool_mask;
 
 apn apn_list[MAX_NB_DPN];
 int total_apn_cnt;
-
-/* base value and offset for seid generation */
-const uint32_t s11_sgw_gtpc_base_teid = 0xC0FFEE;
-static uint32_t s11_sgw_gtpc_teid_offset;
-const uint32_t s5s8_sgw_gtpc_base_teid = 0xE0FFEE;
-const uint32_t s5s8_pgw_gtpc_base_teid = 0xD0FFEE;
-static uint32_t s5s8_pgw_gtpc_teid_offset;
-
-/* base value and offset for teid generation */
-static uint32_t sgw_gtpc_base_teid = 0xC0FFEE;
-static uint32_t sgw_gtpc_teid_offset;
-
-static uint32_t pgw_gtpc_base_teid = 0xD0FFEE;
-static uint32_t pgw_gtpc_teid_offset;
-static uint8_t teid_range = 0xf0;
-static uint32_t sgw_gtpu_base_teid = 0xf0000001;
-static uint32_t pgw_gtpu_base_teid = 0x00000001;
-/*TODO : Decide how to diffrentiate between sgw and pgw teids*/
-
-uint32_t base_s1u_sgw_gtpu_teid = 0xf0000000;
-
-void
-set_base_teid(uint8_t val){
-
-	/* set cp teid_range value */
-	teid_range = val;
-
-	/* set base teid value */
-	/* teid will start from index 1 instead of index 0*/
-	if(pfcp_config.cp_type == SGWC || pfcp_config.cp_type == SAEGWC){
-		sgw_gtpc_base_teid = (teid_range << 24);
-		sgw_gtpc_base_teid++;
-	}else if(pfcp_config.cp_type == PGWC){
-		pgw_gtpc_base_teid = (teid_range << 24);
-		pgw_gtpc_base_teid++;
-	}
-	return;
-}
-
-void
-set_s1u_sgw_gtpu_teid(eps_bearer *bearer, ue_context *context)
-{
-	if ((spgw_cfg == SGWC) || (spgw_cfg == SAEGWC)) {
-		sgw_gtpu_base_teid = sgw_gtpc_base_teid + sgw_gtpc_teid_offset;
-		++sgw_gtpc_teid_offset;
-	}
-
-	bearer->s1u_sgw_gtpu_teid = (sgw_gtpu_base_teid & 0x00ffffff)
-		| ((teid_range) << 24);
-	RTE_SET_USED(context);
-
-}
-
-void
-set_s5s8_sgw_gtpu_teid(eps_bearer *bearer, ue_context *context)
-{
-	/* Note: s5s8_sgw_gtpu_teid based s11_sgw_gtpc_teid
-	 * Computation same as s1u_sgw_gtpu_teid
-	 */
-	if ((spgw_cfg == SGWC) || (spgw_cfg == SAEGWC)) {
-		sgw_gtpu_base_teid = sgw_gtpc_base_teid + sgw_gtpc_teid_offset;
-		++sgw_gtpc_teid_offset;
-	}
-
-	bearer->s5s8_sgw_gtpu_teid = (sgw_gtpu_base_teid & 0x00ffffff)
-	    | ((teid_range) << 24);
-	RTE_SET_USED(context);
-
-}
-
-void
-set_s5s8_pgw_gtpu_teid(eps_bearer *bearer, ue_context *context){
-	if (spgw_cfg == PGWC){
-		pgw_gtpu_base_teid = pgw_gtpc_base_teid + pgw_gtpc_teid_offset;
-		++pgw_gtpc_teid_offset;
-	}
-	bearer->s5s8_pgw_gtpu_teid = (pgw_gtpu_base_teid & 0x00ffffff)
-		| ((teid_range) << 24);
-	RTE_SET_USED(context);
-}
-
-void
-set_s5s8_pgw_gtpc_teid(pdn_connection *pdn)
-{
-	pdn->s5s8_pgw_gtpc_teid = s5s8_pgw_gtpc_base_teid
-		+ s5s8_pgw_gtpc_teid_offset;
-	++s5s8_pgw_gtpc_teid_offset;
-}
-
-void
-set_s5s8_pgw_gtpu_teid_using_pdn(eps_bearer *bearer, pdn_connection *pdn)
-{
-	uint8_t index = __builtin_ffs(~(pdn->context->teid_bitmap)) - 1;
-	/* Note: s5s8_sgw_gtpu_teid based s11_sgw_gtpc_teid
-	 * Computation same as s1u_sgw_gtpu_teid
-	 */
-	bearer->s5s8_pgw_gtpu_teid = (pdn->s5s8_pgw_gtpc_teid & 0x00ffffff)
-	    | ((0xf0 + index) << 24);
-	pdn->context->teid_bitmap |= (0x01 << index);
-}
 
 void
 create_ue_hash(void)
@@ -161,15 +61,6 @@ create_ue_hash(void)
 		    rte_strerror(rte_errno), rte_errno);
 	}
 
-	rte_hash_params.name = "pdn_by_fteid_hash";
-	rte_hash_params.key_len = sizeof(uint32_t);
-	pdn_by_fteid_hash = rte_hash_create(&rte_hash_params);
-	if (!pdn_by_fteid_hash) {
-		rte_panic("%s hash create failed: %s (%u)\n.",
-			rte_hash_params.name,
-		    rte_strerror(rte_errno), rte_errno);
-	}
-
 	rte_hash_params.name = "bearer_by_teid_hash";
 	rte_hash_params.key_len = sizeof(uint32_t);
 	bearer_by_fteid_hash = rte_hash_create(&rte_hash_params);
@@ -178,31 +69,30 @@ create_ue_hash(void)
 				rte_hash_params.name,
 				rte_strerror(rte_errno), rte_errno);
 	}
-
-	rte_hash_params.name = "sock_by_ddf_ip_hash";
-	rte_hash_params.key_len = sizeof(uint32_t);
-	sock_by_ddf_ip_hash = rte_hash_create(&rte_hash_params);
-	if (!sock_by_ddf_ip_hash) {
-		rte_panic("%s hash create failed: %s (%u)\n.",
-									rte_hash_params.name,
-						rte_strerror(rte_errno), rte_errno);
-	}
 }
 
 void
-create_li_df_hash(void)
+create_li_info_hash(void)
 {
 	struct rte_hash_parameters rte_hash_params = {
-			.name = "li_df_by_imsi_hash",
-	    .entries = LDB_ENTRIES_DEFAULT,
+			.name = "li_info_by_id_hash",
+	    .entries = LI_LDB_ENTRIES_DEFAULT,
 	    .key_len = sizeof(uint64_t),
 	    .hash_func = rte_jhash,
 	    .hash_func_init_val = 0,
 	    .socket_id = rte_socket_id(),
 	};
 
-	li_df_by_imsi_hash = rte_hash_create(&rte_hash_params);
-	if (!li_df_by_imsi_hash) {
+	li_info_by_id_hash = rte_hash_create(&rte_hash_params);
+	if (!li_info_by_id_hash) {
+		rte_panic("%s hash create failed: %s (%u)\n.",
+			rte_hash_params.name,
+		    rte_strerror(rte_errno), rte_errno);
+	}
+
+	rte_hash_params.name = "li_id_by_imsi_hash";
+	li_id_by_imsi_hash = rte_hash_create(&rte_hash_params);
+	if (!li_id_by_imsi_hash) {
 		rte_panic("%s hash create failed: %s (%u)\n.",
 			rte_hash_params.name,
 		    rte_strerror(rte_errno), rte_errno);
@@ -214,7 +104,7 @@ set_ip_pool_ip(const char *ip_str)
 {
 	if (!inet_aton(ip_str, &ip_pool_ip))
 		rte_panic("Invalid argument - %s - Exiting.", ip_str);
-	clLog(clSystemLog, eCLSeverityDebug,"ip_pool_ip:  %s\n", inet_ntoa(ip_pool_ip));
+	clLog(clSystemLog, eCLSeverityDebug,LOG_FORMAT"ip_pool_ip:  %s\n", LOG_VALUE, inet_ntoa(ip_pool_ip));
 }
 
 
@@ -223,7 +113,7 @@ set_ip_pool_mask(const char *ip_str)
 {
 	if (!inet_aton(ip_str, &ip_pool_mask))
 		rte_panic("Invalid argument - %s - Exiting.", ip_str);
-	clLog(clSystemLog, eCLSeverityDebug,"ip_pool_mask: %s\n", inet_ntoa(ip_pool_mask));
+	clLog(clSystemLog, eCLSeverityDebug,LOG_FORMAT"ip_pool_mask: %s\n", LOG_VALUE, inet_ntoa(ip_pool_mask));
 }
 
 
@@ -268,18 +158,19 @@ print_ue_context_by(struct rte_hash *h, ue_context *context)
 	int32_t ret;
 	uint32_t next = 0;
 	int i;
-	clLog(clSystemLog, eCLSeverityDebug," %16s %1s %16s %16s %8s %8s %11s\n", "imsi", "u", "mei",
+	clLog(clSystemLog, eCLSeverityDebug,LOG_FORMAT" %16s %1s %16s %16s %8s %8s %11s\n", LOG_VALUE, "imsi", "u", "mei",
 			"msisdn", "s11-teid", "s11-ipv4", "56789012345");
 	if (context) {
-		clLog(clSystemLog, eCLSeverityDebug,"*%16lx %1lx %16lx %16lx %8x %15s ", context->imsi,
+		clLog(clSystemLog, eCLSeverityDebug,LOG_FORMAT"*%16lx %1lx %16lx %16lx %8x %15s ", LOG_VALUE, context->imsi,
 		    (uint64_t) context->unathenticated_imsi, context->mei,
 		    context->msisdn, context->s11_sgw_gtpc_teid,
 		     inet_ntoa(context->s11_sgw_gtpc_ipv4));
 		for (i = 0; i < MAX_BEARERS; ++i) {
-			clLog(clSystemLog, eCLSeverityDebug,"%c", (context->bearer_bitmap & (1 << i))
+			clLog(clSystemLog, eCLSeverityDebug,LOG_FORMAT "Bearer bitmap %c",
+				LOG_VALUE, (context->bearer_bitmap & (1 << i))
 					? '1' : '0');
 		}
-		clLog(clSystemLog, eCLSeverityDebug,"\t0x%04x\n", context->bearer_bitmap);
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"\t0x%04x\n", LOG_VALUE, context->bearer_bitmap);
 	}
 	if (h == NULL)
 		return;
@@ -288,17 +179,18 @@ print_ue_context_by(struct rte_hash *h, ue_context *context)
 				(void **) &context, &next);
 		if (ret < 0)
 			break;
-		clLog(clSystemLog, eCLSeverityDebug," %16lx %1lx %16lx %16lx %8x %15s ",
+		clLog(clSystemLog, eCLSeverityDebug,LOG_FORMAT" %16lx %1lx %16lx %16lx %8x %15s ", LOG_VALUE,
 			context->imsi,
 			(uint64_t) context->unathenticated_imsi,
 			context->mei,
 		    context->msisdn, context->s11_sgw_gtpc_teid,
 		    inet_ntoa(context->s11_sgw_gtpc_ipv4));
 		for (i = 0; i < MAX_BEARERS; ++i) {
-			clLog(clSystemLog, eCLSeverityDebug,"%c", (context->bearer_bitmap & (1 << i))
+			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT "Bearer bitmap %c",
+				LOG_VALUE, (context->bearer_bitmap & (1 << i))
 					? '1' : '0');
 		}
-		clLog(clSystemLog, eCLSeverityDebug,"\t0x%4x", context->bearer_bitmap);
+		clLog(clSystemLog, eCLSeverityDebug,LOG_FORMAT "\t0x%4x", LOG_VALUE, context->bearer_bitmap);
 		puts("");
 	}
 }
@@ -316,22 +208,29 @@ add_bearer_entry_by_sgw_s5s8_tied(uint32_t fteid_key, struct eps_bearer_t **bear
 			strerror(ret));
 		return GTPV2C_CAUSE_SYSTEM_FAILURE;
 	}
+	clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Added bearer entry by sgw_s5s8_teid:%u\n", LOG_VALUE, fteid_key);
 	return 0;
 }
 
 int
 create_ue_context(uint64_t *imsi_val, uint16_t imsi_len,
 		uint8_t ebi, ue_context **context, apn *apn_requested,
-		uint32_t sequence, uint8_t *check_if_ue_hash_exist)
+		uint32_t sequence, uint8_t *check_if_ue_hash_exist,
+		uint8_t cp_type)
 {
 	int ret;
-	int i;
-	uint8_t ebi_index;
+	int ebi_index;
 	uint64_t imsi = UINT64_MAX;
 	pdn_connection *pdn = NULL;
 	eps_bearer *bearer = NULL;
 
 	memcpy(&imsi, imsi_val, imsi_len);
+	ebi_index = GET_EBI_INDEX(ebi);
+	if (ebi_index == -1) {
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Invalid EBI ID\n", LOG_VALUE);
+		return GTPV2C_CAUSE_SYSTEM_FAILURE;
+	}
 
 	ret = rte_hash_lookup_data(ue_context_by_imsi_hash, &imsi,
 	    (void **) &(*context));
@@ -340,11 +239,9 @@ create_ue_context(uint64_t *imsi_val, uint16_t imsi_len,
 		(*context) = rte_zmalloc_socket(NULL, sizeof(ue_context),
 		    RTE_CACHE_LINE_SIZE, rte_socket_id());
 		if (*context == NULL) {
-			clLog(clSystemLog, eCLSeverityCritical, "Failure to allocate ue context "
-					"structure: %s (%s:%d)\n",
-					rte_strerror(rte_errno),
-					__FILE__,
-					__LINE__);
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to allocate "
+					"Memory for Context, Error: %s \n", LOG_VALUE,
+						rte_strerror(rte_errno));
 			return GTPV2C_CAUSE_SYSTEM_FAILURE;
 		}
 		(*context)->imsi = imsi;
@@ -352,8 +249,8 @@ create_ue_context(uint64_t *imsi_val, uint16_t imsi_len,
 		ret = rte_hash_add_key_data(ue_context_by_imsi_hash,
 		    (const void *) &(*context)->imsi, (void *) (*context));
 		if (ret < 0) {
-			clLog(clSystemLog, eCLSeverityCritical,
-				"%s - Error on rte_hash_add_key_data add\n",
+			clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT
+				"%s - Error on rte_hash_add_key_data add\n", LOG_VALUE,
 				strerror(ret));
 			rte_free((*context));
 			*context = NULL;
@@ -363,47 +260,33 @@ create_ue_context(uint64_t *imsi_val, uint16_t imsi_len,
 		/* VS: TODO: Need to think on this, flush entry when received DSR*/
 		RTE_SET_USED(apn_requested);
 		*check_if_ue_hash_exist = 1;
-		if((*context)->eps_bearers[ebi - 5] != NULL ) {
-			pdn = (*context)->eps_bearers[ebi - 5]->pdn;
+		if (ebi_index == -1) {
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Invalid EBI ID\n", LOG_VALUE);
+			return -1;
+		}
+
+		if((*context)->eps_bearers[ebi_index] != NULL ) {
+			pdn = (*context)->eps_bearers[ebi_index]->pdn;
 			if(pdn != NULL ) {
 				if(pdn->csr_sequence == sequence )
 				{
-					/* -2 : Discarding re-transmitted csr */
-					return -2;
+					/* Discarding re-transmitted csr */
+					return GTPC_RE_TRANSMITTED_REQ;
 				}
 			}
 		}
-		/*if ((strncmp(apn_requested->apn_name_label,
-					(((*context)->pdns[ebi - 5])->apn_in_use)->apn_name_label,
-					sizeof(apn_requested->apn_name_length))) == 0) {
-			clLog(clSystemLog, eCLSeverityCritical,
-				"%s- Discarding re-transmitted csr received for IMSI:%lu \n",
-				__func__, imsi);
-			return -1;
-		}*/
 	}
-	if (*check_if_ue_hash_exist == 0){
-		if ((spgw_cfg == SGWC) || (spgw_cfg == SAEGWC)) {
-			(*context)->s11_sgw_gtpc_teid = s11_sgw_gtpc_base_teid
-			    + s11_sgw_gtpc_teid_offset;
-			++s11_sgw_gtpc_teid_offset;
 
-		} else if (spgw_cfg == PGWC){
-			(*context)->s11_sgw_gtpc_teid = s5s8_pgw_gtpc_base_teid
-				+ s5s8_pgw_gtpc_teid_offset;
-		}
-	}else if (spgw_cfg == PGWC){
-		(*context)->s11_sgw_gtpc_teid = s5s8_pgw_gtpc_base_teid
-			+ s5s8_pgw_gtpc_teid_offset;
-	}
+	(*context)->s11_sgw_gtpc_teid =
+		get_s11_sgw_gtpc_teid(check_if_ue_hash_exist, cp_type, (*context)->s11_sgw_gtpc_teid);
 
 	ret = rte_hash_add_key_data(ue_context_by_fteid_hash,
 	    (const void *) &(*context)->s11_sgw_gtpc_teid,
 	    (void *) (*context));
 
 	if (ret < 0) {
-		clLog(clSystemLog, eCLSeverityCritical,
-			"%s - Error on ue_context_by_fteid_hash add\n",
+		clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT
+			"%s - Error on ue_context_by_fteid_hash add\n", LOG_VALUE,
 			strerror(ret));
 		ret = rte_hash_del_key(ue_context_by_imsi_hash,
 		    (const void *) &(*context)->imsi);
@@ -417,19 +300,21 @@ create_ue_context(uint64_t *imsi_val, uint16_t imsi_len,
 				"ue_context_by_imsi_hash del\n",
 				strerror(ret));
 		}
-		rte_free((*context));
-		*context = NULL;
+		if (*context != NULL) {
+			rte_free((*context));
+			*context = NULL;
+		}
 		return GTPV2C_CAUSE_SYSTEM_FAILURE;
 	}
 
-	ebi_index = ebi - 5;
+
 	bearer = (*context)->eps_bearers[ebi_index];
 
 	if (bearer) {
 		if (pdn) {
 			/* created session is overwriting old session... */
 			/*  ...clean up old session's dedicated bearers */
-			for (i = 0; i < MAX_BEARERS; ++i) {
+			for (int i = 0; i < MAX_BEARERS; ++i) {
 				if (!pdn->eps_bearers[i])
 					continue;
 				if (i == ebi_index) {
@@ -450,11 +335,9 @@ create_ue_context(uint64_t *imsi_val, uint16_t imsi_len,
 				sizeof(struct pdn_connection_t),
 				RTE_CACHE_LINE_SIZE, rte_socket_id());
 			if (pdn == NULL) {
-				clLog(clSystemLog, eCLSeverityCritical, "Failure to allocate PDN "
-						"structure: %s (%s:%d)\n",
-						rte_strerror(rte_errno),
-						__FILE__,
-						__LINE__);
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to allocate "
+					"Memory for PDN, Error: %s \n", LOG_VALUE,
+						rte_strerror(rte_errno));
 				return GTPV2C_CAUSE_SYSTEM_FAILURE;
 			}
 
@@ -462,8 +345,6 @@ create_ue_context(uint64_t *imsi_val, uint16_t imsi_len,
 			(*context)->pdns[ebi_index] = pdn;
 			(*context)->num_pdns++;
 			pdn->eps_bearers[ebi_index] = bearer;
-			//if(ebi_index ==  0)
-			//	pdn->default_bearer_id = ebi;
 		}
 	} else {
 		/*
@@ -472,32 +353,25 @@ create_ue_context(uint64_t *imsi_val, uint16_t imsi_len,
 		bearer = rte_zmalloc_socket(NULL, sizeof(eps_bearer),
 			RTE_CACHE_LINE_SIZE, rte_socket_id());
 		if (bearer == NULL) {
-			clLog(clSystemLog, eCLSeverityCritical, "Failure to allocate bearer "
-					"structure: %s (%s:%d)\n",
-					rte_strerror(rte_errno),
-					__FILE__,
-					__LINE__);
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to allocate "
+					"Memory for Bearer, Error: %s \n", LOG_VALUE,
+						rte_strerror(rte_errno));
 			return GTPV2C_CAUSE_SYSTEM_FAILURE;
 		}
 		bearer->eps_bearer_id = ebi;
 
-		int ret = get_pdn((*context)->s11_sgw_gtpc_teid, &pdn);
+		int ret = get_pdn(&(*context), apn_requested, &pdn);
 		/* NOTE : APN comparison has been done to handle
 		 * the  case of multiple PDN;
 		 * In mutiple PDN, each PDN will have a unique apn*/
-		if((ret < 0) || (pdn->apn_in_use == NULL) ||
-				(strncmp(pdn->apn_in_use->apn_name_label,
-						 apn_requested->apn_name_label,
-						 apn_requested->apn_name_length) != 0 )) {
+		if(ret < 0) {
 
 			pdn = rte_zmalloc_socket(NULL, sizeof(struct pdn_connection_t),
 					RTE_CACHE_LINE_SIZE, rte_socket_id());
 			if (pdn == NULL) {
-				clLog(clSystemLog, eCLSeverityCritical, "Failure to allocate PDN "
-						"structure: %s (%s:%d)\n",
-						rte_strerror(rte_errno),
-						__FILE__,
-						__LINE__);
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to allocate "
+					"Memory for PDN, Error: %s \n", LOG_VALUE,
+						rte_strerror(rte_errno));
 				return GTPV2C_CAUSE_SYSTEM_FAILURE;
 			}
 			pdn->num_bearer++;
@@ -507,31 +381,6 @@ create_ue_context(uint64_t *imsi_val, uint16_t imsi_len,
 			(*context)->bearer_bitmap |= (1 << ebi_index);
 			pdn->eps_bearers[ebi_index] = bearer;
 			pdn->default_bearer_id = ebi;
-			ret = rte_hash_add_key_data(pdn_by_fteid_hash,
-					(const void *) &(*context)->s11_sgw_gtpc_teid,
-					(void *) pdn);
-
-			if (ret < 0) {
-				clLog(clSystemLog, eCLSeverityCritical,
-						"%s - Error on pdn_by_fteid_hash add\n",
-						strerror(ret));
-				ret = rte_hash_del_key(pdn_by_fteid_hash,
-						(const void *) &(*context)->s11_sgw_gtpc_teid);
-				if (ret < 0) {
-					/* If we get here something bad happened. The
-					 * context that was added to
-					 * ue_context_by_imsi_hash above was not able
-					 * to be removed.
-					 */
-					rte_panic("%s - Error on "
-							"pdn_by_fteid_hash del\n",
-							strerror(ret));
-				}
-				rte_free((*context));
-				*context = NULL;
-				return GTPV2C_CAUSE_SYSTEM_FAILURE;
-			}
-
 		} else {
 			pdn->num_bearer++;
 			(*context)->eps_bearers[ebi_index] = bearer;
@@ -539,16 +388,13 @@ create_ue_context(uint64_t *imsi_val, uint16_t imsi_len,
 		}
 	}
 
-	for (i = 0; i < MAX_FILTERS_PER_UE; ++i)
+	for (int i = 0; i < MAX_FILTERS_PER_UE; ++i)
 		bearer->packet_filter_map[i] = -ENOENT;
 
 
 	bearer->pdn = pdn;
 	bearer->eps_bearer_id = ebi;
-
-	pdn = (*context)->pdns[ebi_index];
-	bearer = (*context)->eps_bearers[ebi_index];
-
+	pdn->apn_in_use = apn_requested;
 	return 0;
 }
 
@@ -565,7 +411,7 @@ get_apn(char *apn_label, uint16_t apn_length)
 	}
 	if(i >= MAX_NB_DPN) {
 		/* when apn name of csr are not found in cp.cfg file */
-		/* BP : TODO : free apn_reruested and apn_name_label memory */
+		/* TODO : free apn_reruested and apn_name_label memory */
 		apn *apn_requested = rte_zmalloc_socket(NULL, sizeof(apn),
 				RTE_CACHE_LINE_SIZE, rte_socket_id());
 		if (apn_requested == NULL) {
@@ -590,7 +436,8 @@ get_apn(char *apn_label, uint16_t apn_length)
 		}
 		strncpy(apn_requested->apn_name_label, apn_label, apn_length);
 		apn_requested->apn_name_length = apn_length;
-
+		/*TODO: need to discuss with himanshu */
+		apn_requested->apn_idx = -1;
 		/*Using default value*/
 		apn_requested->trigger_type = pfcp_config.trigger_type;
 		apn_requested->uplink_volume_th = pfcp_config.uplink_volume_th;
@@ -609,7 +456,7 @@ acquire_ip(struct in_addr *ipv4)
 {
 	static uint32_t next_ip_index;
 	if (unlikely(next_ip_index == LDB_ENTRIES_DEFAULT)) {
-		clLog(clSystemLog, eCLSeverityCritical, "IP Pool depleted\n");
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT "IP Pool depleted\n", LOG_VALUE);
 		return GTPV2C_CAUSE_ALL_DYNAMIC_ADDRESSES_OCCUPIED;
 	}
 	ipv4->s_addr = GET_UE_IP(next_ip_index++);

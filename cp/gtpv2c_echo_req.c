@@ -109,10 +109,13 @@ set_node_feature_ie(gtp_node_features_ie_t *node_feature, uint8_t type, uint16_t
 void
 build_gtpv2_echo_request(gtpv2c_header_t *echo_pkt, uint16_t gtpu_seqnb, uint8_t iface)
 {
+	if (echo_pkt == NULL)
+		return;
+
 	echo_request_t echo_req = {0};
 
-	set_gtpv2c_teid_header((gtpv2c_header_t *)&echo_req.header,
-			GTP_ECHO_REQ, 0, gtpu_seqnb , 0);
+	set_gtpv2c_header((gtpv2c_header_t *)&echo_req.header, 0,
+			GTP_ECHO_REQ, 0, gtpu_seqnb, 0);
 
 	set_recovery_ie_t((gtp_recovery_ie_t *)&echo_req.recovery, GTP_IE_RECOVERY,
 						sizeof(uint8_t), IE_INSTANCE_ZERO);
@@ -125,5 +128,5 @@ build_gtpv2_echo_request(gtpv2c_header_t *echo_pkt, uint16_t gtpu_seqnb, uint8_t
 	uint16_t msg_len = 0;
 	msg_len = encode_echo_request(&echo_req, (uint8_t *)echo_pkt);
 
-	echo_pkt->gtpc.message_len = htons(msg_len - 4);
+	echo_pkt->gtpc.message_len = htons(msg_len - IE_HEADER_SIZE);
 }

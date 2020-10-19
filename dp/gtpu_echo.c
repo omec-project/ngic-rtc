@@ -19,13 +19,14 @@
 #include <rte_ether.h>
 #include <rte_ip.h>
 #include <rte_udp.h>
+
 #include "ipv4.h"
 #include "gtpu.h"
-//#include "gtpu_echo.h"
 #include "util.h"
 #include "clogger.h"
+
 extern uint8_t dp_restart_cntr;
-/* VS: TODO*/
+/* VS: */
 //static uint8_t resp_cnt = 1;
 
 /**
@@ -85,8 +86,9 @@ static int set_recovery(struct rte_mbuf *echo_pkt, uint8_t port_id) {
 	recovery_ie = (gtpu_recovery_ie*)((char*)gtpu_hdr + GTPU_HDR_SIZE + ntohs(gtpu_hdr->msglen));
 
 	if (recovery_ie == NULL) {
-		clLog(clSystemLog, eCLSeverityCritical, FORMAT"Couldn't append %lu bytes to mbuf",
-				ERR_MSG, sizeof(gtpu_recovery_ie));
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Couldn't "
+			"append %lu bytes to memory buffer",
+			LOG_VALUE, sizeof(gtpu_recovery_ie));
 		 return -1;
 	}
 
@@ -96,8 +98,8 @@ static int set_recovery(struct rte_mbuf *echo_pkt, uint8_t port_id) {
 	recovery_ie->type = GTPU_ECHO_RECOVERY;
 	recovery_ie->restart_cntr = 0;
 	clLog(clSystemLog, eCLSeverityDebug,
-			FORMAT"dp restart count %d : recovery_ie->restart_cntr : %d \n",
-			ERR_MSG, dp_restart_cntr, recovery_ie->restart_cntr);
+		LOG_FORMAT"DP restart count: %d, recovery ie restart counter: %d \n",
+		LOG_VALUE, dp_restart_cntr, recovery_ie->restart_cntr);
 	return 0;
 }
 
@@ -119,7 +121,8 @@ void process_echo_request(struct rte_mbuf *echo_pkt, uint8_t port_id) {
 	int ret;
 	ret = set_recovery(echo_pkt, port_id);
 	if (ret < 0) {
-		clLog(clSystemLog, eCLSeverityCritical, "Failed to create echo response..\n");
+    	clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"Failed to create echo response\n", LOG_VALUE);
 		return;
 	}
 

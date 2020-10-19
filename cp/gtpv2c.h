@@ -182,15 +182,6 @@ typedef struct gtpv2c_header {
 	} teid_u;
 } gtpv2c_header;
 
-/**
- * @brief  : Maintains information parsed from release access bearer request
- */
-typedef struct parse_release_access_bearer_request_t {
-	gtpv2c_header_t header;
-	ue_context *context;
-	uint32_t seq;
-} rel_acc_ber_req;
-
 #pragma pack()
 
 /* These IE functions/macros are 'safe' in that the ie's returned, if any, fall
@@ -421,29 +412,29 @@ process_sgwc_s11_create_bearer_response(gtpv2c_header_t *gtpv2c_rx);
 
 /**
  * @brief  : Handles processing of delete bearer request  messages
- * @param  : db_req
- *           message reception  buffer containing the request message
- * @param  : flag
+ * @param  : db_req, message reception  buffer containing the request message
+ * @param  : context, structure for context information
+ * @param  : proc_type, procedure name
  * @return : - 0 if successful
  *           - > 0 if error occurs during packet filter parsing corresponds to 3gpp
  *           specified cause error value
  *           - < 0 for all other errors
  */
 int
-process_delete_bearer_request(del_bearer_req_t *db_req , uint8_t flag);
+process_delete_bearer_request(del_bearer_req_t *db_req, ue_context *context, uint8_t proc_type);
 
 /**
  * @brief  : Handles processing of delete bearer response messages
- * @param  : db_rsp
- *           message reception  buffer containing the response message
- * @param  : flag
+ * @param  : db_rsp, message reception  buffer containing the response message
+ * @param  : context, structure for context information
+ * @param  : proc_type, type of procedure
  * @return : - 0 if successful
  *           - > 0 if error occurs during packet filter parsing corresponds to 3gpp
  *           specified cause error value
  *           - < 0 for all other errors
  */
 int
-process_delete_bearer_resp(del_bearer_rsp_t *db_rsp , uint8_t flag);
+process_delete_bearer_resp(del_bearer_rsp_t *db_rsp, ue_context *context, uint8_t proc_type);
 
 /**
  * @brief  : Writes packet at @tx_buf of length @payload_length to pcap file specified
@@ -489,20 +480,6 @@ process_bearer_resource_command(gtpv2c_header_t *gtpv2c_rx,
 		gtpv2c_header_t *gtpv2c_tx);
 
 /**
- * @brief  : Handles the processing of create bearer response messages received by the
- *           control plane.
- *
- * @param  : gtpv2c_rx
- *           gtpv2c message buffer containing create bearer response
- * @return : - 0 if successful
- *           - > 0 if error occurs during packet filter parsing corresponds to 3gpp
- *           specified cause error value
- *           - < 0 for all other errors
- */
-int
-process_create_bearer_response(gtpv2c_header_t *gtpv2c_rx);
-
-/**
  * @brief  : Handles the processing of create session request messages received by the
  *           control plane
  * @param  : gtpv2c_rx
@@ -541,7 +518,7 @@ process_create_session_request(gtpv2c_header_t *gtpv2c_rx,
 uint16_t
 set_create_session_response(gtpv2c_header_t *gtpv2c_tx,
 		uint32_t sequence, ue_context *context, pdn_connection *pdn,
-		eps_bearer *bearer, uint8_t is_piggybacked);
+		uint8_t is_piggybacked);
 
 /**
  * @brief  : Handles the processing of pgwc create session request messages
@@ -598,37 +575,6 @@ int
 process_delete_bearer_response(gtpv2c_header_t *gtpv2c_rx);
 
 /**
- * @brief  : Handles the processing of delete session request messages received by the
- *           control plane.
- * @param  : gtpv2c_rx
- *           gtpv2c message buffer containing delete session request message
- * @param  : gtpv2c_s11_tx
- *           gtpc2c message transmission buffer to contain s11 response message
- * @param  : gtpv2c_s5s8_tx
- *           gtpc2c message transmission buffer to contain s5s8 response message
- * @return : - 0 if successful
- *           - > 0 if error occurs during packet filter parsing corresponds to 3gpp
- *           specified cause error value
- *           - < 0 for all other errors
- */
-int
-process_delete_session_request(gtpv2c_header_t *gtpv2c_rx,
-		gtpv2c_header_t *gtpv2c_s11_tx, gtpv2c_header_t *gtpv2c_s5s8_tx);
-
-/**
- * @brief  : Handles the processing of pgwc delete session request messages
- * @param  : gtpv2c_rx
- *           gtpv2c message buffer containing delete session request message
- * @return : - 0 if successful
- *           - > 0 if error occurs during packet filter parsing corresponds to 3gpp
- *           specified cause error value
- *           - < 0 for all other errors
- */
-//int
-//process_pgwc_s5s8_delete_session_request(gtpv2c_header_t *gtpv2c_rx,
-//		uint8_t proc);
-
-/**
  * @brief  : Handles the generation of sgwc s5s8 delete session request messages
  * @param  : gtpv2c_rx
  *           gtpv2c message buffer containing delete session request message
@@ -649,22 +595,6 @@ int
 gen_sgwc_s5s8_delete_session_request(gtpv2c_header_t *gtpv2c_rx,
 		gtpv2c_header_t *gtpv2c_tx, uint32_t pgw_gtpc_del_teid,
 		uint32_t sequence, uint8_t del_ebi);
-
-/**
- * @brief  : Handles processing of sgwc s5s8 delete session response messages
- * @param  : gtpv2c_rx
- *           gtpc2c message reception  buffer containing the response message
- * @param  : gtpv2c_tx
- *           gtpc2c message transmission buffer to contain response message
- * @return : - 0 if successful
- *           - > 0 if error occurs during packet filter parsing corresponds to 3gpp
- *           specified cause error value
- *           - < 0 for all other errors
- */
-//int
-//process_sgwc_s5s8_delete_session_response(gtpv2c_header_t *gtpv2c_s5s8_rx,
-//			gtpv2c_header_t *gtpv2c_s11_tx);
-
 /**
  * @brief  : Handles the processing and reply of gtp echo requests received by the control plane
  * @param  : gtpv2c_rx
@@ -705,7 +635,7 @@ process_modify_bearer_request(gtpv2c_header_t *gtpv2c_rx,
  *           - < 0 for all other errors
  */
 int
-process_release_access_bearer_request(rel_acc_ber_req *rel_acc_ber_req_t, uint8_t proc);
+process_release_access_bearer_request(rel_acc_ber_req_t *rel_acc_ber_req, uint8_t proc);
 
 /**
  * @brief  : Processes a Downlink Data Notification Acknowledgement message
@@ -775,7 +705,7 @@ parse_downlink_data_notification_ack(gtpv2c_header_t *gtpv2c_rx,
  */
 int
 parse_release_access_bearer_request(gtpv2c_header_t *gtpv2c_rx,
-		rel_acc_ber_req *rel_acc_ber_req_t);
+			 rel_acc_ber_req_t  *rel_acc_ber_req);
 /**
  * @brief  : Utility to send or dump gtpv2c messages
  * @param  : gtpv2c_tx, gtpv2c message transmission buffer to response message
@@ -846,28 +776,21 @@ set_mbr_upd_sgw_csid_req(gtpv2c_header_t *gtpv2c_tx, pdn_connection *pdn, uint8_
  * @brief  : Process modify bearer response received on s5s8 interface at sgwc
  * @param  : mb_rsp, buffer containing response data
  * @param  : gtpv2c_tx, gtpv2c message transmission buffer to response message
+ * @param  : context, ue context
  * @return : Returns 0 in case of success , -1 otherwise
  */
 int
-process_sgwc_s5s8_modify_bearer_response(mod_bearer_rsp_t *mb_rsp, gtpv2c_header_t *gtpv2c_tx);
+process_sgwc_s5s8_modify_bearer_response(mod_bearer_rsp_t *mb_rsp,
+		gtpv2c_header_t *gtpv2c_tx, ue_context **context);
 
 /**
  * @brief  : Process modify bearer response received on s5s8 interface at sgwc
  * @param  : mb_rsp, buffer containing response data
- * @param  : gtpv2c_tx, gtpv2c message transmission buffer to response message
+ * @param  : gtpv2c_tx, gtpv2c message transmission buffer to response messa
  * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 process_sgwc_s5s8_mbr_for_mod_proc(mod_bearer_rsp_t *mb_rsp, gtpv2c_header_t *gtpv2c_tx);
-
-/**
- * @brief  : Process delete request on sgwc for handover scenario
- * @param  : seid, session id
- * @param  : gtpv2c_tx, gtpv2c message transmission buffer to response message
- * @return : Returns 0 in case of success , -1 otherwise
- */
-int process_sgwc_delete_handover(uint64_t seid,
-		    gtpv2c_header_t *gtpv2c_tx);
 
 /**
  * @brief  : Handles processing of create bearer request and create session response messages
@@ -910,11 +833,10 @@ process_change_noti_response(change_noti_rsp_t *change_not_rsp, gtpv2c_header_t 
 * @brief  : Set the change notification response message
 * @param  : gtpv2c_header_t
 *         : pdn_connection
-*         : flag : It is to  set the cause value in the response
 * @return : void
 */
 void
-set_change_notification_response(gtpv2c_header_t *gtpv2c_tx, pdn_connection *pdn, uint8_t flag);
+set_change_notification_response(gtpv2c_header_t *gtpv2c_tx, pdn_connection *pdn);
 
 /**
 * @brief  : It sets the chnage notification message  to be forwarded
@@ -928,5 +850,14 @@ set_change_notification_response(gtpv2c_header_t *gtpv2c_tx, pdn_connection *pdn
 */
 int
 set_change_notification_request(gtpv2c_header_t *gtpv2c_tx, change_noti_req_t *change_not_req, pdn_connection **pdn);
+
+/**
+* @brief  : Set the release access bearer response message
+* @param  : gtpv2c_header_t
+*         : pdn_connection
+* @return : void
+*/
+void
+set_release_access_bearer_response(gtpv2c_header_t *gtpv2c_tx, pdn_connection *pdn);
 
 #endif /* GTPV2C_H */

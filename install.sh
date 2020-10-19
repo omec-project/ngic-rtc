@@ -19,6 +19,7 @@ SERVICE=3
 SGX_SERVICE=0
 SERVICE_NAME="Collocated CP and DP"
 source ./services.cfg
+source ./git_url.cfg
 export NGIC_DIR=$PWD
 echo "------------------------------------------------------------------------------"
 echo " NGIC_DIR exported as $NGIC_DIR"
@@ -30,16 +31,12 @@ INSMOD="/sbin/insmod"
 THIRD_PARTY_SW_PATH="third_party"
 DPDK_DOWNLOAD="https://fast.dpdk.org/rel/dpdk-18.02.tar.gz"
 DPDK_DIR=$NGIC_DIR/$THIRD_PARTY_SW_PATH/dpdk
-LINUX_SGX_SDK="https://github.com/intel/linux-sgx.git"
 LINUX_SGX_SDK_BRANCH_TAG="sgx_1.9"
 FREEDIAMETER_DIR=$NGIC_DIR/$THIRD_PARTY_SW_PATH/
-FREEDIAMETER="http://10.155.205.206/C3PO-NGIC/freeDiameter.git"
 HIREDIS_DIR=$NGIC_DIR/$THIRD_PARTY_SW_PATH/
-HIREDIS="https://github.com/redis/hiredis.git"
 CP_NUMA_NODE=0
 DP_NUMA_NODE=0
 
-OSS_UTIL_GIT_LINK="http://10.155.205.206/C3PO-NGIC/oss-util.git"
 OSS_UTIL_DIR="oss_adapter/c3po_oss/"
 
 #
@@ -335,7 +332,7 @@ configure_services()
 				SERVICE=2
 				SERVICE_NAME="DP"
 				recom_memory=5120
-				memory=`cat config/dp_config.cfg  | grep "MEMORY=" | head -n 1 | cut -d '=' -f 2`
+				memory=`cat dp/run.sh  | grep "MEMORY=" | head -n 1 | cut -d '=' -f 2`
 				setup_memory
 				setup_numa_node
 				setup_hugepages
@@ -365,7 +362,7 @@ setup_numa_node()
 	if [ `cat cp/run.sh  | grep "NUMA0_MEMORY=0" | wc -l` != 0 ]; then
 		CP_NUMA_NODE=1
 	fi
-	if [ `cat config/dp_config.cfg  | grep "NUMA0_MEMORY=0" | wc -l` != 0 ]; then
+	if [ `cat dp/run.sh  | grep "NUMA0_MEMORY=0" | wc -l` != 0 ]; then
 		DP_NUMA_NODE=1
 	fi
 }
@@ -384,7 +381,7 @@ setup_memory()
 
 						if [ $SERVICE == 2 ] || [ $SERVICE == 3 ] ; then
 							set_size DP
-							sed -i '/^MEMORY=/s/=.*/='$memory'/' config/dp_config.cfg
+							sed -i '/^MEMORY=/s/=.*/='$memory'/' dp/run.sh
 						fi
 
 						if [ $SERVICE == 3 ] ; then
@@ -417,7 +414,7 @@ set_size()
 
 setup_collocated_memory()
 {
-	dp_memory=`cat config/dp_config.cfg  | grep "MEMORY=" | head -n 1 | cut -d '=' -f 2`
+	dp_memory=`cat dp/run.sh  | grep "MEMORY=" | head -n 1 | cut -d '=' -f 2`
 	cp_memory=`cat cp/run.sh  | grep "MEMORY=" | head -n 1 | cut -d '=' -f 2`
 	memory=$(($cp_memory + $dp_memory))
 }
@@ -509,7 +506,7 @@ download_hyperscan()
 	     mkdir $THIRD_PARTY_SW_PATH
         fi
         cd $THIRD_PARTY_SW_PATH
-	wget https://github.com/01org/hyperscan/archive/v4.1.0.tar.gz
+	wget $HYPERSCAN_GIT_LINK
 	tar -xvf v4.1.0.tar.gz
 	pushd hyperscan-4.1.0
 	mkdir build; pushd build
@@ -530,12 +527,11 @@ download_freediameter()
 	     mkdir $FREEDIAMETER_DIR
         fi
         pushd $FREEDIAMETER_DIR
-	git clone $FREEDIAMETER -b delivery_1.5
+	git clone $FREEDIAMETER
 	if [ $? -ne 0 ] ; then
 	                echo "Failed to clone FreeDiameter, please check the errors."
 	                return
 	fi
-	mv freeDiameter freediameter
         popd
 
 }
@@ -600,7 +596,9 @@ build_fd_lib()
 build_hiredis()
 {
 	pushd $HIREDIS_DIR/hiredis
-	make
+	git checkout 8e0264cfd6889b73c241b60736fe96ba1322ee6e
+	make clean
+	make USE_SSL=1
 	if [ $? -ne 0 ] ; then
 		echo "Failed to build Hiredis, please check the errors."
 		return
@@ -665,7 +663,7 @@ step_3()
 install_oss_util()
 {
    pushd $NGIC_DIR/$OSS_UTIL_DIR
-   git clone -b delivery_1.7 $OSS_UTIL_GIT_LINK
+   git clone -b delivery_1.8 $OSS_UTIL_GIT_LINK
    pushd oss-util
    ./install.sh
    popd
@@ -686,6 +684,16 @@ build_ngic()
 	pushd $NGIC_DIR
 	source setenv.sh
 
+	echo ""
+	while true; do
+		read -p "Do you want to build Gateway source code in debug mode(-g -O0), Press (y/n) to continue?" yn
+		case $yn in
+			[Yy]* ) DEBUG='DEBUG=1' ;break;;
+			[Nn]* ) DEBUG='DEBUG=0' ;break;;
+			* ) "Please answer yes or no.";;
+		esac
+	done
+
 	echo "Building PFCP Libs ..."
 	build_pfcp_lib
 
@@ -695,7 +703,7 @@ build_ngic()
 		echo "Building Libs..."
 		make build-lib || { echo -e "\nNG-CORE: Make lib failed\n"; }
 		echo "Building DP..."
-		make -j 10 build-dp || { echo -e "\nDP: Make failed\n"; }
+		make -j 10 build-dp $DEBUG || { echo -e "\nDP: Make failed\n"; }
 	fi
 	if [ $SERVICE == 1 ] || [ $SERVICE == 3 ] ; then
 		echo "Building libgtpv2c..."
@@ -716,7 +724,7 @@ build_ngic()
 
 		echo "Building CP..."
 		make clean-cp
-		make -j 10 build-cp || { echo -e "\nCP: Make failed\n"; }
+		make -j 10 build-cp $DEBUG || { echo -e "\nCP: Make failed\n"; }
 
 	fi
 	popd

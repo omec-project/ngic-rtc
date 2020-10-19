@@ -28,7 +28,7 @@
  * @return
  *   number of encoded bytes.
  */
-int decode_pfcp_header_t(uint8_t *buf, pfcp_header_t *value)
+int decode_pfcp_header_t(const uint8_t *buf, pfcp_header_t *value)
 {
     uint16_t total_decoded = 0;
     uint16_t decoded = 0;
@@ -81,7 +81,7 @@ int decode_pfcp_header_t(uint8_t *buf, pfcp_header_t *value)
  * @return
  *   number of decoded bytes.
  */
-int decode_pfcp_ie_header_t(uint8_t *buf,
+int decode_pfcp_ie_header_t(const uint8_t *buf,
 	pfcp_ie_header_t *value)
 {
     uint16_t total_decoded = 0;
@@ -104,7 +104,7 @@ int decode_pfcp_ie_header_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_end_time_ie_t(uint8_t *buf,
+int decode_pfcp_end_time_ie_t(const uint8_t *buf,
         pfcp_end_time_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -112,7 +112,7 @@ int decode_pfcp_end_time_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->end_time = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -124,7 +124,7 @@ int decode_pfcp_end_time_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_trnspt_lvl_marking_ie_t(uint8_t *buf,
+int decode_pfcp_trnspt_lvl_marking_ie_t(const uint8_t *buf,
         pfcp_trnspt_lvl_marking_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -132,7 +132,7 @@ int decode_pfcp_trnspt_lvl_marking_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->tostraffic_cls = decode_bits(buf, total_decoded, 16, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -144,7 +144,7 @@ int decode_pfcp_trnspt_lvl_marking_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_failed_rule_id_ie_t(uint8_t *buf,
+int decode_pfcp_failed_rule_id_ie_t(const uint8_t *buf,
 		pfcp_failed_rule_id_ie_t *value)
 {
 	uint16_t total_decoded = 0;
@@ -176,7 +176,7 @@ int decode_pfcp_failed_rule_id_ie_t(uint8_t *buf,
 
 	//    value->rule_id_value = decode_bits(buf, total_decoded, 8, &decoded);
 	//  total_decoded += decoded;
-	return total_decoded/CHAR_SIZE;
+	return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -188,7 +188,7 @@ int decode_pfcp_failed_rule_id_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_sbsqnt_vol_quota_ie_t(uint8_t *buf,
+int decode_pfcp_sbsqnt_vol_quota_ie_t(const uint8_t *buf,
         pfcp_sbsqnt_vol_quota_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -208,7 +208,7 @@ int decode_pfcp_sbsqnt_vol_quota_ie_t(uint8_t *buf,
     total_decoded += decoded;
     DECODE_DOWNLINK_VOLUME_COND_5(buf, total_decoded, 64, decoded, value);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -220,7 +220,7 @@ int decode_pfcp_sbsqnt_vol_quota_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_eth_fltr_id_ie_t(uint8_t *buf,
+int decode_pfcp_eth_fltr_id_ie_t(const uint8_t *buf,
         pfcp_eth_fltr_id_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -228,7 +228,7 @@ int decode_pfcp_eth_fltr_id_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->eth_fltr_id_val = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -240,7 +240,7 @@ int decode_pfcp_eth_fltr_id_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_mac_addrs_rmvd_ie_t(uint8_t *buf,
+int decode_pfcp_mac_addrs_rmvd_ie_t(const uint8_t *buf,
         pfcp_mac_addrs_rmvd_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -250,7 +250,7 @@ int decode_pfcp_mac_addrs_rmvd_ie_t(uint8_t *buf,
     total_decoded += decoded;
     memcpy(&value->mac_addr_val, buf + (total_decoded/CHAR_SIZE), MAC_ADDR_VAL_LEN);
     total_decoded +=  MAC_ADDR_VAL_LEN * CHAR_SIZE;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -262,7 +262,7 @@ int decode_pfcp_mac_addrs_rmvd_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_linked_urr_id_ie_t(uint8_t *buf,
+int decode_pfcp_linked_urr_id_ie_t(const uint8_t *buf,
         pfcp_linked_urr_id_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -270,7 +270,7 @@ int decode_pfcp_linked_urr_id_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->lnkd_urr_id_val = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -282,7 +282,7 @@ int decode_pfcp_linked_urr_id_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_evnt_time_stmp_ie_t(uint8_t *buf,
+int decode_pfcp_evnt_time_stmp_ie_t(const uint8_t *buf,
         pfcp_evnt_time_stmp_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -290,7 +290,7 @@ int decode_pfcp_evnt_time_stmp_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->evnt_time_stmp = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -302,7 +302,7 @@ int decode_pfcp_evnt_time_stmp_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_mac_addrs_detctd_ie_t(uint8_t *buf,
+int decode_pfcp_mac_addrs_detctd_ie_t(const uint8_t *buf,
         pfcp_mac_addrs_detctd_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -312,7 +312,7 @@ int decode_pfcp_mac_addrs_detctd_ie_t(uint8_t *buf,
     total_decoded += decoded;
     memcpy(&value->mac_addr_val, buf + (total_decoded/CHAR_SIZE), MAC_ADDR_VAL_LEN);
     total_decoded +=  MAC_ADDR_VAL_LEN * CHAR_SIZE;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -320,28 +320,33 @@ int decode_pfcp_mac_addrs_detctd_ie_t(uint8_t *buf,
 * @param buf
 * buffer to store decoded values.
 * @param value
-    pfcp_node_id_ie_t
-* @return
-*   number of decoded bytes.
-*/
-int decode_pfcp_node_id_ie_t(uint8_t *buf,
-        pfcp_node_id_ie_t *value)
+pfcp_node_id_ie_t
+ * @return
+ *   number of decoded bytes.
+ */
+int decode_pfcp_node_id_ie_t(const uint8_t *buf,
+		pfcp_node_id_ie_t *value)
 {
-    uint16_t total_decoded = 0;
-    total_decoded += decode_pfcp_ie_header_t(buf + (total_decoded/CHAR_SIZE), &value->header);
-    uint16_t decoded = 0;
-    value->node_id_spare = decode_bits(buf, total_decoded, 4, &decoded);
-    total_decoded += decoded;
-    value->node_id_type = decode_bits(buf, total_decoded, 4, &decoded);
-    total_decoded += decoded;
+	uint16_t total_decoded = 0;
+	total_decoded += decode_pfcp_ie_header_t(buf + (total_decoded/CHAR_SIZE), &value->header);
+	uint16_t decoded = 0;
+	value->node_id_spare = decode_bits(buf, total_decoded, 4, &decoded);
+	total_decoded += decoded;
+	value->node_id_type = decode_bits(buf, total_decoded, 4, &decoded);
+	total_decoded += decoded;
 
-    //DECODE_NODE_ID_VALUE_COND_1(buf, total_decoded, 8, decoded, value);
-  /* TODO: Revisit this for change in yang */
+	if(value->node_id_type == NODE_ID_TYPE_TYPE_IPV4ADDRESS) {
+		memcpy(&value->node_id_value_ipv4_address, buf + (total_decoded/CHAR_SIZE), value->header.len - 1);
+		total_decoded +=  (value->header.len - 1) * CHAR_SIZE;
+	} else if(value->node_id_type == NODE_ID_TYPE_TYPE_IPV6ADDRESS) {
+		memcpy(&value->node_id_value_ipv6_address, buf + (total_decoded/CHAR_SIZE), value->header.len - 1);
+		total_decoded +=  (value->header.len - 1) * CHAR_SIZE;
+	} else {
+		memcpy(&value->node_id_value_fqdn, buf + (total_decoded/CHAR_SIZE), value->header.len - 1);
+		total_decoded +=  (value->header.len - 1) * CHAR_SIZE;
+	}
 
-    memcpy(&value->node_id_value, buf + (total_decoded/CHAR_SIZE), value->header.len - 1);
-    total_decoded +=  (value->header.len - 1) * CHAR_SIZE;
-   // total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+	return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -353,7 +358,7 @@ int decode_pfcp_node_id_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_bar_id_ie_t(uint8_t *buf,
+int decode_pfcp_bar_id_ie_t(const uint8_t *buf,
         pfcp_bar_id_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -361,7 +366,7 @@ int decode_pfcp_bar_id_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->bar_id_value = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -373,7 +378,7 @@ int decode_pfcp_bar_id_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_usage_info_ie_t(uint8_t *buf,
+int decode_pfcp_usage_info_ie_t(const uint8_t *buf,
         pfcp_usage_info_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -389,7 +394,7 @@ int decode_pfcp_usage_info_ie_t(uint8_t *buf,
     total_decoded += decoded;
     value->bef = decode_bits(buf, total_decoded, 1, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -401,7 +406,7 @@ int decode_pfcp_usage_info_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_dnlnk_data_svc_info_ie_t(uint8_t *buf,
+int decode_pfcp_dnlnk_data_svc_info_ie_t(const uint8_t *buf,
         pfcp_dnlnk_data_svc_info_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -423,7 +428,7 @@ int decode_pfcp_dnlnk_data_svc_info_ie_t(uint8_t *buf,
     //DECODE_QFI_COND_1(buf, total_decoded, 6, decoded, value);
     value->qfi = decode_bits(buf, total_decoded, 6, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -435,7 +440,7 @@ int decode_pfcp_dnlnk_data_svc_info_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_dur_meas_ie_t(uint8_t *buf,
+int decode_pfcp_dur_meas_ie_t(const uint8_t *buf,
         pfcp_dur_meas_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -443,7 +448,7 @@ int decode_pfcp_dur_meas_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->duration_value = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -455,7 +460,7 @@ int decode_pfcp_dur_meas_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_up_assn_rel_req_ie_t(uint8_t *buf,
+int decode_pfcp_up_assn_rel_req_ie_t(const uint8_t *buf,
         pfcp_up_assn_rel_req_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -465,7 +470,7 @@ int decode_pfcp_up_assn_rel_req_ie_t(uint8_t *buf,
     total_decoded += decoded;
     value->sarr = decode_bits(buf, total_decoded, 1, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -477,7 +482,7 @@ int decode_pfcp_up_assn_rel_req_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_application_id_ie_t(uint8_t *buf,
+int decode_pfcp_application_id_ie_t(const uint8_t *buf,
 		pfcp_application_id_ie_t *value)
 {
 	uint16_t total_decoded = 0;
@@ -485,10 +490,10 @@ int decode_pfcp_application_id_ie_t(uint8_t *buf,
 	//uint16_t decoded = 0;
 	//value->app_ident = decode_bits(buf, total_decoded, 8, &decoded);
 	/* TODO: Revisit this for change in yang */
-	memcpy(&value->app_ident, buf + (total_decoded/CHAR_SIZE), 8);
-	total_decoded +=  8 * CHAR_SIZE;
+	memcpy(&value->app_ident, buf + (total_decoded/CHAR_SIZE), PFCP_APPLICATION_ID_LEN);
+	total_decoded +=  PFCP_APPLICATION_ID_LEN * CHAR_SIZE;
 
-	return total_decoded/CHAR_SIZE;
+	return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -500,7 +505,7 @@ int decode_pfcp_application_id_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_urseqn_ie_t(uint8_t *buf,
+int decode_pfcp_urseqn_ie_t(const uint8_t *buf,
         pfcp_urseqn_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -508,7 +513,7 @@ int decode_pfcp_urseqn_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->urseqn = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -520,7 +525,7 @@ int decode_pfcp_urseqn_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_dl_flow_lvl_marking_ie_t(uint8_t *buf,
+int decode_pfcp_dl_flow_lvl_marking_ie_t(const uint8_t *buf,
         pfcp_dl_flow_lvl_marking_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -534,7 +539,7 @@ int decode_pfcp_dl_flow_lvl_marking_ie_t(uint8_t *buf,
     total_decoded += decoded;
     DECODE_TOSTRAFFIC_CLS_COND_1(buf, total_decoded, 16, decoded, value);
     DECODE_SVC_CLS_INDCTR_COND_1(buf, total_decoded, 16, decoded, value);
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -546,7 +551,7 @@ int decode_pfcp_dl_flow_lvl_marking_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_ue_ip_address_ie_t(uint8_t *buf,
+int decode_pfcp_ue_ip_address_ie_t(const uint8_t *buf,
         pfcp_ue_ip_address_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -571,7 +576,7 @@ int decode_pfcp_ue_ip_address_ie_t(uint8_t *buf,
     DECODE_IPV6_PFX_DLGTN_BITS_COND_1(buf, total_decoded, 8, decoded, value);
 	/* TODO: Revisit this for change in yang */
    // total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -583,7 +588,7 @@ int decode_pfcp_ue_ip_address_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_sbsqnt_evnt_quota_ie_t(uint8_t *buf,
+int decode_pfcp_sbsqnt_evnt_quota_ie_t(const uint8_t *buf,
         pfcp_sbsqnt_evnt_quota_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -591,7 +596,7 @@ int decode_pfcp_sbsqnt_evnt_quota_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->sbsqnt_evnt_quota = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -603,7 +608,7 @@ int decode_pfcp_sbsqnt_evnt_quota_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_gate_status_ie_t(uint8_t *buf,
+int decode_pfcp_gate_status_ie_t(const uint8_t *buf,
         pfcp_gate_status_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -615,7 +620,7 @@ int decode_pfcp_gate_status_ie_t(uint8_t *buf,
     total_decoded += decoded;
     value->dl_gate = decode_bits(buf, total_decoded, 2, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -627,7 +632,7 @@ int decode_pfcp_gate_status_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_suggstd_buf_pckts_cnt_ie_t(uint8_t *buf,
+int decode_pfcp_suggstd_buf_pckts_cnt_ie_t(const uint8_t *buf,
         pfcp_suggstd_buf_pckts_cnt_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -635,7 +640,7 @@ int decode_pfcp_suggstd_buf_pckts_cnt_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->pckt_cnt_val = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -647,7 +652,7 @@ int decode_pfcp_suggstd_buf_pckts_cnt_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_pfd_contents_ie_t(uint8_t *buf,
+int decode_pfcp_pfd_contents_ie_t(const uint8_t *buf,
         pfcp_pfd_contents_ie_t *value)
 {
 	uint16_t total_decoded = 0;
@@ -691,7 +696,7 @@ int decode_pfcp_pfd_contents_ie_t(uint8_t *buf,
 
 	DECODE_LEN_OF_CSTM_PFD_CNTNT_COND_1(buf, total_decoded, 16, decoded, value);
 
-	return total_decoded/CHAR_SIZE;
+	return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -703,7 +708,7 @@ int decode_pfcp_pfd_contents_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_sequence_number_ie_t(uint8_t *buf,
+int decode_pfcp_sequence_number_ie_t(const uint8_t *buf,
         pfcp_sequence_number_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -711,7 +716,7 @@ int decode_pfcp_sequence_number_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->sequence_number = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -723,7 +728,7 @@ int decode_pfcp_sequence_number_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_packet_rate_ie_t(uint8_t *buf,
+int decode_pfcp_packet_rate_ie_t(const uint8_t *buf,
         pfcp_packet_rate_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -745,7 +750,7 @@ int decode_pfcp_packet_rate_ie_t(uint8_t *buf,
     value->dnlnk_time_unit = decode_bits(buf, total_decoded, 3, &decoded);
     total_decoded += decoded;
     DECODE_MAX_DNLNK_PCKT_RATE_COND_1(buf, total_decoded, 16, decoded, value);
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -757,7 +762,7 @@ int decode_pfcp_packet_rate_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_hdr_enrchmt_ie_t(uint8_t *buf,
+int decode_pfcp_hdr_enrchmt_ie_t(const uint8_t *buf,
         pfcp_hdr_enrchmt_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -775,7 +780,7 @@ int decode_pfcp_hdr_enrchmt_ie_t(uint8_t *buf,
     total_decoded += decoded;
     value->hdr_fld_val = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -787,7 +792,7 @@ int decode_pfcp_hdr_enrchmt_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_time_quota_ie_t(uint8_t *buf,
+int decode_pfcp_time_quota_ie_t(const uint8_t *buf,
         pfcp_time_quota_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -795,7 +800,7 @@ int decode_pfcp_time_quota_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->time_quota_val = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -807,7 +812,7 @@ int decode_pfcp_time_quota_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_deact_predef_rules_ie_t(uint8_t *buf,
+int decode_pfcp_deact_predef_rules_ie_t(const uint8_t *buf,
         pfcp_deact_predef_rules_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -815,7 +820,7 @@ int decode_pfcp_deact_predef_rules_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->predef_rules_nm = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -827,7 +832,7 @@ int decode_pfcp_deact_predef_rules_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_apply_action_ie_t(uint8_t *buf,
+int decode_pfcp_apply_action_ie_t(const uint8_t *buf,
         pfcp_apply_action_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -849,7 +854,7 @@ int decode_pfcp_apply_action_ie_t(uint8_t *buf,
     total_decoded += decoded;
     value->drop = decode_bits(buf, total_decoded, 1, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -861,7 +866,7 @@ int decode_pfcp_apply_action_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_node_rpt_type_ie_t(uint8_t *buf,
+int decode_pfcp_node_rpt_type_ie_t(const uint8_t *buf,
         pfcp_node_rpt_type_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -871,7 +876,7 @@ int decode_pfcp_node_rpt_type_ie_t(uint8_t *buf,
     total_decoded += decoded;
     value->upfr = decode_bits(buf, total_decoded, 1, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -883,7 +888,7 @@ int decode_pfcp_node_rpt_type_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_fteid_ie_t(uint8_t *buf,
+int decode_pfcp_fteid_ie_t(const uint8_t *buf,
         pfcp_fteid_ie_t *value)
 {
 	uint16_t total_decoded = 0;
@@ -911,7 +916,7 @@ int decode_pfcp_fteid_ie_t(uint8_t *buf,
 	DECODE_CHOOSE_ID_COND_1(buf, total_decoded, 8, decoded, value);
 	//total_decoded += decoded;
 
-	return total_decoded/CHAR_SIZE;
+	return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -923,7 +928,7 @@ int decode_pfcp_fteid_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_meas_period_ie_t(uint8_t *buf,
+int decode_pfcp_meas_period_ie_t(const uint8_t *buf,
         pfcp_meas_period_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -931,7 +936,7 @@ int decode_pfcp_meas_period_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->meas_period = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -943,7 +948,7 @@ int decode_pfcp_meas_period_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_up_func_feat_ie_t(uint8_t *buf,
+int decode_pfcp_up_func_feat_ie_t(const uint8_t *buf,
         pfcp_up_func_feat_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -951,7 +956,7 @@ int decode_pfcp_up_func_feat_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->sup_feat = decode_bits(buf, total_decoded, 16, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -963,7 +968,7 @@ int decode_pfcp_up_func_feat_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_inact_det_time_ie_t(uint8_t *buf,
+int decode_pfcp_inact_det_time_ie_t(const uint8_t *buf,
         pfcp_inact_det_time_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -971,7 +976,7 @@ int decode_pfcp_inact_det_time_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->inact_det_time = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -983,7 +988,7 @@ int decode_pfcp_inact_det_time_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_pfcpsmreq_flags_ie_t(uint8_t *buf,
+int decode_pfcp_pfcpsmreq_flags_ie_t(const uint8_t *buf,
 		pfcp_pfcpsmreq_flags_ie_t *value)
 {
 	uint16_t total_decoded = 0;
@@ -1005,7 +1010,7 @@ int decode_pfcp_pfcpsmreq_flags_ie_t(uint8_t *buf,
 	total_decoded += decoded;
 	value->drobu = decode_bits(buf, total_decoded, 1, &decoded);
 	total_decoded += decoded;
-	return total_decoded/CHAR_SIZE;
+	return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1017,7 +1022,7 @@ int decode_pfcp_pfcpsmreq_flags_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_meas_mthd_ie_t(uint8_t *buf,
+int decode_pfcp_meas_mthd_ie_t(const uint8_t *buf,
         pfcp_meas_mthd_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -1039,7 +1044,7 @@ int decode_pfcp_meas_mthd_ie_t(uint8_t *buf,
     total_decoded += decoded;
     value->durat = decode_bits(buf, total_decoded, 1, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1051,7 +1056,7 @@ int decode_pfcp_meas_mthd_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_paging_plcy_indctr_ie_t(uint8_t *buf,
+int decode_pfcp_paging_plcy_indctr_ie_t(const uint8_t *buf,
         pfcp_paging_plcy_indctr_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -1061,7 +1066,7 @@ int decode_pfcp_paging_plcy_indctr_ie_t(uint8_t *buf,
     total_decoded += decoded;
     value->ppi_value = decode_bits(buf, total_decoded, 3, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1073,7 +1078,7 @@ int decode_pfcp_paging_plcy_indctr_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_framed_routing_ie_t(uint8_t *buf,
+int decode_pfcp_framed_routing_ie_t(const uint8_t *buf,
         pfcp_framed_routing_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -1081,7 +1086,7 @@ int decode_pfcp_framed_routing_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->framed_routing = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1093,7 +1098,7 @@ int decode_pfcp_framed_routing_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_time_quota_mech_ie_t(uint8_t *buf,
+int decode_pfcp_time_quota_mech_ie_t(const uint8_t *buf,
         pfcp_time_quota_mech_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -1105,7 +1110,7 @@ int decode_pfcp_time_quota_mech_ie_t(uint8_t *buf,
     total_decoded += decoded;
     value->base_time_int = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1117,7 +1122,7 @@ int decode_pfcp_time_quota_mech_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_quota_hldng_time_ie_t(uint8_t *buf,
+int decode_pfcp_quota_hldng_time_ie_t(const uint8_t *buf,
         pfcp_quota_hldng_time_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -1125,7 +1130,7 @@ int decode_pfcp_quota_hldng_time_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->quota_hldng_time_val = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1137,7 +1142,7 @@ int decode_pfcp_quota_hldng_time_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_gbr_ie_t(uint8_t *buf,
+int decode_pfcp_gbr_ie_t(const uint8_t *buf,
         pfcp_gbr_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -1147,7 +1152,7 @@ int decode_pfcp_gbr_ie_t(uint8_t *buf,
     total_decoded += decoded;
     value->dl_gbr = decode_bits(buf, total_decoded, 40, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1159,7 +1164,7 @@ int decode_pfcp_gbr_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_traffic_endpt_id_ie_t(uint8_t *buf,
+int decode_pfcp_traffic_endpt_id_ie_t(const uint8_t *buf,
         pfcp_traffic_endpt_id_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -1167,7 +1172,7 @@ int decode_pfcp_traffic_endpt_id_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->traffic_endpt_id_val = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1179,7 +1184,7 @@ int decode_pfcp_traffic_endpt_id_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_dl_buf_dur_ie_t(uint8_t *buf,
+int decode_pfcp_dl_buf_dur_ie_t(const uint8_t *buf,
         pfcp_dl_buf_dur_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -1189,7 +1194,7 @@ int decode_pfcp_dl_buf_dur_ie_t(uint8_t *buf,
     total_decoded += decoded;
     value->timer_value = decode_bits(buf, total_decoded, 5, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1201,7 +1206,7 @@ int decode_pfcp_dl_buf_dur_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_volume_quota_ie_t(uint8_t *buf,
+int decode_pfcp_volume_quota_ie_t(const uint8_t *buf,
         pfcp_volume_quota_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -1221,7 +1226,7 @@ int decode_pfcp_volume_quota_ie_t(uint8_t *buf,
     total_decoded += decoded;
     DECODE_DOWNLINK_VOLUME_COND_4(buf, total_decoded, 64, decoded, value);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1233,7 +1238,7 @@ int decode_pfcp_volume_quota_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_event_quota_ie_t(uint8_t *buf,
+int decode_pfcp_event_quota_ie_t(const uint8_t *buf,
         pfcp_event_quota_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -1241,7 +1246,7 @@ int decode_pfcp_event_quota_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->sbsqnt_evnt_quota = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1253,7 +1258,7 @@ int decode_pfcp_event_quota_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_query_urr_ref_ie_t(uint8_t *buf,
+int decode_pfcp_query_urr_ref_ie_t(const uint8_t *buf,
 		pfcp_query_urr_ref_ie_t *value)
 {
 	uint16_t total_decoded = 0;
@@ -1261,7 +1266,7 @@ int decode_pfcp_query_urr_ref_ie_t(uint8_t *buf,
 	uint16_t decoded = 0;
 	value->query_urr_ref_val = decode_bits(buf, total_decoded, 32, &decoded);
 	total_decoded += decoded;
-	return total_decoded/CHAR_SIZE;
+	return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1273,7 +1278,7 @@ int decode_pfcp_query_urr_ref_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_sbsqnt_time_quota_ie_t(uint8_t *buf,
+int decode_pfcp_sbsqnt_time_quota_ie_t(const uint8_t *buf,
         pfcp_sbsqnt_time_quota_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -1281,7 +1286,7 @@ int decode_pfcp_sbsqnt_time_quota_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->time_quota_val = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1293,7 +1298,7 @@ int decode_pfcp_sbsqnt_time_quota_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_qer_corr_id_ie_t(uint8_t *buf,
+int decode_pfcp_qer_corr_id_ie_t(const uint8_t *buf,
         pfcp_qer_corr_id_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -1301,7 +1306,7 @@ int decode_pfcp_qer_corr_id_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->qer_corr_id_val = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1313,7 +1318,7 @@ int decode_pfcp_qer_corr_id_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_vol_meas_ie_t(uint8_t *buf,
+int decode_pfcp_vol_meas_ie_t(const uint8_t *buf,
         pfcp_vol_meas_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -1333,7 +1338,7 @@ int decode_pfcp_vol_meas_ie_t(uint8_t *buf,
     total_decoded += decoded;
     DECODE_DOWNLINK_VOLUME_COND_3(buf, total_decoded, 64, decoded, value);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1345,7 +1350,7 @@ int decode_pfcp_vol_meas_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_far_id_ie_t(uint8_t *buf,
+int decode_pfcp_far_id_ie_t(const uint8_t *buf,
         pfcp_far_id_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -1353,7 +1358,7 @@ int decode_pfcp_far_id_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->far_id_value = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1365,7 +1370,7 @@ int decode_pfcp_far_id_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_proxying_ie_t(uint8_t *buf,
+int decode_pfcp_proxying_ie_t(const uint8_t *buf,
         pfcp_proxying_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -1377,7 +1382,7 @@ int decode_pfcp_proxying_ie_t(uint8_t *buf,
     total_decoded += decoded;
     value->arp = decode_bits(buf, total_decoded, 1, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1389,7 +1394,7 @@ int decode_pfcp_proxying_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_rptng_triggers_ie_t(uint8_t *buf,
+int decode_pfcp_rptng_triggers_ie_t(const uint8_t *buf,
         pfcp_rptng_triggers_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -1427,7 +1432,7 @@ int decode_pfcp_rptng_triggers_ie_t(uint8_t *buf,
     total_decoded += decoded;
     value->volqu = decode_bits(buf, total_decoded, 1, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1439,7 +1444,7 @@ int decode_pfcp_rptng_triggers_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_qer_id_ie_t(uint8_t *buf,
+int decode_pfcp_qer_id_ie_t(const uint8_t *buf,
         pfcp_qer_id_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -1447,7 +1452,7 @@ int decode_pfcp_qer_id_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->qer_id_value = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1459,7 +1464,7 @@ int decode_pfcp_qer_id_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_monitoring_time_ie_t(uint8_t *buf,
+int decode_pfcp_monitoring_time_ie_t(const uint8_t *buf,
         pfcp_monitoring_time_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -1467,7 +1472,7 @@ int decode_pfcp_monitoring_time_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->monitoring_time = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1479,7 +1484,7 @@ int decode_pfcp_monitoring_time_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_flow_info_ie_t(uint8_t *buf,
+int decode_pfcp_flow_info_ie_t(const uint8_t *buf,
         pfcp_flow_info_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -1493,7 +1498,7 @@ int decode_pfcp_flow_info_ie_t(uint8_t *buf,
     total_decoded += decoded;
     value->flow_desc = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1505,7 +1510,7 @@ int decode_pfcp_flow_info_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_precedence_ie_t(uint8_t *buf,
+int decode_pfcp_precedence_ie_t(const uint8_t *buf,
         pfcp_precedence_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -1513,7 +1518,7 @@ int decode_pfcp_precedence_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->prcdnc_val = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1525,7 +1530,7 @@ int decode_pfcp_precedence_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_metric_ie_t(uint8_t *buf,
+int decode_pfcp_metric_ie_t(const uint8_t *buf,
         pfcp_metric_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -1533,7 +1538,7 @@ int decode_pfcp_metric_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->metric = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1545,7 +1550,7 @@ int decode_pfcp_metric_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_multiplier_ie_t(uint8_t *buf,
+int decode_pfcp_multiplier_ie_t(const uint8_t *buf,
         pfcp_multiplier_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -1555,7 +1560,7 @@ int decode_pfcp_multiplier_ie_t(uint8_t *buf,
     total_decoded += decoded;
     value->exponent = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1567,7 +1572,7 @@ int decode_pfcp_multiplier_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_cause_ie_t(uint8_t *buf,
+int decode_pfcp_cause_ie_t(const uint8_t *buf,
         pfcp_cause_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -1575,7 +1580,7 @@ int decode_pfcp_cause_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->cause_value = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1587,7 +1592,7 @@ int decode_pfcp_cause_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_offending_ie_ie_t(uint8_t *buf,
+int decode_pfcp_offending_ie_ie_t(const uint8_t *buf,
         pfcp_offending_ie_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -1595,7 +1600,7 @@ int decode_pfcp_offending_ie_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->type_of_the_offending_ie = decode_bits(buf, total_decoded, 16, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1607,17 +1612,17 @@ int decode_pfcp_offending_ie_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_ntwk_inst_ie_t(uint8_t *buf,
+int decode_pfcp_ntwk_inst_ie_t(const uint8_t *buf,
         pfcp_ntwk_inst_ie_t *value)
 {
     uint16_t total_decoded = 0;
     total_decoded += decode_pfcp_ie_header_t(buf + (total_decoded/CHAR_SIZE), &value->header);
     /* uint16_t decoded = 0; */
 	/* TODO: Revisit this for change in yang */
-	memcpy(&value->ntwk_inst, buf + (total_decoded/CHAR_SIZE), 32);
+	memcpy(&value->ntwk_inst, buf + (total_decoded/CHAR_SIZE), PFCP_NTWK_INST_LEN);
     //value->ntwk_inst = decode_bits(buf, total_decoded, 8, &decoded);
-    total_decoded += 32*CHAR_SIZE;//decoded;
-    return total_decoded/CHAR_SIZE;
+    total_decoded += PFCP_NTWK_INST_LEN*CHAR_SIZE;//decoded;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1629,7 +1634,7 @@ int decode_pfcp_ntwk_inst_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_redir_info_ie_t(uint8_t *buf,
+int decode_pfcp_redir_info_ie_t(const uint8_t *buf,
         pfcp_redir_info_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -1643,7 +1648,7 @@ int decode_pfcp_redir_info_ie_t(uint8_t *buf,
     total_decoded += decoded;
     value->redir_svr_addr = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1655,7 +1660,7 @@ int decode_pfcp_redir_info_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_event_threshold_ie_t(uint8_t *buf,
+int decode_pfcp_event_threshold_ie_t(const uint8_t *buf,
         pfcp_event_threshold_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -1663,7 +1668,7 @@ int decode_pfcp_event_threshold_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->event_threshold = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1675,7 +1680,7 @@ int decode_pfcp_event_threshold_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_app_inst_id_ie_t(uint8_t *buf,
+int decode_pfcp_app_inst_id_ie_t(const uint8_t *buf,
         pfcp_app_inst_id_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -1683,7 +1688,7 @@ int decode_pfcp_app_inst_id_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->app_inst_ident = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1695,7 +1700,7 @@ int decode_pfcp_app_inst_id_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_drpd_dl_traffic_thresh_ie_t(uint8_t *buf,
+int decode_pfcp_drpd_dl_traffic_thresh_ie_t(const uint8_t *buf,
         pfcp_drpd_dl_traffic_thresh_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -1711,7 +1716,7 @@ int decode_pfcp_drpd_dl_traffic_thresh_ie_t(uint8_t *buf,
     total_decoded += decoded;
     DECODE_NBR_OF_BYTES_OF_DNLNK_DATA_COND_1(buf, total_decoded, 64, decoded, value);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1723,7 +1728,7 @@ int decode_pfcp_drpd_dl_traffic_thresh_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_frmd_ipv6_rte_ie_t(uint8_t *buf,
+int decode_pfcp_frmd_ipv6_rte_ie_t(const uint8_t *buf,
         pfcp_frmd_ipv6_rte_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -1731,7 +1736,7 @@ int decode_pfcp_frmd_ipv6_rte_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->frmd_ipv6_rte = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1743,7 +1748,7 @@ int decode_pfcp_frmd_ipv6_rte_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_user_plane_inact_timer_ie_t(uint8_t *buf,
+int decode_pfcp_user_plane_inact_timer_ie_t(const uint8_t *buf,
 		pfcp_user_plane_inact_timer_ie_t *value)
 {
 	uint16_t total_decoded = 0;
@@ -1751,7 +1756,7 @@ int decode_pfcp_user_plane_inact_timer_ie_t(uint8_t *buf,
 	uint16_t decoded = 0;
 	value->user_plane_inact_timer = decode_bits(buf, total_decoded, 32, &decoded);
 	total_decoded += decoded;
-	return total_decoded/CHAR_SIZE;
+	return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1763,7 +1768,7 @@ int decode_pfcp_user_plane_inact_timer_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_sbsqnt_vol_thresh_ie_t(uint8_t *buf,
+int decode_pfcp_sbsqnt_vol_thresh_ie_t(const uint8_t *buf,
         pfcp_sbsqnt_vol_thresh_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -1783,7 +1788,7 @@ int decode_pfcp_sbsqnt_vol_thresh_ie_t(uint8_t *buf,
     total_decoded += decoded;
     DECODE_DOWNLINK_VOLUME_COND_2(buf, total_decoded, 64, decoded, value);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1795,7 +1800,7 @@ int decode_pfcp_sbsqnt_vol_thresh_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_outer_hdr_removal_ie_t(uint8_t *buf,
+int decode_pfcp_outer_hdr_removal_ie_t(const uint8_t *buf,
         pfcp_outer_hdr_removal_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -1806,7 +1811,7 @@ int decode_pfcp_outer_hdr_removal_ie_t(uint8_t *buf,
 	/* TODO: Revisit this for change in yang */
     //value->gtpu_ext_hdr_del = decode_bits(buf, total_decoded, 8, &decoded);
     //total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1818,7 +1823,7 @@ int decode_pfcp_outer_hdr_removal_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_user_id_ie_t(uint8_t *buf,
+int decode_pfcp_user_id_ie_t(const uint8_t *buf,
 		pfcp_user_id_ie_t *value)
 {
 	uint16_t total_decoded = 0;
@@ -1882,7 +1887,7 @@ int decode_pfcp_user_id_ie_t(uint8_t *buf,
 	DECODE_NAI_COND_1(buf, total_decoded, 8, decoded, value);
 	total_decoded += decoded;
 */
-	return total_decoded/CHAR_SIZE;
+	return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1894,7 +1899,7 @@ int decode_pfcp_user_id_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_dst_intfc_ie_t(uint8_t *buf,
+int decode_pfcp_dst_intfc_ie_t(const uint8_t *buf,
         pfcp_dst_intfc_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -1904,7 +1909,7 @@ int decode_pfcp_dst_intfc_ie_t(uint8_t *buf,
     total_decoded += decoded;
     value->interface_value = decode_bits(buf, total_decoded, 4, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1916,7 +1921,7 @@ int decode_pfcp_dst_intfc_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_ethertype_ie_t(uint8_t *buf,
+int decode_pfcp_ethertype_ie_t(const uint8_t *buf,
         pfcp_ethertype_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -1924,7 +1929,7 @@ int decode_pfcp_ethertype_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->ethertype = decode_bits(buf, total_decoded, 16, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1936,7 +1941,7 @@ int decode_pfcp_ethertype_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_pdr_id_ie_t(uint8_t *buf,
+int decode_pfcp_pdr_id_ie_t(const uint8_t *buf,
         pfcp_pdr_id_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -1944,7 +1949,7 @@ int decode_pfcp_pdr_id_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->rule_id = decode_bits(buf, total_decoded, 16, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1956,7 +1961,7 @@ int decode_pfcp_pdr_id_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_frwdng_plcy_ie_t(uint8_t *buf,
+int decode_pfcp_frwdng_plcy_ie_t(const uint8_t *buf,
         pfcp_frwdng_plcy_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -1964,9 +1969,13 @@ int decode_pfcp_frwdng_plcy_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->frwdng_plcy_ident_len = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    value->frwdng_plcy_ident = decode_bits(buf, total_decoded, 8, &decoded);
-    total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+
+	for(int itr = 0; itr < value->frwdng_plcy_ident_len; itr++) {
+		value->frwdng_plcy_ident[itr] = decode_bits(buf, total_decoded, 8, &decoded);
+		total_decoded += decoded;
+	}
+
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1978,7 +1987,7 @@ int decode_pfcp_frwdng_plcy_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_sbsqnt_evnt_thresh_ie_t(uint8_t *buf,
+int decode_pfcp_sbsqnt_evnt_thresh_ie_t(const uint8_t *buf,
         pfcp_sbsqnt_evnt_thresh_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -1986,7 +1995,7 @@ int decode_pfcp_sbsqnt_evnt_thresh_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->sbsqnt_evnt_thresh = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -1998,7 +2007,7 @@ int decode_pfcp_sbsqnt_evnt_thresh_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_eth_pdu_sess_info_ie_t(uint8_t *buf,
+int decode_pfcp_eth_pdu_sess_info_ie_t(const uint8_t *buf,
         pfcp_eth_pdu_sess_info_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -2008,7 +2017,7 @@ int decode_pfcp_eth_pdu_sess_info_ie_t(uint8_t *buf,
     total_decoded += decoded;
     value->ethi = decode_bits(buf, total_decoded, 1, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -2020,7 +2029,7 @@ int decode_pfcp_eth_pdu_sess_info_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_ctag_ie_t(uint8_t *buf,
+int decode_pfcp_ctag_ie_t(const uint8_t *buf,
         pfcp_ctag_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -2042,7 +2051,7 @@ int decode_pfcp_ctag_ie_t(uint8_t *buf,
     total_decoded += decoded;
     DECODE_CVID_VALUE2_COND_1(buf, total_decoded, 8, decoded, value);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -2054,7 +2063,7 @@ int decode_pfcp_ctag_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_dl_buf_suggstd_pckt_cnt_ie_t(uint8_t *buf,
+int decode_pfcp_dl_buf_suggstd_pckt_cnt_ie_t(const uint8_t *buf,
         pfcp_dl_buf_suggstd_pckt_cnt_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -2062,7 +2071,7 @@ int decode_pfcp_dl_buf_suggstd_pckt_cnt_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->pckt_cnt_val = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -2074,7 +2083,7 @@ int decode_pfcp_dl_buf_suggstd_pckt_cnt_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_user_plane_ip_rsrc_info_ie_t(uint8_t *buf,
+int decode_pfcp_user_plane_ip_rsrc_info_ie_t(const uint8_t *buf,
 		pfcp_user_plane_ip_rsrc_info_ie_t *value)
 {
 	uint16_t total_decoded = 0;
@@ -2113,7 +2122,7 @@ int decode_pfcp_user_plane_ip_rsrc_info_ie_t(uint8_t *buf,
 	DECODE_SRC_INTFC_COND_1(buf, total_decoded, 4, decoded, value);
 	/* TODO: Revisit this for change in yang */
 	//total_decoded += decoded;
-	return total_decoded/CHAR_SIZE;
+	return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -2125,7 +2134,7 @@ int decode_pfcp_user_plane_ip_rsrc_info_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_pdn_type_ie_t(uint8_t *buf,
+int decode_pfcp_pdn_type_ie_t(const uint8_t *buf,
         pfcp_pdn_type_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -2135,7 +2144,7 @@ int decode_pfcp_pdn_type_ie_t(uint8_t *buf,
     total_decoded += decoded;
     value->pdn_type = decode_bits(buf, total_decoded, 3, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -2147,7 +2156,7 @@ int decode_pfcp_pdn_type_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_sbsqnt_time_thresh_ie_t(uint8_t *buf,
+int decode_pfcp_sbsqnt_time_thresh_ie_t(const uint8_t *buf,
         pfcp_sbsqnt_time_thresh_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -2155,7 +2164,7 @@ int decode_pfcp_sbsqnt_time_thresh_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->sbsqnt_time_thresh = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -2167,7 +2176,7 @@ int decode_pfcp_sbsqnt_time_thresh_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_actvt_predef_rules_ie_t(uint8_t *buf,
+int decode_pfcp_actvt_predef_rules_ie_t(const uint8_t *buf,
 		pfcp_actvt_predef_rules_ie_t *value)
 {
 	uint16_t total_decoded = 0;
@@ -2176,12 +2185,11 @@ int decode_pfcp_actvt_predef_rules_ie_t(uint8_t *buf,
 
 	/* TODO: Revisit this for change in yang */
 	// value->predef_rules_nm = decode_bits(buf, total_decoded, 8, &decoded);
-	memcpy(&value->predef_rules_nm, buf + (total_decoded/CHAR_SIZE), 8);
-
-	total_decoded += (8 * CHAR_SIZE);
+	memcpy(&value->predef_rules_nm, buf + (total_decoded/CHAR_SIZE), value->header.len);
+	total_decoded += (value->header.len * CHAR_SIZE);
 /* TODO: Revisit this for change in yang */
 
-	return total_decoded/CHAR_SIZE;
+	return value->header.len + PFCP_IE_HEADER_SIZE;
 
 }
 
@@ -2194,7 +2202,7 @@ int decode_pfcp_actvt_predef_rules_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_time_of_frst_pckt_ie_t(uint8_t *buf,
+int decode_pfcp_time_of_frst_pckt_ie_t(const uint8_t *buf,
         pfcp_time_of_frst_pckt_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -2202,7 +2210,7 @@ int decode_pfcp_time_of_frst_pckt_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->time_of_frst_pckt = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -2214,7 +2222,7 @@ int decode_pfcp_time_of_frst_pckt_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_cp_func_feat_ie_t(uint8_t *buf,
+int decode_pfcp_cp_func_feat_ie_t(const uint8_t *buf,
         pfcp_cp_func_feat_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -2222,7 +2230,7 @@ int decode_pfcp_cp_func_feat_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->sup_feat = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -2234,7 +2242,7 @@ int decode_pfcp_cp_func_feat_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_rcvry_time_stmp_ie_t(uint8_t *buf,
+int decode_pfcp_rcvry_time_stmp_ie_t(const uint8_t *buf,
         pfcp_rcvry_time_stmp_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -2242,7 +2250,7 @@ int decode_pfcp_rcvry_time_stmp_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->rcvry_time_stmp_val = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -2254,7 +2262,7 @@ int decode_pfcp_rcvry_time_stmp_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_report_type_ie_t(uint8_t *buf,
+int decode_pfcp_report_type_ie_t(const uint8_t *buf,
         pfcp_report_type_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -2270,7 +2278,7 @@ int decode_pfcp_report_type_ie_t(uint8_t *buf,
     total_decoded += decoded;
     value->dldr = decode_bits(buf, total_decoded, 1, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -2282,7 +2290,7 @@ int decode_pfcp_report_type_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_framed_route_ie_t(uint8_t *buf,
+int decode_pfcp_framed_route_ie_t(const uint8_t *buf,
         pfcp_framed_route_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -2290,7 +2298,7 @@ int decode_pfcp_framed_route_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->framed_route = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -2302,7 +2310,7 @@ int decode_pfcp_framed_route_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_usage_rpt_trig_ie_t(uint8_t *buf,
+int decode_pfcp_usage_rpt_trig_ie_t(const uint8_t *buf,
         pfcp_usage_rpt_trig_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -2344,7 +2352,7 @@ int decode_pfcp_usage_rpt_trig_ie_t(uint8_t *buf,
     total_decoded += decoded;
     value->evequ = decode_bits(buf, total_decoded, 1, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -2356,7 +2364,7 @@ int decode_pfcp_usage_rpt_trig_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_trc_info_ie_t(uint8_t *buf,
+int decode_pfcp_trc_info_ie_t(const uint8_t *buf,
         pfcp_trc_info_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -2390,7 +2398,7 @@ int decode_pfcp_trc_info_ie_t(uint8_t *buf,
     total_decoded += decoded;
     value->ip_addr_of_trc_coll_ent = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -2402,7 +2410,7 @@ int decode_pfcp_trc_info_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_start_time_ie_t(uint8_t *buf,
+int decode_pfcp_start_time_ie_t(const uint8_t *buf,
         pfcp_start_time_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -2410,7 +2418,7 @@ int decode_pfcp_start_time_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->start_time = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -2422,7 +2430,7 @@ int decode_pfcp_start_time_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_src_intfc_ie_t(uint8_t *buf,
+int decode_pfcp_src_intfc_ie_t(const uint8_t *buf,
         pfcp_src_intfc_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -2432,7 +2440,7 @@ int decode_pfcp_src_intfc_ie_t(uint8_t *buf,
     total_decoded += decoded;
     value->interface_value = decode_bits(buf, total_decoded, 4, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -2444,7 +2452,7 @@ int decode_pfcp_src_intfc_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_urr_id_ie_t(uint8_t *buf,
+int decode_pfcp_urr_id_ie_t(const uint8_t *buf,
         pfcp_urr_id_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -2452,7 +2460,7 @@ int decode_pfcp_urr_id_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->urr_id_value = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -2464,7 +2472,7 @@ int decode_pfcp_urr_id_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_sdf_filter_ie_t(uint8_t *buf,
+int decode_pfcp_sdf_filter_ie_t(const uint8_t *buf,
         pfcp_sdf_filter_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -2493,7 +2501,7 @@ int decode_pfcp_sdf_filter_ie_t(uint8_t *buf,
     DECODE_SECUR_PARM_IDX_COND_1(buf, total_decoded, 32, decoded, value);
     DECODE_FLOW_LABEL_COND_1(buf, total_decoded, 24, decoded, value);
     DECODE_SDF_FILTER_ID_COND_1(buf, total_decoded, 32, decoded, value);
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -2505,7 +2513,7 @@ int decode_pfcp_sdf_filter_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_add_usage_rpts_info_ie_t(uint8_t *buf,
+int decode_pfcp_add_usage_rpts_info_ie_t(const uint8_t *buf,
         pfcp_add_usage_rpts_info_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -2517,7 +2525,7 @@ int decode_pfcp_add_usage_rpts_info_ie_t(uint8_t *buf,
     total_decoded += decoded;
     value->nbr_of_add_usage_rpts_value2 = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -2529,7 +2537,7 @@ int decode_pfcp_add_usage_rpts_info_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_pfcpsrrsp_flags_ie_t(uint8_t *buf,
+int decode_pfcp_pfcpsrrsp_flags_ie_t(const uint8_t *buf,
         pfcp_pfcpsrrsp_flags_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -2551,7 +2559,7 @@ int decode_pfcp_pfcpsrrsp_flags_ie_t(uint8_t *buf,
     total_decoded += decoded;
     value->drobu = decode_bits(buf, total_decoded, 1, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -2563,7 +2571,7 @@ int decode_pfcp_pfcpsrrsp_flags_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_timer_ie_t(uint8_t *buf,
+int decode_pfcp_timer_ie_t(const uint8_t *buf,
         pfcp_timer_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -2573,7 +2581,7 @@ int decode_pfcp_timer_ie_t(uint8_t *buf,
     total_decoded += decoded;
     value->timer_value = decode_bits(buf, total_decoded, 5, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -2585,7 +2593,7 @@ int decode_pfcp_timer_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_mac_address_ie_t(uint8_t *buf,
+int decode_pfcp_mac_address_ie_t(const uint8_t *buf,
         pfcp_mac_address_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -2609,7 +2617,7 @@ int decode_pfcp_mac_address_ie_t(uint8_t *buf,
     total_decoded += decoded;
     DECODE_UPR_DST_MAC_ADDR_VAL_COND_1(buf, total_decoded, 48, decoded, value);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -2621,7 +2629,7 @@ int decode_pfcp_mac_address_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_outer_hdr_creation_ie_t(uint8_t *buf,
+int decode_pfcp_outer_hdr_creation_ie_t(const uint8_t *buf,
         pfcp_outer_hdr_creation_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -2641,7 +2649,7 @@ int decode_pfcp_outer_hdr_creation_ie_t(uint8_t *buf,
     //total_decoded += decoded;
     DECODE_STAG_COND_1(buf, total_decoded, 24, decoded, value);
     //total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -2653,7 +2661,7 @@ int decode_pfcp_outer_hdr_creation_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_fqcsid_ie_t(uint8_t *buf,
+int decode_pfcp_fqcsid_ie_t(const uint8_t *buf,
 		pfcp_fqcsid_ie_t *value)
 {
 	uint16_t total_decoded = 0;
@@ -2677,7 +2685,7 @@ int decode_pfcp_fqcsid_ie_t(uint8_t *buf,
 		total_decoded += decoded;
 	}
 
-	return total_decoded/CHAR_SIZE;
+	return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -2689,7 +2697,7 @@ int decode_pfcp_fqcsid_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_time_of_lst_pckt_ie_t(uint8_t *buf,
+int decode_pfcp_time_of_lst_pckt_ie_t(const uint8_t *buf,
         pfcp_time_of_lst_pckt_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -2697,7 +2705,7 @@ int decode_pfcp_time_of_lst_pckt_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->time_of_lst_pckt = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -2709,7 +2717,7 @@ int decode_pfcp_time_of_lst_pckt_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_rqi_ie_t(uint8_t *buf,
+int decode_pfcp_rqi_ie_t(const uint8_t *buf,
         pfcp_rqi_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -2719,7 +2727,7 @@ int decode_pfcp_rqi_ie_t(uint8_t *buf,
     total_decoded += decoded;
     value->rqi = decode_bits(buf, total_decoded, 1, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -2731,7 +2739,7 @@ int decode_pfcp_rqi_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_vol_thresh_ie_t(uint8_t *buf,
+int decode_pfcp_vol_thresh_ie_t(const uint8_t *buf,
         pfcp_vol_thresh_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -2751,7 +2759,7 @@ int decode_pfcp_vol_thresh_ie_t(uint8_t *buf,
     //total_decoded += decoded;
     DECODE_DOWNLINK_VOLUME_COND_1(buf, total_decoded, 64, decoded, value);
     //total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -2763,7 +2771,7 @@ int decode_pfcp_vol_thresh_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_graceful_rel_period_ie_t(uint8_t *buf,
+int decode_pfcp_graceful_rel_period_ie_t(const uint8_t *buf,
         pfcp_graceful_rel_period_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -2773,7 +2781,7 @@ int decode_pfcp_graceful_rel_period_ie_t(uint8_t *buf,
     total_decoded += decoded;
     value->timer_value = decode_bits(buf, total_decoded, 5, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -2785,7 +2793,7 @@ int decode_pfcp_graceful_rel_period_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_qfi_ie_t(uint8_t *buf,
+int decode_pfcp_qfi_ie_t(const uint8_t *buf,
         pfcp_qfi_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -2795,7 +2803,7 @@ int decode_pfcp_qfi_ie_t(uint8_t *buf,
     total_decoded += decoded;
     value->qfi_value = decode_bits(buf, total_decoded, 6, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -2807,7 +2815,7 @@ int decode_pfcp_qfi_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_agg_urr_id_ie_t(uint8_t *buf,
+int decode_pfcp_agg_urr_id_ie_t(const uint8_t *buf,
         pfcp_agg_urr_id_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -2815,7 +2823,7 @@ int decode_pfcp_agg_urr_id_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->urr_id_value = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -2827,7 +2835,7 @@ int decode_pfcp_agg_urr_id_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_mbr_ie_t(uint8_t *buf,
+int decode_pfcp_mbr_ie_t(const uint8_t *buf,
         pfcp_mbr_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -2837,7 +2845,7 @@ int decode_pfcp_mbr_ie_t(uint8_t *buf,
     total_decoded += decoded;
     value->dl_mbr = decode_bits(buf, total_decoded, 40, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -2849,7 +2857,7 @@ int decode_pfcp_mbr_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_dnlnk_data_notif_delay_ie_t(uint8_t *buf,
+int decode_pfcp_dnlnk_data_notif_delay_ie_t(const uint8_t *buf,
         pfcp_dnlnk_data_notif_delay_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -2857,7 +2865,7 @@ int decode_pfcp_dnlnk_data_notif_delay_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->delay_val_in_integer_multiples_of_50_millisecs_or_zero = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -2869,7 +2877,7 @@ int decode_pfcp_dnlnk_data_notif_delay_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_avgng_wnd_ie_t(uint8_t *buf,
+int decode_pfcp_avgng_wnd_ie_t(const uint8_t *buf,
         pfcp_avgng_wnd_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -2877,7 +2885,7 @@ int decode_pfcp_avgng_wnd_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->avgng_wnd = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -2889,7 +2897,7 @@ int decode_pfcp_avgng_wnd_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_oci_flags_ie_t(uint8_t *buf,
+int decode_pfcp_oci_flags_ie_t(const uint8_t *buf,
         pfcp_oci_flags_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -2899,7 +2907,7 @@ int decode_pfcp_oci_flags_ie_t(uint8_t *buf,
     total_decoded += decoded;
     value->aoci = decode_bits(buf, total_decoded, 1, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -2911,7 +2919,7 @@ int decode_pfcp_oci_flags_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_time_threshold_ie_t(uint8_t *buf,
+int decode_pfcp_time_threshold_ie_t(const uint8_t *buf,
         pfcp_time_threshold_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -2919,7 +2927,7 @@ int decode_pfcp_time_threshold_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->time_threshold = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -2931,7 +2939,7 @@ int decode_pfcp_time_threshold_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_fseid_ie_t(uint8_t *buf,
+int decode_pfcp_fseid_ie_t(const uint8_t *buf,
 		pfcp_fseid_ie_t *value)
 {
 	uint16_t total_decoded = 0;
@@ -2962,7 +2970,7 @@ int decode_pfcp_fseid_ie_t(uint8_t *buf,
 
 	/* TODO: Revisit this for change in yang */
 	//total_decoded += decoded;
-	return total_decoded/CHAR_SIZE;
+	return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -2974,7 +2982,7 @@ int decode_pfcp_fseid_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_stag_ie_t(uint8_t *buf,
+int decode_pfcp_stag_ie_t(const uint8_t *buf,
         pfcp_stag_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -2996,7 +3004,7 @@ int decode_pfcp_stag_ie_t(uint8_t *buf,
     total_decoded += decoded;
     DECODE_SVID_VALUE2_COND_1(buf, total_decoded, 8, decoded, value);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -3008,7 +3016,7 @@ int decode_pfcp_stag_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_eth_inact_timer_ie_t(uint8_t *buf,
+int decode_pfcp_eth_inact_timer_ie_t(const uint8_t *buf,
         pfcp_eth_inact_timer_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -3016,7 +3024,7 @@ int decode_pfcp_eth_inact_timer_ie_t(uint8_t *buf,
     uint16_t decoded = 0;
     value->eth_inact_timer = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -3028,7 +3036,7 @@ int decode_pfcp_eth_inact_timer_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_meas_info_ie_t(uint8_t *buf,
+int decode_pfcp_meas_info_ie_t(const uint8_t *buf,
         pfcp_meas_info_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -3044,7 +3052,7 @@ int decode_pfcp_meas_info_ie_t(uint8_t *buf,
     total_decoded += decoded;
     value->mbqe = decode_bits(buf, total_decoded, 1, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -3056,7 +3064,7 @@ int decode_pfcp_meas_info_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_eth_fltr_props_ie_t(uint8_t *buf,
+int decode_pfcp_eth_fltr_props_ie_t(const uint8_t *buf,
         pfcp_eth_fltr_props_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -3066,7 +3074,7 @@ int decode_pfcp_eth_fltr_props_ie_t(uint8_t *buf,
     total_decoded += decoded;
     value->bide = decode_bits(buf, total_decoded, 1, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
 /**
@@ -3078,7 +3086,7 @@ int decode_pfcp_eth_fltr_props_ie_t(uint8_t *buf,
 * @return
 *   number of decoded bytes.
 */
-int decode_pfcp_rmt_gtpu_peer_ie_t(uint8_t *buf,
+int decode_pfcp_rmt_gtpu_peer_ie_t(const uint8_t *buf,
         pfcp_rmt_gtpu_peer_ie_t *value)
 {
     uint16_t total_decoded = 0;
@@ -3094,6 +3102,46 @@ int decode_pfcp_rmt_gtpu_peer_ie_t(uint8_t *buf,
     total_decoded += decoded;
     DECODE_IPV6_ADDRESS_COND_1(buf, total_decoded, 8, decoded, value);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
 }
 
+/**
+* Decodes pfcp_3gpp_intfc_type_ie_t to buffer.
+* @param value
+*    pfcp_3gpp_intfc_type_ie_t
+* @param buf
+*   buffer to store decoded values.
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_3gpp_intfc_type_ie_t(const uint8_t *buf,
+    pfcp_3gpp_intfc_type_ie_t *value)
+{
+    uint16_t total_decoded = 0;
+    total_decoded += decode_pfcp_ie_header_t(buf + (total_decoded/CHAR_SIZE), &value->header);
+    uint16_t decoded = 0;
+    value->interface_type_value = decode_bits(buf, total_decoded, 6, &decoded);
+    total_decoded += decoded;
+    value->spare = decode_bits(buf, total_decoded, 2, &decoded);
+    total_decoded += decoded;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
+}
+
+/**
+* Decodes pfcp_apn_dnn_ie_t to buffer.
+* @param value
+*    pfcp_apn_dnn_ie_t
+* @param buf
+*   buffer to store decoded values.
+* @return
+*   number of decoded bytes.
+*/
+int decode_pfcp_apn_dnn_ie_t(const uint8_t *buf,
+    pfcp_apn_dnn_ie_t *value)
+{
+    uint16_t total_decoded = 0;
+    total_decoded += decode_pfcp_ie_header_t(buf + (total_decoded/CHAR_SIZE), &value->header);
+    memcpy(&value->apn_dnn, buf + (total_decoded/CHAR_SIZE), value->header.len);
+	total_decoded +=  value->header.len * CHAR_SIZE;
+    return value->header.len + PFCP_IE_HEADER_SIZE;
+}

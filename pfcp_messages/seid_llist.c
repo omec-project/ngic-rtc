@@ -29,14 +29,14 @@ add_sess_csid_data_node(sess_csid *head) {
 				RTE_CACHE_LINE_SIZE, rte_socket_id());
 	if(new_node == NULL ) {
 		clLog(clSystemLog, eCLSeverityCritical,
-				FORMAT"Failed to allocate memory for session data info\n", ERR_MSG);
+				LOG_FORMAT"Failed to allocate memory for session data info\n", LOG_VALUE);
 		return NULL;
 	}
 
 	/* Add new node into linked list */
 	if(insert_sess_csid_data_node(head, new_node) < 0){
-		clLog(clSystemLog, eCLSeverityCritical, FORMAT"Failed to add node entry in LL\n",
-				ERR_MSG);
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to add node entry in LL\n",
+				LOG_VALUE);
 		return NULL;
 	}
 
@@ -81,8 +81,8 @@ get_sess_csid_data_node(sess_csid *head, uint64_t seid)
 		/* Validate the expected node or not */
 		if (current->cp_seid == seid || current->up_seid == seid) {
 			/* Node is not present in linked list */
-			clLog(clSystemLog, eCLSeverityDebug, FORMAT"Match found for seid %"PRIu64" in LL\n",
-						ERR_MSG, seid);
+			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Match found for seid %"PRIu64" in LL\n",
+						LOG_VALUE, seid);
 			return current;
 		}
 
@@ -90,8 +90,8 @@ get_sess_csid_data_node(sess_csid *head, uint64_t seid)
 		current = current->next;
 	}
 	/* Node is not present in linked list */
-	clLog(clSystemLog, eCLSeverityDebug, FORMAT"Match not found for seid %"PRIu64" in LL\n",
-				ERR_MSG, seid);
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Match not found for seid %"PRIu64" in LL\n",
+				LOG_VALUE, seid);
 	return NULL;
 }
 
@@ -215,8 +215,8 @@ remove_sess_csid_data_node(sess_csid *head, uint64_t seid)
 
 
 	/* If no node present in link list for given seid then return NULL */
-	clLog(clSystemLog, eCLSeverityDebug, FORMAT"Failed to remove node, for seid : %"PRIu64"\n",
-				ERR_MSG, seid);
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Failed to remove node, for seid : %"PRIu64"\n",
+				LOG_VALUE, seid);
 	return NULL;
 
 }

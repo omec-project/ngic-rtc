@@ -53,12 +53,6 @@ struct cp_stats_t {
 	uint64_t tx_last;
 
 	char stat_timestamp[LAST_TIMER_SIZE];
-
-#ifdef SDN_ODL_BUILD
-	uint64_t nb_sent;
-	uint64_t nb_ok;
-	uint64_t nb_cnr;
-#endif
 };
 
 extern struct cp_stats_t cp_stats;

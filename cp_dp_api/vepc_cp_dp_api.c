@@ -40,7 +40,6 @@
 
 #ifdef CP_BUILD
 #include "cp.h"
-#include "nb.h"
 #include "main.h"
 #include "cp_stats.h"
 #include "cp_config.h"
@@ -48,14 +47,14 @@
 
 //TODO:Remove it
 #include "cdr.h"
-#include "meter.h"
 #endif /* CP_BUILD */
+
+extern uint32_t li_seq_no;
 
 /******************** IPC msgs **********************/
 #ifdef CP_BUILD
 extern int pfcp_fd;
 extern struct sockaddr_in upf_pfcp_sockaddr;
-
 /**
  * @brief  : Pack the message which has to be sent to DataPlane.
  * @param  : mtype
@@ -124,7 +123,8 @@ build_dp_msg(enum dp_msg_type mtype, struct dp_id dp_id,
 				*(struct downlink_data_notification *)param;
 		break;
 	default:
-		clLog(clSystemLog, eCLSeverityCritical, "build_dp_msg: Invalid msg type\n");
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"build_dp_msg: "
+			"Invalid msg type\n", LOG_VALUE);
 		return -1;
 	}
 	return 0;
@@ -148,14 +148,15 @@ send_dp_msg(struct dp_id dp_id, struct msgbuf *msg_payload)
 	/*Fill pfd request */
 	fill_pfcp_pfd_mgmt_req(&pfd_mgmt_req, 0);
 
-	uint8_t pfd_msg[512]={0};
+	uint8_t pfd_msg[PFCP_MSG_LEN]={0};
 	uint16_t  pfd_msg_len=encode_pfcp_pfd_mgmt_req_t(&pfd_mgmt_req, pfd_msg);
 
 	pfcp_header_t *header=(pfcp_header_t *) pfd_msg;
-	header->message_len = htons(pfd_msg_len - 4);
+	header->message_len = htons(pfd_msg_len - PFCP_IE_HDR_SIZE);
 
 	if (pfcp_send(pfcp_fd, (char *)pfd_msg, pfd_msg_len, &upf_pfcp_sockaddr,SENT) < 0 ){
-		clLog(clSystemLog, eCLSeverityCritical,"Error sending: %i\n",errno);
+		clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT"Error sending PFCP "
+			"PFD Management Request %i\n",errno);
 		free(pfd_mgmt_req.app_ids_pfds[0].pfd_context[0].pfd_contents[0].cstm_pfd_cntnt);
 		return -1;
 	}
@@ -177,18 +178,6 @@ sdf_filter_table_create(struct dp_id dp_id, uint32_t max_elements)
 }
 
 int
-sdf_filter_table_delete(struct dp_id dp_id)
-{
-#ifdef CP_BUILD
-	struct msgbuf msg_payload;
-	build_dp_msg(MSG_SDF_DES, dp_id, (void *)NULL, &msg_payload);
-	return send_dp_msg(dp_id, &msg_payload);
-#else
-	return dp_sdf_filter_table_delete(dp_id);
-#endif
-}
-
-int
 sdf_filter_entry_add(struct dp_id dp_id, struct pkt_filter pkt_filter_entry)
 {
 #ifdef CP_BUILD
@@ -200,17 +189,6 @@ sdf_filter_entry_add(struct dp_id dp_id, struct pkt_filter pkt_filter_entry)
 #endif
 }
 
-int
-sdf_filter_entry_delete(struct dp_id dp_id, struct pkt_filter pkt_filter_entry)
-{
-#ifdef CP_BUILD
-	struct msgbuf msg_payload;
-	build_dp_msg(MSG_SDF_DEL, dp_id, (void *)&pkt_filter_entry, &msg_payload);
-	return send_dp_msg(dp_id, &msg_payload);
-#else
-	return dp_sdf_filter_entry_delete(dp_id, &pkt_filter_entry);
-#endif
-}
 
 /******************** ADC Rule Table **********************/
 int
@@ -271,17 +249,6 @@ pcc_table_create(struct dp_id dp_id, uint32_t max_elements)
 #endif
 }
 
-int
-pcc_table_delete(struct dp_id dp_id)
-{
-#ifdef CP_BUILD
-	struct msgbuf msg_payload;
-	build_dp_msg(MSG_PCC_TBL_DES, dp_id, (void *)NULL, &msg_payload);
-	return send_dp_msg(dp_id, &msg_payload);
-#else
-	return dp_pcc_table_delete(dp_id);
-#endif
-}
 
 int
 pcc_entry_add(struct dp_id dp_id, struct pcc_rules entry)
@@ -295,18 +262,6 @@ pcc_entry_add(struct dp_id dp_id, struct pcc_rules entry)
 #endif
 }
 
-int
-pcc_entry_delete(struct dp_id dp_id, struct pcc_rules entry)
-{
-#ifdef CP_BUILD
-	struct msgbuf msg_payload;
-	build_dp_msg(MSG_PCC_TBL_DEL, dp_id, (void *)&entry, &msg_payload);
-	return send_dp_msg(dp_id, &msg_payload);
-#else
-	return dp_pcc_entry_delete(dp_id, &entry);
-#endif
-}
-
 /******************** Bearer Session Table **********************/
 int
 session_table_create(struct dp_id dp_id, uint32_t max_elements)
@@ -317,18 +272,6 @@ session_table_create(struct dp_id dp_id, uint32_t max_elements)
 	return send_dp_msg(dp_id, &msg_payload);
 #else
 	return dp_session_table_create(dp_id, max_elements);
-#endif
-}
-
-int
-session_table_delete(struct dp_id dp_id)
-{
-#ifdef CP_BUILD
-	struct msgbuf msg_payload;
-	build_dp_msg(MSG_SESS_TBL_DES, dp_id, (void *)NULL, &msg_payload);
-	return send_dp_msg(dp_id, &msg_payload);
-#else
-	return dp_session_table_delete(dp_id);
 #endif
 }
 
@@ -349,46 +292,7 @@ session_create(struct dp_id dp_id,
 
 #endif /* SYNC_STATS */
 
-#ifdef SDN_ODL_BUILD
-	switch(spgw_cfg) {
-	case SGWC :
-	case SAEGWC :
-		return send_nb_create_modify(
-				JSON_OBJ_OP_TYPE_CREATE,
-				JSON_OBJ_INSTR_3GPP_MOB_CREATE,
-				entry.sess_id,
-				htonl(entry.ue_addr.u.ipv4_addr),
-				htonl(entry.dl_s1_info.enb_addr.u.ipv4_addr),
-				htonl(entry.ul_s1_info.s5s8_pgwu_addr.u.ipv4_addr),
-				htonl(entry.ul_s1_info.sgw_addr.u.ipv4_addr),
-				htonl(entry.dl_s1_info.enb_teid),
-				htonl(entry.ul_s1_info.sgw_teid),
-				htonl(entry.ue_addr.u.ipv4_addr),
-				UE_BEAR_ID(entry.sess_id));
-		break;
-
-	case PGWC :
-		return send_nb_create_modify(
-				JSON_OBJ_OP_TYPE_CREATE,
-				JSON_OBJ_INSTR_3GPP_MOB_CREATE,
-				entry.sess_id,
-				htonl(entry.ue_addr.u.ipv4_addr),
-				htonl(entry.dl_s1_info.enb_addr.u.ipv4_addr),
-				htonl(entry.dl_s1_info.s5s8_sgwu_addr.u.ipv4_addr),
-				htonl(entry.ul_s1_info.sgw_addr.u.ipv4_addr),
-				htonl(entry.dl_s1_info.enb_teid),
-				htonl(entry.ul_s1_info.sgw_teid),
-				htonl(entry.ue_addr.u.ipv4_addr),
-				UE_BEAR_ID(entry.sess_id));
-		break;
-
-	default :
-		rte_panic("ERROR: INVALID DPN Type :%d\n", spgw_cfg);
-	}
-
-#else
 	return send_dp_msg(dp_id, &msg_payload);
-#endif		/* SDN_ODL_BUILD */
 #else
 	return dp_session_create(dp_id, &entry);
 #endif		/* CP_BUILD */
@@ -412,52 +316,11 @@ session_modify(struct dp_id dp_id,
 
 #endif /* SYNC_STATS */
 
-#ifdef SDN_ODL_BUILD
-	return send_nb_create_modify(
-			JSON_OBJ_OP_TYPE_UPDATE,
-			JSON_OBJ_INSTR_3GPP_MOB_MODIFY,
-			entry.sess_id,
-			htonl(entry.ue_addr.u.ipv4_addr),
-			htonl(entry.dl_s1_info.enb_addr.u.ipv4_addr),
-			htonl(entry.ul_s1_info.s5s8_pgwu_addr.u.ipv4_addr),
-			htonl(entry.ul_s1_info.sgw_addr.u.ipv4_addr),
-			htonl(entry.dl_s1_info.enb_teid),
-			htonl(entry.ul_s1_info.sgw_teid),
-			htonl(entry.ue_addr.u.ipv4_addr),
-			UE_BEAR_ID(entry.sess_id));
-#else
 	return send_dp_msg(dp_id, &msg_payload);
-#endif		/* SDN_ODL_BUILD */
 #else
 	return dp_session_modify(dp_id, &entry);
 #endif		/* CP_BUILD */
 }
-
-#ifdef CP_BUILD
-int
-send_ddn_ack(struct dp_id dp_id,
-				struct downlink_data_notification entry)
-{
-	struct msgbuf msg_payload;
-	build_dp_msg(MSG_DDN_ACK, dp_id, (void *)&entry, &msg_payload);
-
-#ifdef SDN_ODL_BUILD
-	return send_nb_ddn_ack(entry.dl_buff_cnt,
-				entry.dl_buff_duration);
-#else
-	return send_dp_msg(dp_id, &msg_payload);
-#endif		/* SDN_ODL_BUILD */
-}
-#endif		/* CP_BUILD */
-
-#ifdef DP_BUILD
-int
-send_ddn_ack(struct dp_id dp_id,
-				struct downlink_data_notification_ack_t entry)
-{
-	return dp_ddn_ack(dp_id, &entry);
-}
-#endif		/* DP_BUILD */
 
 int
 session_delete(struct dp_id dp_id,
@@ -475,12 +338,7 @@ session_delete(struct dp_id dp_id,
 	add_stats_entry(&info);
 
 #endif /* SYNC_STATS */
-
-#ifdef SDN_ODL_BUILD
-	return send_nb_delete(entry.sess_id);
-#else
 	return send_dp_msg(dp_id, &msg_payload);
-#endif		/* SDN_ODL_BUILD */
 #else
 	return dp_session_delete(dp_id, &entry);
 #endif		/* CP_BUILD */
@@ -500,18 +358,6 @@ meter_profile_table_create(struct dp_id dp_id, uint32_t max_elements)
 }
 
 int
-meter_profile_table_delete(struct dp_id dp_id)
-{
-#ifdef CP_BUILD
-	struct msgbuf msg_payload;
-	build_dp_msg(MSG_MTR_DES, dp_id, (void *)NULL, &msg_payload);
-	return send_dp_msg(dp_id, &msg_payload);
-#else
-	return dp_meter_profile_table_delete(dp_id);
-#endif
-}
-
-int
 meter_profile_entry_add(struct dp_id dp_id, struct mtr_entry entry)
 {
 #ifdef CP_BUILD
@@ -520,30 +366,6 @@ meter_profile_entry_add(struct dp_id dp_id, struct mtr_entry entry)
 	return send_dp_msg(dp_id, &msg_payload);
 #else
 	return dp_meter_profile_entry_add(dp_id, &entry);
-#endif
-}
-
-int
-meter_profile_entry_delete(struct dp_id dp_id, struct mtr_entry entry)
-{
-#ifdef CP_BUILD
-	struct msgbuf msg_payload;
-	build_dp_msg(MSG_MTR_DEL, dp_id, (void *)&entry, &msg_payload);
-	return send_dp_msg(dp_id, &msg_payload);
-#else
-	return dp_meter_profile_entry_delete(dp_id, &entry);
-#endif
-}
-
-int
-ue_cdr_flush(struct dp_id dp_id, struct msg_ue_cdr ue_cdr)
-{
-#ifdef CP_BUILD
-	struct msgbuf msg_payload;
-	build_dp_msg(MSG_EXP_CDR, dp_id, (void *)&ue_cdr, &msg_payload);
-	return send_dp_msg(dp_id, &msg_payload);
-#else
-	return dp_ue_cdr_flush(dp_id, &ue_cdr);
 #endif
 }
 #endif /* CP_BUILD*/
@@ -555,58 +377,57 @@ encode_li_header(li_header_t *header, uint8_t *buf)
 	int encoded = 0;
 	uint32_t tmp = 0;
 	uint16_t tmpport = 0;
-	uint64_t imsiTmp = 0;
+	uint64_t tmpid = 0;
 
-	memcpy(buf, &(header->flags), 1);
+	tmp = htonl(header->packet_len);
+	memcpy(buf + encoded, &tmp, sizeof(uint32_t));
+	encoded += sizeof(uint32_t);
+
+	memcpy(buf + encoded, &(header->type_of_payload), 1);
 	encoded += 1;
 
-	tmpport = htons(header->len);
+	tmpid = header->id;
+	memcpy(buf + encoded, &tmpid, sizeof(uint64_t));
+	encoded += sizeof(uint64_t);
+
+	tmpid = header->imsi;
+	memcpy(buf + encoded, &tmpid, sizeof(uint64_t));
+	encoded += sizeof(uint64_t);
+
+	tmp = htonl(header->src_ip);
+	memcpy(buf + encoded, &tmp, sizeof(uint32_t));
+	encoded += sizeof(uint32_t);
+
+	tmpport = htons(header->src_port);
 	memcpy(buf + encoded, &tmpport, sizeof(uint16_t));
 	encoded += sizeof(uint16_t);
 
-	imsiTmp = header->imsi;
-	memcpy(buf + encoded, &imsiTmp, sizeof(uint64_t));
-	encoded += sizeof(uint64_t);
+	tmp = htonl(header->dst_ip);
+	memcpy(buf + encoded, &tmp, sizeof(uint32_t));
+	encoded += sizeof(uint32_t);
 
-	if (header->flags.src) {
-		tmp = htonl(header->src_ip);
-		memcpy(buf + encoded, &tmp, sizeof(uint32_t));
-		encoded += sizeof(uint32_t);
+	tmpport = htons(header->dst_port);
+	memcpy(buf + encoded, &tmpport, sizeof(uint16_t));
+	encoded += sizeof(uint16_t);
 
-		tmpport = htons(header->src_port);
-		memcpy(buf + encoded, &tmpport, sizeof(uint16_t));
-		encoded += sizeof(uint16_t);
-	}
+	memcpy(buf + encoded, &(header->operation_mode), sizeof(uint8_t));
+	encoded += sizeof(uint8_t);
 
-	if (header->flags.dst) {
-		tmp = htonl(header->dst_ip);
-		memcpy(buf + encoded, &tmp, sizeof(uint32_t));
-		encoded += sizeof(uint32_t);
+	tmp = htonl(header->seq_no);
+	memcpy(buf + encoded, &tmp, sizeof(uint32_t));
+	encoded += sizeof(uint32_t);
 
-		tmpport = htons(header->dst_port);
-		memcpy(buf + encoded, &tmpport, sizeof(uint16_t));
-		encoded += sizeof(uint16_t);
-	}
-
-	if (header->flags.df2) {
-		tmp = htonl(header->df2_ip);
-		memcpy(buf + encoded, &tmp, sizeof(uint32_t));
-		encoded += sizeof(uint32_t);
-	}
-
-	if (header->flags.df3) {
-		tmp = htonl(header->df3_ip);
-		memcpy(buf + encoded, &tmp, sizeof(uint32_t));
-		encoded += sizeof(uint32_t);
-	}
+	tmp = htonl(header->len);
+	memcpy(buf + encoded, &tmp, sizeof(uint32_t));
+	encoded += sizeof(uint32_t);
 
 	return encoded;
 }
 
 int8_t
 create_li_header(uint8_t *uiPayload, int *iPayloadLen, uint8_t type,
-		uint64_t uiImsi, uint32_t uiSrcIp, uint32_t uiDstIp,
-		uint16_t uiSrcPort, uint16_t uiDstPort, uint32_t uiDdf2Ip, uint32_t uiDdf3Ip)
+		uint64_t uiId, uint64_t uiImsi, uint32_t uiSrcIp, uint32_t uiDstIp,
+		uint16_t uiSrcPort, uint16_t uiDstPort, uint8_t uiOprMode)
 {
 	int iEncoded;
 	li_header_t liHdr = {0};
@@ -617,38 +438,26 @@ create_li_header(uint8_t *uiPayload, int *iPayloadLen, uint8_t type,
 	}
 
 	if (type != NOT_PRESENT) {
-		liHdr.flags.type = PRESENT;
+		liHdr.type_of_payload = PRESENT;
+	} else {
+		liHdr.type_of_payload = NOT_PRESENT;
 	}
 
-	if (*iPayloadLen != NOT_PRESENT) {
-		liHdr.len = *iPayloadLen;
-	}
+	liHdr.id = uiId;
+	liHdr.imsi = uiImsi;
+	liHdr.src_ip = uiSrcIp;
+	liHdr.src_port = uiSrcPort;
+	liHdr.dst_ip = uiDstIp;
+	liHdr.dst_port = uiDstPort;
+	liHdr.operation_mode = uiOprMode;
+	liHdr.seq_no = li_seq_no++;
+	liHdr.len = *iPayloadLen;
 
-	if (uiImsi != NOT_PRESENT) {
-		liHdr.imsi = uiImsi;
-	}
-
-	if (uiSrcIp != NOT_PRESENT) {
-		liHdr.flags.src = PRESENT;
-		liHdr.src_ip = uiSrcIp;
-		liHdr.src_port = uiSrcPort;
-	}
-
-	if (uiDstIp != NOT_PRESENT) {
-		liHdr.flags.dst = PRESENT;
-		liHdr.dst_ip = uiDstIp;
-		liHdr.dst_port = uiDstPort;
-	}
-
-	if (uiDdf2Ip != NOT_PRESENT) {
-		liHdr.flags.df2 = PRESENT;
-		liHdr.df2_ip = uiDdf2Ip;
-	}
-
-	if (uiDdf3Ip != NOT_PRESENT) {
-		liHdr.flags.df3 = PRESENT;
-		liHdr.df3_ip = uiDdf3Ip;
-	}
+	liHdr.packet_len = sizeof(liHdr.packet_len) + sizeof(liHdr.type_of_payload)
+			+ sizeof(liHdr.len) + sizeof(liHdr.id) + sizeof(liHdr.imsi) +
+			sizeof(liHdr.src_ip) + sizeof(liHdr.src_port) + sizeof(liHdr.dst_ip)
+			+ sizeof(liHdr.dst_port) + sizeof(liHdr.operation_mode) +
+			sizeof(liHdr.seq_no) +*iPayloadLen;
 
 	iEncoded = encode_li_header(&liHdr, uiPayload);
 	for (int iCnt = 0; iCnt < *iPayloadLen; iCnt++) {

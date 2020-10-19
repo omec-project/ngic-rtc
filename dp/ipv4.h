@@ -16,17 +16,18 @@
 
 #ifndef _IPV4_H_
 #define _IPV4_H_
+#include <stdint.h>
+#include <rte_ip.h>
+
+#include "util.h"
+#ifdef DP_BUILD
+#include "up_main.h"
+#endif /* DP_BUILD */
 /**
  * @file
  * This file contains macros, data structure definitions and function
  * prototypes of dataplane IPv4 header constructor.
  */
-#include <stdint.h>
-#include <rte_ip.h>
-#include "util.h"
-#ifdef DP_BUILD
-#include "up_main.h"
-#endif /* DP_BUILD */
 
 /**
  * @brief  : Function to return pointer to ip headers, assuming ether header is untagged.

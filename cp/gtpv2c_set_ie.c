@@ -16,6 +16,8 @@
 
 
 #include "gtp_ies.h"
+#include "clogger.h"
+#include "sm_struct.h"
 #include "gtpv2c_set_ie.h"
 #include "packet_filters.h"
 #include "clogger.h"
@@ -176,7 +178,7 @@ set_ie_header(ie_header_t *header, uint8_t type,
 
 void
 set_cause_error_value(gtp_cause_ie_t *cause,
-		enum ie_instance instance, uint8_t cause_value)
+		enum ie_instance instance, uint8_t cause_value, uint8_t cause_source)
 {
 	set_ie_header(&cause->header, GTP_IE_CAUSE, instance,
 				sizeof(struct cause_ie_hdr_t));
@@ -184,10 +186,7 @@ set_cause_error_value(gtp_cause_ie_t *cause,
 	cause->pce = 0;
 	cause->bce = 0;
 	cause->spareinstance = 0;
-	if(spgw_cfg != SGWC)
-	   cause->cs = 1;
-	else
-	   cause->cs = 0;
+	cause->cs = cause_source;
 
 }
 
@@ -281,13 +280,12 @@ void
 set_ipv4_paa(gtp_pdn_addr_alloc_ie_t *paa, enum ie_instance instance,
 		struct in_addr ipv4)
 {
-	uint32_t temp_ipv4 = ipv4.s_addr;
 	set_ie_header(&paa->header, GTP_IE_PDN_ADDR_ALLOC, instance,
 			sizeof(uint8_t) + sizeof(struct in_addr));
 
 	paa->pdn_type = PDN_IP_TYPE_IPV4;
 	paa->spare2 = 0;
-	memcpy(paa->pdn_addr_and_pfx, &temp_ipv4, sizeof(uint32_t));
+	paa->pdn_addr_and_pfx = ipv4.s_addr;
 
 	return;
 }
@@ -359,156 +357,207 @@ set_ebi(gtp_eps_bearer_id_ie_t *ebi, enum ie_instance instance,
 	ebi->ebi_spare2 = 0;
 }
 
+/**
+ * @brief  : generate a packet filter identifier based on availabe for that bearer
+ * @param  : bearer,
+ *           to check the identifier availablity
+ * @return  : identifier between 1 to 16 for sucess and -1 for failure
+ */
+static int
+get_packet_filter_identifier(eps_bearer *bearer){
+
+	for(uint8_t i = 1; i <= MAX_FILTERS_PER_UE; i++ ){
+		if(bearer->packet_filter_map[i] == NOT_PRESENT){
+			bearer->packet_filter_map[i] = PRESENT;
+			return i;
+		}
+	}
+
+	return -1;
+}
+
+
 uint8_t
 set_bearer_tft(gtp_eps_bearer_lvl_traffic_flow_tmpl_ie_t *tft,
-		enum ie_instance instance, uint8_t eps_bearer_lvl_tft,
-		eps_bearer *bearer)
+		enum ie_instance instance, uint8_t tft_op_code,
+		eps_bearer *bearer, bool pdef_rule, char *rule_name)
 {
-    uint32_t mask;
-    uint8_t i = 0;
-    uint8_t length;
-    uint8_t len_index = 0;
-    uint8_t num_pkt_filters = 0;
-    tft->eps_bearer_lvl_tft[i++] = eps_bearer_lvl_tft + TFT_CREATE_NEW;
-    for(uint8_t iCnt = 0; iCnt < bearer->num_dynamic_filters; ++iCnt) {
-        // flow_cnt is for flow information counter
-        for(int flow_cnt = 0; flow_cnt < bearer->dynamic_rules[iCnt]->num_flw_desc; flow_cnt++) {
+	uint32_t mask;
+	uint8_t i = 0;
+	uint8_t length;
+	uint8_t len_index = 0;
+	uint8_t tft_op_code_index = 0;
+	dynamic_rule_t *rule = NULL;
+	uint8_t num_rule_filters = 0;
 
-            length = 0;
-            ++num_pkt_filters;
+	tft_op_code_index = i;
+	tft->eps_bearer_lvl_tft[i++] = tft_op_code;
+	if(pdef_rule){
+		num_rule_filters = bearer->num_prdef_filters;
+	}else{
+		num_rule_filters = bearer->num_dynamic_filters;
+	}
+	for(uint8_t iCnt = 0; iCnt < num_rule_filters; ++iCnt) {
 
-            if(TFT_DIRECTION_UPLINK_ONLY == bearer->dynamic_rules[iCnt]->flow_desc[flow_cnt].sdf_flw_desc.direction) {
-                tft->eps_bearer_lvl_tft[i++] = num_pkt_filters + TFT_UPLINK;
-            } else if(TFT_DIRECTION_DOWNLINK_ONLY ==
-                bearer->dynamic_rules[iCnt]->flow_desc[flow_cnt].sdf_flw_desc.direction) {
-                tft->eps_bearer_lvl_tft[i++] = num_pkt_filters + TFT_DOWNLINK;
-            } else if(TFT_DIRECTION_BIDIRECTIONAL ==
-                bearer->dynamic_rules[iCnt]->flow_desc[flow_cnt].sdf_flw_desc.direction) {
-                tft->eps_bearer_lvl_tft[i++] = num_pkt_filters + TFT_BIDIRECTIONAL;
-            } else {
-                tft->eps_bearer_lvl_tft[i++] = num_pkt_filters;
-            }
+		if(pdef_rule){
+			rule = bearer->prdef_rules[iCnt];
+		}else {
+			rule = bearer->dynamic_rules[iCnt];
+		}
 
-            tft->eps_bearer_lvl_tft[i++] = bearer->dynamic_rules[iCnt]->precedence; /* precedence */
+		if(tft_op_code != TFT_CREATE_NEW &&
+			(rule_name != NULL &&
+			(strncmp(rule_name, rule->rule_name, RULE_NAME_LEN) != 0 ))){
+			continue;
+		}
 
-            len_index = i++;
+		for(int flow_cnt = 0; flow_cnt < rule->num_flw_desc; flow_cnt++) {
 
-            tft->eps_bearer_lvl_tft[i++] = TFT_PROTO_IDENTIFIER_NEXT_HEADER_TYPE;
-            tft->eps_bearer_lvl_tft[i++] = bearer->dynamic_rules[iCnt]->flow_desc[flow_cnt].sdf_flw_desc.proto_id;
-            length += 2;
+			length = 0;
+			tft->eps_bearer_lvl_tft[tft_op_code_index] += 1;
+			/*Store packet filter identifier in rule*/
+			if(rule->flow_desc[flow_cnt].sdf_flw_desc.direction &&
+				tft_op_code != TFT_REMOVE_FILTER_EXISTING)
+				rule->flow_desc[flow_cnt].pckt_fltr_identifier = get_packet_filter_identifier(bearer);
 
-        if(TFT_DIRECTION_DOWNLINK_ONLY == bearer->dynamic_rules[iCnt]->flow_desc[flow_cnt].sdf_flw_desc.direction) {
+			if(tft_op_code == TFT_REMOVE_FILTER_EXISTING){
+				tft->eps_bearer_lvl_tft[i++] = rule->flow_desc[flow_cnt].pckt_fltr_identifier;
+				bearer->packet_filter_map[rule->flow_desc[flow_cnt].pckt_fltr_identifier] = NOT_PRESENT;
+				continue;
+			}
 
-                tft->eps_bearer_lvl_tft[i++] = TFT_SINGLE_REMOTE_PORT_TYPE;
-                tft->eps_bearer_lvl_tft[i++] =
-                    (bearer->dynamic_rules[iCnt]->flow_desc[flow_cnt].sdf_flw_desc.remote_port_low >> 8) & 0xff;
-                tft->eps_bearer_lvl_tft[i++] =
-                    bearer->dynamic_rules[iCnt]->flow_desc[flow_cnt].sdf_flw_desc.remote_port_low & 0xff;
-                length += 3;
+			if(TFT_DIRECTION_UPLINK_ONLY == rule->flow_desc[flow_cnt].sdf_flw_desc.direction) {
+				tft->eps_bearer_lvl_tft[i++] = rule->flow_desc[flow_cnt].pckt_fltr_identifier + TFT_UPLINK;
+			} else if(TFT_DIRECTION_DOWNLINK_ONLY ==
+					rule->flow_desc[flow_cnt].sdf_flw_desc.direction) {
+				tft->eps_bearer_lvl_tft[i++] = rule->flow_desc[flow_cnt].pckt_fltr_identifier + TFT_DOWNLINK;
+			} else if(TFT_DIRECTION_BIDIRECTIONAL ==
+					rule->flow_desc[flow_cnt].sdf_flw_desc.direction) {
+				tft->eps_bearer_lvl_tft[i++] = rule->flow_desc[flow_cnt].pckt_fltr_identifier + TFT_BIDIRECTIONAL;
+			} else {
+				tft->eps_bearer_lvl_tft[i++] = rule->flow_desc[flow_cnt].pckt_fltr_identifier;
+			}
 
-                tft->eps_bearer_lvl_tft[i++] = TFT_SINGLE_SRC_PORT_TYPE;
-                tft->eps_bearer_lvl_tft[i++] =
-                    (bearer->dynamic_rules[iCnt]->flow_desc[flow_cnt].sdf_flw_desc.local_port_low >> 8) & 0xff;
-                tft->eps_bearer_lvl_tft[i++] =
-                    bearer->dynamic_rules[iCnt]->flow_desc[flow_cnt].sdf_flw_desc.local_port_low & 0xff;
-                length += 3;
+			tft->eps_bearer_lvl_tft[i++] = rule->precedence; /* precedence */
 
-                tft->eps_bearer_lvl_tft[i++] = TFT_IPV4_SRC_ADDR_TYPE;
-                tft->eps_bearer_lvl_tft[i++] =
-                    bearer->dynamic_rules[iCnt]->flow_desc[flow_cnt].sdf_flw_desc.local_ip_addr.s_addr & 0xff;
-                tft->eps_bearer_lvl_tft[i++] =
-                    (bearer->dynamic_rules[iCnt]->flow_desc[flow_cnt].sdf_flw_desc.local_ip_addr.s_addr >> 8) & 0xff;
-                tft->eps_bearer_lvl_tft[i++] =
-                    (bearer->dynamic_rules[iCnt]->flow_desc[flow_cnt].sdf_flw_desc.local_ip_addr.s_addr >> 16) & 0xff;
-                tft->eps_bearer_lvl_tft[i++] =
-                    (bearer->dynamic_rules[iCnt]->flow_desc[flow_cnt].sdf_flw_desc.local_ip_addr.s_addr >> 24) & 0xff;
-                length += 5;
+			len_index = i++;
 
-                mask = 0xffffffff << (32 - bearer->dynamic_rules[iCnt]->flow_desc[flow_cnt].sdf_flw_desc.local_ip_mask);
-                tft->eps_bearer_lvl_tft[i++] = (mask >> 24) & 0xff;
-                tft->eps_bearer_lvl_tft[i++] = (mask >> 16) & 0xff;
-                tft->eps_bearer_lvl_tft[i++] = (mask >> 8) & 0xff;
-                tft->eps_bearer_lvl_tft[i++] = mask & 0xff;
-                length += 4;
+			tft->eps_bearer_lvl_tft[i++] = TFT_PROTO_IDENTIFIER_NEXT_HEADER_TYPE;
+			tft->eps_bearer_lvl_tft[i++] = rule->flow_desc[flow_cnt].sdf_flw_desc.proto_id;
+			length += 2;
 
-                tft->eps_bearer_lvl_tft[i++] = TFT_IPV4_REMOTE_ADDR_TYPE;
-                tft->eps_bearer_lvl_tft[i++] =
-                    bearer->dynamic_rules[iCnt]->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_addr.s_addr & 0xff;
-				                tft->eps_bearer_lvl_tft[i++] =
-                    (bearer->dynamic_rules[iCnt]->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_addr.s_addr >> 8) & 0xff;
-                tft->eps_bearer_lvl_tft[i++] =
-                    (bearer->dynamic_rules[iCnt]->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_addr.s_addr >> 16) & 0xff;
-                tft->eps_bearer_lvl_tft[i++] =
-                    (bearer->dynamic_rules[iCnt]->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_addr.s_addr >> 24) & 0xff;
-                length += 5;
+			if(TFT_DIRECTION_DOWNLINK_ONLY == rule->flow_desc[flow_cnt].sdf_flw_desc.direction) {
 
-                mask = 0xffffffff << (32 - bearer->dynamic_rules[iCnt]->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_mask);
-                tft->eps_bearer_lvl_tft[i++] = (mask >> 24) & 0xff;
-                tft->eps_bearer_lvl_tft[i++] = (mask >> 16) & 0xff;
-                tft->eps_bearer_lvl_tft[i++] = (mask >> 8) & 0xff;
-                tft->eps_bearer_lvl_tft[i++] = mask & 0xff;
-                length += 4;
+				tft->eps_bearer_lvl_tft[i++] = TFT_SINGLE_REMOTE_PORT_TYPE;
+				tft->eps_bearer_lvl_tft[i++] =
+					(rule->flow_desc[flow_cnt].sdf_flw_desc.remote_port_low >> 8) & 0xff;
+				tft->eps_bearer_lvl_tft[i++] =
+					rule->flow_desc[flow_cnt].sdf_flw_desc.remote_port_low & 0xff;
+				length += 3;
 
-            } else {
-                tft->eps_bearer_lvl_tft[i++] = TFT_SINGLE_REMOTE_PORT_TYPE;
-                tft->eps_bearer_lvl_tft[i++] =
-                    (bearer->dynamic_rules[iCnt]->flow_desc[flow_cnt].sdf_flw_desc.local_port_low >> 8) & 0xff;
-                tft->eps_bearer_lvl_tft[i++] =
-                    bearer->dynamic_rules[iCnt]->flow_desc[flow_cnt].sdf_flw_desc.local_port_low & 0xff;
-                length += 3;
+				tft->eps_bearer_lvl_tft[i++] = TFT_SINGLE_SRC_PORT_TYPE;
+				tft->eps_bearer_lvl_tft[i++] =
+					(rule->flow_desc[flow_cnt].sdf_flw_desc.local_port_low >> 8) & 0xff;
+				tft->eps_bearer_lvl_tft[i++] =
+					rule->flow_desc[flow_cnt].sdf_flw_desc.local_port_low & 0xff;
+				length += 3;
 
-                tft->eps_bearer_lvl_tft[i++] = TFT_SINGLE_SRC_PORT_TYPE;
-                tft->eps_bearer_lvl_tft[i++] =
-                    (bearer->dynamic_rules[iCnt]->flow_desc[flow_cnt].sdf_flw_desc.remote_port_low >> 8) & 0xff;
-                tft->eps_bearer_lvl_tft[i++] =
-                    bearer->dynamic_rules[iCnt]->flow_desc[flow_cnt].sdf_flw_desc.remote_port_low & 0xff;
-                length += 3;
+				tft->eps_bearer_lvl_tft[i++] = TFT_IPV4_SRC_ADDR_TYPE;
+				tft->eps_bearer_lvl_tft[i++] =
+					rule->flow_desc[flow_cnt].sdf_flw_desc.local_ip_addr.s_addr & 0xff;
+				tft->eps_bearer_lvl_tft[i++] =
+					(rule->flow_desc[flow_cnt].sdf_flw_desc.local_ip_addr.s_addr >> 8) & 0xff;
+				tft->eps_bearer_lvl_tft[i++] =
+					(rule->flow_desc[flow_cnt].sdf_flw_desc.local_ip_addr.s_addr >> 16) & 0xff;
+				tft->eps_bearer_lvl_tft[i++] =
+					(rule->flow_desc[flow_cnt].sdf_flw_desc.local_ip_addr.s_addr >> 24) & 0xff;
+				length += 5;
 
-                tft->eps_bearer_lvl_tft[i++] = TFT_IPV4_SRC_ADDR_TYPE;
-                tft->eps_bearer_lvl_tft[i++] =
-                    bearer->dynamic_rules[iCnt]->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_addr.s_addr & 0xff;
-                tft->eps_bearer_lvl_tft[i++] =
-                    (bearer->dynamic_rules[iCnt]->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_addr.s_addr >> 8) & 0xff;
-                tft->eps_bearer_lvl_tft[i++] =
-                    (bearer->dynamic_rules[iCnt]->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_addr.s_addr >> 16) & 0xff;
-                tft->eps_bearer_lvl_tft[i++] =
-                    (bearer->dynamic_rules[iCnt]->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_addr.s_addr >> 24) & 0xff;
-                length += 5;
+				mask = 0xffffffff << (32 - rule->flow_desc[flow_cnt].sdf_flw_desc.local_ip_mask);
+				tft->eps_bearer_lvl_tft[i++] = (mask >> 24) & 0xff;
+				tft->eps_bearer_lvl_tft[i++] = (mask >> 16) & 0xff;
+				tft->eps_bearer_lvl_tft[i++] = (mask >> 8) & 0xff;
+				tft->eps_bearer_lvl_tft[i++] = mask & 0xff;
+				length += 4;
 
-                mask = 0xffffffff << (32 - bearer->dynamic_rules[iCnt]->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_mask);
-                tft->eps_bearer_lvl_tft[i++] = (mask >> 24) & 0xff;
-                tft->eps_bearer_lvl_tft[i++] = (mask >> 16) & 0xff;
-                tft->eps_bearer_lvl_tft[i++] = (mask >> 8) & 0xff;
-                tft->eps_bearer_lvl_tft[i++] = mask & 0xff;
-                length += 4;
+				tft->eps_bearer_lvl_tft[i++] = TFT_IPV4_REMOTE_ADDR_TYPE;
+				tft->eps_bearer_lvl_tft[i++] =
+					rule->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_addr.s_addr & 0xff;
+				tft->eps_bearer_lvl_tft[i++] =
+					(rule->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_addr.s_addr >> 8) & 0xff;
+				tft->eps_bearer_lvl_tft[i++] =
+					(rule->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_addr.s_addr >> 16) & 0xff;
+				tft->eps_bearer_lvl_tft[i++] =
+					(rule->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_addr.s_addr >> 24) & 0xff;
+				length += 5;
 
-                tft->eps_bearer_lvl_tft[i++] = TFT_IPV4_REMOTE_ADDR_TYPE;
-                tft->eps_bearer_lvl_tft[i++] =
-                    bearer->dynamic_rules[iCnt]->flow_desc[flow_cnt].sdf_flw_desc.local_ip_addr.s_addr & 0xff;
-                tft->eps_bearer_lvl_tft[i++] =
-                    (bearer->dynamic_rules[iCnt]->flow_desc[flow_cnt].sdf_flw_desc.local_ip_addr.s_addr >> 8) & 0xff;
-                tft->eps_bearer_lvl_tft[i++] =
-                    (bearer->dynamic_rules[iCnt]->flow_desc[flow_cnt].sdf_flw_desc.local_ip_addr.s_addr >> 16) & 0xff;
-                tft->eps_bearer_lvl_tft[i++] =
-                    (bearer->dynamic_rules[iCnt]->flow_desc[flow_cnt].sdf_flw_desc.local_ip_addr.s_addr >> 24) & 0xff;
-                length += 5;
+				mask = 0xffffffff << (32 - rule->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_mask);
+				tft->eps_bearer_lvl_tft[i++] = (mask >> 24) & 0xff;
+				tft->eps_bearer_lvl_tft[i++] = (mask >> 16) & 0xff;
+				tft->eps_bearer_lvl_tft[i++] = (mask >> 8) & 0xff;
+				tft->eps_bearer_lvl_tft[i++] = mask & 0xff;
+				length += 4;
 
-                mask = 0xffffffff << (32 - bearer->dynamic_rules[iCnt]->flow_desc[flow_cnt].sdf_flw_desc.local_ip_mask);
-                tft->eps_bearer_lvl_tft[i++] = (mask >> 24) & 0xff;
-                tft->eps_bearer_lvl_tft[i++] = (mask >> 16) & 0xff;
-                tft->eps_bearer_lvl_tft[i++] = (mask >> 8) & 0xff;
-                tft->eps_bearer_lvl_tft[i++] = mask & 0xff;
-                length += 4;
+			} else {
+				tft->eps_bearer_lvl_tft[i++] = TFT_SINGLE_REMOTE_PORT_TYPE;
+				tft->eps_bearer_lvl_tft[i++] =
+					(rule->flow_desc[flow_cnt].sdf_flw_desc.local_port_low >> 8) & 0xff;
+				tft->eps_bearer_lvl_tft[i++] =
+					rule->flow_desc[flow_cnt].sdf_flw_desc.local_port_low & 0xff;
+				length += 3;
 
-            }
+				tft->eps_bearer_lvl_tft[i++] = TFT_SINGLE_SRC_PORT_TYPE;
+				tft->eps_bearer_lvl_tft[i++] =
+					(rule->flow_desc[flow_cnt].sdf_flw_desc.remote_port_low >> 8) & 0xff;
+				tft->eps_bearer_lvl_tft[i++] =
+					rule->flow_desc[flow_cnt].sdf_flw_desc.remote_port_low & 0xff;
+				length += 3;
 
-            tft->eps_bearer_lvl_tft[len_index] = length; /* length */
-        }
-    }
+				tft->eps_bearer_lvl_tft[i++] = TFT_IPV4_SRC_ADDR_TYPE;
+				tft->eps_bearer_lvl_tft[i++] =
+					rule->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_addr.s_addr & 0xff;
+				tft->eps_bearer_lvl_tft[i++] =
+					(rule->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_addr.s_addr >> 8) & 0xff;
+				tft->eps_bearer_lvl_tft[i++] =
+					(rule->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_addr.s_addr >> 16) & 0xff;
+				tft->eps_bearer_lvl_tft[i++] =
+					(rule->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_addr.s_addr >> 24) & 0xff;
+				length += 5;
 
-    set_ie_header(&tft->header, GTP_IE_EPS_BEARER_LVL_TRAFFIC_FLOW_TMPL, instance, i);
+				mask = 0xffffffff << (32 - rule->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_mask);
+				tft->eps_bearer_lvl_tft[i++] = (mask >> 24) & 0xff;
+				tft->eps_bearer_lvl_tft[i++] = (mask >> 16) & 0xff;
+				tft->eps_bearer_lvl_tft[i++] = (mask >> 8) & 0xff;
+				tft->eps_bearer_lvl_tft[i++] = mask & 0xff;
+				length += 4;
 
-    return (i + IE_HEADER_SIZE);
+				tft->eps_bearer_lvl_tft[i++] = TFT_IPV4_REMOTE_ADDR_TYPE;
+				tft->eps_bearer_lvl_tft[i++] =
+					rule->flow_desc[flow_cnt].sdf_flw_desc.local_ip_addr.s_addr & 0xff;
+				tft->eps_bearer_lvl_tft[i++] =
+					(rule->flow_desc[flow_cnt].sdf_flw_desc.local_ip_addr.s_addr >> 8) & 0xff;
+				tft->eps_bearer_lvl_tft[i++] =
+					(rule->flow_desc[flow_cnt].sdf_flw_desc.local_ip_addr.s_addr >> 16) & 0xff;
+				tft->eps_bearer_lvl_tft[i++] =
+					(rule->flow_desc[flow_cnt].sdf_flw_desc.local_ip_addr.s_addr >> 24) & 0xff;
+				length += 5;
+
+				mask = 0xffffffff << (32 - rule->flow_desc[flow_cnt].sdf_flw_desc.local_ip_mask);
+				tft->eps_bearer_lvl_tft[i++] = (mask >> 24) & 0xff;
+				tft->eps_bearer_lvl_tft[i++] = (mask >> 16) & 0xff;
+				tft->eps_bearer_lvl_tft[i++] = (mask >> 8) & 0xff;
+				tft->eps_bearer_lvl_tft[i++] = mask & 0xff;
+				length += 4;
+
+			}
+
+			tft->eps_bearer_lvl_tft[len_index] = length; /* length */
+		}
+	}
+
+	set_ie_header(&tft->header, GTP_IE_EPS_BEARER_LVL_TRAFFIC_FLOW_TMPL, instance, i);
+
+	return (i + IE_HEADER_SIZE);
 }
 
 void
@@ -524,7 +573,7 @@ uint16_t
 set_ebi_ie(gtpv2c_header_t *header, enum ie_instance instance, uint8_t ebi)
 {
 	if (ebi & 0xF0)
-		clLog(clSystemLog, eCLSeverityCritical, "Invalid EBI used %"PRIu8"\n", ebi);
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Invalid EBI used %"PRIu8"\n", LOG_VALUE, ebi);
 	return set_uint8_ie(header, GTP_IE_EPS_BEARER_ID, instance, ebi);
 }
 
@@ -780,57 +829,129 @@ pfcp_config_t pfcp_config;
 
 int
 decode_check_csr(gtpv2c_header_t *gtpv2c_rx,
-		create_sess_req_t *csr)
+		create_sess_req_t *csr, uint8_t *cp_type)
 {
 	int ret = 0;
 	ret = decode_create_sess_req((uint8_t *) gtpv2c_rx,
 			csr);
 
 	if (!ret){
-		clLog(clSystemLog, eCLSeverityCritical, "Decoding for csr req failed");
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Decoding for csr req failed", LOG_VALUE);
 		return -1;
 	}
 
 	if (csr->indctn_flgs.header.len &&
 			csr->indctn_flgs.indication_uimsi) {
-		clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d Unauthenticated IMSI Not Yet Implemented - "
-				"Dropping packet\n", __file__, __func__, __LINE__);
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Unauthenticated IMSI Not Yet Implemented - "
+				"Dropping packet\n", LOG_VALUE);
 		return GTPV2C_CAUSE_IMSI_NOT_KNOWN;
 	}
 
-	if ((pfcp_config.cp_type == SGWC) &&
+	/* Dynamically Set the gateway modes */
+	if (csr->pgw_s5s8_addr_ctl_plane_or_pmip.header.len != 0) {
+		if ((csr->pgw_s5s8_addr_ctl_plane_or_pmip.ipv4_address != 0)
+				&& (pfcp_config.s5s8_ip.s_addr != 0)) {
+			/* Selection Criteria for Combined GW, SAEGWC */
+			if((csr->pgw_s5s8_addr_ctl_plane_or_pmip.ipv4_address ==
+					pfcp_config.s5s8_ip.s_addr)
+					|| (csr->pgw_s5s8_addr_ctl_plane_or_pmip.ipv4_address ==
+						pfcp_config.s11_ip.s_addr)) {
+				/* Condition to Allow GW run as a Combined GW */
+				if (pfcp_config.cp_type == SAEGWC) {
+					*cp_type = SAEGWC;
+				} else {
+					clLog(clSystemLog, eCLSeverityCritical,
+							LOG_FORMAT"Not Valid CSR Request for configured GW, Gateway Mode:%s\n",
+							LOG_VALUE, pfcp_config.cp_type == SGWC ? "SGW-C" :
+							pfcp_config.cp_type == PGWC ? "PGW-C" :
+							pfcp_config.cp_type == SAEGWC ? "SAEGW-C" : "UNKNOWN");
+					return GTPV2C_CAUSE_REQUEST_REJECTED;
+				}
+			} else {
+				/* Selection Criteria for SGWC */
+				if ((pfcp_config.cp_type != PGWC) &&
+					(csr->pgw_s5s8_addr_ctl_plane_or_pmip.ipv4_address  !=
+					csr->sender_fteid_ctl_plane.ipv4_address)) {
+					*cp_type = SGWC;
+				} else {
+					clLog(clSystemLog, eCLSeverityCritical,
+							LOG_FORMAT"Not Valid CSR Request for configured GW, Gateway Mode:%s\n",
+							LOG_VALUE, pfcp_config.cp_type == SGWC ? "SGW-C" :
+							pfcp_config.cp_type == PGWC ? "PGW-C" :
+							pfcp_config.cp_type == SAEGWC ? "SAEGW-C" : "UNKNOWN");
+					return GTPV2C_CAUSE_REQUEST_REJECTED;
+				}
+			}
+		} else {
+			/* Condition to Allow GW run as a Combined GW */
+			if (pfcp_config.cp_type == SAEGWC) {
+				*cp_type = SAEGWC;
+			} else {
+				clLog(clSystemLog, eCLSeverityCritical,
+						LOG_FORMAT"Not Valid CSR Request for configured GW, Gateway Mode:%s\n",
+						LOG_VALUE, pfcp_config.cp_type == SGWC ? "SGW-C" :
+						pfcp_config.cp_type == PGWC ? "PGW-C" :
+						pfcp_config.cp_type == SAEGWC ? "SAEGW-C" : "UNKNOWN");
+				return GTPV2C_CAUSE_REQUEST_REJECTED;
+			}
+		}
+	} else if (csr->sender_fteid_ctl_plane.interface_type == S5_S8_SGW_GTP_C) {
+		/* Selection Criteria for PGWC */
+		if (pfcp_config.cp_type != SGWC) {
+			*cp_type = PGWC;
+		} else {
+			clLog(clSystemLog, eCLSeverityCritical,
+					LOG_FORMAT"Not Valid CSR Request for configured GW, Gateway Mode:%s\n",
+					LOG_VALUE, pfcp_config.cp_type == SGWC ? "SGW-C" :
+					pfcp_config.cp_type == PGWC ? "PGW-C" :
+					pfcp_config.cp_type == SAEGWC ? "SAEGW-C" : "UNKNOWN");
+			return GTPV2C_CAUSE_REQUEST_REJECTED;
+		}
+	} else {
+		if (pfcp_config.cp_type == SAEGWC) {
+			*cp_type = SAEGWC;
+		} else {
+			/* Not meet upto selection Criteria */
+			clLog(clSystemLog, eCLSeverityCritical,
+					LOG_FORMAT"Failed to Select or Set Gateway Mode, Dropping packet\n",
+					LOG_VALUE);
+			return GTPV2C_CAUSE_REQUEST_REJECTED;
+		}
+	}
+
+	if ((*cp_type == SGWC) &&
 			(!csr->pgw_s5s8_addr_ctl_plane_or_pmip.header.len)) {
-		clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d Mandatory IE missing. Dropping packet len:%u\n",
-				__file__, __func__, __LINE__,
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Mandatory IE missing. Dropping packet len:%u\n",
+				LOG_VALUE,
 				csr->pgw_s5s8_addr_ctl_plane_or_pmip.header.len);
 		return GTPV2C_CAUSE_MANDATORY_IE_MISSING;
 	}
 
-	if (/*!csr->max_apn_rstrct.header.len
-			||*/ !csr->sender_fteid_ctl_plane.header.len
+	if (!csr->sender_fteid_ctl_plane.header.len
 			|| !csr->imsi.header.len
 			|| !csr->apn_ambr.header.len
 			|| !csr->pdn_type.header.len
 			|| !csr->rat_type.header.len
+			|| !csr->apn.header.len
 			|| !(csr->pdn_type.pdn_type_pdn_type == PDN_IP_TYPE_IPV4) ) {
-		clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d Mandatory IE missing. Dropping packet\n",
-				__file__, __func__, __LINE__);
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Mandatory IE missing. Dropping packet\n",
+				LOG_VALUE);
 		return GTPV2C_CAUSE_MANDATORY_IE_MISSING;
 	}
 
 	for (uint8_t iCnt = 0; iCnt < csr->bearer_count; ++iCnt) {
 		if (!csr->bearer_contexts_to_be_created[iCnt].header.len
 			|| !csr->bearer_contexts_to_be_created[iCnt].bearer_lvl_qos.header.len) {
-			clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d Bearer Context IE missing. Dropping packet\n",
-					__file__, __func__, __LINE__);
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Bearer Context IE missing. Dropping packet\n",
+					LOG_VALUE);
 			return GTPV2C_CAUSE_MANDATORY_IE_MISSING;
 		}
 	}
 
 	if (csr->pdn_type.pdn_type_pdn_type == PDN_IP_TYPE_IPV6 ||
 			csr->pdn_type.pdn_type_pdn_type == PDN_IP_TYPE_IPV4V6) {
-		clLog(clSystemLog, eCLSeverityCritical, "%s:%s:%d IPv6 Not Yet Implemented - Dropping packet\n",
-				__file__, __func__, __LINE__);
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"IPv6 Not Yet Implemented - Dropping packet\n",
+				LOG_VALUE);
 		return GTPV2C_CAUSE_PREFERRED_PDN_TYPE_UNSUPPORTED;
 	}
 
