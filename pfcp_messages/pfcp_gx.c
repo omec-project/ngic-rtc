@@ -336,7 +336,6 @@ fill_predefined_rule_in_bearer(pdn_connection *pdn, dynamic_rule_t *pdef_rule,
 		rule_name_key_t *rule_name)
 {
 	uint32_t idx = 0;
-	uint8_t index = 0;
 	/* Retrive the PCC rule based on the rule name */
 	pcc_rule_name rule = {0};
 	memset(rule.rname, '\0', sizeof(rule.rname));
@@ -387,33 +386,22 @@ fill_predefined_rule_in_bearer(pdn_connection *pdn, dynamic_rule_t *pdef_rule,
 						"for SDF_Indx: %u\n", LOG_VALUE, pcc->sdf_idx[idx]);
 				continue;
 			}
-
 			/* Fill the SDF Rule */
-			pdef_rule->flow_desc[index].flow_direction = tmp_sdf->direction;
-			pdef_rule->flow_desc[index].sdf_flw_desc.proto_id = tmp_sdf->proto;
-			pdef_rule->flow_desc[index].sdf_flw_desc.proto_mask = tmp_sdf->proto_mask;
-			pdef_rule->flow_desc[index].sdf_flw_desc.direction = tmp_sdf->direction;
-			pdef_rule->flow_desc[index].sdf_flw_desc.local_ip_mask = tmp_sdf->local_ip_mask;
-			pdef_rule->flow_desc[index].sdf_flw_desc.remote_ip_mask = tmp_sdf->remote_ip_mask;
-			pdef_rule->flow_desc[index].sdf_flw_desc.local_port_low = tmp_sdf->local_port_low;
-			pdef_rule->flow_desc[index].sdf_flw_desc.local_port_high = tmp_sdf->local_port_high;
-			pdef_rule->flow_desc[index].sdf_flw_desc.remote_port_low = tmp_sdf->remote_port_low;
-			pdef_rule->flow_desc[index].sdf_flw_desc.remote_port_high = tmp_sdf->remote_port_high;
-			pdef_rule->flow_desc[index].sdf_flw_desc.local_ip_addr = tmp_sdf->local_ip_addr;
-			pdef_rule->flow_desc[index].sdf_flw_desc.remote_ip_addr = tmp_sdf->remote_ip_addr;
-			pdef_rule->flow_desc[index].sdf_flw_desc.action = pcc->rule_status;
-
-			break;
-		}
-
-		if(idx == pcc->sdf_idx_cnt){
-			clLog(clSystemLog, eCLSeverityCritical,
-				LOG_FORMAT"Error: NO SDF Rule present for Rule name%s\n",
-				LOG_VALUE,rule_name->rule_name);
-			return GTPV2C_CAUSE_SYSTEM_FAILURE;
+			pdef_rule->flow_desc[idx].flow_direction = tmp_sdf->direction;
+			pdef_rule->flow_desc[idx].sdf_flw_desc.proto_id = tmp_sdf->proto;
+			pdef_rule->flow_desc[idx].sdf_flw_desc.proto_mask = tmp_sdf->proto_mask;
+			pdef_rule->flow_desc[idx].sdf_flw_desc.direction = tmp_sdf->direction;
+			pdef_rule->flow_desc[idx].sdf_flw_desc.local_ip_mask = tmp_sdf->local_ip_mask;
+			pdef_rule->flow_desc[idx].sdf_flw_desc.remote_ip_mask = tmp_sdf->remote_ip_mask;
+			pdef_rule->flow_desc[idx].sdf_flw_desc.local_port_low = ntohs(tmp_sdf->local_port_low);
+			pdef_rule->flow_desc[idx].sdf_flw_desc.local_port_high = ntohs(tmp_sdf->local_port_high);
+			pdef_rule->flow_desc[idx].sdf_flw_desc.remote_port_low = ntohs(tmp_sdf->remote_port_low);
+			pdef_rule->flow_desc[idx].sdf_flw_desc.remote_port_high = ntohs(tmp_sdf->remote_port_high);
+			pdef_rule->flow_desc[idx].sdf_flw_desc.local_ip_addr = tmp_sdf->local_ip_addr;
+			pdef_rule->flow_desc[idx].sdf_flw_desc.remote_ip_addr = tmp_sdf->remote_ip_addr;
+			pdef_rule->flow_desc[idx].sdf_flw_desc.action = pcc->rule_status;
 
 		}
-
 	}else{
 		clLog(clSystemLog, eCLSeverityCritical,
 				LOG_FORMAT"Error: NO SDF Rule present for Rule name%s\n",

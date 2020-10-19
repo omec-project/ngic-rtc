@@ -602,15 +602,16 @@ add_qer_info_entry(uint32_t qer_id, uint32_t peer_ip, qer_info_t **head)
 					LOG_FORMAT"Failed to add node entry in Linked List for QER ID: %u"
 					"Error: %s\n", LOG_VALUE, qer_id, rte_strerror(abs(ret)));
 		}
-		if (*head == NULL)
+		if (*head == NULL) {
 			*head = qer;
+		}
 
 		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"QER entry add for QER ID:%u\n",
 				LOG_VALUE, qer_id);
 		return 0;
 
 	} else {
-		if (head == NULL) {
+		if (*head == NULL) {
 		 	*head = qer;
 		}
 	}

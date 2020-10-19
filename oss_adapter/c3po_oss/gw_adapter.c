@@ -796,8 +796,15 @@ int update_periodic_timer_value(int periodic_timer_value) {
 
 	if(conn_hash_handle != NULL) {
 		while (rte_hash_iterate(conn_hash_handle, &key, (void **)&conn_data, &iter) >= 0) {
-
-			conn_data->pt.ti_ms = (periodic_timer_value * 1000);
+			/* If Initial timer value was set to 0, then start the timer */
+			if (!conn_data->pt.ti_ms) {
+				conn_data->pt.ti_ms = (periodic_timer_value * 1000);
+				if ( startTimer( &conn_data->pt ) < 0) {
+					clLog(clSystemLog, eCLSeverityCritical, "Periodic Timer failed to start...\n");
+				}
+			} else {
+				conn_data->pt.ti_ms = (periodic_timer_value * 1000);
+			}
 		}
 	}
 
@@ -820,8 +827,15 @@ int update_transmit_timer_value(int transmit_timer_value)
 
 	if(conn_hash_handle != NULL) {
 		while (rte_hash_iterate(conn_hash_handle, &key, (void **)&conn_data, &iter) >= 0) {
-
-			conn_data->tt.ti_ms = (transmit_timer_value * 1000);
+			/* If Initial timer value was set to 0, then start the timer */
+			if (!conn_data->tt.ti_ms) {
+				conn_data->tt.ti_ms = (transmit_timer_value * 1000);
+				if ( startTimer( &conn_data->tt ) < 0) {
+					clLog(clSystemLog, eCLSeverityCritical, "Transmit Timer failed to start...\n");
+				}
+			} else {
+				conn_data->tt.ti_ms = (transmit_timer_value * 1000);
+			}
 		}
 	}
 

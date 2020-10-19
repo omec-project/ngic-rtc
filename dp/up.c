@@ -372,7 +372,6 @@ dl_sess_info_get(struct rte_mbuf **pkts, uint32_t n,
 				|| (udp_hdr->dst_port == UDP_PORT_GTPU_NW_ORDER)) {
 
 			key_t[j].teid = 0;
-			key_ptr_t[j] = &key_t[j];
 
 			/* tunnel packets */
 			/* reject if not with wb ip */
@@ -398,6 +397,7 @@ dl_sess_info_get(struct rte_mbuf **pkts, uint32_t n,
 				}
 			}
 
+			key_ptr_t[j] = &key_t[j];
 			key_t[j].teid = gtpu_hdr->teid;
 			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"DL_KEY: TEID:%u\n", LOG_VALUE, key_t[j].teid);
 

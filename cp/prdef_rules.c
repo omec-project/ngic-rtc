@@ -72,12 +72,12 @@ build_sdf_rules(uint16_t index, pkt_fltr *sdf_filter)
 		snprintf(pktf.u.rule_str, MAX_LEN, "%s/%"PRIu8" %s/%"PRIu8
 			" %"PRIu16" : %"PRIu16" %"PRIu16" : %"PRIu16
 			" 0x%"PRIx8"/0x%"PRIx8"\n",
-			remote_ip, sdf_filter->remote_ip_mask, local_ip,
-			sdf_filter->local_ip_mask,
-			ntohs(sdf_filter->remote_port_low),
-			ntohs(sdf_filter->remote_port_high),
+			local_ip, sdf_filter->local_ip_mask, remote_ip,
+			sdf_filter->remote_ip_mask,
 			ntohs(sdf_filter->local_port_low),
 			ntohs(sdf_filter->local_port_high),
+			ntohs(sdf_filter->remote_port_low),
+			ntohs(sdf_filter->remote_port_high),
 			sdf_filter->proto, sdf_filter->proto_mask);
 	}else{
 		clLog(clSystemLog, eCLSeverityDebug,LOG_FORMAT "SDF flow direction not present\n", LOG_VALUE);
