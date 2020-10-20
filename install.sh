@@ -549,7 +549,7 @@ download_hiredis()
 
 build_fd_lib()
 {
-	pushd $FREEDIAMETER_DIR/freediameter
+	pushd $FREEDIAMETER_DIR/freeDiameter
 	if [ ! -e "build" ]; then
 		mkdir build
 	fi
