@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +22,7 @@
 #include <rte_hash_crc.h>
 
 #include "pfcp_messages.h"
+#include "interface.h"
 
 #ifdef CP_BUILD
 #include "ue.h"
@@ -29,7 +31,7 @@
 #include "gtpv2c_set_ie.h"
 #include "gtp_messages.h"
 #include "../ipc/dp_ipc_api.h"
-#include "restoration_timer.h"
+#include "ngic_timer.h"
 #include "cp_app.h"
 #else
 #include "pfcp_struct.h"
@@ -104,10 +106,12 @@
 #define UINT32_SIZE sizeof(uint32_t)
 #define UINT16_SIZE sizeof(uint16_t)
 #define IPV4_SIZE 4
-#define IPV6_SIZE 8
+#define IPV6_SIZE 16
 #define BITRATE_SIZE 10
 
+#define NUMBER_OF_HOSTS 16
 #define UPF_ENTRIES_DEFAULT (1 << 16)
+#define UPF_ENTRIES_BY_UE_DEFAULT (1 << 18)
 #define BUFFERED_ENTRIES_DEFAULT (1024)
 #define HEARTBEAT_ASSOCIATION_ENTRIES_DEFAULT  (1 << 6)
 #define SWGC_S5S8_HANDOVER_ENTRIES_DEFAULT     (50)
@@ -170,10 +174,18 @@ typedef struct upf_context_t {
 
 	uint16_t up_supp_features;
 	uint8_t  cp_supp_features;
-	uint32_t s1u_ip;
-	uint32_t s5s8_sgwu_ip;
-	uint32_t s5s8_pgwu_ip;
+
+	node_address_t s1u_ip;
+
+	node_address_t s5s8_sgwu_ip;
+	/* Indirect Tunnel: Logical Intf */
+	node_address_t s5s8_li_sgwu_ip;
+
+	node_address_t s5s8_pgwu_ip;
+
 	uint8_t  state;
+	uint8_t indir_tun_flag; /* flag for indirect tunnel */
+	uint32_t sender_teid;    /*sender teid for indirect tunnel */
 	/* TEDIRI base value */
 	uint8_t  teidri;
 	uint8_t  teid_range;
@@ -182,13 +194,22 @@ typedef struct upf_context_t {
 } upf_context_t;
 
 /**
+ * @brief  : Maintains of upf_ip
+ */
+typedef struct upf_ip_t {
+	struct in_addr ipv4;
+	struct in6_addr ipv6;
+} upf_ip_t;
+
+/**
  * @brief  : Maintains results returnd via dns for upf
  */
 typedef struct upfs_dnsres_t {
 	uint8_t upf_count;
 	uint8_t current_upf;
-	struct in_addr upf_ip[UPF_ENTRIES_DEFAULT];
-	char upf_fqdn[UPF_ENTRIES_DEFAULT][MAX_HOSTNAME_LENGTH];
+	uint8_t upf_ip_type;
+	upf_ip_t upf_ip[NUMBER_OF_HOSTS];
+	char upf_fqdn[NUMBER_OF_HOSTS][MAX_HOSTNAME_LENGTH];
 } upfs_dnsres_t;
 
 #pragma pack()
@@ -209,14 +230,6 @@ struct rte_hash *gx_context_by_sess_id_hash;
  */
 uint32_t
 generate_seq_no(void);
-
-/**
- * @brief  : Generates sequence number
- * @param  : No parameters
- * @return : Returns generated sequence number
- */
-uint32_t
-generate_seq_no_urr(void);
 
 /**
  * @brief  : Generates sequence number for pfcp requests
@@ -267,7 +280,7 @@ pfcp_set_ie_header(pfcp_ie_header_t *header, uint8_t type, uint16_t length);
  * @return : Returns 0 in case of success , -1 otherwise
  */
 int
-process_pfcp_heartbeat_req(struct sockaddr_in *peer_addr, uint32_t seq);
+process_pfcp_heartbeat_req(peer_addr_t peer_addr, uint32_t seq);
 
 
 #ifdef CP_BUILD
@@ -280,7 +293,7 @@ process_pfcp_heartbeat_req(struct sockaddr_in *peer_addr, uint32_t seq);
  */
 int
 process_create_sess_req(create_sess_req_t *csr,
-					ue_context **context, struct in_addr *upf_ipv4, uint8_t cp_mode);
+					ue_context **context, node_address_t upf_ipv4, uint8_t cp_mode);
 
 /**
  * @brief  : Process pfcp session association request
@@ -332,6 +345,13 @@ int
 process_pfcp_sess_mod_req_for_saegwc_pgwc(mod_bearer_req_t *mbr,
 		ue_context *context);
 
+/**
+ * @brief  : Process pfcp session modification request
+ * @param  : mod_acc, modify_access_bearer req.
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+int
+process_pfcp_mod_req_modify_access_req(mod_acc_bearers_req_t *mod_acc);
 /**
  * @brief  : Process pfcp session modification request for handover scenario
  * @param  : pdn, pdn connection informatio
@@ -442,22 +462,23 @@ set_pdn_type(pfcp_pdn_type_ie_t *pdn);
  * @param  : i, interface type access or core
  * @param  : teidri_flag, 0 - Generate teidir.
  *         : 1 - No action for TEIDRI.
+ * @param  : logical_iface: WB:1, EB:2
  * @return : Returns nothing
  */
 void
 set_up_ip_resource_info(pfcp_user_plane_ip_rsrc_info_ie_t *up_ip_resource_info,
-		uint8_t i, int8_t teid_range, uint8_t num_teid_pools);
+		uint8_t i, int8_t teid_range, uint8_t logical_iface);
 #endif /* CP_BUILD */
 
 
 /**
  * @brief  : Set values in node id ie
  * @param  : node_id, ie structure to be filled
- * @param  : nodeid_value
+ * @param  : nodeid_value structure
  * @return : Returns 0 in case of success , -1 otherwise
  */
 int
-set_node_id(pfcp_node_id_ie_t *node_id, uint32_t nodeid_value);
+set_node_id(pfcp_node_id_ie_t *node_id, node_address_t node_value);
 
 /**
  * @brief  : Create and set values in create bar ie
@@ -476,21 +497,15 @@ creating_bar(pfcp_create_bar_ie_t *create_bar);
 void
 set_fq_csid(pfcp_fqcsid_ie_t *fq_csid, uint32_t nodeid_value);
 
-/**
- * @brief  : Set values in trace info ie
- * @param  : trace_info, ie structure to be filled
- * @return : Returns nothing
- */
-void
-set_trace_info(pfcp_trc_info_ie_t *trace_info);
 
 /**
  * @brief  : Set values in bar id ie
  * @param  : bar_id, ie structure to be filled
- * @return : Returns nothing
+ * @param  : bar_id_value, bar id
+ * @return : Returns size of IE
  */
-void
-set_bar_id(pfcp_bar_id_ie_t *bar_id);
+int
+set_bar_id(pfcp_bar_id_ie_t *bar_id, uint8_t bar_id_value);
 
 /**
  * @brief  : Set values in downlink data notification delay ie
@@ -504,40 +519,42 @@ set_dl_data_notification_delay(pfcp_dnlnk_data_notif_delay_ie_t
 /**
  * @brief  : Set values in buffer packets count ie
  * @param  : sgstd_buff_pkts_cnts, ie structure to be filled
- * @return : Returns nothing
+ * @param  : pkt_cnt, suggested packet count
+ * @return : Returns 0 in case of success , -1 otherwise
  */
-void
-set_sgstd_buff_pkts_cnt( pfcp_suggstd_buf_pckts_cnt_ie_t
-		*sgstd_buff_pkts_cnt);
+int
+set_sgstd_buff_pkts_cnt(pfcp_suggstd_buf_pckts_cnt_ie_t *sgstd_buff_pkts_cnt,
+		uint8_t pkt_cnt);
 
 /**
- * @brief  : Set values in user plave inactivity timer ie
- * @param  : up_inact_timer, ie structure to be filled
- * @return : Returns nothing
+ * @brief  : Set values in buffer packets count ie
+ * @param  : dl_buf_sgstd_pkts_cnts, ie structure to be filled
+ * @param  : pkt_cnt, suggested packet count
+ * @return : Returns 0 in case of success , -1 otherwise
  */
-void
-set_up_inactivity_timer(pfcp_user_plane_inact_timer_ie_t *up_inact_timer);
+int
+set_dl_buf_sgstd_pkts_cnt(pfcp_dl_buf_suggstd_pckt_cnt_ie_t *dl_buf_sgstd_pkts_cnt,
+		uint8_t pkt_cnt);
 
+#ifdef CP_BUILD
 /**
  * @brief  : Set values in user id ie
  * @param  : user_id, ie structure to be filled
  * @param  : imsi, value to be set in user id structure to be filled
  * @return : Returns nothing
  */
-#ifdef CP_BUILD
 void
 set_user_id(pfcp_user_id_ie_t *user_id, uint64_t imsi);
 #endif /* CP_BUILD */
-
 /**
  * @brief  : Set values in fseid ie
  * @param  : fseid, ie structure to be filled
  * @param  : seid, seid value
- * @param  : nodeid_value
+ * @param  : node_value structure
  * @return : Returns nothing
  */
 void
-set_fseid(pfcp_fseid_ie_t *fseid, uint64_t seid, uint32_t nodeid_value);
+set_fseid(pfcp_fseid_ie_t *fseid, uint64_t seid, node_address_t node_value);
 
 /**
  * @brief  : Set values in recovery time stamp ie
@@ -583,10 +600,11 @@ set_cause(pfcp_cause_ie_t *cause, uint8_t cause_val);
 /**
  * @brief  : Set values in remove bar ie
  * @param  : remove_bar, ie structure to be filled
+ * @param  : bar_id_value, value of bar identifier
  * @return : Returns nothing
  */
 void
-removing_bar( pfcp_remove_bar_ie_t *remove_bar);
+set_remove_bar(pfcp_remove_bar_ie_t *remove_bar, uint8_t bar_id_value);
 
 /**
  * @brief  : Set values in remove pdr ie
@@ -604,16 +622,6 @@ set_remove_pdr( pfcp_remove_pdr_ie_t *remove_pdr, uint16_t pdr_id_value);
  */
 void
 set_traffic_endpoint(pfcp_traffic_endpt_id_ie_t *traffic_endpoint_id);
-
-/**
- * @brief  : Set values in remove traffic endpoint ie
- * @param  : remove_traffic_endpoint, ie structure to be filled
- * @return : Returns nothing
- */
-void
-removing_traffic_endpoint(pfcp_rmv_traffic_endpt_ie_t
-		*remove_traffic_endpoint);
-
 
 /**
  * @brief  : Set values in fteid ie
@@ -638,25 +646,7 @@ set_network_instance(pfcp_ntwk_inst_ie_t *network_instance,
  * @return : Returns 0 in case of success , -1 otherwise
  */
 int
-set_ue_ip(pfcp_ue_ip_address_ie_t *ue_ip, uint32_t ue_ip_value);
-
-/**
- * @brief  : Set values in ethernet pdu session info ie
- * @param  : eth_pdu_sess_info, ie structure to be filled
- * @return : Returns nothing
- */
-void
-set_ethernet_pdu_sess_info( pfcp_eth_pdu_sess_info_ie_t
-		*eth_pdu_sess_info);
-
-/**
- * @brief  : Set values in framed routing ie
- * @param  : framedrouting, ie structure to be filled
- * @return : Returns nothing
- */
-void
-set_framed_routing(pfcp_framed_routing_ie_t *framedrouting);
-
+set_ue_ip(pfcp_ue_ip_address_ie_t *ue_ip, ue_ip_addr_t ue_addr);
 
 /**
  * @brief  : Set values in qer id ie
@@ -665,14 +655,6 @@ set_framed_routing(pfcp_framed_routing_ie_t *framedrouting);
  */
 int
 set_qer_id(pfcp_qer_id_ie_t *qer_id, uint32_t qer_id_value);
-
-/**
- * @brief  : Set values in qer correlation id ie
- * @param  : qer_correl_id, ie structure to be filled
- * @return : Returns 0 in case of success , -1 otherwise
- */
-int
-set_qer_correl_id(pfcp_qer_corr_id_ie_t *qer_correl_id);
 
 /**
  * @brief  : Set values in gate status ie
@@ -702,38 +684,6 @@ int
 set_gbr(pfcp_gbr_ie_t *gbr, gbr_t *qer_gbr);
 
 /**
- * @brief  : Set values in packet rate ie
- * @param  : pkt_rate, ie structure to be filled
- * @return : Returns 0 in case of success , -1 otherwise
- */
-int
-set_packet_rate(pfcp_packet_rate_ie_t *pkt_rate);
-
-/**
- * @brief  : Set values in downlink flow level marking ie
- * @param  : dl_flow_level_marking, ie structure to be filled
- * @return : Returns 0 in case of success , -1 otherwise
- */
-int
-set_dl_flow_level_mark(pfcp_dl_flow_lvl_marking_ie_t *dl_flow_level_marking);
-
-/**
- * @brief  : Set values in qfi ie
- * @param  : qfi, ie structure to be filled
- * @return : Returns 0 in case of success , -1 otherwise
- */
-int
-set_qfi(pfcp_qfi_ie_t *qfi);
-
-/**
- * @brief  : Set values in rqi ie
- * @param  : rqi, ie structure to be filled
- * @return : Returns 0 in case of success , -1 otherwise
- */
-int
-set_rqi(pfcp_rqi_ie_t *rqi);
-
-/**
  * @brief  : Set values in update qer ie
  * @param  : up_qer, ie structure to be filled
  * @param  : bearer_qer, qer value to be fill in ie structure
@@ -758,6 +708,15 @@ set_create_qer(pfcp_create_qer_ie_t *qer, qer_t *bearer_qer);
  */
 void
 updating_bar( pfcp_upd_bar_sess_mod_req_ie_t *up_bar);
+
+/**
+ * @brief  : Set values in update bar pfcp session report response ie
+ * @param  : up_bar, ie structure to be filled
+ * @param  : bearer_bar, stucture bar_t
+ * @return : Returns nothing
+ */
+void
+set_update_bar_sess_rpt_rsp(pfcp_upd_bar_sess_rpt_rsp_ie_t *up_bar, bar_t *bearer_bar);
 
 /**
  * @brief  : Set values in pfcpsmreq flags ie
@@ -890,14 +849,6 @@ void
 set_created_traffic_endpoint(pfcp_created_traffic_endpt_ie_t *cte);
 
 /**
- * @brief  : Set values in additional usage ie
- * @param  : adr, ie structure to be filled
- * @return : Returns nothing
- */
-void
-set_additional_usage(pfcp_add_usage_rpts_info_ie_t *adr);
-
-/**
  * @brief  : Set values in node report type ie
  * @param  : nrt, ie structure to be filled
  * @return : Returns nothing
@@ -912,14 +863,6 @@ set_node_report_type(pfcp_node_rpt_type_ie_t *nrt);
  */
 void
 set_user_plane_path_failure_report(pfcp_user_plane_path_fail_rpt_ie_t *uppfr);
-
-/**
- * @brief  : Set values in remote gtpu peer ie
- * @param  : remote_gtpu_peer, ie structure to be filled
- * @return : Returns nothing
- */
-void
-set_remote_gtpu_peer_ip(pfcp_rmt_gtpu_peer_ie_t *remote_gtpu_peer);
 
 /**
  * @brief  : Calculates system  Seconds since boot
@@ -997,7 +940,7 @@ create_heartbeat_hash_table(void);
  * @return : Returns nothing
  */
 void
-add_ip_to_heartbeat_hash(struct sockaddr_in *peer_addr, uint32_t recover_time);
+add_ip_to_heartbeat_hash(node_address_t *peer_addr, uint32_t recover_time);
 
 /**
  * @brief  : Delete ip address from heartbeat hash
@@ -1005,7 +948,7 @@ add_ip_to_heartbeat_hash(struct sockaddr_in *peer_addr, uint32_t recover_time);
  * @return : Returns nothing
  */
 void
-delete_entry_heartbeat_hash(struct sockaddr_in *peer_addr);
+delete_entry_heartbeat_hash(node_address_t *peer_addr);
 
 /**
  * @brief  : Add data to hearbeat hash table
@@ -1014,7 +957,7 @@ delete_entry_heartbeat_hash(struct sockaddr_in *peer_addr);
  * @return : Returns nothing
  */
 int
-add_data_to_heartbeat_hash_table(uint32_t *ip, uint32_t *recov_time);
+add_data_to_heartbeat_hash_table(node_address_t *ip, uint32_t *recov_time);
 
 /**
  * @brief  : Delete hearbeat hash table
@@ -1052,6 +995,14 @@ void
 set_create_urr(pfcp_create_urr_ie_t *create_urr, pdr_t *bearer_pdr);
 
 /**
+ * @brief  : Set values in create bar ie
+ * @param  : create_bar, ie structure to be filled
+ * @return : Returns nothing
+ */
+void
+set_create_bar(pfcp_create_bar_ie_t *create_bar, bar_t  *bearer_bar);
+
+/**
  * @brief  : Set values in update pdr  ie
  * @param  : update_pdr, ie structure to be filled
  * @param  : source_iface_value
@@ -1076,8 +1027,8 @@ set_update_far(pfcp_update_far_ie_t *update_far, far_t  *bearer_pdr);
  * @return : Returns 0 in case of success , -1 otherwise
  */
 uint16_t
-set_forwarding_param(pfcp_frwdng_parms_ie_t *frwdng_parms, uint32_t ipv4,
-							uint32_t teid, uint8_t interface_valuece);
+set_forwarding_param(pfcp_frwdng_parms_ie_t *frwdng_parms,
+	node_address_t node_value, uint32_t teid, uint8_t interface_valuece);
 
 /**
  * @brief  : Set values in duplicating params ie
@@ -1098,10 +1049,12 @@ set_upd_duplicating_param(pfcp_upd_dupng_parms_ie_t *dupng_parms);
 /**
  * @brief  : Set values in upd forwarding params ie
  * @param  : upd_frwdng_parms, ie structure to be filled
+ * @param  : node_value, node address structure to fill IP address
  * @return : Returns 0 in case of success , -1 otherwise
  */
 uint16_t
-set_upd_forwarding_param(pfcp_upd_frwdng_parms_ie_t *upd_frwdng_parms);
+set_upd_forwarding_param(pfcp_upd_frwdng_parms_ie_t *upd_frwdng_parms,
+											node_address_t node_value);
 
 /**
  * @brief  : Set values in apply action ie
@@ -1198,7 +1151,7 @@ set_time_threshold(pfcp_time_threshold_ie_t *time_thresh, urr_t *bearer_urr);
  */
 uint16_t
 set_outer_header_creation(pfcp_outer_hdr_creation_ie_t *outer_hdr_creation,
-												uint32_t ipv4, uint32_t teid);
+						node_address_t node_value, uint32_t teid);
 
 /**
  * @brief  : Set values in forwarding policy ie
@@ -1269,14 +1222,6 @@ int
 set_pdi(pfcp_pdi_ie_t *pdi, pdi_t *bearer_pdi, uint8_t cp_type);
 
 /**
- * @brief  : Set values in application id ie
- * @param  : app_id, ie structure to be filled
- * @return : Returns nothing
- */
-void
-set_application_id(pfcp_application_id_ie_t *app_id);
-
-/**
  * @brief  : Set values in source interface ie
  * @param  : src_intf, ie structure to be filled
  * @return : Returns 0 in case of success , -1 otherwise
@@ -1285,13 +1230,13 @@ int
 set_source_intf(pfcp_src_intfc_ie_t *src_intf, uint8_t src_intf_value);
 
 /**
- * @brief  : Set values in activate predeined rules ie
- * @param  : act_predef_rule, ie structure to be filled
- * @return : Returns nothing
+ * @brief  : Set peer node address
+ * @param  : peer_addr, structure to contain address
+ * @param  : node_addr, structure to fill node address.
+ * @return : Returns void.
  */
-void
-set_activate_predefined_rules(pfcp_actvt_predef_rules_ie_t *act_predef_rule);
 
+void get_peer_node_addr(peer_addr_t *peer_addr, node_address_t *node_addr);
 #ifdef CP_BUILD
 /**
  * @brief  : Set values in pfd contents ie
@@ -1357,7 +1302,7 @@ upflist_by_ue_hash_entry_delete(uint64_t *imsi_val, uint16_t imsi_len);
  * @return : Returns 0 in case of success , -1 otherwise
  */
 uint8_t
-upf_context_entry_add(uint32_t *upf_ip, upf_context_t *entry);
+upf_context_entry_add(node_address_t *upf_ip, upf_context_t *entry);
 
 /**
  * @brief  : search entry in upf hash using ip
@@ -1366,7 +1311,7 @@ upf_context_entry_add(uint32_t *upf_ip, upf_context_t *entry);
  * @return : Returns 0 in case of success , -1 otherwise
  */
 int
-upf_context_entry_lookup(uint32_t upf_ip, upf_context_t **entry);
+upf_context_entry_lookup(node_address_t upf_ip, upf_context_t **entry);
 
 /**
  * @brief  : Add entry into gx context hash
@@ -1420,4 +1365,32 @@ send_ccr_u_msg(mod_bearer_req_t *mb_req);
 uint64_t
 get_rule_type(pfcp_pfd_contents_ie_t *pfd_conts, uint16_t *idx);
 
+/**
+ *@brief  : Sets IP address for the node as per IP type
+ *@param  : ipv4_addr, IPv4 address
+ *@param  : ipv6_addr, IPv6 address
+ *@param  : node_value, node value structure to store IP address
+ *@return : returns -1 if no ip is assigned, otherwise 0
+*/
+int
+set_node_address(uint32_t *ipv4_addr, uint8_t ipv6_addr[],
+				node_address_t node_value);
+
+/* @brief  : stores IPv4/IPv6 address into node value
+ * @param  : ipv4_addr, ipv4 address
+ * @param  : ipv6_addr, ipv6 address
+ * @param  : node_value, ipv4 and ipv6 structure
+ * @return : returns -1 if no ip is assigned, otherwise 0
+ * */
+int
+fill_ip_addr(uint32_t ipv4_addr, uint8_t ipv6_addr[],
+						node_address_t *node_value);
+
+/* @brief  : checks if IPV6 address is zero or not
+ * @param  : addr, ipv6 address
+ * @param  : len, ipv6 address len
+ * @return : returns -1 if IP is non-zero, otherwise 0
+ * */
+int
+check_ipv6_zero(uint8_t addr[], uint8_t len);
 #endif /* PFCP_SET_IE_H */

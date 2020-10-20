@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,7 +37,6 @@
 
 #include "up_main.h"
 #include "pipeline/epc_arp.h"
-#include "clogger.h"
 #include "gw_adapter.h"
 
 #define TX_QUEUE 1
@@ -44,11 +44,12 @@
 struct ether_addr mac = {0};
 /* Macros for printing using RTE_LOG */
 
-unsigned int fd_array[2];
+unsigned int fd_array_v4[2] = {-1};
+unsigned int fd_array_v6[2] = {-1};
 extern struct kni_port_params *kni_port_params_array[RTE_MAX_ETHPORTS];
 
 extern struct rte_mempool *kni_mpool;
-
+extern int clSystemLog;
 #define NB_RXD                  1024
 
 extern struct rte_eth_conf port_conf_default;
@@ -393,20 +394,27 @@ kni_config_network_interface(uint16_t port_id, uint8_t if_up)
 		rte_eth_dev_stop(port_id);
 	 }
 
-	/*Create udp socket*/
-	int client_fd = socket(AF_INET, SOCK_DGRAM, 0);
-
-	if(client_fd < 0) {
-		clLog(clSystemLog, eCLSeverityCritical,
-			LOG_FORMAT"cannot create socket\n", LOG_VALUE);
-		exit(1);
-	}
-
-	fd_array[port_id] = client_fd;
-
-	if (ret < 0)
+	if (ret < 0) {
 		clLog(clSystemLog, eCLSeverityCritical,
 			LOG_FORMAT"Failed to start port %d\n", LOG_VALUE, port_id);
+	}
+
+	/* TODO: */
+	/*Create udp socket for IPv4 Channel */
+	int client_fd_v4 = socket(AF_INET, SOCK_DGRAM, 0);
+
+	if(client_fd_v4 < 0) {
+		rte_panic("KNI:IPv4:Socket call error : %s", strerror(errno));
+	}
+
+	fd_array_v4[port_id] = client_fd_v4;
+
+	/*Create udp socket for IPv6 Channel */
+	int client_fd_v6 = socket(AF_INET6, SOCK_DGRAM, 0);
+	if (client_fd_v6 < 0) {
+		rte_panic("KNI:IPv6:Socket call error : %s", strerror(errno));
+	}
+	fd_array_v6[port_id] = client_fd_v6;
 
 	return ret;
 }

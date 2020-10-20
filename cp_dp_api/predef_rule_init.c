@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +17,7 @@
 
 #include <rte_hash_crc.h>
 
-#include "clogger.h"
+#include "gw_adapter.h"
 #include "predef_rule_init.h"
 
 /* Create the Tables to mantain sdf, mtr, adc and pcc rules */
@@ -40,6 +41,7 @@ extern struct rte_hash *mtr_by_inx_hash;
 extern struct rte_hash *adc_by_inx_hash;
 extern struct rte_hash *pcc_by_rule_name_hash;
 extern struct rte_hash *rules_by_ip_addr_hash;
+extern int clSystemLog;
 
 /* Return the selected hash table pointer */
 static struct rte_hash *

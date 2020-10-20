@@ -37,7 +37,7 @@
 #include "interface.h"
 #include "packet_filters.h"
 #include "pfcp_struct.h"
-#include "restoration_timer.h"
+#include "ngic_timer.h"
 
 #ifdef USE_CSID
 #include "csid_struct.h"
@@ -77,12 +77,12 @@
 #define RULE_CNT                     (16)
 #define PROC_LEN					 (64)
 
-#define GET_UE_IP(ue_index) \
-			(((pfcp_config.ip_pool_ip.s_addr | (~pfcp_config.ip_pool_mask.s_addr)) \
+#define GET_UE_IP(ip_pool, ip_pool_mask, ue_index) \
+			(((ip_pool.s_addr | (~ip_pool_mask.s_addr)) \
 			  - htonl(ue_index)) - 0x01000000)
 
 #define INTERFACE \
-			( (SAEGWC == pfcp_config.cp_type) ? Sxa_Sxb : ( (PGWC != pfcp_config.cp_type) ? Sxa : Sxb ) )
+			( (SAEGWC == config.cp_type) ? Sxa_Sxb : ( (PGWC != config.cp_type) ? Sxa : Sxb ) )
 
 #ifndef CP_BUILD
 #define FQDN_LEN 256
@@ -124,7 +124,12 @@
 #define PORT_HIGH                           65535
 #define REMOTE_IP_MASK                      0
 #define REMOTE_IP_ADDR                      0
+#define LOCAL_IPV6_MASK                     4
+#define REMOTE_IPV6_MASK                    4
 #define GX_FLOW_COUNT                       1
+#define MAX_UINT8_T_VAL						255
+
+#pragma pack(1)
 
 struct eps_bearer_t;
 struct pdn_connection_t;
@@ -133,12 +138,12 @@ struct pdn_connection_t;
  * @brief  : Maintains CGI (Cell Global Identifier) data from user location information
  */
 typedef struct cgi_t {
-	uint8_t cgi_mcc_digit_2;
-	uint8_t cgi_mcc_digit_1;
-	uint8_t cgi_mnc_digit_3;
-	uint8_t cgi_mcc_digit_3;
-	uint8_t cgi_mnc_digit_2;
-	uint8_t cgi_mnc_digit_1;
+	uint8_t cgi_mcc_digit_2 :4;
+	uint8_t cgi_mcc_digit_1 :4;
+	uint8_t cgi_mnc_digit_3 :4;
+	uint8_t cgi_mcc_digit_3 :4;
+	uint8_t cgi_mnc_digit_2 :4;
+	uint8_t cgi_mnc_digit_1 :4;
 	uint16_t cgi_lac;
 	uint16_t cgi_ci;
 } cgi_t;
@@ -147,12 +152,12 @@ typedef struct cgi_t {
  * @brief  : Maintains SAI (Service Area Identifier) data from user location information
  */
 typedef struct sai_t {
-	uint8_t sai_mcc_digit_2;
-	uint8_t sai_mcc_digit_1;
-	uint8_t sai_mnc_digit_3;
-	uint8_t sai_mcc_digit_3;
-	uint8_t sai_mnc_digit_2;
-	uint8_t sai_mnc_digit_1;
+	uint8_t sai_mcc_digit_2 :4;
+	uint8_t sai_mcc_digit_1 :4;
+	uint8_t sai_mnc_digit_3 :4;
+	uint8_t sai_mcc_digit_3 :4;
+	uint8_t sai_mnc_digit_2 :4;
+	uint8_t sai_mnc_digit_1 :4;
 	uint16_t sai_lac;
 	uint16_t sai_sac;
 }sai_t;
@@ -161,12 +166,12 @@ typedef struct sai_t {
  * @brief  : Maintains RAI (Routing Area Identity) data from user location information
  */
 typedef struct rai_t {
-	uint8_t ria_mcc_digit_2;
-	uint8_t ria_mcc_digit_1;
-	uint8_t ria_mnc_digit_3;
-	uint8_t ria_mcc_digit_3;
-	uint8_t ria_mnc_digit_2;
-	uint8_t ria_mnc_digit_1;
+	uint8_t ria_mcc_digit_2 :4;
+	uint8_t ria_mcc_digit_1 :4;
+	uint8_t ria_mnc_digit_3 :4;
+	uint8_t ria_mcc_digit_3 :4;
+	uint8_t ria_mnc_digit_2 :4;
+	uint8_t ria_mnc_digit_1 :4;
 	uint16_t ria_lac;
 	uint16_t ria_rac;
 } rai_t;
@@ -175,12 +180,12 @@ typedef struct rai_t {
  * @brief  : Maintains TAI (Tracking Area Identity) data from user location information
  */
 typedef struct tai_t {
-	uint8_t tai_mcc_digit_2;
-	uint8_t tai_mcc_digit_1;
-	uint8_t tai_mnc_digit_3;
-	uint8_t tai_mcc_digit_3;
-	uint8_t tai_mnc_digit_2;
-	uint8_t tai_mnc_digit_1;
+	uint8_t tai_mcc_digit_2 :4;
+	uint8_t tai_mcc_digit_1 :4;
+	uint8_t tai_mnc_digit_3 :4;
+	uint8_t tai_mcc_digit_3 :4;
+	uint8_t tai_mnc_digit_2 :4;
+	uint8_t tai_mnc_digit_1 :4;
 	uint16_t tai_tac;
 } tai_t;
 
@@ -188,12 +193,12 @@ typedef struct tai_t {
  * @brief  : Maintains LAI (Location Area Identifier) data from user location information
  */
 typedef struct lai_t {
-	uint8_t lai_mcc_digit_2;
-	uint8_t lai_mcc_digit_1;
-	uint8_t lai_mnc_digit_3;
-	uint8_t lai_mcc_digit_3;
-	uint8_t lai_mnc_digit_2;
-	uint8_t lai_mnc_digit_1;
+	uint8_t lai_mcc_digit_2 :4;
+	uint8_t lai_mcc_digit_1 :4;
+	uint8_t lai_mnc_digit_3 :4;
+	uint8_t lai_mcc_digit_3 :4;
+	uint8_t lai_mnc_digit_2 :4;
+	uint8_t lai_mnc_digit_1 :4;
 	uint16_t lai_lac;
 } lai_t;
 
@@ -201,44 +206,56 @@ typedef struct lai_t {
  * @brief  : Maintains ECGI (E-UTRAN Cell Global Identifier) data from user location information
  */
 typedef struct ecgi_t {
-	uint8_t ecgi_mcc_digit_2;
-	uint8_t ecgi_mcc_digit_1;
-	uint8_t ecgi_mnc_digit_3;
-	uint8_t ecgi_mcc_digit_3;
-	uint8_t ecgi_mnc_digit_2;
-	uint8_t ecgi_mnc_digit_1;
-	uint8_t ecgi_spare;
-	uint32_t eci;
+	uint8_t ecgi_mcc_digit_2 :4;
+	uint8_t ecgi_mcc_digit_1 :4;
+	uint8_t ecgi_mnc_digit_3 :4;
+	uint8_t ecgi_mcc_digit_3 :4;
+	uint8_t ecgi_mnc_digit_2 :4;
+	uint8_t ecgi_mnc_digit_1 :4;
+	uint8_t ecgi_spare :4;
+	uint32_t eci :28;
 } ecgi_t;
 
 /**
  * @brief  : Maintains Macro eNodeB ID data from user location information
  */
 typedef struct macro_enb_id_t {
-	uint8_t menbid_mcc_digit_2;
-	uint8_t menbid_mcc_digit_1;
-	uint8_t menbid_mnc_digit_3;
-	uint8_t menbid_mcc_digit_3;
-	uint8_t menbid_mnc_digit_2;
-	uint8_t menbid_mnc_digit_1;
-	uint8_t menbid_spare;
-	uint8_t menbid_macro_enodeb_id;
+	uint8_t menbid_mcc_digit_2 :4;
+	uint8_t menbid_mcc_digit_1 :4;
+	uint8_t menbid_mnc_digit_3 :4;
+	uint8_t menbid_mcc_digit_3 :4;
+	uint8_t menbid_mnc_digit_2 :4;
+	uint8_t menbid_mnc_digit_1 :4;
+	uint8_t menbid_spare :4;
+	uint8_t menbid_macro_enodeb_id :4;
 	uint16_t menbid_macro_enb_id2;
 } macro_enb_id_t;
+
+typedef struct home_enb_id_t {
+	uint8_t henbid_mcc_digit_2 :4;
+	uint8_t henbid_mcc_digit_1 :4;
+	uint8_t henbid_mnc_digit_3 :4;
+	uint8_t henbid_mcc_digit_3 :4;
+	uint8_t henbid_mnc_digit_2 :4;
+	uint8_t henbid_mnc_digit_1 :4;
+	uint8_t henbid_spare :4;
+	uint8_t henbid_home_enodeb_id :4;
+	uint32_t henbid_home_enb_id2 :24;
+} home_enb_id_t;
 
 /**
  * @brief  : Maintains Extended Macro eNodeB ID data from user location information
  */
 typedef struct  extnded_macro_enb_id_t {
-	uint8_t emenbid_mcc_digit_2;
-	uint8_t emenbid_mcc_digit_1;
-	uint8_t emenbid_mnc_digit_3;
-	uint8_t emenbid_mcc_digit_3;
-	uint8_t emenbid_mnc_digit_2;
-	uint8_t emenbid_mnc_digit_1;
-	uint8_t emenbid_smenb;
-	uint8_t emenbid_spare;
-	uint8_t emenbid_extnded_macro_enb_id;
+	uint8_t emenbid_mcc_digit_2 :4;
+	uint8_t emenbid_mcc_digit_1 :4;
+	uint8_t emenbid_mnc_digit_3 :4;
+	uint8_t emenbid_mcc_digit_3 :4;
+	uint8_t emenbid_mnc_digit_2 :4;
+	uint8_t emenbid_mnc_digit_1 :4;
+	uint8_t emenbid_smenb :1;
+	uint8_t emenbid_spare :2;
+	uint8_t emenbid_extnded_macro_enb_id :5;
 	uint16_t emenbid_extnded_macro_enb_id2;
 } extnded_macro_enb_id_t;
 
@@ -263,6 +280,35 @@ typedef struct user_loc_info_t {
 	macro_enb_id_t macro_enodeb_id2;
 	extnded_macro_enb_id_t extended_macro_enodeb_id2;
 } user_loc_info_t;
+
+
+typedef struct presence_reproting_area_action_t {
+	uint8_t action;
+	uint32_t pres_rptng_area_idnt;
+	uint8_t number_of_tai;
+	uint8_t number_of_rai;
+	uint8_t nbr_of_macro_enb;
+	uint8_t nbr_of_home_enb;
+	uint8_t number_of_ecgi;
+	uint8_t number_of_sai;
+	uint8_t number_of_cgi;
+	uint8_t nbr_of_extnded_macro_enb;
+	cgi_t cgis[MAX_CGIS];
+	sai_t sais[MAX_SAIS];
+	rai_t rais[MAX_RAIS];
+	tai_t tais[MAX_TAIS];
+	ecgi_t ecgis[MAX_ECGIS];
+	macro_enb_id_t macro_enodeb_ids[MAX_MACRO_ENB_IDS];
+	home_enb_id_t home_enb_ids[MAX_HOME_ENB_IDS];
+	extnded_macro_enb_id_t extended_macro_enodeb_ids[MAX_EX_MACRO_ENB_IDS];
+} presence_reproting_area_action_t;
+
+typedef struct presence_reproting_area_info_t {
+	uint32_t pra_identifier;
+	uint8_t inapra;
+	uint8_t opra;
+	uint8_t ipra;
+} presence_reproting_area_info_t;
 
 /**
  * @brief  : Maintains serving network mcc and mnc information
@@ -297,6 +343,10 @@ typedef struct apn_t {
 	int time_th;
 	size_t apn_name_length;
 	int8_t apn_idx;
+	struct in_addr ip_pool_ip;
+	struct in_addr ip_pool_mask;
+	struct in6_addr ipv6_network_id;
+	uint8_t ipv6_prefix_len;
 } apn;
 
 /**
@@ -328,6 +378,8 @@ typedef struct ebi_id_t {
  */
 typedef struct sdf_pkt_fltr_t {
 	uint8_t proto_id;
+	uint8_t v4;
+	uint8_t v6;
 	uint8_t proto_mask;
 	uint8_t direction;
 	uint8_t action;
@@ -339,6 +391,8 @@ typedef struct sdf_pkt_fltr_t {
 	uint16_t remote_port_high;
 	struct in_addr local_ip_addr;
 	struct in_addr remote_ip_addr;
+	struct in6_addr local_ip6_addr;
+	struct in6_addr remote_ip6_addr;
 } sdf_pkt_fltr;
 
 /**
@@ -427,17 +481,20 @@ typedef struct selection_mode{
  */
 typedef struct indication_flag_t {
 
-	uint8_t oi:1;    /* Operation Indication */
-	uint8_t ltempi:1;
-	uint8_t crsi:1;  /* Change Reporting support indication */
-	uint8_t sgwci:1; /* SGW Change Indication */
-	uint8_t hi:1;    /* Handover Indication */
-	uint8_t ccrsi:1; /* CSG Change Reporting support indication */
-	uint8_t cprai:1; /* Change of Presence Reporting Area information Indication */
-	uint8_t clii:1;  /* Change of Location Information Indication */
-	uint8_t dfi:1;   /* Direct Forwarding Indication */
-	uint8_t arrl:1; /* Abnormal Release of Radio Link */
-
+	uint8_t oi:1;     /* Operation Indication */
+	uint8_t ltempi:1; /* LTE-M RAT Type reporting to PGW Indication */
+	uint8_t crsi:1;   /* Change Reporting support indication */
+	uint8_t sgwci:1;  /* SGW Change Indication */
+	uint8_t hi:1;     /* Handover Indication */
+	uint8_t ccrsi:1;  /* CSG Change Reporting support indication */
+	uint8_t cprai:1;  /* Change of Presence Reporting Area information Indication */
+	uint8_t clii:1;   /* Change of Location Information Indication */
+	uint8_t dfi:1;    /* Direct Forwarding Indication */
+	uint8_t arrl:1;   /* Abnormal Release of Radio Link */
+	uint8_t daf:1; 	/*Dual Address Bearer Flag*/
+	uint8_t cfsi:1;   /* Change F-TEID support indication */
+	uint8_t pt:1;     /*(S5/S8 Protocol Type */
+	uint8_t s11tf:1;  /* S11-u teid Indication*/
 }indication_flag_t;
 
 /**
@@ -514,6 +571,14 @@ enum dsr_status_t {
 };
 
 /**
+ * @brief  : Status of cbr processing
+ */
+enum cbr_status_t {
+	CBR_PROCESS_DONE = 0,
+	CBR_IN_PROGRESS = 1
+};
+
+/**
  * @brief  : Maintains status of current MBR in progress
  */
 typedef struct mbr_req_info {
@@ -522,12 +587,51 @@ typedef struct mbr_req_info {
 }mbr_req_info_t;
 
 /**
+ * @brief: Status of MABR processing
+ */
+enum mabr_status_t {
+	MABR_PROCESS_DONE = 0,
+	MABR_IN_PROGRESS = 1
+};
+/**
+ * @brief  : Maintains status of current Modify Acccess Bearer
+ * Request in progress
+ */
+typedef struct mabr_req_info {
+	uint32_t seq;
+	enum mabr_status_t status;
+}mabr_req_info_t;
+
+/**
  * @brief  : Maintains status of current DSR in progress
  */
 typedef struct dsr_req_info {
 	uint32_t seq;
 	enum dsr_status_t status;
 }dsr_req_info_t;
+
+/**
+ * @brief  : Maintains status of current CBR in progress
+ */
+typedef struct cbr_req_info {
+	uint32_t seq;
+	enum cbr_status_t status;
+} cbr_req_info_t;
+
+/*
+ * @brief : Used to store rule status received in CCA
+ *          send provision ack message to PCRF*/
+
+typedef struct pro_ack_rule_status {
+    char rule_name[RULE_NAME_LEN];
+    uint8_t rule_status;
+}pro_ack_rule_status_t;
+
+typedef struct pro_ack_rule_array {
+    uint8_t rule_cnt;
+    pro_ack_rule_status_t rule[MAX_RULE_PER_BEARER];
+}pro_ack_rule_array_t;
+
 
 /**
  * @brief  : Maintains ue related information
@@ -552,9 +656,19 @@ typedef struct ue_context_t {
 	 */
 	dsr_req_info_t dsr_info;
 
+	/*CBR sequence number and status for identifying
+	 * retransmitted CBR req.
+	 */
+	cbr_req_info_t cbr_info;
+
+	/* MABR sequence number and status for identifying
+	 * retransmitted MABR req.
+	 */
+	mabr_req_info_t mabr_info;
+
 	uint8_t proc_trans_id;
 	uint32_t ue_initiated_seq_no;
-
+	uint8_t mbc_cleanup_status;
 	ambr_ie mn_ambr;
 	bool sgwu_changed;
 
@@ -562,12 +676,10 @@ typedef struct ue_context_t {
 	user_loc_info_t uli;
 	user_loc_info_t old_uli;
 
-	//ue_tz ue_tz;
 	ue_tz old_ue_tz;
 	bool old_ue_tz_valid;
 
 	bool eci_changed;
-
 	bool ltem_rat_type_flag;
 	bool serving_nw_flag;
 	serving_nwrk_t serving_nw;
@@ -583,7 +695,7 @@ typedef struct ue_context_t {
 	uint8_t second_rat_count;
 	uint8_t change_report_action;
 	bool change_report;
-	bool piggback;
+	bool piggyback;
 
 	indication_flag_t indication_flag;
 	bool ue_time_zone_flag;
@@ -591,16 +703,16 @@ typedef struct ue_context_t {
 	bool uci_flag;
 	user_csg_i uci;
 	bool mo_exception_flag;
+	bool mme_changed_flag;
 	counter mo_exception_data_counter;
 	uint8_t bearer_count;
 
-	bool flag_fqcsid_modified;
 #ifdef USE_CSID
 	/* Temp cyclic linking of the MME and SGW FQ-CSID */
-	fqcsid_t *mme_fqcsid;
-	fqcsid_t *sgw_fqcsid;
-	fqcsid_t *pgw_fqcsid;
-	fqcsid_t *up_fqcsid;
+	sess_fqcsid_t *mme_fqcsid;
+	sess_fqcsid_t *sgw_fqcsid;
+	sess_fqcsid_t *pgw_fqcsid;
+	sess_fqcsid_t *up_fqcsid;
 #endif /* USE_CSID */
 
 	uint32_t sequence;
@@ -611,10 +723,12 @@ typedef struct ue_context_t {
 	uint8_t up_selection_flag;
 	uint8_t promotion_flag;
 	uint8_t dcnr_flag;
+
 	uint32_t s11_sgw_gtpc_teid;
-	struct in_addr s11_sgw_gtpc_ipv4;
+	node_address_t s11_sgw_gtpc_ip;
+
 	uint32_t s11_mme_gtpc_teid;
-	struct in_addr s11_mme_gtpc_ipv4;
+	node_address_t s11_mme_gtpc_ip;
 
 	uint16_t bearer_bitmap;
 	uint16_t teid_bitmap;
@@ -637,6 +751,17 @@ typedef struct ue_context_t {
 	uint8_t li_data_cntr;
 	li_data_t li_data[MAX_LI_ENTRIES_PER_UE];
 
+	struct indirect_tunnel_t *indirect_tunnel;    /* maintains bearers and sessions for indirect tunnel */
+	uint8_t indirect_tunnel_flag;                 /* indication for presence indirect tunnel */
+
+	/* S1 HO Flag to forward MBR Req to PGWC */
+	uint8_t update_sgw_fteid;
+	/* Flag to indicate report response already sent or not*/
+	uint8_t pfcp_rept_resp_sent_flag;
+
+	uint8_t pra_flag;
+	presence_reproting_area_action_t pre_rptng_area_act;
+	presence_reproting_area_info_t pre_rptng_area_info;
 } ue_context;
 
 /**
@@ -646,9 +771,17 @@ typedef struct pdn_connection_t {
 	uint8_t proc;
 	uint8_t state;
 	uint8_t bearer_control_mode;
-
-	/*VS : Call ID ref. to session id of CCR */
+	/* Call ID ref. to session id of CCR */
 	uint32_t call_id;
+
+	bool flag_fqcsid_modified;
+#ifdef USE_CSID
+	fqcsid_t mme_csid;
+	fqcsid_t sgw_csid;
+	fqcsid_t pgw_csid;
+	fqcsid_t up_csid;
+#endif /* USE_CSID */
+
 
 	apn *apn_in_use;
 	ambr_ie apn_ambr;
@@ -657,22 +790,24 @@ typedef struct pdn_connection_t {
 	ambr_ie session_ambr;
 	ambr_ie session_gbr;
 
-	struct in_addr upf_ipv4;
+	node_address_t upf_ip;
+
 	uint64_t seid;
 	uint64_t dp_seid;
 
 	struct in_addr ipv4;
+	uint8_t prefix_len;
 	struct in6_addr ipv6;
 
-	/* VS: Need to Discuss teid and IP should be part of UE context */
+	/* Need to Discuss teid and IP should be part of UE context */
 	uint32_t s5s8_sgw_gtpc_teid;
-	struct in_addr s5s8_sgw_gtpc_ipv4;
+	node_address_t s5s8_sgw_gtpc_ip;
 
 	bool old_sgw_addr_valid;
-	struct in_addr old_sgw_addr;
+	node_address_t old_sgw_addr;
 
 	uint32_t s5s8_pgw_gtpc_teid;
-	struct in_addr s5s8_pgw_gtpc_ipv4;
+	node_address_t s5s8_pgw_gtpc_ip;
 
 	uint8_t ue_time_zone_flag;
 	ue_tz ue_tz;
@@ -685,25 +820,17 @@ typedef struct pdn_connection_t {
 
 	int16_t mapped_ue_usage_type;
 
-	/* VS: Support partial failure functionality of FQ-CSID */
-#ifdef USE_CSID
-	/*TODO: Need to think on it */
-	uint8_t peer_cnt;
-	/* Need to think on index can we use the ebi as index*/
-	csid_key *peer_info[MAX_BEARERS];
-	/* Collection of the associated peer node CSIDs*/
-	fq_csids *csids[MAX_BEARERS];
-#endif /* USE_CSID */
+	uint8_t requested_pdn_type;
 
 	pdn_type_ie pdn_type;
 	/* See  3GPP TS 32.298 5.1.2.2.7 for Charging Characteristics fields*/
 	charging_characteristics_ie charging_characteristics;
 
 	uint8_t default_bearer_id;
-	/* VS: Need to think on it */
+	/* Need to think on it */
 	uint8_t num_bearer;
 
-	/* VS: Create a cyclic linking to access the data structures of UE */
+	/* Create a cyclic linking to access the data structures of UE */
 	ue_context *context;
 
 	uint8_t fqdn[FQDN_LEN];
@@ -712,7 +839,10 @@ typedef struct pdn_connection_t {
 	struct eps_bearer_t *packet_filter_map[MAX_FILTERS_PER_UE];
 
 	char gx_sess_id[MAX_LEN];
-	dynamic_rule_t *dynamic_rules[MAX_RULE_PER_BEARER];
+
+	/*Structure used to store rule status for sending
+	 * provision ack */
+	pro_ack_rule_array_t pro_ack_rule_array;
 
 	/* need to maintain reqs ptr for RAA*/
 	unsigned long rqst_ptr;
@@ -727,7 +857,17 @@ typedef struct pdn_connection_t {
 	uint8_t dns_query_domain;
 
 	void *node_sel;
+	uint8_t enb_query_flag;
 	uint8_t generate_cdr;
+
+	uint8_t num_ddn_sent_count;    /*number of ddn request sent per session*/
+
+	/* As per spec at most one bar per session */
+	bar_t bar;
+
+	/* Need to send default DL Buffering Suggested Packet Count in first Report Response */
+	uint8_t is_default_dl_sugg_pkt_cnt_sent;
+
 } pdn_connection;
 
 /**
@@ -755,17 +895,24 @@ typedef struct eps_bearer_t {
 	/*seq no for each bearer used as CDR field*/
 	uint32_t cdr_seq_no;
 
-	struct in_addr s1u_sgw_gtpu_ipv4;
+
+	node_address_t s1u_sgw_gtpu_ip;
 	uint32_t s1u_sgw_gtpu_teid;
-	struct in_addr s5s8_sgw_gtpu_ipv4;
+
+	node_address_t s5s8_sgw_gtpu_ip;
 	uint32_t s5s8_sgw_gtpu_teid;
-	struct in_addr s5s8_pgw_gtpu_ipv4;
+
+	node_address_t s5s8_pgw_gtpu_ip;
 	uint32_t s5s8_pgw_gtpu_teid;
-	struct in_addr s1u_enb_gtpu_ipv4;
+
+	node_address_t s1u_enb_gtpu_ip;
 	uint32_t s1u_enb_gtpu_teid;
 
-	struct in_addr s11u_mme_gtpu_ipv4;
+	node_address_t s11u_mme_gtpu_ip;
 	uint32_t s11u_mme_gtpu_teid;
+
+	node_address_t s11u_sgw_gtpu_ip;
+	uint32_t s11u_sgw_gtpu_teid;
 
 	struct pdn_connection_t *pdn;
 
@@ -773,6 +920,7 @@ typedef struct eps_bearer_t {
 	int packet_filter_map[MAX_FILTERS_PER_UE];
 	int flow_desc_check;
 	int qos_bearer_check;
+	int arp_bearer_check;
 	uint8_t num_dynamic_filters;
 	dynamic_rule_t *dynamic_rules[MAX_RULE_PER_BEARER];
 
@@ -783,7 +931,6 @@ typedef struct eps_bearer_t {
 
 } eps_bearer;
 
-#pragma pack(1)
 /**
  * @brief : Stores data TEID and Msg_type as data for the use of error handling.
  */
@@ -801,10 +948,37 @@ typedef struct teid_seq_map_key {
 	char teid_key[RULE_NAME_LEN];
 }teid_key_t;
 
+
+/**
+ *  @brief  : Maintains sessions and bearers created
+ * for indirect tunnel data transmission.
+ * */
+struct indirect_tunnel_t {
+	pdn_connection *pdn;
+	uint8_t anchor_gateway_flag;
+	/*This bearer is UE context default bearer id */
+	uint8_t eps_bearer_id;
+};
+
+/*@brief: maintains pdr array for ddn requests */
+typedef struct pdr_ids_t{
+	uint8_t pdr_count;              /* pdr id count*/
+	uint16_t pdr_id[MAX_LIST_SIZE]; /* rule ids array*/
+}pdr_ids;
+
+/*@brief: maintains pdr array for ddn requests */
+typedef struct sess_info_t{
+	uint64_t sess_id;                   /*session id*/
+	uint8_t pdr_count;                 /* pdr id  count */
+	uint16_t pdr_id[MAX_LIST_SIZE];   /* rule ids array*/
+	struct sess_info_t *next;
+}sess_info;
+
 #pragma pack()
 
 extern struct rte_hash *ue_context_by_imsi_hash;
 extern struct rte_hash *ue_context_by_fteid_hash;
+extern struct rte_hash *ue_context_by_sender_teid_hash;
 
 extern apn apn_list[MAX_NB_DPN];
 extern int apnidx;
@@ -858,26 +1032,6 @@ add_bearer_entry_by_sgw_s5s8_tied(uint32_t fteid_key, struct eps_bearer_t **bear
 
 
 /**
- * @brief  : assigns the ip pool variable from parsed c-string
- * @param  : ip_str
- *           ip address c-string from command line
- * @return : Returns nothing
- */
-void
-set_ip_pool_ip(const char *ip_str);
-
-
-/**
- * @brief  : assigns the ip pool mask variable from parsed c-string
- * @param  : ip_str
- *           ip address c-string from command line
- * @return : Returns nothing
- */
-void
-set_ip_pool_mask(const char *ip_str);
-
-
-/**
  * @brief  : This function takes the c-string argstr describing a apn by url, for example
  *           label1.label2.label3 and populates the apn structure according 3gpp 23.003
  *           clause 9.1
@@ -902,9 +1056,18 @@ set_apn_name(apn *an_apn, char *argstr);
 apn *
 get_apn(char *apn_label, uint16_t apn_length);
 
+/**
+ * @brief  : returns the apn strucutre for default apn(Forwarding Gateway-S1 HO)
+ * @param  : void
+ * @return : the apn label configured for the CP
+ */
+apn *
+set_default_apn(void);
 
 /**
  * @brief  : Simple ip-pool
+ * @param  : ip_pool, IP subnet ID
+ * @param  : ip_pool_mask, Mask to be used
  * @param  : ipv4
  *           ip address to be used for a new UE connection
  * @return : - 0 if successful
@@ -912,7 +1075,22 @@ get_apn(char *apn_label, uint16_t apn_length);
  *           3gpp specified cause error value
  */
 uint32_t
-acquire_ip(struct in_addr *ipv4);
+acquire_ip(struct in_addr ip_pool,	struct in_addr ip_pool_mask,
+											struct in_addr *ipv4);
+
+/**
+ * @brief  : Simple ip-pool for ipv6
+ * @param  : ipv6_network_id, Prefix for IPv6 creation
+ * @param  : prefix_len, bearer_id that need to be used for IPv6 allocation
+ * @param  : ipv6
+ *           ip address to be used for a new UE connection
+ * @return : - 0 if successful
+ *           - > 0 if error occurs during packet filter parsing corresponds to
+ *           3gpp specified cause error value
+ */
+uint32_t
+acquire_ipv6(struct in6_addr ipv6_network_id, uint8_t prefix_len,
+											struct in6_addr *ipv6);
 
 /* debug */
 
@@ -936,4 +1114,11 @@ print_ue_context_by(struct rte_hash *h, ue_context *context);
 void
 create_li_info_hash(void);
 
+/**
+ * @brief  : fill and send pfcp session modification with drop flag set
+ * @param  : context, ue context
+ * @return : Returns 0 on success and -1 on error
+ */
+int
+send_pfcp_sess_mod_with_drop(ue_context *context);
 #endif /* UE_H */

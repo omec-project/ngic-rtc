@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,14 +27,13 @@
 #include <rte_common.h>
 #include <rte_branch_prediction.h>
 
-#include "clogger.h"
 #include "up_main.h"
 #include "epc_arp.h"
 #include "teid_upf.h"
 #include "pfcp_util.h"
 #include "pfcp_set_ie.h"
 #include "pfcp_association.h"
-#include "../restoration/restoration_timer.h"
+#include "ngic_timer.h"
 
 #include "gw_adapter.h"
 #include "gtpu.h"
@@ -44,18 +44,22 @@
 /* Generate new pcap for s1u port */
 extern pcap_dumper_t *pcap_dumper_west;
 extern pcap_dumper_t *pcap_dumper_east;
-extern unsigned int fd_array[2];
-extern uint16_t cp_comm_port;
-static struct sockaddr_in dest_addr[2];
+extern int fd_array_v4[2];
+extern int fd_array_v6[2];
+static peer_addr_t dest_addr[2];
 
 /* DP restart conuter */
 extern uint8_t dp_restart_cntr;
-
+extern int clSystemLog;
+extern uint16_t dp_comm_port;
 /**
  * rte hash handler.
  */
 /* 2 hash handles, one for S1U and another for SGI */
 extern struct rte_hash *arp_hash_handle[NUM_SPGW_PORTS];
+
+/* GW should allow/deny sending error indication pkts to peer node: 1:allow, 0:deny */
+bool error_indication_snd;
 
 /**
  * @brief  : memory pool for queued data pkts.
@@ -65,9 +69,9 @@ static char *echo_mpoolname = {
 };
 
 int32_t conn_cnt = 0;
-static uint16_t gtpu_seqnb	= 0;
-static uint16_t gtpu_sgwu_seqnb	= 0;
-static uint16_t gtpu_sx_seqnb	= 1;
+static uint16_t gtpu_seqnb      = 0;
+static uint16_t gtpu_sgwu_seqnb = 0;
+static uint16_t gtpu_sx_seqnb   = 1;
 
 /**
  * @brief  : Connection hash params.
@@ -77,8 +81,7 @@ static struct rte_hash_parameters
 			.name = "CONN_TABLE",
 			.entries = NUM_CONN,
 			.reserved = 0,
-			.key_len =
-					sizeof(uint32_t),
+			.key_len = sizeof(node_address_t),
 			.hash_func = rte_jhash,
 			.hash_func_init_val = 0
 };
@@ -147,16 +150,8 @@ static
 uint8_t arp_req_send(peerData *conn_data)
 {
 
-	clLog(clSystemLog, eCLSeverityDebug,
-		LOG_FORMAT"Sendto ret arp data IP: %s\n", LOG_VALUE,
-		inet_ntoa(*(struct in_addr *)&conn_data->dstIP));
-
-	if (fd_array[conn_data->portId] > 0) {
-		/* setting sendto destination addr */
-		dest_addr[conn_data->portId].sin_family = AF_INET;
-		dest_addr[conn_data->portId].sin_addr.s_addr = conn_data->dstIP;
-		dest_addr[conn_data->portId].sin_port = htons(SOCKET_PORT);
-
+	if ((fd_array_v4[conn_data->portId] > 0) || (fd_array_v6[conn_data->portId] > 0)) {
+		/* Buffer setting */
 		char tmp_buf[ARP_SEND_BUFF] = {0};
 
 		int k = 0;
@@ -164,14 +159,41 @@ uint8_t arp_req_send(peerData *conn_data)
 			tmp_buf[k] = 'v';
 		}
 		tmp_buf[ARP_SEND_BUFF] = 0;
-		/*TODO : change strlen with strnlen with proper size (n)*/
-		if ((sendto(fd_array[conn_data->portId], tmp_buf, strlen(tmp_buf), 0, (struct sockaddr *)
-					&dest_addr[conn_data->portId], sizeof(struct sockaddr_in))) < 0) {
-			perror("send failed");
-			return -1;
+		if (conn_data->dstIP.ip_type == IPV6_TYPE) {
+			/* IPv6 */
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Sendto neighbor solicitation IP: "IPv6_FMT"\n", LOG_VALUE,
+					IPv6_PRINT(IPv6_CAST(&conn_data->dstIP.ipv6_addr)));
+
+			/* setting sendto destination addr */
+			dest_addr[conn_data->portId].ipv6.sin6_family = AF_INET6;
+			memcpy(&dest_addr[conn_data->portId].ipv6.sin6_addr, &conn_data->dstIP.ipv6_addr, IPV6_ADDRESS_LEN);
+			dest_addr[conn_data->portId].ipv6.sin6_port = htons(SOCKET_PORT);
+
+			if ((sendto(fd_array_v6[conn_data->portId], tmp_buf, strlen(tmp_buf), 0, (struct sockaddr *)
+							&dest_addr[conn_data->portId].ipv6, sizeof(struct sockaddr_in6))) < 0) {
+				perror("IPv6:Send Failed:");
+				return -1;
+			}
+		} else {
+			/* IPv4 */
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Sendto ret arp data IP: %s\n", LOG_VALUE,
+					inet_ntoa(*(struct in_addr *)&conn_data->dstIP.ipv4_addr));
+
+			/* setting sendto destination addr */
+			dest_addr[conn_data->portId].ipv4.sin_family = AF_INET;
+			dest_addr[conn_data->portId].ipv4.sin_addr.s_addr = conn_data->dstIP.ipv4_addr;
+			dest_addr[conn_data->portId].ipv4.sin_port = htons(SOCKET_PORT);
+			/*TODO : change strlen with strnlen with proper size (n)*/
+			if ((sendto(fd_array_v4[conn_data->portId], tmp_buf, strlen(tmp_buf), 0,
+							(struct sockaddr *)&dest_addr[conn_data->portId].ipv4,
+							sizeof(struct sockaddr_in))) < 0) {
+				perror("IPv4:Send Failed");
+				return -1;
+			}
 		}
 	}
-
 	return 0;
 }
 
@@ -223,19 +245,32 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 {
 	peerData *md = (peerData*)data_t;
 	struct rte_mbuf *pkt = rte_pktmbuf_alloc(echo_mpool);
-	struct sockaddr_in dest_addr;
 
-	dest_addr.sin_family = AF_INET;
-	dest_addr.sin_addr.s_addr = md->dstIP;
-	dest_addr.sin_port = htons(cp_comm_port);
+	/* CLI Address buffer */
+	peer_address_t peer_addr;
+	if (md->dstIP.ip_type == IPV6_TYPE) {
+		memcpy(&peer_addr.ipv6.sin6_addr, &md->dstIP.ipv6_addr, IPV6_ADDR_LEN);
+		peer_addr.type = IPV6_TYPE;
+	} else {
+		peer_addr.ipv4.sin_addr.s_addr = md->dstIP.ipv4_addr;
+		peer_addr.type = IPV4_TYPE;
+	}
 
-	md->itr = number_of_transmit_count;
-	clLog(clSystemLog, eCLSeverityDebug,
-		LOG_FORMAT"%s - %s:%s:%u.%s (%dms) has expired\n", LOG_VALUE, getPrintableTime(),
-		md->name, inet_ntoa(*(struct in_addr *)&md->dstIP), md->portId,
-		ti == &md->pt ? "Periodic_Timer" :
-		ti == &md->tt ? "Transmit_Timer" : "unknown",
-		ti->ti_ms );
+	(md->dstIP.ip_type == IPV6_TYPE) ?
+		clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"%s - %s: IPv6:"IPv6_FMT":%u.%s (%dms) has expired\n", LOG_VALUE, getPrintableTime(),
+				md->name, IPv6_PRINT(IPv6_CAST(md->dstIP.ipv6_addr)), md->portId,
+				ti == &md->pt ? "Periodic_Timer" :
+				ti == &md->tt ? "Transmit_Timer" : "unknown",
+				ti->ti_ms ):
+		clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"%s - %s: IPv4:%s:%u.%s (%dms) has expired\n", LOG_VALUE, getPrintableTime(),
+				md->name, inet_ntoa(*(struct in_addr *)&md->dstIP.ipv4_addr), md->portId,
+				ti == &md->pt ? "Periodic_Timer" :
+				ti == &md->tt ? "Transmit_Timer" : "unknown",
+				ti->ti_ms );
+
+		md->itr = app.transmit_cnt;
 
 	if (md->itr_cnt == md->itr) {
 		/* Stop transmit timer for specific Peer Node */
@@ -247,42 +282,56 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 		/* Deinit transmit timer for specific Peer Node */
 		deinitTimer( &md->pt );
 
-		clLog(clSystemLog, eCLSeverityDebug,
-			LOG_FORMAT"Stopped Periodic/transmit timer, peer node %s is not reachable\n",
-			LOG_VALUE, inet_ntoa(*(struct in_addr *)&md->dstIP));
+		if (md->dstIP.ip_type == IPV6_TYPE) {
+			clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"Stopped Periodic/transmit timer, peer node IPv6 "IPv6_FMT" is not reachable\n",
+				LOG_VALUE, IPv6_PRINT(IPv6_CAST(md->dstIP.ipv6_addr)));
+			clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Peer node IPv6 "IPv6_FMT" is not reachable\n", LOG_VALUE,
+				IPv6_PRINT(IPv6_CAST(md->dstIP.ipv6_addr)));
+		} else {
+			clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"Stopped Periodic/transmit timer, peer node IPv4 %s is not reachable\n",
+				LOG_VALUE, inet_ntoa(*(struct in_addr *)&md->dstIP.ipv4_addr));
+			clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Peer node IPv4 %s is not reachable\n", LOG_VALUE,
+				inet_ntoa(*(struct in_addr *)&md->dstIP.ipv4_addr));
+		}
 
-		clLog(clSystemLog, eCLSeverityDebug,
-			LOG_FORMAT"Peer node %s is not reachable\n", LOG_VALUE,
-			inet_ntoa(*(struct in_addr *)&md->dstIP));
+		update_peer_status(&peer_addr, FALSE);
+		delete_cli_peer(&peer_addr);
 
-		update_peer_status(md->dstIP,FALSE);
-		delete_cli_peer(md->dstIP);
 		/* VS: Flush eNB sessions */
 		if ((md->portId == S1U_PORT_ID) || (md->portId == SGI_PORT_ID)) {
 			/* flush_eNB_session(md); */
-			del_entry_from_hash(md->dstIP);
+			del_entry_from_hash(&md->dstIP);
 #ifdef USE_CSID
 			if (md->portId == S1U_PORT_ID) {
-				up_del_pfcp_peer_node_sess(ntohl(md->dstIP), S1U_PORT_ID);
+				up_del_pfcp_peer_node_sess(&md->dstIP, S1U_PORT_ID);
 			} else {
-				up_del_pfcp_peer_node_sess(ntohl(md->dstIP), SGI_PORT_ID);
+				up_del_pfcp_peer_node_sess(&md->dstIP, SGI_PORT_ID);
 			}
 #endif /* USE_CSID */
 		} else if (md->portId == SX_PORT_ID) {
-			delete_entry_heartbeat_hash(&dest_addr);
+			delete_entry_heartbeat_hash(&md->dstIP);
 #ifdef USE_CSID
-			up_del_pfcp_peer_node_sess(ntohl(md->dstIP), SX_PORT_ID);
+			up_del_pfcp_peer_node_sess(&md->dstIP, SX_PORT_ID);
 #endif /* USE_CSID */
 
 		}
-
 		return;
 	}
 
 	if (md->activityFlag == 1) {
-		clLog(clSystemLog, eCLSeverityDebug,
-			LOG_FORMAT"Channel is active for NODE :%s, No need to send echo to it's peer node\n",
-			LOG_VALUE, inet_ntoa(*(struct in_addr *)&md->dstIP));
+		(md->dstIP.ip_type == IPV6_TYPE) ?
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Channel is active for NODE IPv6:"IPv6_FMT", No need to send echo to it's peer node\n",
+					LOG_VALUE, IPv6_PRINT(IPv6_CAST(md->dstIP.ipv6_addr))) :
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Channel is active for NODE IPv4:%s, No need to send echo to it's peer node\n",
+					LOG_VALUE, inet_ntoa(*(struct in_addr *)&md->dstIP.ipv4_addr));
+
+		/* Reset activity flag */
 		md->activityFlag = 0;
 		md->itr_cnt = 0;
 
@@ -290,6 +339,7 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 		stopTimer( &md->tt );
 		/* Stop Timer periodic timer for specific Peer Node */
 		stopTimer( &md->pt );
+
 		/* VS: Restet Periodic Timer */
 		if ( startTimer( &md->pt ) < 0)
 			clLog(clSystemLog, eCLSeverityCritical,
@@ -299,16 +349,35 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 
 	if (md->portId == SX_PORT_ID) {
 		clLog(clSystemLog, eCLSeverityDebug,
-			LOG_FORMAT"Send PFCP HeartBeat Request\n", LOG_VALUE);
+			LOG_FORMAT"Send PFCP HeartBeat Request to "IPv6_FMT"\n",
+			LOG_VALUE, IPv6_PRINT(IPv6_CAST(md->dstIP.ipv6_addr)));
+
+		/* Socket Address buffer */
+		peer_addr_t dest_addr_t = {0};
+		if (md->dstIP.ip_type == IPV6_TYPE) {
+			dest_addr_t.type = IPV6_TYPE;
+			dest_addr_t.ipv6.sin6_family = AF_INET6;
+			memcpy(&dest_addr_t.ipv6.sin6_addr.s6_addr, &md->dstIP.ipv6_addr,
+					IPV6_ADDR_LEN);
+			dest_addr_t.ipv6.sin6_port = dp_comm_port;
+		} else {
+			dest_addr_t.type = IPV4_TYPE;
+			dest_addr_t.ipv4.sin_family = AF_INET;
+			dest_addr_t.ipv4.sin_addr.s_addr = md->dstIP.ipv4_addr;
+			dest_addr_t.ipv4.sin_port = dp_comm_port;
+		}
+
 		if (ti == &md->pt){
 			gtpu_sx_seqnb = get_pfcp_sequence_number(PFCP_HEARTBEAT_REQUEST, gtpu_sx_seqnb);;
 		}
-		process_pfcp_heartbeat_req(&dest_addr, gtpu_sx_seqnb);
+
+		/* Send heartbeat request to peer node */
+		process_pfcp_heartbeat_req(dest_addr_t, gtpu_sx_seqnb);
 
 		if (ti == &md->tt)
 		{
 			(md->itr_cnt)++;
-			update_peer_timeouts(md->dstIP,md->itr_cnt);
+			update_peer_timeouts(&peer_addr, md->itr_cnt);
 		}
 		if (ti == &md->pt) {
 			if ( startTimer( &md->tt ) < 0)
@@ -318,24 +387,45 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 			/* Stop periodic timer for specific Peer Node */
 			stopTimer( &md->pt );
 		}
-
 		return;
 	}
 
 	if (md->dst_eth_addr.addr_bytes[0] == 0)
 	{
 		int ret;
+		struct arp_ip_key arp_key = {0};
 		struct arp_entry_data *ret_data = NULL;
+		/* Fill the Arp Key */
+		if (md->dstIP.ip_type == IPV6_TYPE) {
+			/* IPv6: ARP Key */
+			arp_key.ip_type.ipv6 = PRESENT;
+			memcpy(&arp_key.ip_addr.ipv6.s6_addr, &md->dstIP.ipv6_addr, IPV6_ADDR_LEN);
+		} else {
+			/* IPv4: ARP Key */
+			arp_key.ip_type.ipv4 = PRESENT;
+			arp_key.ip_addr.ipv4 = md->dstIP.ipv4_addr;
+		}
+
 		ret = rte_hash_lookup_data(arp_hash_handle[md->portId],
-						&(md->dstIP), (void **)&ret_data);
+				&arp_key, (void **)&ret_data);
 		if (ret < 0) {
-			clLog(clSystemLog, eCLSeverityDebug,
-				LOG_FORMAT"ARP is not resolved for NODE :%s\n", LOG_VALUE,
-				inet_ntoa(*(struct in_addr *)&md->dstIP));
-			if ( (arp_req_send(md)) < 0)
-				clLog(clSystemLog, eCLSeverityCritical,
-					LOG_FORMAT"Failed to send ARP request to Node:%s\n",LOG_VALUE,
-					inet_ntoa(*(struct in_addr *)&md->dstIP));
+			(md->dstIP.ip_type == IPV6_TYPE) ?
+				clLog(clSystemLog, eCLSeverityDebug,
+						LOG_FORMAT"ARP is not resolved for NODE IPv6:"IPv6_FMT"\n", LOG_VALUE,
+						IPv6_PRINT(IPv6_CAST(md->dstIP.ipv6_addr))) :
+				clLog(clSystemLog, eCLSeverityDebug,
+						LOG_FORMAT"ARP is not resolved for NODE IPv4:%s\n", LOG_VALUE,
+						inet_ntoa(*(struct in_addr *)&md->dstIP.ipv4_addr));
+			/* Send Arp request to peer node through linux kernal */
+			if ((arp_req_send(md)) < 0) {
+				(md->dstIP.ip_type == IPV6_TYPE) ?
+					clLog(clSystemLog, eCLSeverityCritical,
+							LOG_FORMAT"Failed to send ARP request to Node IPv6:%s\n",LOG_VALUE,
+							IPv6_PRINT(IPv6_CAST(md->dstIP.ipv6_addr))):
+					clLog(clSystemLog, eCLSeverityCritical,
+							LOG_FORMAT"Failed to send ARP request to Node IPv4:%s\n",LOG_VALUE,
+							inet_ntoa(*(struct in_addr *)&md->dstIP));
+			}
 			return;
 		}
 
@@ -350,7 +440,6 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 				gtpu_sgwu_seqnb++;
 			build_echo_request(pkt, md, gtpu_sgwu_seqnb);
 		}
-
 	} else {
 		if (md->portId == S1U_PORT_ID) {
 			if (ti == &md->pt)
@@ -376,17 +465,14 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 			clLog(clSystemLog, eCLSeverityCritical,
 				LOG_FORMAT"Can't queue PKT ring full"
 				" Dropping pkt\n", LOG_VALUE);
-		} else
-		{
-			update_cli_stats(md->dstIP, GTPU_ECHO_REQUEST, SENT, S1U);
+		} else {
+			update_cli_stats(&peer_addr, GTPU_ECHO_REQUEST, SENT, S1U);
 		}
 
-		if (ti == &md->tt)
-		{
+		if (ti == &md->tt) {
 			(md->itr_cnt)++;
-			update_peer_timeouts(md->dstIP,md->itr_cnt);
+			update_peer_timeouts(&peer_addr, md->itr_cnt);
 		}
-
 	} else if(md->portId == SGI_PORT_ID) {
 		clLog(clSystemLog, eCLSeverityDebug,
 			LOG_FORMAT"PKTS enqueue for SGI port\n", LOG_VALUE);
@@ -394,15 +480,13 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 		if (rte_ring_enqueue(shared_ring[SGI_PORT_ID], pkt) == -ENOBUFS) {
 			clLog(clSystemLog, eCLSeverityCritical,
 				LOG_FORMAT"Can't queue PKT ring full so dropping PKT\n", LOG_VALUE);
-		} else
-		{
-			update_cli_stats(md->dstIP, GTPU_ECHO_REQUEST, SENT, S5S8);
+		} else {
+			update_cli_stats(&peer_addr, GTPU_ECHO_REQUEST, SENT, S5S8);
 		}
 
-		if (ti == &md->tt)
-		{
+		if (ti == &md->tt) {
 			(md->itr_cnt)++;
-			update_peer_timeouts(md->dstIP,md->itr_cnt);
+			update_peer_timeouts(&peer_addr, md->itr_cnt);
 		}
 	}
 	if (ti == &md->pt) {
@@ -417,23 +501,31 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 
 
 void
-dp_flush_session(uint32_t ip_addr, uint64_t sess_id)
+dp_flush_session(node_address_t ip_addr, uint64_t sess_id)
 {
 	int ret = 0;
 	peerData *conn_data = NULL;
 
-	clLog(clSystemLog, eCLSeverityDebug,
-		LOG_FORMAT"Flush sess entry from connection table of ip:%s, sess_id: %lu\n",
-		LOG_VALUE, inet_ntoa(*(struct in_addr *)&ip_addr), sess_id);
+	(ip_addr.ip_type == IPV6_TYPE) ?
+		clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"Flush sess entry from connection table of ipv6:"IPv6_FMT", sess_id: %lu\n",
+				LOG_VALUE, IPv6_PRINT(IPv6_CAST(ip_addr.ipv6_addr)), sess_id):
+		clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"Flush sess entry from connection table of ipv4:%s, sess_id: %lu\n",
+				LOG_VALUE, inet_ntoa(*(struct in_addr *)&ip_addr.ipv4_addr), sess_id);
 
 	/* VS: */
 	ret = rte_hash_lookup_data(conn_hash_handle,
 				&ip_addr, (void **)&conn_data);
 
 	if ( ret < 0) {
-		clLog(clSystemLog, eCLSeverityDebug,
-			LOG_FORMAT"Entry not found for NODE :%s\n",
-			LOG_VALUE, inet_ntoa(*(struct in_addr *)&ip_addr));
+		(ip_addr.ip_type == IPV6_TYPE) ?
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Entry not found for NODE IPv6:"IPv6_FMT"\n",
+					LOG_VALUE, IPv6_PRINT(IPv6_CAST(ip_addr.ipv6_addr))):
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Entry not found for NODE :%s\n",
+					LOG_VALUE, inet_ntoa(*(struct in_addr *)&ip_addr.ipv4_addr));
 		return;
 
 	} else {
@@ -459,8 +551,8 @@ dp_flush_session(uint32_t ip_addr, uint64_t sess_id)
 		deinitTimer( &conn_data->tt );
 		deinitTimer( &conn_data->pt );
 
-		del_entry_from_hash(ip_addr);
-		/* rte_free(conn_data); */
+		del_entry_from_hash(&ip_addr);
+		rte_free(conn_data);
 		conn_data = NULL;
 
 		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Current Active Conn Cnt:%u\n", LOG_VALUE, conn_cnt);
@@ -487,7 +579,7 @@ flush_eNB_session(peerData *data_t)
 	}
 
 	/* VS: delete entry from connection hash table */
-	del_entry_from_hash(data_t->dstIP);
+	del_entry_from_hash(&data_t->dstIP);
 	rte_free(data_t);
 	data_t = NULL;
 
@@ -505,28 +597,42 @@ check_sess_id_present(uint64_t sess_id, peerData *conn_data)
 	int sess_exist = 0;
 	for(uint32_t cnt = 0; cnt < conn_data->sess_cnt; cnt++) {
 		if (sess_id == conn_data->sess_id[cnt]) {
-			sess_exist = 1;
+			sess_exist = PRESENT;
+			break;
 		}
 	}
 	return sess_exist;
 }
 
-uint8_t add_node_conn_entry(uint32_t dstIp, uint64_t sess_id, uint8_t portId)
+uint8_t add_node_conn_entry(node_address_t dstIp, uint64_t sess_id, uint8_t portId)
 {
-
-	int ret;
-	struct arp_entry_data *ret_conn_data = NULL;
+	int ret = 0;
 	peerData *conn_data = NULL;
-
+	struct arp_entry_data *ret_conn_data = NULL;
+	struct arp_ip_key arp_key = {0};
+	/* Cli Struct */
+	peer_address_t address;
 	CLIinterface it;
+
+	/* Validate the IP Type*/
+	if ((dstIp.ip_type != IPV6_TYPE) && (dstIp.ip_type != IPV4_TYPE)) {
+		clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"ERR: Not setting appropriate IP Type(IPv4:1 or IPv6:2),"
+				"IP_TYPE:%u\n", LOG_VALUE, dstIp.ip_type);
+		return -1;
+	}
 
 	ret = rte_hash_lookup_data(conn_hash_handle,
 				&dstIp, (void **)&conn_data);
-
 	if ( ret < 0) {
-		clLog(clSystemLog, eCLSeverityDebug,
-			LOG_FORMAT"Add entry in conn table :%s, up_seid:%lu\n",
-			LOG_VALUE, inet_ntoa(*((struct in_addr *)&dstIp)), sess_id);
+		(dstIp.ip_type == IPV6_TYPE) ?
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Add entry in conn table IPv6:"IPv6_FMT", up_seid:%lu\n",
+					LOG_VALUE, IPv6_PRINT(IPv6_CAST(dstIp.ipv6_addr)), sess_id) :
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Add entry in conn table IPv4:"IPV4_ADDR", up_seid:%lu\n",
+					LOG_VALUE, IPV4_ADDR_HOST_FORMAT(dstIp.ipv4_addr), sess_id);
+
 
 		/* No conn entry for dstIp
 		 * Add conn_data for dstIp at
@@ -545,46 +651,88 @@ uint8_t add_node_conn_entry(uint32_t dstIp, uint64_t sess_id, uint8_t portId)
 		}
 
 		if (portId == S1U_PORT_ID) {
+				/* CLI: Setting interface details */
 				it = S1U;
 
-				/* Validate the Destination IP Address subnet */
-				if (validate_Subnet(ntohl(dstIp), app.wb_net, app.wb_bcast_addr)) {
-					conn_data->srcIP = htonl(app.wb_ip);
-				} else if (validate_Subnet(ntohl(dstIp), app.wb_li_net, app.wb_li_bcast_addr)) {
-					conn_data->srcIP = htonl(app.wb_li_ip);
-				} else {
-					clLog(clSystemLog, eCLSeverityCritical,
-							LOG_FORMAT"Destination IPv4 Addr "IPV4_ADDR" is NOT in local intf subnet\n",
-							LOG_VALUE, IPV4_ADDR_HOST_FORMAT(dstIp));
-					return -1;
+				if (dstIp.ip_type == IPV6_TYPE) {
+					/* Validate the Destination IPv6 Address Network */
+					if (validate_ipv6_network(IPv6_CAST(dstIp.ipv6_addr), app.wb_ipv6,
+								app.wb_ipv6_prefix_len)) {
+						memcpy(&(conn_data->srcIP).ipv6_addr, &app.wb_ipv6.s6_addr, IPV6_ADDR_LEN);
+					} else if (validate_ipv6_network(IPv6_CAST(dstIp.ipv6_addr),
+								app.wb_li_ipv6, app.wb_li_ipv6_prefix_len)) {
+						memcpy(&(conn_data->srcIP).ipv6_addr, &app.wb_li_ipv6.s6_addr, IPV6_ADDR_LEN);
+					} else {
+						clLog(clSystemLog, eCLSeverityCritical,
+								LOG_FORMAT"Destination IPv6 Addr "IPv6_FMT" is NOT in local intf subnet\n",
+								LOG_VALUE, IPv6_PRINT(IPv6_CAST(dstIp.ipv6_addr)));
+						return -1;
+					}
+					/* Set the IP Type of the Source IP */
+					(conn_data->srcIP).ip_type = IPV6_TYPE;
+				} else if (dstIp.ip_type == IPV4_TYPE) {
+					/* Validate the Destination IPv4 Address subnet */
+					if (validate_Subnet(ntohl(dstIp.ipv4_addr), app.wb_net, app.wb_bcast_addr)) {
+						(conn_data->srcIP).ipv4_addr = htonl(app.wb_ip);
+					} else if (validate_Subnet(ntohl(dstIp.ipv4_addr), app.wb_li_net, app.wb_li_bcast_addr)) {
+						(conn_data->srcIP).ipv4_addr = htonl(app.wb_li_ip);
+					} else {
+						clLog(clSystemLog, eCLSeverityCritical,
+								LOG_FORMAT"Destination IPv4 Addr "IPV4_ADDR" is NOT in local intf subnet\n",
+								LOG_VALUE, IPV4_ADDR_HOST_FORMAT(dstIp.ipv4_addr));
+						return -1;
+					}
+					/* Set the IP Type of the Source IP */
+					(conn_data->srcIP).ip_type = IPV4_TYPE;
 				}
 
 				/* Fill the source physical address */
 				conn_data->src_eth_addr = app.wb_ether_addr;
 
 		} else if (portId == SGI_PORT_ID) {
+				/* CLI: Setting interface details */
 				it = S5S8;
 
-				/* Validate the Destination IP Address subnet */
-				if (validate_Subnet(ntohl(dstIp), app.eb_net, app.eb_bcast_addr)) {
-					conn_data->srcIP = htonl(app.eb_ip);
-				} else if (validate_Subnet(ntohl(dstIp), app.eb_li_net, app.eb_li_bcast_addr)) {
-					conn_data->srcIP = htonl(app.eb_li_ip);
-				} else {
-					clLog(clSystemLog, eCLSeverityCritical,
-							LOG_FORMAT"Destination IPv4 Addr "IPV4_ADDR" is NOT in local intf subnet\n",
-							LOG_VALUE, IPV4_ADDR_HOST_FORMAT(dstIp));
-					return -1;
+				if (dstIp.ip_type == IPV6_TYPE) {
+					/* Validate the Destination IPv6 Address Network */
+					if (validate_ipv6_network(IPv6_CAST(dstIp.ipv6_addr), app.eb_ipv6,
+								app.eb_ipv6_prefix_len)) {
+						memcpy(&(conn_data->srcIP).ipv6_addr, &app.eb_ipv6.s6_addr, IPV6_ADDR_LEN);
+					} else if (validate_ipv6_network(IPv6_CAST(dstIp.ipv6_addr),
+								app.eb_li_ipv6, app.eb_li_ipv6_prefix_len)) {
+						memcpy(&(conn_data->srcIP).ipv6_addr, &app.eb_li_ipv6.s6_addr, IPV6_ADDR_LEN);
+					} else {
+						clLog(clSystemLog, eCLSeverityCritical,
+								LOG_FORMAT"Destination IPv6 Addr "IPv6_FMT" is NOT in local intf subnet\n",
+								LOG_VALUE, IPv6_PRINT(IPv6_CAST(dstIp.ipv6_addr)));
+						return -1;
+					}
+					/* Set the IP Type of the Source IP */
+					(conn_data->srcIP).ip_type = IPV6_TYPE;
+				} else if (dstIp.ip_type == IPV4_TYPE) {
+					/* Validate the Destination IPv4 Address subnet */
+					if (validate_Subnet(ntohl(dstIp.ipv4_addr), app.eb_net, app.eb_bcast_addr)) {
+						(conn_data->srcIP).ipv4_addr = htonl(app.eb_ip);
+					} else if (validate_Subnet(ntohl(dstIp.ipv4_addr), app.eb_li_net, app.eb_li_bcast_addr)) {
+						(conn_data->srcIP).ipv4_addr = htonl(app.eb_li_ip);
+					} else {
+						clLog(clSystemLog, eCLSeverityCritical,
+								LOG_FORMAT"Destination IPv4 Addr "IPV4_ADDR" is NOT in local intf subnet\n",
+								LOG_VALUE, IPV4_ADDR_HOST_FORMAT(dstIp.ipv4_addr));
+						return -1;
+					}
+					/* Set the IP Type of the Source IP */
+					(conn_data->srcIP).ip_type = IPV4_TYPE;
 				}
 
 				/* Fill the source physical address */
 				conn_data->src_eth_addr = app.eb_ether_addr;
 		}
 
+		/* CLI: Setting interface details */
 		if (portId == SX_PORT_ID)
 		{
 			it = SX;
-
 		}
 
 		conn_data->portId = portId;
@@ -598,33 +746,59 @@ uint8_t add_node_conn_entry(uint32_t dstIp, uint64_t sess_id, uint8_t portId)
 		if ( sess_id > 0)
 			conn_data->sess_cnt++;
 
+		/* Fill the info for CLI and ARP Key */
+		if (dstIp.ip_type == IPV6_TYPE) {
+			memcpy(&address.ipv6.sin6_addr, &dstIp.ipv6_addr, IPV6_ADDR_LEN);
+			address.type = IPV6_TYPE;
+			/* IPv6: ARP Key */
+			arp_key.ip_type.ipv6 = PRESENT;
+			memcpy(&arp_key.ip_addr.ipv6.s6_addr,  &dstIp.ipv6_addr, IPV6_ADDR_LEN);
+		} else if (dstIp.ip_type == IPV4_TYPE) {
+			address.ipv4.sin_addr.s_addr = dstIp.ipv4_addr;
+			address.type = IPV4_TYPE;
+			/* IPv4: ARP Key */
+			arp_key.ip_type.ipv4 = PRESENT;
+			arp_key.ip_addr.ipv4 = dstIp.ipv4_addr;
+		}
+
+		/* Retrieve the destination interface MAC Address */
 		if ((portId == S1U_PORT_ID) || (portId == SGI_PORT_ID)) {
 			ret = rte_hash_lookup_data(arp_hash_handle[portId],
-							&conn_data->dstIP, (void **)&ret_conn_data);
-
+							&arp_key, (void **)&ret_conn_data);
 			if (ret < 0) {
-				if ( (arp_req_send(conn_data)) < 0)
-					clLog(clSystemLog, eCLSeverityCritical,
-						LOG_FORMAT"Failed to send ARP request to Node:%s\n",
-						LOG_VALUE, inet_ntoa(*(struct in_addr *)&conn_data->dstIP));
+				if ((arp_req_send(conn_data)) < 0) {
+					(conn_data->dstIP.ip_type == IPV6_TYPE)?
+						clLog(clSystemLog, eCLSeverityCritical,
+								LOG_FORMAT"Failed to send neighbor solicitaion request to Node:"IPv6_FMT"\n",
+								LOG_VALUE, IPv6_PRINT(IPv6_CAST(conn_data->dstIP.ipv6_addr))) :
+						clLog(clSystemLog, eCLSeverityCritical,
+								LOG_FORMAT"Failed to send ARP request to Node:%s\n",
+								LOG_VALUE, inet_ntoa(*(struct in_addr *)&conn_data->dstIP.ipv4_addr));
+				}
 			} else {
-				clLog(clSystemLog, eCLSeverityDebug,
-					LOG_FORMAT"ARP Entry found for %s\n", LOG_VALUE,
-					inet_ntoa(*((struct in_addr *)&dstIp)));
+				(dstIp.ip_type == IPV6_TYPE)?
+					clLog(clSystemLog, eCLSeverityDebug,
+							LOG_FORMAT"ARP Entry found for IPv6:"IPv6_FMT"\n",
+							LOG_VALUE, IPv6_PRINT(IPv6_CAST(conn_data->dstIP.ipv6_addr))) :
+					clLog(clSystemLog, eCLSeverityDebug,
+							LOG_FORMAT"ARP Entry found for IPv4:%s\n",
+							LOG_VALUE, inet_ntoa(*(struct in_addr *)&conn_data->dstIP.ipv4_addr));
+
 				ether_addr_copy(&ret_conn_data->eth_addr, &conn_data->dst_eth_addr);
 			}
 		}
-
 
 		/* VS: Add peer node entry in connection hash table */
 		if ((rte_hash_add_key_data(conn_hash_handle,
 				&dstIp, conn_data)) < 0 ) {
 			clLog(clSystemLog, eCLSeverityCritical,
 				LOG_FORMAT"Failed to add entry in hash table", LOG_VALUE);
+			return -1;
 		}
 
-		if ( !initpeerData( conn_data, "PEER_NODE",
-					(app.periodic_timer * 1000), (app.transmit_timer * 1000)) )
+		/* Initialized Timer entry */
+		if (!initpeerData(conn_data, "PEER_NODE",
+					(app.periodic_timer * 1000), (app.transmit_timer * 1000)))
 		{
 		   clLog(clSystemLog, eCLSeverityCritical,
 				   LOG_FORMAT"%s - initialization of %s failed\n",
@@ -632,10 +806,11 @@ uint8_t add_node_conn_entry(uint32_t dstIp, uint64_t sess_id, uint8_t portId)
 		   return -1;
 		}
 
-		/*CLI:add peer for sgwu/pgwu*/
-		add_cli_peer(dstIp,it);
-		update_peer_status(dstIp,TRUE);
+		/* Add the entry for CLI stats */
+		add_cli_peer((peer_address_t *) &address, it);
+		update_peer_status((peer_address_t *) &address, TRUE);
 
+		/* Start periodic timer */
 		if ( startTimer( &conn_data->pt ) < 0)
 			clLog(clSystemLog, eCLSeverityCritical,
 			LOG_FORMAT"Periodic Timer failed to start\n", LOG_VALUE);
@@ -644,16 +819,22 @@ uint8_t add_node_conn_entry(uint32_t dstIp, uint64_t sess_id, uint8_t portId)
 
 	} else {
 		/* VS: eNB entry already exit in conn table */
-		clLog(clSystemLog, eCLSeverityDebug,
-			LOG_FORMAT"Conn entry already exit in conn table :%s\n", LOG_VALUE,
-			inet_ntoa(*((struct in_addr *)&dstIp)));
+		(dstIp.ip_type == IPV6_TYPE)?
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Conn entry already exit in conn table for IPv6:"IPv6_FMT"\n",
+					LOG_VALUE, IPv6_PRINT(*((struct in6_addr *)dstIp.ipv6_addr))):
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Conn entry already exit in conn table for IPv4:%s\n", LOG_VALUE,
+					inet_ntoa(*((struct in_addr *)&dstIp)));
 
-		conn_data->sess_id[conn_data->sess_cnt] = sess_id;
-
-		if (sess_id > 0) {
-			if(check_sess_id_present(sess_id, conn_data) == 0){
+		if (sess_id) {
+			if(!check_sess_id_present(sess_id, conn_data)) {
+				conn_data->sess_id[conn_data->sess_cnt] = sess_id;
 				conn_data->sess_cnt++;
 			}
+		} else {
+			conn_data->sess_id[conn_data->sess_cnt] = sess_id;
+			conn_data->sess_cnt++;
 		}
 	}
 
@@ -706,7 +887,7 @@ void rest_thread_init(void)
 
 	/* mask SIGALRM in all threads by default */
 	sigemptyset(&sigset);
-	sigaddset(&sigset, SIGRTMIN);
+	sigaddset(&sigset, SIGRTMIN + 1);
 	sigaddset(&sigset, SIGUSR1);
 	sigprocmask(SIG_BLOCK, &sigset, NULL);
 
@@ -724,6 +905,8 @@ void
 teidri_timer_cb(gstimerinfo_t *ti, const void *data_t ) {
 
 	int ret = 0;
+	/* send the error indication, if bearer context not found */
+	error_indication_snd = TRUE;
 #pragma GCC diagnostic push  /* require GCC 4.6 */
 #pragma GCC diagnostic ignored "-Wcast-qual"
 	peerData *data =  (peerData *) data_t;
@@ -786,6 +969,8 @@ start_dp_teidri_timer(void) {
 		return false;
 	}
 
+	/* Don't send the error indication */
+	error_indication_snd = FALSE;
 	clLog(clSystemLog, eCLSeverityDebug,
 		LOG_FORMAT"TEIDRI Timer Started successfully \n", LOG_VALUE);
 	return true;

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,10 +28,11 @@
 
 #include "cp_config.h"
 
-extern pfcp_config_t pfcp_config;
+extern pfcp_config_t config;
 extern struct cp_stats_t cp_stats;
-extern struct sockaddr_in upf_pfcp_sockaddr;
+extern peer_addr_t upf_pfcp_sockaddr;
 extern uint64_t num_sess;
+extern int clSystemLog;
 /**
  * @brief  : Validate pfcp messages
  * @param  : pfcp_header, message data
@@ -49,7 +51,7 @@ pcnd_check(pfcp_header_t *pfcp_header, int bytes_rx)
 }
 
 uint8_t
-pfcp_pcnd_check(uint8_t *pfcp_rx, msg_info *msg, int bytes_rx, struct sockaddr_in *peer_addr)
+pfcp_pcnd_check(uint8_t *pfcp_rx, msg_info *msg, int bytes_rx, peer_addr_t *peer_addr)
 {
 	int ret = 0;
 	int decoded = 0;
@@ -73,36 +75,43 @@ pfcp_pcnd_check(uint8_t *pfcp_rx, msg_info *msg, int bytes_rx, struct sockaddr_i
 			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Decoded PFCP"
 				" Association Setup Request [%d]\n", LOG_VALUE, decoded);
 
-			memcpy(&msg->upf_ipv4.s_addr,
-					&msg->pfcp_msg.pfcp_ass_resp.node_id.node_id_value_ipv4_address,
-					IPV4_SIZE);
-
+			ret = fill_ip_addr(msg->pfcp_msg.pfcp_ass_resp.node_id.node_id_value_ipv4_address,
+				msg->pfcp_msg.pfcp_ass_resp.node_id.node_id_value_ipv6_address,
+				&msg->upf_ip);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+			}
 			upf_context_t *upf_context = NULL;
 
-			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Lookup for UPF Entry of IP:"IPV4_ADDR"\n",
-				 LOG_VALUE, IPV4_ADDR_HOST_FORMAT(msg->upf_ipv4.s_addr));
+			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Lookup for UPF Entry of IP Type : %s "
+				"with IPv4 : "IPV4_ADDR"\t and IPv6 : "IPv6_FMT"",
+				LOG_VALUE, ip_type_str(msg->upf_ip.ip_type),
+				IPV4_ADDR_HOST_FORMAT(msg->upf_ip.ipv4_addr),
+				PRINT_IPV6_ADDR(msg->upf_ip.ipv6_addr));
 
 			/*Retrive association state based on UPF IP. */
 			ret = rte_hash_lookup_data(upf_context_by_ip_hash,
-					(const void*) &(msg->upf_ipv4.s_addr), (void **) &(upf_context));
+					(const void*) &(msg->upf_ip), (void **) &(upf_context));
 
-			if (ret == -1) {
-				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Entry not Found "
-					"Msg_Type:%u, UPF IP:%u, Error_no:%d\n", LOG_VALUE,
-					msg->msg_type, msg->upf_ipv4.s_addr, ret);
-				return -1;
-			}
-			if (upf_context == NULL) {
-				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"UPF Context is NULL, Entry not Found "
-						"Msg_Type:%u, UPF IP:%u, Error_no:%d\n", LOG_VALUE,
-						msg->msg_type, msg->upf_ipv4.s_addr, ret);
+			if (ret < 0 || upf_context == NULL) {
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Entry not "
+					"Found for UPF Context for IP Type : %s "
+					"with IPv4 : "IPV4_ADDR"\t and IPv6 : "IPv6_FMT"",
+					LOG_VALUE, ip_type_str(msg->upf_ip.ip_type),
+					IPV4_ADDR_HOST_FORMAT(msg->upf_ip.ipv4_addr),
+					PRINT_IPV6_ADDR(msg->upf_ip.ipv6_addr));
 				return -1;
 			}
 
 			if( upf_context->cp_mode != SGWC) {
 				/* Init rule tables of user-plane */
-				upf_pfcp_sockaddr.sin_addr.s_addr = msg->upf_ipv4.s_addr;
-				dump_predefined_rules_on_up(msg->upf_ipv4.s_addr);
+				ret = set_dest_address(msg->upf_ip, &upf_pfcp_sockaddr);
+				if (ret < 0) {
+					clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+						"IP address", LOG_VALUE);
+				}				
+				dump_predefined_rules_on_up(msg->upf_ip);
 			}
 
 			msg->cp_mode = upf_context->cp_mode;
@@ -125,11 +134,14 @@ pfcp_pcnd_check(uint8_t *pfcp_rx, msg_info *msg, int bytes_rx, struct sockaddr_i
 
 
 				clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT" Callback called for"
-						"Msg_Type:PFCP_ASSOCIATION_SETUP_RESPONSE[%u], UPF_IP:%u, "
-						"Procedure:%s, State:%s, Event:%s\n",
-						LOG_VALUE, msg->msg_type, msg->upf_ipv4.s_addr,
-						get_proc_string(msg->proc),
-						get_state_string(msg->state), get_event_string(msg->event));
+					"Msg_Type:PFCP_ASSOCIATION_SETUP_RESPONSE[%u], UPF IP Type : %s , "
+					"UPF_IPv4 : "IPV4_ADDR", UPF_IPv6 : "IPv6_FMT", "
+					"Procedure:%s, State:%s, Event:%s\n",
+					LOG_VALUE, msg->msg_type, ip_type_str(msg->upf_ip.ip_type),
+					IPV4_ADDR_HOST_FORMAT(msg->upf_ip.ipv4_addr),
+					PRINT_IPV6_ADDR(msg->upf_ip.ipv6_addr),
+					get_proc_string(msg->proc),
+					get_state_string(msg->state), get_event_string(msg->event));
 				break;
 			}
 
@@ -155,6 +167,7 @@ pfcp_pcnd_check(uint8_t *pfcp_rx, msg_info *msg, int bytes_rx, struct sockaddr_i
 				/* TODO: Add handling to send association to next upf
 				 * for each buffered CSR */
 				msg->cp_mode = upf_context->cp_mode;
+
 				cs_error_response(msg, GTPV2C_CAUSE_INVALID_REPLY_FROM_REMOTE_PEER,
 						CAUSE_SOURCE_SET_TO_0,
 						upf_context->cp_mode != PGWC ? S11_IFACE : S5S8_IFACE);
@@ -167,7 +180,12 @@ pfcp_pcnd_check(uint8_t *pfcp_rx, msg_info *msg, int bytes_rx, struct sockaddr_i
 				msg->state = upf_context->state;
 
 				/* Set Hard code value for temporary purpose as assoc is only in initial pdn */
-				msg->proc = INITIAL_PDN_ATTACH_PROC;
+				if(upf_context->indir_tun_flag != 0) {
+					msg->proc = CREATE_INDIRECT_TUNNEL_PROC;
+				} else {
+					msg->proc = INITIAL_PDN_ATTACH_PROC;
+				}
+
 			} else {
 				msg->cp_mode = upf_context->cp_mode;
 				cs_error_response(msg, GTPV2C_CAUSE_INVALID_PEER, CAUSE_SOURCE_SET_TO_0,
@@ -175,7 +193,13 @@ pfcp_pcnd_check(uint8_t *pfcp_rx, msg_info *msg, int bytes_rx, struct sockaddr_i
 
 				process_error_occured_handler(&msg, NULL);
 				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT" Entry not Found Msg_Type:%u, UPF IP:%u, Error_no:%d\n",
-						LOG_VALUE, msg->msg_type, msg->upf_ipv4.s_addr, ret);
+						LOG_VALUE, msg->msg_type, msg->upf_ip.ipv4_addr, ret);
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Entry not "
+					"Found for UPF Context for IP Type : %s "
+					"with IPv4 : "IPV4_ADDR"\t and IPv6 : "IPv6_FMT"",
+					LOG_VALUE, ip_type_str(msg->upf_ip.ip_type),
+					IPV4_ADDR_HOST_FORMAT(msg->upf_ip.ipv4_addr),
+					PRINT_IPV6_ADDR(msg->upf_ip.ipv6_addr));				
 				return -1;
 			}
 
@@ -183,17 +207,22 @@ pfcp_pcnd_check(uint8_t *pfcp_rx, msg_info *msg, int bytes_rx, struct sockaddr_i
 			msg->event = PFCP_ASSOC_SETUP_RESP_RCVD_EVNT;
 
 			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT" Callback called for"
-					"Msg_Type:PFCP_ASSOCIATION_SETUP_RESPONSE[%u], UPF_IP:%u, "
-					"Procedure:%s, State:%s, Event:%s\n",
-					LOG_VALUE, msg->msg_type, msg->upf_ipv4.s_addr,
-					get_proc_string(msg->proc),
-					get_state_string(msg->state), get_event_string(msg->event));
+				"Msg_Type:PFCP_ASSOCIATION_SETUP_RESPONSE[%u], UPF IP Type : %s, "
+				"UPF_IPv4 : "IPV4_ADDR", UPF_IPv6 : "IPv6_FMT", "
+				"Procedure:%s, State:%s, Event:%s\n",
+				LOG_VALUE, msg->msg_type, ip_type_str(msg->upf_ip.ip_type),
+				IPV4_ADDR_HOST_FORMAT(msg->upf_ip.ipv4_addr),
+				PRINT_IPV6_ADDR(msg->upf_ip.ipv6_addr),
+				get_proc_string(msg->proc),
+				get_state_string(msg->state), get_event_string(msg->event));
 		break;
 	}
 
 	case PFCP_PFD_MANAGEMENT_RESPONSE: {
 			/* Decode pfd mgmt response */
 			upf_context_t *upf_context = NULL;
+			node_address_t upf_ip = {0};
+
 			decoded = decode_pfcp_pfd_mgmt_rsp_t(pfcp_rx, &msg->pfcp_msg.pfcp_pfd_resp);
 			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"DEOCED bytes in Pfd Mgmt Resp is %d\n", LOG_VALUE,
 					decoded);
@@ -204,13 +233,31 @@ pfcp_pcnd_check(uint8_t *pfcp_rx, msg_info *msg, int bytes_rx, struct sockaddr_i
 							msg->pfcp_msg.pfcp_pfd_resp.offending_ie.type_of_the_offending_ie);
 					return -1;
 			}
+
+			if (peer_addr->type == PDN_TYPE_IPV4) {
+
+				upf_ip.ipv4_addr = peer_addr->ipv4.sin_addr.s_addr;
+				upf_ip.ip_type = PDN_TYPE_IPV4;
+
+			} else if (peer_addr->type == PDN_TYPE_IPV6) {
+
+				memcpy(upf_ip.ipv6_addr, peer_addr->ipv6.sin6_addr.s6_addr, IPV6_ADDRESS_LEN);
+				upf_ip.ip_type = PDN_TYPE_IPV6;
+			}
+
 			/*Retrive association state based on UPF IP. */
 			ret = rte_hash_lookup_data(upf_context_by_ip_hash,
-					(const void*) &(peer_addr->sin_addr.s_addr), (void **) &(upf_context));
+					(const void*) &(upf_ip), (void **) &(upf_context));
 
 			if (upf_context == NULL &&  ret < 0) {
 				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Entry not Found Msg_Type:%u, UPF IP:%u, Error_no:%d\n",
-						LOG_VALUE, msg->msg_type, msg->upf_ipv4.s_addr, ret);
+						LOG_VALUE, msg->msg_type, upf_ip.ipv4_addr, ret);
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Entry not "
+					"Found for UPF Context with Msg type : %u  IP Type : %s "
+					"IPv4 : "IPV4_ADDR"\t and IPv6 : "IPv6_FMT"",
+					LOG_VALUE, msg->msg_type, ip_type_str(msg->upf_ip.ip_type),
+					IPV4_ADDR_HOST_FORMAT(msg->upf_ip.ipv4_addr),
+					PRINT_IPV6_ADDR(msg->upf_ip.ipv6_addr));				
 				return -1;
 			}
 
@@ -367,7 +414,7 @@ pfcp_pcnd_check(uint8_t *pfcp_rx, msg_info *msg, int bytes_rx, struct sockaddr_i
 				if(resp->proc != DETACH_PROC
 					&& resp->proc != MME_INI_DEDICATED_BEARER_DEACTIVATION_PROC
 					&& resp->proc != PDN_GW_INIT_BEARER_DEACTIVATION) {
-
+					resp->linked_eps_bearer_id = ebi;
 					pfcp_modification_error_response(resp, msg, GTPV2C_CAUSE_INVALID_REPLY_FROM_REMOTE_PEER);
 					return -1;
 				}
@@ -566,8 +613,16 @@ pfcp_pcnd_check(uint8_t *pfcp_rx, msg_info *msg, int bytes_rx, struct sockaddr_i
 
 	if (sess_id) {
 		process_cp_li_msg(sess_id, SX_INTFC_IN, pfcp_rx, bytes_rx,
-				peer_addr->sin_addr.s_addr, ntohl(pfcp_config.pfcp_ip.s_addr),
-				ntohs(peer_addr->sin_port), pfcp_config.pfcp_port);
+				fill_ip_info(peer_addr->type,
+						peer_addr->ipv4.sin_addr.s_addr,
+						peer_addr->ipv6.sin6_addr.s6_addr),
+				fill_ip_info(peer_addr->type,
+						config.pfcp_ip.s_addr,
+						config.pfcp_ip_v6.s6_addr),
+				((peer_addr->type == IPTYPE_IPV4_LI) ?
+					ntohs(peer_addr->ipv4.sin_port) :
+					ntohs(peer_addr->ipv6.sin6_port)),
+				config.pfcp_port);
 	}
 
 	return 0;

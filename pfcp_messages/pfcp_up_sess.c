@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,21 +21,24 @@
 #include "pfcp_up_llist.h"
 #include "pfcp_util.h"
 #include "pfcp_association.h"
-#include "clogger.h"
+#include "li_interface.h"
 #include "gw_adapter.h"
 #include "seid_llist.h"
 #include "pfcp_up_sess.h"
-#include "../cp_dp_api/tcp_client.h"
 #include "../cp_dp_api/predef_rule_init.h"
+#include "csid_struct.h"
 
-#define OUT_HDR_DESC_VAL 256
+#define OUT_HDR_DESC_VAL 1
 
 extern uint16_t dp_comm_port;
 extern struct in_addr dp_comm_ip;
+extern struct in6_addr dp_comm_ipv6;
 extern struct in_addr cp_comm_ip;
 extern struct rte_hash *node_id_hash;
+extern int clSystemLog;
 
 #ifdef USE_CSID
+
 /* TEMP fill the FQ-CSID form here */
 /**
  * @brief  : Create and Fill the FQ-CSIDs
@@ -45,18 +49,31 @@ extern struct rte_hash *node_id_hash;
 static void
 est_set_fq_csid_t(pfcp_fqcsid_ie_t *fq_csid, fqcsid_t *csids)
 {
-	fq_csid->fqcsid_node_id_type = IPV4_GLOBAL_UNICAST;
-
+	uint16_t len = 0;
 	fq_csid->number_of_csids = csids->num_csid;
 
-	fq_csid->node_address = csids->node_addr;
+	if (csids->node_addr.ip_type == IPV4_TYPE) {
+		fq_csid->fqcsid_node_id_type = IPV4_GLOBAL_UNICAST;
+		memcpy(&(fq_csid->node_address),
+				&(csids->node_addr.ipv4_addr), IPV4_SIZE);
+
+		len += IPV4_SIZE;
+	} else {
+		fq_csid->fqcsid_node_id_type = IPV6_GLOBAL_UNICAST;
+		memcpy(&(fq_csid->node_address),
+				&(csids->node_addr.ipv6_addr), IPV6_ADDRESS_LEN);
+
+		len += IPV6_ADDRESS_LEN;
+	}
 
 	for (uint8_t inx = 0; inx < csids->num_csid; inx++) {
 		fq_csid->pdn_conn_set_ident[inx] = csids->local_csid[inx];
 	}
 
+	/* Adding 1 byte in header length for flags */
+	len += PRESENT;
 	pfcp_set_ie_header(&(fq_csid->header),
-			PFCP_IE_FQCSID, (2 * (fq_csid->number_of_csids)) + 5);
+			PFCP_IE_FQCSID, (2 * (fq_csid->number_of_csids)) + len);
 
 }
 
@@ -73,14 +90,23 @@ fill_fqcsid_sess_mod_rsp(pfcp_sess_mod_rsp_t *pfcp_sess_mod_rsp, pfcp_session_t 
 	if (sess->up_fqcsid != NULL) {
 		if ((sess->up_fqcsid)->num_csid) {
 			est_set_fq_csid_t(&pfcp_sess_mod_rsp->up_fqcsid, sess->up_fqcsid);
-			(pfcp_sess_mod_rsp->up_fqcsid).node_address = dp_comm_ip.s_addr;
 
 			for (uint8_t inx = 0; inx < pfcp_sess_mod_rsp->up_fqcsid.number_of_csids; inx++) {
-				clLog(clSystemLog, eCLSeverityDebug,
-						LOG_FORMAT"Filled FQ-CSID in Sess MOD Resp, inx:%u,"
-						"CSID:%u, Node_Addr:"IPV4_ADDR"\n",
-						LOG_VALUE, inx, pfcp_sess_mod_rsp->up_fqcsid.pdn_conn_set_ident[inx],
-						IPV4_ADDR_HOST_FORMAT(pfcp_sess_mod_rsp->up_fqcsid.node_address));
+				if (pfcp_sess_mod_rsp->up_fqcsid.fqcsid_node_id_type == IPV4_GLOBAL_UNICAST) {
+					uint32_t node_addr = 0;
+					memcpy(&node_addr, pfcp_sess_mod_rsp->up_fqcsid.node_address, IPV4_SIZE);
+					clLog(clSystemLog, eCLSeverityDebug,
+							LOG_FORMAT"Filled FQ-CSID in Sess MOD Resp, inx:%u,"
+							"CSID:%u, Node IPv4 Addr:"IPV4_ADDR"\n",
+							LOG_VALUE, inx, pfcp_sess_mod_rsp->up_fqcsid.pdn_conn_set_ident[inx],
+							IPV4_ADDR_HOST_FORMAT(node_addr));
+				} else {
+					clLog(clSystemLog, eCLSeverityDebug,
+							LOG_FORMAT"Filled FQ-CSID in Sess MOD Resp, inx:%u,"
+							"CSID:%u, Node IPv6 Addr:"IPv6_FMT"\n",
+							LOG_VALUE, inx, pfcp_sess_mod_rsp->up_fqcsid.pdn_conn_set_ident[inx],
+							IPv6_PRINT(IPv6_CAST(pfcp_sess_mod_rsp->up_fqcsid.node_address)));
+				}
 			}
 		}
 	}
@@ -94,14 +120,22 @@ fill_fqcsid_sess_est_rsp(pfcp_sess_estab_rsp_t *pfcp_sess_est_rsp, pfcp_session_
 	if (sess->up_fqcsid != NULL) {
 		if ((sess->up_fqcsid)->num_csid) {
 			est_set_fq_csid_t(&pfcp_sess_est_rsp->up_fqcsid, sess->up_fqcsid);
-			(pfcp_sess_est_rsp->up_fqcsid).node_address = dp_comm_ip.s_addr;
 
 			for (uint8_t inx = 0; inx < pfcp_sess_est_rsp->up_fqcsid.number_of_csids; inx++) {
-				clLog(clSystemLog, eCLSeverityDebug,
-						LOG_FORMAT"Filled FQ-CSID in Sess EST Resp, inx:%u,"
-						"CSID:%u, Node_Addr:"IPV4_ADDR"\n",
-						LOG_VALUE, inx, pfcp_sess_est_rsp->up_fqcsid.pdn_conn_set_ident[inx],
-						IPV4_ADDR_HOST_FORMAT(pfcp_sess_est_rsp->up_fqcsid.node_address));
+				uint32_t node_addr = 0;
+				/* need to think about ip log */
+				memcpy(&node_addr, pfcp_sess_est_rsp->up_fqcsid.node_address, IPV4_SIZE);
+				(pfcp_sess_est_rsp->up_fqcsid.fqcsid_node_id_type == IPV6_GLOBAL_UNICAST) ?
+					clLog(clSystemLog, eCLSeverityDebug,
+							LOG_FORMAT"Filled FQ-CSID in Sess EST Resp, inx:%u,"
+							"CSID:%u, Node IPv6 Addr:"IPv6_FMT"\n",
+							LOG_VALUE, inx, pfcp_sess_est_rsp->up_fqcsid.pdn_conn_set_ident[inx],
+							IPv6_PRINT(IPv6_CAST((pfcp_sess_est_rsp->up_fqcsid.node_address)))):
+					clLog(clSystemLog, eCLSeverityDebug,
+							LOG_FORMAT"Filled FQ-CSID in Sess EST Resp, inx:%u,"
+							"CSID:%u, Node IPv4 Addr:"IPV4_ADDR"\n",
+							LOG_VALUE, inx, pfcp_sess_est_rsp->up_fqcsid.pdn_conn_set_ident[inx],
+							IPV4_ADDR_HOST_FORMAT(node_addr));
 			}
 		}
 	}
@@ -109,17 +143,21 @@ fill_fqcsid_sess_est_rsp(pfcp_sess_estab_rsp_t *pfcp_sess_est_rsp, pfcp_session_
 }
 
 int
-fill_peer_node_info_t(pfcp_session_t *sess, uint32_t cp_ip)
+fill_peer_node_info_t(pfcp_session_t *sess, node_address_t *cp_node_addr)
 {
 	int16_t csid = 0;
 	csid_key peer_info_t = {0};
 
 	/* SGWC/PGWC/SAEGWC FQ-CSID */
-	peer_info_t.cp_ip = cp_ip;
-	clLog(clSystemLog, eCLSeverityDebug,
-			LOG_FORMAT"Peer Node CP IP Address: "IPV4_ADDR"\n",
-			LOG_VALUE,
-			IPV4_ADDR_HOST_FORMAT(peer_info_t.cp_ip));
+	memcpy(&peer_info_t.cp_ip, cp_node_addr, sizeof(node_address_t));
+
+	(peer_info_t.cp_ip.ip_type == IPV6_TYPE) ?
+		clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"Peer Node CP IPv6 Address: "IPv6_FMT"\n",
+				LOG_VALUE, IPv6_PRINT(IPv6_CAST(peer_info_t.cp_ip.ipv6_addr))):
+		clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"Peer Node CP IPv4 Address: "IPV4_ADDR"\n",
+				LOG_VALUE, IPV4_ADDR_HOST_FORMAT(peer_info_t.cp_ip.ipv4_addr));
 
 	/* Fill the enodeb/SGWU IP */
 	{
@@ -128,12 +166,16 @@ fill_peer_node_info_t(pfcp_session_t *sess, uint32_t cp_ip)
 		while(current != NULL) {
 			if (current->pdrs != NULL) {
 				if ((current->pdrs)->pdi.src_intfc.interface_value == CORE) {
-					peer_info_t.wb_peer_ip = current->wb_peer_ip_addr;
+					memcpy(&peer_info_t.wb_peer_ip,
+							&current->wb_peer_ip_addr, sizeof(node_address_t));
 
-					clLog(clSystemLog, eCLSeverityDebug,
-							LOG_FORMAT"West Bound Peer Node IP Address: "IPV4_ADDR"\n",
-							LOG_VALUE,
-							IPV4_ADDR_HOST_FORMAT(peer_info_t.wb_peer_ip));
+					(current->wb_peer_ip_addr.ip_type == IPV6_TYPE) ?
+						clLog(clSystemLog, eCLSeverityDebug,
+								LOG_FORMAT"West Bound Peer Node IPv6 Address: "IPv6_FMT"\n",
+								LOG_VALUE, IPv6_PRINT(IPv6_CAST(peer_info_t.wb_peer_ip.ipv6_addr))):
+						clLog(clSystemLog, eCLSeverityDebug,
+								LOG_FORMAT"West Bound Peer Node IPv4 Address: "IPV4_ADDR"\n",
+								LOG_VALUE, IPV4_ADDR_HOST_FORMAT(peer_info_t.wb_peer_ip.ipv4_addr));
 					break;
 				}
 			}
@@ -142,11 +184,15 @@ fill_peer_node_info_t(pfcp_session_t *sess, uint32_t cp_ip)
 	}
 
 	/* SGWU and PGWU peer node info */
-	peer_info_t.up_ip = dp_comm_ip.s_addr;
-	clLog(clSystemLog, eCLSeverityDebug,
-			LOG_FORMAT"User-Plane Node IP Address: "IPV4_ADDR"\n",
-			LOG_VALUE,
-			IPV4_ADDR_HOST_FORMAT(peer_info_t.up_ip));
+	memcpy(&peer_info_t.up_ip,
+			&(sess->up_fqcsid)->node_addr, sizeof(node_address_t));
+	(peer_info_t.up_ip.ip_type == IPV6_TYPE) ?
+		clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"User-Plane Node IPv6 Address: "IPv6_FMT"\n",
+				LOG_VALUE, IPv6_PRINT(IPv6_CAST(peer_info_t.up_ip.ipv6_addr))):
+		clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"User-Plane Node IPv4 Address: "IPV4_ADDR"\n",
+				LOG_VALUE, IPV4_ADDR_HOST_FORMAT(peer_info_t.up_ip.ipv4_addr));
 
 	/* PGWU peer node Address */
 	{
@@ -155,16 +201,20 @@ fill_peer_node_info_t(pfcp_session_t *sess, uint32_t cp_ip)
 		while(current_t != NULL) {
 			if (current_t->pdrs != NULL) {
 				if ((current_t->pdrs)->pdi.src_intfc.interface_value == ACCESS) {
-					peer_info_t.eb_peer_ip = current_t->eb_peer_ip_addr;
+					memcpy(&peer_info_t.eb_peer_ip,
+							&current_t->eb_peer_ip_addr, sizeof(node_address_t));
 					break;
 				}
 			}
 			current_t = current_t->next;
 		}
-		clLog(clSystemLog, eCLSeverityDebug,
-				LOG_FORMAT"East Bound Peer Node IP Address: "IPV4_ADDR"\n",
-				LOG_VALUE,
-				IPV4_ADDR_HOST_FORMAT(peer_info_t.eb_peer_ip));
+		(peer_info_t.eb_peer_ip.ip_type == IPV6_TYPE) ?
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"East Bound Peer Node IPv6 Address: "IPv6_FMT"\n",
+					LOG_VALUE, IPv6_PRINT(IPv6_CAST(peer_info_t.eb_peer_ip.ipv6_addr))):
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"East Bound Peer Node IPv4 Address: "IPV4_ADDR"\n",
+					LOG_VALUE, IPV4_ADDR_HOST_FORMAT(peer_info_t.eb_peer_ip.ipv4_addr));
 	}
 
 
@@ -198,21 +248,28 @@ fill_peer_node_info_t(pfcp_session_t *sess, uint32_t cp_ip)
 	}
 
 	/* Link with eNB/SGWU node addr and local csid */
-	if (peer_info_t.wb_peer_ip != 0) {
+	if (is_present(&peer_info_t.wb_peer_ip)) {
 		fqcsid_t *tmp = NULL;
-		clLog(clSystemLog, eCLSeverityDebug,
-				LOG_FORMAT"West bound eNB/SGWU/WestBound Node Addr:"IPV4_ADDR"\n",
-				LOG_VALUE, IPV4_ADDR_HOST_FORMAT(peer_info_t.wb_peer_ip));
+		(peer_info_t.wb_peer_ip.ip_type == IPV6_TYPE) ?
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"West bound eNB/SGWU/WestBound Node IPv6 Addr:"IPv6_FMT"\n",
+					LOG_VALUE, IPv6_PRINT(IPv6_CAST(peer_info_t.wb_peer_ip.ipv6_addr))):
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"West bound eNB/SGWU/WestBound Node IPv4 Addr:"IPV4_ADDR"\n",
+					LOG_VALUE, IPV4_ADDR_HOST_FORMAT(peer_info_t.wb_peer_ip.ipv4_addr));
 
 		/* Stored the SGW CSID by eNB/SGWU/West Bound Node address */
-		tmp = get_peer_addr_csids_entry(peer_info_t.wb_peer_ip,
+		tmp = get_peer_addr_csids_entry(&peer_info_t.wb_peer_ip,
 				ADD_NODE);
 		if (tmp == NULL) {
 			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Error: %s \n", LOG_VALUE,
 					strerror(errno));
 			return -1;
 		}
-		tmp->node_addr = peer_info_t.wb_peer_ip;
+
+		memcpy(&tmp->node_addr,
+				&peer_info_t.wb_peer_ip, sizeof(node_address_t));
+
 		if (!tmp->num_csid) {
 				tmp->local_csid[tmp->num_csid++] = csid;
 		} else {
@@ -241,7 +298,8 @@ fill_peer_node_info_t(pfcp_session_t *sess, uint32_t cp_ip)
 
 		/* Add the CSID in the Session List */
 		(sess->wb_peer_fqcsid)->local_csid[(sess->wb_peer_fqcsid)->num_csid++] = csid;
-		(sess->wb_peer_fqcsid)->node_addr = peer_info_t.wb_peer_ip;
+		memcpy(&(sess->wb_peer_fqcsid)->node_addr,
+				&peer_info_t.wb_peer_ip, sizeof(node_address_t));
 
 		/* LINK West bound CSID with local CSID */
 		if (link_peer_csid_with_local_csid(sess->wb_peer_fqcsid,
@@ -252,23 +310,27 @@ fill_peer_node_info_t(pfcp_session_t *sess, uint32_t cp_ip)
 			return -1;
 		}
 
-		clLog(clSystemLog, eCLSeverityDebug,
-				LOG_FORMAT"FILL SESS West Bound Peer Node Addr:"IPV4_ADDR"\n",
-				LOG_VALUE, IPV4_ADDR_HOST_FORMAT((sess->wb_peer_fqcsid)->node_addr));
+		((sess->wb_peer_fqcsid)->node_addr.ip_type == IPV6_TYPE) ?
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Fill Sess West Bound Peer Node IPv6 Addr:"IPv6_FMT"\n",
+					LOG_VALUE, IPv6_PRINT(IPv6_CAST((sess->wb_peer_fqcsid)->node_addr.ipv6_addr))):
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Fill Sess West Bound Peer Node IPv4 Addr:"IPV4_ADDR"\n",
+					LOG_VALUE, IPV4_ADDR_HOST_FORMAT((sess->wb_peer_fqcsid)->node_addr.ipv4_addr));
 	}
 
 	/* Link with PGWU/East Bound node addr and local csid */
-	if (peer_info_t.eb_peer_ip != 0) {
+	if (is_present(&peer_info_t.eb_peer_ip)) {
 		fqcsid_t *tmp = NULL;
 		/* Stored the SGW CSID by PGW/East Bound Node address */
-		tmp = get_peer_addr_csids_entry(peer_info_t.eb_peer_ip,
-				ADD_NODE);
+		tmp = get_peer_addr_csids_entry(&peer_info_t.eb_peer_ip, ADD_NODE);
 		if (tmp == NULL) {
 			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Error: %s \n", LOG_VALUE,
 					strerror(errno));
 			return -1;
 		}
-		tmp->node_addr = peer_info_t.eb_peer_ip;
+		memcpy(&tmp->node_addr,
+				&peer_info_t.eb_peer_ip, sizeof(node_address_t));
 		if (!tmp->num_csid) {
 				tmp->local_csid[tmp->num_csid++] = csid;
 		} else {
@@ -295,7 +357,8 @@ fill_peer_node_info_t(pfcp_session_t *sess, uint32_t cp_ip)
 			}
 		}
 		(sess->eb_peer_fqcsid)->local_csid[(sess->eb_peer_fqcsid)->num_csid++] = csid;
-		(sess->eb_peer_fqcsid)->node_addr = peer_info_t.eb_peer_ip;
+		memcpy(&(sess->eb_peer_fqcsid)->node_addr,
+					&peer_info_t.eb_peer_ip, sizeof(node_address_t));
 
 		/* LINK East bound CSID with local CSID */
 		if (link_peer_csid_with_local_csid(sess->eb_peer_fqcsid,
@@ -346,47 +409,24 @@ fill_peer_node_info_t(pfcp_session_t *sess, uint32_t cp_ip)
 }
 #endif /* USE_CSID */
 
+/**
+ * @brief  : Get cp node address
+ * @param  : cp_node_addr, holds cp ip.
+ * @param  : cp_fseid, Strucutre for hold cp fseid data
+ * @return : Returns void
+ */
+static void
+get_cp_node_addr(node_address_t *cp_node_addr, pfcp_fseid_ie_t *cp_fseid) {
 
-
-int8_t
-process_up_assoc_req(pfcp_assn_setup_req_t *ass_setup_req,
-			pfcp_assn_setup_rsp_t *ass_setup_resp)
-{
-	int offend_id = 0;
-	uint8_t cause_id = 0;
-	uint32_t value = 0;
-	cause_check_association(ass_setup_req, &cause_id, &offend_id);
-
-	if (cause_id == REQUESTACCEPTED)
-	{
-		/* Adding NODE ID into nodeid hash in DP */
-		uint64_t *data = rte_zmalloc_socket(NULL, sizeof(uint8_t),
-				RTE_CACHE_LINE_SIZE, rte_socket_id());
-
-		if (data == NULL) {
-			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to allocate "
-				"memory for Node ID, Error : %s\n", LOG_VALUE,
-				rte_strerror(rte_errno));
-		}
-
-		*data = NODE_ID_TYPE_TYPE_IPV4ADDRESS;
-		value = ass_setup_req->node_id.node_id_value_ipv4_address;
-		uint32_t nodeid = value;
-		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"NODEID in INTERRFACE [%u]\n", LOG_VALUE, nodeid);
-		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"DATA[%lu]\n", LOG_VALUE, *data);
-		add_node_id_hash(&nodeid, data);
-		if (data != NULL) {
-			rte_free(data);
-			data = NULL;
-		}
-
+	if (cp_fseid->v4) {
+		cp_node_addr->ip_type = PDN_TYPE_IPV4;
+		cp_node_addr->ipv4_addr = cp_fseid->ipv4_address;
 	}
-
-	fill_pfcp_association_setup_resp(ass_setup_resp, cause_id, value);
-
-	ass_setup_resp->header.seid_seqno.no_seid.seq_no =
-		ass_setup_req->header.seid_seqno.no_seid.seq_no;
-	return 0;
+	if (cp_fseid->v6) {
+		cp_node_addr->ip_type = PDN_TYPE_IPV6;
+		memcpy(&cp_node_addr->ipv6_addr,
+				&cp_fseid->ipv6_address, IPV6_ADDRESS_LEN);
+	}
 }
 
 /**
@@ -428,18 +468,25 @@ process_pdi_sdf_filters(pfcp_sdf_filter_ie_t *sdf_fltr_t, sdf_filter_t *sdf_fltr
  */
 static int8_t
 process_pdi_ueip_info(pfcp_ue_ip_address_ie_t *ue_addr, ue_ip_addr_t *ue_addr_t,
-				uint32_t *ue_ip)
+				pfcp_session_datat_t *session)
 {
 	/* Check ipv4 address */
 	if (ue_addr->v4) {
 		/* UE IP Address */
+		session->ipv4  = PRESENT;
+		ue_addr_t->v4 = PRESENT;
 		ue_addr_t->ipv4_address = ue_addr->ipv4_address;
-		*ue_ip = ue_addr_t->ipv4_address;
+		session->ue_ip_addr = ue_addr_t->ipv4_address;
 	}
 
 	/* Check the IPv6 Flag */
 	if (ue_addr->v6) {
 		/* TODO: IPv6 not Supported */
+		session->ipv6 = PRESENT;
+		ue_addr_t->v6 = PRESENT;
+		ue_addr_t->ipv6_pfx_dlgtn_bits = ue_addr->ipv6_pfx_dlgtn_bits;
+		memcpy(ue_addr_t->ipv6_address, ue_addr->ipv6_address, IPV6_ADDRESS_LEN);
+		memcpy(session->ue_ipv6_addr, ue_addr->ipv6_address, IPV6_ADDRESS_LEN);
 	}
 	return 0;
 }
@@ -457,14 +504,17 @@ process_pdi_local_teid_info(pfcp_fteid_ie_t *lo_teid, fteid_ie_t *f_teid)
 	if (lo_teid->v4) {
 		/* TEID */
 		f_teid->teid = lo_teid->teid;
-		/* Local Interface IP address */
+		/* Local Interface IPv4 address */
 		f_teid->ipv4_address = lo_teid->ipv4_address;
 	}
 
 	/* Check the IPv6 Flag */
 	if (lo_teid->v6) {
-		/* TODO: IPv6 not Supported */
-		return -1;
+		/* TEID */
+		f_teid->teid = lo_teid->teid;
+		/* Local Interface IPv6 address */
+		memcpy(f_teid->ipv6_address, lo_teid->ipv6_address, IPV6_ADDRESS_LEN);
+		// return -1;
 	}
 
 	/* Check the chid Flag */
@@ -481,6 +531,23 @@ process_pdi_local_teid_info(pfcp_fteid_ie_t *lo_teid, fteid_ie_t *f_teid)
 
 	return 0;
 }
+
+static uint8_t
+get_rule_ip_type(char *rule){
+
+	char *s, *sp, *in[CB_FLD_NUM], tmp[MAX_LEN] = {0};
+	static const char *dlm = " \t\n";
+	strncpy(tmp, rule, MAX_LEN);
+	s = tmp;
+	in[0] = strtok_r(s, dlm, &sp);
+
+	if(strstr(in[0], ":") != NULL)
+		return RULE_IPV6;
+
+	return RULE_IPV4;
+
+}
+
 
 /**
  * @brief  : Process pdi info
@@ -516,7 +583,7 @@ process_pdr_pdi_info(pfcp_pdi_ie_t *pdi_ie_t, pdi_t *pdi,
 	/* UE IP Address */
 	if (pdi_ie_t->ue_ip_address.header.len) {
 		if (process_pdi_ueip_info(&pdi_ie_t->ue_ip_address, &pdi->ue_addr,
-						&((*session)->ue_ip_addr))) {
+						*session)) {
 			return -1;
 		}
 	}
@@ -547,6 +614,7 @@ process_pdr_pdi_info(pfcp_pdi_ie_t *pdi_ie_t, pdi_t *pdi,
 					memcpy(&pkt_filter.u.rule_str, &pdi_ie_t->sdf_filter[itr].flow_desc,
 							pdi_ie_t->sdf_filter[itr].len_of_flow_desc);
 
+					pkt_filter.rule_ip_type = get_rule_ip_type(pkt_filter.u.rule_str);
 					if (!pdi_ie_t->src_intfc.interface_value) {
 						/* swap the src and dst address for UL traffic.*/
 						swap_src_dst_ip(&pkt_filter.u.rule_str[0]);
@@ -578,32 +646,6 @@ process_pdr_pdi_info(pfcp_pdi_ie_t *pdi_ie_t, pdi_t *pdi,
 		}
 		pdi->sdf_filter_cnt++;
 #endif /* DEFAULT_ACL_RULE_ADD */
-
-		/* Update the SDF RULE COUNTER */
-		//Commenting As this is incresing count by sdf_filter_count(No need)
-		//pdi->sdf_filter_cnt += pdi_ie_t->sdf_filter_count;
-//	} else {
-//
-//#ifdef DEFAULT_ACL_TABLE
-//		uint8_t dir = 0;
-//		if (pdi_ie_t->src_intfc.interface_value) {
-//			dir = DOWNLINK;
-//		} else {
-//			dir = UPLINK;
-//		}
-//
-//		if (app.spgw_cfg != SGWU) {
-//			(*session)->acl_table_indx[(*session)->acl_table_count] = default_up_filter_entry_add(prcdnc_val, dir);
-//
-//			if (!(*session)->acl_table_indx[(*session)->acl_table_count]) {
-//				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"ACL table creation failed indx:%u\n", LOG_VALUE,
-//					(*session)->acl_table_indx[(*session)->acl_table_count]);
-//			}else{
-//				(*session)->acl_table_count++;
-//			}
-//			pdi->sdf_filter_cnt++;
-//		}
-//#endif  /* DEFAULT_ACL_TABLE */
 	}
 	return 0;
 }
@@ -614,14 +656,15 @@ process_pdr_pdi_info(pfcp_pdi_ie_t *pdi_ie_t, pdi_t *pdi,
  * @param  : urr_t, structure to be updated
  * @param  : cp_seid, cp session id
  * @param  : up_seid, up session id
- * @param  : peer_ip, ip address of peer node
+ * @param  : cp_ip, peer node address
  * @return : Returns 0 in case of success , -1 otherwise
  */
 static int8_t
-process_create_urr_info(pfcp_create_urr_ie_t *urr, urr_info_t *urr_t, uint64_t cp_seid, uint64_t up_seid, uint32_t peer_ip)
+process_create_urr_info(pfcp_create_urr_ie_t *urr, urr_info_t *urr_t, uint64_t cp_seid,
+		uint64_t up_seid, peer_addr_t cp_ip)
 {
 	peerEntry *timer_entry = NULL;
-	urr_t  = get_urr_info_entry(urr->urr_id.urr_id_value, peer_ip);
+	urr_t  = get_urr_info_entry(urr->urr_id.urr_id_value, cp_ip);
 	if(urr_t == NULL){
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT" URR not found for "
 			"URR_ID:%u while creating URR info\n",
@@ -683,7 +726,7 @@ process_create_urr_info(pfcp_create_urr_ie_t *urr, urr_info_t *urr_t, uint64_t c
 			LOG_VALUE, urr_t->urr_id);
 
 	if((urr_t->rept_trigg == TIME_BASED) || (urr_t->rept_trigg == VOL_TIME_BASED)) {
-		timer_entry = fill_timer_entry_usage_report(&dest_addr_t, urr_t, cp_seid, up_seid);
+		timer_entry = fill_timer_entry_usage_report(&dest_addr_t.ipv4, urr_t, cp_seid, up_seid);
 		if(!(add_timer_entry_usage_report(timer_entry, urr_t->time_thes, timer_callback))) {
 			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Faild to add timer "
 				"entry while creating URR info\n", LOG_VALUE);
@@ -721,18 +764,18 @@ process_create_bar_info(pfcp_create_bar_ie_t *bar, bar_info_t *bar_t)
  * @param  : qer, hold create qer info
  * @param  : quer_t, structure to be updated
  * @param  : session, session information
- * @param  : peer_ip, ip address of peer node
+ * @param  : cp_ip, peer node address
  * @return : Returns 0 in case of success , -1 otherwise
  */
 static int8_t
 process_create_qer_info(pfcp_create_qer_ie_t *qer, qer_info_t **quer_t,
-		pfcp_session_datat_t **session, uint32_t peer_ip)
+		pfcp_session_datat_t **session, peer_addr_t cp_ip)
 {
 	qer_info_t *qer_t = NULL;
 	/* M: QER ID */
 	if (qer->qer_id.header.len) {
 		/* Get allocated memory location */
-		qer_t = get_qer_info_entry(qer->qer_id.qer_id_value, peer_ip, quer_t);
+		qer_t = get_qer_info_entry(qer->qer_id.qer_id_value, quer_t, cp_ip);
 		if (qer_t == NULL)
 			return -1;
 	}
@@ -795,8 +838,8 @@ process_create_qer_info(pfcp_create_qer_ie_t *qer, qer_info_t **quer_t,
 			qer_t->dl_flow_lvl_marking.ttc =
 				qer->dl_flow_lvl_marking.ttc;
 			/* ToS/Traffic Class */
-			qer_t->dl_flow_lvl_marking.tostraffic_cls =
-				qer->dl_flow_lvl_marking.tostraffic_cls;
+			memcpy(&(qer_t->dl_flow_lvl_marking.tostraffic_cls),
+				&(qer->dl_flow_lvl_marking.tostraffic_cls), sizeof(qer_t->dl_flow_lvl_marking.tostraffic_cls));
 		}
 
 		/* Check Service Class Indicator Flag */
@@ -804,8 +847,8 @@ process_create_qer_info(pfcp_create_qer_ie_t *qer, qer_info_t **quer_t,
 			qer_t->dl_flow_lvl_marking.sci =
 				qer->dl_flow_lvl_marking.sci;
 			/* Service Class Indicator */
-			qer_t->dl_flow_lvl_marking.svc_cls_indctr =
-				qer->dl_flow_lvl_marking.svc_cls_indctr;
+			memcpy(&(qer_t->dl_flow_lvl_marking.svc_cls_indctr),
+				&(qer->dl_flow_lvl_marking.svc_cls_indctr) ,sizeof(qer->dl_flow_lvl_marking.svc_cls_indctr));
 		}
 	}
 
@@ -866,19 +909,21 @@ far_apply_action(pfcp_apply_action_ie_t *far, apply_action *far_t)
  * @param  : far, hold create far info
  * @param  : session, session information
  * @param  : up_seid , session id
- * @param  : peer_ip, ip address of peer node
+ * @param  : sess,pfcp_session_t infomation
  * @return : Returns 0 in case of success , -1 otherwise
  */
 static int8_t
 process_create_far_info(pfcp_create_far_ie_t *far,
 		pfcp_session_datat_t **session, uint64_t up_seid,
-		pfcp_session_t *sess, uint32_t peer_ip)
+		pfcp_session_t *sess)
 {
+	node_address_t peer_addr = {0};
 	far_info_t *far_t = NULL;
+
 	/* M: FAR ID */
 	if (far->far_id.header.len) {
 		/* Get allocated memory location */
-		far_t = get_far_info_entry(far->far_id.far_id_value, peer_ip);
+		far_t = get_far_info_entry(far->far_id.far_id_value, sess->cp_ip);
 
 		if (far_t == NULL)
 			return -1;
@@ -902,15 +947,27 @@ process_create_far_info(pfcp_create_far_ie_t *far,
 
 		/* Outer Header Creation */
 		if (far->frwdng_parms.outer_hdr_creation.header.len) {
-			if (far->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc) {
-				far_t->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc =
-					far->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc;
-				/* Linked Outer header Creation with Session */
-				if (far->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc ==
+
+			/* TODO: Add the handling for dual stack connectivity scenario */
+			if (far->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc.gtpu_udp_ipv4) {
+				far_t->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc = GTPU_UDP_IPv4;
+					/* Linked Outer header Creation with Session */
+				if (far->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc.gtpu_udp_ipv4 ==
 						OUT_HDR_DESC_VAL) {
 					(*session)->hdr_crt = GTPU_UDP_IPv4;
 					clLog(clSystemLog, eCLSeverityDebug,
 							LOG_FORMAT"Outer Header Desciprition(GTPU_UDP_IPv4) : %u\n",
+							LOG_VALUE,
+							far->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc);
+				}
+			} else if (far->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc.gtpu_udp_ipv6) {
+				far_t->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc = GTPU_UDP_IPv6;
+					/* Linked Outer header Creation with Session */
+				if (far->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc.gtpu_udp_ipv6 ==
+						OUT_HDR_DESC_VAL) {
+					(*session)->hdr_crt = GTPU_UDP_IPv6;
+					clLog(clSystemLog, eCLSeverityDebug,
+							LOG_FORMAT"Outer Header Desciprition(GTPU_UDP_IPv6) : %u\n",
 							LOG_VALUE,
 							far->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc);
 				}
@@ -927,11 +984,11 @@ process_create_far_info(pfcp_create_far_ie_t *far,
 
 			/* Customer-VLAN Tag */
 			far_t->frwdng_parms.outer_hdr_creation.ctag =
-				far->frwdng_parms.outer_hdr_creation.ctag;
+				far->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc.ctag;
 
 			/* Service-VLAN Tag */
 			far_t->frwdng_parms.outer_hdr_creation.stag =
-				far->frwdng_parms.outer_hdr_creation.stag;
+				far->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc.stag;
 
 			/* Port Number */
 			far_t->frwdng_parms.outer_hdr_creation.port_number =
@@ -940,39 +997,94 @@ process_create_far_info(pfcp_create_far_ie_t *far,
 			/* Flush the exsting peer node entry from connection table */
 			if ((far_t->frwdng_parms.outer_hdr_creation.ipv4_address != 0)
 					&& (far->frwdng_parms.outer_hdr_creation.ipv4_address != 0)) {
-				dp_flush_session(
-					htonl(far_t->frwdng_parms.outer_hdr_creation.ipv4_address),
-					sess->up_seid);
+				memset(&peer_addr, 0, sizeof(node_address_t));
+				peer_addr.ip_type = IPV4_TYPE;
+				peer_addr.ipv4_addr = far_t->frwdng_parms.outer_hdr_creation.ipv4_address;
+				dp_flush_session(peer_addr, sess->up_seid);
 			}
-			/* IPv4 Address */
-			far_t->frwdng_parms.outer_hdr_creation.ipv4_address =
-				far->frwdng_parms.outer_hdr_creation.ipv4_address;
 
-			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"FAR dst Ipv4 Address :"IPV4_ADDR"\n",
-					LOG_VALUE, IPV4_ADDR_HOST_FORMAT(far_t->frwdng_parms.outer_hdr_creation.ipv4_address));
+			/* Flush the exsting peer node entry from connection table */
+			if (memcmp(far_t->frwdng_parms.outer_hdr_creation.ipv6_address,
+						far->frwdng_parms.outer_hdr_creation.ipv6_address, IPV6_ADDR_LEN)) {
+					memset(&peer_addr, 0, sizeof(node_address_t));
+					peer_addr.ip_type = IPV6_TYPE;
+					memcpy(peer_addr.ipv6_addr,
+							far_t->frwdng_parms.outer_hdr_creation.ipv6_address,
+							IPV6_ADDRESS_LEN);
+				dp_flush_session(peer_addr, sess->up_seid);
+			}
 
-			/* Outer Header Creation Description */
-			far_t->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc =
-				far->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc;
+			if(far->frwdng_parms.outer_hdr_creation.ipv4_address != 0){
+				/* IPv4 Address */
+				far_t->frwdng_parms.outer_hdr_creation.ip_type = IPV4_TYPE;
+				far_t->frwdng_parms.outer_hdr_creation.ipv4_address =
+					far->frwdng_parms.outer_hdr_creation.ipv4_address;
+				clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"FAR dst Ipv4 Address :"
+					IPV4_ADDR"\n", LOG_VALUE,
+					IPV4_ADDR_HOST_FORMAT(far_t->frwdng_parms.outer_hdr_creation.ipv4_address));
+			} else if(far->frwdng_parms.outer_hdr_creation.ipv6_address != NULL){
+				far_t->frwdng_parms.outer_hdr_creation.ip_type = IPV6_TYPE;
+				memcpy(far_t->frwdng_parms.outer_hdr_creation.ipv6_address,
+						far->frwdng_parms.outer_hdr_creation.ipv6_address,
+						IPV6_ADDRESS_LEN);
+				clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"FAR dst Ipv6 Address :"
+					IPv6_FMT"\n", LOG_VALUE,
+					IPv6_PRINT(*(struct in6_addr *)far_t->frwdng_parms.outer_hdr_creation.ipv6_address));
+
+			}
 		} else {
 			/* Linked Outer header Creation with Session */
 			(*session)->hdr_crt = NOT_SET_OUT_HDR_RVL_CRT;
 		}
 
+		uint8_t tmp_ipv6[IPV6_ADDR_LEN] = {0};
 		if (far->frwdng_parms.dst_intfc.interface_value == ACCESS ) {
 			/* Add eNB peer node information in connection table */
-			if (far->frwdng_parms.outer_hdr_creation.ipv4_address != 0) {
+			if ((far->frwdng_parms.outer_hdr_creation.ipv4_address != 0) ||
+				(memcmp(&far->frwdng_parms.outer_hdr_creation.ipv6_address,
+					&tmp_ipv6, IPV6_ADDR_LEN))) {
+				if (far->frwdng_parms.outer_hdr_creation.ipv4_address != 0) {
 #ifdef USE_REST
-				if ((add_node_conn_entry(htonl(far->frwdng_parms.outer_hdr_creation.ipv4_address),
-						up_seid, S1U_PORT_ID)) < 0) {
-					clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT":Failed to add connection entry for eNB\n",
-							LOG_VALUE);
-				}
+					/* Fill the peer node entry and add the entry into connection table */
+					memset(&peer_addr, 0, sizeof(node_address_t));
+					peer_addr.ip_type = IPV4_TYPE;
+					peer_addr.ipv4_addr = far->frwdng_parms.outer_hdr_creation.ipv4_address;
 
-				(*session)->wb_peer_ip_addr = far->frwdng_parms.outer_hdr_creation.ipv4_address;
-				clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"MBR: West Bound Peer Node Addr:"IPV4_ADDR"\n",
-						LOG_VALUE, IPV4_ADDR_HOST_FORMAT((*session)->wb_peer_ip_addr));
+					if ((add_node_conn_entry(peer_addr, up_seid, S1U_PORT_ID)) < 0) {
+						clLog(clSystemLog, eCLSeverityCritical,
+								LOG_FORMAT":Failed to add connection entry for eNB\n",
+								LOG_VALUE);
+					}
 #endif /* USE_REST */
+					(*session)->wb_peer_ip_addr.ip_type |=  PDN_TYPE_IPV4;
+					(*session)->wb_peer_ip_addr.ipv4_addr = far->frwdng_parms.outer_hdr_creation.ipv4_address;
+					clLog(clSystemLog, eCLSeverityDebug,
+							LOG_FORMAT"MBR: West Bound Peer IPv4 Node Addr:"IPV4_ADDR"\n",
+							LOG_VALUE, IPV4_ADDR_HOST_FORMAT((*session)->wb_peer_ip_addr.ipv4_addr));
+
+				} else {
+					(*session)->wb_peer_ip_addr.ip_type |=  PDN_TYPE_IPV6;
+					memcpy((*session)->wb_peer_ip_addr.ipv6_addr,
+							far->frwdng_parms.outer_hdr_creation.ipv6_address,
+							IPV6_ADDRESS_LEN);
+					clLog(clSystemLog, eCLSeverityDebug,
+							LOG_FORMAT"MBR: West Bound Peer IPv6 Node Addr:"IPv6_FMT"\n",
+							LOG_VALUE,
+							IPv6_PRINT(*(struct in6_addr *)(*session)->wb_peer_ip_addr.ipv6_addr));
+#ifdef USE_REST
+					/* Fill the peer node entry and add the entry into connection table */
+					memset(&peer_addr, 0, sizeof(node_address_t));
+					peer_addr.ip_type = IPV6_TYPE;
+					memcpy(peer_addr.ipv6_addr,
+							far->frwdng_parms.outer_hdr_creation.ipv6_address, IPV6_ADDRESS_LEN);
+
+					if ((add_node_conn_entry(peer_addr, up_seid, S1U_PORT_ID)) < 0) {
+						clLog(clSystemLog, eCLSeverityCritical,
+								LOG_FORMAT":Failed to add connection entry for eNB\n",
+								LOG_VALUE);
+					}
+#endif /* USE_REST */
+				}
 
 				/* Update the Session state */
 				if (far->frwdng_parms.outer_hdr_creation.teid != 0) {
@@ -983,15 +1095,52 @@ process_create_far_info(pfcp_create_far_ie_t *far,
 			}
 		} else {
 			/* Add S5S8 peer node information in connection table */
-			if (far->frwdng_parms.outer_hdr_creation.ipv4_address != 0) {
+			if ((far->frwdng_parms.outer_hdr_creation.ipv4_address != 0) ||
+				(memcmp(&far->frwdng_parms.outer_hdr_creation.ipv6_address,
+					&tmp_ipv6, IPV6_ADDR_LEN))) {
+				if (far->frwdng_parms.outer_hdr_creation.ipv4_address != 0) {
 #ifdef USE_REST
-				if ((add_node_conn_entry(htonl(far->frwdng_parms.outer_hdr_creation.ipv4_address),
-						up_seid, SGI_PORT_ID)) < 0) {
-					clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT":Failed to add connection entry for S5S8\n",
+					/* Fill the peer node entry and add the entry into connection table */
+					memset(&peer_addr, 0, sizeof(node_address_t));
+					peer_addr.ip_type = IPV4_TYPE;
+					peer_addr.ipv4_addr = far->frwdng_parms.outer_hdr_creation.ipv4_address;
+
+					if ((add_node_conn_entry(peer_addr, up_seid, SGI_PORT_ID)) < 0) {
+						clLog(clSystemLog, eCLSeverityCritical,
+							LOG_FORMAT":Failed to add connection entry for S5S8\n",
 							LOG_VALUE);
-				}
-				(*session)->eb_peer_ip_addr = far->frwdng_parms.outer_hdr_creation.ipv4_address;
+					}
 #endif /* USE_REST */
+					(*session)->eb_peer_ip_addr.ip_type |=  PDN_TYPE_IPV4;
+					(*session)->eb_peer_ip_addr.ipv4_addr = far->frwdng_parms.outer_hdr_creation.ipv4_address;
+					clLog(clSystemLog, eCLSeverityDebug,
+						LOG_FORMAT"MBR: West Bound Peer IPv4 Node Addr:"IPV4_ADDR"\n",
+						LOG_VALUE, IPV4_ADDR_HOST_FORMAT((*session)->eb_peer_ip_addr.ipv4_addr));
+
+				} else {
+					/* TODO:PATH MANG: Add the entry for IPv6 Address */
+					(*session)->eb_peer_ip_addr.ip_type |=  PDN_TYPE_IPV6;
+					memcpy((*session)->eb_peer_ip_addr.ipv6_addr,
+							far->frwdng_parms.outer_hdr_creation.ipv6_address,
+							IPV6_ADDRESS_LEN);
+					clLog(clSystemLog, eCLSeverityDebug,
+							LOG_FORMAT"MBR: West Bound Peer IPv6 Node Addr:"IPv6_FMT"\n",
+							LOG_VALUE, IPv6_PRINT(*(struct in6_addr *)(*session)->eb_peer_ip_addr.ipv6_addr));
+#ifdef USE_REST
+					/* Fill the peer node entry and add the entry into connection table */
+					memset(&peer_addr, 0, sizeof(node_address_t));
+					peer_addr.ip_type = IPV6_TYPE;
+					memcpy(peer_addr.ipv6_addr,
+							far->frwdng_parms.outer_hdr_creation.ipv6_address, IPV6_ADDRESS_LEN);
+
+					if ((add_node_conn_entry(peer_addr, up_seid, SGI_PORT_ID)) < 0) {
+						clLog(clSystemLog, eCLSeverityCritical,
+								LOG_FORMAT":Failed to add connection entry for S5S8\n",
+								LOG_VALUE);
+					}
+#endif /* USE_REST */
+				}
+
 
 				/* Update the Session state */
 				if (far->frwdng_parms.outer_hdr_creation.teid != 0) {
@@ -1008,7 +1157,8 @@ process_create_far_info(pfcp_create_far_ie_t *far,
 
 	/* Buffering Action Rule Identifier */
 	if (far->bar_id.header.len) {
-		/* TODO: Implement Handling */
+
+		far_t->bar_id_value = far->bar_id.bar_id_value;
 	}
 
 	/* Duplicating Parameters */
@@ -1026,11 +1176,10 @@ process_create_far_info(pfcp_create_far_ie_t *far,
  * @brief  : Process update pdr info
  * @param  : pdr, hold pdr info
  * @param  : sess , pfcp session info
- * @param  : peer_ip, ip address of peer node
  * @return : Returns 0 in case of success , -1 otherwise
  */
 static int8_t
-process_update_pdr_info(pfcp_update_pdr_ie_t *pdr, pfcp_session_t *sess, uint32_t peer_ip)
+process_update_pdr_info(pfcp_update_pdr_ie_t *pdr, pfcp_session_t *sess)
 {
 	int ret = 0;
 	pfcp_session_datat_t *session = NULL;
@@ -1045,16 +1194,50 @@ process_update_pdr_info(pfcp_update_pdr_ie_t *pdr, pfcp_session_t *sess, uint32_
 				"the session for TEID:%u", LOG_VALUE, pdr->pdi.local_fteid.teid);
 			return -1;
 		}
-	} else if (pdr->pdi.ue_ip_address.ipv4_address){
-		session = get_sess_by_ueip_entry(pdr->pdi.ue_ip_address.ipv4_address,
-				&sess->sessions, SESS_MODIFY);
+	} else if (pdr->pdi.ue_ip_address.header.len){
 
-		if (session == NULL) {
-			clLog(clSystemLog, eCLSeverityCritical,
-					LOG_FORMAT"Failed to create the session for UE_IP:"IPV4_ADDR"", LOG_VALUE,
-					IPV4_ADDR_HOST_FORMAT(pdr->pdi.ue_ip_address.ipv4_address));
-			return -1;
+		ue_ip_t ue_ip = {0};
+
+		if (pdr->pdi.ue_ip_address.v4) {
+			ue_ip.ue_ipv4 = pdr->pdi.ue_ip_address.ipv4_address;
+			session = get_sess_by_ueip_entry(ue_ip,	&sess->sessions, SESS_MODIFY);
+			if (session == NULL) {
+				clLog(clSystemLog, eCLSeverityCritical,
+						LOG_FORMAT"Failed to create the session for UE_IPv4:"IPV4_ADDR"\n",
+						LOG_VALUE, IPV4_ADDR_HOST_FORMAT(pdr->pdi.ue_ip_address.ipv4_address));
+				return -1;
+			}
 		}
+
+		if (pdr->pdi.ue_ip_address.v6) {
+			memcpy(ue_ip.ue_ipv6, pdr->pdi.ue_ip_address.ipv6_address, IPV6_ADDRESS_LEN);
+			char ipv6[IPV6_STR_LEN];
+			inet_ntop(AF_INET6, ue_ip.ue_ipv6, ipv6, IPV6_STR_LEN);
+
+			if (pdr->pdi.ue_ip_address.v4) {
+				int ret = 0;
+				/* Session Entry not present. Add new session entry */
+				ret = rte_hash_add_key_data(sess_by_ueip_hash,
+						&ue_ip, session);
+				if (ret) {
+					clLog(clSystemLog, eCLSeverityCritical,
+							LOG_FORMAT"Failed to add entry for UE IPv4: "IPV4_ADDR" or IPv6 Addr: %s"
+							", Error: %s\n", LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ue_ip.ue_ipv4), ue_ip.ue_ipv6,
+							rte_strerror(abs(ret)));
+
+					return -1;
+				}
+			} else {
+				session = get_sess_by_ueip_entry(ue_ip,	&sess->sessions, SESS_MODIFY);
+				if (session == NULL) {
+					clLog(clSystemLog, eCLSeverityCritical,
+							LOG_FORMAT"Failed to create the session for IPv6 Addr: %s\n",
+							LOG_VALUE, ipv6);
+					return -1;
+				}
+			}
+		}
+
 	} else {
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT" TIED and UE_IP_addr "
 			"both are NULL \n", LOG_VALUE);
@@ -1063,8 +1246,16 @@ process_update_pdr_info(pfcp_update_pdr_ie_t *pdr, pfcp_session_t *sess, uint32_
 
 	/* M: PDR ID */
 	if (pdr->pdr_id.header.len) {
-		uint64_t hash_key = 0;
-		hash_key = ((uint64_t)peer_ip << 32) + pdr->pdr_id.rule_id;
+		rule_key hash_key = {0};
+
+		hash_key.cp_ip_addr.type = sess->cp_ip.type;
+		if(sess->cp_ip.type == PDN_TYPE_IPV4){
+			hash_key.cp_ip_addr.ip.ipv4_addr = sess->cp_ip.ipv4.sin_addr.s_addr;
+		}else{
+			memcpy(hash_key.cp_ip_addr.ip.ipv6_addr, sess->cp_ip.ipv6.sin6_addr.s6_addr, IPV6_ADDRESS_LEN);
+		}
+		hash_key.id = (uint32_t)pdr->pdr_id.rule_id;
+
 		ret = rte_hash_lookup_data(pdr_by_id_hash,
 				&hash_key, (void **)&pdr_t);
 
@@ -1087,7 +1278,7 @@ process_update_pdr_info(pfcp_update_pdr_ie_t *pdr, pfcp_session_t *sess, uint32_
 			if (pdr_t->pdi.sdf_filter[itr].fd) {
 				memcpy(&pkt_filter.u.rule_str, &pdr_t->pdi.sdf_filter[itr].flow_desc,
 						pdr_t->pdi.sdf_filter[itr].len_of_flow_desc);
-
+				pkt_filter.rule_ip_type = get_rule_ip_type(pkt_filter.u.rule_str);
 				if (!pdr_t->pdi.src_intfc.interface_value) {
 					/* swap the src and dst address for UL traffic.*/
 					swap_src_dst_ip(&pkt_filter.u.rule_str[0]);
@@ -1188,6 +1379,7 @@ fill_sdf_rule_by_rule_name(uint8_t *rule_name, pdi_t *pdi,
 					/* Fill the flow description*/
 					memcpy(&pkt_filter.u.rule_str, &pdi->sdf_filter[idx].flow_desc,
 							pdi->sdf_filter[idx].len_of_flow_desc);
+					pkt_filter.rule_ip_type = get_rule_ip_type(pkt_filter.u.rule_str);
 
 					if (!pdi->src_intfc.interface_value) {
 						/* swap the src and dst address for UL traffic.*/
@@ -1216,20 +1408,19 @@ fill_sdf_rule_by_rule_name(uint8_t *rule_name, pdi_t *pdi,
  * @brief  : Process create pdr info
  * @param  : pdr, hold create pdr info
  * @param  : session, pfcp session data related info
- * @param  : sess , pfcp session info
- * @param  : peer_ip, ip address of peer node
+ * @param  : sess, pfcp_session_t
  * @return : Returns 0 in case of success , -1 otherwise
  */
 static int8_t
 process_create_pdr_info(pfcp_create_pdr_ie_t *pdr, pfcp_session_datat_t **session,
-			pfcp_session_t *sess, uint32_t peer_ip)
+			pfcp_session_t *sess)
 {
 	pdr_info_t *pdr_t = NULL;
 
 	/* M: PDR ID */
 	if (pdr->pdr_id.header.len) {
-		pdr_t = get_pdr_info_entry(pdr->pdr_id.rule_id, peer_ip,
-				&(*session)->pdrs, SESS_CREATE);
+		pdr_t = get_pdr_info_entry(pdr->pdr_id.rule_id,
+				&(*session)->pdrs, SESS_CREATE, sess->cp_ip);
 		if (pdr_t == NULL)
 			return -1;
 
@@ -1264,7 +1455,7 @@ process_create_pdr_info(pfcp_create_pdr_ie_t *pdr, pfcp_session_datat_t **sessio
 	/* Forwarding Action Rule (FAR ID) Identifer */
 	if (pdr->far_id.header.len) {
 		/* Add FAR ID entry in the hash table */
-		if (add_far_info_entry(pdr->far_id.far_id_value, peer_ip, &pdr_t->far)) {
+		if (add_far_info_entry(pdr->far_id.far_id_value, &pdr_t->far, sess->cp_ip)) {
 			return -1;
 		}
 		(pdr_t->far)->far_id_value = pdr->far_id.far_id_value;
@@ -1276,7 +1467,7 @@ process_create_pdr_info(pfcp_create_pdr_ie_t *pdr, pfcp_session_datat_t **sessio
 		pdr_t->qer_count = pdr->qer_id_count;
 		for (int itr = 0; itr < pdr_t->qer_count; itr++) {
 			/* Add QER ID entry in the hash table */
-			if (add_qer_info_entry(pdr->qer_id[itr].qer_id_value, peer_ip, &pdr_t->quer)) {
+			if (add_qer_info_entry(pdr->qer_id[itr].qer_id_value, &pdr_t->quer, sess->cp_ip)) {
 			     return -1;
 			}
 			(pdr_t->quer[itr]).qer_id = pdr->qer_id[itr].qer_id_value;
@@ -1288,7 +1479,7 @@ process_create_pdr_info(pfcp_create_pdr_ie_t *pdr, pfcp_session_datat_t **sessio
 		pdr_t->urr_count = pdr->urr_id_count;
 		for (int itr = 0; itr < pdr_t->urr_count; itr++) {
 			/* Add URR ID entry in the hash table */
-			if (add_urr_info_entry(pdr->urr_id[itr].urr_id_value, peer_ip, &pdr_t->urr)) {
+			if (add_urr_info_entry(pdr->urr_id[itr].urr_id_value, &pdr_t->urr, sess->cp_ip)) {
 				return -1;
 			}
 			(pdr_t->urr[itr]).urr_id = pdr->urr_id[itr].urr_id_value;
@@ -1377,7 +1568,6 @@ static pfcp_session_datat_t *
 get_pfcp_session_data(pfcp_create_pdr_ie_t *create_pdr, pfcp_session_t *sess)
 {
 	pfcp_session_datat_t *session = NULL;
-
 	if (create_pdr->pdi.local_fteid.teid) {
 		session = get_sess_by_teid_entry(create_pdr->pdi.local_fteid.teid,
 				&sess->sessions, SESS_CREATE);
@@ -1387,15 +1577,50 @@ get_pfcp_session_data(pfcp_create_pdr_ie_t *create_pdr, pfcp_session_t *sess)
 					create_pdr->pdi.local_fteid.teid);
 			return NULL;
 		}
-	} else if (create_pdr->pdi.ue_ip_address.ipv4_address) {
-		session = get_sess_by_ueip_entry(create_pdr->pdi.ue_ip_address.ipv4_address,
-				&sess->sessions, SESS_CREATE);
+	} else if (create_pdr->pdi.ue_ip_address.header.len) {
 
-		if (session == NULL) {
-			clLog(clSystemLog, eCLSeverityCritical,
-					LOG_FORMAT"Failed to create the session for UE_IP:"IPV4_ADDR"", LOG_VALUE,
-					IPV4_ADDR_HOST_FORMAT(create_pdr->pdi.ue_ip_address.ipv4_address));
-			return NULL;
+		ue_ip_t ue_ip = {0};
+
+		if (create_pdr->pdi.ue_ip_address.v4) {
+			ue_ip.ue_ipv4 = create_pdr->pdi.ue_ip_address.ipv4_address;
+			session = get_sess_by_ueip_entry(ue_ip, &sess->sessions, SESS_CREATE);
+			if (session == NULL) {
+				clLog(clSystemLog, eCLSeverityCritical,
+						LOG_FORMAT"Failed to create the session for UE_IPv4:"IPV4_ADDR"", LOG_VALUE,
+						IPV4_ADDR_HOST_FORMAT(create_pdr->pdi.ue_ip_address.ipv4_address));
+				return NULL;
+			}
+		}
+
+		if (create_pdr->pdi.ue_ip_address.v6) {
+			memset(&ue_ip, 0, sizeof(ue_ip_t));
+			memcpy(ue_ip.ue_ipv6, create_pdr->pdi.ue_ip_address.ipv6_address, IPV6_ADDRESS_LEN);
+
+			char ipv6[IPV6_STR_LEN];
+			inet_ntop(AF_INET6, ue_ip.ue_ipv6, ipv6, IPV6_STR_LEN);
+
+			if (create_pdr->pdi.ue_ip_address.v4) {
+				int ret = 0;
+				/* Session Entry not present. Add new session entry */
+				ret = rte_hash_add_key_data(sess_by_ueip_hash,
+						&ue_ip, session);
+				if (ret) {
+					clLog(clSystemLog, eCLSeverityCritical,
+							LOG_FORMAT"Failed to add entry for UE IPv4: "IPV4_ADDR" or IPv6 Addr: %s"
+							", Error: %s\n", LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ue_ip.ue_ipv4), ipv6,
+							rte_strerror(abs(ret)));
+
+					return NULL;
+				}
+			} else {
+				session = get_sess_by_ueip_entry(ue_ip, &sess->sessions, SESS_CREATE);
+				if (session == NULL) {
+					clLog(clSystemLog, eCLSeverityCritical,
+							LOG_FORMAT"Failed to create the session for IPv6 Addr: %s", LOG_VALUE,
+							ipv6);
+					return NULL;
+				}
+			}
 		}
 	} else {
 		clLog(clSystemLog, eCLSeverityCritical,
@@ -1408,14 +1633,16 @@ get_pfcp_session_data(pfcp_create_pdr_ie_t *create_pdr, pfcp_session_t *sess)
 
 int8_t
 process_up_session_estab_req(pfcp_sess_estab_req_t *sess_req,
-				                   pfcp_sess_estab_rsp_t *sess_rsp, uint32_t cp_ip)
+				                   pfcp_sess_estab_rsp_t *sess_rsp, peer_addr_t *peer_addr)
 {
+	node_address_t cp_node_addr = {0};
 	pfcp_session_t *sess = NULL;
 
 	if (sess_req == NULL)
 		return -1;
 
-	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"PFCP Session Establishment Request :: START \n", LOG_VALUE);
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT
+			"PFCP Session Establishment Request :: START \n", LOG_VALUE);
 	/* Check Session ID is present or not in header */
 	if (sess_req->header.s) {
 		/* Check SEID is not ZERO */
@@ -1444,8 +1671,29 @@ process_up_session_estab_req(pfcp_sess_estab_req_t *sess_req,
 	}
 
 	/* Get the CP Session Id  */
+	get_cp_node_addr(&cp_node_addr, &sess_req->cp_fseid);
+
+	memcpy(&sess->cp_node_addr,
+			&cp_node_addr, sizeof(node_address_t));
+
 	sess->cp_seid = sess_req->cp_fseid.seid;
-	sess->cp_ip = cp_ip;
+
+	if(sess_req->node_id.node_id_type == NODE_ID_TYPE_TYPE_IPV4ADDRESS) {
+		sess->cp_ip.ipv4.sin_family = AF_INET;
+		sess->cp_ip.ipv4.sin_port = peer_addr->ipv4.sin_port;
+		sess->cp_ip.ipv4.sin_addr.s_addr = sess_req->node_id.node_id_value_ipv4_address;
+		sess->cp_ip.type = PDN_TYPE_IPV4;
+	} else if (sess_req->node_id.node_id_type == NODE_ID_TYPE_TYPE_IPV6ADDRESS) {
+		sess->cp_ip.ipv6.sin6_family = AF_INET6;
+		sess->cp_ip.ipv6.sin6_port = peer_addr->ipv6.sin6_port;
+		memcpy(sess->cp_ip.ipv6.sin6_addr.s6_addr, sess_req->node_id.node_id_value_ipv6_address, IPV6_ADDRESS_LEN);
+		sess->cp_ip.type = PDN_TYPE_IPV6;
+	} else {
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT
+				"Invalid Node ID interface type is received\n",
+				LOG_VALUE);
+		return -1;
+	}
 
 	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT": CP_Sess_ID: %lu, UP_Sess_ID:%lu\n",
 			LOG_VALUE, sess->cp_seid, sess->up_seid);
@@ -1465,7 +1713,7 @@ process_up_session_estab_req(pfcp_sess_estab_req_t *sess_req,
 
 		/* Process the Create PDR info */
 		if (process_create_pdr_info(&sess_req->create_pdr[itr],
-					&session, sess, cp_ip)) {
+					&session, sess)) {
 			return -1;
 		}
 
@@ -1474,7 +1722,7 @@ process_up_session_estab_req(pfcp_sess_estab_req_t *sess_req,
 					sess_req->create_far[itr1].far_id.far_id_value) {
 				/* Process the Create FAR info */
 				if (process_create_far_info(&sess_req->create_far[itr1],
-						&session, sess->up_seid, sess, cp_ip)) {
+						&session, sess->up_seid, sess)) {
 					return -1;
 
 				}
@@ -1488,7 +1736,7 @@ process_up_session_estab_req(pfcp_sess_estab_req_t *sess_req,
 						sess_req->create_qer[itr3].qer_id.qer_id_value) {
 
 					if (process_create_qer_info(&sess_req->create_qer[itr3],
-								&(session->pdrs[itr]).quer, &session, cp_ip)) {
+								&(session->pdrs[itr]).quer, &session, sess->cp_ip)) {
 						return -1;
 					}
 				}
@@ -1504,7 +1752,7 @@ process_up_session_estab_req(pfcp_sess_estab_req_t *sess_req,
 					urr_info_t urr = {0};
 					/* Process the Create URR info */
 					if (process_create_urr_info(&sess_req->create_urr[itr4],
-								&urr, sess->cp_seid, sess->up_seid, cp_ip)) {
+								&urr, sess->cp_seid, sess->up_seid, sess->cp_ip)) {
 						return -1;
 					}
 				}
@@ -1519,6 +1767,10 @@ process_up_session_estab_req(pfcp_sess_estab_req_t *sess_req,
 				LOG_VALUE, sess->teids[(sess->ber_cnt - 1)], (sess->ber_cnt - 1));
 		}
 	}
+
+
+	sess->bar.bar_id = sess_req->create_bar.bar_id.bar_id_value;
+	sess->bar.dl_buf_suggstd_pckts_cnt.pckt_cnt_val = DL_PKTS_RING_SIZE;
 
 #ifdef USE_CSID
 	/* SGWC/SAEGWC FQ-CSID */
@@ -1548,22 +1800,47 @@ process_up_session_estab_req(pfcp_sess_estab_req_t *sess_req,
 						LOG_FORMAT"Failed to Store MME CSID \n", LOG_VALUE);
 				return -1;
 			}
+			/* Link session with Peer CSID */
+			link_dp_sess_with_peer_csid(sess->mme_fqcsid, sess, SX_PORT_ID);
 		}
 	}
 
 	/* SGW FQ-CSID */
 	if (sess_req->sgw_c_fqcsid.header.len) {
+		node_address_t sgw_node_addr = {0};
+
+		if (sess_req->sgw_c_fqcsid.fqcsid_node_id_type == IPV4_GLOBAL_UNICAST) {
+			sgw_node_addr.ip_type = IPV4_TYPE;
+			memcpy(&sgw_node_addr.ipv4_addr,
+					&sess_req->sgw_c_fqcsid.node_address, IPV4_SIZE);
+		} else {
+			sgw_node_addr.ip_type = IPV6_TYPE;
+			memcpy(&sgw_node_addr.ipv6_addr,
+					&sess_req->sgw_c_fqcsid.node_address, IPV6_SIZE);
+		}
 		if (sess_req->sgw_c_fqcsid.number_of_csids) {
+			if (sess_req->pgw_c_fqcsid.header.len == 0) {
+				if (add_peer_addr_entry_for_fqcsid_ie_node_addr(
+							&cp_node_addr, &(sess_req->sgw_c_fqcsid),
+							SX_PORT_ID) < 0) {
+					clLog(clSystemLog, eCLSeverityCritical,
+							LOG_FORMAT"Failed to Store SGWC Address\n", LOG_VALUE);
+					return -1;
+				}
+			}
 			/* Stored the SGW CSID by SGW Node address */
 			if (stored_recvd_peer_fqcsid(&sess_req->sgw_c_fqcsid, sess->sgw_fqcsid) < 0) {
 				clLog(clSystemLog, eCLSeverityCritical,
 						LOG_FORMAT"Failed to Store SGWC CSID \n", LOG_VALUE);
 				return -1;
 			}
+
+			/* Link session with Peer CSID */
+			link_dp_sess_with_peer_csid(sess->sgw_fqcsid, sess, SX_PORT_ID);
+
 		} else if (sess_req->sgw_c_fqcsid.node_address) {
 			fqcsid_t *tmp = NULL;
-			tmp = get_peer_addr_csids_entry(sess_req->sgw_c_fqcsid.node_address,
-					ADD_NODE);
+			tmp = get_peer_addr_csids_entry(&sgw_node_addr, ADD_NODE);
 			if (tmp == NULL) {
 				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT" Failed to get "
 					"CSID entry by SGW-C FQ-CSID while Processing UP Session "
@@ -1571,8 +1848,10 @@ process_up_session_estab_req(pfcp_sess_estab_req_t *sess_req,
 					LOG_VALUE, strerror(errno));
 				return -1;
 			}
-			tmp->node_addr = sess_req->sgw_c_fqcsid.node_address;
-			(sess->sgw_fqcsid)->node_addr = tmp->node_addr;
+			memcpy(&(tmp->node_addr),
+					&(sgw_node_addr), sizeof(node_address_t));
+			memcpy(&(sess->sgw_fqcsid)->node_addr,
+					&tmp->node_addr, sizeof(node_address_t));
 		}
 	}
 
@@ -1587,18 +1866,38 @@ process_up_session_estab_req(pfcp_sess_estab_req_t *sess_req,
 					LOG_VALUE);
 			return -1;
 		}
+		node_address_t pgw_node_addr = {0};
+
+		if (sess_req->pgw_c_fqcsid.fqcsid_node_id_type == IPV4_GLOBAL_UNICAST) {
+			pgw_node_addr.ip_type = IPV4_TYPE;
+			memcpy(&pgw_node_addr.ipv4_addr,
+					&sess_req->pgw_c_fqcsid.node_address, IPV4_SIZE);
+		} else {
+			pgw_node_addr.ip_type = IPV6_TYPE;
+			memcpy(&pgw_node_addr.ipv6_addr,
+					&sess_req->pgw_c_fqcsid.node_address, IPV6_SIZE);
+		}
 
 		if (sess_req->pgw_c_fqcsid.number_of_csids) {
+			int ret = add_peer_addr_entry_for_fqcsid_ie_node_addr(
+						&cp_node_addr, &sess_req->pgw_c_fqcsid,
+						SX_PORT_ID);
+			if (ret < 0)
+				return ret;
+
 			/* Stored the PGWC CSID by PGW Node address */
 			if (stored_recvd_peer_fqcsid(&sess_req->pgw_c_fqcsid, sess->pgw_fqcsid) < 0) {
 				clLog(clSystemLog, eCLSeverityCritical,
 						LOG_FORMAT"Failed to Store PGWC CSID \n", LOG_VALUE);
 				return -1;
 			}
+
+			/* Link session with Peer CSID */
+			link_dp_sess_with_peer_csid(sess->pgw_fqcsid, sess, SX_PORT_ID);
+
 		} else if (sess_req->pgw_c_fqcsid.node_address) {
 			fqcsid_t *tmp = NULL;
-			tmp = get_peer_addr_csids_entry(sess_req->pgw_c_fqcsid.node_address,
-					ADD_NODE);
+			tmp = get_peer_addr_csids_entry(&pgw_node_addr, ADD_NODE);
 			if (tmp == NULL) {
 				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT" Failed to get "
 					"CSID entry by PGW-C FQ-CSID while Processing UP Session "
@@ -1606,8 +1905,10 @@ process_up_session_estab_req(pfcp_sess_estab_req_t *sess_req,
 					LOG_VALUE, strerror(errno));
 				return -1;
 			}
-			tmp->node_addr = sess_req->pgw_c_fqcsid.node_address;
-			(sess->pgw_fqcsid)->node_addr = tmp->node_addr;
+
+			memcpy(&tmp->node_addr, &pgw_node_addr, sizeof(node_address_t));
+			memcpy(&(sess->pgw_fqcsid)->node_addr,
+					&pgw_node_addr, sizeof(node_address_t));
 		}
 	}
 
@@ -1620,17 +1921,25 @@ process_up_session_estab_req(pfcp_sess_estab_req_t *sess_req,
 				LOG_VALUE);
 		return -1;
 	}
-	/* Add the User-plane Node Address */
-	(sess->up_fqcsid)->node_addr = dp_comm_ip.s_addr;
+
+	if ((sess->cp_node_addr).ip_type == IPV4_TYPE) {
+		/* Add the User-plane Node Address */
+		(sess->up_fqcsid)->node_addr.ip_type = IPV4_TYPE;
+		(sess->up_fqcsid)->node_addr.ipv4_addr = dp_comm_ip.s_addr;
+	} else {
+		/* Add the User-plane Node Address */
+		(sess->up_fqcsid)->node_addr.ip_type = IPV6_TYPE;
+		memcpy(&(sess->up_fqcsid)->node_addr.ipv6_addr,
+				&dp_comm_ipv6.s6_addr, IPV6_ADDRESS_LEN);
+	}
 
 	int indx = 0;
 	/* Add the entry for peer nodes */
-	indx = fill_peer_node_info_t(sess, cp_ip);
+	indx = fill_peer_node_info_t(sess, &cp_node_addr);
 	if (indx < 0) {
 		clLog(clSystemLog, eCLSeverityCritical,
 				LOG_FORMAT"Failed to fill peer node info and assignment of the CSID Error: %s\n",
-				LOG_VALUE,
-				strerror(errno));
+				LOG_VALUE, strerror(errno));
 		return -1;
 	}
 
@@ -1694,19 +2003,19 @@ process_up_session_estab_req(pfcp_sess_estab_req_t *sess_req,
  * @param  : far, hold create far info
  * @param  : up_seid, session id
  * @param  : sess, pfcp_session
- * @param  : peer_ip, ip address of peer node
  * @return : Returns 0 in case of success , -1 otherwise
  */
 static int8_t
 process_update_far_info(pfcp_update_far_ie_t *far, uint64_t up_seid,
-							pfcp_session_t *sess, uint32_t peer_ip)
+							pfcp_session_t *sess)
 {
+	node_address_t peer_addr = {0};
 	far_info_t *far_t = NULL;
 
 	/* M: FAR ID */
 	if (far->far_id.header.len) {
 		/* Get allocated memory location */
-		far_t = get_far_info_entry(far->far_id.far_id_value, peer_ip);
+		far_t = get_far_info_entry(far->far_id.far_id_value, sess->cp_ip);
 	}
 
 	/* Check far entry found or not */
@@ -1737,6 +2046,7 @@ process_update_far_info(pfcp_update_far_ie_t *far, uint64_t up_seid,
 		/* pfcpsmreq_flags: */
 		if (far->upd_frwdng_parms.pfcpsmreq_flags.header.len) {
 
+			/* TODO: Add support for IPv6 */
 			/* X2 Handover: Send the endmarker packet to old eNB*/
 			if (far->upd_frwdng_parms.pfcpsmreq_flags.sndem) {
 				if (sess_modify_with_endmarker(far_t)) {
@@ -1754,16 +2064,27 @@ process_update_far_info(pfcp_update_far_ie_t *far, uint64_t up_seid,
 
 		/* Outer Header Creation */
 		if (far->upd_frwdng_parms.outer_hdr_creation.header.len) {
-			if (far->upd_frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc) {
-				far_t->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc =
-					far->upd_frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc;
+			if (far->upd_frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc.gtpu_udp_ipv4) {
+
+				far_t->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc = GTPU_UDP_IPv4;
 				/* TODO: Need to validate this logic*/
 				/* Linked Outer header Creation with Session */
-				if (far->upd_frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc ==
+				if (far->upd_frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc.gtpu_udp_ipv4 ==
 						OUT_HDR_DESC_VAL) {
 					(far_t->session)->hdr_crt = GTPU_UDP_IPv4;
 					clLog(clSystemLog, eCLSeverityDebug,
 							LOG_FORMAT"Outer Header Desciprition(GTPU_UDP_IPv4) : %u\n",
+							LOG_VALUE,
+							far->upd_frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc);
+				}
+			} else if (far->upd_frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc.gtpu_udp_ipv6) {
+				far_t->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc = GTPU_UDP_IPv6;
+					/* Linked Outer header Creation with Session */
+				if (far->upd_frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc.gtpu_udp_ipv6 ==
+						OUT_HDR_DESC_VAL) {
+					(far_t->session)->hdr_crt = GTPU_UDP_IPv6;
+					clLog(clSystemLog, eCLSeverityDebug,
+							LOG_FORMAT"Outer Header Desciprition(GTPU_UDP_IPv6) : %u\n",
 							LOG_VALUE,
 							far->upd_frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc);
 				}
@@ -1777,11 +2098,11 @@ process_update_far_info(pfcp_update_far_ie_t *far, uint64_t up_seid,
 
 			/* Customer-VLAN Tag */
 			far_t->frwdng_parms.outer_hdr_creation.ctag =
-				far->upd_frwdng_parms.outer_hdr_creation.ctag;
+				far->upd_frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc.ctag;
 
 			/* Service-VLAN Tag */
 			far_t->frwdng_parms.outer_hdr_creation.stag =
-				far->upd_frwdng_parms.outer_hdr_creation.stag;
+				far->upd_frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc.stag;
 
 			/* Port Number */
 			far_t->frwdng_parms.outer_hdr_creation.port_number =
@@ -1790,41 +2111,99 @@ process_update_far_info(pfcp_update_far_ie_t *far, uint64_t up_seid,
 			/* Flush the exsting peer node entry from connection table */
 			if ((far_t->frwdng_parms.outer_hdr_creation.ipv4_address != 0)
 					&& (far->upd_frwdng_parms.outer_hdr_creation.ipv4_address != 0)) {
-				dp_flush_session(
-					htonl(far_t->frwdng_parms.outer_hdr_creation.ipv4_address), up_seid);
+				memset(&peer_addr, 0, sizeof(node_address_t));
+				peer_addr.ip_type = IPV4_TYPE;
+				peer_addr.ipv4_addr = far_t->frwdng_parms.outer_hdr_creation.ipv4_address;
+				dp_flush_session(peer_addr, up_seid);
 			}
 
-			/* IPv4 Address */
-			far_t->frwdng_parms.outer_hdr_creation.ipv4_address =
-				far->upd_frwdng_parms.outer_hdr_creation.ipv4_address;
-			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"FAR dst Ipv4 Address :"IPV4_ADDR"\n",
-					LOG_VALUE, IPV4_ADDR_HOST_FORMAT(far->upd_frwdng_parms.outer_hdr_creation.ipv4_address));
+			/* Flush the exsting peer node entry from connection table */
+			if (memcmp(far_t->frwdng_parms.outer_hdr_creation.ipv6_address,
+						far->upd_frwdng_parms.outer_hdr_creation.ipv6_address, IPV6_ADDR_LEN)) {
+				memset(&peer_addr, 0, sizeof(node_address_t));
+				peer_addr.ip_type = IPV6_TYPE;
+				memcpy(peer_addr.ipv6_addr,
+						far_t->frwdng_parms.outer_hdr_creation.ipv6_address, IPV6_ADDR_LEN);
+				dp_flush_session(peer_addr, up_seid);
+			}
 
-			/* Outer Header Creation Description */
-			far_t->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc =
-				far->upd_frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc;
+			if(far->upd_frwdng_parms.outer_hdr_creation.ipv4_address != 0) {
+				/* IPv4 Address */
+				far_t->frwdng_parms.outer_hdr_creation.ip_type = IPV4_TYPE;
+				far_t->frwdng_parms.outer_hdr_creation.ipv4_address =
+					far->upd_frwdng_parms.outer_hdr_creation.ipv4_address;
+
+				clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"FAR Dst Ipv4 Address :"
+					IPV4_ADDR"\n", LOG_VALUE,
+					IPV4_ADDR_HOST_FORMAT(far_t->frwdng_parms.outer_hdr_creation.ipv4_address));
+			} else if(far->upd_frwdng_parms.outer_hdr_creation.ipv6_address != NULL) {
+
+				far_t->frwdng_parms.outer_hdr_creation.ip_type = IPV6_TYPE;
+				memcpy(far_t->frwdng_parms.outer_hdr_creation.ipv6_address,
+						far->upd_frwdng_parms.outer_hdr_creation.ipv6_address,
+						IPV6_ADDRESS_LEN);
+				clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"FAR Dst Ipv6 Address :"
+					IPv6_FMT"\n", LOG_VALUE,
+					IPv6_PRINT(IPv6_CAST(far_t->frwdng_parms.outer_hdr_creation.ipv6_address)));
+
+			}
 		}
 
+		uint8_t tmp_ipv6[IPV6_ADDR_LEN] = {0};
 		if (far->upd_frwdng_parms.dst_intfc.interface_value == ACCESS ) {
 			/* Add eNB peer node information in connection table */
-			if (far->upd_frwdng_parms.outer_hdr_creation.ipv4_address != 0) {
+			if ((far->upd_frwdng_parms.outer_hdr_creation.ipv4_address != 0) ||
+				((memcmp(&far->upd_frwdng_parms.outer_hdr_creation.ipv6_address,
+					&tmp_ipv6, IPV6_ADDR_LEN)))) {
+				if (far->upd_frwdng_parms.outer_hdr_creation.ipv4_address) {
 #ifdef USE_REST
-				if ((add_node_conn_entry(htonl(far->upd_frwdng_parms.outer_hdr_creation.ipv4_address),
-						up_seid, S1U_PORT_ID)) < 0) {
-					clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT":Failed to add connection entry for eNB\n",
+					/* Add the peer node connection entry */
+					memset(&peer_addr, 0, sizeof(node_address_t));
+					peer_addr.ip_type = IPV4_TYPE;
+					peer_addr.ipv4_addr = far->upd_frwdng_parms.outer_hdr_creation.ipv4_address;
+					if ((add_node_conn_entry(peer_addr, up_seid, S1U_PORT_ID)) < 0) {
+						clLog(clSystemLog, eCLSeverityCritical,
+							LOG_FORMAT":Failed to add connection entry for eNB\n",
 							LOG_VALUE);
-				}
-				(far_t->session)->wb_peer_ip_addr = far->upd_frwdng_parms.outer_hdr_creation.ipv4_address;
-				clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"MBR:West Bound Peer Node Addr:"IPV4_ADDR"\n",
-						LOG_VALUE, IPV4_ADDR_HOST_FORMAT((far_t->session)->wb_peer_ip_addr));
+					}
 #endif /* USE_REST */
+
+					far_t->session->wb_peer_ip_addr.ip_type |=  PDN_TYPE_IPV4;
+					far_t->session->wb_peer_ip_addr.ipv4_addr = far->upd_frwdng_parms.outer_hdr_creation.ipv4_address;
+					clLog(clSystemLog, eCLSeverityDebug,
+						LOG_FORMAT"MBR: West Bound Peer IPv4 Node Addr:"IPV4_ADDR"\n",
+						LOG_VALUE, IPV4_ADDR_HOST_FORMAT((far_t->session)->wb_peer_ip_addr.ipv4_addr));
+
+				} else {
+					/* TODO:PATH: Add the connection entry */
+					far_t->session->wb_peer_ip_addr.ip_type |=  PDN_TYPE_IPV6;
+					memcpy(far_t->session->wb_peer_ip_addr.ipv6_addr,
+							far->upd_frwdng_parms.outer_hdr_creation.ipv6_address,
+							IPV6_ADDRESS_LEN);
+					clLog(clSystemLog, eCLSeverityDebug,
+						LOG_FORMAT"MBR: West Bound Peer IPv6 Node Addr:"IPv6_FMT"\n",
+						LOG_VALUE,
+						IPv6_PRINT(IPv6_CAST(far_t->session)->wb_peer_ip_addr.ipv6_addr));
+#ifdef USE_REST
+					/* Add the peer node connection entry */
+					memset(&peer_addr, 0, sizeof(node_address_t));
+					peer_addr.ip_type = IPV6_TYPE;
+					memcpy(peer_addr.ipv6_addr,
+							far->upd_frwdng_parms.outer_hdr_creation.ipv6_address, IPV6_ADDR_LEN);
+					if ((add_node_conn_entry(peer_addr, up_seid, S1U_PORT_ID)) < 0) {
+						clLog(clSystemLog, eCLSeverityCritical,
+							LOG_FORMAT":Failed to add connection entry for eNB\n",
+							LOG_VALUE);
+					}
+#endif /* USE_REST */
+				}
 
 				/* Update the Session state */
 				if (!far->upd_frwdng_parms.outer_hdr_creation.teid) {
 					if ((far_t->session)->sess_state == CONNECTED) {
 						(far_t->session)->sess_state = IDLE;
 						clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Session State Change : "
-									"CONNECTED --> IDLE\n", LOG_VALUE);
+							"CONNECTED --> IDLE\n", LOG_VALUE);
 					}
 				} else {
 					switch((far_t->session)->sess_state) {
@@ -1837,6 +2216,7 @@ process_update_far_info(pfcp_update_far_ie_t *far, uint64_t up_seid,
 						break;
 					case IN_PROGRESS:
 						{
+								/* TODO: DDN Support for IPv6 */
 						/** Resolved queued pkts by dl core and enqueue pkts into notification ring */
 							struct rte_mbuf *buf_pkt =
 								rte_ctrlmbuf_alloc(notify_msg_pool);
@@ -1850,7 +2230,8 @@ process_update_far_info(pfcp_update_far_ie_t *far, uint64_t up_seid,
 									*key = (far_t->session)->pdrs->pdi.ue_addr.ipv4_address;
 								}
 							} else {
-								clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"ERROR: PDRs value is NULL\n", LOG_VALUE);
+								clLog(clSystemLog, eCLSeverityDebug,
+									LOG_FORMAT"ERROR: PDRs value is NULL\n", LOG_VALUE);
 								break;
 							}
 
@@ -1869,22 +2250,60 @@ process_update_far_info(pfcp_update_far_ie_t *far, uint64_t up_seid,
 			}
 		} else {
 			/* Add S5S8 peer node information in connection table */
-			if (far->upd_frwdng_parms.outer_hdr_creation.ipv4_address != 0) {
+			if ((far->upd_frwdng_parms.outer_hdr_creation.ipv4_address != 0) ||
+				((memcmp(&far->upd_frwdng_parms.outer_hdr_creation.ipv6_address,
+					&tmp_ipv6, IPV6_ADDR_LEN)))) {
+				if (far->upd_frwdng_parms.outer_hdr_creation.ipv4_address) {
 #ifdef USE_REST
-				if ((add_node_conn_entry(htonl(far->upd_frwdng_parms.outer_hdr_creation.ipv4_address),
-						up_seid, SGI_PORT_ID)) < 0) {
-					clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT" Failed to add "
-						"connection entry for S5S8\n", LOG_VALUE);
-				}
+					/* Add the peer node connection entry */
+					memset(&peer_addr, 0, sizeof(node_address_t));
+					peer_addr.ip_type = IPV4_TYPE;
+					peer_addr.ipv4_addr = far->upd_frwdng_parms.outer_hdr_creation.ipv4_address;
+					if ((add_node_conn_entry(peer_addr, up_seid, SGI_PORT_ID)) < 0) {
+						clLog(clSystemLog, eCLSeverityCritical,
+							LOG_FORMAT":Failed to add connection entry for S5S8\n",
+							LOG_VALUE);
+					}
 #endif /* USE_REST */
-				(far_t->session)->eb_peer_ip_addr = far->upd_frwdng_parms.outer_hdr_creation.ipv4_address;
+					far_t->session->eb_peer_ip_addr.ip_type |=  PDN_TYPE_IPV4;
+					far_t->session->eb_peer_ip_addr.ipv4_addr =
+							far->upd_frwdng_parms.outer_hdr_creation.ipv4_address;
+					clLog(clSystemLog, eCLSeverityDebug,
+						LOG_FORMAT"MBR: West Bound Peer IPv4 Node Addr:"IPV4_ADDR"\n",
+						LOG_VALUE, IPV4_ADDR_HOST_FORMAT(far_t->session->eb_peer_ip_addr.ipv4_addr));
+				} else {
+					/* TODO:PATH MANG: Add the entry for IPv6 Address */
+					far_t->session->eb_peer_ip_addr.ip_type |=  PDN_TYPE_IPV6;
+					memcpy(far_t->session->eb_peer_ip_addr.ipv6_addr,
+							far->upd_frwdng_parms.outer_hdr_creation.ipv6_address,
+							IPV6_ADDRESS_LEN);
+
+					clLog(clSystemLog, eCLSeverityDebug,
+						LOG_FORMAT"MBR: West Bound Peer IPv6 Node Addr:"IPv6_FMT"\n",
+						LOG_VALUE,
+						IPv6_PRINT(IPv6_CAST(far_t->session->eb_peer_ip_addr.ipv6_addr)));
+#ifdef USE_REST
+					/* Add the peer node connection entry */
+					memset(&peer_addr, 0, sizeof(node_address_t));
+					peer_addr.ip_type = IPV6_TYPE;
+					memcpy(peer_addr.ipv6_addr,
+							far->upd_frwdng_parms.outer_hdr_creation.ipv6_address, IPV6_ADDR_LEN);
+
+					if ((add_node_conn_entry(peer_addr, up_seid, SGI_PORT_ID)) < 0) {
+						clLog(clSystemLog, eCLSeverityCritical,
+							LOG_FORMAT":Failed to add connection entry for S5S8\n",
+							LOG_VALUE);
+					}
+#endif /* USE_REST */
+				}
 
 				/* Update the Session state */
 				if (far->upd_frwdng_parms.outer_hdr_creation.teid != 0) {
 					(far_t->session)->sess_state = CONNECTED;
+					clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Session State Change to : "
+								"CONNECTED\n", LOG_VALUE);
 				}
 			}
-
 		}
 	}
 
@@ -1918,7 +2337,7 @@ fill_sess_mod_usage_report(pfcp_usage_rpt_sess_mod_rsp_ie_t *usage_report,
 	pfcp_set_ie_header(&(usage_report->urseqn.header), PFCP_IE_URSEQN,
 						(sizeof(pfcp_urseqn_ie_t) - sizeof(pfcp_ie_header_t)));
 	size += sizeof(pfcp_urseqn_ie_t);
-	usage_report->urseqn.urseqn = generate_seq_no_urr();
+	usage_report->urseqn.urseqn = urr->urr_seq_num++;
 
 	pfcp_set_ie_header(&(usage_report->usage_rpt_trig.header), PFCP_IE_USAGE_RPT_TRIG,
 						(sizeof(pfcp_usage_rpt_trig_ie_t) - sizeof(pfcp_ie_header_t)));
@@ -1988,11 +2407,12 @@ fill_sess_mod_usage_report(pfcp_usage_rpt_sess_mod_rsp_ie_t *usage_report,
 
 int8_t
 process_remove_pdr_sess(pfcp_remove_pdr_ie_t *remove_pdr, uint64_t up_seid,
-								pfcp_sess_mod_rsp_t *sess_mod_rsp, uint32_t peer_ip)
+								pfcp_sess_mod_rsp_t *sess_mod_rsp, peer_addr_t cp_ip)
 {
 	int ret = 0;
 	uint8_t uiFlag = 0;
 	pfcp_session_t *sess = NULL;
+	node_address_t peer_addr = {0};
 	struct sdf_pkt_filter pkt_filter = {0};
 
 	/* Get the session information from session table based on UP_SESSION_ID*/
@@ -2010,8 +2430,7 @@ process_remove_pdr_sess(pfcp_remove_pdr_ie_t *remove_pdr, uint64_t up_seid,
 		while (NULL != pdr) {
 			if (remove_pdr->pdr_id.rule_id == pdr->rule_id) {
 				pdr = get_pdr_info_entry(
-					remove_pdr->pdr_id.rule_id,
-					peer_ip, NULL,SESS_MODIFY);
+					remove_pdr->pdr_id.rule_id, NULL,SESS_MODIFY, cp_ip);
 				if (pdr == NULL)
 					return -1;
 				for(int itr = 0; itr < pdr->urr_count; itr++){
@@ -2030,6 +2449,7 @@ process_remove_pdr_sess(pfcp_remove_pdr_ie_t *remove_pdr, uint64_t up_seid,
 					if (pdr->pdi.sdf_filter[itr].fd) {
 						memcpy(&pkt_filter.u.rule_str, &pdr->pdi.sdf_filter[itr].flow_desc,
 										pdr->pdi.sdf_filter[itr].len_of_flow_desc);
+						pkt_filter.rule_ip_type = get_rule_ip_type(pkt_filter.u.rule_str);
 
 						if (!pdr->pdi.src_intfc.interface_value) {
 							/* swap the src and dst address for UL traffic.*/
@@ -2065,14 +2485,25 @@ process_remove_pdr_sess(pfcp_remove_pdr_ie_t *remove_pdr, uint64_t up_seid,
 						far->pdr_count--;
 					}else{
 #ifdef USE_REST
-						if (far->frwdng_parms.outer_hdr_creation.ipv4_address != 0)
-							dp_flush_session(
-								far->frwdng_parms.outer_hdr_creation.ipv4_address,
-								sess->up_seid);
+						memset(&peer_addr, 0, sizeof(node_address_t));
+						peer_addr.ip_type = far->frwdng_parms.outer_hdr_creation.ip_type;
+
+						if (far->frwdng_parms.outer_hdr_creation.ip_type == IPV4_TYPE) {
+							if (far->frwdng_parms.outer_hdr_creation.ipv4_address != 0) {
+								peer_addr.ipv4_addr = far->frwdng_parms.outer_hdr_creation.ipv4_address;
+								dp_flush_session(peer_addr, sess->up_seid);
+							}
+						} else if (far->frwdng_parms.outer_hdr_creation.ip_type == IPV6_TYPE) {
+							if (far->frwdng_parms.outer_hdr_creation.ipv6_address != NULL) {
+								memcpy(peer_addr.ipv6_addr,
+										far->frwdng_parms.outer_hdr_creation.ipv6_address, IPV6_ADDR_LEN);
+								dp_flush_session(peer_addr, sess->up_seid);
+							}
+						}
 #endif /* USE_REST */
 
 						/* Flush the far info from the hash table */
-						ret = del_far_info_entry(far->far_id_value, peer_ip);
+						ret = del_far_info_entry(far->far_id_value, cp_ip);
 						if (ret) {
 							clLog(clSystemLog, eCLSeverityDebug,
 								"DP:"LOG_FORMAT"Entry not found for FAR_ID:%u...\n",
@@ -2093,7 +2524,7 @@ process_remove_pdr_sess(pfcp_remove_pdr_ie_t *remove_pdr, uint64_t up_seid,
 					qer = pdr->quer;
 
 					/* Flush the QER info from the hash table */
-					ret = del_qer_info_entry(qer_id, peer_ip);
+					ret = del_qer_info_entry(qer_id, cp_ip);
 					if ( ret < 0) {
 						clLog(clSystemLog, eCLSeverityDebug,
 							LOG_FORMAT"Entry not found for QER_ID:%u...\n",
@@ -2117,7 +2548,7 @@ process_remove_pdr_sess(pfcp_remove_pdr_ie_t *remove_pdr, uint64_t up_seid,
 						urr = pdr->urr;
 
 						/* Flush the URR info from the hash table */
-						if (del_urr_info_entry(urr_id, peer_ip)) {
+						if (del_urr_info_entry(urr_id, cp_ip)) {
 							/* TODO : ERROR Handling */
 						}
 					}
@@ -2144,7 +2575,7 @@ process_remove_pdr_sess(pfcp_remove_pdr_ie_t *remove_pdr, uint64_t up_seid,
 				session->pdrs = remove_pdr_node(session->pdrs, pdr);
 
 				/* Flush the PDR info from the hash table */
-				ret = del_pdr_info_entry(pdr_id, peer_ip);
+				ret = del_pdr_info_entry(pdr_id, cp_ip);
 				if (ret) {
 					clLog(clSystemLog, eCLSeverityDebug,
 						LOG_FORMAT"Entry not found for PDR_ID:%u...\n",
@@ -2177,10 +2608,12 @@ process_remove_pdr_sess(pfcp_remove_pdr_ie_t *remove_pdr, uint64_t up_seid,
 
 int8_t
 process_up_session_modification_req(pfcp_sess_mod_req_t *sess_mod_req,
-					pfcp_sess_mod_rsp_t *sess_mod_rsp, uint32_t cp_ip)
+					pfcp_sess_mod_rsp_t *sess_mod_rsp)
 {
+	node_address_t cp_node_addr = {0};
 	pfcp_session_t *sess = NULL;
-	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"PFCP Session Modification Request :: START \n", LOG_VALUE);
+	clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"PFCP Session Modification Request :: START \n", LOG_VALUE);
 	/* Get the session information from session table based on UP_SESSION_ID*/
 	if (sess_mod_req->header.s) {
 		/* Check SEID is not ZERO */
@@ -2196,9 +2629,34 @@ process_up_session_modification_req(pfcp_sess_mod_req_t *sess_mod_req,
 		/* Free the downlink data rings */
 		//rte_free();
 
+		struct rte_ring *ring = NULL;
+		struct pfcp_session_datat_t *si = NULL;
+
+		si = sess->sessions;
+
+		while (si != NULL) {
+
+			/* Delete dl ring which created by default if present */
+			ring = si->dl_ring;
+			if (ring) {
+				if (rte_ring_dequeue(dl_ring_container, (void **)&ring) ==
+						ENOENT) {
+					clLog(clSystemLog, eCLSeverityCritical,
+							LOG_FORMAT"Can't put ring back, so free it\n", LOG_VALUE);
+					rte_ring_free(ring);
+				}
+
+				rte_ring_free(si->dl_ring);
+				si->dl_ring = NULL;
+			}
+
+			si = si->next;
+		}
 	}
 
 	/* Scenario CP Changes it's SEID */
+	get_cp_node_addr(&cp_node_addr, &sess_mod_req->cp_fseid);
+
 	if (sess->cp_seid != sess_mod_req->cp_fseid.seid) {
 		clLog(clSystemLog, eCLSeverityDebug,
 			LOG_FORMAT"CP Session IP Changed CP_Old_Seid: %lu, CP_New_Seid:%lu\n",
@@ -2224,7 +2682,7 @@ process_up_session_modification_req(pfcp_sess_mod_req_t *sess_mod_req,
 
 		/* Process the Create PDR info */
 		if (process_create_pdr_info(&sess_mod_req->create_pdr[itr],
-					&session, sess, cp_ip)) {
+					&session, sess)) {
 			return -1;
 		}
 
@@ -2234,7 +2692,7 @@ process_up_session_modification_req(pfcp_sess_mod_req_t *sess_mod_req,
 					sess_mod_req->create_far[itr1].far_id.far_id_value) {
 				/* Process the Create FAR info */
 				if (process_create_far_info(&sess_mod_req->create_far[itr1],
-						&session, sess->up_seid, sess, cp_ip)) {
+						&session, sess->up_seid, sess)) {
 					return -1;
 
 				}
@@ -2248,7 +2706,7 @@ process_up_session_modification_req(pfcp_sess_mod_req_t *sess_mod_req,
 						sess_mod_req->create_qer[itr3].qer_id.qer_id_value) {
 
 					if (process_create_qer_info(&sess_mod_req->create_qer[itr3],
-								&(session->pdrs[itr]).quer, &session, cp_ip)) {
+								&(session->pdrs[itr]).quer, &session, sess->cp_ip)) {
 						return -1;
 					}
 				}
@@ -2264,7 +2722,7 @@ process_up_session_modification_req(pfcp_sess_mod_req_t *sess_mod_req,
 					urr_info_t urr = {0};
 					/* Process the Create URR info */
 					if (process_create_urr_info(&sess_mod_req->create_urr[itr4],
-								&urr, sess->cp_seid, sess->up_seid, cp_ip)) {
+								&urr, sess->cp_seid, sess->up_seid, sess->cp_ip)) {
 						return -1;
 					}
 				}
@@ -2287,7 +2745,7 @@ process_up_session_modification_req(pfcp_sess_mod_req_t *sess_mod_req,
 	/* Process the Update FAR information */
 	for (int itr = 0; itr < sess_mod_req->update_far_count; itr++) {
 		if (process_update_far_info(&sess_mod_req->update_far[itr],
-					sess->up_seid, sess, cp_ip)) {
+					sess->up_seid, sess)) {
 			/* TODO: Error Handling */
 			return -1;
 		}
@@ -2295,7 +2753,7 @@ process_up_session_modification_req(pfcp_sess_mod_req_t *sess_mod_req,
 
 	for(int itr = 0; itr < sess_mod_req->update_pdr_count; itr++ ){
 		/* Process the Update PDR info */
-		if(process_update_pdr_info(&sess_mod_req->update_pdr[itr], sess, cp_ip)){
+		if(process_update_pdr_info(&sess_mod_req->update_pdr[itr], sess)){
 				/* TODO: Error Handling */
 		}
 	}
@@ -2303,7 +2761,7 @@ process_up_session_modification_req(pfcp_sess_mod_req_t *sess_mod_req,
 	/* Process the Remove PDR information */
 	for (int itr = 0; itr < sess_mod_req->remove_pdr_count; itr++) {
 		if (process_remove_pdr_sess(&sess_mod_req->remove_pdr[itr], sess->up_seid,
-																	sess_mod_rsp, cp_ip)) {
+																	sess_mod_rsp, sess->cp_ip)) {
 			/* TODO: Error Handling */
 			return -1;
 		}
@@ -2312,16 +2770,30 @@ process_up_session_modification_req(pfcp_sess_mod_req_t *sess_mod_req,
 #ifdef USE_CSID
 	fqcsid_t *tmp = NULL;
 	uint16_t tmp_csid = 0;
+	uint16_t old_csid = 0;
+	node_address_t old_node_addr = {0};
+	node_address_t node_addr = {0};
 
 	/* SGW FQ-CSID */
 	if (sess_mod_req->sgw_c_fqcsid.header.len) {
 		if (sess_mod_req->sgw_c_fqcsid.number_of_csids) {
 			/* Get the List of the Old CSID */
-			uint16_t old_csid = (sess->sgw_fqcsid)->local_csid[(sess->sgw_fqcsid)->num_csid - 1];
+			old_csid = (sess->sgw_fqcsid)->local_csid[(sess->sgw_fqcsid)->num_csid - 1];
+			memcpy(&old_node_addr,
+					&(sess->sgw_fqcsid)->node_addr, sizeof(node_address_t));
+
+			if (sess_mod_req->sgw_c_fqcsid.fqcsid_node_id_type == IPV4_GLOBAL_UNICAST) {
+				node_addr.ip_type = IPV4_TYPE;
+				memcpy(&node_addr.ipv4_addr,
+						sess_mod_req->sgw_c_fqcsid.node_address, IPV4_SIZE);
+			} else {
+				node_addr.ip_type = IPV6_TYPE;
+				memcpy(&node_addr.ipv6_addr,
+						&sess_mod_req->sgw_c_fqcsid.node_address, IPV6_SIZE);
+			}
 
 			/* Stored the SGW CSID by SGW Node address */
-			tmp = get_peer_addr_csids_entry(sess_mod_req->sgw_c_fqcsid.node_address,
-					ADD_NODE);
+			tmp = get_peer_addr_csids_entry(&node_addr, ADD_NODE);
 			if (tmp == NULL) {
 				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT" Failed to get "
 					"CSID entry by SGW-C while Processing UP Session "
@@ -2329,8 +2801,8 @@ process_up_session_modification_req(pfcp_sess_mod_req_t *sess_mod_req,
 					LOG_VALUE, strerror(errno));
 				return -1;
 			}
-			if (!tmp->node_addr) {
-				tmp->node_addr = sess_mod_req->sgw_c_fqcsid.node_address;
+			if (!(is_present(&tmp->node_addr))) {
+				memcpy(&tmp->node_addr, &node_addr, sizeof(node_address_t));
 			}
 
 			for(uint8_t itr = 0; itr < sess_mod_req->sgw_c_fqcsid.number_of_csids; itr++) {
@@ -2346,14 +2818,23 @@ process_up_session_modification_req(pfcp_sess_mod_req_t *sess_mod_req,
 						sess_mod_req->sgw_c_fqcsid.pdn_conn_set_ident[itr];
 				}
 			}
-
+			/* Remove old CSID */
+			for (uint8_t itr = 0; itr < tmp->num_csid; itr++) {
+				if (tmp->local_csid[itr] == old_csid) {
+					for (uint8_t pos = itr; pos  < tmp->num_csid; pos++) {
+						tmp->local_csid[pos] = tmp->local_csid[pos + 1];
+					}
+					tmp->num_csid--;
+				}
+			}
 			/* Remove the temp associated CSID Link with local CSID*/
 			csid_t *sgw_csid = NULL;
 			csid_key_t key_t = {0};
 			key_t.local_csid = old_csid;
-			key_t.node_addr = (sess->sgw_fqcsid)->node_addr;
+			memcpy(&key_t.node_addr,
+					&old_node_addr, sizeof(node_address_t));
 
-			sgw_csid = get_peer_csid_entry(&key_t, SX_PORT_ID);
+			sgw_csid = get_peer_csid_entry(&key_t, SX_PORT_ID, REMOVE_NODE);
 			if (sgw_csid == NULL) {
 				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT" Failed to get "
 					"CSID entry by SGW-C while Processing UP Session "
@@ -2374,7 +2855,8 @@ process_up_session_modification_req(pfcp_sess_mod_req_t *sess_mod_req,
 				(sess->sgw_fqcsid)->local_csid[(sess->sgw_fqcsid)->num_csid++] =
 					sess_mod_req->sgw_c_fqcsid.pdn_conn_set_ident[itr1];
 			}
-			(sess->sgw_fqcsid)->node_addr = sess_mod_req->sgw_c_fqcsid.node_address;
+			memcpy(&((sess->sgw_fqcsid)->node_addr),
+					&(node_addr), sizeof(node_address_t));
 
 			/* TODO: Need to think about this, this portion only has to hit in PGWU */
 			/* LINK SGW CSID with local CSID */
@@ -2382,12 +2864,45 @@ process_up_session_modification_req(pfcp_sess_mod_req_t *sess_mod_req,
 						sess->up_fqcsid, SX_PORT_ID) < 0) {
 				return -1;
 			}
+
+			link_dp_sess_with_peer_csid(sess->sgw_fqcsid, sess, SX_PORT_ID);
+
+			/* Remove the session link from old CSID */
+			sess_csid *tmp1 = NULL;
+			peer_csid_key_t key = {0};
+
+			key.iface = SX_PORT_ID;
+			key.peer_local_csid = old_csid;
+			memcpy(&key.peer_node_addr,
+					&old_node_addr, sizeof(node_address_t));
+
+			tmp1 = get_sess_peer_csid_entry(&key, REMOVE_NODE);
+
+			if (tmp1 != NULL) {
+				/* Remove node from csid linked list */
+				tmp1 = remove_sess_csid_data_node(tmp1, sess->up_seid);
+
+				int8_t ret = 0;
+				/* Update CSID Entry in table */
+				ret = rte_hash_add_key_data(seid_by_peer_csid_hash, &key, tmp1);
+				if (ret) {
+					clLog(clSystemLog, eCLSeverityCritical,
+							LOG_FORMAT"Failed to add Session IDs entry"
+							" for CSID = %u \n", LOG_VALUE, old_csid);
+					return -1;
+				}
+				if (tmp1 == NULL) {
+					/* Delete Local CSID entry */
+					del_sess_peer_csid_entry(&key);
+				}
+			}
 		}
 	}
 
 	/* PGW FQ-CSID */
 	if (sess_mod_req->pgw_c_fqcsid.header.len) {
 		if (sess_mod_req->pgw_c_fqcsid.number_of_csids) {
+
 			if (sess->pgw_fqcsid == NULL) {
 				/* PGWC FQ-CSID */
 				sess->pgw_fqcsid = rte_zmalloc_socket(NULL, sizeof(fqcsid_t),
@@ -2398,6 +2913,10 @@ process_up_session_modification_req(pfcp_sess_mod_req_t *sess_mod_req,
 							LOG_VALUE);
 					return -1;
 				}
+			} else {
+				old_csid = (sess->pgw_fqcsid)->local_csid[(sess->pgw_fqcsid)->num_csid - 1];
+				memcpy(&old_node_addr,
+						&(sess->pgw_fqcsid)->node_addr, sizeof(node_address_t));
 			}
 
 			/* Stored the PGWC CSID by PGW Node address */
@@ -2407,12 +2926,45 @@ process_up_session_modification_req(pfcp_sess_mod_req_t *sess_mod_req,
 				return -1;
 			}
 
-			/* Skip this step */
 			/* LINK SGW CSID with local CSID */
-			//if (link_peer_csid_with_local_csid(sess->sgw_fqcsid,
-			//			sess->up_fqcsid, SX_PORT_ID) < 0) {
-			//	return -1;
-			//}
+			if (link_peer_csid_with_local_csid(sess->pgw_fqcsid,
+						sess->up_fqcsid, SX_PORT_ID) < 0) {
+				return -1;
+			}
+
+			link_dp_sess_with_peer_csid(sess->pgw_fqcsid, sess, SX_PORT_ID);
+
+			if (old_csid != (sess->pgw_fqcsid)->local_csid[(sess->pgw_fqcsid)->num_csid -1]) {
+				/* Remove the session link from old CSID */
+				sess_csid *tmp1 = NULL;
+				peer_csid_key_t key = {0};
+
+				key.iface = SX_PORT_ID;
+				key.peer_local_csid = old_csid;
+				memcpy(&key.peer_node_addr,
+						&old_node_addr, sizeof(node_address_t));
+
+				tmp1 = get_sess_peer_csid_entry(&key, REMOVE_NODE);
+
+				if (tmp1 != NULL) {
+					/* Remove node from csid linked list */
+					tmp1 = remove_sess_csid_data_node(tmp1, sess->up_seid);
+
+					int8_t ret = 0;
+					/* Update CSID Entry in table */
+					ret = rte_hash_add_key_data(seid_by_peer_csid_hash, &key, tmp1);
+					if (ret) {
+						clLog(clSystemLog, eCLSeverityCritical,
+								LOG_FORMAT"Failed to add Session IDs entry"
+								" for CSID = %u \n", LOG_VALUE, old_csid);
+						return -1;
+					}
+					if (tmp1 == NULL) {
+						/* Delete Local CSID entry */
+						del_sess_peer_csid_entry(&key);
+					}
+				}
+			}
 		}
 	}
 
@@ -2422,7 +2974,7 @@ process_up_session_modification_req(pfcp_sess_mod_req_t *sess_mod_req,
 
 		int indx = 0;
 		/* Add the entry for peer nodes */
-		indx = fill_peer_node_info_t(sess, cp_ip);
+		indx = fill_peer_node_info_t(sess, &cp_node_addr);
 		if (indx < 0) {
 			clLog(clSystemLog, eCLSeverityCritical,
 					LOG_FORMAT"Failed to fill peer node info and assignment of the CSID Error: %s\n",
@@ -2514,7 +3066,8 @@ process_up_session_modification_req(pfcp_sess_mod_req_t *sess_mod_req,
 	/* Update the CP seid in the response packet */
 	sess_mod_rsp->header.seid_seqno.has_seid.seid = sess->cp_seid;
 
-	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"PFCP Session Modification Request :: END \n", LOG_VALUE);
+	clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"PFCP Session Modification Request :: END \n", LOG_VALUE);
 	return 0;
 }
 
@@ -2533,7 +3086,7 @@ fill_sess_rep_req_usage_report(pfcp_usage_rpt_sess_rpt_req_ie_t *usage_report,
 	pfcp_set_ie_header(&(usage_report->urseqn.header), PFCP_IE_URSEQN,
 						(sizeof(pfcp_urseqn_ie_t) - sizeof(pfcp_ie_header_t)));
 	size += sizeof(pfcp_urseqn_ie_t);
-	usage_report->urseqn.urseqn = generate_seq_no_urr();
+	usage_report->urseqn.urseqn = urr->urr_seq_num++;
 
 	pfcp_set_ie_header(&(usage_report->usage_rpt_trig.header), PFCP_IE_USAGE_RPT_TRIG,
 						(sizeof(pfcp_usage_rpt_trig_ie_t) - sizeof(pfcp_ie_header_t)));
@@ -2602,7 +3155,7 @@ fill_sess_del_usage_report(pfcp_usage_rpt_sess_del_rsp_ie_t *usage_report,
 	pfcp_set_ie_header(&(usage_report->urseqn.header), PFCP_IE_URSEQN,
 						(sizeof(pfcp_urseqn_ie_t) - sizeof(pfcp_ie_header_t)));
 	size += sizeof(pfcp_urseqn_ie_t);
-	usage_report->urseqn.urseqn = generate_seq_no_urr();
+	usage_report->urseqn.urseqn = urr->urr_seq_num++;
 
 	pfcp_set_ie_header(&(usage_report->usage_rpt_trig.header), PFCP_IE_USAGE_RPT_TRIG,
 						(sizeof(pfcp_usage_rpt_trig_ie_t) - sizeof(pfcp_ie_header_t)));
@@ -2676,17 +3229,26 @@ fill_sess_del_usage_report(pfcp_usage_rpt_sess_del_rsp_ie_t *usage_report,
 }
 
 int8_t
-up_delete_session_entry(pfcp_session_t *sess, pfcp_sess_del_rsp_t *sess_del_rsp, uint32_t cp_ip)
+up_delete_session_entry(pfcp_session_t *sess, pfcp_sess_del_rsp_t *sess_del_rsp)
 {
 	int ret = 0;
 	int8_t inx = 0;
-	uint32_t ue_ip[MAX_BEARERS] = {0};
+	node_address_t peer_addr = {0};
+	ue_ip_t ue_ip[MAX_BEARERS] = {0};
+
 	int cnt = 0;
 	uint32_t ue_ip_addr = 0;
+	uint8_t ue_ipv6_addr[IPV6_ADDRESS_LEN] = {0};
 	pfcp_usage_rpt_sess_del_rsp_ie_t usage_report[MAX_LIST_SIZE]= {0};
 
-	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT" CP_Sess_ID: %lu, UP_Sess_ID:%lu, CP_IP:%u\n",
-			LOG_VALUE, sess->cp_seid, sess->up_seid, cp_ip);
+	(sess->cp_ip.type == IPV6_TYPE)?
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT" CP_Sess_ID: %lu, UP_Sess_ID:%lu, CP_IPv6:"IPv6_FMT"\n",
+				LOG_VALUE, sess->cp_seid, sess->up_seid,
+				IPv6_PRINT(IPv6_CAST(sess->cp_ip.ipv6.sin6_addr.s6_addr))):
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT" CP_Sess_ID: %lu, UP_Sess_ID:%lu, CP_IPv4:"IPV4_ADDR"\n",
+				LOG_VALUE, sess->cp_seid, sess->up_seid,
+				IPV4_ADDR_HOST_FORMAT(sess->cp_ip.ipv4.sin_addr.s_addr));
+
 	/* Flush the Session data info from the hash tables based on teid*/
 	pfcp_session_datat_t *session = sess->sessions;
 
@@ -2738,16 +3300,25 @@ up_delete_session_entry(pfcp_session_t *sess, pfcp_sess_del_rsp_t *sess_del_rsp,
 		/* Cleanup PDRs info from the linked list */
 		pdr_info_t *pdr = session->pdrs;
 
-		if (ue_ip_addr == 0) {
-			 ue_ip_addr = session->ue_ip_addr;
+		if (ue_ip_addr == 0 && *ue_ipv6_addr == 0) {
+			if (session->ipv4) {
+				ue_ip_addr = session->ue_ip_addr;
+			}
+			if (session->ipv6) {
+				memcpy(ue_ipv6_addr, session->ue_ipv6_addr, IPV6_ADDRESS_LEN);
+			}
 		}
 
-		if (ue_ip_addr == 0) {
-			 if(session->next != NULL)
-			 ue_ip_addr = session->next->ue_ip_addr;
+		if (ue_ip_addr == 0 && *ue_ipv6_addr == 0) {
+			if(session->next != NULL) {
+				if (session->next->ipv4) {
+					ue_ip_addr = session->next->ue_ip_addr;
+				}
+				if (session->next->ipv6) {
+					memcpy(ue_ipv6_addr, session->next->ue_ipv6_addr, IPV6_ADDRESS_LEN);
+				}
+			}
 		}
-
-
 
 		while (pdr != NULL) {
 			for(int itr = 0; itr < pdr->urr_count; itr++){
@@ -2757,7 +3328,7 @@ up_delete_session_entry(pfcp_session_t *sess, pfcp_sess_del_rsp_t *sess_del_rsp,
 				} else {
 					fill_sess_del_usage_report(&usage_report[cnt], &pdr->urr[itr]);
 					store_cdr_for_restoration(&usage_report[cnt], sess->up_seid, 0,
-																	0, ue_ip_addr);
+																	0, ue_ip_addr, ue_ipv6_addr);
 					cnt++;
 				}
 			}
@@ -2765,14 +3336,24 @@ up_delete_session_entry(pfcp_session_t *sess, pfcp_sess_del_rsp_t *sess_del_rsp,
 			/* Cleanup the FAR information */
 			if (far != NULL) {
 #ifdef USE_REST
-				if (far->frwdng_parms.outer_hdr_creation.ipv4_address != 0) {
-					dp_flush_session(
-						htonl(far->frwdng_parms.outer_hdr_creation.ipv4_address),
-						sess->up_seid);
+				memset(&peer_addr, 0, sizeof(node_address_t));
+				peer_addr.ip_type = far->frwdng_parms.outer_hdr_creation.ip_type;
+				if (far->frwdng_parms.outer_hdr_creation.ip_type == IPV6_TYPE) {
+					if (far->frwdng_parms.outer_hdr_creation.ipv6_address != NULL) {
+						memcpy(peer_addr.ipv6_addr,
+								far->frwdng_parms.outer_hdr_creation.ipv6_address,
+								IPV6_ADDR_LEN);
+						dp_flush_session(peer_addr, sess->up_seid);
+					}
+				} else if (far->frwdng_parms.outer_hdr_creation.ip_type == IPV4_TYPE) {
+					if (far->frwdng_parms.outer_hdr_creation.ipv4_address != 0) {
+						peer_addr.ipv4_addr = far->frwdng_parms.outer_hdr_creation.ipv4_address;
+						dp_flush_session(peer_addr, sess->up_seid);
+					}
 				}
 #endif /* USE_REST */
 				/* Flush the far info from the hash table */
-				ret = del_far_info_entry(far->far_id_value, cp_ip);
+				ret = del_far_info_entry(far->far_id_value, sess->cp_ip);
 				if (ret) {
 					clLog(clSystemLog, eCLSeverityCritical, "DP:"LOG_FORMAT"Entry not found for FAR_ID:%u...\n",
 								LOG_VALUE, far->far_id_value);
@@ -2794,7 +3375,7 @@ up_delete_session_entry(pfcp_session_t *sess, pfcp_sess_del_rsp_t *sess_del_rsp,
 					qer = pdr->quer;
 
 					/* Flush the QER info from the hash table */
-					ret = del_qer_info_entry(qer_id, cp_ip);
+					ret = del_qer_info_entry(qer_id, sess->cp_ip);
 					if ( ret < 0) {
 						clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Entry not found for QER_ID:%u...\n",
 								LOG_VALUE, qer_id);
@@ -2803,7 +3384,6 @@ up_delete_session_entry(pfcp_session_t *sess, pfcp_sess_del_rsp_t *sess_del_rsp,
 					clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT": QER_ID:%u\n",
 					LOG_VALUE, qer_id);
 				}
-
 			}
 
 
@@ -2817,7 +3397,7 @@ up_delete_session_entry(pfcp_session_t *sess, pfcp_sess_del_rsp_t *sess_del_rsp,
 				urr = pdr->urr;
 
 				/* Flush the URR info from the hash table */
-				if (del_urr_info_entry(urr_id, cp_ip)) {
+				if (del_urr_info_entry(urr_id, sess->cp_ip)) {
 					/* TODO : ERROR Handling */
 				}
 			}
@@ -2831,7 +3411,7 @@ up_delete_session_entry(pfcp_session_t *sess, pfcp_sess_del_rsp_t *sess_del_rsp,
 			pdr = session->pdrs;
 
 			/* Flush the PDR info from the hash table */
-			ret = del_pdr_info_entry(pdr_id, cp_ip);
+			ret = del_pdr_info_entry(pdr_id, sess->cp_ip);
 			if (ret) {
 				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Entry not found for PDR_ID:%u...\n",
 					LOG_VALUE, pdr_id);
@@ -2840,8 +3420,11 @@ up_delete_session_entry(pfcp_session_t *sess, pfcp_sess_del_rsp_t *sess_del_rsp,
 			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT":PDR_ID:%u\n", LOG_VALUE, pdr_id);
 		}
 
-		if (session->ue_ip_addr != 0)
-			ue_ip[inx++] = session->ue_ip_addr;
+		if ((session->ipv4 != 0) || (session->ipv6 != 0)){
+			ue_ip[inx].ue_ipv4 = session->ue_ip_addr;
+			memcpy(ue_ip[inx].ue_ipv6, session->ue_ipv6_addr, IPV6_ADDRESS_LEN);
+			inx++;
+		}
 
 		/* Delete the Session data info node from the linked list */
 		sess->sessions = remove_sess_data_node(sess->sessions, session);
@@ -2853,16 +3436,32 @@ up_delete_session_entry(pfcp_session_t *sess, pfcp_sess_del_rsp_t *sess_del_rsp,
 
 	/* Flush the Session data info from the hash tables based on ue_ip */
 	for (int itr = 0; itr < inx; itr++) {
-		if(ue_ip[itr] == 0) {
-			continue;
-		}else if (del_sess_by_ueip_entry(ue_ip[itr]) < 0){
-			/* Session Entry is present. Delete Session Entry */
-				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Entry not found for UE_IP:"IPV4_ADDR"...\n",
-							LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ue_ip[inx]));
+		ue_ip_t ue_addr = {0};
+		if (ue_ip[inx].ue_ipv4) {
+			ue_addr.ue_ipv4 = ue_ip[inx].ue_ipv4;
+			if (del_sess_by_ueip_entry(ue_addr) < 0) {
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Entry not found for UE_IPv4 :"
+						""IPV4_ADDR"\n", LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ue_ip[itr].ue_ipv4));
 				return -1;
+			}
+			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT": UE_IPv4 :"IPV4_ADDR"\n",
+					LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ue_ip[itr].ue_ipv4));
 		}
-		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT": UE_IP:"IPV4_ADDR"\n",
-					LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ue_ip[itr]));
+
+		if (ue_ip[inx].ue_ipv6) {
+			memset(&ue_addr, 0, sizeof(ue_ip_t));
+			memcpy(ue_addr.ue_ipv6, ue_ip[itr].ue_ipv6, IPV6_ADDRESS_LEN);
+
+			char ipv6[IPV6_STR_LEN];
+			inet_ntop(AF_INET6, ue_ip[itr].ue_ipv6, ipv6, IPV6_STR_LEN);
+			if (del_sess_by_ueip_entry(ue_addr) < 0) {
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Entry not found for"
+					" IPv6 Addr: %s\n", LOG_VALUE, ipv6);
+				return -1;
+			}
+			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT": IPv6 Addr: %s\n",
+					LOG_VALUE, ipv6);
+		}
 	}
 
 	for (int itr1 = 0; itr1 < sess->ber_cnt; itr1++) {
@@ -2894,7 +3493,7 @@ up_delete_session_entry(pfcp_session_t *sess, pfcp_sess_del_rsp_t *sess_del_rsp,
 
 int8_t
 process_up_session_deletion_req(pfcp_sess_del_req_t *sess_del_req,
-				    pfcp_sess_del_rsp_t *sess_del_rsp, uint32_t cp_ip)
+				    pfcp_sess_del_rsp_t *sess_del_rsp)
 {
 	pfcp_session_t *sess = NULL;
 	memset(sess_del_rsp, 0, sizeof(pfcp_sess_del_rsp_t));
@@ -2910,7 +3509,7 @@ process_up_session_deletion_req(pfcp_sess_del_req_t *sess_del_req,
 	if (sess == NULL)
 		return -1;
 
-	if (up_delete_session_entry(sess, sess_del_rsp, cp_ip))
+	if (up_delete_session_entry(sess, sess_del_rsp))
 		return -1;
 
 	/* Update the CP seid in the response packet */
@@ -2944,7 +3543,7 @@ fill_timer_entry_usage_report(struct sockaddr_in *peer_addr, urr_info_t *urr, ui
 	peerEntry *timer_entry = NULL;
 	int ret = 0;
 
-	timer_entry = rte_zmalloc_socket(NULL, sizeof(peerData),
+	timer_entry = rte_zmalloc_socket(NULL, sizeof(peerEntry),
 			RTE_CACHE_LINE_SIZE, rte_socket_id());
 	if(timer_entry == NULL )
 	{
@@ -2952,7 +3551,8 @@ fill_timer_entry_usage_report(struct sockaddr_in *peer_addr, urr_info_t *urr, ui
 				"%s\n", LOG_VALUE, rte_strerror(rte_errno));
 		return NULL;
 	}
-	memset(timer_entry, 0, sizeof(peerData));
+
+
 
 	timer_entry->dstIP = peer_addr->sin_addr.s_addr;
 	timer_entry->cp_seid = cp_seid;
@@ -3158,7 +3758,7 @@ fill_li_update_duplicating_param(pfcp_update_far_ie_t *far, far_info_t *far_t, p
 
 int32_t
 process_event_li(pfcp_session_t *sess, uint8_t *buf_rx, int buf_rx_size,
-	uint8_t *buf_tx, int buf_tx_size, uint32_t srcip, uint16_t srcport) {
+	uint8_t *buf_tx, int buf_tx_size, peer_addr_t *peer_addr) {
 
 	int ret = 0;
 	int pkt_length = 0;
@@ -3195,8 +3795,17 @@ process_event_li(pfcp_session_t *sess, uint8_t *buf_rx, int buf_rx_size,
 			memcpy(pkt, buf_rx, pkt_length);
 
 			create_li_header(pkt, &pkt_length, EVENT_BASED,
-				sess->li_sx_config[cnt].id, sess->imsi, srcip,
-				ntohl(dp_comm_ip.s_addr), ntohs(srcport), dp_comm_port,
+				sess->li_sx_config[cnt].id, sess->imsi,
+				fill_ip_info(peer_addr->type,
+						peer_addr->ipv4.sin_addr.s_addr,
+						peer_addr->ipv6.sin6_addr.s6_addr),
+				fill_ip_info(peer_addr->type,
+						dp_comm_ip.s_addr,
+						dp_comm_ipv6.s6_addr),
+				((peer_addr->type == IPTYPE_IPV4_LI) ?
+						ntohs(peer_addr->ipv4.sin_port) :
+						ntohs(peer_addr->ipv6.sin6_port)),
+				dp_comm_port,
 				sess->li_sx_config[cnt].forward);
 
 			ret = send_li_data_pkt(ddf2_fd, pkt, pkt_length);
@@ -3227,7 +3836,16 @@ process_event_li(pfcp_session_t *sess, uint8_t *buf_rx, int buf_rx_size,
 
 			create_li_header(pkt, &pkt_length, EVENT_BASED,
 				sess->li_sx_config[cnt].id, sess->imsi,
-				ntohl(dp_comm_ip.s_addr), srcip, dp_comm_port, ntohs(srcport),
+				fill_ip_info(peer_addr->type,
+						dp_comm_ip.s_addr,
+						dp_comm_ipv6.s6_addr),
+				fill_ip_info(peer_addr->type,
+						peer_addr->ipv4.sin_addr.s_addr,
+						peer_addr->ipv6.sin6_addr.s6_addr),
+				dp_comm_port,
+				((peer_addr->type == IPTYPE_IPV4_LI) ?
+						ntohs(peer_addr->ipv4.sin_port) :
+						ntohs(peer_addr->ipv6.sin6_port)),
 				sess->li_sx_config[cnt].forward);
 
 			ret = send_li_data_pkt(ddf2_fd, pkt, pkt_length);
@@ -3250,7 +3868,7 @@ void
 check_cause_id_pfd_mgmt(pfcp_pfd_contents_ie_t *pfd_content, uint8_t **cause_id, int **offend_id)
 {
 
-	if((pfd_content->pfd_contents_cp) && (pfd_content->len_of_cstm_pfd_cntnt)){
+	if((pfd_content->cp) && (pfd_content->len_of_cstm_pfd_cntnt)){
 		**cause_id = REQUESTACCEPTED;
 	} else {
 
@@ -3494,3 +4112,87 @@ process_up_pfd_mgmt_request(pfcp_pfd_mgmt_req_t *pfcp_pfd_mgmt_req,
 	return;
 }
 
+int8_t
+process_up_session_report_resp(pfcp_sess_rpt_rsp_t *sess_rep_resp)
+{
+	pfcp_session_t *sess = NULL;
+
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT
+			"PFCP Session Report Response :: START \n", LOG_VALUE);
+
+	/* Get the session information from session table based on UP_SESSION_ID */
+	if (sess_rep_resp->header.s) {
+		/* Check SEID is not ZERO */
+		sess = get_sess_info_entry(sess_rep_resp->header.seid_seqno.has_seid.seid,
+				SESS_MODIFY);
+	}
+
+	if (sess == NULL)
+		return -1;
+
+	/* pfcpsrrsp_flags: Dropped the bufferd packets  */
+	if (sess_rep_resp->sxsrrsp_flags.drobu) {
+		/* Free the downlink data rings */
+		//rte_free();
+
+	}
+
+	if (sess->bar.dl_buf_suggstd_pckts_cnt.pckt_cnt_val !=
+			sess_rep_resp->update_bar.dl_buf_suggstd_pckt_cnt.pckt_cnt_val) {
+
+		struct rte_ring *ring = NULL;
+		struct rte_ring *new_ring = NULL;
+		struct pfcp_session_datat_t *si = NULL;
+
+		si = sess->sessions;
+
+		while (si != NULL) {
+
+			/* Delete dl ring which created by default if present */
+			ring = si->dl_ring;
+			if (ring) {
+
+				unsigned int *ring_entry = NULL;
+				unsigned int count = rte_ring_count(ring);
+				struct rte_mbuf pkts[count];
+				new_ring = allocate_ring(
+						sess_rep_resp->update_bar.dl_buf_suggstd_pckt_cnt.pckt_cnt_val);
+
+				if (new_ring == NULL) {
+					clLog(clSystemLog, eCLSeverityCritical,
+							LOG_FORMAT"Not enough memory "
+							"to allocate new ring\n", LOG_VALUE);
+					return 0;
+				}
+				if(rte_ring_sc_dequeue_burst(ring, (void **)&pkts,
+							count, ring_entry) == -ENOENT) {
+
+					clLog(clSystemLog, eCLSeverityCritical,
+							LOG_FORMAT"Can't put ring back, so free it\n",
+							LOG_VALUE);
+					rte_ring_free(ring);
+				}
+				if(rte_ring_enqueue_burst(new_ring, (void **)&pkts,
+							count, ring_entry) == -ENOBUFS) {
+
+					clLog(clSystemLog, eCLSeverityCritical,
+							LOG_FORMAT"Can't put ring back, so free it\n", LOG_VALUE);
+					rte_ring_free(new_ring);
+				}
+				rte_ring_free(ring);
+				si->dl_ring = new_ring;
+			}
+
+			si = si->next;
+		}
+	}
+
+	sess->bar.bar_id = sess_rep_resp->update_bar.bar_id.bar_id_value;
+	sess->bar.dl_buf_suggstd_pckts_cnt.pckt_cnt_val =
+		sess_rep_resp->update_bar.dl_buf_suggstd_pckt_cnt.pckt_cnt_val;
+
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT": CP_Sess_ID: %lu, UP_Sess_ID:%lu\n",
+			LOG_VALUE, sess->cp_seid, sess->up_seid);
+
+	return 0;
+}

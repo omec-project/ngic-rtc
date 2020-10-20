@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,8 +24,9 @@
 #include "gtp_messages_decoder.h"
 #include "cp_config.h"
 
-pfcp_config_t pfcp_config;
+pfcp_config_t config;
 extern struct cp_stats_t cp_stats;
+extern int clSystemLog;
 
 uint32_t
 gx_pcnd_check(gx_msg *gx_rx, msg_info *msg)
@@ -33,10 +35,6 @@ gx_pcnd_check(gx_msg *gx_rx, msg_info *msg)
 	uint32_t call_id = 0;
 	gx_context_t *gx_context = NULL;
 	pdn_connection *pdn_cntxt = NULL;
-
-	struct sockaddr_in saddr_in;
-	saddr_in.sin_family = AF_INET;
-	inet_aton(CLI_GX_IP, &(saddr_in.sin_addr));
 
 	msg->msg_type = gx_rx->msg_type;
 
@@ -51,13 +49,13 @@ gx_pcnd_check(gx_msg *gx_rx, msg_info *msg)
 
 			switch(msg->gx_msg.cca.cc_request_type) {
 				case INITIAL_REQUEST:
-					update_cli_stats(saddr_in.sin_addr.s_addr, OSS_CCA_INITIAL, RCVD, GX);
+					update_cli_stats((peer_address_t *) &config.gx_ip, OSS_CCA_INITIAL, RCVD, GX);
 					break;
 				case UPDATE_REQUEST:
-					update_cli_stats(saddr_in.sin_addr.s_addr, OSS_CCA_UPDATE, RCVD, GX);
+					update_cli_stats((peer_address_t *) &config.gx_ip, OSS_CCA_UPDATE, RCVD, GX);
 					break;
 				case TERMINATION_REQUEST:
-					update_cli_stats(saddr_in.sin_addr.s_addr, OSS_CCA_TERMINATE, RCVD, GX);
+					update_cli_stats((peer_address_t *) &config.gx_ip, OSS_CCA_TERMINATE, RCVD, GX);
 					break;
 			}
 
@@ -117,8 +115,8 @@ gx_pcnd_check(gx_msg *gx_rx, msg_info *msg)
 
 			uint32_t call_id = 0;
 			uint32_t buflen ;
-			update_cli_stats(saddr_in.sin_addr.s_addr, OSS_RAR, RCVD, GX);
 
+			update_cli_stats((peer_address_t *) &config.gx_ip, OSS_RAR, RCVD, GX);
 
 			if (gx_rar_unpack((unsigned char *)gx_rx + GX_HEADER_LEN,
 						&msg->gx_msg.rar) <= 0) {
@@ -160,7 +158,11 @@ gx_pcnd_check(gx_msg *gx_rx, msg_info *msg)
 					sizeof(unsigned long));
 
 			pdn_cntxt->rqst_ptr = gx_context->rqst_ptr;
-			msg->cp_mode = pdn_cntxt->context->cp_mode;
+			if (pdn_cntxt->context)
+				msg->cp_mode = pdn_cntxt->context->cp_mode;
+			else
+				msg->cp_mode = gx_context->cp_mode;
+
 			/* Retrive the Session state and set the event */
 			msg->state = CONNECTED_STATE;
 			msg->event = RE_AUTH_REQ_RCVD_EVNT;

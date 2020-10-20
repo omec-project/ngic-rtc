@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,7 +28,8 @@
 
 #include "pfcp_set_ie.h"
 
-pfcp_config_t pfcp_config;
+extern pfcp_config_t config;
+extern int clSystemLog;
 
 const uint32_t base_urr_seq_no = 0x00000000;
 static uint32_t urr_seq_no_offset;
@@ -224,16 +226,29 @@ generate_cdr_info(cdr *fill_cdr)
 	int bearer_index = -1;
 	uint32_t seq_no_in_bearer = 0;
 	char apn_name[MAX_APN_LEN] = {0};
-	char sgw_addr_buff[CDR_BUFF_SIZE] = {0};
-	char upf_addr_buff[CDR_BUFF_SIZE] = {0};
-	char s11_addr_buff[CDR_BUFF_SIZE] = {0};
-	char s5s8c_sgw_addr_buff[CDR_BUFF_SIZE] = {0};
-	char s5s8c_pgw_addr_buff[CDR_BUFF_SIZE] = {0};
-	char s1u_addr_buff[CDR_BUFF_SIZE] = {0};
-	char s5s8u_sgw_addr_buff[CDR_BUFF_SIZE] = {0};
-	char s5s8u_pgw_addr_buff[CDR_BUFF_SIZE] = {0};
-	char s1u_enb_addr_buff[CDR_BUFF_SIZE] = {0};
-	char s11_mme_addr_buff[CDR_BUFF_SIZE] = {0};
+	char cp_redis_ip[CDR_BUFF_SIZE] = {0};
+	char cp_ip_v4[CDR_BUFF_SIZE] = "NA";
+	char cp_ip_v6[CDR_BUFF_SIZE] = "NA";
+	char upf_addr_buff_v4[CDR_BUFF_SIZE] = "NA";
+	char upf_addr_buff_v6[CDR_BUFF_SIZE] = "NA";
+	char s11_sgw_addr_buff_ipv4[CDR_BUFF_SIZE] = "NA";
+	char s11_sgw_addr_buff_ipv6[CDR_BUFF_SIZE] = "NA";
+	char s5s8c_sgw_addr_buff_ipv4[CDR_BUFF_SIZE] = "NA";
+	char s5s8c_sgw_addr_buff_ipv6[CDR_BUFF_SIZE] = "NA";
+	char s5s8c_pgw_addr_buff_ipv4[CDR_BUFF_SIZE] = "NA";
+	char s5s8c_pgw_addr_buff_ipv6[CDR_BUFF_SIZE] = "NA";
+	char s1u_addr_buff_v4[CDR_BUFF_SIZE] = "NA";
+	char s1u_addr_buff_v6[CDR_BUFF_SIZE] = "NA";
+	char s5s8u_sgw_addr_buff_v4[CDR_BUFF_SIZE] = "NA";
+	char s5s8u_sgw_addr_buff_v6[CDR_BUFF_SIZE] = "NA";
+	char s5s8u_pgw_addr_buff_v4[CDR_BUFF_SIZE] = "NA";
+	char s5s8u_pgw_addr_buff_v6[CDR_BUFF_SIZE] = "NA";
+	char s1u_enb_addr_buff_v4[CDR_BUFF_SIZE] = "NA";
+	char s1u_enb_addr_buff_v6[CDR_BUFF_SIZE] = "NA";
+	char s11_mme_addr_buff_v4[CDR_BUFF_SIZE] = "NA";
+	char s11_mme_addr_buff_v6[CDR_BUFF_SIZE] = "NA";
+	char ue_ip_addr_ipv4[CDR_BUFF_SIZE] = "NA";
+	char ue_ip_addr_ipv6[CDR_BUFF_SIZE] = "NA";
 	char mcc_buff[MCC_BUFF_SIZE] = {0};
 	char mnc_buff[MNC_BUFF_SIZE] = {0};
 	struct timeval unix_start_time = {0};
@@ -249,19 +264,12 @@ generate_cdr_info(cdr *fill_cdr)
 	char uli_buff[CDR_BUFF_SIZE] = {0};
 	uint8_t eps_bearer_id = 0;
 	eps_bearer *bearer = NULL;
-	uint32_t s5s8c_sgw_addr = 0;
-	uint32_t s5s8c_pgw_addr = 0;
-	uint32_t s5s8u_sgw_addr = 0;
-	uint32_t s5s8u_pgw_addr = 0;
-	uint32_t s11_sgw_addr = 0;
-	uint32_t s11_mme_addr = 0;
-	uint32_t s1u_sgw_addr = 0;
-	uint32_t s1u_enb_addr = 0;
+	char record_name[CDR_BUFF_SIZE] ={0};
 
 	memset(cdr_buff,0,CDR_BUFF_SIZE);
 
 	teid = UE_SESS_ID(fill_cdr->seid);
-	/*Can we pass context as an argument ?*/
+
 	ret = get_ue_context(teid, &context);
 	if(ret!=0) {
 		clLog(clSystemLog, eCLSeverityCritical,
@@ -288,6 +296,12 @@ generate_cdr_info(cdr *fill_cdr)
 		bearer_index = get_bearer_index_by_urr_id(fill_cdr->urr_id, pdn);
 	} else { /*case of secondary RAT*/
 		bearer_index = ebi_index;
+	}
+
+	if(bearer_index == -1 && context->piggyback == TRUE) {
+		clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"Handling Attach with DED FAILURE Case", LOG_VALUE);
+		return 0;
 	}
 
 	clLog(clSystemLog, eCLSeverityDebug,
@@ -320,7 +334,6 @@ generate_cdr_info(cdr *fill_cdr)
 		strncpy(rule_name, "NULL", strlen("NULL"));
 	}
 
-
 	seq_no_in_bearer = ++(bearer->cdr_seq_no);
 
 	fill_cdr->ul_mbr = bearer->qos.ul_mbr;
@@ -334,8 +347,15 @@ generate_cdr_info(cdr *fill_cdr)
 	 */
 	if (context->cp_mode == SGWC) {
 		fill_cdr->record_type = SGW_CDR;
+		strncpy(record_name, SGW_RECORD_TYPE, strlen(SGW_RECORD_TYPE));
 	} else {
 		fill_cdr->record_type = PGW_CDR;
+		strncpy(record_name, PGW_RECORD_TYPE, strlen(PGW_RECORD_TYPE));
+	}
+
+	if ((context->cp_mode == SGWC) && ((pdn->apn_in_use->apn_name_label) == NULL)) {
+
+		strncpy(record_name, FORWARD_GATEWAY_RECORD_TYPE, strlen(FORWARD_GATEWAY_RECORD_TYPE));
 	}
 
 	/*RAT type*/
@@ -351,61 +371,170 @@ generate_cdr_info(cdr *fill_cdr)
 
 	memcpy(&fill_cdr->imsi, &(context->imsi), context->imsi_len);
 	get_apn_name((pdn->apn_in_use)->apn_name_label, apn_name);
-	fill_cdr->ue_ip.s_addr = ntohl(pdn->ipv4.s_addr);
 
-	/* Fill the CP Redis interface IP */
-	fill_cdr->sgw_addr.s_addr = pfcp_config.cp_redis_ip.s_addr;
-	snprintf(sgw_addr_buff, CDR_BUFF_SIZE,"%s",
-			inet_ntoa(*((struct in_addr *)&fill_cdr->sgw_addr.s_addr)));
-	snprintf(upf_addr_buff, CDR_BUFF_SIZE,"%s",
-			inet_ntoa(*((struct in_addr *)&pdn->upf_ipv4.s_addr)));
+	/*UE IPv4*/
+	if ( pdn->pdn_type.ipv4 == PRESENT) {
+		snprintf(ue_ip_addr_ipv4, CDR_BUFF_SIZE, "%s",
+				inet_ntoa(*((struct in_addr *)&pdn->ipv4.s_addr)));
+	}
 
+	/*UE IPv6*/
+	if (pdn->pdn_type.ipv6 == PRESENT)
+		inet_ntop(AF_INET6, pdn->ipv6.s6_addr, ue_ip_addr_ipv6, CDR_BUFF_SIZE);
+
+	/*Control plane Mgmnt Ip address*/
+	if (config.pfcp_ip_type == IP_TYPE_V4 ||
+			config.pfcp_ip_type == IP_TYPE_V4V6) {
+		snprintf(cp_ip_v4, CDR_BUFF_SIZE,"%s",
+			inet_ntoa(*((struct in_addr *)&config.pfcp_ip.s_addr)));
+	}
+
+	if (config.pfcp_ip_type == IP_TYPE_V6 ||
+			config.pfcp_ip_type == IP_TYPE_V4V6) {
+		inet_ntop(AF_INET6, config.pfcp_ip_v6.s6_addr, cp_ip_v6, CDR_BUFF_SIZE);
+	}
+
+	snprintf(cp_redis_ip, CDR_BUFF_SIZE,"%s",
+			config.cp_redis_ip_buff);
+
+	/*Data plane IP address*/
+	if (pdn->upf_ip.ip_type == IP_TYPE_V4 ||
+			pdn->upf_ip.ip_type == IP_TYPE_V4V6) {
+		snprintf(upf_addr_buff_v4, CDR_BUFF_SIZE,"%s",
+				inet_ntoa(*((struct in_addr *)&pdn->upf_ip.ipv4_addr)));
+	}
+
+	if (pdn->upf_ip.ip_type == IP_TYPE_V6 ||
+			pdn->upf_ip.ip_type == IP_TYPE_V4V6) {
+		inet_ntop(AF_INET6, pdn->upf_ip.ipv6_addr, upf_addr_buff_v6, CDR_BUFF_SIZE);
+	}
 
 	if (context->cp_mode != PGWC) {
-		s11_sgw_addr = ntohl(context->s11_sgw_gtpc_ipv4.s_addr);
-		s1u_sgw_addr = ntohl(bearer->s1u_sgw_gtpu_ipv4.s_addr);
-		s11_mme_addr = ntohl(context->s11_mme_gtpc_ipv4.s_addr);
-		s1u_enb_addr = ntohl(bearer->s1u_enb_gtpu_ipv4.s_addr);
-		snprintf(s11_addr_buff, CDR_BUFF_SIZE,"%s",
-				inet_ntoa(*((struct in_addr *)&s11_sgw_addr)));
-		snprintf(s1u_addr_buff, CDR_BUFF_SIZE,"%s",
-				inet_ntoa(*((struct in_addr *)&s1u_sgw_addr)));
-		snprintf(s11_mme_addr_buff, CDR_BUFF_SIZE,"%s",
-				inet_ntoa(*((struct in_addr *)&s11_mme_addr)));
-		snprintf(s1u_enb_addr_buff, CDR_BUFF_SIZE,"%s",
-				inet_ntoa(*((struct in_addr *)&s1u_enb_addr)));
-	} else {
-		strncpy(s11_addr_buff, "NA", strlen("NA"));
-		strncpy(s1u_addr_buff, "NA", strlen("NA"));
-		strncpy(s11_mme_addr_buff, "NA", strlen("NA"));
-		strncpy(s1u_enb_addr_buff, "NA", strlen("NA"));
+
+		/*S11 SGW IP address*/
+		if (context->s11_sgw_gtpc_ip.ip_type == IP_TYPE_V4 ||
+				context->s11_sgw_gtpc_ip.ip_type == IP_TYPE_V4V6) {
+			snprintf(s11_sgw_addr_buff_ipv4, CDR_BUFF_SIZE,"%s",
+					inet_ntoa(*((struct in_addr *)&context->s11_sgw_gtpc_ip.ipv4_addr)));
+		}
+
+		if (context->s11_sgw_gtpc_ip.ip_type == IP_TYPE_V6 ||
+				context->s11_sgw_gtpc_ip.ip_type == IP_TYPE_V4V6) {
+			inet_ntop(AF_INET6, context->s11_sgw_gtpc_ip.ipv6_addr,
+					s11_sgw_addr_buff_ipv6, CDR_BUFF_SIZE);
+		}
+
+		/*S1U SGW IP address*/
+		if (bearer->s1u_sgw_gtpu_ip.ip_type == IP_TYPE_V4 ||
+				bearer->s1u_sgw_gtpu_ip.ip_type == IP_TYPE_V4V6) {
+			snprintf(s1u_addr_buff_v4, CDR_BUFF_SIZE,"%s",
+					inet_ntoa(*((struct in_addr *)&bearer->s1u_sgw_gtpu_ip.ipv4_addr)));
+		}
+
+		if (bearer->s1u_sgw_gtpu_ip.ip_type == IP_TYPE_V6 ||
+				bearer->s1u_sgw_gtpu_ip.ip_type == IP_TYPE_V4V6) {
+			inet_ntop(AF_INET6, bearer->s1u_sgw_gtpu_ip.ipv6_addr,
+					s1u_addr_buff_v6, CDR_BUFF_SIZE);
+		}
+
+		/*S11 MME IP address*/
+		if ( context->s11_mme_gtpc_ip.ip_type == IP_TYPE_V4 ||
+				context->s11_mme_gtpc_ip.ip_type == IP_TYPE_V4V6) {
+			snprintf(s11_mme_addr_buff_v4, CDR_BUFF_SIZE,"%s",
+					inet_ntoa(*((struct in_addr *)&context->s11_mme_gtpc_ip.ipv4_addr)));
+		}
+
+		if ( context->s11_mme_gtpc_ip.ip_type == IP_TYPE_V6 ||
+				context->s11_mme_gtpc_ip.ip_type == IP_TYPE_V4V6) {
+			inet_ntop(AF_INET6, context->s11_mme_gtpc_ip.ipv6_addr,
+					s11_mme_addr_buff_v6, CDR_BUFF_SIZE);
+		}
+
+		/*S1U eNb IP*/
+		if ( bearer->s1u_enb_gtpu_ip.ip_type == IP_TYPE_V4 ||
+				bearer->s1u_enb_gtpu_ip.ip_type == IP_TYPE_V4V6) {
+			snprintf(s1u_enb_addr_buff_v4, CDR_BUFF_SIZE,"%s",
+					inet_ntoa(*((struct in_addr *)&bearer->s1u_enb_gtpu_ip.ipv4_addr)));
+		}
+
+		if ( bearer->s1u_enb_gtpu_ip.ip_type == IP_TYPE_V6 ||
+				bearer->s1u_enb_gtpu_ip.ip_type == IP_TYPE_V4V6) {
+			inet_ntop(AF_INET6, bearer->s1u_enb_gtpu_ip.ipv6_addr,
+					s1u_enb_addr_buff_v6, CDR_BUFF_SIZE);
+		}
 	}
 
 	if (context->cp_mode == SGWC) {
-		s5s8c_sgw_addr = ntohl(pdn->s5s8_sgw_gtpc_ipv4.s_addr);
-		s5s8u_sgw_addr = ntohl(bearer->s5s8_sgw_gtpu_ipv4.s_addr);
-		snprintf(s5s8c_sgw_addr_buff, CDR_BUFF_SIZE,"%s",
-				inet_ntoa(*((struct in_addr *)&s5s8c_sgw_addr)));
-		snprintf(s5s8u_sgw_addr_buff, CDR_BUFF_SIZE,"%s",
-				inet_ntoa(*((struct in_addr *)&s5s8u_sgw_addr)));
-		strncpy(s5s8c_pgw_addr_buff, "NA", strlen("NA"));
-		strncpy(s5s8u_pgw_addr_buff, "NA", strlen("NA"));
-	} else if (context->cp_mode == PGWC) {
-		s5s8c_sgw_addr = ntohl(pdn->s5s8_sgw_gtpc_ipv4.s_addr);
-		s5s8c_pgw_addr = ntohl(pdn->s5s8_pgw_gtpc_ipv4.s_addr);
-		s5s8u_pgw_addr = ntohl(bearer->s5s8_pgw_gtpu_ipv4.s_addr);
-		snprintf(s5s8c_pgw_addr_buff, CDR_BUFF_SIZE,"%s",
-				inet_ntoa(*((struct in_addr *)&s5s8c_pgw_addr)));
-		snprintf(s5s8u_pgw_addr_buff, CDR_BUFF_SIZE,"%s",
-				inet_ntoa(*((struct in_addr *)&s5s8u_pgw_addr)));
-		snprintf(s5s8c_sgw_addr_buff, CDR_BUFF_SIZE,"%s",
-				inet_ntoa(*((struct in_addr *)&s5s8c_sgw_addr)));
-		strncpy(s5s8u_sgw_addr_buff, "NA", strlen("NA"));
-	} else {
-		strncpy(s5s8c_sgw_addr_buff, "NA", strlen("NA"));
-		strncpy(s5s8c_pgw_addr_buff, "NA", strlen("NA"));
-		strncpy(s5s8u_sgw_addr_buff, "NA", strlen("NA"));
-		strncpy(s5s8u_pgw_addr_buff, "NA", strlen("NA"));
+
+		/*S5S8C SGW IP address*/
+		if ( pdn->s5s8_sgw_gtpc_ip.ip_type == IP_TYPE_V4 ||
+				pdn->s5s8_sgw_gtpc_ip.ip_type == IP_TYPE_V4V6) {
+			snprintf(s5s8c_sgw_addr_buff_ipv4, CDR_BUFF_SIZE,"%s",
+					inet_ntoa(*((struct in_addr *)&pdn->s5s8_sgw_gtpc_ip.ipv4_addr)));
+		}
+
+		if ( pdn->s5s8_sgw_gtpc_ip.ip_type == IP_TYPE_V6 ||
+				pdn->s5s8_sgw_gtpc_ip.ip_type == IP_TYPE_V4V6) {
+			inet_ntop(AF_INET6, pdn->s5s8_sgw_gtpc_ip.ipv6_addr,
+					s5s8c_sgw_addr_buff_ipv6, CDR_BUFF_SIZE);
+		}
+
+		/*S5S8 SGWU IP address */
+		if ( bearer->s5s8_sgw_gtpu_ip.ip_type == IP_TYPE_V4 ||
+				bearer->s5s8_sgw_gtpu_ip.ip_type == IP_TYPE_V4V6) {
+			snprintf(s5s8u_sgw_addr_buff_v4, CDR_BUFF_SIZE,"%s",
+					inet_ntoa(*((struct in_addr *)&bearer->s5s8_sgw_gtpu_ip.ipv4_addr)));
+		}
+
+		if ( bearer->s5s8_sgw_gtpu_ip.ip_type == IP_TYPE_V6 ||
+				bearer->s5s8_sgw_gtpu_ip.ip_type == IP_TYPE_V4V6) {
+			inet_ntop(AF_INET6, bearer->s5s8_sgw_gtpu_ip.ipv6_addr,
+					s5s8u_sgw_addr_buff_v6, CDR_BUFF_SIZE);
+		}
+
+	}
+
+	if (context->cp_mode == PGWC) {
+
+		/*S5S8 SGWC IP address*/
+		if ( pdn->s5s8_sgw_gtpc_ip.ip_type == IP_TYPE_V4 ||
+				pdn->s5s8_sgw_gtpc_ip.ip_type == IP_TYPE_V4V6) {
+			snprintf(s5s8c_sgw_addr_buff_ipv4, CDR_BUFF_SIZE,"%s",
+					inet_ntoa(*((struct in_addr *)&pdn->s5s8_sgw_gtpc_ip.ipv4_addr)));
+		}
+
+		if ( pdn->s5s8_sgw_gtpc_ip.ip_type == IP_TYPE_V6 ||
+				pdn->s5s8_sgw_gtpc_ip.ip_type == IP_TYPE_V4V6) {
+			inet_ntop(AF_INET6, pdn->s5s8_sgw_gtpc_ip.ipv6_addr,
+					s5s8c_sgw_addr_buff_ipv6, CDR_BUFF_SIZE);
+		}
+
+		/*S5S8 PGWC IP address*/
+		if (pdn->s5s8_pgw_gtpc_ip.ip_type == IP_TYPE_V4 ||
+				pdn->s5s8_pgw_gtpc_ip.ip_type == IP_TYPE_V4V6) {
+			snprintf(s5s8c_pgw_addr_buff_ipv4, CDR_BUFF_SIZE,"%s",
+					inet_ntoa(*((struct in_addr *)&pdn->s5s8_pgw_gtpc_ip.ipv4_addr)));
+		}
+
+		if (pdn->s5s8_pgw_gtpc_ip.ip_type == IP_TYPE_V6 ||
+				pdn->s5s8_pgw_gtpc_ip.ip_type == IP_TYPE_V4V6) {
+			inet_ntop(AF_INET6, pdn->s5s8_pgw_gtpc_ip.ipv6_addr,
+					s5s8c_pgw_addr_buff_ipv6, CDR_BUFF_SIZE);
+		}
+
+		/*S5S8 PGWU IP address*/
+		if (bearer->s5s8_pgw_gtpu_ip.ip_type == IP_TYPE_V4 ||
+				bearer->s5s8_pgw_gtpu_ip.ip_type == IP_TYPE_V4V6) {
+			snprintf(s5s8u_pgw_addr_buff_v4, CDR_BUFF_SIZE,"%s",
+					inet_ntoa(*((struct in_addr *)&bearer->s5s8_pgw_gtpu_ip.ipv4_addr)));
+		}
+
+		if (bearer->s5s8_pgw_gtpu_ip.ip_type == IP_TYPE_V6 ||
+				bearer->s5s8_pgw_gtpu_ip.ip_type == IP_TYPE_V4V6) {
+			inet_ntop(AF_INET6, bearer->s5s8_pgw_gtpu_ip.ipv6_addr,
+					s5s8u_pgw_addr_buff_v6, CDR_BUFF_SIZE);
+		}
+
 	}
 
 	snprintf(mcc_buff, MCC_BUFF_SIZE, "%d%d%d", context->serving_nw.mcc_digit_1,
@@ -431,13 +560,15 @@ generate_cdr_info(cdr *fill_cdr)
 	snprintf(data_end_time_buff, CDR_TIME_BUFF, "%lu", unix_data_end_time.tv_sec);
 
 	check_pdn_type(&pdn->pdn_type, buf_pdn);
+	fill_cdr->timestamp_value = context->mo_exception_data_counter.timestamp_value;
+	fill_cdr->counter_value = context->mo_exception_data_counter.counter_value;
 
 	fill_user_loc_info(&context->uli, uli_buff);
 
 	ret = snprintf(cdr_buff, CDR_BUFF_SIZE,
-			"%u,%d,%d,%d,""""%"PRIu64",%s,%lx%d,%lx,%lx,%s,%u,%s,%s,%u,%u,%u,%u,%lu,%lu,%lu,%lu,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%lu,%lu,%lu,%u,%s",
+			"%u,%s,%d,%d,""""%"PRIu64",%s,%lx%d,%lx,%lx,%s,%u,%s,%s,%u,%u,%u,%u,%lu,%lu,%lu,%lu,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%lu,%lu,%lu,%u,%s,%u,%u",
 								generate_cdr_seq_no(),
-								fill_cdr->record_type,
+								record_name,
 								fill_cdr->rat_type,
 								fill_cdr->selec_mode,
 								fill_cdr->imsi,
@@ -464,22 +595,35 @@ generate_cdr_info(cdr *fill_cdr)
 								data_end_time_buff,
 								mcc_buff,
 								mnc_buff,
-								inet_ntoa(*((struct in_addr *)&fill_cdr->ue_ip.s_addr)),
-								sgw_addr_buff,
-								upf_addr_buff,
-								s11_addr_buff,
-								s11_mme_addr_buff,
-								s5s8c_sgw_addr_buff,
-								s5s8c_pgw_addr_buff,
-								s1u_addr_buff,
-								s1u_enb_addr_buff,
-								s5s8u_sgw_addr_buff,
-								s5s8u_pgw_addr_buff,
+								ue_ip_addr_ipv4,
+								ue_ip_addr_ipv6,
+								cp_ip_v4,
+								cp_ip_v6,
+								upf_addr_buff_v4,
+								upf_addr_buff_v6,
+								s11_sgw_addr_buff_ipv4,
+								s11_sgw_addr_buff_ipv6,
+								s11_mme_addr_buff_v4,
+								s11_mme_addr_buff_v6,
+								s5s8c_sgw_addr_buff_ipv4,
+								s5s8c_sgw_addr_buff_ipv6,
+								s5s8c_pgw_addr_buff_ipv4,
+								s5s8c_pgw_addr_buff_ipv6,
+								s1u_addr_buff_v4,
+								s1u_addr_buff_v6,
+								s1u_enb_addr_buff_v4,
+								s1u_enb_addr_buff_v6,
+								s5s8u_sgw_addr_buff_v4,
+								s5s8u_sgw_addr_buff_v6,
+								s5s8u_pgw_addr_buff_v4,
+								s5s8u_pgw_addr_buff_v6,
 								fill_cdr->data_volume_uplink,
 								fill_cdr->data_volume_downlink,
 								fill_cdr->total_data_volume,
 								fill_cdr->duration_meas,
-								buf_pdn);
+								buf_pdn,
+								fill_cdr->timestamp_value,
+								fill_cdr->counter_value);
 
 	clLog(clSystemLog, eCLSeverityDebug,
 			"CDR : %s \n", cdr_buff);
@@ -492,7 +636,11 @@ generate_cdr_info(cdr *fill_cdr)
 	}
 
 	if (ctx!=NULL) {
-		redis_save_cdr(ctx,sgw_addr_buff,cdr_buff);
+
+		/*CP_REDIS_IP in cfg file parameter will be
+		 * used as a key to store CDR*/
+		redis_save_cdr(ctx, cp_redis_ip, cdr_buff);
+
 	} else {
 		clLog(clSystemLog, eCLSeverityDebug,
 				LOG_FORMAT"Failed to store generated CDR,"
@@ -604,7 +752,6 @@ urr_cause_code_to_str(pfcp_usage_rpt_trig_ie_t *usage_rpt_trig, char *buf)
 
 }
 
-
 void
 check_pdn_type(pdn_type_ie *pdn_type, char *buf)
 {
@@ -614,11 +761,13 @@ check_pdn_type(pdn_type_ie *pdn_type, char *buf)
 				"present\n", LOG_VALUE);
 			return;
 	}
-	if(pdn_type->ipv4 == 1) {
+
+	if ( pdn_type->ipv4 == PRESENT && pdn_type->ipv6 == PRESENT ) {
+		strncpy(buf, IPV4V6, CDR_PDN_BUFF);
+	} else if ( pdn_type->ipv4 == PRESENT ) {
 		strncpy(buf, IPV4, CDR_PDN_BUFF);
 		return;
-	}
-	if(pdn_type->ipv6 == 1) {
+	} else {
 		strncpy(buf, IPV6, CDR_PDN_BUFF);
 		return;
 	}
@@ -644,6 +793,7 @@ get_bearer_index_by_urr_id(uint32_t urr_id, pdn_connection *pdn)
 		return -1;
 	}
 
+
 	for ( int cnt = 0; cnt < MAX_BEARERS; cnt++ )
 	{
 		if (pdn->eps_bearers[cnt]!= NULL) {
@@ -656,6 +806,7 @@ get_bearer_index_by_urr_id(uint32_t urr_id, pdn_connection *pdn)
 			}
 		}
 	}
+
 
 	return -1;
 

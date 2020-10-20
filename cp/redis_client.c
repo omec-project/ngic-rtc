@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,11 +19,21 @@
 
 #include "redis_client.h"
 
+extern int clSystemLog;
 redisContext *ctx = NULL;
+redisSSLContext *ssl = NULL;
 
 redisContext* redis_connect(redis_config_t* cfg)
 {
 	redisContext *ctx = NULL;
+	redisSSLContextError ssl_error = 0;
+
+	if ( redisInitOpenSSL() != REDIS_OK ) {
+		clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Failed to initialize SSL connection "
+				"with redis server", LOG_VALUE);
+		return NULL;
+	}
 
 	if (cfg->type == REDIS_TCP) {
 		ctx = redisConnectWithTimeout(cfg->conf.tcp.host,
@@ -47,16 +58,24 @@ redisContext* redis_connect(redis_config_t* cfg)
 						 "redis context\n");
 			}
 			return NULL;
-		}
+		 }
 
-		if (redisSecureConnection(ctx, cfg->conf.tls.ca_cert_path,
-					cfg->conf.tls.cert_path,
-					cfg->conf.tls.key_path, "sgx") != REDIS_OK) {
-			clLog(clSystemLog, eCLSeverityCritical,
+		 ssl = redisCreateSSLContext(cfg->conf.tls.ca_cert_path, NULL,
+				 cfg->conf.tls.cert_path, cfg->conf.tls.key_path, NULL, &ssl_error);
+		 if (!ssl) {
+			 clLog(clSystemLog, eCLSeverityCritical,
+					 "Error: %s\n", redisSSLContextGetError(ssl_error));
+			 redisFree(ctx);
+			 return NULL;
+		 }
+
+		 if (redisInitiateSSLWithContext(ctx, ssl) != REDIS_OK) {
+			 clLog(clSystemLog, eCLSeverityCritical,
 					"Couldn't initialize SSL!\n");
 			clLog(clSystemLog, eCLSeverityCritical,
 					 "Error: %s\n", ctx->errstr);
 			redisFree(ctx);
+			redisFreeSSLContext(ssl);
 			return NULL;
 		}
 	} else {
@@ -74,6 +93,7 @@ redisContext* redis_connect(redis_config_t* cfg)
 		clLog(clSystemLog, eCLSeverityCritical,
 			"Connection error: %s\n", ctx->errstr);
 		redisFree(ctx);
+		redisFreeSSLContext(ssl);
 		return NULL;
 	}
 
@@ -90,5 +110,6 @@ int redis_save_cdr(redisContext* ctx, char *cp_ip, char* cdr)
 int redis_disconnect(redisContext* ctx)
 {
 	redisFree(ctx);
+	redisFreeSSLContext(ssl);
 	return 0;
 }

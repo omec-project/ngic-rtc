@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,33 +43,34 @@ struct rte_hash *ds_seq_key_with_teid;
  * processing function declarations.
  *
  */
-extern struct in_addr s11_mme_ip;
-extern struct sockaddr_in s11_mme_sockaddr;
+extern peer_addr_t s11_mme_sockaddr;
 
 extern in_port_t s11_port;
-extern struct sockaddr_in s11_sockaddr;
+extern peer_addr_t s11_sockaddr;
 
 extern struct in_addr s5s8_ip;
 extern in_port_t s5s8_port;
-extern struct sockaddr_in s5s8_sockaddr;
+extern peer_addr_t s5s8_sockaddr;
 
-extern struct sockaddr_in s5s8_recv_sockaddr;
+extern peer_addr_t s5s8_recv_sockaddr;
 
 extern in_port_t pfcp_port;
-extern struct sockaddr_in pfcp_sockaddr;
+extern peer_addr_t pfcp_sockaddr;
 
 extern in_port_t upf_pfcp_port;
-extern struct sockaddr_in upf_pfcp_sockaddr;
+extern peer_addr_t upf_pfcp_sockaddr;
 
 #define PFCP_BUFF_SIZE 1024
 #define PFCP_RX_BUFF_SIZE 2048
 #define ADD_RULE_TO_ALLOW  1
 #define ADD_RULE_TO_DENY   2
-#define DEFAULT_SDF_RULE  "permit out ip from 0.0.0.0/0 0-65535 to 0.0.0.0/0 0-65535"
+#define DEFAULT_SDF_RULE_IPV4  "permit out ip from 0.0.0.0/0 0-65535 to 0.0.0.0/0 0-65535"
+#define DEFAULT_SDF_RULE_IPV6  "permit out ip from f000:0:0:0:0:0:0:0/4 0-65535 to f000:0:0:0:0:0:0:0/4 0-65535"
 #define DEFAULT_FLOW_STATUS_FL_ENABLED  2
 #define DEFAULT_FLOW_STATUS_FL_DISABLED 3
 #define DEFAULT_PRECEDENCE  10
 #define DEFAULT_NUM_SDF_RULE 2
+#define DEFAULT_NUM_SDF_RULE_v4_v6  4
 #define DEFAULT_RULE_NAME "default_rule_name"
 
 /**
@@ -86,6 +88,7 @@ typedef struct bearer_identifier_t {
 	/* Bearer identifier */
 	uint8_t bearer_id;
 }bearer_id_t;
+
 
 /**
  * @brief : PFCP context information for PDR, QER, BAR and FAR.
@@ -207,12 +210,12 @@ pdr_t *get_pdr_entry(uint16_t rule_id);
  * @brief  : Update PDR entry.
  * @param  : bearer context to be updated
  * @param  : teid to be updated
- * @param  : ip addr to be updated
+ * @param  : node_address_t ; IP_address for updation
  * @param  : iface, interface type ACCESS or CORE
  * @return : Returns 0 on success , -1 otherwise
  */
 int
-update_pdr_teid(eps_bearer *bearer, uint32_t teid, uint32_t ip, uint8_t iface);
+update_pdr_teid(eps_bearer *bearer, uint32_t teid, node_address_t addr, uint8_t iface);
 
 /**
  * @brief  : Retrive QER entry.
@@ -325,14 +328,6 @@ uint32_t
 generate_call_id(void);
 
 /**
- * @brief  : Generate the Sequence
- * @param  : void
- * @return : Returns sequence number on success , 0 otherwise
- */
-uint32_t
-generate_rar_seq(void);
-
-/**
  * @brief  : Generates sequence numbers for sgwc generated
  *           gtpv2c messages for mme
  * @param  : void
@@ -366,6 +361,9 @@ generate_dp_sess_id(uint64_t cp_sess_id);
  */
 int8_t
 gen_sess_id_for_ccr(char *sess_id, uint32_t call_id);
+
+void store_presence_reporting_area_info(pdn_connection *pdn_cntxt,
+						GxPresenceReportingAreaInformation *pres_rprtng_area_info);
 
 /**
  * @brief  : Parse GX CCA message and fill ue context
@@ -451,13 +449,28 @@ compare_flow_description(dynamic_rule_t *old_dyn_rule, dynamic_rule_t *new_dyn_r
  * @brief  : to check whether bearer qos is changed or not
  * @param  : dyn_rule, old dynamic_rule
  * @param  : dyn_rule, new dynamic_rule
- * @return : Returns 0 if found changed, -1 otherwise
+ * @return : Returns 1 if found changed, 0 otherwise
  */
 int
 compare_bearer_qos(dynamic_rule_t *old_dyn_rule, dynamic_rule_t *new_dyn_rule);
 /**
+ * @brief  : to check whether bearer arp is changed or not
+ * @param  : dyn_rule, old dynamic_rule
+ * @param  : dyn_rule, new dynamic_rule
+ * @return : Returns 1 if found changed, 0 otherwise
+ */
+int
+compare_bearer_arp(dynamic_rule_t *old_dyn_rule, dynamic_rule_t *new_dyn_rule);
+/**
+ * @brief  : to change arp values for all the bearers
+ * @param  : pdn, pdn
+ * @param  : qos, Bearer Qos structure
+ * @return : nothing
+ */
+void
+change_arp_for_ded_bearer(pdn_connection *pdn, bearer_qos_ie *qos);
+/**
  * Add seg number on tied.
- *
  * @param teid_key : sequence number and proc as a key
  * @param teid_info : structure containing value of TEID and msg_type
  * return 0 or -1

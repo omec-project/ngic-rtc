@@ -1,0 +1,4 @@
+.idea/*
+c3pocli.egg-info/*
+c3pocli/__pycache__/*
+venv/*

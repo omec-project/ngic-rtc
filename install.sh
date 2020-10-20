@@ -16,7 +16,6 @@
 
 cd $(dirname ${BASH_SOURCE[0]})
 SERVICE=3
-SGX_SERVICE=0
 SERVICE_NAME="Collocated CP and DP"
 source ./services.cfg
 source ./git_url.cfg
@@ -36,8 +35,6 @@ FREEDIAMETER_DIR=$NGIC_DIR/$THIRD_PARTY_SW_PATH/
 HIREDIS_DIR=$NGIC_DIR/$THIRD_PARTY_SW_PATH/
 CP_NUMA_NODE=0
 DP_NUMA_NODE=0
-
-OSS_UTIL_DIR="oss_adapter/c3po_oss/"
 
 #
 # Sets QUIT variable so script will finish.
@@ -125,8 +122,16 @@ step_2()
 	FUNC[INDEX_CNT]="install_libs"
 	((INDEX_CNT++))
 
-        TEXT[INDEX_CNT]="Download and install oss-util for cli"
-        FUNC[INDEX_CNT]="install_oss_util"
+        TEXT[INDEX_CNT]="Download and install epc tools"
+        FUNC[INDEX_CNT]="install_epc_tools"
+	((INDEX_CNT++))
+
+	if [ "$SERVICE" -ne 2 ] ; then
+		TEXT[INDEX_CNT]="Download and install libpfcp and libgtpv2"
+	else
+		TEXT[INDEX_CNT]="Download and install libpfcp"
+	fi
+	FUNC[INDEX_CNT]="install_pfcp_and_gtpv2_library"
 	((INDEX_CNT++))
 
 	TEXT[INDEX_CNT]="Download DPDK zip"
@@ -142,11 +147,6 @@ step_2()
 		FUNC[INDEX_CNT]="download_hyperscan"
 		((INDEX_CNT++))
 
-		if [ "$SGX_SERVICE" -eq 1 ] ; then
-			TEXT[INDEX_CNT]="Download Intel(R) SGX SDK"
-			FUNC[INDEX_CNT]="download_linux_sgx"
-			((INDEX_CNT++))
-		fi
 	fi
 	if [ "$SERVICE" -ne 2 ] ; then
 		TEXT[INDEX_CNT]="Download FreeDiameter"
@@ -176,7 +176,16 @@ get_agreement_download()
 	echo "9.  curl"
 	echo "10. openssl-dev"
 	echo "11. freediameter"
-	echo "12. and other library dependencies"
+	echo "12. automake"
+	echo "13. cmake"
+	echo "14. libgcrypt-dev"
+	echo "15. flex"
+	echo "16. bison"
+	echo "17. gnutls-dev"
+	echo "18. libidn11-dev"
+	echo "19. libtool"
+	echo "20. libsctp-dev"
+	echo "21. and other library dependencies"
 	while true; do
 		read -p "We need download above mentioned package. Press (y/n) to continue? " yn
 		case $yn in
@@ -205,7 +214,8 @@ install_libs()
 	sudo apt-get update
 	sudo apt-get -y install curl build-essential linux-headers-$(uname -r) \
 		git unzip libpcap0.8-dev gcc libjson0-dev make libc6 libc6-dev \
-		g++-multilib libcurl4-openssl-dev libssl-dev python-pip
+		g++-multilib libcurl4-openssl-dev libssl-dev python-pip automake cmake \
+		libgcrypt-dev flex bison gnutls-dev libidn11-dev libtool libsctp-dev
 
 	touch .download
 }
@@ -291,19 +301,6 @@ install_dpdk()
 	popd
 }
 
-setup_dp_type()
-{
-	while true; do
-		read -p "Do you want data-plane with Intel(R) SGX based CDR? " yn
-		case $yn in
-			[Yy]* )	SGX_SERVICE=1; return;;
-			[Nn]* ) SGX_SERVICE=0; return;;
-			* ) "Please answer yes or no.";;
-		esac
-	done
-
-}
-
 configure_services()
 {
 	clear
@@ -328,7 +325,6 @@ configure_services()
 				return;;
 
 			[2])	echo "Data Plane Setting"
-				setup_dp_type
 				SERVICE=2
 				SERVICE_NAME="DP"
 				recom_memory=5120
@@ -342,7 +338,6 @@ configure_services()
 				SERVICE=3
 				SERVICE_NAME="Collocated CP and DP"
 				recom_memory=5120
-				setup_dp_type
 				setup_collocated_memory
 				setup_memory
 				setup_numa_node
@@ -426,7 +421,6 @@ setup_hugepages()
 	dp_pages=8
 	echo "SERVICE_NAME=\"$SERVICE_NAME\" " > ./services.cfg
 	echo "SERVICE=$SERVICE" >> ./services.cfg
-	echo "SGX_SERVICE=$SGX_SERVICE" >> ./services.cfg
 	echo "CP_NUMA_NODE=$CP_NUMA_NODE" >> ./services.cfg
 	echo "DP_NUMA_NODE=$DP_NUMA_NODE" >> ./services.cfg
 
@@ -553,16 +547,6 @@ download_hiredis()
 
 }
 
-download_linux_sgx()
-{
-	echo "Download Linux SGX SDK....."
-	git clone --branch $LINUX_SGX_SDK_BRANCH_TAG $LINUX_SGX_SDK
-	if [ $? -ne 0 ] ; then
-	                echo "Failed to clone Linux SGX SDK, please check the errors."
-	                return
-	fi
-}
-
 build_fd_lib()
 {
 	pushd $FREEDIAMETER_DIR/freediameter
@@ -596,7 +580,7 @@ build_fd_lib()
 build_hiredis()
 {
 	pushd $HIREDIS_DIR/hiredis
-	git checkout 8e0264cfd6889b73c241b60736fe96ba1322ee6e
+	git checkout $HIREDIS_COMMIT_ID
 	make clean
 	make USE_SSL=1
 	if [ $? -ne 0 ] ; then
@@ -634,40 +618,73 @@ build_gxapp()
 	popd
 }
 
-build_pfcp_lib()
-{
-	pushd $NGIC_DIR/libpfcp
-	make clean
-	make
-	if [ $? -ne 0 ] ; then
-		echo "Failed to build libpfcp, please check the errors."
-		return
-	fi
-	popd
-}
-
 step_3()
 {
         TITLE="Build NGIC"
         CONFIG_NUM=1
 		TEXT[1]="Build NGIC"
         FUNC[1]="build_ngic"
-        sed -i '/SGX_BUILD/d' setenv.sh
-		if [ "$SGX_SERVICE" -eq 1 ] ; then
-			echo "export SGX_BUILD=1" >> setenv.sh
-			TEXT[1]="Build NGIC With SGX"
-			FUNC[1]="build_ngic"
-		fi
 }
 
-install_oss_util()
+install_epc_tools()
 {
-   pushd $NGIC_DIR/$OSS_UTIL_DIR
-   git clone -b delivery_1.8 $OSS_UTIL_GIT_LINK
-   pushd oss-util
-   ./install.sh
-   popd
-   popd
+	mkdir -p third_party
+	pushd $NGIC_DIR/third_party
+
+	if [ ! -d "$NGIC_DIR/third_party/epctools/" ]; then
+		git clone $EPC_TOOLS_GIT_LINK epctools
+	else
+		pushd epctools/
+		git checkout master
+		git pull
+		popd
+	fi
+
+	pushd epctools
+	git checkout $EPC_TOOLS_COMMIT_ID
+	./configure
+	make; make install
+	popd
+	popd
+}
+
+install_pfcp_and_gtpv2_library()
+{
+	mkdir -p third_party
+	pushd $NGIC_DIR/third_party
+	if [ ! -d "$NGIC_DIR/third_party/libpfcp/" ]; then
+		git clone $LIBPFCP_GIT_LINK libpfcp
+	else
+		pushd libpfcp/
+		git checkout master
+		git pull
+		popd
+	fi
+
+	pushd libpfcp/
+	git checkout $LIBPFCP_COMMIT_ID
+	make clean
+	make
+	popd
+	popd
+	if [ $SERVICE == 1 ] || [ $SERVICE == 3 ] ; then
+		pushd $NGIC_DIR/third_party
+		if [ ! -d "$NGIC_DIR/third_party/libgtpv2c/" ]; then
+			git clone $LIBGTPV2_GIT_LINK libgtpv2c
+		else
+			pushd libgtpv2c/
+			git checkout master
+			git pull
+			popd
+		fi
+
+		pushd libgtpv2c/
+		git checkout $LIBGTPV2_COMMIT_ID
+		make clean
+		make
+		popd
+		popd
+	fi
 }
 
 build_fd_gxapp()
@@ -683,6 +700,9 @@ build_ngic()
 {
 	pushd $NGIC_DIR
 	source setenv.sh
+	pushd oss_adapter/libepcadapter
+	make
+	popd
 
 	echo ""
 	while true; do
@@ -694,9 +714,6 @@ build_ngic()
 		esac
 	done
 
-	echo "Building PFCP Libs ..."
-	build_pfcp_lib
-
 	if [ $SERVICE == 2 ] || [ $SERVICE == 3 ] ; then
 		make clean-lib
 		make clean-dp
@@ -706,15 +723,6 @@ build_ngic()
 		make -j 10 build-dp $DEBUG || { echo -e "\nDP: Make failed\n"; }
 	fi
 	if [ $SERVICE == 1 ] || [ $SERVICE == 3 ] ; then
-		echo "Building libgtpv2c..."
-		pushd $NGIC_DIR/libgtpv2c
-			make clean
-			make
-			if [ $? -ne 0 ] ; then
-				echo "Failed to build libgtpv2, please check the errors."
-				return
-			fi
-		popd
 
 		echo "Building FD and GxApp..."
 		build_fd_gxapp

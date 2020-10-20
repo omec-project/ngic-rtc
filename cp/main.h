@@ -29,9 +29,9 @@
 //#include "dp_ipc_api.h"
 
 #ifdef USE_REST
-#include "../restoration/restoration_timer.h"
+#include "ngic_timer.h"
 #endif /* use_rest */
-
+#include "pfcp_struct.h"
 /**
  * dataplane rte logs.
  */
@@ -143,7 +143,7 @@ void rest_thread_init(void);
  * @return : Returns nothing
  */
 uint8_t
-add_node_conn_entry(uint32_t dstIp, uint8_t portId, uint8_t cp_mode);
+add_node_conn_entry(node_address_t *dstIp, uint8_t portId, uint8_t cp_mode);
 
 /**
  * @brief  : Updates restart counter Value

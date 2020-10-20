@@ -18,6 +18,7 @@ cp/build/
 dp/build/
 dp/cdr
 oss_adapter/c3po_oss/oss-util
+oss_adapter/libepcadapter/build
 third_party
 *.a
 *.o

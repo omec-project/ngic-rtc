@@ -34,9 +34,30 @@
  */
 
 /**
+ * ipv4 version flag.
+ */
+#define VERSION_FLAG_CHECK	0xf0
+
+
+/**
+ * ipv4 version flag.
+ */
+#define IPv4_VERSION		0x40
+
+/**
+ * ipv6 version flag.
+ */
+#define IPv6_VERSION		0x60
+
+/**
  * ipv4 header size.
  */
 #define IPv4_HDR_SIZE		20
+
+/**
+ * ipv6 header size.
+ */
+#define IPv6_HDR_SIZE		40
 
 /**
  * udp header size.
@@ -59,6 +80,10 @@
  */
 #define UDP_PORT_GTPU		2152
 
+/**
+ * GTPU port
+ */
+#define GTP_HDR_SIZE		8
 /**
  * network order DNS src port for udp
  */
@@ -102,6 +127,17 @@ static inline struct udp_hdr *get_mtoudp(struct rte_mbuf *m)
 }
 
 /**
+ * @brief  : Function to return pointer to udp headers.
+ * @param  : m, mbuf pointer
+ * @return : Returns pointer to udp headers
+ */
+static inline struct udp_hdr *get_mtoudp_v6(struct rte_mbuf *m)
+{
+	return (struct udp_hdr *)(rte_pktmbuf_mtod(m, unsigned char *) +
+				    ETH_HDR_SIZE + IPv6_HDR_SIZE);
+}
+
+/**
  * @brief  : Function to construct udp header.
  * @param  : m, mbuf pointer
  * @param  : len, len of header
@@ -111,7 +147,7 @@ static inline struct udp_hdr *get_mtoudp(struct rte_mbuf *m)
  */
 void
 construct_udp_hdr(struct rte_mbuf *m, uint16_t len,
-		  uint16_t sport, uint16_t dport);
+		  uint16_t sport, uint16_t dport, uint8_t ip_type);
 
 
 #endif /*_UTIL_H_ */

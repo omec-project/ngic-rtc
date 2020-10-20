@@ -1,6 +1,7 @@
 
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +24,7 @@
 #include "cp_config.h"
 
 extern struct rte_hash *bearer_by_fteid_hash;
-
+extern int clSystemLog;
 #define SM_HASH_SIZE (1 << 18)
 
 char proc_name[PROC_NAME_LEN];
@@ -53,7 +54,12 @@ add_sess_entry(uint64_t sess_id, struct resp_info *resp)
 		tmp = rte_malloc_socket(NULL,
 						sizeof(struct resp_info),
 						RTE_CACHE_LINE_SIZE, rte_socket_id());
-
+		if (tmp == NULL) {
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to allocate "
+					"Memory, while adding session entry for SEID : 0x%x \n",
+					LOG_VALUE, sess_id);
+			return GTPV2C_CAUSE_SYSTEM_FAILURE;
+		}
 		/* Assign the resp entry to tmp */
 		memcpy(tmp, resp, sizeof(struct resp_info));
 
@@ -296,14 +302,33 @@ get_ue_context_while_error(uint32_t teid_key, ue_context **context)
 				"for teid: %x\n", LOG_VALUE, teid_key);
 			return -1;
 		}
-		if ((*context == NULL) && 
-			(((bearer != NULL) && (bearer->pdn != NULL)) 
+		if ((*context == NULL) &&
+			(((bearer != NULL) && (bearer->pdn != NULL))
 			&& ((bearer->pdn)->context != NULL))) {
 			*context = (bearer->pdn)->context;
 		} else {
 			return -1;
 		}
 	}
+	return 0;
+}
+
+int8_t get_sender_teid_context(uint32_t teid_key, ue_context **context)
+{
+
+	int ret = 0;
+	ret = rte_hash_lookup_data(ue_context_by_sender_teid_hash,
+					&teid_key, (void **)context);
+
+
+	if ( ret < 0 || *context == NULL) {
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to get UE"
+								" context for teid:%x...\n", LOG_VALUE, teid_key);
+		return -1;
+	}
+
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Teid %u\n",
+			LOG_VALUE, teid_key);
 	return 0;
 }
 
@@ -373,6 +398,9 @@ const char * get_proc_string(int value)
 		case SGW_RELOCATION_PROC:
 			strncpy(proc_name, "SGW_RELOCATION_PROC", PROC_NAME_LEN);
 			break;
+		case S1_HANDOVER_PROC:
+			strncpy(proc_name, "S1_HANDOVER_PROC", PROC_NAME_LEN);
+			break;
 		case CONN_SUSPEND_PROC:
 			strncpy(proc_name, "CONN_SUSPEND_PROC", PROC_NAME_LEN);
 			break;
@@ -400,8 +428,8 @@ const char * get_proc_string(int value)
 		case ATTACH_DEDICATED_PROC:
 			strncpy(proc_name, "ATTACH_DEDICATED_PROC", PROC_NAME_LEN);
 			 break;
-		case MODIFICATION_PROC:
-			 strncpy(proc_name, "MODIFICATION_PROC", PROC_NAME_LEN);
+		case MODIFY_ACCESS_BEARER_PROC:
+			 strncpy(proc_name, "MODIFY ACCESS Bearer Response", PROC_NAME_LEN);
 			 break;
 		case CHANGE_NOTIFICATION_PROC:
 			strncpy(proc_name, "CHANGE_NOTIFICATION_PROC", PROC_NAME_LEN);
@@ -411,6 +439,12 @@ const char * get_proc_string(int value)
 			break;
 		case UE_REQ_BER_RSRC_MOD_PROC:
 			strncpy(proc_name, "UE_REQ_BEARER_MOD_PROC", PROC_NAME_LEN);
+			break;
+		case CREATE_INDIRECT_TUNNEL_PROC:
+			strncpy(proc_name, "CREATE_INDIRECT_TUNNEL_PROC", PROC_NAME_LEN);
+			break;
+		case DELETE_INDIRECT_TUNNEL_PROC:
+			strncpy(proc_name, "DELETE_INDIRECT_TUNNEL_PROC", PROC_NAME_LEN);
 			break;
 		case END_PROC:
 			strncpy(proc_name, "END_PROC", PROC_NAME_LEN);
@@ -676,8 +710,17 @@ const char * get_event_string(int value)
 		case DEL_PDN_CONN_SET_RESP_RCVD_EVNT:
 			strncpy(event_name, "DEL_PDN_CONN_SET_RESP_RCVD_EVNT", EVNT_NAME_LEN);
 			break;
+		case CREATE_INDIR_DATA_FRWRD_TUN_REQ_RCVD_EVNT:
+			strncpy(event_name, "CREATE_INDIR_DATA_FRWRD_TUN_REQ_RCVD_EVNT", EVNT_NAME_LEN);
+			break;
+		case DELETE_INDIR_DATA_FRWD_TUN_REQ_RCVD_EVNT:
+			strncpy(event_name, "DELETE_INDIR_DATA_FRWD_TUN_REQ_RCVD_EVNT", EVNT_NAME_LEN);
+			break;
 		case END_EVNT:
 			strncpy(event_name, "END_EVNT", EVNT_NAME_LEN);
+			break;
+		case DDN_FAILURE_INDIC_EVNT:
+			strncpy(event_name, "DDN_FAILURE_INDIC_EVNT", EVNT_NAME_LEN);
 			break;
 		default:
 			strncpy(event_name, "UNDEFINED_EVNT", EVNT_NAME_LEN);
@@ -693,12 +736,20 @@ get_procedure(msg_info *msg)
 
 	switch(msg->msg_type) {
 		case GTP_CREATE_SESSION_REQ: {
-			if (1 == msg->gtpc_msg.csr.indctn_flgs.indication_oi) {
-				/*Set SGW Relocation Case */
+
+			if ((msg->gtpc_msg.csr.indctn_flgs.header.len != 0) &&
+					(1 == msg->gtpc_msg.csr.indctn_flgs.indication_oi)
+					&& (msg->gtpc_msg.csr.pgw_s5s8_addr_ctl_plane_or_pmip.teid_gre_key != 0)) {
+
 				proc = SGW_RELOCATION_PROC;
-			} else if (msg->gtpc_msg.csr.bearer_contexts_to_be_created[msg->eps_bearer_id].s5s8_u_pgw_fteid.header.len) {
-				/* S1 Based Handover */
-				proc = SERVICE_REQUEST_PROC;
+
+			} else if ((msg->gtpc_msg.csr.indctn_flgs.header.len != 0) &&
+					(0 == msg->gtpc_msg.csr.indctn_flgs.indication_oi &&
+					 0 == msg->gtpc_msg.csr.indctn_flgs.indication_daf)
+					&& (msg->gtpc_msg.csr.pgw_s5s8_addr_ctl_plane_or_pmip.teid_gre_key != 0)) {
+
+				proc = S1_HANDOVER_PROC;
+
 			} else {
 				proc = INITIAL_PDN_ATTACH_PROC;
 			}
@@ -720,6 +771,17 @@ get_procedure(msg_info *msg)
 	        proc = MODIFY_BEARER_PROCEDURE;
 			break;
 	     }
+
+		 case GTP_MODIFY_BEARER_RSP : {
+	        proc = MODIFY_BEARER_PROCEDURE;
+			break;
+	     }
+
+		case GTP_MODIFY_ACCESS_BEARER_REQ: {
+	        proc = MODIFY_ACCESS_BEARER_PROC;
+			break;
+
+		}
 
 		case GTP_DELETE_SESSION_REQ: {
 				proc = DETACH_PROC;
@@ -777,6 +839,11 @@ get_procedure(msg_info *msg)
 			break;
 		}
 
+		case GTP_MODIFY_BEARER_CMD: {
+			proc = HSS_INITIATED_SUB_QOS_MOD;
+			break;
+		}
+
 		case GTP_BEARER_RESOURCE_CMD : {
 			proc = UE_REQ_BER_RSRC_MOD_PROC;
 			break;
@@ -807,6 +874,19 @@ get_procedure(msg_info *msg)
 
 			break;
 		}
+		case GTP_CREATE_INDIRECT_DATA_FORWARDING_TUNNEL_REQ: {
+			proc = CREATE_INDIRECT_TUNNEL_PROC;
+			break;
+		}
+		case GTP_DELETE_INDIRECT_DATA_FORWARDING_TUNNEL_REQ: {
+			proc = DELETE_INDIRECT_TUNNEL_PROC;
+			break;
+		}
+		case GTP_DELETE_INDIRECT_DATA_FORWARDING_TUNNEL_RSP: {
+
+			proc = DELETE_INDIRECT_TUNNEL_PROC;
+			break;
+		}
 	}
 
 	return proc;
@@ -815,10 +895,14 @@ get_procedure(msg_info *msg)
 uint8_t
 get_csr_proc(create_sess_req_t *csr)
 {
-	if (1 == csr->indctn_flgs.indication_oi) {
+	if ((csr->indctn_flgs.header.len != 0)
+		&& (1 == csr->indctn_flgs.indication_oi)
+		&& (csr->pgw_s5s8_addr_ctl_plane_or_pmip.teid_gre_key != 0)) {
 		return SGW_RELOCATION_PROC;
-	} else if (csr->bearer_contexts_to_be_created[0].s5s8_u_pgw_fteid.header.len) {
-		return SERVICE_REQUEST_PROC;
+	} else if ((csr->indctn_flgs.header.len != 0)
+		&& (0 == csr->indctn_flgs.indication_oi && 0 == csr->indctn_flgs.indication_daf)
+		&& (csr->pgw_s5s8_addr_ctl_plane_or_pmip.teid_gre_key != 0)) {
+		return S1_HANDOVER_PROC;
 	} else {
 		return INITIAL_PDN_ATTACH_PROC;
 	}

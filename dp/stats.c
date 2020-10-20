@@ -43,7 +43,6 @@
 
 #include "stats.h"
 #include "up_main.h"
-#include "clogger.h"
 #include "commands.h"
 #include "interface.h"
 #include "gw_adapter.h"
@@ -84,6 +83,7 @@ struct dl_pkt_struct {
 struct ul_pkt_struct ul_param = { 0 };
 struct dl_pkt_struct dl_param = { 0 };
 uint8_t cnt = 0;
+extern int clSystemLog;
 #ifdef STATS
 
 void
@@ -260,7 +260,7 @@ static void timer_cb(__attribute__ ((unused))
 	}
 
 	/* CLI counter */
-	oss_reset_time++;
+	cli_node.cli_config.oss_reset_time++;
 
 }
 #endif

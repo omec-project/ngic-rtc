@@ -27,17 +27,22 @@
 #include "main.h"
 #include "ue.h"
 #include "teid.h"
-
+#include "gw_adapter.h"
 #ifdef USE_REST
-#include "../restoration/restoration_timer.h"
+#include "ngic_timer.h"
 #endif /* USE_REST */
 
 #if defined(CP_BUILD)
-#include "../libgtpv2c/include/gtp_messages.h"
+#include "gtp_messages.h"
 #endif
 
 #define SLEEP_TIME (100)
+#define UPD_PARAM_HEADER_SIZE (4)
 
+/* Define the Micros for hash table operations */
+#define ADD_ENTRY    0
+#define UPDATE_ENTRY 1
+#define DELETE_ENTRY 2
 #ifndef PERF_TEST
 /** Temp. work around for support debug log level into DP, DPDK version 16.11.4 */
 #if (RTE_VER_YEAR >= 16) && (RTE_VER_MONTH >= 11)
@@ -95,7 +100,8 @@ typedef long long int _timer_t;
 #define CAUSE_SOURCE_SET_TO_1  (1)
 #define CAUSE_SOURCE_SET_TO_0  (0)
 
-#define NUM_RESERVED_EBI_INDEX 5
+
+#define CANCEL_S1_HO_INDICATION 2
 
 #define __file__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 
@@ -130,6 +136,25 @@ enum cp_config {
 	SAEGWC = 03,
 };
 
+/*
+ * Define type of Control Plane (CP)
+ * IPv4 only
+ * IPv6 only
+ * IPv4v6 (priority based) - but GW will assign only one IP on basis of priority
+ * IPv4v6 (Dual Mode) - GW will assign both IPs to UE
+ */
+enum ip_type {
+	IP_V4 = 00,
+	IP_V6 = 01,
+	IPV4V6_PRIORITY = 02,
+	IPV4V6_DUAL = 03
+};
+
+enum ip_priority {
+	IP_V4_PRIORITY = 0,
+	IP_V6_PRIORITY = 1
+};
+
 enum charging_characteristics {
 	HOME = 03,
 	VISITING = 04,
@@ -140,6 +165,12 @@ enum cdr_config_values {
 	CDR_OFF = 00,
 	CDR_ON = 01,
 	SGW_CC_CHECK = 02,
+};
+
+enum ip_config_values {
+	IP_MODE = 01,
+	IP_TYPE = 03,
+	IP_PRIORITY = 01
 };
 
 #ifdef SYNC_STATS
@@ -193,13 +224,14 @@ extern pcap_dumper_t *pcap_dumper;
 extern pcap_t *pcap_reader;
 
 extern int s11_fd;
+extern int s11_fd_v6;
 extern int s11_pcap_fd;
 extern int s5s8_sgwc_fd;
 extern int s5s8_pgwc_fd;
 extern int pfcp_sgwc_fd ;
 extern struct cp_params cp_params;
-
 extern teid_info *upf_teid_info_head;
+extern cp_configuration_t cp_configuration;
 
 #if defined (SYNC_STATS) || defined (SDN_ODL_BUILD)
 extern uint64_t op_id;
@@ -212,7 +244,7 @@ extern uint64_t op_id;
  * @return : 0 - indicates success, failure otherwise
  */
 int
-ddn_by_session_id(uint64_t session_id);
+ddn_by_session_id(uint64_t session_id, pdr_ids *pfcp_pdr_id);
 
 /**
  * @brief  : initializes data plane by creating and adding default entries to
@@ -278,7 +310,17 @@ set_delete_bearer_command(del_bearer_cmd_t *del_bearer_cmd, pdn_connection *pdn,
 void
 set_bearer_resource_command(bearer_rsrc_cmd_t *bearer_rsrc_cmd, pdn_connection *pdn,
 								gtpv2c_header_t *gtpv2c_tx);
-
+/**
+ * @brief  : Fill modify bearer command to forward to PGWC
+ * @param  : mod_bearer_cmd_t, modify bearer cmd structure
+ * @param  : pdn, pdn connection of bearer
+ * @param  : gtpv2c_tx,transmission buffer
+ * @return : nothing
+ *
+ */
+void
+set_modify_bearer_command(mod_bearer_cmd_t *mod_bearer_cmd, pdn_connection *pdn,
+								gtpv2c_header_t *gtpv2c_tx);
 /**
  * @brief  : To Downlink data notification ack of user.
  * @param  : dp_id, table identifier.
@@ -293,7 +335,6 @@ send_ddn_ack(struct dp_id dp_id,
 #endif 	/* CP_BUILD */
 
 #ifdef SYNC_STATS
-/* ================================================================================= */
 /**
  * @file
  * This file contains function prototypes of cp request and response
@@ -349,7 +390,6 @@ export_stats_report(struct sync_stats stats_info);
 void
 close_stats(void);
 #endif   /* SYNC_STATS */
-/* ================================================================================= */
 
 /*PFCP Config file*/
 #define STATIC_CP_FILE "../config/cp.cfg"
@@ -370,7 +410,6 @@ close_stats(void);
 #define SGWU_PFCP_PORT   8805
 #define PGWU_PFCP_PORT   8805
 #define SAEGWU_PFCP_PORT   8805
-#define DDF_INTFC_LEN			64
 #define REDIS_CERT_PATH_LEN  256
 
 /**
@@ -392,7 +431,7 @@ typedef struct dns_config_t {
 	uint8_t freq_sec;
 	char filename[PATH_MAX];
 	uint8_t nameserver_cnt;
-	char nameserver_ip[MAX_NUM_NAMESERVER][INET_ADDRSTRLEN];
+	char nameserver_ip[MAX_NUM_NAMESERVER][IPV6_STR_LEN];
 } dns_config_t;
 
 /**
@@ -402,13 +441,7 @@ typedef struct pfcp_config_t {
 	/* CP Configuration : SGWC=01; PGWC=02; SAEGWC=03 */
 	uint8_t cp_type;
 
-	/* MME Params. */
-	uint16_t s11_mme_port;
-	struct in_addr s11_mme_ip;
-
-	/* DDF2 Interface Name */
-	char ddf2_intfc[DDF_INTFC_LEN];
-	struct in_addr dadmf_local_addr;
+	char dadmf_local_addr[IPV6_STR_LEN];
 
 	/* Control-Plane IPs and Ports Params. */
 	uint16_t s11_port;
@@ -419,22 +452,35 @@ typedef struct pfcp_config_t {
 	struct in_addr s11_ip;
 	struct in_addr s5s8_ip;
 	struct in_addr pfcp_ip;
-	struct in_addr dadmf_ip;
-	struct in_addr ddf2_ip;
+	char dadmf_ip[IPV6_STR_LEN];
+	char ddf2_ip[IPV6_STR_LEN];
+	char ddf2_local_ip[IPV6_STR_LEN];
+	struct in6_addr s11_ip_v6;
+	struct in6_addr s5s8_ip_v6;
+	struct in6_addr pfcp_ip_v6;
+
+	/*IP Type parameters for S11, S5S8,
+	 * PFCP Interfaces and redis connection*/
+	uint8_t s11_ip_type;
+	uint8_t s5s8_ip_type;
+	uint8_t pfcp_ip_type;
+	uint8_t upf_pfcp_ip_type;
+	uint8_t redis_server_ip_type;
+	uint8_t cp_redis_ip_type;
+	uint8_t cp_dns_ip_type;
 
 	/* User-Plane IPs and Ports Params. */
 	uint16_t upf_pfcp_port;
 	struct in_addr upf_pfcp_ip;
-	uint32_t upf_s5s8_ip;
-	uint32_t upf_s5s8_mask;
-	uint32_t upf_s5s8_net;
-	uint32_t upf_s5s8_bcast_addr;
+	struct in6_addr upf_pfcp_ip_v6;
 
 	/*Redis server config*/
 	uint16_t redis_port;
-	struct in_addr redis_ip;
-	struct in_addr cp_redis_ip;
 	char redis_cert_path[REDIS_CERT_PATH_LEN];
+
+	/*Store both ipv4 and ipv6 address*/
+	char redis_ip_buff[IPV6_STR_LEN];
+	char cp_redis_ip_buff[IPV6_STR_LEN];
 
 	/* RESTORATION PARAMETERS */
 	uint8_t transmit_cnt;
@@ -445,10 +491,18 @@ typedef struct pfcp_config_t {
 	uint8_t request_tries;
 	int request_timeout;    /* Request time out in milisecond */
 
-	uint8_t cp_logger;      /* logger parameter */
-
 	uint8_t use_dns;        /*enable or disable dns query*/
+	/* Store both ipv4 and ipv6 address*/
+	char cp_dns_ip_buff[IPV6_STR_LEN];
+
+	uint16_t cli_rest_port;
+	char cli_rest_ip_buff[IPV6_STR_LEN];
+
 	uint8_t use_gx;        /*enable or disable gx interface*/
+
+	uint8_t ip_allocation_mode;  /*static or dynamic mode for IP allocation*/
+	uint8_t ip_type_supported;   /*static or dynamic mode for IP allocation*/
+	uint8_t ip_type_priority;    /*IPv6 or IPv4 priority type */
 
 	/* APN */
 	uint32_t num_apn;
@@ -467,6 +521,8 @@ typedef struct pfcp_config_t {
 	/* IP_POOL_CONFIG Params */
 	struct in_addr ip_pool_ip;
 	struct in_addr ip_pool_mask;
+	struct in6_addr ipv6_network_id;
+	uint8_t ipv6_prefix_len;
 
 	/* CP CDR generation Parameter */
 	uint8_t generate_cdr;
@@ -476,8 +532,14 @@ typedef struct pfcp_config_t {
 	/* ADD_DEFAULT_RULE */
 	uint8_t add_default_rule;
 
-} pfcp_config_t;
+	/* Network Trigger Service Request Parameters */
+	uint16_t dl_buf_suggested_pkt_cnt;
+	uint16_t low_lvl_arp_priority;
 
+	/* gx pcrf server ip */
+	peer_addr_t gx_ip;
+
+} pfcp_config_t;
 
 /**
  * @brief  : Initialize pfcp interface details
@@ -543,30 +605,20 @@ fill_peer_node_info(pdn_connection *pdn, eps_bearer *bearer);
 /**
  * @brief  : Function to Fill the FQ-CSID values in session est request
  * @param  : pfcp_sess_estab_req_t, Session Est Req obj
- * @param  : ue_context, UE info
+ * @param  : pdn_connection, pdn connection info
  * @return : 0: Success, -1: otherwise
  */
 int8_t
-fill_fqcsid_sess_est_req(pfcp_sess_estab_req_t *pfcp_sess_est_req, ue_context *context);
+fill_fqcsid_sess_est_req(pfcp_sess_estab_req_t *pfcp_sess_est_req, pdn_connection *pdn);
 
 /**
  * @brief  : Function to Fill the FQ-CSID values in session modification request
  * @param  : pfcp_sess_mod_req_t
- * @param  : ue_context, UE info
+ * @param  : pdn_connection, pdn connection info
  * @return : 0: Success, -1: otherwise
  */
 int8_t
-fill_fqcsid_sess_mod_req(pfcp_sess_mod_req_t *pfcp_sess_mod_req, ue_context *context);
-
-/**
- * @brief  : Function to Cleanup Session information by local csid
- * @param  : node_addr, peer node IP Address
- * @param  : iface, interface info
- * @param  : cp_mode, control-plane type
- * @return : 0: Success, -1: otherwise
- */
-int8_t
-del_peer_node_sess(uint32_t node_addr, uint8_t iface, uint8_t cp_mode);
+fill_fqcsid_sess_mod_req(pfcp_sess_mod_req_t *pfcp_sess_mod_req, pdn_connection *pdn);
 
 /**
  * @brief  : Function to Cleanup Session information by local csid
@@ -575,7 +627,16 @@ del_peer_node_sess(uint32_t node_addr, uint8_t iface, uint8_t cp_mode);
  * @return : 0: Success, -1: otherwise
  */
 int8_t
-del_pfcp_peer_node_sess(uint32_t node_addr, uint8_t iface);
+del_peer_node_sess(node_address_t *node_addr, uint8_t iface);
+
+/**
+ * @brief  : Function to Cleanup Session information by local csid
+ * @param  : node_addr, peer node IP Address
+ * @param  : iface, interface info
+ * @return : 0: Success, -1: otherwise
+ */
+int8_t
+del_pfcp_peer_node_sess(node_address_t *node_addr, uint8_t iface);
 
 /**
  * @brief  : Function to fill fqcsid into gtpv2c messages
@@ -593,12 +654,11 @@ set_gtpc_fqcsid_t(gtp_fqcsid_ie_t *fqcsid,
  * @param  : gtpv2c_tx, message
  * @param  : s11_sgw, SGW S11 interface IP Address
  * @param  : s5s8_pgw, PGW S5S8 interface IP Address
- * @param  : cp_mode, Control-plane type
  * @return : 0: Success, -1: otherwise
  */
 int8_t
 fill_pgw_restart_notification(gtpv2c_header_t *gtpv2c_tx,
-		uint32_t s11_sgw, uint32_t s5s8_pgw, uint8_t cp_mode);
+		node_address_t *s11_sgw, node_address_t *s5s8_pgw);
 
 /**
  * @brief  : Function to link peer node csid with local csid
@@ -612,14 +672,10 @@ update_peer_csid_link(fqcsid_t *fqcsid, fqcsid_t *fqcsid_t);
 /**
  * @brief  : Function to process delete pdn connection set request
  * @param  : del_pdn_conn_set_req_t, request info
- * @param  : gtpv2c_header_t, gtpv2c buf for resp
- * @param  : node_addr_t, peer node info
- * @param  : intf, received message interface info
  * @return : 0: Success, -1: otherwise
  */
 int8_t
-process_del_pdn_conn_set_req_t(del_pdn_conn_set_req_t *del_pdn_req,
-		gtpv2c_header_t *gtpv2c_tx, node_addr_t *peer_dst_addr, uint8_t intfc);
+process_del_pdn_conn_set_req_t(del_pdn_conn_set_req_t *del_pdn_req);
 
 /**
  * @brief  : Function to process delete pdn connection set response
@@ -648,11 +704,10 @@ process_upd_pdn_conn_set_rsp_t(upd_pdn_conn_set_rsp_t *upd_pdn_rsp);
 /**
  * @brief  : Function to process pfcp session set deletion request
  * @param  : pfcp_sess_set_del_req_t, request info
- * @param  : gtpv2c_tx, fill request info to forward peer node
+ * @param  : peer_addr, upf node address
  * @return : 0: Success, -1: otherwise
  */
-int process_pfcp_sess_set_del_req_t(pfcp_sess_set_del_req_t *del_set_req,
-		gtpv2c_header_t *gtpv2c_tx);
+int process_pfcp_sess_set_del_req_t(pfcp_sess_set_del_req_t *del_set_req, peer_addr_t *peer_addr);
 
 /**
  * @brief  : Function to process pfcp session set deletion response
@@ -675,11 +730,11 @@ fill_gtpc_del_set_pdn_conn_rsp(gtpv2c_header_t *gtpv2c_tx, uint8_t seq_t,
 /**
  * @brief  : Function to cleanup sessions based on the local csids
  * @param  : local_csid
- * @param  : ue_context, UE info
+ * @param  : pdn_connection, pdn connection info
  * @return : 0: Success, -1: otherwise
  */
 int8_t
-cleanup_session_entries(uint16_t local_csid, ue_context *context);
+cleanup_session_entries(uint16_t local_csid, pdn_connection *pdn);
 
 /*
  * @brief  : Remove Temporary Local CSID linked with peer node CSID
@@ -695,20 +750,101 @@ remove_peer_temp_csid(fqcsid_t *peer_fqcsid, uint16_t tmp_csid, uint8_t iface);
  * @brief  : Remove Session entry linked with Local CSID .
  * @param  : seid, session id .
  * @param  : peer_fqcsid, st1ructure to store peer node fqcsid info.
- * @param  : context, Structure to store UE context,
+ * @param  : pdn_connection, pdn connection info
  * @return : Returns 0 in case of success ,-1 or cause value otherwise.
  */
 int
-cleanup_csid_entry(uint64_t seid, fqcsid_t *peer_fqcsid, ue_context *context);
+cleanup_csid_entry(uint64_t seid, fqcsid_t *peer_fqcsid, pdn_connection *pdn);
 
-/*
+/**
+ * @brief  : Match session CSID with Peer node CSID, if CSID match not found then add.
+ * @param  : fqcsid, structure to store received msg fqcsid.
+ * @param  : context_fqcsid, Structure to store session fqcsid.
+ * @return : Returns 0 in case of success ,-1 or cause value otherwise.
+ */
+int
+match_and_add_sess_fqcsid(gtp_fqcsid_ie_t *fqcsid, sess_fqcsid_t *context_fqcsid);
+
+/**
+ * @brief  : Add Peer node CSID.
+ * @param  : fqcsid, structure to store received msg fqcsid.
+ * @param  : context_fqcsid, Structure to store session fqcsid.
+ * @return : Returns 0 in case of success ,-1 or cause value otherwise.
+ */
+void
+add_sess_fqcsid(gtp_fqcsid_ie_t *fqcsid, sess_fqcsid_t *context_fqcsid);
+
+/**
  * @brief  : Update Peer node CSID.
  * @param  : pfcp_sess_mod_rsp_t, structure to store sess. mod. req.
- * @param  : context, Structure to store UE context,
+ * @param  : pdn_connection, pdn connection info
  * @return : Returns 0 in case of success ,-1 or cause value otherwise.
  */
 int
-update_peer_node_csid(pfcp_sess_mod_rsp_t  *pfcp_sess_mod_rsp, ue_context *context);
+update_peer_node_csid(pfcp_sess_mod_rsp_t  *pfcp_sess_mod_rsp, pdn_connection *pdn);
+
+/**
+ * @brief  : Link session with CSID.
+ * @param  : csid,
+ * @param  : pdn_connection, pdn connection info
+ * @return : Returns 0 in case of success, cause value otherwise.
+ */
+int
+link_sess_with_peer_csid(fqcsid_t *peer_csid, pdn_connection *pdn, uint8_t iface);
+
+/**
+ * @brief  : Delete Link session with CSID.
+ * @param  : pdn_connection, pdn connection info
+ * @return : Returns 0 in case of success, cause value otherwise.
+ */
+int
+del_session_csid_entry(pdn_connection *pdn);
+
+/**
+ * @brief  : Remove Link session from CSID hash.
+ * @param  : head, link list node.
+ * @param  : seid,
+ * @param  : csid,
+ * @return : Returns 0 in case of success, cause value otherwise.
+ */
+int
+remove_sess_entry(sess_csid *head, uint64_t seid, peer_csid_key_t *key);
+
+/**
+ * @brief  : Match session CSID with Peer node CSID, if CSID match not found then add.
+ * @param  : fqcsid, structure to store received msg fqcsid.
+ * @param  : context_fqcsid, Structure to store session fqcsid.
+ * @return : Returns 0 in case of success ,-1 or cause value otherwise.
+ */
+int
+match_and_add_pfcp_sess_fqcsid(pfcp_fqcsid_ie_t *fqcsid, sess_fqcsid_t *context_fqcsid);
+
+/**
+ * @brief  : Add Peer node CSID.
+ * @param  : fqcsid, structure to store received msg fqcsid.
+ * @param  : context_fqcsid, Structure to store session fqcsid.
+ * @return : Returns 0 in case of success ,-1 or cause value otherwise.
+ */
+void
+add_pfcp_sess_fqcsid(pfcp_fqcsid_ie_t *fqcsid, sess_fqcsid_t *context_fqcsid);
+
+/**
+ * @brief  : Remove CSID from UE context.
+ * @param  : cntx_fqcsid, Structure to store fqcsid.
+ * @param  : csid_t, Structure to store session fqcsid.
+ * @return : Returns void.
+ */
+void
+remove_csid_from_cntx(sess_fqcsid_t *cntx_fqcsid, fqcsid_t *csid_t);
+
+/**
+ * @brief  : fill pdn fqcsid from UE context fqcsid collection.
+ * @param  : pdn_fqcsid, Structure to store session fqcsid.
+ * @param  : cntx_fqcsid, Structure to store fqcsid.
+ * @return : Returns void.
+ */
+void
+fill_pdn_fqcsid_info(fqcsid_t *pdn_fqcsid, sess_fqcsid_t *cntx_fqcsid);
 #endif /* USE_CSID */
 
 /* SAEGWC --> PGWC demotion scenario, Cleanup the SGW related data structures */
@@ -737,7 +873,7 @@ cleanup_pgw_context(del_sess_req_t *ds_req, ue_context *context);
  * @return : Returns 0 in case of success ,-1 or cause value otherwise.
  */
 int8_t
-dump_predefined_rules_on_up(uint32_t upf_ip);
+dump_predefined_rules_on_up(node_address_t upf_ip);
 
 /*
  * @brief  : Convert Int value of charging characteristic to string
@@ -746,4 +882,95 @@ dump_predefined_rules_on_up(uint32_t upf_ip);
  */
 const char *
 get_cc_string(uint16_t cc_value);
+
+/*
+ * @brief  : fills and sends pfcp session report response
+ * @param  : context, ue_context
+ * @param  : sequence , sequence number
+ * @param  : pdn, pdn_context
+ * @param  : dl_buf_sugg_pkt_cnt, DL Buffering Suggested Packet Count
+ * @param  : dldr_flag, represent whether ddn report response or cdr report response
+ * @return : Returns nothing.
+ */
+void
+fill_send_pfcp_sess_report_resp(ue_context *context, uint8_t sequence, pdn_connection *pdn,
+		uint16_t dl_buf_sugg_pkt_cnt, bool dldr_flag);
+/**
+ * @brief  : fill cp configuration
+ * @param  : cp configuration pointer
+ * @return : Returns status code
+ */
+int8_t fill_cp_configuration(cp_configuration_t *cp_configuration);
+
+/**
+ * @brief  : post request timeout
+ * @param  : request_timeout_value, Int
+ * @return : Returns status code
+ */
+int8_t	post_request_timeout(const int request_timeout_value);
+
+/**
+ * @brief  : post request timeout
+ * @param  : request_tries_value, Int
+ * @return : Returns status code
+ */
+int8_t	post_request_tries(const int request_tries_value);
+
+/**
+ * @brief  : post periodic timer
+ * @param  : periodic_timer_value, Int
+ * @return : Returns status code
+ */
+int8_t	post_periodic_timer(const int periodic_timer_value);
+
+/**
+ * @brief  : post transmit timer
+ * @param  : transmit_timer_value, Int
+ * @return : Returns status code
+ */
+int8_t	post_transmit_timer(const int transmit_timer_value);
+
+/**
+ * @brief  : post transmit count
+ * @param  : transmit_count, Int
+ * @return : Returns status code
+ */
+int8_t	post_transmit_count(const int transmit_count);
+
+/**
+ * @brief  : get request timeout
+ * @param  : void
+ * @return : Returns request timeout
+ */
+int	get_request_timeout(void);
+
+/**
+ * @brief  : get request tries
+ * @param  : void
+ * @return : Returns request tries value
+ */
+int	get_request_tries(void);
+
+/**
+ * @brief  : get periodic timer value
+ * @param  : void
+ * @return : Returns periodic timer value
+ */
+int	get_periodic_timer(void);
+
+/**
+ * @brief  : get transmit timer value
+ * @param  : void
+ * @return : Returns transmit timer value
+ */
+int	get_transmit_timer(void);
+
+/**
+ * @brief  : get transmit count value
+ * @param  : void
+ * @return : Returns transmit count value
+ */
+int	get_transmit_count(void);
+
 #endif
+

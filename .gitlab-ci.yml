@@ -1,7 +1,7 @@
 variables:
     LOCAL_ARTIFACT_DIR: "/home/gitlab-runner/artifacts/"
     GIT_IP: "10.155.205.206"
-    OSS_UTIL_BRANCH: "delivery_1.8"
+    OSS_UTIL_BRANCH: "delivery_1.9"
     FDM_BRANCH: "gx"
     FDM_GIT_URL: "https://github.com/omec-project/freediameter.git"
 
@@ -11,7 +11,7 @@ stages:
 build:
     stage: build
     only:
-        - delivery_1.8
+        - delivery_1.9
     before_script:
         - echo -e "*************************************\n\tNGIC Build Started\n*************************************"
     script:

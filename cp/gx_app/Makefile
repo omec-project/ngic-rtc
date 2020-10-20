@@ -1,5 +1,6 @@
 #
 # Copyright (c) 2019 Sprint
+# Copyright (c) 2020 T-Mobile
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -42,7 +43,9 @@ else
 	CFLAGS += -O3
 endif
 
-INCS := -I$(ROOT)/include -I$(ROOT)/../ -I$(ROOT)/../../pfcp_messages/
+CFLAGS += -I$(ROOT)/../
+CFLAGS += -I$(ROOT)/include
+CFLAGS += -I$(ROOT)/../../third_party/libgtpv2c/include
 LIB_PATH :=/usr/local/lib
 LIBS := -lfdproto -lfdcore
 
@@ -57,7 +60,7 @@ $(TARGET_DIR)/$(TARGET): $(OBJECTS)
 
 $(BUILDDIR)/%.o: $(SRCDIR)/%.$(SRCEXT)
 	@mkdir -p $(BUILDDIR)
-	@echo " $(CC) $(CFLAGS) $(INCS) -c -o $@ $<"; $(CC) $(CFLAGS) $(INCS) -c -o $@ $<
+	@echo " $(CC) $(CFLAGS) -c -o $@ $<"; $(CC) $(CFLAGS) -c -o $@ $<
 
 all:$(TARGET)
 

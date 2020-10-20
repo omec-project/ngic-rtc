@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +24,7 @@
 
 #include "up_main.h"
 #endif
-#include "clogger.h"
+#include "gw_adapter.h"
 
 /**
  * @brief  : Function to add a node in sess_csid Linked List.

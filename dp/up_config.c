@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +26,10 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <limits.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
+
 #include <rte_ethdev.h>
 #include <rte_kni.h>
 #include <rte_common.h>
@@ -35,19 +40,63 @@
 #include "gtpu.h"
 #include "up_main.h"
 #include "teid_upf.h"
+#include "pfcp_util.h"
 #include "pipeline/epc_packet_framework.h"
 #include "pfcp_up_sess.h"
+#include "gw_adapter.h"
 
 #define DECIMAL_BASE 10
+#define IPv4_ADDRESS_LEN  16
 #define TEIDRI_TIMEOUT_DEFAULT 600000
 #define TEIDRI_VALUE_DEFAULT 3
 #define STATIC_DP_FILE "../config/dp.cfg"
 #define ENTRY_NAME_SIZE 64
 
+#define IPv6_ADDRESS_LEN  16
+#define IPv6_PREFIX_LEN   1
+
 extern uint16_t dp_comm_port;
 extern struct in_addr dp_comm_ip;
+extern struct in6_addr dp_comm_ipv6;
+extern uint8_t dp_comm_ip_type;
 extern struct in_addr cp_comm_ip;
+extern struct in6_addr cp_comm_ip_v6;
+extern uint8_t cp_comm_ip_type;
 extern uint16_t cp_comm_port;
+
+static int
+get_ipv6_address(char *str, char **addr, uint8_t *net)
+{
+	char *addr_t = NULL;
+	char *net_t = NULL;
+
+	/* Check the pointer to string is not NULL */
+	if (str != NULL) {
+		/* Point to IPv6 Address */
+		addr_t = strtok(str, "/");
+		/* Point to Prefix Length */
+		net_t = strtok(NULL, "/");
+		if (net_t == NULL) {
+				fprintf(stderr, "ERROR: IPv6 Prefix Length is not Configured\n");
+				return -1;
+		}
+	} else {
+		return -1;
+	}
+
+	*addr = addr_t;
+	*net = atoi(net_t);
+	return 0;
+}
+
+int
+isIPv6Present(struct in6_addr *ipv6_addr)
+{
+	int ret = 0;
+	struct in6_addr tmp_addr = {0};
+	ret = memcmp(ipv6_addr, &tmp_addr, sizeof(struct in6_addr));
+	return ret;
+}
 
 int isMacPresent(struct ether_addr *hwaddr)
 {
@@ -55,7 +104,6 @@ int isMacPresent(struct ether_addr *hwaddr)
 	struct ether_addr tmp_hwaddr = {0};
 	ret = memcmp(hwaddr, &tmp_hwaddr, sizeof(struct ether_addr));
 	return ret;
-
 }
 
 /**
@@ -116,8 +164,9 @@ static int8_t
 validate_mandatory_params(struct app_params *app)
 {
 	/* Check WB_IP Address or Mask is configured or not */
-	if (!((app->wb_ip) && (app->wb_mask))) {
-		fprintf(stderr, "ERROR: West Bound(WB_IP or WB_MASK) intf IP Address"
+	if (!(((app->wb_ip) && (app->wb_mask))
+				|| (isIPv6Present(&app->wb_ipv6)))) {
+		fprintf(stderr, "ERROR: West Bound(WB_IP or WB_MASK) intf IPv4 and IPv6 Address"
 				" or intf Mask not configured.\n");
 		return -1;
 	}
@@ -133,17 +182,18 @@ validate_mandatory_params(struct app_params *app)
 	}
 
 	/* Check EB_IP Address is configured or not */
-	if (!((app->eb_ip) && (app->eb_mask))) {
-		fprintf(stderr, "ERROR: East Bound(EB_IP or EB_MASK) intf IP Address"
+	if (!(((app->eb_ip) && (app->eb_mask))
+				|| (isIPv6Present(&app->eb_ipv6)))) {
+		fprintf(stderr, "ERROR: East Bound(EB_IP or EB_MASK) intf IPv4 and IPv6 Address"
 				" or intf Mask not configured.\n");
 		return -1;
 	}
 
-	/* Check EB_LI_IP Address or intf MASK or intf Name is configured or not */
+	/* Check EB_LI_IPv4 Address or intf MASK or intf Name is configured or not */
 	if (app->eb_li_ip) {
 		if (!((app->eb_li_mask)
 					&& (strncmp("", (const char *)app->eb_li_iface_name, ENTRY_NAME_SIZE)))) {
-			fprintf(stderr, "ERROR: East Bound(EB_LI_MASK or EB_LI_IFACE)"
+			fprintf(stderr, "ERROR: East Bound(EB_LI_IPv4_MASK or EB_LI_IFACE)"
 					" intf MASK or intf Name not configured.\n");
 			return -1;
 		}
@@ -235,46 +285,175 @@ parse_up_config_param(struct app_params *app)
 		/* Select static user-plane mode from config file */
 		if(strncmp("DP_CFG", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
 
-		} else if(strncmp("WB_IP", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
+		} else if(strncmp("WB_IPv4", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
 			/* S1U/S5S8 IP Address */
 			struct in_addr tmp = {0};
 			if (!inet_aton(global_entries[inx].value, &(tmp))) {
-				fprintf(stderr, "Invalid West_Bound(S1U/S5S8) IP Address\n");
+				fprintf(stderr, "Invalid West_Bound(S1U/S5S8) IPv4 Address\n");
 				app->wb_ip = 0;
 				return -1;
 			}
 			app->wb_ip = ntohl(tmp.s_addr);
+			app->wb_ip_type.ipv4 = PRESENT;
 
-			fprintf(stderr, "DP: WB_IP(S1U/S5S8) Addr: "IPV4_ADDR"\n",
+			/* Set the IP Type to dual connectivity */
+			if (app->wb_ip_type.ipv4 && app->wb_ip_type.ipv6) {
+				app->wb_ip_type.ipv4_ipv6 = PRESENT;
+			}
+
+			fprintf(stderr, "DP: WB_IPv4(S1U/S5S8) Addr: "IPV4_ADDR"\n",
 				IPV4_ADDR_HOST_FORMAT(app->wb_ip));
 
-		} else if(strncmp("WB_LI_IP", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
+		} else if(strncmp("WB_IPv6", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
+			uint8_t net_t[IPv6_PREFIX_LEN] = {0};
+			char *addr_t[IPV6_STR_LEN] = {NULL};
+
+			/* Parse the IPv6 String and separate out address and prefix */
+			if (get_ipv6_address(global_entries[inx].value, addr_t, net_t) < 0) {
+				fprintf(stderr, "Invalid West_Bound(S1U/S5S8) IPv6 Address and Prefix Configuration.\n");
+				return -1;
+			}
+
+			/* S1U/S5S8 IPV6 Address */
+			if (!inet_pton(AF_INET6, *addr_t, &(app->wb_ipv6))) {
+				fprintf(stderr, "Invalid West_Bound(S1U/S5S8) IPv6 Address\n");
+				return -1;
+			}
+
+			/* Fill the prefix length */
+			memcpy(&app->wb_ipv6_prefix_len, net_t, IPv6_PREFIX_LEN);
+
+			app->wb_ip_type.ipv6 = PRESENT;
+			/* Set the IP Type to dual connectivity */
+			if (app->wb_ip_type.ipv4 && app->wb_ip_type.ipv6) {
+				app->wb_ip_type.ipv4_ipv6 = PRESENT;
+			}
+
+			fprintf(stderr, "DP: WB_IPv6(S1U/S5S8) Addr/Prefix: %s/%u\n",
+				global_entries[inx].value, app->wb_ipv6_prefix_len);
+
+		} else if(strncmp("WB_LI_IPv4", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
 			/* S5S8-P West_Bound Logical interface Address */
 			struct in_addr tmp = {0};
 			if (!inet_aton(global_entries[inx].value, &(tmp))) {
-				fprintf(stderr, "Invalid West_Bound(S5S8) Logical iface IP Address\n");
+				fprintf(stderr, "Invalid West_Bound(S5S8) Logical iface IPv4 Address\n");
 				app->wb_li_ip = 0;
 				return -1;
 			}
 			app->wb_li_ip = ntohl(tmp.s_addr);
 
-			fprintf(stderr, "DP: WB_LI_IP(West_Bound) Addr: "IPV4_ADDR"\n",
+			app->wb_li_ip_type.ipv4 = PRESENT;
+			/* Set the IP Type to dual connectivity */
+			if (app->wb_li_ip_type.ipv4 && app->wb_li_ip_type.ipv6) {
+				app->wb_li_ip_type.ipv4_ipv6 = PRESENT;
+			}
+
+			fprintf(stderr, "DP: WB_LI_IPv4(West_Bound) Addr: "IPV4_ADDR"\n",
 				IPV4_ADDR_HOST_FORMAT(app->wb_li_ip));
 
-		} else if(strncmp("EB_IP", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
+		} else if(strncmp("WB_LI_IPv6", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
+			uint8_t net_t[IPv6_PREFIX_LEN] = {0};
+			char *addr_t[IPV6_STR_LEN] = {NULL};
+
+			/* Parse the IPv6 String and separate out address and prefix */
+			if (get_ipv6_address(global_entries[inx].value, addr_t, net_t) < 0) {
+				fprintf(stderr, "Invalid West_Bound(S1U/S5S8) Logical intf IPv6 Address and Prefix Configuration.\n");
+				return -1;
+			}
+
+			/* S1U/S5S8 Logical IPV6 Address */
+			if (!inet_pton(AF_INET6, *addr_t, &(app->wb_li_ipv6))) {
+				fprintf(stderr, "Invalid West_LI_Bound(S1U/S5S8) Logical IPv6 Address\n");
+				return -1;
+			}
+
+			/* Fill the prefix length */
+			memcpy(&app->wb_li_ipv6_prefix_len, net_t, IPv6_PREFIX_LEN);
+
+			app->wb_li_ip_type.ipv6 = PRESENT;
+			/* Set the IP Type to dual connectivity */
+			if (app->wb_li_ip_type.ipv4 && app->wb_li_ip_type.ipv6) {
+				app->wb_li_ip_type.ipv4_ipv6 = PRESENT;
+			}
+
+			fprintf(stderr, "DP: WB_LI_IPv6(S1U/S5S8) Addr/Prefix: %s/%u\n",
+				global_entries[inx].value, app->wb_li_ipv6_prefix_len);
+
+		} else if(strncmp("EB_LI_IPv6", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
+			uint8_t net_t[IPv6_PREFIX_LEN] = {0};
+			char *addr_t[IPV6_STR_LEN] = {NULL};
+
+			/* Parse the IPv6 String and separate out address and prefix */
+			if (get_ipv6_address(global_entries[inx].value, addr_t, net_t) < 0) {
+				fprintf(stderr, "Invalid East_Bound(S5S8/SGI) Logical intf IPv6 Address and Prefix Configuration.\n");
+				return -1;
+			}
+
+			/* S1U/S5S8 Logical IPV6 Address */
+			if (!inet_pton(AF_INET6, *addr_t, &(app->eb_li_ipv6))) {
+				fprintf(stderr, "Invalid East_LI_Bound(S5S8/SGI) Logical IPv6 Address\n");
+				return -1;
+			}
+
+			/* Fill the prefix length */
+			memcpy(&app->eb_li_ipv6_prefix_len, net_t, IPv6_PREFIX_LEN);
+
+			app->eb_li_ip_type.ipv6 = PRESENT;
+			/* Set the IP Type to dual connectivity */
+			if (app->eb_li_ip_type.ipv4 && app->eb_li_ip_type.ipv6) {
+				app->eb_li_ip_type.ipv4_ipv6 = PRESENT;
+			}
+
+			fprintf(stderr, "DP: EB_LI_IPv6(S5S8/SGI) Addr/Prefix: %s/%u\n",
+				global_entries[inx].value, app->eb_li_ipv6_prefix_len);
+
+		} else if(strncmp("EB_IPv4", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
 			/* S5S8/SGI IP Address */
 			struct in_addr tmp = {0};
 			if (!inet_aton(global_entries[inx].value, &(tmp))) {
-				fprintf(stderr, "Invalid East_Bound(S5S8/SGI) IP Address\n");
+				fprintf(stderr, "Invalid East_Bound(S5S8/SGI) IPv4 Address\n");
 				app->eb_ip = 0;
 				return -1;
 			}
 			app->eb_ip = ntohl(tmp.s_addr);
+			app->eb_ip_type.ipv4 = PRESENT;
+			/* Set the IP Type to dual connectivity */
+			if (app->eb_ip_type.ipv4 && app->eb_ip_type.ipv6) {
+				app->eb_ip_type.ipv4_ipv6 = PRESENT;
+			}
 
-			fprintf(stderr, "DP: EB_IP(S5S8/SGI) Addr: "IPV4_ADDR"\n",
+			fprintf(stderr, "DP: EB_IPv4(S5S8/SGI) Addr: "IPV4_ADDR"\n",
 				IPV4_ADDR_HOST_FORMAT(app->eb_ip));
 
-		} else if(strncmp("EB_LI_IP", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
+		} else if(strncmp("EB_IPv6", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
+			uint8_t net_t[IPv6_PREFIX_LEN] = {0};
+			char *addr_t[IPV6_STR_LEN] = {NULL};
+
+			/* Parse the IPv6 String and separate out address and prefix */
+			if (get_ipv6_address(global_entries[inx].value, addr_t, net_t) < 0) {
+				fprintf(stderr, "Invalid East_Bound(S5S8/SGI) IPv6 Address and Prefix Configuration.\n");
+				return -1;
+			}
+
+			/* S5S8/SGI IPV6 Address */
+			if (!inet_pton(AF_INET6, *addr_t, &(app->eb_ipv6))) {
+				fprintf(stderr, "Invalid East_Bound(S5S8/SGI) IPv6 Address\n");
+				return -1;
+			}
+
+			/* Fill the prefix length */
+			memcpy(&app->eb_ipv6_prefix_len, net_t, IPv6_PREFIX_LEN);
+
+			app->eb_ip_type.ipv6 = PRESENT;
+			/* Set the IP Type to dual connectivity */
+			if (app->eb_ip_type.ipv4 && app->eb_ip_type.ipv6) {
+				app->eb_ip_type.ipv4_ipv6 = PRESENT;
+			}
+
+			fprintf(stderr, "DP: EB_IPv6(S5S8/SGI) Addr/Prefix: %s/%u\n",
+				global_entries[inx].value, app->eb_ipv6_prefix_len);
+
+		} else if(strncmp("EB_LI_IPv4", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
 			/* S5S8-S IP Address */
 			struct in_addr tmp = {0};
 			if (!inet_aton(global_entries[inx].value, &(tmp))) {
@@ -284,7 +463,13 @@ parse_up_config_param(struct app_params *app)
 			}
 			app->eb_li_ip = ntohl(tmp.s_addr);
 
-			fprintf(stderr, "DP: EB_LI_IP(S5S8) Addr: "IPV4_ADDR"\n",
+			app->eb_li_ip_type.ipv4 = PRESENT;
+			/* Set the IP Type to dual connectivity */
+			if (app->eb_li_ip_type.ipv4 && app->eb_li_ip_type.ipv6) {
+				app->eb_li_ip_type.ipv4_ipv6 = PRESENT;
+			}
+
+			fprintf(stderr, "DP: EB_LI_IPv4(S5S8) Addr: "IPV4_ADDR"\n",
 				IPV4_ADDR_HOST_FORMAT(app->eb_li_ip));
 
 		} else if(strncmp("WB_GW_IP", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
@@ -307,56 +492,70 @@ parse_up_config_param(struct app_params *app)
 				app->eb_gw_ip = 0;
 				return -1;
 			}
-			app->eb_gw_ip = ntohl(tmp.s_addr);
+			app->eb_gw_ip = tmp.s_addr;
 
 			fprintf(stderr, "DP: EB_GW_IP(S5S8/SGI) Addr: "IPV4_ADDR"\n",
 				IPV4_ADDR_HOST_FORMAT(app->eb_gw_ip));
-		} else if(strncmp("PFCP_IP", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
+		} else if(strncmp("PFCP_IPv4", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
 			/* Configured PFCP IP Address  */
 			if (!inet_aton(global_entries[inx].value, &(dp_comm_ip))) {
-				fprintf(stderr, "Invalid DP PFCP IP Address\n");
+				fprintf(stderr, "Invalid DP PFCP IPv4 Address\n");
 				dp_comm_ip.s_addr = 0;
 				return -1;
 			}
-			strncpy(CDR_FILE_PATH, inet_ntoa(dp_comm_ip), CDR_BUFF_SIZE);
+
+			strncpy(CDR_FILE_PATH, "logs/", CDR_BUFF_SIZE);
+			strncat(CDR_FILE_PATH, inet_ntoa(dp_comm_ip), CDR_BUFF_SIZE);
 			strncat(CDR_FILE_PATH, "_cdr.csv", strlen("_cdr.csv"));
 			fprintf(stderr, "DP: CDR_FILE_PATH: ngic_rtc/dp/%s\n", CDR_FILE_PATH);
-			dp_comm_ip.s_addr = ntohl(dp_comm_ip.s_addr);
+			dp_comm_ip.s_addr = dp_comm_ip.s_addr;
+			dp_comm_ip_type |= 1;
 
-			fprintf(stderr, "DP: PFCP_IP Addr: "IPV4_ADDR"\n",
-				IPV4_ADDR_HOST_FORMAT(dp_comm_ip.s_addr));
+			fprintf(stderr, "DP: PFCP_IPv4 Addr: "IPV4_ADDR"\n",
+				IPV4_ADDR_HOST_FORMAT(ntohl(dp_comm_ip.s_addr)));
+		} else if(strncmp("PFCP_IPv6", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
+			uint8_t net_t[IPv6_PREFIX_LEN] = {0};
+			char *addr_t[IPV6_STR_LEN] = {NULL};
+			char temp[CDR_BUFF_SIZE] = {0};
+
+			/* Parse the IPv6 String and separate out address and prefix */
+			if (get_ipv6_address(global_entries[inx].value, addr_t, net_t) < 0) {
+				fprintf(stderr, "Invalid DP PFCP_IPv6 Address and Prefix Configuration.\n");
+				return -1;
+			}
+			/* Configured PFCP IP Address  */
+			if (!inet_pton(AF_INET6, *addr_t, &(dp_comm_ipv6))) {
+				fprintf(stderr, "Invalid DP PFCP IPv6 Address\n");
+				return -1;
+			}
+
+			inet_ntop(AF_INET6, dp_comm_ipv6.s6_addr, temp, CDR_BUFF_SIZE);
+			strncat(temp, "_cdr.csv", strlen("_cdr.csv"));
+			strncpy(CDR_FILE_PATH, "logs/", CDR_BUFF_SIZE);
+			strncat(CDR_FILE_PATH, temp, CDR_BUFF_SIZE);
+			fprintf(stderr, "DP: CDR_FILE_PATH: ngic_rtc/dp/%s\n", CDR_FILE_PATH);
+			memcpy(&app->pfcp_ipv6_prefix_len, net_t, IPv6_PREFIX_LEN);
+			dp_comm_ip_type |= 2;
+
+			fprintf(stderr, "DP: PFCP_IPv6 Addr: %s/%u\n",
+				global_entries[inx].value, *net_t);
 		} else if(strncmp("PFCP_PORT", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
 			dp_comm_port = (uint16_t)atoi(global_entries[inx].value);
 
 			fprintf(stderr, "DP: PFCP PORT: %u\n", dp_comm_port);
-		} else if(strncmp("CP_PFCP_IP", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
-			/* Configured Control-plane PFCP IP for Routing */
-			if (!inet_aton(global_entries[inx].value, &(cp_comm_ip))) {
-				fprintf(stderr, "Invalid CP PFCP IP Address\n");
-				cp_comm_ip.s_addr = 0;
-				return -1;
-			}
-			cp_comm_ip.s_addr = ntohl(cp_comm_ip.s_addr);
-
-			fprintf(stderr, "DP: CP PFCP Addr: "IPV4_ADDR"\n",
-				IPV4_ADDR_HOST_FORMAT(cp_comm_ip.s_addr));
-		} else if(strncmp("CP_PFCP_PORT", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
-			cp_comm_port = (uint16_t)atoi(global_entries[inx].value);
-
-			fprintf(stderr, "DP: CP_PFCP_PORT: %u\n", cp_comm_port);
-		} else if(strncmp("WB_MASK", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
+		} else if(strncmp("WB_IPv4_MASK", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
 			/* S1U/S5S8 Subnet mask */
 			struct in_addr tmp = {0};
 			if(!inet_aton(global_entries[inx].value, &(tmp))) {
-				fprintf(stderr, "Invalid West_Bound(S1U/S5S8) Masks\n");
+				fprintf(stderr, "Invalid West_Bound(S1U/S5S8) IPv4 Subnet Masks\n");
 				app->wb_mask = 0;
 				return -1;
 			}
 			app->wb_mask = ntohl(tmp.s_addr);
 
-			fprintf(stderr, "DP: WB_MASK(S1U/S5S8): "IPV4_ADDR"\n",
+			fprintf(stderr, "DP: WB_IPv4_MASK(S1U/S5S8): "IPV4_ADDR"\n",
 				IPV4_ADDR_HOST_FORMAT(app->wb_mask));
-		} else if(strncmp("WB_LI_MASK", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
+		} else if(strncmp("WB_LI_IPv4_MASK", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
 			/* S5S8-P Subnet mask */
 			struct in_addr tmp = {0};
 			if(!inet_aton(global_entries[inx].value, &(tmp))) {
@@ -366,21 +565,21 @@ parse_up_config_param(struct app_params *app)
 			}
 			app->wb_li_mask = ntohl(tmp.s_addr);
 
-			fprintf(stderr, "DP: WB_LI_MASK(S5S8): "IPV4_ADDR"\n",
+			fprintf(stderr, "DP: WB_LI_IPv4_MASK(S5S8): "IPV4_ADDR"\n",
 				IPV4_ADDR_HOST_FORMAT(app->wb_li_mask));
-		} else if(strncmp("EB_MASK", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
+		} else if(strncmp("EB_IPv4_MASK", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
 			/* S5S8/SGI Subnet mask */
 			struct in_addr tmp = {0};
 			if(!inet_aton(global_entries[inx].value, &(tmp))) {
-				fprintf(stderr, "Invalid East_Bound(S5S8/SGI) Masks\n");
+				fprintf(stderr, "Invalid East_Bound(S5S8/SGI) IPv4 Subnet Masks\n");
 				app->eb_mask = 0;
 				return -1;
 			}
 			app->eb_mask = ntohl(tmp.s_addr);
 
-			fprintf(stderr, "DP: EB_MASK(S5S8/SGI): "IPV4_ADDR"\n",
+			fprintf(stderr, "DP: EB_IPv4_MASK(S5S8/SGI): "IPV4_ADDR"\n",
 				IPV4_ADDR_HOST_FORMAT(app->eb_mask));
-		} else if(strncmp("EB_LI_MASK", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
+		} else if(strncmp("EB_LI_IPv4_MASK", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
 			/* S5S8-S Subnet mask */
 			struct in_addr tmp = {0};
 			if(!inet_aton(global_entries[inx].value, &(tmp))) {
@@ -390,7 +589,7 @@ parse_up_config_param(struct app_params *app)
 			}
 			app->eb_li_mask = ntohl(tmp.s_addr);
 
-			fprintf(stderr, "DP: EB_LI_MASK(S5S8): "IPV4_ADDR"\n",
+			fprintf(stderr, "DP: EB_LI_IPv4_MASK(S5S8): "IPV4_ADDR"\n",
 				IPV4_ADDR_HOST_FORMAT(app->eb_li_mask));
 		} else if(strncmp("WB_MAC", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
 			if (!parse_ether_addr(&app->wb_ether_addr, global_entries[inx].value, 0)) {
@@ -458,10 +657,6 @@ parse_up_config_param(struct app_params *app)
 			app->gtpu_seqnb_out = (uint8_t)atoi(global_entries[inx].value);
 
 			fprintf(stderr, "DP: GTPU_SEQNB_OUT: %u\n", app->gtpu_seqnb_out);
-		} else if(strncmp("DP_LOGGER", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
-			app->dp_logger = (uint8_t)atoi(global_entries[inx].value);
-
-			fprintf(stderr, "DP: DP_LOGGER: %u\n", app->dp_logger);
 		} else if(strncmp("TRANSMIT_TIMER", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
 			app->transmit_timer = (int)atoi(global_entries[inx].value);
 
@@ -515,50 +710,57 @@ parse_up_config_param(struct app_params *app)
 			}
 		} else if(strncmp("DDF2_IP", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
 			/* DDF2 IP Address */
-			struct in_addr tmp = {0};
-			if (!inet_aton(global_entries[inx].value, &(tmp))) {
-				fprintf(stderr, "Invalid DDF2_IP Address\n");
-				app->ddf2_ip = 0;
-				return -1;
-			}
-			app->ddf2_ip = tmp.s_addr;
-
-			fprintf(stderr, "DP: DDF2_IP Addr: "IPV4_ADDR"\n",
-				IPV4_ADDR_HOST_FORMAT(ntohl(app->ddf2_ip)));
-
+			strncpy(app->ddf2_ip, global_entries[inx].value, IPV6_STR_LEN);
+			fprintf(stderr, "DP: DDF2_IP: %s\n", app->ddf2_ip);
 		} else if(strncmp("DDF2_PORT", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
 			app->ddf2_port = (uint16_t)atoi(global_entries[inx].value);
 
 			fprintf(stderr, "DP: DDF2_PORT: %u\n", app->ddf2_port);
-		} else if(strncmp("DDF2_INTFC", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
-			strncpy(app->ddf2_intfc, global_entries[inx].value, DDF_INTFC_LEN);
+		} else if(strncmp("DDF2_LOCAL_IP", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
+			strncpy(app->ddf2_local_ip, global_entries[inx].value, IPV6_STR_LEN);
 
-			fprintf(stderr, "DP: DDF2_INTFC: %s\n", app->ddf2_intfc);
+			fprintf(stderr, "DP: DDF2_LOCAL_IP: %s\n", app->ddf2_local_ip);
 		} else if(strncmp("DDF3_IP", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
 			/* DDF3 IP Address */
-			struct in_addr tmp = {0};
-			if (!inet_aton(global_entries[inx].value, &(tmp))) {
-				fprintf(stderr, "Invalid DDF3_IP Address\n");
-				app->ddf3_ip = 0;
-				return -1;
-			}
-			app->ddf3_ip = tmp.s_addr;
+			strncpy(app->ddf3_ip, global_entries[inx].value, IPV6_STR_LEN);
 
-			fprintf(stderr, "DP: DDF3_IP Addr: "IPV4_ADDR"\n",
-				IPV4_ADDR_HOST_FORMAT(ntohl(app->ddf3_ip)));
-
+			fprintf(stderr, "DP: DDF3_IP: %s\n", app->ddf3_ip);
 		} else if(strncmp("DDF3_PORT", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
 			app->ddf3_port = (uint16_t)atoi(global_entries[inx].value);
 
 			fprintf(stderr, "DP: DDF3_PORT: %u\n", app->ddf3_port);
-		} else if(strncmp("DDF3_INTFC", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
-			strncpy(app->ddf3_intfc, global_entries[inx].value, DDF_INTFC_LEN);
+		} else if(strncmp("DDF3_LOCAL_IP", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
+			strncpy(app->ddf3_local_ip, global_entries[inx].value, IPV6_STR_LEN);
 
-			fprintf(stderr, "DP: DDF3_INTFC: %s\n", app->ddf3_intfc);
+			fprintf(stderr, "DP: DDF3_LOCAL_IP: %s\n", app->ddf3_local_ip);
 		} else if(strncmp("GENERATE_PCAP", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
 			app->generate_pcap = (uint8_t)atoi(global_entries[inx].value);
 
 			fprintf(stderr, "DP: GENERATE_PCAP: %u\n", app->generate_pcap);
+		} else if (strncmp("CLI_REST_IP" , global_entries[inx].name,
+					ENTRY_NAME_SIZE) == 0) {
+
+			/* Check for IP type (ipv4/ipv6) */
+			struct addrinfo *ip_type = NULL;
+			if (getaddrinfo(global_entries[inx].value, NULL, NULL, &ip_type)) {
+				fprintf(stderr, "CP: CP_REST_IP : %s is in incorrect format\n",
+					global_entries[inx].value);
+				rte_panic();
+			}
+
+			if(ip_type->ai_family == AF_INET6) {
+				strncpy(app->cli_rest_ip_buff,
+					global_entries[inx].value, IPV6_STR_LEN);
+			} else {
+				strncpy(app->cli_rest_ip_buff,
+					global_entries[inx].value, IPv4_ADDRESS_LEN);
+			}
+			fprintf(stdout, "CP: CP_REST_IP : %s\n",
+					app->cli_rest_ip_buff);
+		} else if(strncmp("CLI_REST_PORT", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
+			app->cli_rest_port = (uint16_t)atoi(global_entries[inx].value);
+			fprintf(stdout, "CP: CLI_REST_PORT : %d\n",
+					app->cli_rest_port);
 		}
 	}
 
@@ -726,6 +928,7 @@ void dp_init(int argc, char **argv)
 		{
 			fp_gtpu_get_inner_src_dst_ip = gtpu_get_inner_src_dst_ip_with_seqnb;
 			fp_gtpu_inner_src_ip = gtpu_inner_src_ip_with_seqnb;
+			fp_gtpu_inner_src_ipv6 = gtpu_inner_src_ipv6_with_seqnb;
 			fp_decap_gtpu_hdr = decap_gtpu_hdr_with_seqnb;
 			break;
 		}
@@ -733,6 +936,7 @@ void dp_init(int argc, char **argv)
 		{
 			fp_gtpu_get_inner_src_dst_ip = gtpu_get_inner_src_dst_ip_without_seqnb;
 			fp_gtpu_inner_src_ip = gtpu_inner_src_ip_without_seqnb;
+			fp_gtpu_inner_src_ipv6 = gtpu_inner_src_ipv6_without_seqnb;
 			fp_decap_gtpu_hdr = decap_gtpu_hdr_without_seqnb;
 			break;
 		}
@@ -741,6 +945,7 @@ void dp_init(int argc, char **argv)
 		{
 			fp_gtpu_get_inner_src_dst_ip = gtpu_get_inner_src_dst_ip_dynamic_seqnb;
 			fp_gtpu_inner_src_ip = gtpu_inner_src_ip_dynamic_seqnb;
+			fp_gtpu_inner_src_ipv6 = gtpu_inner_src_ipv6_dynamic_seqnb;
 			fp_decap_gtpu_hdr = decap_gtpu_hdr_dynamic_seqnb;
 			break;
 		}

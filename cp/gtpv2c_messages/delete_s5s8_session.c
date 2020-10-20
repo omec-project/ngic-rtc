@@ -32,17 +32,9 @@
 #include"cp_config.h"
 
 extern int pfcp_fd;
-extern struct sockaddr_in upf_pfcp_sockaddr;
-
-/**
- * @brief  : Maintans gateway information
- */
-struct gw_info {
-	uint8_t eps_bearer_id;
-	uint32_t s5s8_sgw_gtpc_teid;
-	uint32_t s5s8_pgw_gtpc_ipv4;
-	uint64_t seid;  /*NK: used to retrive seid */
-};
+extern int pfcp_fd_v6;
+extern peer_addr_t upf_pfcp_sockaddr;
+extern int clSystemLog;
 
 int
 gen_sgwc_s5s8_delete_session_request(gtpv2c_header_t *gtpv2c_rx,

@@ -15,9 +15,8 @@
  */
 
 #include <rte_errno.h>
-
 #include "gtpv2c_set_ie.h"
-#include "clogger.h"
+#include "gw_adapter.h"
 #include "sm_struct.h"
 #include "gtpc_session.h"
 #include "teid.h"
@@ -25,8 +24,8 @@
 
 #define DEFAULT_BEARER_QOS_PRIORITY (15)
 
-extern pfcp_config_t pfcp_config;
-
+extern pfcp_config_t config;
+extern int clSystemLog;
 /**
  * @brief  : The structure to contain required information from a parsed Bearer Resource
  *           Command message
@@ -413,7 +412,9 @@ set_create_bearer_request(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
 					"context but EBI is non-existent- "
 					"Bitmap Inconsistency - Dropping packet\n",LOG_VALUE);
 			return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+
 		} else {
+
 			set_ie_header(&cb_req.bearer_contexts[idx].header, GTP_IE_BEARER_CONTEXT,
 				IE_INSTANCE_ZERO, 0);
 
@@ -425,15 +426,10 @@ set_create_bearer_request(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
 			cb_req.bearer_contexts[idx].header.len += sizeof(gtp_bearer_qlty_of_svc_ie_t);
 			if(SGWC != context->cp_mode) {
 
-				if(pdn->policy.pcc_rule[idx].predefined_rule){
-					len = set_bearer_tft(&cb_req.bearer_contexts[idx].tft, IE_INSTANCE_ZERO,
-							TFT_CREATE_NEW, bearer, TRUE, NULL);
-				}else{
-					len = set_bearer_tft(&cb_req.bearer_contexts[idx].tft, IE_INSTANCE_ZERO,
-							TFT_CREATE_NEW, bearer, FALSE, NULL);
-				}
+				len = set_bearer_tft(&cb_req.bearer_contexts[idx].tft, IE_INSTANCE_ZERO,
+						TFT_CREATE_NEW, bearer, NULL);
 				cb_req.bearer_contexts[idx].header.len += len;
-			}else{
+			}else {
 				memset(cb_req.bearer_contexts[idx].tft.eps_bearer_lvl_tft, 0, MAX_TFT_LEN);
 				memcpy(cb_req.bearer_contexts[idx].tft.eps_bearer_lvl_tft,
 											resp->eps_bearer_lvl_tft[idx], MAX_TFT_LEN);
@@ -448,44 +444,46 @@ set_create_bearer_request(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
 		}
 
 		if (PGWC == context->cp_mode) {
-			set_ipv4_fteid(&cb_req.bearer_contexts[idx].s58_u_pgw_fteid,
-				GTPV2C_IFTYPE_S5S8_PGW_GTPU, IE_INSTANCE_ONE, bearer->s5s8_pgw_gtpu_ipv4,
-				bearer->s5s8_pgw_gtpu_teid);
+			cb_req.bearer_contexts[idx].header.len +=
+				set_gtpc_fteid(&cb_req.bearer_contexts[idx].s58_u_pgw_fteid,
+					GTPV2C_IFTYPE_S5S8_PGW_GTPU, IE_INSTANCE_ONE, bearer->s5s8_pgw_gtpu_ip,
+					bearer->s5s8_pgw_gtpu_teid);
 		} else if(SGWC == context->cp_mode){
-			set_ipv4_fteid(&cb_req.bearer_contexts[idx].s58_u_pgw_fteid,
-				GTPV2C_IFTYPE_S5S8_PGW_GTPU, IE_INSTANCE_ONE, bearer->s5s8_pgw_gtpu_ipv4,
-				bearer->s5s8_pgw_gtpu_teid);
-
-			set_ipv4_fteid(&cb_req.bearer_contexts[idx].s1u_sgw_fteid,
-				GTPV2C_IFTYPE_S1U_SGW_GTPU, IE_INSTANCE_ZERO, bearer->s1u_sgw_gtpu_ipv4,
-				bearer->s1u_sgw_gtpu_teid);
-
-			cb_req.bearer_contexts[idx].header.len += sizeof(struct fteid_ie_hdr_t) +
-			sizeof(struct in_addr) + IE_HEADER_SIZE;
-		} else {
-			set_ipv4_fteid(&cb_req.bearer_contexts[idx].s1u_sgw_fteid,
-				GTPV2C_IFTYPE_S1U_SGW_GTPU, IE_INSTANCE_ZERO, bearer->s1u_sgw_gtpu_ipv4,
-				bearer->s1u_sgw_gtpu_teid);
-
-			/* Add the PGW F-TEID in the CBReq to support promotion and demotion */
-			if ((bearer->s5s8_pgw_gtpu_teid != 0) && (bearer->s5s8_pgw_gtpu_ipv4.s_addr != 0)) {
-				set_ipv4_fteid(&cb_req.bearer_contexts[idx].s58_u_pgw_fteid,
-					GTPV2C_IFTYPE_S5S8_PGW_GTPU, IE_INSTANCE_ONE, bearer->s5s8_pgw_gtpu_ipv4,
+			cb_req.bearer_contexts[idx].header.len +=
+				set_gtpc_fteid(&cb_req.bearer_contexts[idx].s58_u_pgw_fteid,
+					GTPV2C_IFTYPE_S5S8_PGW_GTPU, IE_INSTANCE_ONE, bearer->s5s8_pgw_gtpu_ip,
 					bearer->s5s8_pgw_gtpu_teid);
 
-				cb_req.bearer_contexts[idx].header.len += sizeof(struct fteid_ie_hdr_t) +
-				sizeof(struct in_addr) + IE_HEADER_SIZE;
+			cb_req.bearer_contexts[idx].header.len +=
+				set_gtpc_fteid(&cb_req.bearer_contexts[idx].s1u_sgw_fteid,
+					GTPV2C_IFTYPE_S1U_SGW_GTPU, IE_INSTANCE_ZERO, bearer->s1u_sgw_gtpu_ip,
+					bearer->s1u_sgw_gtpu_teid);
+		} else {
+			cb_req.bearer_contexts[idx].header.len +=
+				set_gtpc_fteid(&cb_req.bearer_contexts[idx].s1u_sgw_fteid,
+					GTPV2C_IFTYPE_S1U_SGW_GTPU, IE_INSTANCE_ZERO, bearer->s1u_sgw_gtpu_ip,
+					bearer->s1u_sgw_gtpu_teid);
+
+			/* Add the PGW F-TEID in the CBReq to support promotion and demotion */
+			if ((bearer->s5s8_pgw_gtpu_teid != 0) && (bearer->s5s8_pgw_gtpu_ip.ipv4_addr != 0
+												|| *bearer->s5s8_pgw_gtpu_ip.ipv6_addr)) {
+				cb_req.bearer_contexts[idx].header.len +=
+					set_gtpc_fteid(&cb_req.bearer_contexts[idx].s58_u_pgw_fteid,
+						GTPV2C_IFTYPE_S5S8_PGW_GTPU, IE_INSTANCE_ONE, bearer->s5s8_pgw_gtpu_ip,
+						bearer->s5s8_pgw_gtpu_teid);
+
 			}
 		}
 
-		cb_req.bearer_contexts[idx].header.len += sizeof(struct fteid_ie_hdr_t) +
-			sizeof(struct in_addr) + IE_HEADER_SIZE;
 		cb_req.bearer_cnt++;
 	}
 
-	uint16_t msg_len = 0;
-	msg_len = encode_create_bearer_req(&cb_req, (uint8_t *)gtpv2c_tx);
-	gtpv2c_tx->gtpc.message_len = htons(msg_len - IE_HEADER_SIZE);
+	if(context->pra_flag){
+		set_presence_reporting_area_action_ie(&cb_req.pres_rptng_area_act, context);
+		context->pra_flag = 0;
+	}
+
+	encode_create_bearer_req(&cb_req, (uint8_t *)gtpv2c_tx);
 	RTE_SET_USED(is_piggybacked);
 	return 0;
 }
@@ -495,7 +493,7 @@ set_create_bearer_response(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
 						pdn_connection *pdn, uint8_t lbi, uint8_t pti,
 						struct resp_info *resp)
 {
-	int ebi_index = 0;
+	int ebi_index = 0, len = 0;
 	uint8_t idx = 0;
 	eps_bearer *bearer  = NULL;
 	ue_context *context = NULL;
@@ -508,6 +506,12 @@ set_create_bearer_response(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
 
 	set_cause_accepted(&cb_resp.cause, IE_INSTANCE_ZERO);
 
+	if (TRUE == context->piggyback) {
+		cb_resp.cause.cause_value = resp->cb_rsp_attach.cause.cause_value;
+	} else {
+		cb_resp.cause.cause_value = resp->gtpc_msg.cb_rsp.cause.cause_value;
+	}
+
 	if (pti) {}
 	if (lbi) {}
 
@@ -518,42 +522,206 @@ set_create_bearer_response(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
 			return -1;
 		}
 
-		bearer = context->eps_bearers[ebi_index];
+		if(cb_resp.cause.cause_value != GTPV2C_CAUSE_REQUEST_ACCEPTED ) {
+			bearer = context->eps_bearers[(idx + MAX_BEARERS)];
+		} else {
+			bearer = context->eps_bearers[ebi_index];
+		}
+
 		if (bearer == NULL) {
 			fprintf(stderr,
 				LOG_FORMAT" Retrive modify bearer context but EBI is non-existent- "
 				"Bitmap Inconsistency - Dropping packet\n", LOG_VALUE);
 			return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+		} else {
+			set_ie_header(&cb_resp.bearer_contexts[idx].header, GTP_IE_BEARER_CONTEXT,
+								IE_INSTANCE_ZERO, 0);
+
+			set_ebi(&cb_resp.bearer_contexts[idx].eps_bearer_id, IE_INSTANCE_ZERO, (resp->eps_bearer_ids[idx]));
+				cb_resp.bearer_contexts[idx].header.len += sizeof(uint8_t) + IE_HEADER_SIZE;
+
+			set_cause_accepted(&cb_resp.bearer_contexts[idx].cause, IE_INSTANCE_ZERO);
+			cb_resp.bearer_contexts[idx].header.len += sizeof(uint16_t) + IE_HEADER_SIZE;
+
+			if (TRUE == context->piggyback) {
+				cb_resp.bearer_contexts[idx].cause.cause_value =
+						resp->cb_rsp_attach.bearer_contexts[idx].cause.cause_value;
+			} else {
+				cb_resp.bearer_contexts[idx].cause.cause_value =
+						resp->gtpc_msg.cb_rsp.bearer_contexts[idx].cause.cause_value;
+			}
+
+
+			len = set_gtpc_fteid(&cb_resp.bearer_contexts[idx].s58_u_pgw_fteid,
+					GTPV2C_IFTYPE_S5S8_PGW_GTPU, IE_INSTANCE_THREE, bearer->s5s8_pgw_gtpu_ip,
+					bearer->s5s8_pgw_gtpu_teid);
+			cb_resp.bearer_contexts[idx].header.len += len;
+
+			len = set_gtpc_fteid(&cb_resp.bearer_contexts[idx].s58_u_sgw_fteid,
+				GTPV2C_IFTYPE_S5S8_SGW_GTPU, IE_INSTANCE_TWO, bearer->s5s8_sgw_gtpu_ip,
+				bearer->s5s8_sgw_gtpu_teid);
+
+			cb_resp.bearer_contexts[idx].header.len += len;
+
+			if (TRUE == context->piggyback) {
+				if((resp->cb_rsp_attach.bearer_contexts[idx].cause.cause_value
+							!= GTPV2C_CAUSE_REQUEST_ACCEPTED)) {
+					rte_free(bearer);
+				}
+			} else {
+				if((resp->gtpc_msg.cb_rsp.bearer_contexts[idx].cause.cause_value
+							!= GTPV2C_CAUSE_REQUEST_ACCEPTED)) {
+					rte_free(bearer);
+				}
+			}
 		}
-		else{
-		set_ie_header(&cb_resp.bearer_contexts[idx].header, GTP_IE_BEARER_CONTEXT,
-							IE_INSTANCE_ZERO, 0);
+	} /*for Loop*/
 
-		set_ebi(&cb_resp.bearer_contexts[idx].eps_bearer_id, IE_INSTANCE_ZERO, (resp->eps_bearer_ids[idx]));
-		cb_resp.bearer_contexts[idx].header.len += sizeof(uint8_t) + IE_HEADER_SIZE;
+	if((pdn->flag_fqcsid_modified == TRUE) && (context->piggyback == TRUE)) {
 
-		set_cause_accepted(&cb_resp.bearer_contexts[idx].cause, IE_INSTANCE_ZERO);
-		cb_resp.bearer_contexts[idx].header.len += sizeof(uint16_t) + IE_HEADER_SIZE;
-
-		set_ipv4_fteid(&cb_resp.bearer_contexts[idx].s58_u_pgw_fteid,
-			GTPV2C_IFTYPE_S5S8_PGW_GTPU, IE_INSTANCE_THREE, bearer->s5s8_pgw_gtpu_ipv4,
-			bearer->s5s8_pgw_gtpu_teid);
-
-		cb_resp.bearer_contexts[idx].header.len += sizeof(struct fteid_ie_hdr_t) +
-			sizeof(struct in_addr) + IE_HEADER_SIZE;
-
-		set_ipv4_fteid(&cb_resp.bearer_contexts[idx].s58_u_sgw_fteid,
-			GTPV2C_IFTYPE_S5S8_SGW_GTPU, IE_INSTANCE_TWO, bearer->s5s8_sgw_gtpu_ipv4,
-			bearer->s5s8_sgw_gtpu_teid);
-
-		cb_resp.bearer_contexts[idx].header.len += sizeof(struct fteid_ie_hdr_t) +
-			sizeof(struct in_addr) + IE_HEADER_SIZE;
+#ifdef USE_CSID
+		/* Set the SGW FQ-CSID */
+		if (pdn->sgw_csid.num_csid) {
+			set_gtpc_fqcsid_t(&cb_resp.sgw_fqcsid, IE_INSTANCE_ONE,
+					&pdn->sgw_csid);
 		}
+		/* Set the MME FQ-CSID */
+		if (pdn->mme_csid.num_csid) {
+				set_gtpc_fqcsid_t(&cb_resp.mme_fqcsid, IE_INSTANCE_ZERO,
+						&pdn->mme_csid);
+		}
+#endif /* USE_CSID */
 	}
+
+	len  = 0;
+	if(context->uli_flag != FALSE) {
+		if (context->uli.lai) {
+			cb_resp.uli.lai = context->uli.lai;
+			cb_resp.uli.lai2.lai_mcc_digit_2 = context->uli.lai2.lai_mcc_digit_2;
+			cb_resp.uli.lai2.lai_mcc_digit_1 = context->uli.lai2.lai_mcc_digit_1;
+			cb_resp.uli.lai2.lai_mnc_digit_3 = context->uli.lai2.lai_mnc_digit_3;
+			cb_resp.uli.lai2.lai_mcc_digit_3 = context->uli.lai2.lai_mcc_digit_3;
+			cb_resp.uli.lai2.lai_mnc_digit_2 = context->uli.lai2.lai_mnc_digit_2;
+			cb_resp.uli.lai2.lai_mnc_digit_1 = context->uli.lai2.lai_mnc_digit_1;
+			cb_resp.uli.lai2.lai_lac = context->uli.lai2.lai_lac;
+
+			len += sizeof(cb_resp.uli.lai2);
+		}
+		if (context->uli.tai) {
+			cb_resp.uli.tai = context->uli.tai;
+			cb_resp.uli.tai2.tai_mcc_digit_2 = context->uli.tai2.tai_mcc_digit_2;
+			cb_resp.uli.tai2.tai_mcc_digit_1 = context->uli.tai2.tai_mcc_digit_1;
+			cb_resp.uli.tai2.tai_mnc_digit_3 = context->uli.tai2.tai_mnc_digit_3;
+			cb_resp.uli.tai2.tai_mcc_digit_3 = context->uli.tai2.tai_mcc_digit_3;
+			cb_resp.uli.tai2.tai_mnc_digit_2 = context->uli.tai2.tai_mnc_digit_2;
+			cb_resp.uli.tai2.tai_mnc_digit_1 = context->uli.tai2.tai_mnc_digit_1;
+			cb_resp.uli.tai2.tai_tac = context->uli.tai2.tai_tac;
+			len += sizeof(cb_resp.uli.tai2);
+		}
+		if (context->uli.rai) {
+			cb_resp.uli.rai = context->uli.rai;
+			cb_resp.uli.rai2.ria_mcc_digit_2 = context->uli.rai2.ria_mcc_digit_2;
+			cb_resp.uli.rai2.ria_mcc_digit_1 = context->uli.rai2.ria_mcc_digit_1;
+			cb_resp.uli.rai2.ria_mnc_digit_3 = context->uli.rai2.ria_mnc_digit_3;
+			cb_resp.uli.rai2.ria_mcc_digit_3 = context->uli.rai2.ria_mcc_digit_3;
+			cb_resp.uli.rai2.ria_mnc_digit_2 = context->uli.rai2.ria_mnc_digit_2;
+			cb_resp.uli.rai2.ria_mnc_digit_1 = context->uli.rai2.ria_mnc_digit_1;
+			cb_resp.uli.rai2.ria_lac = context->uli.rai2.ria_lac;
+			cb_resp.uli.rai2.ria_rac = context->uli.rai2.ria_rac;
+			len += sizeof(cb_resp.uli.rai2);
+		}
+		if (context->uli.sai) {
+			cb_resp.uli.sai = context->uli.sai;
+			cb_resp.uli.sai2.sai_mcc_digit_2 = context->uli.sai2.sai_mcc_digit_2;
+			cb_resp.uli.sai2.sai_mcc_digit_1 = context->uli.sai2.sai_mcc_digit_1;
+			cb_resp.uli.sai2.sai_mnc_digit_3 = context->uli.sai2.sai_mnc_digit_3;
+			cb_resp.uli.sai2.sai_mcc_digit_3 = context->uli.sai2.sai_mcc_digit_3;
+			cb_resp.uli.sai2.sai_mnc_digit_2 = context->uli.sai2.sai_mnc_digit_2;
+			cb_resp.uli.sai2.sai_mnc_digit_1 = context->uli.sai2.sai_mnc_digit_1;
+			cb_resp.uli.sai2.sai_lac = context->uli.sai2.sai_lac;
+			cb_resp.uli.sai2.sai_sac = context->uli.sai2.sai_sac;
+			len += sizeof(cb_resp.uli.sai2);
+		}
+		if (context->uli.cgi) {
+			cb_resp.uli.cgi = context->uli.cgi;
+			cb_resp.uli.cgi2.cgi_mcc_digit_2 = context->uli.cgi2.cgi_mcc_digit_2;
+			cb_resp.uli.cgi2.cgi_mcc_digit_1 = context->uli.cgi2.cgi_mcc_digit_1;
+			cb_resp.uli.cgi2.cgi_mnc_digit_3 = context->uli.cgi2.cgi_mnc_digit_3;
+			cb_resp.uli.cgi2.cgi_mcc_digit_3 = context->uli.cgi2.cgi_mcc_digit_3;
+			cb_resp.uli.cgi2.cgi_mnc_digit_2 = context->uli.cgi2.cgi_mnc_digit_2;
+			cb_resp.uli.cgi2.cgi_mnc_digit_1 = context->uli.cgi2.cgi_mnc_digit_1;
+			cb_resp.uli.cgi2.cgi_lac = context->uli.cgi2.cgi_lac;
+			cb_resp.uli.cgi2.cgi_ci = context->uli.cgi2.cgi_ci;
+			len += sizeof(cb_resp.uli.cgi2);
+		}
+		if (context->uli.ecgi) {
+			cb_resp.uli.ecgi = context->uli.ecgi;
+			cb_resp.uli.ecgi2.ecgi_mcc_digit_2 = context->uli.ecgi2.ecgi_mcc_digit_2;
+			cb_resp.uli.ecgi2.ecgi_mcc_digit_1 = context->uli.ecgi2.ecgi_mcc_digit_1;
+			cb_resp.uli.ecgi2.ecgi_mnc_digit_3 = context->uli.ecgi2.ecgi_mnc_digit_3;
+			cb_resp.uli.ecgi2.ecgi_mcc_digit_3 = context->uli.ecgi2.ecgi_mcc_digit_3;
+			cb_resp.uli.ecgi2.ecgi_mnc_digit_2 = context->uli.ecgi2.ecgi_mnc_digit_2;
+			cb_resp.uli.ecgi2.ecgi_mnc_digit_1 = context->uli.ecgi2.ecgi_mnc_digit_1;
+			cb_resp.uli.ecgi2.ecgi_spare = context->uli.ecgi2.ecgi_spare;
+			cb_resp.uli.ecgi2.eci = context->uli.ecgi2.eci;
+			len += sizeof(cb_resp.uli.ecgi2);
+		}
+		if (context->uli.macro_enodeb_id) {
+			cb_resp.uli.macro_enodeb_id = context->uli.macro_enodeb_id;
+			cb_resp.uli.macro_enodeb_id2.menbid_mcc_digit_2 =
+				context->uli.macro_enodeb_id2.menbid_mcc_digit_2;
+			cb_resp.uli.macro_enodeb_id2.menbid_mcc_digit_1 =
+				context->uli.macro_enodeb_id2.menbid_mcc_digit_1;
+			cb_resp.uli.macro_enodeb_id2.menbid_mnc_digit_3 =
+				context->uli.macro_enodeb_id2.menbid_mnc_digit_3;
+			cb_resp.uli.macro_enodeb_id2.menbid_mcc_digit_3 =
+				context->uli.macro_enodeb_id2.menbid_mcc_digit_3;
+			cb_resp.uli.macro_enodeb_id2.menbid_mnc_digit_2 =
+				context->uli.macro_enodeb_id2.menbid_mnc_digit_2;
+			cb_resp.uli.macro_enodeb_id2.menbid_mnc_digit_1 =
+				context->uli.macro_enodeb_id2.menbid_mnc_digit_1;
+			cb_resp.uli.macro_enodeb_id2.menbid_spare =
+				context->uli.macro_enodeb_id2.menbid_spare;
+			cb_resp.uli.macro_enodeb_id2.menbid_macro_enodeb_id =
+				context->uli.macro_enodeb_id2.menbid_macro_enodeb_id;
+			cb_resp.uli.macro_enodeb_id2.menbid_macro_enb_id2 =
+				context->uli.macro_enodeb_id2.menbid_macro_enb_id2;
+			len += sizeof(cb_resp.uli.macro_enodeb_id2);
+		}
+		if (context->uli.extnded_macro_enb_id) {
+			cb_resp.uli.extnded_macro_enb_id = context->uli.extnded_macro_enb_id;
+			cb_resp.uli.extended_macro_enodeb_id2.emenbid_mcc_digit_1 =
+				context->uli.extended_macro_enodeb_id2.emenbid_mcc_digit_1;
+			cb_resp.uli.extended_macro_enodeb_id2.emenbid_mnc_digit_3 =
+				context->uli.extended_macro_enodeb_id2.emenbid_mnc_digit_3;
+			cb_resp.uli.extended_macro_enodeb_id2.emenbid_mcc_digit_3 =
+				context->uli.extended_macro_enodeb_id2.emenbid_mcc_digit_3;
+			cb_resp.uli.extended_macro_enodeb_id2.emenbid_mnc_digit_2 =
+				context->uli.extended_macro_enodeb_id2.emenbid_mnc_digit_2;
+			cb_resp.uli.extended_macro_enodeb_id2.emenbid_mnc_digit_1 =
+				context->uli.extended_macro_enodeb_id2.emenbid_mnc_digit_1;
+			cb_resp.uli.extended_macro_enodeb_id2.emenbid_smenb =
+				context->uli.extended_macro_enodeb_id2.emenbid_smenb;
+			cb_resp.uli.extended_macro_enodeb_id2.emenbid_spare =
+				context->uli.extended_macro_enodeb_id2.emenbid_spare;
+			cb_resp.uli.extended_macro_enodeb_id2.emenbid_extnded_macro_enb_id =
+				context->uli.extended_macro_enodeb_id2.emenbid_extnded_macro_enb_id;
+			cb_resp.uli.extended_macro_enodeb_id2.emenbid_extnded_macro_enb_id2 =
+				context->uli.extended_macro_enodeb_id2.emenbid_extnded_macro_enb_id2;
+			len += sizeof(cb_resp.uli.extended_macro_enodeb_id2);
+		}
+
+		len += 1;
+		set_ie_header(&cb_resp.uli.header, GTP_IE_USER_LOC_INFO, IE_INSTANCE_ZERO, len);
+	}
+
+	if(context->pra_flag){
+		set_presence_reporting_area_info_ie(&cb_resp.pres_rptng_area_info, context);
+		context->pra_flag = 0;
+	}
+
 	cb_resp.bearer_cnt = resp->bearer_count;
-	uint16_t msg_len = 0;
-	msg_len = encode_create_bearer_rsp(&cb_resp, (uint8_t *)gtpv2c_tx);
-	gtpv2c_tx->gtpc.message_len = htons(msg_len - IE_HEADER_SIZE);
+	encode_create_bearer_rsp(&cb_resp, (uint8_t *)gtpv2c_tx);
 	return 0;
 }
 
@@ -609,7 +777,8 @@ create_dedicated_bearer(gtpv2c_header_t *gtpv2c_rx,
 	if (install_packet_filters(ded_bearer, brc->tad))
 		return -EPERM;
 
-	ded_bearer->s1u_sgw_gtpu_teid = get_s1u_sgw_gtpu_teid(ded_bearer->pdn->upf_ipv4.s_addr, ded_bearer->pdn->context->cp_mode, &upf_teid_info_head);
+	ded_bearer->s1u_sgw_gtpu_teid = get_s1u_sgw_gtpu_teid(ded_bearer->pdn->upf_ip,
+					ded_bearer->pdn->context->cp_mode, &upf_teid_info_head);
 
 	/* TODO: Need to handle when providing dedicate beare feature */
 	/* ded_bearer->s1u_sgw_gtpu_ipv4 = s1u_sgw_ip; */

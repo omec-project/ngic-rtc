@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,9 +29,10 @@
 #include <unistd.h>
 
 #include "up_main.h"
-#include "clogger.h"
 #include "gw_adapter.h"
 
+extern int cp_comm_ip_type;
+extern struct in6_addr cp_comm_ip_v6;
 /**
  *	RX_NUM_DESC < 1024:
  *		Increased sensivity kernel packet processing core sched jitters
@@ -57,8 +59,9 @@
 						(TX_NUM_DESC*2) : (2 * MBUF_CACHE_SIZE)
 
 /* Macro to specify size of  shared_ring */
-#define SHARED_RING_SIZE 8192
+#define SHARED_RING_SIZE (8192 * 2)
 
+extern int clSystemLog;
 struct rte_mempool *s1u_mempool;
 struct rte_mempool *sgi_mempool;
 struct rte_mempool *kni_mpool;
@@ -110,7 +113,7 @@ struct rte_ring *notify_ring = NULL;
 
 struct rte_mempool *notify_msg_pool = NULL;
 
-struct sockaddr_in dest_addr_t = {0};
+peer_addr_t dest_addr_t = {0};
 
 struct in_addr cp_comm_ip;
 
@@ -333,11 +336,5 @@ dp_ddn_init(void)
 
 	if (notify_msg_pool == NULL)
 		rte_exit(EXIT_FAILURE, "Cannot create notify_msg_pool !!!\n");
-
-
-	/* VS: Temp. filled CP comm IP and PORT*/
-	dest_addr_t.sin_family = AF_INET;
-	dest_addr_t.sin_addr.s_addr = htonl(cp_comm_ip.s_addr);
-	dest_addr_t.sin_port = htons(cp_comm_port);
 
 }

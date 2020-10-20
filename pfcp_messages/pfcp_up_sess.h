@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,9 +29,10 @@
 #define CDR_TIME_BUFF 	16
 #define MAX_SEQ_NO_LEN 32
 #define UP_SEID_LEN 16
-#define CDR_HEADER "seq_no,up_seid,cp_seid,imsi,dp_ip,cp_ip,ue_ip,cause_for_record_closing,uplink_volume,downlink_volume,total_volume,duration_measurement,start_time,end_time,data_start_time,data_end_time\n"
+#define CDR_HEADER "seq_no,up_seid,cp_seid,imsi,dp_ip_v4,dp_ip_v6,cp_ip_v4,cp_ip_v6,ue_ip_v4,ue_ip_v6,cause_for_record_closing,uplink_volume,downlink_volume,total_volume,duration_measurement,start_time,end_time,data_start_time,data_end_time\n"
 
 extern char CDR_FILE_PATH[CDR_BUFF_SIZE];
+
 /**
  * @brief  : Process pfcp session association req at dp side
  * @param  : ass_setup_req, hold pfcp session association req data
@@ -44,44 +46,48 @@ process_up_assoc_req(pfcp_assn_setup_req_t *ass_setup_req,
  * @brief  : Process pfcp session establishment req at dp side
  * @param  : sess_req, hold pfcp session establishment req data
  * @param  : sess_resp, response structure to be filled
- * @param  : cp_ip, the SGWC/PGWC/SAEGWC IP
  * @return : Returns 0 in case of success , -1 otherwise
  */
 int8_t
 process_up_session_estab_req(pfcp_sess_estab_req_t *sess_req,
-			pfcp_sess_estab_rsp_t *sess_resp, uint32_t cp_ip);
+			pfcp_sess_estab_rsp_t *sess_resp, peer_addr_t *peer_addr);
 
 /**
  * @brief  : Process pfcp session modification req at dp side
  * @param  : sess_mod_req, hold pfcp session modification req data
  * @param  : sess_mod_rsp, response structure to be filled
- * @param  : cp_ip, the SGWC/PGWC/SAEGWC IP
  * @return : Returns 0 in case of success , -1 otherwise
  */
 int8_t
 process_up_session_modification_req(pfcp_sess_mod_req_t *sess_mod_req,
-			pfcp_sess_mod_rsp_t *sess_mod_rsp, uint32_t cp_ip);
+			pfcp_sess_mod_rsp_t *sess_mod_rsp);
+
+/**
+ * @brief  : Process pfcp session report resp at dp side
+ * @param  : sess_rep_resp, hold pfcp session report response
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+int8_t
+process_up_session_report_resp(pfcp_sess_rpt_rsp_t *sess_rep_resp);
 
 /**
  * @brief  : Deletes session entry at dp side
  * @param  : sess_del_req, hold pfcp session deletion req data
  * @param  : sess_del_rsp, response structure to be filled
- * @param  : cp_ip, ip address of peer node
  * @return : Returns 0 in case of success , -1 otherwise
  */
 int8_t
-up_delete_session_entry(pfcp_session_t *sess, pfcp_sess_del_rsp_t *sess_del_rsp, uint32_t cp_ip);
+up_delete_session_entry(pfcp_session_t *sess, pfcp_sess_del_rsp_t *sess_del_rsp);
 
 /**
  * @brief  : Process pfcp session deletion req at dp side
  * @param  : sess_del_req, hold pfcp session deletion req data
  * @param  : sess_del_rsp, response structure to be filled
- * @param  : cp_ip, ip address of peer node
  * @return : Returns 0 in case of success , -1 otherwise
  */
 int8_t
 process_up_session_deletion_req(pfcp_sess_del_req_t *sess_del_req,
-			pfcp_sess_del_rsp_t *sess_del_rsp, uint32_t cp_ip);
+			pfcp_sess_del_rsp_t *sess_del_rsp);
 
 /**
  * @brief  : Fill Process pfcp session establishment response
@@ -95,7 +101,7 @@ process_up_session_deletion_req(pfcp_sess_del_req_t *sess_del_req,
 void
 fill_pfcp_session_est_resp(pfcp_sess_estab_rsp_t
 				*pfcp_sess_est_resp, uint8_t cause, int offend,
-				struct in_addr dp_comm_ip,
+				node_address_t node_value,
 				struct pfcp_sess_estab_req_t *pfcp_session_request);
 
 /**
@@ -231,11 +237,12 @@ fill_li_update_duplicating_param(pfcp_update_far_ie_t *far, far_info_t *far_t, p
  * @param  : buf_rx_size, Size of recived msgs
  * @param  : buf_tx, PFCP msg DP is sending
  * @param  : buf_tx_size, Size of PFCP msg DP is sending
+ * @param  : peer_addr, peer address
  * @return : Returns nothing
  */
 int32_t
 process_event_li(pfcp_session_t *sess, uint8_t *buf_rx, int buf_rx_size,
-	uint8_t *buf_tx, int buf_tx_size, uint32_t srcip, uint16_t srcport);
+	uint8_t *buf_tx, int buf_tx_size, peer_addr_t *peer_addr);
 
 
 /*
@@ -305,14 +312,26 @@ store_cdr_into_file_pfcp_sess_rpt_req(pfcp_usage_rpt_sess_rpt_req_ie_t *usage_re
  * @param  : up_seid, user plane session id
  * @param  : trig, cause for record close
  * @param  : seq_no, seq_no in msg used as a key to store CDR
+ * @param  : ue_ip_addr, UE IPv4 address
+ * @param  : ue_ipv6_addr, UE IPv6 address
  * @return : 0 on success,else -1
  */
 int
 store_cdr_for_restoration(pfcp_usage_rpt_sess_del_rsp_ie_t *usage_report,
 											uint64_t  up_seid, uint32_t trig,
-											uint32_t seq_no, uint32_t ue_ip_addr);
+											uint32_t seq_no, uint32_t ue_ip_addr,
+											uint8_t ue_ipv6_addr[]);
 
 
+/**
+ * @brief  : Link session with CSID.
+ * @param  : peer_csid,
+ * @param  : sess, session info.
+ * @param  : iface, interface info.
+ * @return : Returns 0 in case of success, cause value otherwise.
+ */
+int
+link_dp_sess_with_peer_csid(fqcsid_t *peer_csid, pfcp_session_t *sess, uint8_t iface);
 /*
  * @brief  : Maintain CDR related info
  */

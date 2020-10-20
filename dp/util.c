@@ -15,20 +15,38 @@
  */
 
 #include <arpa/inet.h>
+#include <rte_ip.h>
 
 #include "util.h"
+#include "ipv4.h"
+#include "ipv6.h"
 
 void
 construct_udp_hdr(struct rte_mbuf *m, uint16_t len,
-		  uint16_t sport, uint16_t dport)
+		  uint16_t sport, uint16_t dport, uint8_t ip_type)
 {
 	struct udp_hdr *udp_hdr;
 
-	udp_hdr = get_mtoudp(m);
+	/* IF IP_TYPE = 1 i.e IPv6 , 0: IPv4*/
+	if (ip_type) {
+		udp_hdr = get_mtoudp_v6(m);
+	} else {
+		udp_hdr = get_mtoudp(m);
+	}
+
 	udp_hdr->src_port = htons(sport);
 	udp_hdr->dst_port = htons(dport);
 	udp_hdr->dgram_len = htons(len);
 
 	/* update Udp checksum */
 	udp_hdr->dgram_cksum = 0;
+	if (ip_type) {
+		struct ipv6_hdr *ipv6_hdr;
+		ipv6_hdr = get_mtoip_v6(m);
+		udp_hdr->dgram_cksum = rte_ipv6_udptcp_cksum(ipv6_hdr, udp_hdr);
+	} else {
+		struct ipv4_hdr *ipv4_hdr;
+		ipv4_hdr = get_mtoip(m);
+		udp_hdr->dgram_cksum = rte_ipv4_udptcp_cksum(ipv4_hdr, udp_hdr);
+	}
 }

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,15 +40,6 @@
 #define GTPC_SESSION_H
 
 #define GTP_MSG_LEN		2048
-/**
- * @brief  : Maintains seid, bearer id, sgw teid , pgw ip for cp
- */
-struct gw_info {
-	uint8_t eps_bearer_id;
-	uint32_t s5s8_sgw_gtpc_teid;
-	uint32_t s5s8_pgw_gtpc_ipv4;
-	uint64_t seid;
-};
 
 enum modify_bearer_procedure {
 	INITIAL_PDN_ATTACH = 01,
@@ -74,11 +66,12 @@ delete_context(gtp_eps_bearer_id_ie_t lbi, uint32_t teid,
  * @param  : cs_req, request structure to be filled
  * @param  : context, ue context info
  * @param  : ebi_index, index of bearer in bearer array
+ * @param  : requested_pdn_type, pdn type received from MME
  * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 fill_cs_request(create_sess_req_t *cs_req, struct ue_context_t *context,
-		int ebi_index );
+		int ebi_index, uint8_t requested_pdn_type);
 
 /**
  * @brief  : Process create session response received on s5s8 interface in sgwc
@@ -204,11 +197,11 @@ gtpc_context_replace_check(create_sess_req_t *csr, uint8_t cp_mode, apn *apn_req
 
 /**
  * @brief  : Check MBRequest and decide the process for that MBR.
- * @param  : ue context
+ * @param  : pdn, pnd context
  * @return : Returns 0 on failure, and interger corresponing to a process.
  */
 uint8_t
-check_mbr_procedure(ue_context *context);
+check_mbr_procedure(pdn_connection *pdn);
 
 /**
  * @brief  : This Handler is used when SGWC receives the MBR request
@@ -242,10 +235,13 @@ check_for_uli_changes(gtp_user_loc_info_ie_t *uli, ue_context *context);
 /**
  * @brief  : Generate CCR-U request and send to PCRF.
  * @param  : ue context, eps_bearer
+ * @param  : Bearer Resouce Command, bearer_rsrc_cmd
+ * @param  : Modify Bearer Command, mod_bearer_cmd_t
  * @return : Returns 0 on failure, and interger corresponing to a process.
  */
 int
-gen_ccru_request(ue_context *context, eps_bearer *bearer, bearer_rsrc_cmd_t *bearer_rsrc_cmd);
+gen_ccru_request(ue_context *context, eps_bearer *bearer, bearer_rsrc_cmd_t *bearer_rsrc_cmd,
+					mod_bearer_cmd_t *mod_bearer_cmd);
 
 /**
  * @brief  : Delete session context in case of context replacement.
@@ -271,6 +267,26 @@ int delete_rule_in_bearer(eps_bearer *bearer);
  */
 int
 delete_bearer_context(pdn_connection *pdn, int ebi_index );
+
+/**
+ * @brief  : Store Presence reporting area action in UE Context.
+ * @param  : ie, Presence reporting area action IE recived.
+ * @param  : context, UE context for storing Presence reporting area action.
+ * @return : Returns nothing.
+ */
+void
+store_presc_reporting_area_act_to_ue_context(gtp_pres_rptng_area_act_ie_t *ie,
+															ue_context *context);
+
+/**
+ * @brief  : Store Presence reporting area Info in UE Context.
+ * @param  : ie, Presence reporting area Info IE recived.
+ * @param  : context, UE context for storing Presence reporting area Info.
+ * @return : Returns nothing.
+ */
+void
+store_presc_reporting_area_info_to_ue_context(gtp_pres_rptng_area_info_ie_t *ie,
+															ue_context *context);
 
 #endif /*CP_BUILD*/
 #endif

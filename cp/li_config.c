@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017 Intel Corporation
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,9 +16,9 @@
  */
 
 #include "li_config.h"
-#include "clogger.h"
+#include "gw_adapter.h"
 #include "pfcp_session.h"
-
+extern int clSystemLog;
 uint8_t
 del_li_entry(uint64_t *uiId, uint16_t uiCntr)
 {

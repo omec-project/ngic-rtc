@@ -47,12 +47,11 @@
 #include "interface.h"
 #include "dp_ipc_api.h"
 #include "epc_packet_framework.h"
-#include "clogger.h"
 #include "gw_adapter.h"
 struct rte_ring *epc_mct_spns_dns_rx;
 struct rte_ring *li_dl_ring;
 struct rte_ring *li_ul_ring;
-
+extern int clSystemLog;
 /**
  * @brief  : Maintains epc parameters
  */

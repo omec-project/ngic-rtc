@@ -17,7 +17,7 @@ Please follow below guidline to execute redis test script:
 
    Example:
    --------
-   python redis_client.py 10.73.80.113 6380
+   python redis_client.py 10.73.80.113 6379
 
    Note: Update Ip and Port with your respective database server
 

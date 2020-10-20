@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,61 +17,51 @@
 
 #include <rte_errno.h>
 
+#include "gtpu.h"
 #include "up_main.h"
 #include "pfcp_util.h"
 #include "pfcp_set_ie.h"
-#include "clogger.h"
 #include "gw_adapter.h"
 #include "interface.h"
 #include "pfcp_messages_encoder.h"
 
-/**
- * @brief  : Allocates ring for buffering downlink packets
- *           Allocate downlink packet buffer ring from a set of
- *           rings from the ring container.
- * @param  : No param
- * @return : Returns rte_ring Allocated ring on success, NULL on failure
- */
-static struct
-rte_ring *allocate_ring(void)
+extern int clSystemLog;
+
+struct
+rte_ring *allocate_ring(unsigned int dl_ring_size)
 {
+	char name[32];
 	struct rte_ring *dl_ring = NULL;
 	unsigned dl_core = rte_lcore_id();
-	int i;
-	char name[32];
 
 	if ((DL_RING_CONTAINER_SIZE > num_dl_rings) &&
-		(rte_ring_count(dl_ring_container)
-				< DL_RINGS_THRESHOLD)) {
-		for (i = 0; i < DL_RINGS_THRESHOLD; ++i) {
-			snprintf(name, sizeof(name), "dl_pkt_ring_%"PRIu32"_%u",
-					num_dl_rings,
-					dl_core);
-			struct rte_ring *tmp =
-				rte_ring_create(name, DL_PKTS_RING_SIZE,
-						rte_socket_id(),
-						RING_F_SP_ENQ | RING_F_SC_DEQ);
-			if (tmp) {
-				int ret = rte_ring_enqueue(
-					dl_ring_container, tmp);
+			(rte_ring_count(dl_ring_container) < DL_RING_CONTAINER_SIZE)) {
 
-				if (ret == ENOBUFS) {
-					clLog(clSystemLog, eCLSeverityDebug,
+		snprintf(name, sizeof(name), "dl_pkt_ring_%"PRIu32"_%u",
+				num_dl_rings, dl_core);
+
+		struct rte_ring *tmp =
+			rte_ring_create(name, rte_align32pow2(dl_ring_size),
+					rte_socket_id(), RING_F_SP_ENQ | RING_F_SC_DEQ);
+		if (tmp) {
+			int ret = rte_ring_enqueue(dl_ring_container, tmp);
+			if (ret == ENOBUFS) {
+				clLog(clSystemLog, eCLSeverityDebug,
 						LOG_FORMAT"Cannot hold more dl rings\n", LOG_VALUE);
-					rte_ring_free(tmp);
-					break;
-				}
-				num_dl_rings++;
-			} else {
-				clLog(clSystemLog, eCLSeverityCritical,
+				rte_ring_free(tmp);
+				return NULL;
+			}
+
+			dl_ring = tmp;
+			num_dl_rings++;
+		} else {
+			clLog(clSystemLog, eCLSeverityCritical,
 					LOG_FORMAT"Couldnt create %s for DL PKTS %s\n",
 					LOG_VALUE, name, rte_strerror(rte_errno));
-				if (rte_errno == EEXIST)
-					num_dl_rings++;
-			}
+			if (rte_errno == EEXIST)
+				num_dl_rings++;
 		}
 	}
-	rte_ring_dequeue(dl_ring_container, (void **)&dl_ring);
 
 	return dl_ring;
 }
@@ -164,8 +155,7 @@ fill_pfcp_sess_rep_req(pfcp_sess_rpt_req_t *pfcp_sess_rep_req,
 }
 
 uint8_t
-process_pfcp_session_report_req(struct sockaddr_in *peer_addr,
-			ddn_t *ddn)
+process_pfcp_session_report_req(peer_addr_t peer_addr, ddn_t *ddn)
 {
 	int encoded = 0;
 	uint8_t pfcp_msg[250] = {0};
@@ -176,10 +166,7 @@ process_pfcp_session_report_req(struct sockaddr_in *peer_addr,
 
 	encoded = encode_pfcp_sess_rpt_req_t(&pfcp_sess_rep_req, pfcp_msg);
 
-	pfcp_header_t *header = (pfcp_header_t *) pfcp_msg;
-	header->message_len = htons(encoded - PFCP_IE_HDR_SIZE);
-
-	if ( pfcp_send(my_sock.sock_fd, pfcp_msg, encoded, peer_addr, SENT) < 0 ) {
+	if ( pfcp_send(my_sock.sock_fd, my_sock.sock_fd_v6, pfcp_msg, encoded, peer_addr, SENT) < 0 ) {
 		clLog(clSystemLog, eCLSeverityDebug,
 		LOG_FORMAT"Error in Sending PFCP SESSION REPORT REQ %i\n",
 		LOG_VALUE, errno);
@@ -187,7 +174,7 @@ process_pfcp_session_report_req(struct sockaddr_in *peer_addr,
 	}
 	clLog(clSystemLog, eCLSeverityDebug,
 			LOG_FORMAT"Sends Report Request message to CP:"IPV4_ADDR" for trigger DDN\n",
-			LOG_VALUE, IPV4_ADDR_HOST_FORMAT(peer_addr->sin_addr.s_addr));
+			LOG_VALUE, IPV4_ADDR_HOST_FORMAT(peer_addr.ipv4.sin_addr.s_addr));
 
 	return 0;
 }
@@ -207,7 +194,7 @@ send_ddn_request(pdr_info_t *pdr)
 	memcpy(&ddn->up_seid, &(pdr->session)->up_seid, sizeof(uint64_t));
 
 	/* VS: Process and initiate the DDN Request */
-	if (process_pfcp_session_report_req(&dest_addr_t, ddn) < 0 ) {
+	if (process_pfcp_session_report_req((pdr->session)->cp_ip, ddn) < 0 ) {
 		perror("msgsnd");
 		return -1;
 	}
@@ -251,9 +238,36 @@ enqueue_dl_pkts(pdr_info_t **pdrs, pfcp_session_datat_t **sess_info,
 			continue;
 		}
 
+		/* Decarding the END MARKER for the IDEL Session */
+		struct ether_hdr *ether = NULL;
+		struct gtpu_hdr *gtpu_hdr = NULL;
+
+		/* Get the ether header info */
+		ether = (struct ether_hdr *)rte_pktmbuf_mtod(pkts[i], uint8_t *);
+		/* Handle the IPv4 packets */
+		if (ether && (ether->ether_type == rte_cpu_to_be_16(ETHER_TYPE_IPv4))) {
+			gtpu_hdr = get_mtogtpu(pkts[i]);
+			if (gtpu_hdr && (gtpu_hdr->msgtype == GTP_GEMR)) {
+				clLog(clSystemLog, eCLSeverityInfo, LOG_FORMAT"IPv4 Session State : IDLE"
+						"Dropping pkts the endmarker pkts for this Session:%lu\n", LOG_VALUE,
+						(pdr->session)->up_seid);
+				rte_pktmbuf_free(pkts[i]);
+				continue;
+			}
+		} else if (ether && (ether->ether_type == rte_cpu_to_be_16(ETHER_TYPE_IPv6))) {
+			gtpu_hdr = get_mtogtpu_v6(pkts[i]);
+			if (gtpu_hdr && (gtpu_hdr->msgtype == GTP_GEMR)) {
+				clLog(clSystemLog, eCLSeverityInfo, LOG_FORMAT"IPv6 Session State : IDLE"
+						"Dropping pkts the endmarker pkts for this Session:%lu\n", LOG_VALUE,
+						(pdr->session)->up_seid);
+				rte_pktmbuf_free(pkts[i]);
+				continue;
+			}
+		}
+
 		ring = si->dl_ring;
-		if (!ring) {
-			ring = allocate_ring();
+		if ((!ring) /* && ((pdr->far)->actions.buff) */) {
+			ring = allocate_ring((pdr->session)->bar.dl_buf_suggstd_pckts_cnt.pckt_cnt_val);
 			if (ring == NULL) {
 				clLog(clSystemLog, eCLSeverityInfo, LOG_FORMAT"Not enough memory, can't "
 					"buffer this Session: %lu\n", LOG_VALUE,
@@ -281,7 +295,9 @@ enqueue_dl_pkts(pdr_info_t **pdrs, pfcp_session_datat_t **sess_info,
 
 
 		if (((pdr->far)->actions.nocp) || ((pdr->far)->actions.buff) || ((pdr->far)->actions.forw)) {
+
 			if (rte_ring_enqueue(ring, (void *)pkts[i]) == -ENOBUFS) {
+
 				rte_pktmbuf_free(pkts[i]);
 				rte_ring_free(si->dl_ring);
 				si->dl_ring = NULL;
@@ -290,6 +306,16 @@ enqueue_dl_pkts(pdr_info_t **pdrs, pfcp_session_datat_t **sess_info,
 				clLog(clSystemLog, eCLSeverityCritical,
 					LOG_FORMAT"Can't queue pkt ring full"
 					" So Dropping pkt\n", LOG_VALUE);
+
+				/* Send PFCP Session Report Response */
+				rc = send_ddn_request(pdr);
+				if(rc < 0) {
+					clLog(clSystemLog, eCLSeverityCritical,
+							LOG_FORMAT"Failed to send ddn req for session: %lu\n",
+							LOG_VALUE, (pdr->session)->up_seid);
+
+				}
+
 			} else {
 				clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"ACTIONS : %s :"
 						"Buffering the PKTS\n", LOG_VALUE,

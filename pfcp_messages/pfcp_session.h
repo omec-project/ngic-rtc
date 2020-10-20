@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -74,22 +75,22 @@ typedef struct rule_report_index {
 	uint8_t num_fltr[MAX_FILTERS_PER_UE];
 }rule_report_index_t;
 
-typedef struct pro_ack_rule_status {
-	char rule_name[RULE_NAME_LEN];
-	uint8_t rule_status;
-}pro_ack_rule_status_t;
-
-typedef struct pro_ack_rule_array {
-	uint8_t rule_cnt;
-	pro_ack_rule_status_t rule[MAX_RULE_PER_BEARER];
-}pro_ack_rule_array_t;
+/**
+ * @brief  : This structure use to parse
+ *         : packet filter receive in
+ *         : TAD IE in bearer resourse command.
+ */
 
 typedef struct tad_pkt_fltr {
+	uint8_t v4;
+	uint8_t v6;
 	uint8_t proto_id;
 	uint8_t pckt_fltr_dir;
 	uint32_t local_ip_addr;
+	uint8_t local_ip6_addr[IPV6_ADDRESS_LEN];
 	uint8_t local_ip_mask ;
 	uint32_t remote_ip_addr;
+	uint8_t remote_ip6_addr[IPV6_ADDRESS_LEN];
 	uint8_t remote_ip_mask;
 	uint16_t local_port_low ;
 	uint16_t local_port_high;
@@ -101,8 +102,15 @@ typedef struct tad_pkt_fltr {
 	uint8_t precedence ;
 }tad_pkt_fltr_t;
 
-extern pro_ack_rule_array_t pro_ack_rule_array;
-
+/**
+ * @brief  : This function use to fill packet-filter-inforamation AVP
+ *         : TAD structure.
+ * @param  : ccr_request, pointer to CCR-U message
+ * @param  : tad_pkt_fltr, pointer to TAD structure.
+ * @return : Returns 0 on success,else -1
+ */
+int
+fill_packet_fltr_info_avp(gx_msg *ccr_request, tad_pkt_fltr_t *tad_pkt_fltr, uint8_t idx);
 /**
  * @brief  : Check presence of packet filter id in rules
  * @param  : pckt_id, packet filter id received in bearer resource cmd
@@ -113,13 +121,13 @@ int
 check_pckt_fltr_id_in_rule(uint8_t pckt_id, eps_bearer *bearer);
 
 /**
- * @brief  : Fill gx AVP corresponding to bearer resource cmd
+ * @brief  : Parse TAD packet filter
  * @param  : pkt_fltr_buf,packet filter in bearer resource cmd
  * @param  : tad_pkt_fltr,structure used to fill AVP
  * @return : Returns 0 on success,else 0
  */
 int
-fill_gx_packet_filter_info(uint8_t pkt_fltr_buf[], tad_pkt_fltr_t *tad_pkt_fltr);
+parse_tad_packet_filter(uint8_t pkt_fltr_buf[], tad_pkt_fltr_t *tad_pkt_fltr);
 
 /**
  * @brief  : Fill gx AVP corresponding to bearer resource cmd
@@ -129,6 +137,7 @@ fill_gx_packet_filter_info(uint8_t pkt_fltr_buf[], tad_pkt_fltr_t *tad_pkt_fltr)
  */
 int
 fill_create_new_tft_avp(gx_msg *ccr_request, bearer_rsrc_cmd_t *bearer_rsrc_cmd);
+
 
 /**
  * @brief  : Fill gx AVP corresponding to bearer resource cmd
@@ -219,7 +228,7 @@ parse_parameter_list(uint8_t pkt_fltr_buf[], param_list *param_lst);
 int
 provision_ack_ccr(pdn_connection *pdn, eps_bearer *bearer,
 					enum rule_action_t rule_action,
-					enum rule_failure_code code, pro_ack_rule_array_t *rule_report);
+					enum rule_failure_code code);
 
 typedef int(*rar_funtions)(pdn_connection *);
 
@@ -255,11 +264,11 @@ stats_update(uint8_t msg_type);
  * @param  : pfcp_session_request, pfcp session establishment request data
  * @return : Returns nothing
  */
-void
-fill_pfcp_session_est_resp(pfcp_sess_estab_rsp_t
-				*pfcp_sess_est_resp, uint8_t cause, int offend,
-				struct in_addr dp_comm_ip,
-				struct pfcp_sess_estab_req_t *pfcp_session_request);
+// void
+// fill_pfcp_session_est_resp(pfcp_sess_estab_rsp_t
+// 				*pfcp_sess_est_resp, uint8_t cause, int offend,
+// 				struct in_addr dp_comm_ip,
+// 				struct pfcp_sess_estab_req_t *pfcp_session_request);
 
 /**
  * @brief  : Fill pfcp session delete response
@@ -290,11 +299,13 @@ fill_pfcp_session_modify_resp(pfcp_sess_mod_rsp_t *pfcp_sess_modify_resp,
  * @param  : context , pointer to ue context structure
  * @param  : ebi_index, index of bearer in array
  * @param  : seq, sequence number of request
+ * @param  : resp, struct resp_info
  * @return : Returns nothing
  */
 void
 fill_pfcp_sess_est_req( pfcp_sess_estab_req_t *pfcp_sess_est_req,
-		pdn_connection *pdn, uint32_t seq, struct ue_context_t *context);
+		pdn_connection *pdn, uint32_t seq, struct ue_context_t *context,
+		struct resp_info *resp);
 
 /**
  * @brief  : Checks and returns interface type if it access or core
@@ -402,6 +413,19 @@ fill_pfcp_sess_mod_req_delete(pfcp_sess_mod_req_t *pfcp_sess_mod_req,
  * @return : Returns nothing
  */
 void
+fill_pfcp_sess_mod_req_with_remove_pdr(pfcp_sess_mod_req_t *pfcp_sess_mod_req,
+		pdn_connection *pdn, eps_bearer *bearers[], uint8_t bearer_cntr);
+
+/**
+ * @brief  : Fill pfcp session modification request for delete bearer scenario
+ *           to fill remove_pdr ie
+ * @param  : pfcp_sess_mod_req , structure to be filled
+ * @param  : pdn , pdn information
+ * @param  : bearers, pointer to bearer structure
+ * @param  : bearer_cntr , number of bearer to be modified.
+ * @return : Returns nothing
+ */
+void
 fill_pfcp_sess_mod_req_pgw_init_remove_pdr(pfcp_sess_mod_req_t *pfcp_sess_mod_req,
 		pdn_connection *pdn, eps_bearer *bearers[], uint8_t bearer_cntr);
 
@@ -488,7 +512,8 @@ process_sess_mod_req_del_cmd(pdn_connection *pdn);
 */
 
 int
-process_pfcp_sess_mod_resp_cs_cbr_request(uint64_t sess_id, gtpv2c_header_t *gtpv2c_tx, struct resp_info *resp);
+process_pfcp_sess_mod_resp_cs_cbr_request(uint64_t sess_id, gtpv2c_header_t *gtpv2c_tx,
+		struct resp_info *resp);
 
 /**
  * @brief  : Fill pdr entry
@@ -502,7 +527,16 @@ process_pfcp_sess_mod_resp_cs_cbr_request(uint64_t sess_id, gtpv2c_header_t *gtp
 pdr_t*
 fill_pdr_entry(ue_context *context, pdn_connection *pdn,
 		eps_bearer *bearer, uint8_t iface, uint8_t itr);
-
+/**
+ * @brief  : Process Modify bearer command
+ * @param  : mod_bearer_cmd, modify bearer command structure
+ * @param  : gtpv2c_tx, holds info in gtpv2c header
+ * @param  : context, structure for context information
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+int
+process_modify_bearer_cmd(mod_bearer_cmd_t *mod_bearer_cmd,
+							gtpv2c_header_t *gtpv2c_tx, ue_context *context);
 /**
  * @brief  : Process delete bearer command request
  * @param  : del_bearer_cmd, delete bearer command structure
@@ -511,7 +545,8 @@ fill_pdr_entry(ue_context *context, pdn_connection *pdn,
  * @return : Returns 0 in case of success , -1 otherwise
  */
 int
-process_delete_bearer_cmd_request(del_bearer_cmd_t *del_bearer_cmd, gtpv2c_header_t *gtpv2c_tx, ue_context *context);
+process_delete_bearer_cmd_request(del_bearer_cmd_t *del_bearer_cmd,
+									gtpv2c_header_t *gtpv2c_tx, ue_context *context);
 
 /**
  * @brief  : Process bearer bearer resource command request
@@ -650,6 +685,14 @@ fill_pdr_far_qer_using_bearer(pfcp_sess_mod_req_t *pfcp_sess_mod_req,
 int
 fill_dedicated_bearer_info(eps_bearer *bearer, ue_context *context, pdn_connection *pdn, bool prdef_rule);
 
+/* @brief  : Free dynamically allocated memory in ccr request
+ * @param  : ccr_request, ptr to ccr msg structure in which
+ *         : memory is allocated.
+ * @return : nothing.
+ */
+void
+free_dynamically_alloc_memory(gx_msg *ccr_request);
+
 /**
  * @brief  : Fill gate status in pfcp session establishment request
  * @param  : pfcp_sess_est_req , structure to be filled
@@ -749,6 +792,17 @@ get_new_bearer_id(pdn_connection *pdn_cntxt);
 int
 process_pfcp_sess_setup(pdn_connection *pdn);
 
+/**
+ * @brief  : Process the recieved FQCSID
+ * @param  : pdn, pdn connection information
+ * @param  : bearer, bearer information
+ * @param  : context, ue context
+ * @retrun : Returns 0 in case of success , -1 otherwise
+ */
+int8_t
+gtpc_recvd_sgw_fqcsid(gtp_fqcsid_ie_t *sgw_fqcsid,
+		pdn_connection *pdn, eps_bearer *bearer, ue_context *context);
+
 #else
 #endif /* CP_BUILD */
 
@@ -773,15 +827,6 @@ uint16_t fill_upd_dup_param(pfcp_upd_dupng_parms_ie_t *dup_params,
 		uint8_t li_policy[], uint8_t li_policy_len);
 
 /**
-* @brief  : Fill pfcp session set delete request
-* @param  : pfcp_sess_set_del_req , structure to be filled
- * @return : Returns nothing
-*/
-void
-fill_pfcp_sess_set_del_req( pfcp_sess_set_del_req_t *pfcp_sess_set_del_req);
-
-
-/**
  * @brief  : Fill pfcp session delete request
  * @param  : pfcp_sess_del_req , structure to be filled
  * @param  : cp_type, [SGWC/SAEGWC/PGWC]
@@ -797,7 +842,8 @@ fill_pfcp_sess_del_req( pfcp_sess_del_req_t *pfcp_sess_del_req, uint8_t cp_type)
  * @retrun : Returns 0 in case of success , -1 otherwise
  */
 int8_t
-update_ue_context(mod_bearer_req_t *mb_req, ue_context *context);
+update_ue_context(mod_bearer_req_t *mb_req, ue_context *context, eps_bearer *bearer,
+		pdn_connection *pdn);
 
 /**
  * @brief  : Delete QER from bearer array
@@ -910,6 +956,38 @@ int8_t
 send_pfcp_modification_req(ue_context *context, pdn_connection *pdn,
 		eps_bearer *bearer, create_sess_req_t *csr, uint8_t ebi_index);
 
+/**
+ * @brief  : processes indirect tunnel request
+ * @param  : create_indir_req, create indirect data forwarding request
+ * @param  : context, ue_context
+ * @retrun : Returns 0 in case of success , -1 otherwise
+ */
+int
+process_create_indir_data_frwd_tun_request(create_indir_data_fwdng_tunn_req_t *create_indir_req,
+											ue_context **_context);
+
+
+/**
+ * @brief  : processes deleete indirect tunnel request
+ * @param  : delete_indir_tunnel_req
+ * @retrun : Returns 0 in case of success , -1 otherwise
+ */
+int
+process_del_indirect_tunnel_request(del_indir_data_fwdng_tunn_req_t *del_indir_req);
+
+/**
+* @brief  : Process pfcp delete session response for delete
+*           indirect tunnel request
+* @param  : sess_id, session id
+* @param  : gtpv2c_tx, holds info in gtpv2c header
+* @param  : msglen, total length
+* @param  : uiImsi, for lawful interception
+* @param  : li_sock_fd for lawful interception
+* @retrun : Returns 0 in case of success
+*/
+int process_pfcp_sess_del_resp_indirect_tunnel(uint64_t sess_id, gtpv2c_header_t *gtpv2c_tx,
+		uint64_t *uiImsi, int *li_sock_fd);
+
 /* @brief  : Check presense of LBI in ue context
  * @param  : bearer_id,bearer id receive in LBI of BRC
  * @param  : context, pointer to ue_context structure
@@ -942,5 +1020,41 @@ store_rule_status_for_del_bearer_cmd(pro_ack_rule_array_t *pro_ack_rule_array,
  * @return : Nothing
  * */
 void update_pdr_actions_flags(eps_bearer *bearer);
+
+/* @brief  : set CCR_t message to send to PCRF
+ * @param  : pdn; PDN
+ * @param  : Context; context
+ * @param  : ccr_request ; ccr_message structure
+ * @param  : ebi_index, where bearer is stored
+ * @return : 0 if success otherwise error cause
+ * */
+int
+set_ccr_t_message(pdn_connection *pdn, ue_context *context, gx_msg *ccr_request,
+		int ebi_index);
+
+/* @brief  : compare the arp values with all the PDN bearers
+ * @param  : def_bearer; default bearer
+ * @param  : pdn; PDN
+ * @return : nothing
+ * */
+void
+compare_arp_value(eps_bearer *def_bearer, pdn_connection *pdn);
+
+/* @brief  : copy Ip address for IPV4 and IPV6
+ * @param  : node_value; destination
+ * @param  : node; source
+ * @return : returns -1 if IP is not set, otherwise 0
+ * */
+int
+set_address(node_address_t *node_value, node_address_t *node);
+
+/* @brief  : copy Ip address for IPV4 and IPV6
+ * @param  : src_addr; Src address(copy from)
+ * @param  : dst_addr; destibnation addres(copy to)
+ * @return : returns -1 if IP is not stored, otherwise 0
+ * */
+int
+set_dest_address(node_address_t src_addr, peer_addr_t *dst_addr);
+
 #endif /* CP_BUILD */
 #endif /* PFCP_SESSION_H */

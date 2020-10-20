@@ -16,16 +16,16 @@
 
 #include <rte_acl.h>
 #include <rte_cfgfile.h>
-
 #include "ue.h"
 #include "cp.h"
 #include "util.h"
-#include "clogger.h"
+#include "gw_adapter.h"
 #include "packet_filters.h"
 #include "vepc_cp_dp_api.h"
 #include "predef_rule_init.h"
 
-extern pfcp_config_t pfcp_config;
+extern pfcp_config_t config;
+extern int clSystemLog;
 
 const char *direction_str[] = {
 		[TFT_DIRECTION_DOWNLINK_ONLY] = "DOWNLINK_ONLY ",
@@ -294,6 +294,28 @@ init_mtr_profile(void)
 	}
 }
 
+
+/**
+ * @brief  : checks for ip address validity
+ * @param  : entry , string contating the ip address 
+ * @param  : type, specifies whether ipv4 or ipv6
+ * @return : Returns 0 on success  and -1 on failure
+ */
+static
+int validate_ip_address(const char *entry, uint8_t type)
+{
+	if(IPV4_ADDR_TYPE == type){
+		if(strchr(entry, ':') != NULL){
+			return -1;
+		}
+	} else {
+		if(strchr(entry, '.') != NULL){
+			return -1;
+		}
+	}
+	return 0;
+}
+
 /**
  * @brief  : Initialize sdf rules
  * @param  : No param
@@ -344,27 +366,56 @@ init_sdf_rules(void)
 
 		entry = rte_cfgfile_get_entry(file, sectionname, "IPV4_REMOTE");
 		if (entry) {
-			if (inet_aton(entry, &pf.remote_ip_addr) == 0)
-				rte_panic("Invalid address %s in section %s "
-						"sdf config file %s\n",
-						entry, sectionname, SDF_RULE_FILE);
+			if (validate_ip_address(entry, IPV4_ADDR_TYPE) == 0){
+				if (inet_aton(entry, &pf.remote_ip_addr) == 0)
+					rte_panic("Invalid address %s in section %s "
+							"sdf config file %s\n",
+							entry, sectionname, SDF_RULE_FILE);
+		
+				pf.v4 = PRESENT;
+			} else{
+				rte_panic("Invalid ip address given for ipv4 \n");
+			}
+		} else {
+			entry = rte_cfgfile_get_entry(file, sectionname, "IPV6_REMOTE");
+			if (entry) {
+			if(validate_ip_address(entry, IPV6_ADDR_TYPE) == 0){
+				if (inet_pton(AF_INET6, entry, &pf.remote_ip6_addr) == 0)
+					rte_panic("Invalid address %s in section %s "
+							"sdf config file %s\n",
+							entry, sectionname, SDF_RULE_FILE);
+	
+				pf.v6 = PRESENT;
+			} else {
+				rte_panic("Invalid ip address given for ipv6\n");
+				}
+			}
 		}
+		if(pf.v4 == PRESENT){
+			entry = rte_cfgfile_get_entry(file, sectionname,
+					"IPV4_REMOTE_MASK");
+			if (entry) {
+				ret = inet_aton(entry, &tmp_addr);
+				if (ret == 0
+						|| __builtin_clzl(~tmp_addr.s_addr)
+						+ __builtin_ctzl(tmp_addr.s_addr) != 32){
 
-		entry = rte_cfgfile_get_entry(file, sectionname,
-				"IPV4_REMOTE_MASK");
-		if (entry) {
-			ret = inet_aton(entry, &tmp_addr);
-			if (ret == 0
-			    || __builtin_clzl(~tmp_addr.s_addr)
-				+ __builtin_ctzl(tmp_addr.s_addr) != 32){
-
-				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Invalid address %s in section %s "
-						"sdf config file %s. Setting to default 32.\n", LOG_VALUE,
-						entry, sectionname, SDF_RULE_FILE);
-				 pf.remote_ip_mask = 32;
-			} else
-				pf.remote_ip_mask =
+					clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Invalid address %s in section %s "
+							"sdf config file %s. Setting to default 32.\n", LOG_VALUE,
+							entry, sectionname, SDF_RULE_FILE);
+					pf.remote_ip_mask = 32;
+				} else
+					pf.remote_ip_mask =
 						__builtin_popcountl(tmp_addr.s_addr);
+			}
+		} else {
+			entry = rte_cfgfile_get_entry(file, sectionname,
+					"IPV6_REMOTE_MASK");
+			if (entry) {
+				pf.remote_ip_mask = (uint16_t) atoi(entry);
+				if(pf.remote_ip_mask == 0 || pf.remote_ip_mask > DEFAULT_IPV6_MASK)
+					pf.remote_ip_mask = DEFAULT_IPV6_MASK;
+			}
 		}
 
 		entry = rte_cfgfile_get_entry(file, sectionname,
@@ -387,29 +438,61 @@ init_sdf_rules(void)
 					" Check the configured rules in sdf_rules.cfg file..!!\n\n");
 		}
 
-
-		entry = rte_cfgfile_get_entry(file, sectionname, "IPV4_LOCAL");
-		if (entry) {
-			if (inet_aton(entry, &pf.local_ip_addr) == 0)
-				rte_panic("Invalid address %s in section %s "
-						"sdf config file %s\n",
-						entry, sectionname, SDF_RULE_FILE);
+		if(pf.v4 == PRESENT){
+			entry = rte_cfgfile_get_entry(file, sectionname, "IPV4_LOCAL");
+			if (entry) {
+				if(validate_ip_address(entry, IPV4_ADDR_TYPE) == 0){
+					if (inet_aton(entry, &pf.local_ip_addr) == 0)
+						rte_panic("Invalid address %s in section %s "
+								"sdf config file %s\n",
+								entry, sectionname, SDF_RULE_FILE);
+				} else{
+					rte_panic("Invalid ip address for IPV4 \n");
+				}
+			} else {
+				rte_panic("Invalid ip address\n");
+			}
+		} else {
+			entry = rte_cfgfile_get_entry(file, sectionname, "IPV6_LOCAL");
+			if (entry) {
+				if(validate_ip_address(entry, IPV6_ADDR_TYPE) == 0){
+					if (inet_pton(AF_INET6, entry, &pf.local_ip6_addr) == 0)
+						rte_panic("Invalid address %s in section %s "
+								"sdf config file %s\n",
+								entry, sectionname, SDF_RULE_FILE);
+				} else {
+					rte_panic("Invalid ip address for ipv6 \n");
+				}
+			} else{
+					rte_panic("Invalid ip address \n");
+	
+			}
 		}
 
-		entry = rte_cfgfile_get_entry(file, sectionname,
-				"IPV4_LOCAL_MASK");
-		if (entry) {
-			ret = inet_aton(entry, &tmp_addr);
-			if (ret == 0
-			    || __builtin_clzl(~tmp_addr.s_addr)
-			    + __builtin_ctzl(tmp_addr.s_addr) != 32){
+		if(pf.v4 == PRESENT){
+			entry = rte_cfgfile_get_entry(file, sectionname,
+					"IPV4_LOCAL_MASK");
+			if (entry) {
+				ret = inet_aton(entry, &tmp_addr);
+				if (ret == 0
+						|| __builtin_clzl(~tmp_addr.s_addr)
+						+ __builtin_ctzl(tmp_addr.s_addr) != 32){
 
-				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Invalid address %s in section %s "
-						"sdf config file %s. Setting to default 32.\n", LOG_VALUE,
-						entry, sectionname, SDF_RULE_FILE);
-				pf.remote_ip_mask = 32;
-			} else
-				pf.local_ip_mask = __builtin_popcountl(tmp_addr.s_addr);
+					clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Invalid address %s in section %s "
+							"sdf config file %s. Setting to default 32.\n", LOG_VALUE,
+							entry, sectionname, SDF_RULE_FILE);
+					pf.remote_ip_mask = 32;
+				} else
+					pf.local_ip_mask = __builtin_popcountl(tmp_addr.s_addr);
+			}
+		} else {
+			entry = rte_cfgfile_get_entry(file, sectionname,
+					"IPV6_LOCAL_MASK");
+			if (entry) {
+				pf.local_ip_mask = (uint16_t) atoi(entry);
+				if(pf.local_ip_mask == 0 || pf.local_ip_mask > DEFAULT_IPV6_MASK)
+					pf.local_ip_mask = DEFAULT_IPV6_MASK;
+			}
 		}
 
 		entry = rte_cfgfile_get_entry(file, sectionname,
@@ -653,7 +736,7 @@ init_pcc_rules(void)
 
 			/* Add PCC rule name in centralized location to dump rules on UP*/
 			rules_struct *rule = NULL;
-			rule = get_map_rule_entry(ntohl(pfcp_config.pfcp_ip.s_addr), ADD_RULE);
+			rule = get_map_rule_entry(config.pfcp_ip.s_addr, ADD_RULE);
 			if (rule != NULL) {
 				if (rule->rule_cnt != 0) {
 					rules_struct *new_node = NULL;

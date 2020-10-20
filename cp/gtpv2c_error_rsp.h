@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,6 +27,7 @@
 #include "gtpv2c_set_ie.h"
 #include "pfcp_messages_encoder.h"
 #include "./gx_app/include/gx.h"
+#include "cp.h"
 
 extern struct rte_hash *bearer_by_fteid_hash;
 /**
@@ -275,6 +277,32 @@ int
 clean_context_hash(ue_context *context, uint32_t teid, uint64_t *imsi_val, bool error_status);
 
 /**
+ * @brief  : Process create indirect data forwarding error response
+ * @param  : msg, message info
+ * @param  : cause_value, error cause message
+ * @return : Returns nothing
+ */
+void
+crt_indir_data_frwd_tun_error_response(msg_info *msg, uint8_t cause_value);
+
+/**
+ * @brief  : Process delete indirect data forwarding error response
+ * @param  : msg, message info
+ * @param  : cause_value, error cause message
+ * @return : Returns nothing
+ */
+void
+delete_indir_data_frwd_error_response(msg_info *msg, uint8_t cause_value);
+
+
+/**
+ * @brief  : Process cleanup for indirect tunnel request
+ * @param  : resp, err_rsp_info_t
+ * @return : Returns nothing
+ */
+void
+cleanup_for_indirect_tunnel(err_rsp_info *resp);
+/**
  * @brief  : clears the bearers, pdn, ue_context
  * @param  : teid
  * @param  : ebi_index
@@ -290,4 +318,37 @@ int cleanup_ue_and_bearer(uint32_t teid, int ebi_index);
  */
 void
 send_delete_session_request_after_timer_retry(ue_context *context, int ebi_index);
+
+/**
+ * @brief  : set and send error response in case of processing HSS initiated SUB Qos Modification procedure
+ * @param  : msg, information related to message which caused error
+ * @param  : cause value;cause type of error
+ * @param  : cause value;cause type of error
+ * @param  : iface, interface on which response to be sent
+ * @return : Returns nothing
+ */
+void
+modify_bearer_failure_indication(msg_info *msg, uint8_t cause_value,
+	uint8_t cause_source, int iface);
+
+/**
+ * @brief  : Clean up activity to delete bearer if error occurs
+ * @param  : pdn ; pdn
+ * @param  : context for particular UE
+ * @param  : EBI/LBI for Bearer ID
+ * @return : Returns nothing
+ */
+void delete_bearer_request_cleanup(pdn_connection *pdn, ue_context *context,
+	uint8_t lbi);
+
+/**
+ * @brief  : Set and send error response in case of processing modify access bearer request
+ * @param  : msg, holds information related to message caused error
+ * @param  : cause_value, cause type of error
+ * @param  : cause_source, cause source indicates at which source error is generated.
+ * @return : Returns nothing
+ */
+void mod_access_bearer_error_response(msg_info *msg, uint8_t cause_value,
+		uint8_t cause_source);
+
 #endif

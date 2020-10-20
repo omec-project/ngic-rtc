@@ -16,7 +16,7 @@
 #Set the Log Level
 LOG_LEVEL=0
 
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:../libpfcp/lib
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:../third_party/libpfcp/lib
 
 APP_PATH="./build"
 APP="ngic_dataplane"
@@ -30,7 +30,8 @@ WB_PORT=0000:00:04.0
 EB_PORT=0000:00:05.0
 
 #MEMORY in (MB) which used for hugepages calculation
-MEMORY=5120
+#MEMORY=5120
+MEMORY=4096
 #Give numa memory according to numa1 or numa0 socket
 NUMA0_MEMORY=$MEMORY
 NUMA1_MEMORY=0

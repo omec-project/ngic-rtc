@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,14 +19,19 @@
 #include <rte_debug.h>
 #include <rte_eal.h>
 #include <rte_cfgfile.h>
+#include <netdb.h>
 
 #include "cp_config.h"
 #include "cp_stats.h"
+#include "debug_str.h"
 
+extern int clSystemLog;
+extern pfcp_config_t config;
 
 void
-config_cp_ip_port(pfcp_config_t *pfcp_config)
+config_cp_ip_port(pfcp_config_t *config)
 {
+
 	int32_t i = 0;
 	int32_t num_ops_entries = 0;
 	int32_t num_app_entries = 0;
@@ -74,230 +80,276 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 
 		/* Parse SGWC, PGWC and SAEGWC values from cp.cfg */
 		if(strncmp(CP_TYPE, global_entries[i].name, ENTRY_NAME_SIZE) == 0) {
-			pfcp_config->cp_type = (uint8_t)atoi(global_entries[i].value);
+			config->cp_type = (uint8_t)atoi(global_entries[i].value);
 
 			fprintf(stderr, "CP: CP_TYPE     : %s\n",
-					pfcp_config->cp_type == SGWC ? "SGW-C" :
-					pfcp_config->cp_type == PGWC ? "PGW-C" :
-					pfcp_config->cp_type == SAEGWC ? "SAEGW-C" : "UNKNOWN");
+					config->cp_type == SGWC ? "SGW-C" :
+					config->cp_type == PGWC ? "PGW-C" :
+					config->cp_type == SAEGWC ? "SAEGW-C" : "UNKNOWN");
 
 		}else if (strncmp(S11_IPS, global_entries[i].name,
 					ENTRY_NAME_SIZE) == 0) {
 
 			inet_aton(global_entries[i].value,
-					&(pfcp_config->s11_ip));
+					&(config->s11_ip));
+
+			config->s11_ip_type |= 1;
 
 			fprintf(stderr, "CP: S11_IP      : %s\n",
-					inet_ntoa(pfcp_config->s11_ip));
+					inet_ntoa(config->s11_ip));
+
+		}else if (strncmp(S11_IPS_V6, global_entries[i].name,
+					ENTRY_NAME_SIZE) == 0) {
+
+			inet_pton(AF_INET6, global_entries[i].value,
+					&(config->s11_ip_v6));
+
+			config->s11_ip_type |= 2;
+
+			fprintf(stderr, "CP: S11_IP_V6   : %s\n",
+					global_entries[i].value);
 
 		}else if (strncmp(S11_PORTS, global_entries[i].name,
 					ENTRY_NAME_SIZE) == 0) {
 
-			pfcp_config->s11_port =
+			config->s11_port =
 					(uint16_t)atoi(global_entries[i].value);
 
 			fprintf(stderr, "CP: S11_PORT    : %d\n",
-					pfcp_config->s11_port);
+					config->s11_port);
 
 		} else if (strncmp(S5S8_IPS, global_entries[i].name,
 					ENTRY_NAME_SIZE) == 0) {
 
 			inet_aton(global_entries[i].value,
-					&(pfcp_config->s5s8_ip));
+					&(config->s5s8_ip));
+
+			config->s5s8_ip_type |= 1;
 
 			fprintf(stderr, "CP: S5S8_IP     : %s\n",
-					inet_ntoa(pfcp_config->s5s8_ip));
+					inet_ntoa(config->s5s8_ip));
+
+		} else if (strncmp(S5S8_IPS_V6, global_entries[i].name,
+					ENTRY_NAME_SIZE) == 0) {
+
+			inet_pton(AF_INET6, global_entries[i].value,
+					&(config->s5s8_ip_v6));
+
+			config->s5s8_ip_type |= 2;
+
+			fprintf(stderr, "CP: S5S8_IP_V6  : %s\n",
+					global_entries[i].value);
 
 		} else if (strncmp(S5S8_PORTS, global_entries[i].name,
 					ENTRY_NAME_SIZE) == 0) {
 
-			pfcp_config->s5s8_port =
+			config->s5s8_port =
 				(uint16_t)atoi(global_entries[i].value);
 
 			fprintf(stderr, "CP: S5S8_PORT   : %d\n",
-					pfcp_config->s5s8_port);
+					config->s5s8_port);
 
 		} else if (strncmp(PFCP_IPS , global_entries[i].name,
 					ENTRY_NAME_SIZE) == 0) {
 
 			inet_aton(global_entries[i].value,
-					&(pfcp_config->pfcp_ip));
+					&(config->pfcp_ip));
+
+			config->pfcp_ip_type |= 1;
 
 			fprintf(stderr, "CP: PFCP_IP     : %s\n",
-					inet_ntoa(pfcp_config->pfcp_ip));
+					inet_ntoa(config->pfcp_ip));
+
+		} else if (strncmp(PFCP_IPS_V6, global_entries[i].name,
+					ENTRY_NAME_SIZE) == 0) {
+
+			inet_pton(AF_INET6, global_entries[i].value,
+					&(config->pfcp_ip_v6));
+
+			config->pfcp_ip_type |= 2;
+
+			fprintf(stderr, "CP: PFCP_IPS_V6 : %s\n",
+					global_entries[i].value);
 
 		} else if (strncmp(PFCP_PORTS, global_entries[i].name,
 					ENTRY_NAME_SIZE) == 0) {
 
-			pfcp_config->pfcp_port =
+			config->pfcp_port =
 				(uint16_t)atoi(global_entries[i].value);
 
 			fprintf(stderr, "CP: PFCP_PORT   : %d\n",
-					pfcp_config->pfcp_port);
+					config->pfcp_port);
 
 		} else if (strncmp(DDF2_IP , global_entries[i].name,
 					ENTRY_NAME_SIZE) == 0) {
 
-			inet_aton(global_entries[i].value,
-					&(pfcp_config->ddf2_ip));
+			strncpy(config->ddf2_ip, global_entries[i].value, IPV6_STR_LEN);
 
 			fprintf(stderr, "CP: DDF2_IP     : %s\n",
-					inet_ntoa(pfcp_config->ddf2_ip));
+					config->ddf2_ip);
 
 		} else if (strncmp(DDF2_PORT , global_entries[i].name,
 					ENTRY_NAME_SIZE) == 0) {
 
-			pfcp_config->ddf2_port =
+			config->ddf2_port =
 				(uint16_t)atoi(global_entries[i].value);
 
 			fprintf(stderr, "CP: DDF2_PORT     : %d\n",
-					pfcp_config->ddf2_port);
+					config->ddf2_port);
 
-		} else if (strncmp(DDF2_INTFC , global_entries[i].name,
+		} else if (strncmp(DDF2_LOCAL_IPS , global_entries[i].name,
 					ENTRY_NAME_SIZE) == 0) {
 
-			strncpy(pfcp_config->ddf2_intfc, global_entries[i].value, DDF_INTFC_LEN);
+			strncpy(config->ddf2_local_ip, global_entries[i].value, IPV6_STR_LEN);
 
-			fprintf(stderr, "CP: DDF2_INTFC     : %s\n",
-					pfcp_config->ddf2_intfc);
+			fprintf(stderr, "CP: DDF2_LOCAL_IP     : %s\n",
+					config->ddf2_local_ip);
 
 		} else if (strncmp(DADMF_IPS , global_entries[i].name,
 					ENTRY_NAME_SIZE) == 0) {
 
-			inet_aton(global_entries[i].value,
-					&(pfcp_config->dadmf_ip));
+			strncpy(config->dadmf_ip, global_entries[i].value, IPV6_STR_LEN);
 
 			fprintf(stderr, "CP: DADMF_IP     : %s\n",
-					inet_ntoa(pfcp_config->dadmf_ip));
+					config->dadmf_ip);
 
 		} else if (strncmp(DADMF_PORTS, global_entries[i].name,
 					ENTRY_NAME_SIZE) == 0) {
 
-			pfcp_config->dadmf_port =
+			config->dadmf_port =
 				(uint16_t)atoi(global_entries[i].value);
 
 			fprintf(stderr, "CP: DADMF_PORT   : %d\n",
-					pfcp_config->dadmf_port);
+					config->dadmf_port);
 
 		} else if (strncmp(DADMF_LOCAL_IPS , global_entries[i].name,
 					ENTRY_NAME_SIZE) == 0) {
 
-			inet_aton(global_entries[i].value,
-					&(pfcp_config->dadmf_local_addr));
+			strncpy(config->dadmf_local_addr, global_entries[i].value, IPV6_STR_LEN);
 
 			fprintf(stderr, "CP: DADMF_LOCAL_IP     : %s\n",
-					inet_ntoa(pfcp_config->dadmf_local_addr));
-
-		} else if (strncmp(MME_S11_IPS, global_entries[i].name,
-					ENTRY_NAME_SIZE) == 0) {
-
-			inet_aton(global_entries[i].value,
-					&(pfcp_config->s11_mme_ip));
-
-			fprintf(stderr, "CP: MME_S11_IP  : %s\n",
-					inet_ntoa(pfcp_config->s11_mme_ip));
-
-		} else if (strncmp(MME_S11_PORTS, global_entries[i].name,
-					ENTRY_NAME_SIZE) == 0) {
-			pfcp_config->s11_mme_port =
-				(uint16_t)atoi(global_entries[i].value);
-
-			fprintf(stderr, "CP: MME_S11_PORT: %d\n", pfcp_config->s11_mme_port);
+					(config->dadmf_local_addr));
 
 		} else if (strncmp(UPF_PFCP_IPS , global_entries[i].name,
 					ENTRY_NAME_SIZE) == 0) {
 
 			inet_aton(global_entries[i].value,
-					&(pfcp_config->upf_pfcp_ip));
-
+					&(config->upf_pfcp_ip));
+			config->upf_pfcp_ip_type |= 1;
 			fprintf(stderr, "CP: UPF_PFCP_IP : %s\n",
-					inet_ntoa(pfcp_config->upf_pfcp_ip));
+					inet_ntoa(config->upf_pfcp_ip));
+
+		} else if (strncmp(UPF_PFCP_IPS_V6, global_entries[i].name,
+					ENTRY_NAME_SIZE) == 0) {
+
+			inet_pton(AF_INET6, global_entries[i].value,
+					&(config->upf_pfcp_ip_v6));
+
+			config->upf_pfcp_ip_type |= 2;
+
+			fprintf(stderr, "CP: UPF_PFCP_IP_V6 : %s\n",
+					global_entries[i].value);
 
 		} else if (strncmp(UPF_PFCP_PORTS, global_entries[i].name,
 					ENTRY_NAME_SIZE) == 0) {
 
-			pfcp_config->upf_pfcp_port =
+			config->upf_pfcp_port =
 				(uint16_t)atoi(global_entries[i].value);
 
 			fprintf(stderr, "CP: UPF_PFCP_PORT: %d\n",
-					pfcp_config->upf_pfcp_port);
-		} else if (strncmp("UPF_S5S8_IP", global_entries[i].name,
-					ENTRY_NAME_SIZE) == 0) {
-
-			struct in_addr tmp = {0};
-			inet_aton(global_entries[i].value,
-					&(tmp));
-			pfcp_config->upf_s5s8_ip = ntohl(tmp.s_addr);
-
-			fprintf(stderr, "CP: UPF_S5S8_IP : %s\n",
-					inet_ntoa(tmp));
-
-		} else if (strncmp("UPF_S5S8_MASK", global_entries[i].name,
-					ENTRY_NAME_SIZE) == 0) {
-
-			struct in_addr tmp = {0};
-			inet_aton(global_entries[i].value, &(tmp));
-
-			pfcp_config->upf_s5s8_mask = ntohl(tmp.s_addr);
-
-			fprintf(stderr, "CP: UPF_S5S8_MASK : %s\n",
-					inet_ntoa(tmp));
+					config->upf_pfcp_port);
 
 		 } else if (strncmp(REDIS_IPS , global_entries[i].name,
 					ENTRY_NAME_SIZE) == 0) {
 
-			inet_aton(global_entries[i].value,
-					&(pfcp_config->redis_ip));
+			/*Check for IP type (ipv4/ipv6)*/
+			 int ret = get_ip_address_type(global_entries[i].value);
+			 if ( ret == -1) {
+				fprintf(stderr, "CP: CP_REDIS_IP : %s is in incorrect format\n",
+						config->cp_redis_ip_buff);
+				return;
+			} else {
+				config->redis_server_ip_type = ret;
+			}
+
+			strncpy(config->redis_ip_buff,
+					global_entries[i].value, IPV6_STR_LEN);
 
 			fprintf(stderr, "CP: REDIS_IP : %s\n",
-					inet_ntoa(pfcp_config->redis_ip));
+					config->redis_ip_buff);
 
 		 } else if (strncmp(CP_REDIS_IP , global_entries[i].name,
 					ENTRY_NAME_SIZE) == 0) {
 
-			inet_aton(global_entries[i].value,
-					&(pfcp_config->cp_redis_ip));
+			/*Check for IP type (ipv4/ipv6)*/
+			 int ret = get_ip_address_type(global_entries[i].value);
+			 if ( ret == -1) {
+				fprintf(stderr, "CP: CP_REDIS_IP : %s is in incorrect format\n",
+						config->cp_redis_ip_buff);
+				return;
+			} else {
+				config->cp_redis_ip_type = ret;
+			}
+
+			strncpy(config->cp_redis_ip_buff,
+					global_entries[i].value, IPV6_STR_LEN);
 
 			fprintf(stderr, "CP: CP_REDIS_IP : %s\n",
-					inet_ntoa(pfcp_config->cp_redis_ip));
+					config->cp_redis_ip_buff);
 
 		 } else if (strncmp(REDIS_CERT_PATH , global_entries[i].name,
 					ENTRY_NAME_SIZE) == 0) {
 
-			strncpy(pfcp_config->redis_cert_path, global_entries[i].value,
+			strncpy(config->redis_cert_path, global_entries[i].value,
 													REDIS_CERT_PATH_LEN);
 
 			fprintf(stderr, "CP: REDIS_CERT_PATH : %s\n",
-									pfcp_config->redis_cert_path);
+									config->redis_cert_path);
 
 		} else if (strncmp(REDIS_PORTS, global_entries[i].name,
 					ENTRY_NAME_SIZE) == 0) {
 
-			pfcp_config->redis_port =
+			config->redis_port =
 				(uint16_t)atoi(global_entries[i].value);
 
 			fprintf(stderr, "CP: REDIS_PORT: %d\n",
-					pfcp_config->redis_port);
-		} else if (strncmp(CP_LOGGER, global_entries[i].name, ENTRY_NAME_SIZE) == 0) {
-			 pfcp_config->cp_logger = (uint8_t)atoi(global_entries[i].value);
-		 }
+					config->redis_port);
+		} else if (strncmp(SUGGESTED_PKT_COUNT, global_entries[i].name,
+					ENTRY_NAME_SIZE) == 0) {
+
+			config->dl_buf_suggested_pkt_cnt =
+				(uint16_t)atoi(global_entries[i].value);
+
+			fprintf(stderr, "CP: SUGGESTED_PKT_COUNT: %d\n",
+					config->dl_buf_suggested_pkt_cnt);
+		} else if (strncmp(LOW_LVL_ARP_PRIORITY, global_entries[i].name,
+					ENTRY_NAME_SIZE) == 0) {
+
+			config->low_lvl_arp_priority =
+				(uint16_t)atoi(global_entries[i].value);
+
+			fprintf(stderr, "CP: LOW_LEVEL_ARP_PRIORITY: %d\n",
+					config->low_lvl_arp_priority);
+		}
+
+
 
 		/* Parse timer and counter values from cp.cfg */
 		if(strncmp(TRANSMIT_TIMER, global_entries[i].name, ENTRY_NAME_SIZE) == 0)
-			pfcp_config->transmit_timer = (int)atoi(global_entries[i].value);
+			config->transmit_timer = (int)atoi(global_entries[i].value);
 
 		if(strncmp(PERIODIC_TIMER, global_entries[i].name, ENTRY_NAME_SIZE) == 0)
-			pfcp_config->periodic_timer = (int)atoi(global_entries[i].value);
+			config->periodic_timer = (int)atoi(global_entries[i].value);
 
 		if(strncmp(TRANSMIT_COUNT, global_entries[i].name, ENTRY_NAME_SIZE) == 0)
-			pfcp_config->transmit_cnt = (uint8_t)atoi(global_entries[i].value);
+			config->transmit_cnt = (uint8_t)atoi(global_entries[i].value);
 
 		/* Parse CP Timer Request Time Out and Retries Values from cp.cfg */
 		if(strncmp(REQUEST_TIMEOUT, global_entries[i].name, ENTRY_NAME_SIZE) == 0){
 			if(check_cp_req_timeout_config(global_entries[i].value) == 0) {
-				pfcp_config->request_timeout = (int)atoi(global_entries[i].value);
+				config->request_timeout = (int)atoi(global_entries[i].value);
 				fprintf(stderr, "CP: REQUEST_TIMEOUT: %d\n",
-					pfcp_config->request_timeout);
+					config->request_timeout);
 			} else {
 				rte_panic("Error configuring "
 					"CP TIMER "REQUEST_TIMEOUT" invalid entry of %s\n", STATIC_CP_FILE);
@@ -306,16 +358,16 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 			/* if CP Request Timer Parameter is not present is cp.cfg */
 			/* Defualt Request Timerout value */
 			/* 3 seconds = 3000 milisecond  */
-			if(pfcp_config->request_timeout == 0) {
-				pfcp_config->request_timeout = REQUEST_TIMEOUT_DEFAULT_VALUE;
+			if(config->request_timeout == 0) {
+				config->request_timeout = REQUEST_TIMEOUT_DEFAULT_VALUE;
 			}
 		}
 
 		if(strncmp(REQUEST_TRIES, global_entries[i].name, ENTRY_NAME_SIZE) == 0) {
 			if(check_cp_req_tries_config(global_entries[i].value) == 0) {
-				pfcp_config->request_tries = (uint8_t)atoi(global_entries[i].value);
+				config->request_tries = (uint8_t)atoi(global_entries[i].value);
 				fprintf(stderr, "CP: REQUEST_TRIES: %d\n",
-					pfcp_config->request_tries);
+					config->request_tries);
 			} else {
 				rte_panic("Error configuring "
 					"CP TIMER "REQUEST_TRIES" invalid entry of %s\n", STATIC_CP_FILE);
@@ -324,25 +376,70 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 		} else {
 			/* if CP Request Timer Parameter is not present is cp.cfg */
 			/* Defualt Request Retries value */
-			if(pfcp_config->request_tries == 0) {
-				pfcp_config->request_tries = REQUEST_TRIES_DEFAULT_VALUE;
+			if(config->request_tries == 0) {
+				config->request_tries = REQUEST_TRIES_DEFAULT_VALUE;
 			}
 		}
 		/* DNS Parameter for Config CP with or without DNSquery */
 		if(strncmp(USE_DNS, global_entries[i].name, ENTRY_NAME_SIZE) == 0) {
-			pfcp_config->use_dns = (uint8_t)atoi(global_entries[i].value);
-			fprintf(stderr, "CP: %s :   %s \n", (pfcp_config->cp_type == SGWC ? "SGW-C" :
-						pfcp_config->cp_type == PGWC ? "PGW-C" :
-						pfcp_config->cp_type == SAEGWC ? "SAEGW-C" : "UNKNOWN"),
-					((pfcp_config->use_dns)? "WITH DNS": "WITHOUT DNS"));
+			config->use_dns = (uint8_t)atoi(global_entries[i].value);
+			fprintf(stderr, "CP: %s :   %s \n", (config->cp_type == SGWC ? "SGW-C" :
+						config->cp_type == PGWC ? "PGW-C" :
+						config->cp_type == SAEGWC ? "SAEGW-C" : "UNKNOWN"),
+					((config->use_dns)? "WITH DNS": "WITHOUT DNS"));
+		}
+
+		if (strncmp(CP_DNS_IP , global_entries[i].name,
+					ENTRY_NAME_SIZE) == 0) {
+
+			/* Check for IP type (ipv4/ipv6) */
+			 int8_t ip_type = get_ip_address_type(global_entries[i].value);
+			 if (ip_type == -1) {
+				fprintf(stderr, "CP: CP_DNS_IP : %s is in incorrect format\n",
+					global_entries[i].value);
+				rte_panic();
+			} else {
+				config->cp_dns_ip_type = ip_type;
+			}
+
+			strncpy(config->cp_dns_ip_buff,
+					global_entries[i].value, IPV6_STR_LEN);
+
+			fprintf(stdout, "CP: CP_DNS_IP : %s\n",
+					config->cp_dns_ip_buff);
+
+		 }
+
+		if (strncmp(CLI_REST_IP , global_entries[i].name,
+					ENTRY_NAME_SIZE) == 0) {
+
+			/* Check for IP type (ipv4/ipv6) */
+			 int8_t ip_type = get_ip_address_type(global_entries[i].value);
+			 if (ip_type == -1) {
+				fprintf(stderr, "CP: CP_REST_IP : %s is in incorrect format\n",
+					global_entries[i].value);
+				rte_panic();
+			}
+
+			strncpy(config->cli_rest_ip_buff,
+					global_entries[i].value, IPV6_STR_LEN);
+
+			fprintf(stdout, "CP: CP_REST_IP : %s\n",
+					config->cli_rest_ip_buff);
+		}
+
+		if(strncmp(CLI_REST_PORT, global_entries[i].name, ENTRY_NAME_SIZE) == 0) {
+			config->cli_rest_port = (uint16_t)atoi(global_entries[i].value);
+			fprintf(stdout, "CP: CLI_REST_PORT : %d\n",
+					config->cli_rest_port);
 		}
 
 		/* To ON/OFF CDR on PGW/SAEGW */
 		if(strncmp(GENERATE_CDR, global_entries[i].name, ENTRY_NAME_SIZE) == 0) {
-			pfcp_config->generate_cdr = (uint8_t)atoi(global_entries[i].value);
+			config->generate_cdr = (uint8_t)atoi(global_entries[i].value);
 			fprintf(stderr, "CP: [PGW/SAEGW] CDR GENERATION : %s\n",
-					(pfcp_config->generate_cdr)? "ENABLED" : "DISABLED");
-			if(pfcp_config->generate_cdr > CDR_ON){
+					(config->generate_cdr)? "ENABLED" : "DISABLED");
+			if(config->generate_cdr > CDR_ON){
 				rte_panic("Error : Invalide value aasign to paramtere GENERATE_CDR \n");
 
 			}
@@ -350,29 +447,29 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 
 		/* To ON/OFF/CC_CHECK for CDR generation on SGW */
 		if(strncmp(GENERATE_SGW_CDR, global_entries[i].name, ENTRY_NAME_SIZE) == 0) {
-			pfcp_config->generate_sgw_cdr = (uint8_t)atoi(global_entries[i].value);
+			config->generate_sgw_cdr = (uint8_t)atoi(global_entries[i].value);
 			fprintf(stderr, "CP: [SGW] CDR GENERATION : %d\n",
-									(pfcp_config->generate_sgw_cdr));
-			if(pfcp_config->generate_sgw_cdr > SGW_CC_CHECK){
+									(config->generate_sgw_cdr));
+			if(config->generate_sgw_cdr > SGW_CC_CHECK){
 				rte_panic("Error : Invalide value aasign to paramtere GENERATE_SGW_CDR \n");
 
 			}
 		}
 
 		/* Charging Characteristic for the case of SGW */
-		if((pfcp_config->generate_sgw_cdr == SGW_CC_CHECK) &&
+		if((config->generate_sgw_cdr == SGW_CC_CHECK) &&
 				strncmp(SGW_CC, global_entries[i].name, ENTRY_NAME_SIZE) == 0) {
-			pfcp_config->sgw_cc = (uint8_t)atoi(global_entries[i].value);
+			config->sgw_cc = (uint8_t)atoi(global_entries[i].value);
 			fprintf(stderr, "CP: Charging Characteristic for SGW : %s\n",
-													get_cc_string(pfcp_config->sgw_cc));
+													get_cc_string(config->sgw_cc));
 		}
 
-		if(pfcp_config->cp_type != SGWC) {
+		if(config->cp_type != SGWC) {
 			if(strncmp(USE_GX, global_entries[i].name, ENTRY_NAME_SIZE) == 0) {
-				pfcp_config->use_gx = (uint8_t)atoi(global_entries[i].value);
-				if(pfcp_config->use_gx <= 1) {
+				config->use_gx = (uint8_t)atoi(global_entries[i].value);
+				if(config->use_gx <= 1) {
 					fprintf(stderr, "CP: USE GX : %s\n",
-							(pfcp_config->use_gx)? "ENABLED" : "DISABLED");
+							(config->use_gx)? "ENABLED" : "DISABLED");
 				}
 				else {
 					rte_panic("Use 0 or 1 for gx interface DISABLE/ENABLE : %s\n", STATIC_CP_FILE);
@@ -381,30 +478,66 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 		}
 
 		if(strncmp(ADD_DEFAULT_RULE, global_entries[i].name, ENTRY_NAME_SIZE) == 0) {
-			pfcp_config->add_default_rule = (uint8_t)atoi(global_entries[i].value);
+			config->add_default_rule = (uint8_t)atoi(global_entries[i].value);
 			fprintf(stderr, "CP: ADD_DEFAULT_RULE : %s\n",
-					(pfcp_config->add_default_rule)? ((pfcp_config->add_default_rule == 1) ?
+					(config->add_default_rule)? ((config->add_default_rule == 1) ?
 					"ALLOW ANY TO ANY" : "DENY ANY TO ANY") : "DISABLED");
+		}
+
+		/* IP_ALLOCATION_MODE parameter for CP Config */
+		if(strncmp(IP_ALLOCATION_MODE, global_entries[i].name, ENTRY_NAME_SIZE) == 0) {
+			config->ip_allocation_mode = (uint8_t)atoi(global_entries[i].value);
+			fprintf(stderr, "CP: IP_ALLOCATION_MODE : %s\n",
+					(config->ip_allocation_mode) ? "DYNAMIC" : "STATIC");
+
+			if (config->ip_allocation_mode > IP_MODE) {
+				rte_panic("Error : Invalid value aasigned to IP_ALLOCATION_MODE \n");
+			}
+		}
+
+		/* IP_TYPE_SUPPORTED parameter for CP Config */
+		if(strncmp(IP_TYPE_SUPPORTED, global_entries[i].name, ENTRY_NAME_SIZE) == 0) {
+			config->ip_type_supported = (uint8_t)atoi(global_entries[i].value);
+			fprintf(stderr, "IP_TYPE_SUPPORTED : %s\n",
+					config->ip_type_supported == IP_V4 ? "IPV4" :
+					config->ip_type_supported == IP_V6 ? "IPV6" :
+					config->ip_type_supported == IPV4V6_PRIORITY ? "IPV4V6_PRIORITY" :
+					config->ip_type_supported == IPV4V6_DUAL ? "IPV4V6_DUAL" : "UNKNOWN");
+
+			if (config->ip_type_supported > IP_TYPE) {
+				rte_panic("Error : Invalid value aasigned to IP_TYPE_SUPPORTED \n");
+			}
+		}
+
+		/* IP_TYPE_PRIORITY parameter for CP Config */
+		if(strncmp(IP_TYPE_PRIORITY, global_entries[i].name, ENTRY_NAME_SIZE) == 0) {
+			config->ip_type_priority = (uint8_t)atoi(global_entries[i].value);
+			fprintf(stderr, "CP: IP_TYPE_PRIORITY : %s\n",
+					(config->ip_type_priority) ? "IPv6 TYPE" : "IPv4 TYPE");
+
+			if (config->ip_type_priority > IP_PRIORITY) {
+				rte_panic("Error : Invalid value aasigned to IP_TYPE_PRIORITY \n");
+			}
 		}
 	}
 
-	rte_free(global_entries);
+	if(!config->use_dns){
+		if((config->pfcp_ip_type != PDN_TYPE_IPV4_IPV6 &&
+			config->upf_pfcp_ip_type!= PDN_TYPE_IPV4_IPV6) &&
+			(config->pfcp_ip_type != config->upf_pfcp_ip_type)){
 
-	if ((pfcp_config->upf_s5s8_ip)
-			&& (pfcp_config->upf_s5s8_mask)) {
-
-		pfcp_config->upf_s5s8_net = pfcp_config->upf_s5s8_ip & pfcp_config->upf_s5s8_mask;
-		pfcp_config->upf_s5s8_bcast_addr = pfcp_config->upf_s5s8_ip | ~(pfcp_config->upf_s5s8_mask);
-		fprintf(stderr, "CP: Config:%s:Configure UPF S5S8 Intf Subnet::"
-				"\n\tUP: S5S8 Intf IP:\t\t"IPV4_ADDR";\n\t",
-				__func__, IPV4_ADDR_HOST_FORMAT(pfcp_config->upf_s5s8_ip));
-		fprintf(stderr, "S5S8 Intf NET:\t\t\t"IPV4_ADDR";\n\t",
-				IPV4_ADDR_HOST_FORMAT(pfcp_config->upf_s5s8_net));
-		fprintf(stderr, "S5S8 Intf MASK:\t\t\t"IPV4_ADDR";\n\t",
-				IPV4_ADDR_HOST_FORMAT(pfcp_config->upf_s5s8_mask));
-		fprintf(stderr, "S5S8 Intf BCAST ADDR:\t\t"IPV4_ADDR";\n",
-				IPV4_ADDR_HOST_FORMAT(pfcp_config->upf_s5s8_bcast_addr));
+			fprintf(stderr, "CP: PFCP_IP is not compatible with UPF_PFCP_IP and"
+														" We are not using DNS\n");
+			rte_panic();
+		}
 	}
+	fprintf(stderr, "CP: S11_IP_TYPE  : %s\n", ip_type_str(config->s11_ip_type));
+
+	fprintf(stderr, "CP: S5S8_IP_TYPE : %s\n", ip_type_str(config->s5s8_ip_type));
+
+	fprintf(stderr, "CP: PFCP_IP_TYPE : %s\n", ip_type_str(config->pfcp_ip_type));
+
+	rte_free(global_entries);
 
 	/* Parse APN and nameserver values. */
 	uint16_t app_nameserver_ip_idx = 0;
@@ -442,7 +575,7 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 	{
 
 		apn_num_entries = rte_cfgfile_section_entries_by_index(file,
-				i, apn_name, apn_entries, 10);
+				i, apn_name, apn_entries, 13);
 
 		if (apn_num_entries > 0 )
 		{
@@ -488,10 +621,31 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 
 					apn_list[apn_idx].time_th = (int)atoi(apn_entries[j].value);
 
+				} else if (strncmp(IP_POOL_IP, apn_entries[j].name,
+							ENTRY_NAME_SIZE) == 0) {
+
+					inet_aton(apn_entries[j].value, &(apn_list[apn_idx].ip_pool_ip));
+
+				} else if (strncmp(IP_POOL_MASK, apn_entries[j].name,
+							ENTRY_NAME_SIZE) == 0) {
+
+					inet_aton(apn_entries[j].value, &(apn_list[apn_idx].ip_pool_mask));
+
+				} else if (strncmp(IPV6_NETWORK_ID,
+							apn_entries[j].name,
+							ENTRY_NAME_SIZE) == 0) {
+					inet_pton(AF_INET6, apn_entries[j].value,
+									&(apn_list[apn_idx].ipv6_network_id));
+
+				} else if(strncmp(IPV6_PREFIX_LEN,
+									apn_entries[j].name,
+									ENTRY_NAME_SIZE) == 0) {
+					apn_list[apn_idx].ipv6_prefix_len =
+							(uint8_t)atoi(apn_entries[j].value);
 				}
 
 		    }
-			pfcp_config->num_apn = num_apn;
+			config->num_apn = num_apn;
 			apn_list[apn_idx].apn_idx = apn_idx;
 
 			 /*check for valid configuration*/
@@ -552,43 +706,43 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 				urr_entries[i].value);
 		if (strncmp(TRIGGER_TYPE, urr_entries[i].name,
 						ENTRY_NAME_SIZE) == 0)
-			pfcp_config->trigger_type =
+			config->trigger_type =
 					(int)atoi(urr_entries[i].value);
 		if (strncmp(UPLINK_VOLTH, urr_entries[i].name,
 						ENTRY_NAME_SIZE) == 0)
-			pfcp_config->uplink_volume_th =
+			config->uplink_volume_th =
 					(int)atoi(urr_entries[i].value);
 		if (strncmp(DOWNLINK_VOLTH, urr_entries[i].name,
 						ENTRY_NAME_SIZE) == 0)
-			pfcp_config->downlink_volume_th =
+			config->downlink_volume_th =
 					(int)atoi(urr_entries[i].value);
 		if (strncmp(TIMETH, urr_entries[i].name,
 						ENTRY_NAME_SIZE) == 0)
-			pfcp_config->time_th =
+			config->time_th =
 					(int)atoi(urr_entries[i].value);
 	}
 
 	/*check for valid configuration*/
 
-	if(pfcp_config->trigger_type < 0 || pfcp_config->trigger_type > 2) {
+	if(config->trigger_type < 0 || config->trigger_type > 2) {
 		fprintf(stderr, "\ncp.cfg : Wrong trigger_type"
 				" for defalt configuration type [URR_DEFAULT]\n");
 		rte_panic("Line no : %d\n",__LINE__);
 	}
 
-	if(pfcp_config->uplink_volume_th <= 0 ) {
+	if(config->uplink_volume_th <= 0 ) {
 		fprintf(stderr, "\ncp.cfg : Wrong uplink_volume_th"
 				" for defalt configuration type [URR_DEFAULT]\n");
 		rte_panic("Line no : %d\n",__LINE__);
 	}
 
-	if(pfcp_config->downlink_volume_th <= 0 ) {
+	if(config->downlink_volume_th <= 0 ) {
 		fprintf(stderr, "\ncp.cfg : Wrong downlink_volume_th"
 				" for defalt configuration type [URR_DEFAULT]\n");
 		rte_panic("Line no : %d\n",__LINE__);
 	}
 
-	if(pfcp_config->time_th <= 0 ) {
+	if(config->time_th <= 0 ) {
 		fprintf(stderr, "\ncp.cfg : Wrong time_th"
 				" for defalt configuration type [URR_DEFAULT]\n");
 		rte_panic("Line no : %d\n",__LINE__);
@@ -621,23 +775,23 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 				cache_entries[i].value);
 		if (strncmp(CONCURRENT, cache_entries[i].name,
 						ENTRY_NAME_SIZE) == 0)
-			pfcp_config->dns_cache.concurrent =
+			config->dns_cache.concurrent =
 					(uint32_t)atoi(cache_entries[i].value);
 		if (strncmp(PERCENTAGE, cache_entries[i].name,
 						ENTRY_NAME_SIZE) == 0)
-			pfcp_config->dns_cache.percent =
+			config->dns_cache.percent =
 					(uint32_t)atoi(cache_entries[i].value);
 		if (strncmp(INT_SEC, cache_entries[i].name,
 						ENTRY_NAME_SIZE) == 0)
-			pfcp_config->dns_cache.sec =
+			config->dns_cache.sec =
 				(((uint32_t)atoi(cache_entries[i].value)) * 1000);
 		if (strncmp(QUERY_TIMEOUT, cache_entries[i].name,
 		                ENTRY_NAME_SIZE) == 0)
-		    pfcp_config->dns_cache.timeoutms =
+		    config->dns_cache.timeoutms =
 		            (long)atol(cache_entries[i].value);
 		if (strncmp(QUERY_TRIES, cache_entries[i].name,
 		                ENTRY_NAME_SIZE) == 0)
-		    pfcp_config->dns_cache.tries =
+		    config->dns_cache.tries =
 		           (uint32_t)atoi(cache_entries[i].value);
 	}
 
@@ -670,25 +824,31 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 
 		if (strncmp(FREQ_SEC, app_entries[i].name,
 						ENTRY_NAME_SIZE) == 0)
-			pfcp_config->app_dns.freq_sec =
+			config->app_dns.freq_sec =
 					(uint8_t)atoi(app_entries[i].value);
 
 		if (strncmp(FILENAME, app_entries[i].name,
 						ENTRY_NAME_SIZE) == 0)
-			strncpy(pfcp_config->app_dns.filename,
+			strncpy(config->app_dns.filename,
 					app_entries[i].value,
-					sizeof(pfcp_config->app_dns.filename));
+					sizeof(config->app_dns.filename));
 
 		if (strncmp(NAMESERVER, app_entries[i].name,
 						ENTRY_NAME_SIZE) == 0) {
-			strncpy(pfcp_config->app_dns.nameserver_ip[app_nameserver_ip_idx],
+			strncpy(config->app_dns.nameserver_ip[app_nameserver_ip_idx],
 					app_entries[i].value,
-					sizeof(pfcp_config->app_dns.nameserver_ip[app_nameserver_ip_idx]));
+					sizeof(config->app_dns.nameserver_ip[app_nameserver_ip_idx]));
+					int8_t ip_type = get_ip_address_type(app_entries[i].value);
+					/* comparing the ip type of nameserver with source address ip type of CP */
+					if (!(ip_type & config->cp_dns_ip_type)) {
+						fprintf(stderr, "CP: CP_DNS_IP and app nameserver IP type should be equal ");
+							rte_panic();
+					}
 			app_nameserver_ip_idx++;
 		}
 	}
 
-	pfcp_config->app_dns.nameserver_cnt = app_nameserver_ip_idx;
+	config->app_dns.nameserver_cnt = app_nameserver_ip_idx;
 
 	rte_free(app_entries);
 
@@ -719,25 +879,31 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 
 		if (strncmp(FREQ_SEC, ops_entries[i].name,
 						ENTRY_NAME_SIZE) == 0)
-			pfcp_config->ops_dns.freq_sec =
+			config->ops_dns.freq_sec =
 					(uint8_t)atoi(ops_entries[i].value);
 
 		if (strncmp(FILENAME, ops_entries[i].name,
 						ENTRY_NAME_SIZE) == 0)
-			strncpy(pfcp_config->ops_dns.filename,
+			strncpy(config->ops_dns.filename,
 					ops_entries[i].value,
 					strnlen(ops_entries[i].value,CFG_VALUE_LEN));
 
 		if (strncmp(NAMESERVER, ops_entries[i].name,
 						ENTRY_NAME_SIZE) == 0) {
-			strncpy(pfcp_config->ops_dns.nameserver_ip[ops_nameserver_ip_idx],
+			strncpy(config->ops_dns.nameserver_ip[ops_nameserver_ip_idx],
 					ops_entries[i].value,
 					strnlen(ops_entries[i].value,CFG_VALUE_LEN));
+					int8_t ip_type = get_ip_address_type(app_entries[i].value);
+					/* comparing the ip type of nameserver with source address ip type of CP */
+					if (!(ip_type & config->cp_dns_ip_type)) {
+						fprintf(stderr, "CP: CP_DNS_IP and ops nameserver IP type should be equal ");
+							rte_panic();
+					}
 			ops_nameserver_ip_idx++;
 		}
 	}
 
-	pfcp_config->ops_dns.nameserver_cnt = ops_nameserver_ip_idx;
+	config->ops_dns.nameserver_cnt = ops_nameserver_ip_idx;
 
 	rte_free(ops_entries);
 
@@ -772,12 +938,23 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 					ip_pool_entries[i].name,
 					ENTRY_NAME_SIZE) == 0) {
 			inet_aton(ip_pool_entries[i].value,
-					&(pfcp_config->ip_pool_ip));
+					&(config->ip_pool_ip));
 		} else if (strncmp
 				(IP_POOL_MASK, ip_pool_entries[i].name,
 				 ENTRY_NAME_SIZE) == 0) {
 			inet_aton(ip_pool_entries[i].value,
-					&(pfcp_config->ip_pool_mask));
+					&(config->ip_pool_mask));
+		} else if (strncmp(IPV6_NETWORK_ID,
+							ip_pool_entries[i].name,
+							ENTRY_NAME_SIZE) == 0) {
+			inet_pton(AF_INET6, ip_pool_entries[i].value,
+							&(config->ipv6_network_id));
+
+		} else if(strncmp(IPV6_PREFIX_LEN,
+							ip_pool_entries[i].name,
+							ENTRY_NAME_SIZE) == 0) {
+			config->ipv6_prefix_len =
+					(uint8_t)atoi(ip_pool_entries[i].value);
 		}
 	}
 
@@ -827,63 +1004,6 @@ check_cp_req_tries_config(char *value) {
 	return -1;
 }
 
-void
-parse_apn_args(char *temp, char *ptr[3])
-{
-
-	int i;
-	char *first = temp;
-	char *next = NULL;
-
-	for (i = 0; i < 3; i++) {
-		ptr[i] = malloc(100);
-		memset(ptr[i], 0, 100);
-	}
-
-	for (i = 0; i < 3; i++) {
-
-		if(first!=NULL)
-			next = strchr(first, ',');
-
-		if(first == NULL && next == NULL)
-		{
-			ptr[i] = NULL;
-			continue;
-		}
-
-		if(*(first) == '\0')  //string ends,fill remaining with NULL
-		{
-			ptr[i] = NULL;
-			continue;
-		}
-
-		if(next!= NULL)
-		{
-			if(next > first) //string is present
-			{
-				strncpy(ptr[i], first, next - first);
-
-			}
-			else if (next == first) //first place is comma
-			{
-				ptr[i] = NULL;
-			}
-			first = next + 1;
-		} else                //copy last string
-		{
-			if(first!=NULL)
-			{
-				strcpy(ptr[i],first);
-				first = NULL;
-			} else {
-				ptr[i] = NULL; //fill remaining ptr with NULL
-			}
-
-		}
-	}
-
-}
-
 int
 get_apn_name(char *apn_name_label, char *apn_name) {
 
@@ -908,3 +1028,81 @@ get_apn_name(char *apn_name_label, char *apn_name) {
 	}
 	return 0;
 }
+
+int
+get_ip_address_type(const char *ip_addr) {
+
+	struct addrinfo *ip_type = NULL;
+
+	/*Check for IP type (ipv4/ipv6)*/
+	if ( getaddrinfo(ip_addr, NULL, NULL, &ip_type )) {
+		return -1;
+	}
+
+	if(ip_type->ai_family == AF_INET6)
+		return PDN_TYPE_IPV6;
+	else
+		return PDN_TYPE_IPV4;
+
+}
+
+int fill_pcrf_ip(const char *filename, char *peer_addr)
+{
+	FILE *gx_fd = NULL;
+	char data[LINE_SIZE] = {0};
+	char *token = NULL;
+	char *token1 = NULL;
+	uint8_t str_len = 0;
+	char *data_ptr = NULL;
+
+	gx_fd = fopen(filename, "r");
+
+	if (NULL == gx_fd) {
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"unable to read [%s] file\n", LOG_VALUE, filename);
+		return -1;
+	}
+
+	while ((fgets(data, LINE_SIZE, gx_fd)) != NULL) {
+		if (data[0]  == '#') {
+			continue;
+		}
+		data_ptr = strstr(data, CONNECT_TO);
+		if (data_ptr != NULL) {
+				token = strchr(data_ptr, '"');
+				if (token != NULL) {
+					token1 = strchr(token + 1, '"');
+					if (token != NULL) {
+						str_len = token1 - token;
+						strncpy(peer_addr, token + 1, str_len - 1);
+						peer_addr[str_len] = '\0';
+					}
+				}
+				fclose(gx_fd);
+				return 0;
+		}
+	}
+	fclose(gx_fd);
+	return -1;
+}
+
+int8_t fill_gx_iface_ip(void) {
+	char peer_addr[IPV6_STR_LEN] = {0};
+	if(fill_pcrf_ip(GX_FILE_PATH, peer_addr)) {
+		return -1;
+	}
+
+	int8_t ip_type = get_ip_address_type(peer_addr);
+	if (PDN_TYPE_IPV4 == ip_type) {
+		inet_pton(AF_INET, peer_addr, &config.gx_ip.ipv4.sin_addr);
+		config.gx_ip.type = PDN_TYPE_IPV4;
+	} else if (PDN_TYPE_IPV6 == ip_type) {
+		inet_pton(AF_INET6, peer_addr, &config.gx_ip.ipv6.sin6_addr);
+		config.gx_ip.type = PDN_TYPE_IPV6;
+	} else {
+		return -1;
+	}
+
+	return 0;
+}
+

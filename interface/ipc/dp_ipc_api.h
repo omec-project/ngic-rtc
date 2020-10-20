@@ -132,13 +132,13 @@ iface_ipc_register_msg_cb(int msg_id,
  * @brief : handles s11 interface messages
  */
 
-void msg_handler_s11(void);
+void msg_handler_s11(bool is_ipv6);
 
 /**
  * @brief : handles s5s8 interface messages
  */
 
-void msg_handler_s5s8(void);
+void msg_handler_s5s8(bool is_ipv6);
 
 #ifdef CP_BUILD
 /**

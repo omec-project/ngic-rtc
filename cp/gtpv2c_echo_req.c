@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -125,8 +126,6 @@ build_gtpv2_echo_request(gtpv2c_header_t *echo_pkt, uint16_t gtpu_seqnb, uint8_t
 				GTP_IE_NODE_FEATURES, sizeof(uint8_t), IE_INSTANCE_ZERO, PRN);
 	}
 
-	uint16_t msg_len = 0;
-	msg_len = encode_echo_request(&echo_req, (uint8_t *)echo_pkt);
+	encode_echo_request(&echo_req, (uint8_t *)echo_pkt);
 
-	echo_pkt->gtpc.message_len = htons(msg_len - IE_HEADER_SIZE);
 }

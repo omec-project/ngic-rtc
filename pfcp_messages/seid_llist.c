@@ -1,5 +1,7 @@
-/*Copyright (c) 2019 Sprint
-
+/*
+ * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -14,6 +16,7 @@
  */
 
 #include "seid_llist.h"
+extern int clSystemLog;
 
 sess_csid *
 add_sess_csid_data_node(sess_csid *head) {
@@ -102,70 +105,61 @@ get_sess_csid_data_node(sess_csid *head, uint64_t seid)
  */
 
 static sess_csid *
-remove_sess_csid_firts_node(sess_csid *head) {
+remove_sess_csid_first_node(sess_csid *head) {
 
 	if(head == NULL)
 		return NULL;
 
 	sess_csid *current = head;
-
 	/* Access the next node */
-	head = current->next;
+	sess_csid *tmp = current->next;
 
 	/* Free next node address form current node  */
 	current->next = NULL;
 
-	/* Check this the last node in the linked list or not */
-	if (current == head)
-		head = NULL;
-
 	/* Free the 1st node from linked list */
 	if(current != NULL)
-		rte_free(current);
+		//rte_free(current);
+
+	current = NULL;
+	return tmp;
+}
+
+/* Function to remove last node from linked list */
+static sess_csid *
+remove_sess_csid_last_node(sess_csid *head) {
+
+	if(head == NULL)
+		return NULL;
+
+	sess_csid *current = head;
+	sess_csid *last = head;
+
+	/* Find the last node in the linked list */
+	while(current->next != NULL) {
+		last = current;
+		current = current->next;
+	}
+
+	/* Removed the linked from last node */
+	if (last != NULL)
+		last->next = NULL;
+
+	/* free the last node from linked list */
+	if (current != NULL)
+		//rte_free(current);
 
 	current = NULL;
 	return head;
 }
 
-/* Function to remove last node from linked list */
-//static sess_csid *
-//remove_sess_csid_last_node(sess_csid *head) {
-//
-//	if(head == NULL)
-//		return NULL;
-//
-//	sess_csid *current = head;
-//	sess_csid *last = NULL;
-//
-//	/* Find the last node in the linked list */
-//	while(current->next != NULL) {
-//		last = current;
-//		current = current->next;
-//	}
-//
-//	if (last != NULL)
-//		last->next = NULL;
-//
-//	/* Check this the last node in the linked list */
-//	if (current == head)
-//		head = NULL;
-//
-//	/* free the last node from linked list */
-//	rte_free(current);
-//	current = NULL;
-//	return head;
-//
-//}
-
 /* Function to remove node from linked list */
 sess_csid *
 remove_sess_csid_data_node(sess_csid *head, uint64_t seid)
 {
-
 	/* pointing to head node */
 	sess_csid *current = head;
 	sess_csid *previous = NULL;
-	//sess_csid *tmp = NULL;
 
 	if(head == NULL) {
 		return NULL;
@@ -179,20 +173,12 @@ remove_sess_csid_data_node(sess_csid *head, uint64_t seid)
 
 			/* If first node remove */
 			if(current == head){
-				return remove_sess_csid_firts_node(head);
+				return remove_sess_csid_first_node(head);
 			}
-			/* B : need to think about last node remove */
+
 			/* If the last node remove */
 			if(current->next == NULL ){
-				/* Check previous csid node is not empty */
-				if(previous != NULL) {
-					previous->next = NULL;
-				}
-				if(current != NULL)
-					rte_free(current);
-				current = NULL;
-				return head;
-				//return remove_sess_csid_last_node(head);
+				return remove_sess_csid_last_node(head);
 			}
 
 			/* If middel node */
@@ -205,7 +191,6 @@ remove_sess_csid_data_node(sess_csid *head, uint64_t seid)
 				rte_free(current);
 				current = NULL;
 			}
-
 			return head;
 		}
 
@@ -213,12 +198,10 @@ remove_sess_csid_data_node(sess_csid *head, uint64_t seid)
 		current = current->next;
 	}
 
-
 	/* If no node present in link list for given seid then return NULL */
-	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Failed to remove node, for seid : %"PRIu64"\n",
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Failed to remove node, not found for seid : %"PRIu64"\n",
 				LOG_VALUE, seid);
-	return NULL;
-
+	return head;
 }
 
 

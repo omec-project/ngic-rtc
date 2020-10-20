@@ -36,6 +36,8 @@
 #define RAT_TYPE_VALUE        (0)
 
 extern int pfcp_fd;
+extern int pfcp_fd_v6;
+extern int clSystemLog;
 
 int
 process_release_access_bearer_request(rel_acc_ber_req_t *rel_acc_ber_req, uint8_t proc)
@@ -49,6 +51,7 @@ process_release_access_bearer_request(rel_acc_ber_req_t *rel_acc_ber_req, uint8_
 	int ret = 0;
 	uint8_t pdn_counter = 0;
 	int ebi_index = 0;
+	node_address_t node_value = {0};
 
 	ret = rte_hash_lookup_data(ue_context_by_fteid_hash,
 			(const void *) &rel_acc_ber_req->header.teid.has_teid.teid,
@@ -69,7 +72,12 @@ process_release_access_bearer_request(rel_acc_ber_req_t *rel_acc_ber_req, uint8_
 			for(int itr_bearer = 0 ; itr_bearer < MAX_BEARERS; itr_bearer++) {
 				bearer = pdn->eps_bearers[itr_bearer];
 				if(bearer) {
-					bearer->s1u_enb_gtpu_teid = RESET_TEID;
+					if(context->indication_flag.s11tf){
+						bearer->s11u_mme_gtpu_teid = RESET_TEID;
+					}else{
+						bearer->s1u_enb_gtpu_teid = RESET_TEID;
+					}
+
 					for(uint8_t itr_pdr = 0; itr_pdr < bearer->pdr_count; itr_pdr++) {
 						if(bearer->pdrs[itr_pdr] != NULL) {
 							if(bearer->pdrs[itr_pdr]->pdi.src_intfc.interface_value == SOURCE_INTERFACE_VALUE_CORE) {
@@ -77,23 +85,56 @@ process_release_access_bearer_request(rel_acc_ber_req_t *rel_acc_ber_req, uint8_
 								bearer->pdrs[itr_pdr]->far.actions.nocp = TRUE;
 								bearer->pdrs[itr_pdr]->far.actions.forw = FALSE;
 								set_update_far(&(pfcp_sess_mod_req.update_far[pfcp_sess_mod_req.update_far_count]),
-									&bearer->pdrs[itr_pdr]->far);
+										&bearer->pdrs[itr_pdr]->far);
 								uint16_t len = 0;
 								len += set_upd_forwarding_param(&(pfcp_sess_mod_req.update_far
-											[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms));
+											[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms),
+											bearer->s1u_enb_gtpu_ip);
+
 								len += UPD_PARAM_HEADER_SIZE;
 								pfcp_sess_mod_req.update_far
 									[pfcp_sess_mod_req.update_far_count].header.len += len;
 
-								pfcp_sess_mod_req.update_far
-									[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.outer_hdr_creation.teid =
-									bearer->s1u_enb_gtpu_teid;
-								pfcp_sess_mod_req.update_far
-									[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.outer_hdr_creation.ipv4_address =
-									bearer->s1u_enb_gtpu_ipv4.s_addr;
-								pfcp_sess_mod_req.update_far
-									[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.dst_intfc.interface_value =
-									GTPV2C_IFTYPE_S1U_ENODEB_GTPU;
+								if(context->indication_flag.s11tf){
+									pfcp_sess_mod_req.update_far
+										[pfcp_sess_mod_req.update_far_count].\
+										upd_frwdng_parms.outer_hdr_creation.teid
+											= bearer->s11u_mme_gtpu_teid;
+
+									set_node_address(&pfcp_sess_mod_req.\
+											update_far[pfcp_sess_mod_req.update_far_count].\
+											upd_frwdng_parms.outer_hdr_creation.ipv4_address,
+										pfcp_sess_mod_req.update_far[pfcp_sess_mod_req.update_far_count].\
+										upd_frwdng_parms.outer_hdr_creation.ipv6_address,
+										bearer->s11u_mme_gtpu_ip);
+
+									if (ret < 0) {
+										clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+											"IP address", LOG_VALUE);
+									}
+
+									pfcp_sess_mod_req.update_far
+										[pfcp_sess_mod_req.update_far_count].\
+										upd_frwdng_parms.dst_intfc.interface_value =
+											GTPV2C_IFTYPE_S1U_ENODEB_GTPU;
+								}else {
+									pfcp_sess_mod_req.update_far
+										[pfcp_sess_mod_req.update_far_count].\
+										upd_frwdng_parms.outer_hdr_creation.teid =
+											bearer->s1u_enb_gtpu_teid;
+
+									set_node_address(&pfcp_sess_mod_req.\
+											update_far[pfcp_sess_mod_req.update_far_count].\
+											upd_frwdng_parms.outer_hdr_creation.ipv4_address,
+										pfcp_sess_mod_req.update_far[pfcp_sess_mod_req.update_far_count].\
+										upd_frwdng_parms.outer_hdr_creation.ipv6_address,
+										bearer->s1u_enb_gtpu_ip);
+
+									pfcp_sess_mod_req.update_far
+										[pfcp_sess_mod_req.update_far_count].\
+										upd_frwdng_parms.dst_intfc.interface_value =
+											GTPV2C_IFTYPE_S1U_ENODEB_GTPU;
+								}
 								pfcp_sess_mod_req.update_far_count++;
 								break;
 							}
@@ -104,7 +145,26 @@ process_release_access_bearer_request(rel_acc_ber_req_t *rel_acc_ber_req, uint8_
 			context->sequence =
 				rel_acc_ber_req->header.teid.has_teid.seq;
 
-			set_fseid(&(pfcp_sess_mod_req.cp_fseid), pdn->seid, pfcp_config.pfcp_ip.s_addr);
+
+			/*Filling Node ID for F-SEID*/
+			if (pdn->upf_ip.ip_type == PDN_IP_TYPE_IPV4) {
+				uint8_t temp[IPV6_ADDRESS_LEN] = {0};
+				ret = fill_ip_addr(config.pfcp_ip.s_addr, temp, &node_value);
+				if (ret < 0) {
+					clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+						"IP address", LOG_VALUE);
+				}
+
+			} else if (pdn->upf_ip.ip_type == PDN_IP_TYPE_IPV6) {
+
+				ret = fill_ip_addr(0, config.pfcp_ip_v6.s6_addr, &node_value);
+				if (ret < 0) {
+					clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+						"IP address", LOG_VALUE);
+				}
+			}
+
+			set_fseid(&(pfcp_sess_mod_req.cp_fseid), pdn->seid, node_value);
 
 			seq = get_pfcp_sequence_number(PFCP_SESSION_MODIFICATION_REQUEST, seq);
 			set_pfcp_seid_header((pfcp_header_t *) &(pfcp_sess_mod_req.header), PFCP_SESSION_MODIFICATION_REQUEST,
@@ -113,14 +173,11 @@ process_release_access_bearer_request(rel_acc_ber_req_t *rel_acc_ber_req, uint8_
 
 			uint8_t pfcp_msg[PFCP_MSG_LEN]={0};
 			int encoded = encode_pfcp_sess_mod_req_t(&pfcp_sess_mod_req, pfcp_msg);
-			pfcp_header_t *header = (pfcp_header_t *) pfcp_msg;
-			header->message_len = htons(encoded - PFCP_IE_HDR_SIZE);
 
-			if(pfcp_send(pfcp_fd, pfcp_msg, encoded, &upf_pfcp_sockaddr, SENT) < 0) {
+			if(pfcp_send(pfcp_fd, pfcp_fd_v6, pfcp_msg, encoded, upf_pfcp_sockaddr, SENT) < 0) {
 				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT"Failed to send"
 				"PFCP Session Modification Request %i\n", LOG_VALUE, errno);
-			}
-			else {
+			} else {
 				if (get_sess_entry(pdn->seid, &resp) != 0) {
 				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"No Session entry found "
 					"for seid: %lu", LOG_VALUE, pdn->seid);
@@ -177,7 +234,7 @@ process_release_access_bearer_request(rel_acc_ber_req_t *rel_acc_ber_req, uint8_
 						ntp_to_unix_time(&second_rat_data.start_time, &unix_start_time);
 						ntp_to_unix_time(&second_rat_data.end_time, &unix_end_time);
 
-						second_rat_data.sgw_addr.s_addr = pfcp_config.pfcp_ip.s_addr;
+						second_rat_data.sgw_addr.s_addr = config.pfcp_ip.s_addr;
 						second_rat_data.duration_meas = unix_end_time.tv_sec - unix_start_time.tv_sec;
 						second_rat_data.data_start_time = 0;
 						second_rat_data.data_end_time = 0;
@@ -207,8 +264,6 @@ set_release_access_bearer_response(gtpv2c_header_t *gtpv2c_tx, pdn_connection *p
 
 	set_cause_accepted(&rel_acc_ber_rsp.cause, IE_INSTANCE_ZERO);
 
-	uint16_t msg_len = 0;
-	msg_len = encode_release_access_bearers_rsp(&rel_acc_ber_rsp, (uint8_t *)gtpv2c_tx);
-	gtpv2c_tx->gtpc.message_len = htons(msg_len - IE_HEADER_SIZE);
+	encode_release_access_bearers_rsp(&rel_acc_ber_rsp, (uint8_t *)gtpv2c_tx);
 
 }

@@ -62,6 +62,7 @@
 #include "util.h"
 #include "gtpu.h"
 #include "ipv4.h"
+#include "ipv6.h"
 #include "stats.h"
 #include "up_main.h"
 #include "epc_arp.h"
@@ -72,9 +73,10 @@
 #include "../rest_timer/gstimer.h"
 #endif /* use_rest */
 
+#include "li_interface.h"
+
 #ifdef DP_BUILD
 #include "gw_adapter.h"
-#include "clogger.h"
 #endif
 #include "pfcp_enum.h"
 
@@ -168,19 +170,27 @@ struct kni_port_params *kni_port_params_array[RTE_MAX_ETHPORTS];
 char ipAddr[128];
 char gwAddr[128];
 char netMask[128];
-int route_sock = -1;
+int route_sock_v4 = -1;
+int route_sock_v6 = -1;
 int gatway_flag = 0;
+extern int clSystemLog;
+extern struct rte_hash *conn_hash_handle;
 
+struct addr_info {
+	struct sockaddr_nl addr_ipv4;
+	struct sockaddr_nl addr_ipv6;
+};
 
 /**
  * @brief  : Structure for sending the request
  */
-typedef struct {
+struct route_request_t {
 	struct nlmsghdr nlMsgHdr;
 	struct rtmsg rtMsg;
 	char buf[4096];
-}route_request;
+}__attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
 
+typedef struct route_request_t route_request;
 /**
  * @brief  : Structure for storing routes
  */
@@ -195,7 +205,20 @@ struct RouteInfo
 	char ifName[IF_NAMESIZE];
 	/** mac address */
 	struct ether_addr gateWay_Mac;
-};
+}__attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
+
+struct RouteInfo_v6
+{
+	uint8_t prefix;
+	uint32_t flags;
+	struct in6_addr dstAddr;
+	struct in6_addr gateWay;
+	struct in6_addr srcAddr;
+	char proto;
+	char ifName[IF_NAMESIZE];
+	/** mac address */
+	struct ether_addr gateWay_Mac;
+}__attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
 
 /**
  * @brief  : print arp table
@@ -235,16 +258,14 @@ static struct rte_hash_parameters
 		{	.name = "ARP_UL",
 			.entries = 64*64,
 			.reserved = 0,
-			.key_len =
-					sizeof(uint32_t),
+			.key_len = sizeof(struct arp_ip_key),
 			.hash_func = rte_jhash,
 			.hash_func_init_val = 0 },
 		{
 			.name = "ARP_DL",
 			.entries = 64*64,
 			.reserved = 0,
-			.key_len =
-					sizeof(uint32_t),
+			.key_len = sizeof(struct arp_ip_key),
 			.hash_func = rte_jhash,
 			.hash_func_init_val = 0 }
 };
@@ -264,11 +285,15 @@ struct rte_pipeline *myP;
  * @brief  : arp port address
  */
 struct arp_port_address {
+	/** IP type */
+	ip_type_t ip_type;
 	/** ipv4 address*/
-	uint32_t ip;
+	uint32_t ipv4;
+	/** ipv6 address*/
+	struct in6_addr ipv6;
 	/** mac address */
 	struct ether_addr *mac_addr;
-};
+}__attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
 
 /**
  * ports mac address.
@@ -297,7 +322,7 @@ struct epc_arp_params {
 	uint32_t table_id;
 	/** RTE pipeline name*/
 	char   name[PIPE_NAME_SIZE];
-} __rte_cache_aligned;
+}__attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
 
 /**
  * global arp param variable.
@@ -354,6 +379,30 @@ static void print_ip(int ip)
 }
 
 /**
+ * @brief  : Function to parse ethernet address
+ * @param  : hw_addr, structure to fill ethernet address
+ * @param  : str , string to be parsed
+ * @return : Returns number of parsed characters
+ */
+static int
+parse_ether_addr(struct ether_addr *hw_addr, const char *str)
+{
+	int ret = sscanf(str, "%"SCNx8":"
+			"%"SCNx8":"
+			"%"SCNx8":"
+			"%"SCNx8":"
+			"%"SCNx8":"
+			"%"SCNx8,
+			&hw_addr->addr_bytes[0],
+			&hw_addr->addr_bytes[1],
+			&hw_addr->addr_bytes[2],
+			&hw_addr->addr_bytes[3],
+			&hw_addr->addr_bytes[4],
+			&hw_addr->addr_bytes[5]);
+	return  ret - RTE_DIM(hw_addr->addr_bytes);
+}
+
+/**
  * @brief  : Add entry in ARP table.
  * @param  : arp_key, key.
  * @param  : ret_arp_data, arp data
@@ -361,23 +410,49 @@ static void print_ip(int ip)
  * @return : Returns nothing
  */
 static void add_arp_data(
-			struct arp_ipv4_key *arp_key,
-			struct arp_entry_data *ret_arp_data, uint8_t portid) {
+			struct arp_ip_key *arp_key,
+			struct arp_entry_data *ret_arp_data, uint8_t portid)
+{
 	int ret;
 	/* ARP Entry not present. Add ARP Entry */
 	ret = rte_hash_add_key_data(arp_hash_handle[portid],
-					&(arp_key->ip), ret_arp_data);
+					arp_key, ret_arp_data);
 	if (ret) {
-		/* Add arp_data panic because:
-		 * ret == -EINVAL &&  wrong parameter ||
-		 * ret == -ENOSPC && hash table size insufficient
-		 * */
-		rte_panic("ARP: Error at:%s::"
-				"\n\tadd arp_data= %s"
-				"\n\tError= %s\n",
-				__func__,
-				inet_ntoa(*(struct in_addr *)&arp_key->ip),
-				rte_strerror(abs(ret)));
+		if (arp_key->ip_type.ipv4) {
+			/* Add arp_data failed because :
+			 * ret == -EINVAL &&  wrong parameter ||
+			 * ret == -ENOSPC && hash table size insufficient
+			 * */
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"ARP: Error at:%s::"
+					"\n\tadd arp_data= %s"
+					"\n\tError= %s\n",
+					__func__,
+					inet_ntoa(*(struct in_addr *)&arp_key->ip_addr.ipv4),
+					rte_strerror(abs(ret)));
+			return;
+		} else if (arp_key->ip_type.ipv6) {
+			/* Add arp_data failed because :
+			 * ret == -EINVAL &&  wrong parameter ||
+			 * ret == -ENOSPC && hash table size insufficient
+			 * */
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"ARP: Error at:%s::"
+					"\n\tadd arp_data= "IPv6_FMT""
+					"\n\tError= %s\n",
+					__func__,
+					IPv6_PRINT(arp_key->ip_addr.ipv6),
+					rte_strerror(abs(ret)));
+			return;
+		}
+	}
+
+	if (arp_key->ip_type.ipv4) {
+			clLog(clSystemLog, eCLSeverityInfo,
+				LOG_FORMAT"ARP: Entry added for IPv4: "IPV4_ADDR", portid:%u\n",
+				LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ntohl(arp_key->ip_addr.ipv4)), portid);
+	} else if (arp_key->ip_type.ipv6) {
+			clLog(clSystemLog, eCLSeverityInfo,
+				LOG_FORMAT"ARP: Entry added for IPv6: "IPv6_FMT", portid:%u\n",
+				LOG_VALUE, IPv6_PRINT(arp_key->ip_addr.ipv6), portid);
 	}
 }
 
@@ -397,9 +472,17 @@ int arp_qunresolved_ulpkt(struct arp_entry_data *arp_data,
 	struct epc_meta_data *to_meta_data;
 
 	if (buf_pkt == NULL) {
-		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"ARP:"
-			" Error rte pkt memory buf clone Dropping pkt"
-			"arp data IP: "IPV4_ADDR"\n", LOG_VALUE, IPV4_ADDR_HOST_FORMAT(arp_data->ip));
+		if (arp_data->ip_type.ipv4) {
+			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"ARP:"
+				" Error rte pkt memory buf clone Dropping pkt"
+				"arp data IPv4: "IPV4_ADDR"\n", LOG_VALUE,
+				IPV4_ADDR_HOST_FORMAT(ntohl(arp_data->ipv4)));
+		} else if (arp_data->ip_type.ipv6) {
+			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"ARP:"
+				" Error rte pkt memory buf clone Dropping pkt"
+				"arp data IPv6: "IPv6_FMT"\n", LOG_VALUE, IPv6_PRINT(arp_data->ipv6));
+		}
+
 		clLog(clSystemLog, eCLSeverityCritical,
 			LOG_FORMAT"Error rte PKT memory buf clone Dropping pkt\n", LOG_VALUE);
 		print_arp_table();
@@ -416,15 +499,28 @@ int arp_qunresolved_ulpkt(struct arp_entry_data *arp_data,
 	ret = rte_ring_enqueue(arp_data->queue, buf_pkt);
 	if (ret == -ENOBUFS) {
 		rte_pktmbuf_free(buf_pkt);
-		clLog(clSystemLog, eCLSeverityDebug,
-			LOG_FORMAT"Can't queue PKT ring full, so dropping PKT"
-			"arp data IP: "IPV4_ADDR"\n",
-			LOG_VALUE, IPV4_ADDR_HOST_FORMAT(arp_data->ip));
+		if (arp_data->ip_type.ipv4) {
+			clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"Can't queue PKT ring full, so dropping PKT"
+				"arp data IP: "IPV4_ADDR"\n",
+				LOG_VALUE, IPV4_ADDR_HOST_FORMAT(arp_data->ipv4));
+		} else if (arp_data->ip_type.ipv6) {
+			clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"Can't queue PKT ring full, so dropping PKT"
+				"arp data IPv6: "IPv6_FMT"\n",
+				LOG_VALUE, IPv6_PRINT(arp_data->ipv6));
+		}
 	} else {
 		if (ARPICMP_DEBUG) {
-			clLog(clSystemLog, eCLSeverityMajor,
-				LOG_FORMAT"Queued PKT arp data IP: "IPV4_ADDR"\n",
-				LOG_VALUE, IPV4_ADDR_HOST_FORMAT(arp_data->ip));
+			if (arp_data->ip_type.ipv4) {
+				clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Queued PKT arp data IPv4: "IPV4_ADDR"\n",
+					LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ntohl(arp_data->ipv4)));
+			} else if (arp_data->ip_type.ipv6) {
+				clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Queued PKT arp data IPv6: "IPv6_FMT"\n",
+					LOG_VALUE, IPv6_PRINT(arp_data->ipv6));
+			}
 		}
 	}
 	return ret;
@@ -441,10 +537,17 @@ int arp_qunresolved_dlpkt(struct arp_entry_data *arp_data,
 	struct epc_meta_data *to_meta_data;
 
 	if (buf_pkt == NULL) {
-		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"ARP"
-				": Error rte PKT memory buf clone so dropping PKT"
-				"and arp data IP: "IPV4_ADDR"\n",
-				LOG_VALUE, IPV4_ADDR_HOST_FORMAT(arp_data->ip));
+		if (arp_data->ip_type.ipv4) {
+			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"ARP"
+					": Error rte PKT memory buf clone so dropping PKT"
+					"and arp data IPv4: "IPV4_ADDR"\n",
+					LOG_VALUE, IPV4_ADDR_HOST_FORMAT(arp_data->ipv4));
+		} else if (arp_data->ip_type.ipv6) {
+			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"ARP"
+					": Error rte PKT memory buf clone so dropping PKT"
+					"and arp data IPv6: "IPv6_FMT"\n",
+					LOG_VALUE, IPv6_PRINT(arp_data->ipv6));
+		}
 		clLog(clSystemLog, eCLSeverityCritical,
 			LOG_FORMAT"ARP :Error rte PKT memory buf clone so dropping PKT\n", LOG_VALUE);
 		print_arp_table();
@@ -462,16 +565,30 @@ int arp_qunresolved_dlpkt(struct arp_entry_data *arp_data,
 	ret = rte_ring_enqueue(arp_data->queue, buf_pkt);
 	if (ret == -ENOBUFS) {
 		rte_pktmbuf_free(buf_pkt);
-		clLog(clSystemLog, eCLSeverityDebug,
-			LOG_FORMAT"Can't queue PKT  ring full so dropping PKT"
-			" arp data IP: "IPV4_ADDR"\n",
-			LOG_VALUE, IPV4_ADDR_HOST_FORMAT(arp_data->ip));
+		if (arp_data->ip_type.ipv4) {
+			clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"Can't queue PKT  ring full so dropping PKT"
+				" arp data IPv4: "IPV4_ADDR"\n",
+				LOG_VALUE, IPV4_ADDR_HOST_FORMAT(arp_data->ipv4));
+		} else if (arp_data->ip_type.ipv6) {
+			clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"Can't queue PKT  ring full so dropping PKT"
+				" arp data IPv6: "IPv6_FMT"\n",
+				LOG_VALUE, IPv6_PRINT(arp_data->ipv6));
+		}
 	} else {
 		if (ARPICMP_DEBUG) {
-			clLog(clSystemLog, eCLSeverityMajor,
-				LOG_FORMAT"Queued pkt"
-				" and arp data IP: "IPV4_ADDR"\n",
-				LOG_VALUE, IPV4_ADDR_HOST_FORMAT(arp_data->ip));
+			if (arp_data->ip_type.ipv4) {
+				clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Queued pkt"
+					" and arp data IPv4: "IPV4_ADDR"\n",
+					LOG_VALUE, IPV4_ADDR_HOST_FORMAT(arp_data->ipv4));
+			} else if (arp_data->ip_type.ipv6) {
+				clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Queued pkt"
+					" and arp data IPv6: "IPv6_FMT"\n",
+					LOG_VALUE, IPv6_PRINT(arp_data->ipv6));
+			}
 		}
 	}
 	return ret;
@@ -652,30 +769,56 @@ print_eth(struct ether_hdr *eth_h)
 
 }
 
+/**
+ * @brief  : Print ethernet data
+ * @param  : eth_h, ethernet header data
+ * @return : Returns nothing
+ */
+static void
+print_ipv6_eth(struct ether_addr *eth_h)
+{
+	clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT"IPv6 Pkt: ETH: src: %02X:%02X:%02X:%02X:%02X:%02X", LOG_VALUE,
+		eth_h->addr_bytes[0],
+		eth_h->addr_bytes[1],
+		eth_h->addr_bytes[2],
+		eth_h->addr_bytes[3],
+		eth_h->addr_bytes[4],
+		eth_h->addr_bytes[5]);
+}
+
 void
 print_mbuf(const char *rx_tx, unsigned portid,
 			struct rte_mbuf *mbuf, unsigned line)
 {
 	struct ether_hdr *eth_h =
 			rte_pktmbuf_mtod(mbuf, struct ether_hdr *);
-	struct arp_hdr *arp_h =
-				(struct arp_hdr *)((char *)eth_h +
-				sizeof(struct ether_hdr));
-	struct ipv4_hdr *ipv4_h =
-				(struct ipv4_hdr *)((char *)eth_h +
-				sizeof(struct ether_hdr));
 
 	clLog(clSystemLog, eCLSeverityDebug,
 		LOG_FORMAT"%s(%u): on port %u pkt-len=%u nb-segs=%u\n", LOG_VALUE,
 		rx_tx, line, portid, mbuf->pkt_len, mbuf->nb_segs);
+	/* Print the ether header information*/
 	print_eth(eth_h);
+
 	switch (rte_cpu_to_be_16(eth_h->ether_type)) {
-	case ETHER_TYPE_IPv4:
-		print_ipv4_h(ipv4_h);
-		break;
-	case ETHER_TYPE_ARP:
-		print_arp_packet(arp_h);
-		break;
+	case ETHER_TYPE_IPv4: {
+			struct ipv4_hdr *ipv4_h =
+						(struct ipv4_hdr *)((char *)eth_h +
+						sizeof(struct ether_hdr));
+			print_ipv4_h(ipv4_h);
+			break;
+		}
+	case ETHER_TYPE_IPv6: {
+							  /* TODO: print the IPv6 header */
+			break;
+		}
+	case ETHER_TYPE_ARP: {
+			struct arp_hdr *arp_h =
+						(struct arp_hdr *)((char *)eth_h +
+						sizeof(struct ether_hdr));
+			print_arp_packet(arp_h);
+			break;
+		}
 	default:
 		clLog(clSystemLog, eCLSeverityDebug,
 			LOG_FORMAT"  Unknown packet type\n", LOG_VALUE);
@@ -685,126 +828,268 @@ print_mbuf(const char *rx_tx, unsigned portid,
 }
 
 struct arp_entry_data *
-retrieve_arp_entry(struct arp_ipv4_key arp_key,
+retrieve_arp_entry(struct arp_ip_key arp_key,
 		uint8_t portid)
 {
 	int ret;
 	struct arp_entry_data *ret_arp_data = NULL;
 	struct RouteInfo *route_entry = NULL;
 	if (ARPICMP_DEBUG) {
-		clLog(clSystemLog, eCLSeverityDebug,
-			LOG_FORMAT"Retrieve arp entry for ip: "IPV4_ADDR"\n",
-			LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ntohl(arp_key.ip)));
+		if (arp_key.ip_type.ipv4) {
+			clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"Retrieve arp entry for ipv4: "IPV4_ADDR", portid:%u\n",
+				LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ntohl(arp_key.ip_addr.ipv4)), portid);
+		} else if (arp_key.ip_type.ipv6) {
+			clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"Retrieve arp entry for ipv6: "IPv6_FMT", portid:%u\n",
+				LOG_VALUE, IPv6_PRINT(arp_key.ip_addr.ipv6), portid);
+		}
 	}
 
 	ret = rte_hash_lookup_data(arp_hash_handle[portid],
-					&arp_key.ip, (void **)&ret_arp_data);
+					(const void *)&arp_key, (void **)&ret_arp_data);
 	if (ret < 0) {
-		/* Compute the key(subnet) based on netmask is 24 */
-		struct RouteInfo key;
-		key.dstAddr = (arp_key.ip & NETMASK);
+		if (arp_key.ip_type.ipv4) {
+			/* Compute the key(subnet) based on netmask is 24 */
+			struct RouteInfo key;
+			key.dstAddr = (arp_key.ip_addr.ipv4 & NETMASK);
 
-		ret = rte_hash_lookup_data(route_hash_handle,
-						&key.dstAddr, (void **)&route_entry);
-		if (ret == 0) {
-			if ((route_entry->gateWay != 0) && (route_entry->gateWay_Mac.addr_bytes != 0)) {
-					/* Fill the gateway entry */
-					ret_arp_data =
-							rte_malloc_socket(NULL,
-									sizeof(struct arp_entry_data),
-									RTE_CACHE_LINE_SIZE, rte_socket_id());
-					ret_arp_data->last_update = time(NULL);
-					ret_arp_data->status = COMPLETE;
-					ret_arp_data->ip = route_entry->gateWay;
-					ret_arp_data->eth_addr = route_entry->gateWay_Mac;
-					return ret_arp_data;
-
-			} else if ((route_entry->gateWay != 0) && (route_entry->gateWay_Mac.addr_bytes == 0)) {
-						struct arp_ipv4_key gw_arp_key;
-						gw_arp_key.ip = route_entry->gateWay;
-						clLog(clSystemLog, eCLSeverityInfo,
-							LOG_FORMAT"GateWay ARP entry not found for %s\n",
-							LOG_VALUE, inet_ntoa(*((struct in_addr *)&gw_arp_key.ip)));
-						/* No arp entry for arp_key.ip
-						 * Add arp_data for arp_key.ip at
-						 * arp_hash_handle[portid]
-						 * */
+			ret = rte_hash_lookup_data(route_hash_handle,
+							&key.dstAddr, (void **)&route_entry);
+			if (ret == 0) {
+				if ((route_entry->gateWay != 0) && (route_entry->gateWay_Mac.addr_bytes != 0)) {
+						/* Fill the gateway entry */
 						ret_arp_data =
 								rte_malloc_socket(NULL,
 										sizeof(struct arp_entry_data),
 										RTE_CACHE_LINE_SIZE, rte_socket_id());
 						ret_arp_data->last_update = time(NULL);
-						ret_arp_data->status = INCOMPLETE;
-						add_arp_data(&gw_arp_key, ret_arp_data, portid);
+						ret_arp_data->status = COMPLETE;
+						ret_arp_data->ip_type.ipv4 = PRESENT;
+						ret_arp_data->ipv4 = route_entry->gateWay;
+						ret_arp_data->eth_addr = route_entry->gateWay_Mac;
+						return ret_arp_data;
 
-						/* Added arp_data for gw_arp_key.ip at
-						 * arp_hash_handle[portid]
-						 * Queue arp_data in arp_pkt mbuf
-						 * send_arp_req(portid, gw_arp_key.ip)
-						 * */
-						ret_arp_data->ip = gw_arp_key.ip;
-						ret_arp_data->queue = rte_ring_create(
-								inet_ntoa(*((struct in_addr *)&gw_arp_key.ip)),
-								ARP_BUFFER_RING_SIZE,
-								rte_socket_id(), 0);
+				} else if ((route_entry->gateWay != 0) && (route_entry->gateWay_Mac.addr_bytes == 0)) {
+							struct arp_ip_key gw_arp_key;
+							gw_arp_key.ip_type.ipv4 = PRESENT;
+							gw_arp_key.ip_addr.ipv4 = route_entry->gateWay;
+							clLog(clSystemLog, eCLSeverityInfo,
+								LOG_FORMAT"GateWay ARP entry not found for %s\n",
+								LOG_VALUE, inet_ntoa(*((struct in_addr *)&gw_arp_key.ip_addr.ipv4)));
+							/* No arp entry for arp_key.ip_addr.ipv4
+							 * Add arp_data for arp_key.ip_addr.ipv4 at
+							 * arp_hash_handle[portid]
+							 * */
+							ret_arp_data =
+									rte_malloc_socket(NULL,
+											sizeof(struct arp_entry_data),
+											RTE_CACHE_LINE_SIZE, rte_socket_id());
+							ret_arp_data->last_update = time(NULL);
+							ret_arp_data->status = INCOMPLETE;
+							ret_arp_data->ip_type.ipv4 = PRESENT;
+							add_arp_data(&gw_arp_key, ret_arp_data, portid);
 
-						if (ret_arp_data->queue == NULL) {
-							clLog(clSystemLog, eCLSeverityDebug,
-									LOG_FORMAT"ARP ring create error"
-									" arp key IP: %s, portid: %d"
-									"\n\tError: %s, errno(%d)\n", LOG_VALUE,
-									inet_ntoa(*(struct in_addr *)&gw_arp_key.ip),
-									portid, rte_strerror(abs(rte_errno)), rte_errno);
-							print_arp_table();
-							if (rte_errno == EEXIST) {
-								rte_free(ret_arp_data);
-								ret_arp_data = NULL;
+							/* Added arp_data for gw_arp_key.ip_addr.ipv4 at
+							 * arp_hash_handle[portid]
+							 * Queue arp_data in arp_pkt mbuf
+							 * send_arp_req(portid, gw_arp_key.ip_addr.ipv4)
+							 * */
+							ret_arp_data->ipv4 = gw_arp_key.ip_addr.ipv4;
+							ret_arp_data->queue = rte_ring_create(
+									inet_ntoa(*((struct in_addr *)&gw_arp_key.ip_addr.ipv4)),
+									ARP_BUFFER_RING_SIZE,
+									rte_socket_id(), 0);
+
+							if (ret_arp_data->queue == NULL) {
+								clLog(clSystemLog, eCLSeverityCritical,
+										LOG_FORMAT"ARP ring create error"
+										" arp key IPv4: %s, portid: %d"
+										"\n\tError: %s, errno(%d)\n", LOG_VALUE,
+										inet_ntoa(*(struct in_addr *)&gw_arp_key.ip_addr.ipv4),
+										portid, rte_strerror(abs(rte_errno)), rte_errno);
+								print_arp_table();
+								if (rte_errno == EEXIST) {
+									rte_free(ret_arp_data);
+									ret_arp_data = NULL;
+									clLog(clSystemLog, eCLSeverityCritical,
+										LOG_FORMAT"ARP Ring Create Failed due to a "
+										" memzone with the same name already exists 'EEXIST'\n");
+								}
+							} else {
+								if (ARPICMP_DEBUG) {
+									clLog(clSystemLog, eCLSeverityDebug,
+										LOG_FORMAT"ARP Ring Create for key ipv4: "IPV4_ADDR", portid:%u\n",
+										LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ntohl(arp_key.ip_addr.ipv4)), portid);
+								}
 							}
-						}
-					return ret_arp_data;
+						return ret_arp_data;
+					}
+				}
+
+			clLog(clSystemLog, eCLSeverityInfo,
+				LOG_FORMAT"ARP entry not found for IPv4: "IPV4_ADDR", portid:%u\n",
+				LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ntohl(arp_key.ip_addr.ipv4)), portid);
+			/* No arp entry for arp_key.ip_addr.ip
+			 * Add arp_data for arp_key.ip_addr.ip at
+			 * arp_hash_handle[portid]
+			 * */
+			ret_arp_data =
+					rte_malloc_socket(NULL,
+							sizeof(struct arp_entry_data),
+							RTE_CACHE_LINE_SIZE, rte_socket_id());
+			ret_arp_data->last_update = time(NULL);
+			ret_arp_data->status = INCOMPLETE;
+			ret_arp_data->ip_type.ipv4 = PRESENT;
+			add_arp_data(&arp_key, ret_arp_data, portid);
+
+			/* Added arp_data for arp_key.ip_addr.ipv4 at
+			 * arp_hash_handle[portid]
+			 * Queue arp_data in arp_pkt mbuf
+			 * send_arp_req(portid, arp_key.ip_addr.ipv4)
+			 * */
+			ret_arp_data->ipv4 = arp_key.ip_addr.ipv4;
+			ret_arp_data->queue = rte_ring_create(
+					inet_ntoa(*((struct in_addr *)&arp_key.ip_addr.ipv4)),
+					ARP_BUFFER_RING_SIZE,
+					rte_socket_id(), 0);
+
+			if (ret_arp_data->queue == NULL) {
+				clLog(clSystemLog, eCLSeverityCritical,
+						LOG_FORMAT"ARP ring create error"
+						" arp key IPv4: "IPV4_ADDR", portid: %d"
+						",Error: %s , errno(%d)\n",
+						LOG_VALUE,
+						IPV4_ADDR_HOST_FORMAT(ntohl(arp_key.ip_addr.ipv4)),
+						portid,
+						rte_strerror(abs(rte_errno)), rte_errno);
+				print_arp_table();
+				if (rte_errno == EEXIST) {
+					rte_free(ret_arp_data);
+					ret_arp_data = NULL;
+					clLog(clSystemLog, eCLSeverityCritical,
+						LOG_FORMAT"ARP Ring Create Failed due to a "
+						" memzone with the same name already exists 'EEXIST'\n");
+				}
+			} else {
+				if (ARPICMP_DEBUG) {
+					clLog(clSystemLog, eCLSeverityDebug,
+						LOG_FORMAT"ARP Ring Create for key ipv4: "IPV4_ADDR", portid:%u\n",
+						LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ntohl(arp_key.ip_addr.ipv4)), portid);
 				}
 			}
+		} else if (arp_key.ip_type.ipv6) {
+			clLog(clSystemLog, eCLSeverityInfo,
+				LOG_FORMAT"ARP entry not found for IPv6: "IPv6_FMT", portid:%u\n",
+				LOG_VALUE, IPv6_PRINT(arp_key.ip_addr.ipv6), portid);
 
-		clLog(clSystemLog, eCLSeverityInfo,
-			LOG_FORMAT"ARP entry not found for IP: "IPV4_ADDR"\n",
-			LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ntohl(arp_key.ip)));
-		/* No arp entry for arp_key.ip
-		 * Add arp_data for arp_key.ip at
-		 * arp_hash_handle[portid]
-		 * */
-		ret_arp_data =
-				rte_malloc_socket(NULL,
-						sizeof(struct arp_entry_data),
-						RTE_CACHE_LINE_SIZE, rte_socket_id());
-		ret_arp_data->last_update = time(NULL);
-		ret_arp_data->status = INCOMPLETE;
-		add_arp_data(&arp_key, ret_arp_data, portid);
+			/* No arp entry for arp_key.ip_addr.ipv6
+			 * Add arp_data for arp_key.ip_addr.ipv6 at
+			 * arp_hash_handle[portid]
+			 * */
+			ret_arp_data =
+					rte_malloc_socket(NULL,
+							sizeof(struct arp_entry_data),
+							RTE_CACHE_LINE_SIZE, rte_socket_id());
+			ret_arp_data->last_update = time(NULL);
+			ret_arp_data->status = INCOMPLETE;
+			ret_arp_data->ip_type.ipv6 = PRESENT;
+			add_arp_data(&arp_key, ret_arp_data, portid);
 
-		/* Added arp_data for arp_key.ip at
-		 * arp_hash_handle[portid]
-		 * Queue arp_data in arp_pkt mbuf
-		 * send_arp_req(portid, arp_key.ip)
-		 * */
-		ret_arp_data->ip = arp_key.ip;
-		ret_arp_data->queue = rte_ring_create(
-				inet_ntoa(*((struct in_addr *)&arp_key.ip)),
-				ARP_BUFFER_RING_SIZE,
-				rte_socket_id(), 0);
+			/* Added arp_data for arp_key.ip_addr.ipv6 at
+			 * arp_hash_handle[portid]
+			 * Queue arp_data in arp_pkt mbuf
+			 * send_arp_req(portid, arp_key.ip_addr.ipv6)
+			 * */
+			ret_arp_data->ipv6 = arp_key.ip_addr.ipv6;
 
-		if (ret_arp_data->queue == NULL) {
-			clLog(clSystemLog, eCLSeverityDebug,
-					LOG_FORMAT"ARP ring create error"
-					"arp key IP: "IPV4_ADDR", portid: %d"
-					",Error: %s , errno(%d)\n",
-					LOG_VALUE,
-					IPV4_ADDR_HOST_FORMAT(ntohl(arp_key.ip)),
-					portid,
-					rte_strerror(abs(rte_errno)), rte_errno);
-			print_arp_table();
-			if (rte_errno == EEXIST) {
-				rte_free(ret_arp_data);
-				ret_arp_data = NULL;
+			/* If received address is multicast address */
+			char *all_node_addr = "ff02::1";
+			char *all_router_addr = "ff02::2";
+			struct in6_addr all_node_addr_t = {0};
+			struct in6_addr all_router_addr_t = {0};
+
+			/* All Node IPV6 Address */
+			if (!inet_pton(AF_INET6, all_node_addr, &all_node_addr_t)) {
+				clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Multicast:Invalid all Node IPv6 Address\n", LOG_VALUE);
 			}
+
+			/* All Router IPV6 Address */
+			if (!inet_pton(AF_INET6, all_router_addr, &all_router_addr_t)) {
+				clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Multicast:Invalid all Router IPv6 Address\n", LOG_VALUE);
+			}
+
+			if (!memcmp(&ret_arp_data->ipv6, &all_node_addr_t, IPV6_ADDR_LEN)) {
+				clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Multicast:all Node IPv6 Address:"IPv6_FMT"\n",
+					LOG_VALUE, IPv6_PRINT(ret_arp_data->ipv6));
+				const char *mac_addr = "33:33:00:00:00:01";
+
+				if (parse_ether_addr(&ret_arp_data->eth_addr, mac_addr)) {
+					clLog(clSystemLog, eCLSeverityCritical,
+						LOG_FORMAT"Muticast:Error parsing static arp entry for all node mac addr"
+						"%s\n", LOG_VALUE, mac_addr);
+				}
+				ret_arp_data->status = COMPLETE;
+
+			} else if (!memcmp(&ret_arp_data->ipv6, &all_router_addr_t, IPV6_ADDR_LEN)) {
+				clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Multicast:all Router IPv6 Address:"IPv6_FMT"\n",
+					LOG_VALUE, IPv6_PRINT(ret_arp_data->ipv6));
+				const char *mac_addr = "33:33:00:00:00:02";
+
+				if (parse_ether_addr(&ret_arp_data->eth_addr, mac_addr)) {
+					clLog(clSystemLog, eCLSeverityCritical,
+						LOG_FORMAT"Muticast:Error parsing static arp entry for all route mac addr"
+						"%s\n", LOG_VALUE, mac_addr);
+				}
+				ret_arp_data->status = COMPLETE;
+			}
+
+
+			ret_arp_data->queue = rte_ring_create((char *)&arp_key.ip_addr.ipv6,
+					ARP_BUFFER_RING_SIZE,
+					rte_socket_id(), 0);
+
+			if (ret_arp_data->queue == NULL) {
+				clLog(clSystemLog, eCLSeverityCritical,
+						LOG_FORMAT"ARP ring create error"
+						" arp key IPv6: "IPv6_FMT", portid: %d"
+						",Error: %s , errno(%d)\n",
+						LOG_VALUE,
+						IPv6_PRINT(arp_key.ip_addr.ipv6),
+						portid,
+						rte_strerror(abs(rte_errno)), rte_errno);
+				print_arp_table();
+				if (rte_errno == EEXIST) {
+					rte_free(ret_arp_data);
+					ret_arp_data = NULL;
+					clLog(clSystemLog, eCLSeverityCritical,
+						LOG_FORMAT"ARP Ring Create Failed due to a "
+						" memzone with the same name already exists 'EEXIST'\n");
+				}
+			} else {
+				if (ARPICMP_DEBUG) {
+					clLog(clSystemLog, eCLSeverityDebug,
+						LOG_FORMAT"ARP Ring Create for key ipv6: "IPv6_FMT", portid:%u\n",
+						LOG_VALUE, IPv6_PRINT(arp_key.ip_addr.ipv6), portid);
+				}
+			}
+		}
+		return ret_arp_data;
+	}
+
+	if (ARPICMP_DEBUG) {
+		if (arp_key.ip_type.ipv4) {
+			clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"Found arp entry for ipv4: "IPV4_ADDR", portid:%u\n",
+				LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ntohl(arp_key.ip_addr.ipv4)), portid);
+		} else if (arp_key.ip_type.ipv6) {
+			clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"Found arp entry for ipv6: "IPv6_FMT", portid:%u\n",
+				LOG_VALUE, IPv6_PRINT(arp_key.ip_addr.ipv6), portid);
 		}
 	}
 	return ret_arp_data;
@@ -817,8 +1102,7 @@ print_arp_table(void)
 	void *next_data;
 	uint32_t iter = 0;
 
-	uint8_t port_cnt = 0;
-	for (; port_cnt < NUM_SPGW_PORTS; ++port_cnt) {
+	for (uint8_t port_cnt = 0; port_cnt < NUM_SPGW_PORTS; port_cnt++) {
 		while (
 				rte_hash_iterate(
 							arp_hash_handle[port_cnt],
@@ -827,21 +1111,34 @@ print_arp_table(void)
 
 			struct arp_entry_data *tmp_arp_data =
 					(struct arp_entry_data *)next_data;
-			struct arp_ipv4_key tmp_arp_key;
+			struct arp_ip_key tmp_arp_key;
 
 			memcpy(&tmp_arp_key, next_key,
-					sizeof(struct arp_ipv4_key));
-			clLog(clSystemLog, eCLSeverityDebug,
-				LOG_FORMAT"\t%02X:%02X:%02X:%02X:%02X:%02X  %10s  %s\n", LOG_VALUE,
-				tmp_arp_data->eth_addr.addr_bytes[0],
-				tmp_arp_data->eth_addr.addr_bytes[1],
-				tmp_arp_data->eth_addr.addr_bytes[2],
-				tmp_arp_data->eth_addr.addr_bytes[3],
-				tmp_arp_data->eth_addr.addr_bytes[4],
-				tmp_arp_data->eth_addr.addr_bytes[5],
-				tmp_arp_data->status == COMPLETE ? "COMPLETE" : "INCOMPLETE",
-				inet_ntoa(
-					*((struct in_addr *)(&tmp_arp_data->ip))));
+					sizeof(struct arp_ip_key));
+			if (tmp_arp_data->ip_type.ipv4) {
+				clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"IPv4:\t%02X:%02X:%02X:%02X:%02X:%02X  %10s  %s Portid:%u\n", LOG_VALUE,
+					tmp_arp_data->eth_addr.addr_bytes[0],
+					tmp_arp_data->eth_addr.addr_bytes[1],
+					tmp_arp_data->eth_addr.addr_bytes[2],
+					tmp_arp_data->eth_addr.addr_bytes[3],
+					tmp_arp_data->eth_addr.addr_bytes[4],
+					tmp_arp_data->eth_addr.addr_bytes[5],
+					tmp_arp_data->status == COMPLETE ? "COMPLETE" : "INCOMPLETE",
+					inet_ntoa(
+						*((struct in_addr *)(&tmp_arp_data->ipv4))), port_cnt);
+			} else if (tmp_arp_data->ip_type.ipv6) {
+				clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"IPv6:\t%02X:%02X:%02X:%02X:%02X:%02X  %10s  "IPv6_FMT" Portid:%u\n", LOG_VALUE,
+					tmp_arp_data->eth_addr.addr_bytes[0],
+					tmp_arp_data->eth_addr.addr_bytes[1],
+					tmp_arp_data->eth_addr.addr_bytes[2],
+					tmp_arp_data->eth_addr.addr_bytes[3],
+					tmp_arp_data->eth_addr.addr_bytes[4],
+					tmp_arp_data->eth_addr.addr_bytes[5],
+					tmp_arp_data->status == COMPLETE ? "COMPLETE" : "INCOMPLETE",
+					IPv6_PRINT(tmp_arp_data->ipv6), port_cnt);
+			}
 		}
 	}
 }
@@ -879,15 +1176,14 @@ arp_send_buffered_pkts(struct rte_ring *queue,
 			++count;
 		}
 	}
-#ifdef NGCORE_SHRINK
+
 #ifdef STATS
 	if (portid == SGI_PORT_ID) {
-		epc_app.ul_params[S1U_PORT_ID].pkts_out +=  count;
+		epc_app.ul_params[S1U_PORT_ID].pkts_out += count;
 	} else if (portid == S1U_PORT_ID) {
 		epc_app.dl_params[SGI_PORT_ID].pkts_out += count;
 	}
 #endif /* STATS */
-#endif /* NGCORE_SHRINK */
 
 	if (ARPICMP_DEBUG) {
 		clLog(clSystemLog, eCLSeverityDebug,
@@ -911,24 +1207,50 @@ process_echo_response(struct rte_mbuf *echo_pkt)
 
 	int ret = 0;
 	peerData *conn_data = NULL;
+	node_address_t peer_addr = {0};
+	struct ether_hdr *ether = NULL;
 
-	/* Retrive src IP addresses */
-	struct ipv4_hdr *ip_hdr = get_mtoip(echo_pkt);
+	/* Get the ether header info */
+	ether = (struct ether_hdr *)rte_pktmbuf_mtod(echo_pkt, uint8_t *);
+
+	if (ether->ether_type == rte_cpu_to_be_16(ETHER_TYPE_IPv4)) {
+		/* Retrieve src IP addresses */
+		struct ipv4_hdr *ipv4_hdr = get_mtoip(echo_pkt);
+		peer_addr.ip_type = IPV4_TYPE;
+		peer_addr.ipv4_addr = ipv4_hdr->src_addr;
+	} else if (ether->ether_type == rte_cpu_to_be_16(ETHER_TYPE_IPv6)) {
+		/* Retrieve src IP addresses */
+		struct ipv6_hdr *ipv6_hdr = get_mtoip_v6(echo_pkt);
+		peer_addr.ip_type = IPV6_TYPE;
+		memcpy(peer_addr.ipv6_addr,
+				ipv6_hdr->src_addr, IPV6_ADDR_LEN);
+	}
 
 	/* VS: */
 	ret = rte_hash_lookup_data(conn_hash_handle,
-				&ip_hdr->src_addr, (void **)&conn_data);
-
+				&peer_addr, (void **)&conn_data);
 	if ( ret < 0) {
-		clLog(clSystemLog, eCLSeverityDebug,
-			LOG_FORMAT" Entry not found for NODE: %s\n",
-			LOG_VALUE, inet_ntoa(*(struct in_addr *)&ip_hdr->src_addr));
+		(peer_addr.ip_type == IPV6_TYPE) ?
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"ECHO_RSP: Entry not found for NODE IPv6 Addr: "IPv6_FMT"\n",
+					LOG_VALUE, IPv6_PRINT(IPv6_CAST(peer_addr.ipv6_addr))):
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"ECHO_RSP: Entry not found for NODE IPv4 Addr: %s\n",
+					LOG_VALUE, inet_ntoa(*(struct in_addr *)&peer_addr.ipv4_addr));
 		return;
 
 	} else {
 		conn_data->itr_cnt = 0;
+		peer_address_t addr = {0};
+		addr.type = peer_addr.ip_type;
 
-		update_peer_timeouts(ip_hdr->src_addr,0);
+		if (peer_addr.ip_type == IPV6_TYPE) {
+			memcpy(addr.ipv6.sin6_addr.s6_addr,
+					peer_addr.ipv6_addr, IPV6_ADDR_LEN);
+		} else if (peer_addr.ip_type == IPV4_TYPE) {
+			addr.ipv4.sin_addr.s_addr = peer_addr.ipv4_addr;
+		}
+		update_peer_timeouts(&addr, 0);
 
 		/* Reset Activity flag */
 		conn_data->activityFlag = 0;
@@ -940,7 +1262,15 @@ process_echo_response(struct rte_mbuf *echo_pkt)
 		if ( startTimer( &conn_data->pt ) < 0) {
 			clLog(clSystemLog, eCLSeverityCritical,
 				LOG_FORMAT"Periodic Timer failed to start\n", LOG_VALUE);
+			return;
 		}
+		(peer_addr.ip_type == IPV6_TYPE) ?
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"ECHO_RSP: Periodic Timer restarted for NODE IPv6 Addr: "IPv6_FMT"\n",
+					LOG_VALUE, IPv6_PRINT(IPv6_CAST(peer_addr.ipv6_addr))):
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"ECHO_RSP: Periodic Timer restarted for NODE IPv4 Addr: %s\n",
+					LOG_VALUE, inet_ntoa(*(struct in_addr *)&peer_addr.ipv4_addr));
 	}
 }
 #endif /* USE_REST */
@@ -956,17 +1286,19 @@ static
 void process_arp_msg(const struct ether_addr *hw_addr,
 		uint32_t ipaddr, uint8_t portid)
 {
-	struct arp_ipv4_key arp_key;
-	arp_key.ip = ipaddr;
+	struct arp_ip_key arp_key = {0};
+	arp_key.ip_type.ipv4 = PRESENT;
+	arp_key.ip_addr.ipv4 = ipaddr;
 
-	if (ARPICMP_DEBUG)
+	if (ARPICMP_DEBUG) {
 		clLog(clSystemLog, eCLSeverityDebug,
-			LOG_FORMAT"ARP_RESP: Arp key IP "IPV4_ADDR", portid= %d\n",
-			LOG_VALUE, IPV4_ADDR_HOST_FORMAT(arp_key.ip), portid);
+			LOG_FORMAT"ARP_RSP: Arp key IPv4 "IPV4_ADDR", portid= %d\n",
+			LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ntohl(arp_key.ip_addr.ipv4)), portid);
+	}
 
 	/* On ARP_REQ || ARP_RSP retrieve_arp_entry */
-	struct arp_entry_data *arp_data =
-				retrieve_arp_entry(arp_key, portid);
+	struct arp_entry_data *arp_data = NULL;
+	arp_data = retrieve_arp_entry(arp_key, portid);
 	if (arp_data) {
 		arp_data->last_update = time(NULL);
 		if (!(is_same_ether_addr(&arp_data->eth_addr, hw_addr))) {
@@ -980,12 +1312,71 @@ void process_arp_msg(const struct ether_addr *hw_addr,
 							arp_data->queue, hw_addr, portid);
 					}
 				arp_data->status = COMPLETE;
+				clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"ARP_RSP: Resoved the queued pkts and RING status = COMPLETE "
+					"for IPv4:"IPV4_ADDR", portid: %d\n",
+					LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ntohl(arp_key.ip_addr.ipv4)), portid);
 			}
 		}
 	} else {
 		clLog(clSystemLog, eCLSeverityDebug,
-			LOG_FORMAT"ARP_RESP: Arp data not found for key IP "IPV4_ADDR", portid= %d\n",
-			LOG_VALUE, IPV4_ADDR_HOST_FORMAT(arp_key.ip), portid);
+			LOG_FORMAT"ARP_RSP: Arp data not found for key IPv4 "IPV4_ADDR", portid= %d\n",
+			LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ntohl(arp_key.ip_addr.ipv4)), portid);
+	}
+}
+
+/**
+ * @brief  : Function to process neighbor advertisement message
+ * @param  : hw_addr, ethernet address
+ * @param  : ip6_addr, ip6 address
+ * @param  : portid, port number
+ * @return : Returns nothing
+ */
+static
+void process_neighbor_advert_msg(const struct ether_addr *hw_addr,
+		struct in6_addr *ip6_addr, uint8_t portid)
+{
+	struct arp_ip_key arp_key = {0};
+	arp_key.ip_type.ipv6 = PRESENT;
+
+	/* Fill the IPv6 Address and resolved buffered packets */
+	memcpy(&arp_key.ip_addr.ipv6, ip6_addr, IPV6_ADDRESS_LEN);
+
+	if (ARPICMP_DEBUG) {
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"NEIGHBOR: key IPv6 "IPv6_FMT", portid= %d\n",
+			LOG_VALUE, IPv6_PRINT(arp_key.ip_addr.ipv6), portid);
+	}
+
+	/* On NEIGHBOR_SLOLITATION_REQ || NEIGHBOR_ADVERTISEMENT_RSP retrieve_arp_entry */
+	struct arp_entry_data *arp_data = NULL;
+	arp_data = retrieve_arp_entry(arp_key, portid);
+	if (arp_data) {
+		arp_data->last_update = time(NULL);
+		if (!(is_same_ether_addr(&arp_data->eth_addr, hw_addr))) {
+			/* NEIGHBOR_SLOLITATION_REQ || NEIGHBOR_ADVERTISEMENT_RSP:
+			 * Copy hw_addr -> arp_data->eth_addr
+			 * */
+			ether_addr_copy(hw_addr, &arp_data->eth_addr);
+			if (ARPICMP_DEBUG)
+				print_ipv6_eth(&arp_data->eth_addr);
+
+			if (arp_data->status == INCOMPLETE) {
+				if (arp_data->queue) {
+					arp_send_buffered_pkts(
+							arp_data->queue, hw_addr, portid);
+					}
+				arp_data->status = COMPLETE;
+				clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"ARP_RSP: Resoved the queued pkts and RING status = COMPLETE "
+					"for IPv6:"IPv6_FMT", portid: %d\n",
+					LOG_VALUE, IPv6_PRINT(arp_key.ip_addr.ipv6), portid);
+			}
+		}
+	} else {
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"NEIGHBOR_ADVERT: Ether data not found for key IPv6 "IPv6_FMT", portid= %d\n",
+			LOG_VALUE, IPv6_PRINT(arp_key.ip_addr.ipv6), portid);
 	}
 }
 
@@ -1009,7 +1400,7 @@ void print_pkt1(struct rte_mbuf *pkt)
 }
 
 /**
- * @brief  : Function to retrive mac address and ip address
+ * @brief  : Function to retrive mac address and ipv4 address
  * @param  : addr, arp port address
  * @param  : portid, port number
  * @return : Returns nothing
@@ -1021,27 +1412,31 @@ get_mac_ip_addr(struct arp_port_address *addr, uint32_t ip_addr,
 	if (app.wb_port == port_id) {
 		/* Validate the Destination IP Address subnet */
 		if (validate_Subnet(ntohl(ip_addr), app.wb_net, app.wb_bcast_addr)) {
-			addr[port_id].ip = htonl(app.wb_ip);
+			addr[port_id].ipv4 = htonl(app.wb_ip);
 		} else if (validate_Subnet(ntohl(ip_addr), app.wb_li_net, app.wb_li_bcast_addr)) {
-			addr[port_id].ip = htonl(app.wb_li_ip);
+			addr[port_id].ipv4 = htonl(app.wb_li_ip);
 		} else {
 			clLog(clSystemLog, eCLSeverityDebug,
-					LOG_FORMAT"ARP Destination IPv4 Addr "IPV4_ADDR" is NOT in local intf subnet\n",
+					LOG_FORMAT"WB:ARP Destination IPv4 Addr "IPV4_ADDR" "
+					"is NOT in local intf subnet\n",
 					LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ntohl(ip_addr)));
 		}
+		addr[port_id].ip_type.ipv4 = PRESENT;
 		addr[port_id].mac_addr = &app.wb_ether_addr;
 
 	} else if (app.eb_port == port_id) {
 		/* Validate the Destination IP Address subnet */
 		if (validate_Subnet(ntohl(ip_addr), app.eb_net, app.eb_bcast_addr)) {
-			addr[port_id].ip = htonl(app.eb_ip);
+			addr[port_id].ipv4 = htonl(app.eb_ip);
 		} else if (validate_Subnet(ntohl(ip_addr), app.eb_li_net, app.eb_li_bcast_addr)) {
-			addr[port_id].ip = htonl(app.eb_li_ip);
+			addr[port_id].ipv4 = htonl(app.eb_li_ip);
 		} else {
 			clLog(clSystemLog, eCLSeverityDebug,
-					LOG_FORMAT"ARP Destination IPv4 Addr "IPV4_ADDR" is NOT in local intf subnet\n",
+					LOG_FORMAT"EB:ARP Destination IPv4 Addr "IPV4_ADDR" "
+					"is NOT in local intf subnet\n",
 					LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ntohl(ip_addr)));
 		}
+		addr[port_id].ip_type.ipv4 = PRESENT;
 		addr[port_id].mac_addr = &app.eb_ether_addr;
 	} else {
 		clLog(clSystemLog, eCLSeverityDebug,
@@ -1049,6 +1444,50 @@ get_mac_ip_addr(struct arp_port_address *addr, uint32_t ip_addr,
 	}
 }
 
+/**
+ * @brief  : Function to retrive mac address and ipv6 address
+ * @param  : addr, ns port address
+ * @param  : portid, port number
+ * @return : Returns nothing
+ */
+static void
+get_mac_ipv6_addr(struct arp_port_address *addr, struct in6_addr ip_addr,
+		uint8_t port_id)
+{
+	if (app.wb_port == port_id) {
+		/* Validate the Destination IPv6 Address subnet */
+		if (validate_ipv6_network(ip_addr, app.wb_ipv6, app.wb_ipv6_prefix_len)) {
+			memcpy(&addr[port_id].ipv6, &app.wb_ipv6, IPV6_ADDRESS_LEN);
+		} else if (validate_ipv6_network(ip_addr, app.wb_li_ipv6, app.wb_li_ipv6_prefix_len)){
+			memcpy(&addr[port_id].ipv6, &app.wb_li_ipv6, IPV6_ADDRESS_LEN);
+		} else {
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"WB:Neighbor Destination IPv6 Addr "IPv6_FMT" "
+					"is NOT in local intf subnet\n",
+					LOG_VALUE, IPv6_PRINT(ip_addr));
+		}
+		addr[port_id].ip_type.ipv6 = PRESENT;
+		addr[port_id].mac_addr = &app.eb_ether_addr;
+
+	} else if (app.eb_port == port_id) {
+		/* Validate the Destination IPv6 Address subnet */
+		if (validate_ipv6_network(ip_addr, app.eb_ipv6, app.eb_ipv6_prefix_len)) {
+			memcpy(&addr[port_id].ipv6, &app.eb_ipv6, IPV6_ADDRESS_LEN);
+		} else if (validate_ipv6_network(ip_addr, app.eb_li_ipv6, app.eb_li_ipv6_prefix_len)){
+			memcpy(&addr[port_id].ipv6, &app.eb_li_ipv6, IPV6_ADDRESS_LEN);
+		} else {
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"EB:Neighbor Destination IPv6 Addr "IPv6_FMT" "
+					"is NOT in local intf subnet\n",
+					LOG_VALUE, IPv6_PRINT(ip_addr));
+		}
+		addr[port_id].ip_type.ipv6 = PRESENT;
+		addr[port_id].mac_addr = &app.eb_ether_addr;
+	} else {
+		clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"Unknown input port\n", LOG_VALUE);
+	}
+}
 /**
  * @brief  : Function to process arp request
  * @param  : pkt, rte_mbuf pointer
@@ -1087,12 +1526,14 @@ pkt_work_arp_key(
 			&& (eth_h->d_addr.addr_bytes[2] == 0x0c))
 		return ;
 
+	/* Print ethernet header information */
 	if (ARPICMP_DEBUG)
 		print_eth(eth_h);
 
 	if (eth_h->ether_type == rte_cpu_to_be_16(ETHER_TYPE_ARP)) {
 		struct arp_hdr *arp_h = (struct arp_hdr *)((char *)eth_h +
 								sizeof(struct ether_hdr));
+		/* Print ARP header information */
 		if (ARPICMP_DEBUG)
 			print_arp_packet(arp_h);
 
@@ -1115,14 +1556,14 @@ pkt_work_arp_key(
 		} else {
 			get_mac_ip_addr(arp_port_addresses, arp_h->arp_data.arp_tip, in_port_id);
 			if (arp_h->arp_data.arp_tip !=
-				arp_port_addresses[in_port_id].ip) {
+				arp_port_addresses[in_port_id].ipv4) {
 				if (ARPICMP_DEBUG) {
 					clLog(clSystemLog, eCLSeverityDebug,
-						LOG_FORMAT"ARP REQ IP != Port IP::discarding"
+						LOG_FORMAT"ARP REQ IPv4 != Port IP::discarding"
 						"ARP REQ IP: %s;"
-						"Port ID: %X; Interface IP: %s\n",LOG_VALUE,
+						"Port ID: %X; Interface IPv4: %s\n",LOG_VALUE,
 						inet_ntoa(*(struct in_addr *)&arp_h->arp_data.arp_tip), in_port_id,
-						inet_ntoa(*(struct in_addr *)&arp_port_addresses[in_port_id].ip));
+						inet_ntoa(*(struct in_addr *)&arp_port_addresses[in_port_id].ipv4));
 				}
 			} else if (arp_h->arp_op == rte_cpu_to_be_16(ARP_OP_REQUEST)) {
 				/* ARP_REQ IP matches. Process ARP_REQ */
@@ -1173,7 +1614,7 @@ pkt_work_arp_key(
 				/* Process ARP_RSP */
 				if (ARPICMP_DEBUG) {
 					clLog(clSystemLog, eCLSeverityDebug,
-						LOG_FORMAT"ARP RSP::IP= %s; "FORMAT_MAC"\n", LOG_VALUE,
+						LOG_FORMAT"ARP RSP::IPv4= %s; "FORMAT_MAC"\n", LOG_VALUE,
 						inet_ntoa(
 							*(struct in_addr *)&arp_h->
 									arp_data.arp_sip),
@@ -1189,7 +1630,7 @@ pkt_work_arp_key(
 						arp_h->arp_op);
 			}
 		}
-	} else {
+	} else if (eth_h->ether_type == rte_cpu_to_be_16(ETHER_TYPE_IPv4)) {
 		/* If UDP dest port is 2152, then pkt is GTPU-Echo request */
 		struct gtpu_hdr *gtpuhdr = get_mtogtpu(pkt);
 		if (gtpuhdr && (gtpuhdr->msgtype == GTPU_ECHO_REQUEST)) {
@@ -1203,10 +1644,12 @@ pkt_work_arp_key(
 					return;
 				}
 			}
+			peer_address_t address;
+			address.ipv4.sin_addr.s_addr = ip_hdr->src_addr;
+			address.type = IPV4_TYPE;
+			update_cli_stats((peer_address_t *) &address, GTPU_ECHO_REQUEST, RCVD, it);
 
-			update_cli_stats(ip_hdr->src_addr, GTPU_ECHO_REQUEST, RCVD, it);
-
-			process_echo_request(pkt, in_port_id);
+			process_echo_request(pkt, in_port_id, IPV4_TYPE);
 			/* Send ECHO_RSP */
 			int pkt_size =
 				RTE_CACHE_LINE_ROUNDUP(sizeof(struct rte_mbuf));
@@ -1217,11 +1660,15 @@ pkt_work_arp_key(
 				if (rte_ring_enqueue(shared_ring[in_port_id], pkt1) == -ENOBUFS) {
 					rte_pktmbuf_free(pkt1);
 					clLog(clSystemLog, eCLSeverityCritical,
-						LOG_FORMAT"Can't queue pkt- ring full"
-						" Dropping pkt\n", LOG_VALUE);
+							LOG_FORMAT"Can't queue pkt- ring full"
+							" Dropping pkt\n", LOG_VALUE);
 					return;
 				}
-			update_cli_stats(ip_hdr->dst_addr, GTPU_ECHO_RESPONSE, SENT,it);
+
+				peer_address_t address;
+				address.ipv4.sin_addr.s_addr = ip_hdr->dst_addr;
+				address.type = IPV4_TYPE;
+				update_cli_stats((peer_address_t *) &address, GTPU_ECHO_RESPONSE, SENT,it);
 
 			}
 		} else if (gtpuhdr && gtpuhdr->msgtype == GTPU_ECHO_RESPONSE) {
@@ -1229,11 +1676,596 @@ pkt_work_arp_key(
 			/*VS: Add check for Restart counter */
 			/* If peer Restart counter value of peer node is less than privious value than start flusing session*/
 			struct ipv4_hdr *ip_hdr = get_mtoip(pkt);
-			update_cli_stats(ip_hdr->src_addr,GTPU_ECHO_RESPONSE,RCVD,it);
+			peer_address_t address;
+			address.ipv4.sin_addr.s_addr = ip_hdr->src_addr;
+			address.type = IPV4_TYPE;
+			update_cli_stats((peer_address_t *) &address, GTPU_ECHO_RESPONSE, RCVD, it);
+
 			clLog(clSystemLog, eCLSeverityDebug,
 				LOG_FORMAT"GTPU Echo Response Received\n", LOG_VALUE);
 			process_echo_response(pkt);
 #endif /* USE_REST */
+		} else if (gtpuhdr && gtpuhdr->msgtype == GTP_GPDU) {
+			/* Process the Router Solicitation Message */
+			struct ipv6_hdr *ipv6_hdr = NULL;
+			ipv6_hdr = (struct ipv6_hdr*)((char*)gtpuhdr + GTPU_HDR_SIZE);
+
+			if (ipv6_hdr->proto == IPPROTO_ICMPV6) {
+				/* Target IPv6 Address */
+				struct in6_addr target_addr = {0};
+				memcpy(&target_addr.s6_addr, &ipv6_hdr->src_addr, IPV6_ADDR_LEN);
+
+				/* Get the ICMPv6 Header */
+				struct icmp_hdr *icmp = NULL;
+				icmp = (struct icmp_hdr *)((char*)gtpuhdr + GTPU_HDR_SIZE + IPv6_HDR_SIZE);
+
+				if (icmp->icmp_type == ICMPv6_ROUTER_SOLICITATION) {
+					/* Check the TEID value */
+					if (!gtpuhdr->teid) {
+						clLog(clSystemLog, eCLSeverityCritical,
+								LOG_FORMAT"IPv6: Failed to Process ICMPv6_ROUTER_SOLICITATION Message,"
+								" due to teid value is not set\n",
+								LOG_VALUE);
+						return;
+					}
+
+					/* Retrieve Session info based on the teid */
+					pfcp_session_datat_t *ul_sess_data = NULL;
+					pfcp_session_datat_t *dl_sess_data = NULL;
+					struct ul_bm_key key = {0};
+					struct dl_bm_key dl_key = {0};
+					key.teid = ntohl(gtpuhdr->teid);
+
+					/* Get the session info */
+					if (iface_lookup_uplink_data(&key, (void **)&ul_sess_data) < 0) {
+						clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT":RS:Session Data LKUP:FAIL!! ULKEY "
+								"TEID: %u\n", LOG_VALUE, key.teid);
+						return;
+					}
+
+					/* Check session data is not NULL */
+					if (ul_sess_data == NULL) {
+						clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT":RS:Session Data LKUP:FAIL!! ULKEY "
+								"TEID: %u\n", LOG_VALUE, key.teid);
+						return;
+					}
+					clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"RS:SESSION INFO:"
+							"TEID:%u, Session State:%u\n",
+							LOG_VALUE, key.teid, ul_sess_data->sess_state);
+
+					if (ul_sess_data->pdrs != NULL) {
+						/* Get the Downlink PDR and FAR info */
+						memcpy(&dl_key.ue_ip.ue_ipv6, &(ul_sess_data->pdrs)->pdi.ue_addr.ipv6_address,
+								IPV6_ADDR_LEN);
+
+						/* Get the Downlink Session information */
+						if (iface_lookup_downlink_data(&dl_key, (void **)&dl_sess_data) < 0) {
+							clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT":RS:Session Data LKUP:FAIL!! DLKEY "
+									"UE IPv6: "IPv6_FMT"\n", LOG_VALUE,
+									IPv6_PRINT(*(struct in6_addr *)dl_key.ue_ip.ue_ipv6));
+							return;
+						}
+
+						/* Check session data is not NULL */
+						if (dl_sess_data == NULL) {
+							clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT":RS:Session Data LKUP:FAIL!! DLKEY "
+									"UE IPv6: "IPv6_FMT"\n", LOG_VALUE,
+									IPv6_PRINT(*(struct in6_addr *)dl_key.ue_ip.ue_ipv6));
+							return;
+						}
+						clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"RS:SESSION INFO:"
+								"UE IPv6:"IPv6_FMT", Session State:%u\n",
+								LOG_VALUE, IPv6_PRINT(*(struct in6_addr *)dl_key.ue_ip.ue_ipv6),
+								dl_sess_data->sess_state);
+					} else {
+						clLog(clSystemLog, eCLSeverityCritical,
+								LOG_FORMAT":RS:PDR is NULL in UL session for "
+								"TEID: %u\n", LOG_VALUE, key.teid);
+						return;
+					}
+
+					/* Validate PDR and FAR is not NULL */
+					if ((dl_sess_data->pdrs != NULL) && ((dl_sess_data->pdrs)->far != NULL))
+					{
+						/* Processing received Router Solicitation Request and responsed with Advertisement Resp */
+						uint32_t tmp_teid = ntohl((dl_sess_data->pdrs)->far->frwdng_parms.outer_hdr_creation.teid);
+						clLog(clSystemLog, eCLSeverityDebug,
+								LOG_FORMAT"IPv6: Process RCVD ICMPv6_ROUTER_SOLICITATION Message..!!\n",
+								LOG_VALUE);
+
+						/* Update the GTPU TEID */
+						process_router_solicitation_request(pkt, tmp_teid);
+
+						/* Update the Inner IPv6 HDR Src Address */
+						struct ipv6_hdr *ipv6_hdr = NULL;
+						ipv6_hdr = (struct ipv6_hdr*)((char*)gtpuhdr + GTPU_HDR_SIZE);
+
+						/* Update the Source Link Locak Layer Address */
+						memcpy(&ipv6_hdr->src_addr, &app.wb_l3_ipv6, IPV6_ADDR_LEN);
+
+						/* Update the Router Advertisement pkt */
+						struct icmp6_hdr_ra *ra = (struct icmp6_hdr_ra *)((char*)gtpuhdr + GTPU_HDR_SIZE + IPv6_HDR_SIZE);
+
+						/* Get the Network Prefix */
+						struct in6_addr prefix_addr_t = {0};
+						prefix_addr_t = retrieve_ipv6_prefix(*(struct in6_addr*)(ul_sess_data->pdrs)->pdi.ue_addr.ipv6_address,
+								(ul_sess_data->pdrs)->pdi.ue_addr.ipv6_pfx_dlgtn_bits);
+
+						/* Fill the Network Prefix and Prefix Length */
+						ra->icmp.icmp6_data.icmp6_data8[0] = (ul_sess_data->pdrs)->pdi.ue_addr.ipv6_pfx_dlgtn_bits;
+						ra->opt.prefix_length = (ul_sess_data->pdrs)->pdi.ue_addr.ipv6_pfx_dlgtn_bits;
+						memcpy(ra->opt.prefix_addr, &prefix_addr_t.s6_addr, IPV6_ADDR_LEN);
+						clLog(clSystemLog, eCLSeverityDebug,
+								LOG_FORMAT"RA: Fill the Network Prefix:"IPv6_FMT" and Prefix len:%u, TEID:%u\n",
+								LOG_VALUE, IPv6_PRINT(*(struct in6_addr*)ra->opt.prefix_addr), ra->opt.prefix_length, tmp_teid);
+
+						/* Set the ICMPv6 Header Checksum */
+						ra->icmp.icmp6_cksum = 0;
+						ra->icmp.icmp6_cksum = ipv6_icmp_cksum(ipv6_hdr, &ra->icmp);
+
+						/* Update the IP and UDP header checksum */
+						ra_set_checksum(pkt);
+
+						/* Send ICMPv6 Router Advertisement resp */
+						int pkt_size =
+							RTE_CACHE_LINE_ROUNDUP(sizeof(struct rte_mbuf));
+
+						/* arp_pkt @arp_xmpool[port_id] */
+						struct rte_mbuf *pkt1 = arp_pkt[in_port_id];
+						if (pkt1) {
+							memcpy(pkt1, pkt, pkt_size);
+							if (rte_ring_enqueue(shared_ring[in_port_id], pkt1) == -ENOBUFS) {
+								rte_pktmbuf_free(pkt1);
+								clLog(clSystemLog, eCLSeverityCritical,
+										LOG_FORMAT"RA:Can't queue pkt- ring full"
+										" Dropping pkt\n", LOG_VALUE);
+								return;
+							}
+							clLog(clSystemLog, eCLSeverityDebug,
+									LOG_FORMAT"IPv6: Send ICMPv6_ROUTER_ADVERTISEMENT Message "
+									"to IPv6 Addr:"IPv6_FMT"\n",
+									LOG_VALUE, IPv6_PRINT(*(struct in6_addr *)ipv6_hdr->dst_addr));
+#ifdef STATS
+							++epc_app.ul_params[in_port_id].pkts_rs_out;
+#endif /* STATS */
+						}
+					} else {
+						clLog(clSystemLog, eCLSeverityCritical,
+								LOG_FORMAT"RS:SESSION INFO: PDR/FAR not found(NULL) for UE IPv6:"IPv6_FMT"\n",
+								LOG_VALUE, IPv6_PRINT(*(struct in6_addr *)dl_key.ue_ip.ue_ipv6));
+					}
+				}
+			}
+		} else if (gtpuhdr && gtpuhdr->msgtype == GTPU_ERROR_INDICATION) {
+			struct ipv4_hdr *ip_hdr = get_mtoip(pkt);
+
+			/* Handle the Error indication pkts received from the peer nodes */
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"ERROR_INDICATION: Received Error Indication pkts from the peer node:"IPV4_ADDR"\n",
+					LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ip_hdr->src_addr));
+#ifdef STATS
+			if(in_port_id == SGI_PORT_ID) {
+				++epc_app.dl_params[in_port_id].pkts_err_in;
+			} else {
+				++epc_app.ul_params[in_port_id].pkts_err_in;
+			}
+#endif /* STATS */
+		}
+	} else if (eth_h->ether_type == rte_cpu_to_be_16(ETHER_TYPE_IPv6)) {
+		/* Get the IPv6 Header from pkt */
+		struct ipv6_hdr *ipv6_hdr = NULL;
+		ipv6_hdr = get_mtoip_v6(pkt);
+
+		/* L4: If next header is ICMPv6 and Neighbor Solicitation/Advertisement */
+		if ((ipv6_hdr->proto == IPPROTO_ICMPV6) &&
+				(ipv6_hdr->proto != IPPROTO_UDP)) {
+			/* Get the ICMP IPv6 Header from pkt */
+			struct icmp_hdr *icmp = NULL;
+			icmp = get_mtoicmpv6(pkt);
+
+			clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"IPv6: RCVD ICMPv6 Message Type:%u\n",
+				LOG_VALUE, icmp->icmp_type);
+
+			/* Process Neighbor Solicitation/Advertisement Messages */
+			if (icmp->icmp_type == ICMPv6_NEIGHBOR_SOLICITATION) {
+				struct icmp6_hdr_ns *ns = get_mtoicmpv6_ns(pkt);
+
+				clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"IPv6: Process RCVD ICMPv6_NEIGHBOR_SOLICITATION Message..!!\n",
+					LOG_VALUE);
+
+
+				/* Validate the Target IPv6 Address */
+				if (in_port_id == S1U_PORT_ID) {
+					/* Validate the Source IPv6 address is in same network */
+					if (memcmp(&(app.wb_ipv6), &ns->icmp6_target_addr, IPV6_ADDRESS_LEN) &&
+							memcmp(&(app.wb_li_ipv6), &ns->icmp6_target_addr, IPV6_ADDRESS_LEN)) {
+						clLog(clSystemLog, eCLSeverityDebug,
+							LOG_FORMAT"NEIGHBOR_SOLICITATION: Target dest addr mismatch "
+							"Expected:app.wb_ipv6("IPv6_FMT" or "IPv6_FMT") != RCVD:ns->icmp6_target_addr("IPv6_FMT")\n",
+							LOG_VALUE, IPv6_PRINT(app.wb_ipv6), IPv6_PRINT(app.wb_li_ipv6), IPv6_PRINT(ns->icmp6_target_addr));
+						return;
+					}
+				} else if (in_port_id == SGI_PORT_ID) {
+					/* Validate the Source IPv6 address is in same network */
+					if (memcmp(&(app.eb_ipv6), &ns->icmp6_target_addr, IPV6_ADDRESS_LEN) &&
+							memcmp(&(app.eb_li_ipv6), &ns->icmp6_target_addr, IPV6_ADDRESS_LEN)) {
+						clLog(clSystemLog, eCLSeverityDebug,
+							LOG_FORMAT"NEIGHBOR_SOLICITATION: Target dest addr mismatch "
+							"Expected:app.eb_ipv6("IPv6_FMT" or "IPv6_FMT") != RCVD:ns->icmp6_target_addr("IPv6_FMT")\n",
+							LOG_VALUE, IPv6_PRINT(app.eb_ipv6), IPv6_PRINT(app.eb_li_ipv6), IPv6_PRINT(ns->icmp6_target_addr));
+						return;
+					}
+				}
+
+				/* Source hardware address */
+				if (ns->opt.type == SRC_LINK_LAYER_ADDR) {
+					struct ether_addr mac_addr = {0};
+
+					/* Source IPv6 Address */
+					struct in6_addr src_addr = {0};
+					memcpy(&src_addr, (struct in6_addr *)ipv6_hdr->src_addr, IPV6_ADDRESS_LEN);
+
+					/* Fill the Source Link Layer Address */
+					memcpy(&mac_addr, &ns->opt.link_layer_addr, ETHER_ADDR_LEN);
+
+					clLog(clSystemLog, eCLSeverityDebug,
+						LOG_FORMAT"IPv6_ARP_NS: Check ARP entry for IPv6 Addr:"IPv6_FMT"\n",
+						LOG_VALUE, IPv6_PRINT(*(struct in6_addr *)ipv6_hdr->src_addr));
+					if (ARPICMP_DEBUG) {
+						print_ipv6_eth(&mac_addr);
+					}
+
+					/* Add the ARP entry into arp table and resolved buffer packets */
+					process_neighbor_advert_msg(&mac_addr, &src_addr, in_port_id);
+#ifdef STATIC_ARP
+					/* Build ICMPv6_NEIGHBOR_ADVERTISEMENT Resp */
+					get_mac_ipv6_addr(arp_port_addresses, ns->icmp6_target_addr, in_port_id);
+
+					/* Fill the ether header info */
+					ether_addr_copy(&eth_h->s_addr, &eth_h->d_addr);
+					ether_addr_copy(
+							arp_port_addresses[in_port_id].mac_addr,
+							&eth_h->s_addr);
+					/* Fill the IPv6 header */
+					memcpy(&ipv6_hdr->dst_addr, &ipv6_hdr->src_addr,
+							IPV6_ADDRESS_LEN);
+					memcpy(&ipv6_hdr->src_addr, &arp_port_addresses[in_port_id].ipv6.s6_addr,
+							IPV6_ADDRESS_LEN);
+
+					struct in6_addr target_addr = {0};
+					memcpy(&target_addr, &ns->icmp6_target_addr, IPV6_ADDRESS_LEN);
+
+					/* Reset the neighbor solicitaion header */
+					memset(ns, 0, sizeof(struct icmp6_hdr_ns));
+
+					struct icmp6_hdr_na *na = get_mtoicmpv6_na(pkt);
+					memset(na, 0, sizeof(struct icmp6_hdr_na));
+
+					/* Fill neighbor advertisement pkt */
+					na->icmp6_type = ICMPv6_NEIGHBOR_ADVERTISEMENT;
+					na->icmp6_code = 0;
+					/*TODO: Calculate the checksum */
+					//na->icmp6_cksum = 0;
+					na->icmp6_flags = 0x60;
+					//na->icmp6_reserved = 0;
+					memcpy(&na->icmp6_target_addr, &arp_port_addresses[in_port_id].ipv6,
+							IPV6_ADDRESS_LEN);
+
+					na->opt.type = TRT_LINK_LAYER_ADDR;
+					na->opt.length = (ETHER_ADDR_LEN + sizeof(na->opt.length))/8;
+					memcpy(&na->opt.link_layer_addr, &arp_port_addresses[in_port_id].mac_addr,
+							ETHER_ADDR_LEN);
+
+					/* Send ICMPv6 Neighbor Advertisement resp */
+					int pkt_size =
+						RTE_CACHE_LINE_ROUNDUP(sizeof(struct rte_mbuf));
+					/* arp_pkt @arp_xmpool[port_id] */
+					struct rte_mbuf *pkt1 = arp_pkt[in_port_id];
+					if (pkt1) {
+						memcpy(pkt1, pkt, pkt_size);
+						rte_pipeline_port_out_packet_insert(
+									myP,
+									in_port_id, pkt1);
+					}
+					clLog(clSystemLog, eCLSeverityDebug,
+						LOG_FORMAT"IPv6: Send ICMPv6_NEIGHBOR_ADVERTISEMENT Message "
+						"to IPv6 Addr:"IPv6_FMT"\n",
+						LOG_VALUE, IPv6_PRINT(*(struct in6_addr *)ipv6_hdr->dst_addr));
+#endif	/* STATIC_ARP */
+				} else {
+					clLog(clSystemLog, eCLSeverityDebug,
+						LOG_FORMAT"IPv6: RCVD ICMPv6_NEIGHBOR_SOLICITATION Message "
+						"not include SRC_LINK_LAYER_ADDR\n", LOG_VALUE);
+				}
+			} else if (icmp->icmp_type == ICMPv6_NEIGHBOR_ADVERTISEMENT) {
+				struct icmp6_hdr_na *na = get_mtoicmpv6_na(pkt);
+				clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"IPv6: Process RCVD ICMPv6_NEIGHBOR_ADVERTISEMENT Message..!!\n",
+					LOG_VALUE);
+
+				/* Validate the Target IPv6 Address */
+				if (in_port_id == S1U_PORT_ID) {
+					/* Validate the Source IPv6 address is in same network */
+					if (memcmp(&(app.wb_ipv6), (struct in6_addr *)ipv6_hdr->dst_addr, IPV6_ADDRESS_LEN) &&
+							memcmp(&(app.wb_li_ipv6), (struct in6_addr *)ipv6_hdr->dst_addr, IPV6_ADDRESS_LEN)) {
+						if (memcmp(&(app.wb_l3_ipv6), (struct in6_addr *)ipv6_hdr->dst_addr, IPV6_ADDRESS_LEN)) {
+							clLog(clSystemLog, eCLSeverityDebug,
+									LOG_FORMAT"NEIGHBOR_ADVERT: Dest Addr mismatch "
+									"Expected:app.wb_ipv6("IPv6_FMT" or "IPv6_FMT") != RCVD:ns->ipv6_dst_addr("IPv6_FMT")\n",
+									LOG_VALUE, IPv6_PRINT(app.wb_ipv6), IPv6_PRINT(app.wb_li_ipv6), IPv6_PRINT(*(struct in6_addr *)ipv6_hdr->dst_addr));
+							return;
+						}
+					}
+				} else if (in_port_id == SGI_PORT_ID) {
+					/* Validate the Source IPv6 address is in same network */
+					if (memcmp(&(app.eb_ipv6), (struct in6_addr *)ipv6_hdr->dst_addr, IPV6_ADDRESS_LEN) &&
+							memcmp(&(app.eb_li_ipv6), (struct in6_addr *)ipv6_hdr->dst_addr, IPV6_ADDRESS_LEN)) {
+						if (memcmp(&(app.eb_l3_ipv6), (struct in6_addr *)ipv6_hdr->dst_addr, IPV6_ADDRESS_LEN)) {
+							clLog(clSystemLog, eCLSeverityDebug,
+									LOG_FORMAT"NEIGHBOR_ADVERT: Dest Addr mismatch "
+									"Expected:app.eb_ipv6("IPv6_FMT" or "IPv6_FMT") != RCVD:ns->ipv6_dst_addr("IPv6_FMT")\n",
+									LOG_VALUE, IPv6_PRINT(app.eb_ipv6), IPv6_PRINT(app.eb_li_ipv6), IPv6_PRINT(*(struct in6_addr *)ipv6_hdr->dst_addr));
+							return;
+						}
+					}
+				}
+
+				/* Target hardware address */
+				if (na->opt.type == TRT_LINK_LAYER_ADDR) {
+					struct ether_addr mac_addr = {0};
+
+					/* Target IPv6 Address */
+					struct in6_addr target_addr = {0};
+					memcpy(&target_addr, &na->icmp6_target_addr, IPV6_ADDRESS_LEN);
+
+					/* Fill the Source Link Layer Address */
+					memcpy(&mac_addr, &na->opt.link_layer_addr, ETHER_ADDR_LEN);
+
+					clLog(clSystemLog, eCLSeverityDebug,
+						LOG_FORMAT"IPv6_ARP_NA: Check ARP entry for IPv6 Addr:"IPv6_FMT"\n",
+						LOG_VALUE, IPv6_PRINT(na->icmp6_target_addr));
+					if (ARPICMP_DEBUG) {
+						print_ipv6_eth(&mac_addr);
+					}
+
+					/* Add the ARP entry into arp table and resolved buffer packets */
+					process_neighbor_advert_msg(&mac_addr, &target_addr, in_port_id);
+				} else {
+					clLog(clSystemLog, eCLSeverityDebug,
+						LOG_FORMAT"IPv6: RCVD ICMPv6_NEIGHBOR_ADVERTISEMENT Message "
+						"not include TRT_LINK_LAYER_ADDR\n", LOG_VALUE);
+				}
+			}
+		} else if ((ipv6_hdr->proto == IPPROTO_UDP) &&
+				(ipv6_hdr->proto != IPPROTO_ICMPV6)) {
+
+			/* If UDP dest port is 2152, then pkt is GTPU-Echo request */
+			struct gtpu_hdr *gtpuhdr = get_mtogtpu_v6(pkt);
+			if (gtpuhdr && (gtpuhdr->msgtype == GTPU_ECHO_REQUEST)) {
+				peer_address_t addr = {0};
+				addr.type = IPV6_TYPE;
+				memcpy(addr.ipv6.sin6_addr.s6_addr,
+						ipv6_hdr->dst_addr, IPV6_ADDR_LEN);
+				update_cli_stats(&addr, GTPU_ECHO_REQUEST, RCVD, it);
+
+				/* Host IPv6 Address */
+				clLog(clSystemLog, eCLSeverityDebug,
+						LOG_FORMAT"IPv6: RCVD Echo Request Received From IPv6 Addr:"IPv6_FMT"\n",
+						LOG_VALUE, IPv6_PRINT(IPv6_CAST(addr.ipv6.sin6_addr.s6_addr)));
+
+				process_echo_request(pkt, in_port_id, IPV6_TYPE);
+				/* Send ECHO_RSP */
+				int pkt_size =
+					RTE_CACHE_LINE_ROUNDUP(sizeof(struct rte_mbuf));
+				/* gtpu_echo_pkt @arp_xmpool[port_id] */
+				struct rte_mbuf *pkt1 = arp_pkt[in_port_id];
+				if (pkt1) {
+					memcpy(pkt1, pkt, pkt_size);
+					if (rte_ring_enqueue(shared_ring[in_port_id], pkt1) == -ENOBUFS) {
+						rte_pktmbuf_free(pkt1);
+						clLog(clSystemLog, eCLSeverityCritical,
+								LOG_FORMAT"Can't queue pkt- ring full"
+								" Dropping pkt\n", LOG_VALUE);
+						return;
+					}
+
+					update_cli_stats(&addr, GTPU_ECHO_RESPONSE, SENT,it);
+					clLog(clSystemLog, eCLSeverityDebug,
+							LOG_FORMAT"IPv6: Send Echo Response to IPv6 Addr:"IPv6_FMT"\n",
+							LOG_VALUE, IPv6_PRINT(IPv6_CAST(addr.ipv6.sin6_addr.s6_addr)));
+
+				}
+			} else if (gtpuhdr && gtpuhdr->msgtype == GTPU_ECHO_RESPONSE) {
+
+				/* TODO: Add the Handling for GTPU ECHO Resp Process for IPv6 */
+				/* Host IPv6 Address */
+				struct in6_addr ho_addr = {0};
+				memcpy(&ho_addr.s6_addr, &ipv6_hdr->dst_addr, IPV6_ADDR_LEN);
+
+				clLog(clSystemLog, eCLSeverityDebug,
+						LOG_FORMAT"IPv6: RCVD Echo Response Received From IPv6 Addr:"IPv6_FMT"\n",
+						LOG_VALUE, IPv6_PRINT(ho_addr));
+
+#ifdef USE_REST
+				/* If peer Restart counter value of peer node is less than privious value than start flusing session*/
+				peer_address_t addr = {0};
+				memcpy(addr.ipv6.sin6_addr.s6_addr,
+						ipv6_hdr->dst_addr, IPV6_ADDR_LEN);
+				addr.type = IPV6_TYPE;
+				update_cli_stats(&addr, GTPU_ECHO_RESPONSE, RCVD, it);
+
+				process_echo_response(pkt);
+#endif /* USE_REST */
+			} else if (gtpuhdr && gtpuhdr->msgtype == GTP_GPDU) {
+				/* Process the Router Solicitation Message */
+				struct ipv6_hdr *ipv6_hdr = NULL;
+				ipv6_hdr = get_inner_mtoipv6(pkt);
+
+				if (ipv6_hdr->proto == IPPROTO_ICMPV6) {
+					/* Target IPv6 Address */
+					struct in6_addr target_addr = {0};
+					memcpy(&target_addr.s6_addr, &ipv6_hdr->src_addr, IPV6_ADDR_LEN);
+
+					/* Get the ICMPv6 Header */
+					struct icmp_hdr *icmp = NULL;
+					icmp = get_inner_mtoicmpv6(pkt);
+
+					if (icmp->icmp_type == ICMPv6_ROUTER_SOLICITATION) {
+						/* Check the TEID value */
+						if (!gtpuhdr->teid) {
+							clLog(clSystemLog, eCLSeverityCritical,
+								LOG_FORMAT"IPv6: Failed to Process ICMPv6_ROUTER_SOLICITATION Message,"
+								" due to teid value is not set\n",
+								LOG_VALUE);
+							return;
+						}
+
+						/* Retrieve Session info based on the teid */
+						pfcp_session_datat_t *ul_sess_data = NULL;
+						pfcp_session_datat_t *dl_sess_data = NULL;
+						struct ul_bm_key key = {0};
+						struct dl_bm_key dl_key = {0};
+						key.teid = ntohl(gtpuhdr->teid);
+
+						/* Get the session info */
+						if (iface_lookup_uplink_data(&key, (void **)&ul_sess_data) < 0) {
+							clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT":RS:Session Data LKUP:FAIL!! ULKEY "
+								"TEID: %u\n", LOG_VALUE, key.teid);
+							return;
+						}
+
+						/* Check session data is not NULL */
+						if (ul_sess_data == NULL) {
+							clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT":RS:Session Data LKUP:FAIL!! ULKEY "
+								"TEID: %u\n", LOG_VALUE, key.teid);
+							return;
+						}
+						clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"RS:SESSION INFO:"
+							"TEID:%u, Session State:%u\n",
+							LOG_VALUE, key.teid, ul_sess_data->sess_state);
+
+						if (ul_sess_data->pdrs != NULL) {
+							/* Get the Downlink PDR and FAR info */
+							memcpy(&dl_key.ue_ip.ue_ipv6, &(ul_sess_data->pdrs)->pdi.ue_addr.ipv6_address,
+									IPV6_ADDR_LEN);
+
+							/* Get the Downlink Session information */
+							if (iface_lookup_downlink_data(&dl_key, (void **)&dl_sess_data) < 0) {
+								clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT":RS:Session Data LKUP:FAIL!! DLKEY "
+									"UE IPv6: "IPv6_FMT"\n", LOG_VALUE,
+									IPv6_PRINT(*(struct in6_addr *)dl_key.ue_ip.ue_ipv6));
+								return;
+							}
+
+							/* Check session data is not NULL */
+							if (dl_sess_data == NULL) {
+								clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT":RS:Session Data LKUP:FAIL!! DLKEY "
+									"UE IPv6: "IPv6_FMT"\n", LOG_VALUE,
+									IPv6_PRINT(*(struct in6_addr *)dl_key.ue_ip.ue_ipv6));
+								return;
+							}
+							clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"RS:SESSION INFO:"
+								"UE IPv6:"IPv6_FMT", Session State:%u\n",
+								LOG_VALUE, IPv6_PRINT(*(struct in6_addr *)dl_key.ue_ip.ue_ipv6),
+								dl_sess_data->sess_state);
+						} else {
+							clLog(clSystemLog, eCLSeverityCritical,
+									LOG_FORMAT":RS:PDR is NULL in UL session for "
+									"TEID: %u\n", LOG_VALUE, key.teid);
+							return;
+						}
+
+						/* Validate PDR and FAR is not NULL */
+						if ((dl_sess_data->pdrs != NULL) && ((dl_sess_data->pdrs)->far != NULL))
+						{
+							/* Processing received Router Solicitation Request and responsed with Advertisement Resp */
+							uint32_t tmp_teid = ntohl((dl_sess_data->pdrs)->far->frwdng_parms.outer_hdr_creation.teid);
+							clLog(clSystemLog, eCLSeverityDebug,
+								LOG_FORMAT"IPv6: Process RCVD ICMPv6_ROUTER_SOLICITATION Message..!!\n",
+								LOG_VALUE);
+
+							/* Update the GTPU TEID */
+							process_router_solicitation_request(pkt, tmp_teid);
+
+							/* Update the Inner IPv6 HDR Src Address */
+							struct ipv6_hdr *ipv6_hdr = NULL;
+							ipv6_hdr = (struct ipv6_hdr*)((char*)gtpuhdr + GTPU_HDR_SIZE);
+
+							/* Update the Source Link Locak Layer Address */
+							memcpy(&ipv6_hdr->src_addr, &app.wb_l3_ipv6, IPV6_ADDR_LEN);
+
+							/* Update the Router Advertisement pkt */
+							struct icmp6_hdr_ra *ra = get_mtoicmpv6_ra(pkt);
+
+							/* Get the Network Prefix */
+							struct in6_addr prefix_addr_t = {0};
+							prefix_addr_t = retrieve_ipv6_prefix(*(struct in6_addr*)(ul_sess_data->pdrs)->pdi.ue_addr.ipv6_address,
+									(ul_sess_data->pdrs)->pdi.ue_addr.ipv6_pfx_dlgtn_bits);
+
+							/* Fill the Network Prefix and Prefix Length */
+							ra->icmp.icmp6_data.icmp6_data8[0] = (ul_sess_data->pdrs)->pdi.ue_addr.ipv6_pfx_dlgtn_bits;
+							ra->opt.prefix_length = (ul_sess_data->pdrs)->pdi.ue_addr.ipv6_pfx_dlgtn_bits;
+							memcpy(ra->opt.prefix_addr, &prefix_addr_t.s6_addr, IPV6_ADDR_LEN);
+							clLog(clSystemLog, eCLSeverityDebug,
+									LOG_FORMAT"RA: Fill the Network Prefix:"IPv6_FMT" and Prefix len:%u, TEID:%u\n",
+									LOG_VALUE, IPv6_PRINT(*(struct in6_addr*)ra->opt.prefix_addr), ra->opt.prefix_length, tmp_teid);
+
+							/* Set the ICMPv6 Header Checksum */
+							ra->icmp.icmp6_cksum = 0;
+							ra->icmp.icmp6_cksum = ipv6_icmp_cksum(ipv6_hdr, &ra->icmp);
+
+							/* Update the IP and UDP header checksum */
+							ra_set_checksum(pkt);
+
+
+							/* Send ICMPv6 Router Advertisement resp */
+							int pkt_size =
+								RTE_CACHE_LINE_ROUNDUP(sizeof(struct rte_mbuf));
+							/* arp_pkt @arp_xmpool[port_id] */
+							struct rte_mbuf *pkt1 = arp_pkt[in_port_id];
+							if (pkt1) {
+								memcpy(pkt1, pkt, pkt_size);
+								if (rte_ring_enqueue(shared_ring[in_port_id], pkt1) == -ENOBUFS) {
+									rte_pktmbuf_free(pkt1);
+									clLog(clSystemLog, eCLSeverityCritical,
+										LOG_FORMAT"RA:Can't queue pkt- ring full"
+										" Dropping pkt\n", LOG_VALUE);
+									return;
+								}
+								clLog(clSystemLog, eCLSeverityDebug,
+									LOG_FORMAT"IPv6: Send ICMPv6_ROUTER_ADVERTISEMENT Message "
+									"to IPv6 Addr:"IPv6_FMT"\n",
+									LOG_VALUE, IPv6_PRINT(*(struct in6_addr *)ipv6_hdr->dst_addr));
+#ifdef STATS
+								++epc_app.ul_params[in_port_id].pkts_rs_out;
+#endif /* STATS */
+							}
+						} else {
+							clLog(clSystemLog, eCLSeverityCritical,
+									LOG_FORMAT"RS:SESSION INFO: PDR/FAR not found(NULL) for UE IPv6:"IPv6_FMT"\n",
+									LOG_VALUE, IPv6_PRINT(*(struct in6_addr *)dl_key.ue_ip.ue_ipv6));
+						}
+
+					}
+				}
+			} else if (gtpuhdr && gtpuhdr->msgtype == GTPU_ERROR_INDICATION) {
+				struct ipv6_hdr *ipv6_hdr = NULL;
+				ipv6_hdr = get_mtoip_v6(pkt);
+
+				/* Handle the Error indication pkts received from the peer nodes */
+				clLog(clSystemLog, eCLSeverityDebug,
+						LOG_FORMAT"ERROR_INDICATION: Received Error Indication pkts from the peer node:"IPv6_FMT"\n",
+						LOG_VALUE, IPv6_PRINT(IPv6_CAST(ipv6_hdr->src_addr)));
+#ifdef STATS
+				if(in_port_id == SGI_PORT_ID) {
+					++epc_app.dl_params[in_port_id].pkts_err_in;
+				} else {
+					++epc_app.ul_params[in_port_id].pkts_err_in;
+				}
+#endif /* STATS */
+			}
 		}
 	}
 }
@@ -1277,42 +2309,18 @@ static int port_in_ah_arp_key(
 	return 0;
 }
 
-/**
- * @brief  : Function to parse ethernet address
- * @param  : hw_addr, structure to fill ethernet address
- * @param  : str , string to be parsed
- * @return : Returns number of parsed characters
- */
-static int
-parse_ether_addr(struct ether_addr *hw_addr, const char *str)
-{
-	int ret = sscanf(str, "%"SCNx8":"
-			"%"SCNx8":"
-			"%"SCNx8":"
-			"%"SCNx8":"
-			"%"SCNx8":"
-			"%"SCNx8,
-			&hw_addr->addr_bytes[0],
-			&hw_addr->addr_bytes[1],
-			&hw_addr->addr_bytes[2],
-			&hw_addr->addr_bytes[3],
-			&hw_addr->addr_bytes[4],
-			&hw_addr->addr_bytes[5]);
-	return  ret - RTE_DIM(hw_addr->addr_bytes);
-}
-
 #ifdef STATIC_ARP
 /**
- * @brief  : Add static arp entry
+ * @brief  : Add static arp entry for IPv4 Address
  * @param  : entry, entry to be added
  * @param  : port_id, port number
  * @return : Returns nothing
  */
 static void
-add_static_arp_entry(struct rte_cfgfile_entry *entry,
+add_static_arp_ipv4_entry(struct rte_cfgfile_entry *entry,
 			uint8_t port_id)
 {
-	struct arp_ipv4_key key;
+	struct arp_ip_key key;
 	struct arp_entry_data *data;
 	char *low_ptr;
 	char *high_ptr;
@@ -1330,7 +2338,7 @@ add_static_arp_entry(struct rte_cfgfile_entry *entry,
 
 	if (low_ptr == NULL) {
 		clLog(clSystemLog, eCLSeverityCritical,
-			LOG_FORMAT"Error parsing static arp entry: %s = %s\n",
+			LOG_FORMAT"IPv4:Error parsing static arp entry: %s = %s\n",
 			LOG_VALUE, entry->name, entry->value);
 		return;
 	}
@@ -1338,7 +2346,7 @@ add_static_arp_entry(struct rte_cfgfile_entry *entry,
 	ret = inet_aton(low_ptr, &low_addr);
 	if (ret == 0) {
 		clLog(clSystemLog, eCLSeverityCritical,
-			LOG_FORMAT"Error parsing static arp entry: %s = %s\n",
+			LOG_FORMAT"IPv4:Error parsing static arp entry: %s = %s\n",
 			LOG_VALUE, entry->name, entry->value);
 		return;
 	}
@@ -1347,7 +2355,7 @@ add_static_arp_entry(struct rte_cfgfile_entry *entry,
 		ret = inet_aton(high_ptr, &high_addr);
 		if (ret == 0) {
 			clLog(clSystemLog, eCLSeverityCritical,
-				LOG_FORMAT"Error parsing static arp entry: %s = %s\n",
+				LOG_FORMAT"IPv4:Error parsing static arp entry: %s = %s\n",
 				LOG_VALUE, entry->name, entry->value);
 			return;
 		}
@@ -1360,7 +2368,7 @@ add_static_arp_entry(struct rte_cfgfile_entry *entry,
 
 	if (high_ip < low_ip) {
 		clLog(clSystemLog, eCLSeverityCritical,
-			LOG_FORMAT"Error parsing static arp entry"
+			LOG_FORMAT"IPv4:Error parsing static arp entry"
 			" - range must be low to high: %s = %s\n",
 			LOG_VALUE, entry->name, entry->value);
 		return;
@@ -1368,14 +2376,106 @@ add_static_arp_entry(struct rte_cfgfile_entry *entry,
 
 	if (parse_ether_addr(&hw_addr, entry->value)) {
 		clLog(clSystemLog, eCLSeverityCritical,
-			LOG_FORMAT"Error parsing static arp entry mac addr"
+			LOG_FORMAT"IPv4:Error parsing static arp entry mac addr"
 			"%s = %s\n", LOG_VALUE, entry->name, entry->value);
 		return;
 	}
 
 	for (cur_ip = low_ip; cur_ip <= high_ip; ++cur_ip) {
 
-		key.ip = ntohl(cur_ip);
+		key.ip_type.ipv4 = PRESENT;
+		key.ip_addr.ipv4 = ntohl(cur_ip);
+
+		data = rte_malloc_socket(NULL,
+				sizeof(struct arp_entry_data),
+				RTE_CACHE_LINE_SIZE, rte_socket_id());
+		if (data == NULL) {
+			clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"IPv4:Error allocating arp entry - "
+				"%s = %s\n", LOG_VALUE, entry->name, entry->value);
+			return;
+		}
+
+		data->eth_addr = hw_addr;
+		data->port = port_id;
+		data->status = COMPLETE;
+		data->ip_type.ipv4 = PRESENT;
+		data->ipv4 = key.ip_addr.ipv4;
+		data->last_update = time(NULL);
+		data->queue = NULL;
+
+		add_arp_data(&key, data, port_id);
+	}
+}
+
+/**
+ * @brief  : Add static arp entry for IPv6 Address
+ * @param  : entry, entry to be added
+ * @param  : port_id, port number
+ * @return : Returns nothing
+ */
+static void
+add_static_arp_ipv6_entry(struct rte_cfgfile_entry *entry,
+			uint8_t port_id)
+{
+	struct arp_ip_key key;
+	struct arp_entry_data *data;
+	char *low_ptr;
+	char *high_ptr;
+	char *saveptr;
+	struct in6_addr low_addr;
+	struct in6_addr high_addr;
+	struct ether_addr hw_addr;
+	int ret;
+
+	low_ptr = strtok_r(entry->name, " \t", &saveptr);
+	high_ptr = strtok_r(NULL, " \t", &saveptr);
+
+	if (low_ptr == NULL) {
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"IPv6:Error parsing static arp entry: %s = %s\n",
+			LOG_VALUE, entry->name, entry->value);
+		return;
+	}
+
+	ret = inet_pton(AF_INET6, low_ptr, &low_addr);
+	if (ret == 0) {
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"IPv6:Error parsing static arp entry: %s = %s\n",
+			LOG_VALUE, entry->name, entry->value);
+		return;
+	}
+
+	if (high_ptr) {
+		ret = inet_pton(AF_INET6, high_ptr, &high_addr);
+		if (ret == 0) {
+			clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"IPv6:Error parsing static arp entry: %s = %s\n",
+				LOG_VALUE, entry->name, entry->value);
+			return;
+		}
+	} else {
+		high_addr = low_addr;
+	}
+
+	if (memcmp(&low_addr, &high_addr, IPV6_ADDRESS_LEN) > 0) {
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"IPv6:Error parsing static arp entry"
+			" - range must be low to high: %s = %s\n",
+			LOG_VALUE, entry->name, entry->value);
+		return;
+	}
+
+	if (parse_ether_addr(&hw_addr, entry->value)) {
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"IPv6:Error parsing static arp entry mac addr"
+			"%s = %s\n", LOG_VALUE, entry->name, entry->value);
+		return;
+	}
+
+	if (!memcmp(&low_addr, &high_addr, IPV6_ADDRESS_LEN)) {
+		key.ip_type.ipv6 = PRESENT;
+		memcpy(&key.ip_addr.ipv6, &low_addr, IPV6_ADDRESS_LEN);
 
 		data = rte_malloc_socket(NULL,
 				sizeof(struct arp_entry_data),
@@ -1390,11 +2490,58 @@ add_static_arp_entry(struct rte_cfgfile_entry *entry,
 		data->eth_addr = hw_addr;
 		data->port = port_id;
 		data->status = COMPLETE;
-		data->ip = key.ip;
 		data->last_update = time(NULL);
 		data->queue = NULL;
+		data->ip_type.ipv6 = PRESENT;
+		memcpy(&data->ipv6, &key.ip_addr.ipv6, IPV6_ADDRESS_LEN);
 
 		add_arp_data(&key, data, port_id);
+	} else {
+		int bit = 0;
+		for (;;) {
+			/* Break the Loop if low addr reached to high range */
+			if (memcmp(&low_addr, &high_addr, IPV6_ADDRESS_LEN) > 0) {
+				break;
+			}
+
+			key.ip_type.ipv6 = PRESENT;
+			memcpy(&key.ip_addr.ipv6, &low_addr, IPV6_ADDRESS_LEN);
+
+			data = rte_malloc_socket(NULL,
+					sizeof(struct arp_entry_data),
+					RTE_CACHE_LINE_SIZE, rte_socket_id());
+			if (data == NULL) {
+				clLog(clSystemLog, eCLSeverityCritical,
+					LOG_FORMAT"Error allocating arp entry - "
+					"%s = %s\n", LOG_VALUE, entry->name, entry->value);
+				return;
+			}
+
+			data->eth_addr = hw_addr;
+			data->port = port_id;
+			data->status = COMPLETE;
+			data->last_update = time(NULL);
+			data->queue = NULL;
+			data->ip_type.ipv6 = PRESENT;
+			memcpy(&data->ipv6, &key.ip_addr.ipv6, IPV6_ADDRESS_LEN);
+
+			add_arp_data(&key, data, port_id);
+
+			/* Increment the Low addr pointer towards high pointer*/
+			for (bit = 15; bit >=0; --bit) {
+				if (low_addr.s6_addr[bit] < 255) {
+					low_addr.s6_addr[bit]++;
+					break;
+				} else {
+					low_addr.s6_addr[bit] = 0;
+				}
+			}
+
+			/* Break the loop if reached to last bit*/
+			if (bit < 0) {
+				break;
+			}
+		}
 	}
 }
 
@@ -1423,7 +2570,8 @@ config_static_arp(void)
 	clLog(clSystemLog, eCLSeverityCritical,
 		LOG_FORMAT"Parsing %s\n", LOG_VALUE, STATIC_ARP_FILE);
 
-	num_eb_entries = rte_cfgfile_section_num_entries(file, "EASTBOUND");
+	/* VS: EB IPv4 entries */
+	num_eb_entries = rte_cfgfile_section_num_entries(file, "EASTBOUND_IPv4");
 	if (num_eb_entries > 0) {
 		eb_entries = rte_malloc_socket(NULL,
 				sizeof(struct rte_cfgfile_entry) *
@@ -1432,21 +2580,48 @@ config_static_arp(void)
 	}
 	if (eb_entries == NULL) {
 		clLog(clSystemLog, eCLSeverityCritical,
-				LOG_FORMAT"Error configuring downlink entry of %s\n", LOG_VALUE,
+				LOG_FORMAT"Error configuring EB IPv4 entry of %s\n", LOG_VALUE,
 				STATIC_ARP_FILE);
 	} else {
-		rte_cfgfile_section_entries(file, "EASTBOUND", eb_entries,
+		rte_cfgfile_section_entries(file, "EASTBOUND_IPv4", eb_entries,
 				num_eb_entries);
 
 		for (i = 0; i < num_eb_entries; ++i) {
-			clLog(clSystemLog, eCLSeverityDebug,"[EASTBOUND]: %s = %s\n", eb_entries[i].name,
+			clLog(clSystemLog, eCLSeverityDebug,"[EASTBOUND_IPv4]: %s = %s\n", eb_entries[i].name,
 					eb_entries[i].value);
-			add_static_arp_entry(&eb_entries[i], SGI_PORT_ID);
+			add_static_arp_ipv4_entry(&eb_entries[i], SGI_PORT_ID);
 		}
 		rte_free(eb_entries);
+		eb_entries = NULL;
 	}
 
-	num_wb_entries = rte_cfgfile_section_num_entries(file, "WESTBOUND");
+	/* VS: EB IPv6 entries */
+	num_eb_entries = rte_cfgfile_section_num_entries(file, "EASTBOUND_IPv6");
+	if (num_eb_entries > 0) {
+		eb_entries = rte_malloc_socket(NULL,
+				sizeof(struct rte_cfgfile_entry) *
+				num_eb_entries,
+				RTE_CACHE_LINE_SIZE, rte_socket_id());
+	}
+	if (eb_entries == NULL) {
+		clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Error configuring EB IPv6 entry of %s\n", LOG_VALUE,
+				STATIC_ARP_FILE);
+	} else {
+		rte_cfgfile_section_entries(file, "EASTBOUND_IPv6", eb_entries,
+				num_eb_entries);
+
+		for (i = 0; i < num_eb_entries; ++i) {
+			clLog(clSystemLog, eCLSeverityDebug,"[EASTBOUND_IPv6]: %s = %s\n", eb_entries[i].name,
+					eb_entries[i].value);
+			add_static_arp_ipv6_entry(&eb_entries[i], SGI_PORT_ID);
+		}
+		rte_free(eb_entries);
+		eb_entries = NULL;
+	}
+
+	/* VS: WB IPv4 entries */
+	num_wb_entries = rte_cfgfile_section_num_entries(file, "WESTBOUND_IPv4");
 	if (num_wb_entries > 0) {
 		wb_entries = rte_malloc_socket(NULL,
 				sizeof(struct rte_cfgfile_entry) *
@@ -1455,17 +2630,42 @@ config_static_arp(void)
 	}
 	if (wb_entries == NULL) {
 		clLog(clSystemLog, eCLSeverityCritical,
-				LOG_FORMAT"Error configuring s1u entry of %s\n", LOG_VALUE,
+				LOG_FORMAT"Error configuring WB IPv4 entry of %s\n", LOG_VALUE,
 				STATIC_ARP_FILE);
 	} else {
-		rte_cfgfile_section_entries(file, "WESTBOUND", wb_entries,
+		rte_cfgfile_section_entries(file, "WESTBOUND_IPv4", wb_entries,
 				num_wb_entries);
 		for (i = 0; i < num_wb_entries; ++i) {
-			clLog(clSystemLog, eCLSeverityDebug,"[WESTBOUND]: %s = %s\n", wb_entries[i].name,
+			clLog(clSystemLog, eCLSeverityDebug,"[WESTBOUND_IPv4]: %s = %s\n", wb_entries[i].name,
 					wb_entries[i].value);
-			add_static_arp_entry(&wb_entries[i], S1U_PORT_ID);
+			add_static_arp_ipv4_entry(&wb_entries[i], S1U_PORT_ID);
 		}
 		rte_free(wb_entries);
+		wb_entries = NULL;
+	}
+
+	/* VS: WB IPv6 entries */
+	num_wb_entries = rte_cfgfile_section_num_entries(file, "WESTBOUND_IPv6");
+	if (num_wb_entries > 0) {
+		wb_entries = rte_malloc_socket(NULL,
+				sizeof(struct rte_cfgfile_entry) *
+				num_wb_entries,
+				RTE_CACHE_LINE_SIZE, rte_socket_id());
+	}
+	if (wb_entries == NULL) {
+		clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Error configuring WB IPv6 entry of %s\n", LOG_VALUE,
+				STATIC_ARP_FILE);
+	} else {
+		rte_cfgfile_section_entries(file, "WESTBOUND_IPv6", wb_entries,
+				num_wb_entries);
+		for (i = 0; i < num_wb_entries; ++i) {
+			clLog(clSystemLog, eCLSeverityDebug,"[WESTBOUND_IPv6]: %s = %s\n", wb_entries[i].name,
+					wb_entries[i].value);
+			add_static_arp_ipv6_entry(&wb_entries[i], S1U_PORT_ID);
+		}
+		rte_free(wb_entries);
+		wb_entries = NULL;
 	}
 
 	if (ARPICMP_DEBUG)
@@ -1509,6 +2709,48 @@ static int print_route_entry(
 }
 
 /**
+ * @brief  : Print IPv6 Link Local Layer entry information
+ * @param  : entry, route information entry
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+static int print_ipv6_link_entry(
+		struct RouteInfo_v6 *entry)
+{
+		/* VS:  Print the route records on cosole */
+		printf("--------------------- \t\t\t-------\n");
+		printf("Local Link Layer Addr \t\t\tIfname \n");
+		printf("--------------------- \t\t\t-------\n");
+
+		printf(""IPv6_FMT"\t%s\n",
+		        IPv6_PRINT(entry->dstAddr),
+		        entry->ifName);
+
+		printf("--------------------- \t\t\t--------\n");
+		return 0;
+}
+
+/**
+ * @brief  : Print IPv6 route entry information
+ * @param  : entry, route information entry
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+static int print_ipv6_route_entry(
+		struct RouteInfo_v6 *entry)
+{
+		/* VS:  Print the route records on cosole */
+		printf("-----------\t------- \t------ \n");
+		printf("Destination\tNext Hop\tIfname \n");
+		printf("-----------\t------- \t------ \n");
+
+		printf(""IPv6_FMT"\t"IPv6_FMT"\t%s\n",
+		        IPv6_PRINT(entry->dstAddr),
+				IPv6_PRINT(entry->gateWay),
+		        entry->ifName);
+
+		printf("-----------\t------- \t------- \n");
+		return 0;
+}
+/**
  * @brief  : Delete entry in route table.
  * @param  : info, route information entry
  * @return : Returns nothing
@@ -1543,6 +2785,31 @@ del_route_entry(
 	}
 	return 0;
 
+}
+
+/**
+ * @brief  : Delete entry in route table for IPv6.
+ * @param  : info, route information entry
+ * @return : Returns nothing
+ */
+static void del_ipv6_route_entry(
+			struct RouteInfo_v6 *info)
+{
+	printf("Route entry DELETED in hash table :: \n");
+	print_ipv6_route_entry(info);
+	return;
+}
+/**
+ * @brief  : Add entry in route table for IPv6.
+ * @param  : info, route information entry
+ * @return : Returns nothing
+ */
+static void add_ipv6_route_entry(
+			struct RouteInfo_v6 *info)
+{
+	printf("Route entry ADDED in hash table :: \n");
+	print_ipv6_route_entry(info);
+	return;
 }
 
 /**
@@ -1787,6 +3054,182 @@ get_gateWay_mac(uint32_t IP_gateWay, char *iface_Mac)
 	return 0;
 }
 
+/**
+ * @brief  : Create pthread to read or receive data/events from netlink socket.
+ * @param  : arg, input
+ * @return : Returns nothing
+ */
+static void
+*netlink_recv_thread_ipv6(void *arg)
+{
+	int i = 0;
+	int		recv_bytes = 0;
+	struct	nlmsghdr *nlp;
+	struct	rtmsg *rtp;
+	struct	RouteInfo_v6 route[24];
+	struct	rtattr *rtap;
+	int		rtl = 0;
+	char	buffer[BUFFER_SIZE];
+
+	bzero(buffer, sizeof(buffer));
+
+	struct sockaddr_nl *addr = (struct sockaddr_nl *)arg;
+	while(1)
+	{
+		/* VS: Receive data pkts from netlink socket*/
+		while (1)
+		{
+			bzero(buffer, sizeof(buffer));
+
+			recv_bytes = recv(route_sock_v6, buffer, sizeof(buffer), 0);
+
+			if (recv_bytes < 0)
+			    clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"IPv6: Error in recv\n", LOG_VALUE);
+
+		    nlp = (struct nlmsghdr *) buffer;
+
+			if ((nlp->nlmsg_type == NLMSG_DONE) ||
+					(nlp->nlmsg_type == RTM_NEWROUTE) ||
+					(nlp->nlmsg_type == RTM_DELROUTE) ||
+					(nlp->nlmsg_type == RTM_NEWADDR) ||
+					(addr->nl_groups == RTMGRP_IPV6_ROUTE))
+				break;
+		}
+
+		if (nlp->nlmsg_type == RTM_NEWADDR) {
+
+			/* Set the Reference Link Local Layer Address*/
+			struct in6_addr tmp_addr = {0};
+			char *tmp = "fe80::";
+			/* All Node IPV6 Address */
+			if (!inet_pton(AF_INET6, tmp, &tmp_addr)) {
+				clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"LL2:Invalid Local Link layer IPv6 Address\n", LOG_VALUE);
+			}
+
+			for (i = -1 ; NLMSG_OK(nlp, recv_bytes); \
+					nlp = NLMSG_NEXT(nlp, recv_bytes))
+			{
+				uint8_t ignore = 0;
+				struct ifaddrmsg *ifa = NULL;
+
+				i++;
+				/* Get the interface details */
+				ifa = (struct ifaddrmsg *)NLMSG_DATA(nlp);
+				/* Get the interface attribute info */
+				rtap = (struct rtattr *)IFA_RTA(ifa);
+
+				/* Get the interface info and check valid interface needed */
+				get_iface_name(ifa->ifa_index, route[i].ifName);
+
+				rtl = IFA_PAYLOAD(nlp);
+
+				/* Loop through all attributes */
+				for( ; RTA_OK(rtap, rtl); rtap = RTA_NEXT(rtap, rtl))
+				{
+					switch(rtap->rta_type) {
+						case IFA_ADDRESS:
+							memcpy(&route[i].dstAddr.s6_addr, RTA_DATA(rtap), IPV6_ADDR_LEN);
+							break;
+						default:
+							break;
+					}
+				}
+				/* Filter the WBdev and EBdev Interfaces */
+				if (!memcmp(&route[i].ifName, &app.wb_iface_name, MAX_LEN)) {
+					/* Validate the Link Layer hexstat: 2 byte, 'fe80' */
+					for (uint8_t inx = 0; inx < 2; inx++) {
+						if (memcmp(&route[i].dstAddr.s6_addr[inx], &tmp_addr.s6_addr[inx],
+									sizeof(route[i].dstAddr.s6_addr[inx]))) {
+							ignore = 1;
+							break;
+						}
+					}
+					if (!ignore) {
+						fprintf(stderr, "IPv6: %s interface Local Link Layer Addr..\n", route[i].ifName);
+						app.wb_l3_ipv6 = route[i].dstAddr;
+						print_ipv6_link_entry(&route[i]);
+					}
+				}
+
+				if (!memcmp(&route[i].ifName, &app.eb_iface_name, MAX_LEN)) {
+					/* Validate the Link Layer hexstat: 2 byte, 'fe80' */
+					for (uint8_t inx = 0; inx < 2; inx++) {
+						if (memcmp(&route[i].dstAddr.s6_addr[inx], &tmp_addr.s6_addr[inx],
+									sizeof(route[i].dstAddr.s6_addr[inx]))) {
+							ignore = 1;
+							break;
+						}
+					}
+					if (!ignore) {
+						fprintf(stderr, "IPv6: %s interface Local Link Layer Addr..\n", route[i].ifName);
+						app.eb_l3_ipv6 = route[i].dstAddr;
+						print_ipv6_link_entry(&route[i]);
+					}
+				}
+			}
+		} else {
+			for (i = -1 ; NLMSG_OK(nlp, recv_bytes); \
+					nlp = NLMSG_NEXT(nlp, recv_bytes))
+			{
+				rtp = (struct rtmsg *) NLMSG_DATA(nlp);
+
+				/* Get main routing table */
+				if ((rtp->rtm_family != AF_INET6) ||
+						(rtp->rtm_table != RT_TABLE_MAIN))
+					continue;
+
+				i++;
+				/* Get attributes of rtp */
+				rtap = (struct rtattr *) RTM_RTA(rtp);
+
+				/* Get the route atttibutes len */
+				rtl = RTM_PAYLOAD(nlp);
+
+				/* Loop through all attributes */
+				for( ; RTA_OK(rtap, rtl); rtap = RTA_NEXT(rtap, rtl))
+				{
+
+					switch(rtap->rta_type) {
+						case RTA_DST:
+							route[i].dstAddr = *(struct in6_addr *)RTA_DATA(rtap);
+							break;
+						case RTA_GATEWAY:
+							route[i].gateWay = *(struct in6_addr *)RTA_DATA(rtap);
+							break;
+						case RTA_SRC:
+							route[i].srcAddr = *(struct in6_addr *)RTA_DATA(rtap);
+							break;
+						case RTA_PREFSRC:
+							route[i].srcAddr = *(struct in6_addr *)RTA_DATA(rtap);
+							break;
+						case RTA_OIF:
+							get_iface_name(*((int *) RTA_DATA(rtap)),
+									route[i].ifName);
+							break;
+						case RTA_IIF:
+							break;
+						default:
+							break;
+					}
+				}
+
+				/* Now we can dump the routing attributes */
+				if (nlp->nlmsg_type == RTM_DELROUTE) {
+					del_ipv6_route_entry(&route[i]);
+				}
+
+				if (nlp->nlmsg_type == RTM_NEWROUTE) {
+					add_ipv6_route_entry(&route[i]);
+				}
+			}
+		}
+	}
+
+	fprintf(stderr, "IPv6: Netlink Listner thread terminated.\n");
+	return NULL; //GCC_Security flag
+}
 
 /**
  * @brief  : Create pthread to read or receive data/events from netlink socket.
@@ -1809,6 +3252,7 @@ static void
 	bzero(buffer, sizeof(buffer));
 
 	struct sockaddr_nl *addr = (struct sockaddr_nl *)arg;
+
 	while(1)
 	{
 
@@ -1817,7 +3261,7 @@ static void
 		{
 			bzero(buffer, sizeof(buffer));
 
-			recv_bytes = recv(route_sock, buffer, sizeof(buffer), 0);
+			recv_bytes = recv(route_sock_v4, buffer, sizeof(buffer), 0);
 
 			if (recv_bytes < 0)
 			    clLog(clSystemLog, eCLSeverityDebug,
@@ -1825,7 +3269,7 @@ static void
 
 		    nlp = (struct nlmsghdr *) buffer;
 
-			if ((nlp->nlmsg_type == NLMSG_DONE)	||
+			if ((nlp->nlmsg_type == NLMSG_DONE) ||
 					(nlp->nlmsg_type == RTM_NEWROUTE) ||
 					(nlp->nlmsg_type == RTM_DELROUTE) ||
 					(addr->nl_groups == RTMGRP_IPV4_ROUTE))
@@ -1926,6 +3370,7 @@ static void
 
 		}
 	}
+	fprintf(stderr, "IPv4: Netlink Listner thread terminated.\n");
 	return NULL; //GCC_Security flag
 }
 
@@ -1939,48 +3384,99 @@ init_netlink_socket(void)
 {
 	int retValue = -1;
 	struct sockaddr_nl addr_t;
+	struct sockaddr_nl addr_v6;
+	struct addr_info addr = {0};
 
 	route_request *request =
 		(route_request *)malloc(sizeof(route_request));
+	route_request *request_v6 =
+		(route_request *)malloc(sizeof(route_request));
 
-	route_sock = socket(PF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
+	route_sock_v4 = socket(PF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
+	route_sock_v6 = socket(PF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
 
-	bzero(request,sizeof(route_request));
+	clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"NetLink Sockets Created, IPv4:%u, IPv6:%u\n",
+			LOG_VALUE, route_sock_v4, route_sock_v6);
 
-	/* Fill the NETLINK header */
+	bzero(request, sizeof(route_request));
+	bzero(request_v6, sizeof(route_request));
+
+	/* Fill the NETLINK header for IPv4 */
 	request->nlMsgHdr.nlmsg_len = NLMSG_LENGTH(sizeof(struct rtmsg));
 	request->nlMsgHdr.nlmsg_type = RTM_GETROUTE;
 	//request->nlMsgHdr.nlmsg_flags = NLM_F_REQUEST | NLM_F_DUMP;
 	request->nlMsgHdr.nlmsg_flags = NLM_F_REQUEST | NLM_F_ROOT;
 
-	/* set the routing message header */
+	/* set the routing message header IPv4*/
 	request->rtMsg.rtm_family = AF_INET;
 	request->rtMsg.rtm_table = RT_TABLE_MAIN;
 
+	/* Set Sockets info for IPv4 */
 	addr_t.nl_family = PF_NETLINK;
 	addr_t.nl_pad = 0;
 	addr_t.nl_pid = getpid();
 	addr_t.nl_groups = RTMGRP_LINK | RTMGRP_IPV4_ROUTE;
 
-	if (bind(route_sock,(struct sockaddr *)&addr_t,sizeof(addr_t)) < 0)
-		ERR_RET("bind socket");
+	/* Fill the NETLINK header for IPv6 */
+	request_v6->nlMsgHdr.nlmsg_len = NLMSG_LENGTH(sizeof(struct ifaddrmsg));
+	request_v6->nlMsgHdr.nlmsg_type = RTM_GETROUTE | RTM_GETADDR;
+	request_v6->nlMsgHdr.nlmsg_flags = NLM_F_REQUEST | NLM_F_ROOT;
 
-	/* Send routing request */
-	if ((retValue = send(route_sock, request, sizeof(route_request), 0)) < 0)
+	/* set the routing message header IPv6*/
+	request_v6->rtMsg.rtm_family = AF_INET6;
+	request_v6->rtMsg.rtm_table = RT_TABLE_MAIN;
+
+	/* Set Sockets info for IPv6 */
+	addr_v6.nl_family = PF_NETLINK;
+	addr_v6.nl_pad = 0;
+	//addr_v6.nl_pid = getpid();
+	addr_v6.nl_groups = RTMGRP_LINK | RTMGRP_IPV6_ROUTE | RTMGRP_IPV6_IFADDR;
+
+	if (bind(route_sock_v4, (struct sockaddr *)&addr_t, sizeof(addr_t)) < 0) {
+		fprintf(stderr, "IPv4 bind socket ID:%u\n", route_sock_v4);
+		ERR_RET("IPv4 bind socket");
+	}
+
+	if (bind(route_sock_v6, (struct sockaddr *)&addr_v6, sizeof(addr_v6)) < 0) {
+		fprintf(stderr, "IPv6 bind socket ID:%u\n", route_sock_v6);
+		ERR_RET("IPv6 bind socket");
+	}
+
+	/* Send routing request IPv4 */
+	if ((retValue = send(route_sock_v4, request, sizeof(route_request), 0)) < 0)
 	{
-	    perror("send");
+	    perror("IPv4: Send");
 	    return -1;
 	}
+
+	/* Send routing request IPv6 */
+	if ((retValue = send(route_sock_v6, request_v6, sizeof(route_request), 0)) < 0)
+	{
+	    perror("IPv6: Send");
+	    return -1;
+	}
+
+	/* Fill the IPv4 and IPv6 Addr Structure */
+	addr.addr_ipv4 = addr_t;
+	addr.addr_ipv6 = addr_v6;
 
 	/*
 	 * Create pthread to read or receive data/events from netlink socket.
 	 */
-	pthread_t net;
+	pthread_t net, net1;
 	int err_val;
 
-	err_val = pthread_create(&net, NULL, &netlink_recv_thread, &addr_t);
+	err_val = pthread_create(&net, NULL, &netlink_recv_thread, &addr.addr_ipv4);
 	if (err_val != 0) {
-	    printf("\nAPI: Can't create Netlink socket event reader thread :[%s]\n",
+	    printf("\nAPI_IPv4: Can't create Netlink socket event reader thread :[%s]\n",
+				strerror(err_val));
+		return -1;
+	}
+
+	err_val = pthread_create(&net1, NULL, &netlink_recv_thread_ipv6, &addr.addr_ipv6);
+	if (err_val != 0) {
+	    printf("\nAPI_IPv6: Can't create Netlink socket event reader thread :[%s]\n",
 				strerror(err_val));
 		return -1;
 	} else {
@@ -2204,6 +3700,7 @@ static void *handle_kni_process(__rte_unused void *arg)
 void process_li_data(){
 
 	int ret = 0;
+	struct ip_addr dummy = {0};
 	uint32_t li_ul_cnt = rte_ring_count(li_ul_ring);
 	if(li_ul_cnt){
 		li_data_t *li_data[li_ul_cnt];
@@ -2224,7 +3721,7 @@ void process_li_data(){
 				continue;
 			}
 
-			create_li_header(li_data[i]->pkts, &size, CC_BASED, id, imsi, 0, 0,
+			create_li_header(li_data[i]->pkts, &size, CC_BASED, id, imsi, dummy, dummy,
 					0, 0, li_data[i]->forward);
 
 			ret = send_li_data_pkt(ddf3_fd, li_data[i]->pkts, size);
@@ -2256,7 +3753,7 @@ void process_li_data(){
 				continue;
 			}
 
-			create_li_header(li_data[i]->pkts, &size, CC_BASED, id, imsi, 0, 0,
+			create_li_header(li_data[i]->pkts, &size, CC_BASED, id, imsi, dummy, dummy,
 					0, 0, li_data[i]->forward);
 
 			ret = send_li_data_pkt(ddf3_fd, li_data[i]->pkts, size);

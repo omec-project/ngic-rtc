@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,21 +24,23 @@
 #include "pfcp_association.h"
 #include "sm_pcnd.h"
 #include "ue.h"
-#include "clogger.h"
 #include "gw_adapter.h"
 #include "gtpv2c_error_rsp.h"
 
 static uint32_t cc_request_number = 0;
-extern pfcp_config_t pfcp_config;
-
+extern pfcp_config_t config;
+extern int clSystemLog;
 /*Socket used by CP to listen for GxApp client connection */
 int g_cp_sock_read = 0;
+int g_cp_sock_read_v6 = 0;
 
 /*Socket used by CP to write CCR and RAA*/
 int gx_app_sock = 0;
+int gx_app_sock_v6 = 0;
 
 /*Socket used by CP to read CCR and RAA*/
 int gx_app_sock_read = 0;
+int gx_app_sock_read_v6 = 0;
 int ret ;
 
 void
@@ -189,7 +192,8 @@ fill_subscription_id( GxSubscriptionIdList *subs_id, uint64_t imsi, uint64_t msi
 	subs_id->count = 0;
 
 	if( imsi != 0 ) {
-		subs_id->list = malloc(sizeof( GxSubscriptionId));
+		subs_id->list = rte_malloc_socket(NULL,	sizeof( GxSubscriptionId),
+									RTE_CACHE_LINE_SIZE, rte_socket_id());
 		if(subs_id->list == NULL){
 			clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT"Memory allocation fails\n",
 					LOG_VALUE);
@@ -210,7 +214,8 @@ fill_subscription_id( GxSubscriptionIdList *subs_id, uint64_t imsi, uint64_t msi
 		subs_id->count++;
 	} else if( msisdn != 0 ) {
 
-		subs_id->list = malloc(sizeof( GxSubscriptionId));
+		subs_id->list = rte_malloc_socket(NULL,	sizeof( GxSubscriptionId),
+									RTE_CACHE_LINE_SIZE, rte_socket_id());
 		if(subs_id->list == NULL){
 			clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT"Memory allocation fails\n",
 					LOG_VALUE);
@@ -245,10 +250,41 @@ fill_3gpp_ue_timezone( Gx3gppMsTimezoneOctetString *ccr_tgpp_ms_timezone,
 	memcpy( ccr_tgpp_ms_timezone->val, &(csr_ue_timezone.time_zone), ccr_tgpp_ms_timezone->len);
 }
 
+void
+fill_presence_rprtng_area_info(GxPresenceReportingAreaInformationList *pra_info,
+											presence_reproting_area_info_t *ue_pra_info){
+
+	pra_info->count = 0;
+	pra_info->list = rte_malloc_socket(NULL, sizeof( GxPresenceReportingAreaInformation),
+									RTE_CACHE_LINE_SIZE, rte_socket_id());
+	if(pra_info->list == NULL){
+		clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT"Memory allocation fails\n",
+				LOG_VALUE);
+		return;
+	}
+	memset(pra_info->list, 0, sizeof(GxPresenceReportingAreaInformation));
+	pra_info->list[pra_info->count].presence.presence_reporting_area_identifier = 1;
+	pra_info->list[pra_info->count].presence.presence_reporting_area_status = 1;
+	if(ue_pra_info->ipra){
+		pra_info->list[pra_info->count].presence_reporting_area_status = PRA_IN_AREA;
+	} else if(ue_pra_info->opra){
+		pra_info->list[pra_info->count].presence_reporting_area_status = PRA_OUT_AREA;
+	} else {
+		pra_info->list[pra_info->count].presence_reporting_area_status = PRA_INACTIVE;
+	}
+
+	pra_info->list[pra_info->count].presence_reporting_area_identifier.len = 3*sizeof(uint8_t);
+	memcpy(pra_info->list[pra_info->count].presence_reporting_area_identifier.val,
+			&ue_pra_info->pra_identifier,
+			pra_info->list[pra_info->count].presence_reporting_area_identifier.len);
+	pra_info->count++;
+	return;
+}
+
 /* Fill the Credit Crontrol Request to send PCRF */
 int
 fill_ccr_request(GxCCR *ccr, ue_context *context,
-		int ebi_index, char *sess_id, uint8_t flow_flag)
+					int ebi_index, char *sess_id, uint8_t flow_flag)
 {
 	char apn[MAX_APN_LEN] = {0};
 
@@ -367,6 +403,15 @@ fill_ccr_request(GxCCR *ccr, ue_context *context,
 	{
 		ccr->presence.user_equipment_info = PRESENT;
 		fill_user_equipment_info( &(ccr->user_equipment_info), context->mei );
+	}
+
+	if(context->pra_flag &&
+		(context->event_trigger &
+			1UL << CHANGE_OF_UE_PRESENCE_IN_PRESENCE_REPORTING_AREA_REPORT)){
+		ccr->presence.presence_reporting_area_information = PRESENT;
+		fill_presence_rprtng_area_info(&(ccr->presence_reporting_area_information),
+														&context->pre_rptng_area_info);
+		context->pra_flag = 0;
 	}
 
 	return 0;

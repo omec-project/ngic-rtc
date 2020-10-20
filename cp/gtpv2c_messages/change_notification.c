@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,10 +32,13 @@
 #include "cp_timer.h"
 
 extern int s5s8_fd;
+extern int s5s8_fd_v6;
 extern socklen_t s5s8_sockaddr_len;
+extern socklen_t s5s8_sockaddr_ipv6_len;
 extern socklen_t s11_mme_sockaddr_len;
-extern struct sockaddr_in s5s8_recv_sockaddr;
-
+extern socklen_t s11_mme_sockaddr_ipv6_len;
+extern struct peer_addr_t s5s8_recv_sockaddr;
+extern int clSystemLog;
 /**
  * @brief  : Set the Change Notification Request gtpv2c message
  * @param  : gtpv2c_tx
@@ -261,6 +265,11 @@ set_change_notification_request(gtpv2c_header_t *gtpv2c_tx,
 		set_ie_header(&chn_not_req.uli.header, GTP_IE_USER_LOC_INFO, IE_INSTANCE_ZERO, len);
 	}
 
+	if(context->pra_flag){
+		set_presence_reporting_area_info_ie(&chn_not_req.pres_rptng_area_info, context);
+		context->pra_flag = 0;
+	}
+
 	if(change_not_req->rat_type.header.len !=0 ) {
 		set_ie_header(&chn_not_req.rat_type.header, GTP_IE_RAT_TYPE,
 				IE_INSTANCE_ZERO, sizeof(gtp_rat_type_ie_t) - sizeof(ie_header_t));
@@ -333,19 +342,28 @@ set_change_notification_request(gtpv2c_header_t *gtpv2c_tx,
 		payload_length = ntohs(gtpv2c_tx->gtpc.message_len)
 			+ sizeof(gtpv2c_tx->gtpc);
 
-		s11_mme_sockaddr.sin_addr.s_addr =
-			pdn->context->s11_mme_gtpc_ipv4.s_addr;
-
-		gtpv2c_send(s11_fd, tx_buf, payload_length,
-				(struct sockaddr *) &s11_mme_sockaddr,
-				s11_mme_sockaddr_len, SENT);
+		ret = set_dest_address(pdn->context->s11_mme_gtpc_ip, &s11_mme_sockaddr);
+		if (ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+				"IP address", LOG_VALUE);
+		}		
+		gtpv2c_send(s11_fd, s11_fd_v6, tx_buf, payload_length,
+				s11_mme_sockaddr, SENT);
 
 		/* copy packet for user level packet copying or li */
 		if (context->dupl) {
 			process_pkt_for_li(
 					context, S11_INTFC_OUT, tx_buf, payload_length,
-					ntohl(pfcp_config.s11_ip.s_addr), s11_mme_sockaddr.sin_addr.s_addr,
-					pfcp_config.s11_port, ntohs(s11_mme_sockaddr.sin_port));
+					fill_ip_info(s11_mme_sockaddr.type,
+							config.s11_ip.s_addr,
+							config.s11_ip_v6.s6_addr),
+					fill_ip_info(s11_mme_sockaddr.type,
+							s11_mme_sockaddr.ipv4.sin_addr.s_addr,
+							s11_mme_sockaddr.ipv6.sin6_addr.s6_addr),
+					config.s11_port,
+					((s11_mme_sockaddr.type == IPTYPE_IPV4_LI) ?
+						 ntohs(s11_mme_sockaddr.ipv4.sin_port) :
+						 ntohs(s11_mme_sockaddr.ipv6.sin6_port)));
 		}
 
 		pdn->state = CONNECTED_STATE;
@@ -414,19 +432,16 @@ set_change_notification_request(gtpv2c_header_t *gtpv2c_tx,
 	resp->state = CONNECTED_STATE;
 	resp->proc = CHANGE_NOTIFICATION_PROC;
 
-	uint16_t msg_len = 0;
-	msg_len = encode_change_noti_req(&chn_not_req, (uint8_t *)gtpv2c_tx);
-	gtpv2c_tx->gtpc.message_len = htons(msg_len - IE_HEADER_SIZE);
+	payload_length = encode_change_noti_req(&chn_not_req, (uint8_t *)gtpv2c_tx);
 
-	s5s8_recv_sockaddr.sin_addr.s_addr =
-			pdn->s5s8_pgw_gtpc_ipv4.s_addr;
+	ret = set_dest_address(pdn->s5s8_pgw_gtpc_ip, &s5s8_recv_sockaddr);
+	if (ret < 0) {
+		clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+			"IP address", LOG_VALUE);
+	}	
 
-	payload_length = ntohs(gtpv2c_tx->gtpc.message_len)
-		+ sizeof(gtpv2c_tx->gtpc);
-
-	gtpv2c_send(s5s8_fd, tx_buf, payload_length,
-			(struct sockaddr *) &s5s8_recv_sockaddr,
-			s5s8_sockaddr_len,SENT);
+	gtpv2c_send(s5s8_fd, s5s8_fd_v6, tx_buf, payload_length,
+			s5s8_recv_sockaddr, SENT);
 
 	cp_mode = pdn->context->cp_mode;
 	add_gtpv2c_if_timer_entry(
@@ -438,8 +453,16 @@ set_change_notification_request(gtpv2c_header_t *gtpv2c_tx,
 	if (context->dupl) {
 		process_pkt_for_li(
 				context, S5S8_C_INTFC_OUT, tx_buf, payload_length,
-				ntohl(pfcp_config.s5s8_ip.s_addr), ntohl(s5s8_recv_sockaddr.sin_addr.s_addr),
-				pfcp_config.s5s8_port, ntohs(s5s8_recv_sockaddr.sin_port));
+				fill_ip_info(s5s8_recv_sockaddr.type,
+						config.s5s8_ip.s_addr,
+						config.s5s8_ip_v6.s6_addr),
+				fill_ip_info(s5s8_recv_sockaddr.type,
+						s5s8_recv_sockaddr.ipv4.sin_addr.s_addr,
+						s5s8_recv_sockaddr.ipv6.sin6_addr.s6_addr),
+				config.s5s8_port,
+				((s5s8_recv_sockaddr.type == IPTYPE_IPV4_LI) ?
+					ntohs(s5s8_recv_sockaddr.ipv4.sin_port) :
+					ntohs(s5s8_recv_sockaddr.ipv6.sin6_port)));
 	}
 
 	return 0;
@@ -474,9 +497,12 @@ set_change_notification_response(gtpv2c_header_t *gtpv2c_tx, pdn_connection *pdn
 
 	set_cause_accepted(&chn_not_rsp.cause, IE_INSTANCE_ZERO);
 
-	uint16_t msg_len = 0;
-	msg_len = encode_change_noti_rsp(&chn_not_rsp, (uint8_t *)gtpv2c_tx);
-	gtpv2c_tx->gtpc.message_len = htons(msg_len - IE_HEADER_SIZE);
+	if(pdn->context->pra_flag){
+		set_presence_reporting_area_action_ie(&chn_not_rsp.pres_rptng_area_act, pdn->context);
+		pdn->context->pra_flag = 0;
+	}
+
+	encode_change_noti_rsp(&chn_not_rsp, (uint8_t *)gtpv2c_tx);
 
 }
 

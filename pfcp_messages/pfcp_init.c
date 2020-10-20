@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +21,7 @@
 
 #include "cp.h"
 #include "pfcp.h"
-#include "clogger.h"
+#include "gw_adapter.h"
 
 /*VS:TODO: Need to revist this for hash size */
 #define PFCP_CNTXT_HASH_SIZE (1 << 15)
@@ -31,9 +32,9 @@
 
 #define MAX_HASH_SIZE (1 << 15)
 #define MAX_SEQ_ENTRIES_HASH_SIZE (1 << 10)
-#define MAX_PDN_HASH_SIZE (1 << 8)
+#define MAX_PDN_HASH_SIZE (1 << 12)
 
-const uint8_t bar_base_rule_id = 0xFF;
+const uint8_t bar_base_rule_id = 0x00;
 static uint8_t bar_rule_id_offset;
 const uint16_t pdr_base_rule_id = 0x0000;
 static uint16_t pdr_rule_id_offset;
@@ -49,11 +50,10 @@ const uint32_t call_id_base_value = 0x00000000;
 static uint32_t call_id_offset;
 static uint64_t dp_sess_id_offset;
 const uint32_t rar_base_rule_id = 0x00000000;
-static uint32_t rar_rule_id_offset;
 
 const uint32_t base_seq_number = 0x00000000;
 static uint32_t seq_number_offset;
-
+extern int clSystemLog;
 
 /**
  * Add PDN Connection entry in PDN hash table.
@@ -237,7 +237,7 @@ add_seq_number_for_teid(const teid_key_t teid_key, struct teid_value_t *teid_val
 	if(ret < 0) {
 		ret = rte_hash_add_key_data(ds_seq_key_with_teid,
 						&teid_key, teid_value);
-		if (ret) {	
+		if (ret) {
 			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to add TEID "
 				"entry for key = %s"
 				"\n\tError= %s\n", LOG_VALUE, teid_key.teid_key,
@@ -375,7 +375,7 @@ add_pdr_entry(uint16_t rule_id, pdr_t *cntxt)
 			return -1;
 		}
 	} else {
-		memcpy(tmp, cntxt, sizeof(struct pfcp_cntxt));
+		memcpy(tmp, cntxt, sizeof(pdr_t));
 	}
 
 	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT": PDR entry added for PDR_ID:%u\n",
@@ -411,18 +411,35 @@ pdr_t *get_pdr_entry(uint16_t rule_id)
 
 }
 
-/**
- * Get PDR entry from PDR hash table.
- * update entry
- */
 int
-update_pdr_teid(eps_bearer *bearer, uint32_t teid, uint32_t ip, uint8_t iface){
+update_pdr_teid(eps_bearer *bearer, uint32_t teid, node_address_t addr, uint8_t iface){
 	int ret = -1;
 
 	for(uint8_t itr = 0; itr < bearer->pdr_count ; itr++) {
+		if(bearer->pdrs[itr] == NULL)
+			continue;
+
 		if(bearer->pdrs[itr]->pdi.src_intfc.interface_value == iface){
 			bearer->pdrs[itr]->pdi.local_fteid.teid = teid;
-			bearer->pdrs[itr]->pdi.local_fteid.ipv4_address = ip;
+
+			if(addr.ip_type == PDN_IP_TYPE_IPV4)  {
+				bearer->pdrs[itr]->pdi.local_fteid.ipv4_address = addr.ipv4_addr;
+				bearer->pdrs[itr]->pdi.local_fteid.v4 = PRESENT;
+			}
+
+			if(addr.ip_type == PDN_IP_TYPE_IPV6) {
+				memcpy(bearer->pdrs[itr]->pdi.local_fteid.ipv6_address,
+					addr.ipv6_addr, IPV6_ADDRESS_LEN);
+				bearer->pdrs[itr]->pdi.local_fteid.v6 = PRESENT;
+			}
+
+			if(addr.ip_type == PDN_IP_TYPE_IPV4V6) {
+				bearer->pdrs[itr]->pdi.local_fteid.ipv4_address = addr.ipv4_addr;
+				memcpy(bearer->pdrs[itr]->pdi.local_fteid.ipv6_address,
+					addr.ipv6_addr, IPV6_ADDRESS_LEN);
+				bearer->pdrs[itr]->pdi.local_fteid.v4 = PRESENT;
+				bearer->pdrs[itr]->pdi.local_fteid.v6 = PRESENT;
+			}
 			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT" Updated pdr entry Successfully for PDR_ID:%u\n",
 				LOG_VALUE, bearer->pdrs[itr]->rule_id);
 			ret = 0;
@@ -453,11 +470,10 @@ del_pdr_entry(uint16_t rule_id)
 		/* PDR Entry is present. Delete PDR Entry */
 		ret = rte_hash_del_key(pdr_entry_hash, &rule_id);
 
-		if ( ret < 0) {
-			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Entry not found "
-				"for PDR_ID:%u\n", LOG_VALUE, rule_id);
-			return -1;
-		}
+	} else {
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Entry not found "
+			"for PDR_ID:%u\n", LOG_VALUE, rule_id);
+		return -1;
 	}
 
 	/* Free data from hash */
@@ -635,18 +651,6 @@ generate_qer_id(void)
 	uint32_t id = 0;
 
 	id = qer_base_rule_id + (++qer_rule_id_offset);
-
-	return id;
-}
-/**
- * Generate the Sequence
- */
-uint32_t
-generate_rar_seq(void)
-{
-	uint32_t id = 0;
-
-	id = rar_base_rule_id + (++rar_rule_id_offset);
 
 	return id;
 }

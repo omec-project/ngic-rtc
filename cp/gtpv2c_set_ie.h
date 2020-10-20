@@ -99,9 +99,9 @@ set_cause_accepted(gtp_cause_ie_t *cause, enum ie_instance instance);
  * @return :
  *           size of information element created in message
  */
-uint16_t
-set_cause_accepted_ie(gtpv2c_header_t *header,
-	enum ie_instance instance);
+void
+set_csresp_cause(gtp_cause_ie_t *cause, uint8_t cause_value,
+									enum ie_instance instance);
 
 /**
  * @brief  : Creates and populates allocation/retention priority information element
@@ -120,23 +120,23 @@ set_ar_priority_ie(gtpv2c_header_t *header, enum ie_instance instance,
 		eps_bearer *bearer);
 
 /**
- * @brief  : Populates F-TEID information element with ipv4 value
+ * @brief  : Populates F-TEID information element with ip value
  * @param  : fteid
  *           fully qualified teid
  * @param  : interface
  *           value indicating interface as defined by 3gpp 29.274 clause 8.22
  * @param  : instance
  *           Information element instance as specified by 3gpp 29.274 clause 6.1.3
- * @param  : ipv4
- *           ipv4 address of interface
+ * @param  : node_value
+ *           ip address of interface
  * @param  : teid
  *           Tunnel End-point IDentifier of interface
- * @return : Returns nothing
+ * @return : Returns IE length 
  */
-void
-set_ipv4_fteid(gtp_fully_qual_tunn_endpt_idnt_ie_t *fteid,
+int
+set_gtpc_fteid(gtp_fully_qual_tunn_endpt_idnt_ie_t *fteid,
 		enum gtpv2c_interfaces interface, enum ie_instance instance,
-		struct in_addr ipv4, uint32_t teid);
+		node_address_t node_value, uint32_t teid);
 
 /**
  * @brief  : Creates and populates F-TEID information element with ipv4 value
@@ -171,8 +171,8 @@ set_ipv4_fteid_ie(gtpv2c_header_t *header,
  * @return : Returns nothing
  */
 void
-set_ipv4_paa(gtp_pdn_addr_alloc_ie_t *paa, enum ie_instance instance,
-	struct in_addr ipv4);
+set_paa(gtp_pdn_addr_alloc_ie_t *paa, enum ie_instance instance,
+	pdn_connection *pdn);
 
 /**
  * @brief  : Creates & populates 'PDN Address Allocation' information element with ipv4
@@ -260,6 +260,19 @@ void
 set_ebi(gtp_eps_bearer_id_ie_t *ebi, enum ie_instance instance,
 		uint8_t eps_bearer_id);
 
+/**
+ * @brief  : Populates 'allocation/retension priority' information element
+ * @param  : arp
+ *           gtp_alloc_reten_priority_ie_t ie
+ * @param  : instance
+ *           Information element instance as specified by 3gpp 29.274 clause 6.1.3
+ * @param  : bearer
+ *           eps_bearer structure pointer
+ * @return : Returns nothing
+ */
+void
+set_ar_priority(gtp_alloc_reten_priority_ie_t *arp, enum ie_instance instance,
+		eps_bearer *bearer);
 /**
  * @brief  : Populates 'Proc Trans Identifier' information element
  * @param  : pti
@@ -386,8 +399,6 @@ set_bearer_tft_ie(gtpv2c_header_t *header, enum ie_instance instance,
  *           tft_op_code value
  * @param  : bearer
  *           eps bearer data structure that contains tft data
- * @param  : pdef_rule
- *           spcifies predef rule or not
  * @param  : rule_name
  *           rule name for whict TFT has to upd/add/remove
  * @return :
@@ -396,7 +407,7 @@ set_bearer_tft_ie(gtpv2c_header_t *header, enum ie_instance instance,
 uint8_t
 set_bearer_tft(gtp_eps_bearer_lvl_traffic_flow_tmpl_ie_t *tft,
 		enum ie_instance instance, uint8_t tft_op_code,
-		eps_bearer *bearer, bool pdef_rule, char *rule_name);
+		eps_bearer *bearer, char *rule_name);
 
 /**
  * @brief  : Creates & populates 'recovery/restart counter' information element
@@ -438,9 +449,9 @@ add_grouped_ie_length(gtpv2c_ie *group_ie, uint16_t grouped_ie_length);
  *           UE Context data structure pertaining to the bearer to be modified
  * @param  : bearer
  *           bearer data structure to be modified
- * @return : Returns nothing
+ * @return : Returns message length
  */
-void
+int
 set_modify_bearer_response(gtpv2c_header_t *gtpv2c_tx,
 		uint32_t sequence, ue_context *context, eps_bearer *bearer, mod_bearer_req_t *mbr);
 
@@ -498,27 +509,6 @@ set_gtpv2c_header(gtpv2c_header_t *gtpv2c_tx,
 void
 set_gtpv2c_teid_header(gtpv2c_header_t *gtpv2c_tx, uint8_t type,
 		uint32_t teid, uint32_t seq, uint8_t is_piggybacked);
-
-/**
- * @brief  : from parameters, populates gtpv2c message 'create session response' and
- *           populates required information elements as defined by
- *           clause 7.2.2 3gpp 29.274
- * @param  : gtpv2c_tx
- *           transmission buffer to contain 'create session response' message
- * @param  : sequence
- *           sequence number as described by clause 7.6 3gpp 29.274
- * @param  : context
- *           UE Context data structure pertaining to the session to be created
- * @param  : pdn
- *           PDN Connection data structure pertaining to the session to be created
- * @param  : bearer
- *           Default EPS Bearer corresponding to the PDN Connection to be created
- * @return : Returns nothing
- */
-void
-set_pgwc_s5s8_create_session_response(gtpv2c_header_t *gtpv2c_tx,
-		uint32_t sequence, pdn_connection *pdn,
-		eps_bearer *bearer);
 
 /**
  * @brief  : Creates & populates bearer context group information element within
@@ -644,6 +634,56 @@ decode_check_csr(gtpv2c_header_t *gtpv2c_rx,
 
 int
 mbr_req_pre_check(mod_bearer_req_t *mbr);
+
+/**
+ * @brief  : from parameters, populates gtpv2c message 'modify access bearer response' and
+ *           populates required information elements as defined by
+ *           clause 7.2.8 3gpp 29.274
+ * @param  : gtpv2c_tx
+ *           transmission buffer to contain 'modify access bearer request' message
+ * @param  : sequence
+ *           sequence number as described by clause 7.6 3gpp 29.274
+ * @param  : context
+ *           UE Context data structure pertaining to the bearer to be modified
+ * @param  : bearer
+ *           bearer data structure to be modified
+ * @param  : mabr
+ *           modify access bearer request received.
+ * @return : Returns nothing
+ */
+void
+set_modify_access_bearer_response(gtpv2c_header_t *gtpv2c_tx,
+		uint32_t sequence, ue_context *context, eps_bearer *bearer,
+		mod_acc_bearers_req_t *mabr);
+
+/**
+ * @brief  : Precondition check for MABR
+ * @param  : mabr: Modify access  req. on SGWC/SAEGWC
+ * @return : 0 on success, else error type
+ *
+ */
+int
+modify_acc_bearer_req_pre_check(mod_acc_bearers_req_t *mabr);
+
+/**
+ * @brief  : It fills the presence reporting area action ie to 
+ 			 GTPv2 messages from UE contest
+ * @param  : ie : presence reporting area action ie to  be fill
+ * @param  : context : UE Context
+ * @return : Returns nothing
+ */
+void
+set_presence_reporting_area_action_ie(gtp_pres_rptng_area_act_ie_t *ie, ue_context *context);
+
+/**
+ * @brief  : It fills the presence reporting area Info ie to 
+ 			 GTPv2 messages from UE contest
+ * @param  : ie : presence reporting area Info ie to  be fill
+ * @param  : context : UE Context
+ * @return : Returns nothing
+ */
+void
+set_presence_reporting_area_info_ie(gtp_pres_rptng_area_info_ie_t *ie, ue_context *context);
 
 #endif /*CP_BUILD*/
 #endif /* GTPV2C_SET_IE_H */

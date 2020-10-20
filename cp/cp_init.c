@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,49 +29,63 @@
 #include "pfcp_set_ie.h"
 #include "pfcp_session.h"
 #include "pfcp_association.h"
-#include "restoration_timer.h"
+#include "ngic_timer.h"
 #include "sm_struct.h"
 #include "cp_timer.h"
 #include "cp_config.h"
 #include "redis_client.h"
-#include "clogger.h"
 #include "pfcp_util.h"
 #include "cdnshelper.h"
 #include "interface.h"
 #include "predef_rule_init.h"
 
 int s11_fd = -1;
-int ddf2_fd = -1;
+int s11_fd_v6 = -1;
+void *ddf2_fd = NULL;
 int s5s8_fd = -1;
+int s5s8_fd_v6 = -1;
 int pfcp_fd = -1;
+int pfcp_fd_v6 = -1;
 int s11_pcap_fd = -1;
 
 pcap_t *pcap_reader;
 pcap_dumper_t *pcap_dumper;
 
 struct cp_stats_t cp_stats;
-extern pfcp_config_t pfcp_config;
+extern pfcp_config_t config;
 extern udp_sock_t my_sock;
+
+// struct sockaddr_in s11_sockaddr;
+// struct sockaddr_in6 s11_sockaddr_ipv6;
+peer_addr_t s11_sockaddr;
+
+// struct sockaddr_in6 s5s8_sockaddr_ipv6;
+// struct sockaddr_in s5s8_sockaddr;
+peer_addr_t s5s8_sockaddr;
+
+extern int clSystemLog;
 /* MME */
-struct sockaddr_in s11_mme_sockaddr;
+peer_addr_t s11_mme_sockaddr;
 
 /* S5S8 */
-struct sockaddr_in s5s8_recv_sockaddr;
+peer_addr_t s5s8_recv_sockaddr;
 
 /* PFCP */
 in_port_t pfcp_port;
-struct sockaddr_in pfcp_sockaddr;
+peer_addr_t pfcp_sockaddr;
 
 /* UPF PFCP */
 in_port_t upf_pfcp_port;
-struct sockaddr_in upf_pfcp_sockaddr;
-socklen_t s5s8_sockaddr_len = sizeof(s5s8_sockaddr);
-socklen_t s11_mme_sockaddr_len = sizeof(s11_mme_sockaddr);
+peer_addr_t upf_pfcp_sockaddr;
+
+socklen_t s5s8_sockaddr_len = sizeof(s5s8_sockaddr.ipv4);
+socklen_t s5s8_sockaddr_ipv6_len = sizeof(s5s8_sockaddr.ipv6);
+
+socklen_t s11_mme_sockaddr_len = sizeof(s11_mme_sockaddr.ipv4);
+socklen_t s11_mme_sockaddr_ipv6_len = sizeof(s11_mme_sockaddr.ipv6);
 
 in_port_t s11_port;
 in_port_t s5s8_port;
-struct sockaddr_in s11_sockaddr;
-struct sockaddr_in s5s8_sockaddr;
 
 uint8_t s11_rx_buf[MAX_GTPV2C_UDP_LEN];
 uint8_t s11_tx_buf[MAX_GTPV2C_UDP_LEN];
@@ -118,7 +133,7 @@ init_stats_hash(void)
 void
 stats_update(uint8_t msg_type)
 {
-	switch (pfcp_config.cp_type) {
+	switch (config.cp_type) {
 		case SGWC:
 		case SAEGWC:
 			switch (msg_type) {
@@ -163,7 +178,7 @@ stats_update(uint8_t msg_type)
 			break;
 	default:
 			rte_panic("main.c::control_plane::cp_stats-"
-					"Unknown gw_cfg= %d.", pfcp_config.cp_type);
+					"Unknown gw_cfg= %d.", config.cp_type);
 			break;
 		}
 }
@@ -192,9 +207,9 @@ dump_pcap(uint16_t payload_length, uint8_t *tx_buf)
 	eh->ether_type = htons(ETHER_TYPE_IPv4);
 
 	struct ipv4_hdr *ih = (struct ipv4_hdr *) &eh[1];
-
-	ih->dst_addr = pfcp_config.s11_mme_ip.s_addr;
-	ih->src_addr = pfcp_config.s11_ip.s_addr;
+	/* s11 mme ip not exist in cp config */
+	//ih->dst_addr = config.s11_mme_ip.s_addr;
+	ih->src_addr = config.s11_ip.s_addr;
 	ih->next_proto_id = IPPROTO_UDP;
 	ih->version_ihl = PCAP_VIHL;
 	ih->total_length =
@@ -225,25 +240,34 @@ dump_pcap(uint16_t payload_length, uint8_t *tx_buf)
  * @return : void
  */
 void
-timer_retry_send(int fd, peerData *t_tx, ue_context *context)
+timer_retry_send(int fd_v4, int fd_v6, peerData *t_tx, ue_context *context)
 {
 	int bytes_tx;
-	struct sockaddr_in tx_sockaddr;
+	peer_addr_t tx_sockaddr;
 
-	if(fd == pfcp_fd)
-		tx_sockaddr.sin_addr.s_addr = ntohl(t_tx->dstIP);
-	else
-		tx_sockaddr.sin_addr.s_addr = t_tx->dstIP;
+	tx_sockaddr.type = t_tx->dstIP.ip_type;
 
-	tx_sockaddr.sin_port = t_tx->dstPort;
-	tx_sockaddr.sin_family = AF_INET;
+	if (t_tx->dstIP.ip_type == PDN_TYPE_IPV4) {
+
+		tx_sockaddr.ipv4.sin_family = AF_INET;
+		tx_sockaddr.ipv4.sin_port = t_tx->dstPort;
+		tx_sockaddr.ipv4.sin_addr.s_addr = t_tx->dstIP.ipv4_addr;
+	} else {
+
+		tx_sockaddr.ipv6.sin6_family = AF_INET6;
+		tx_sockaddr.ipv6.sin6_port = t_tx->dstPort;
+		memcpy(&tx_sockaddr.ipv6.sin6_addr.s6_addr, t_tx->dstIP.ipv6_addr, IPV6_ADDRESS_LEN);
+	}
+
 	if (pcap_dumper) {
 		dump_pcap(t_tx->buf_len, t_tx->buf);
 	} else {
 
-		bytes_tx = gtpv2c_send(fd,t_tx->buf,t_tx->buf_len,(struct sockaddr *)&tx_sockaddr,sizeof(struct sockaddr_in),SENT);
+		bytes_tx = gtpv2c_send(fd_v4, fd_v6, t_tx->buf, t_tx->buf_len, tx_sockaddr, SENT);
 
-		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"NGIC- main.c::gtpv2c_send()""\n\tgtpv2c_if_fd= %d\n", LOG_VALUE, fd);
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"NGIC- main.c::"
+			"gtpv2c_send()""\n\tgtpv2c_if_fd_v4= %d::gtpv2c_if_fd_v6= %d\n",
+			LOG_VALUE, fd_v4, fd_v6);
 
 		if (NULL != context) {
 			uint8_t tx_buf[MAX_GTPV2C_UDP_LEN];
@@ -261,8 +285,15 @@ timer_retry_send(int fd, peerData *t_tx, ue_context *context)
 					if (context->dupl) {
 						process_pkt_for_li(
 								context, S11_INTFC_OUT, tx_buf, payload_length,
-								ntohl(pfcp_config.s11_ip.s_addr), tx_sockaddr.sin_addr.s_addr,
-								pfcp_config.s11_port, tx_sockaddr.sin_port);
+								fill_ip_info(tx_sockaddr.type,
+										config.s11_ip.s_addr,
+										config.s11_ip_v6.s6_addr),
+								fill_ip_info(tx_sockaddr.type,
+										tx_sockaddr.ipv4.sin_addr.s_addr,
+										tx_sockaddr.ipv6.sin6_addr.s6_addr),
+								config.s11_port,
+								((tx_sockaddr.type == IPTYPE_IPV4_LI) ?
+									tx_sockaddr.ipv4.sin_port : tx_sockaddr.ipv6.sin6_port));
 					}
 					break;
 				case S5S8_IFACE:
@@ -270,8 +301,15 @@ timer_retry_send(int fd, peerData *t_tx, ue_context *context)
 					if (context->dupl) {
 						process_pkt_for_li(
 								context, S5S8_C_INTFC_OUT, tx_buf, payload_length,
-								ntohl(pfcp_config.s5s8_ip.s_addr), tx_sockaddr.sin_addr.s_addr,
-								pfcp_config.s5s8_port, tx_sockaddr.sin_port);
+								fill_ip_info(tx_sockaddr.type,
+										config.s5s8_ip.s_addr,
+										config.s5s8_ip_v6.s6_addr),
+								fill_ip_info(tx_sockaddr.type,
+										tx_sockaddr.ipv4.sin_addr.s_addr,
+										tx_sockaddr.ipv6.sin6_addr.s6_addr),
+								config.s5s8_port,
+								((tx_sockaddr.type == IPTYPE_IPV4_LI) ?
+									tx_sockaddr.ipv4.sin_port : tx_sockaddr.ipv6.sin6_port));
 					}
 					break;
 				case PFCP_IFACE:
@@ -279,8 +317,15 @@ timer_retry_send(int fd, peerData *t_tx, ue_context *context)
 					if (context->dupl) {
 						process_pkt_for_li(
 								context, SX_INTFC_OUT, tx_buf, payload_length,
-								pfcp_config.pfcp_ip.s_addr, tx_sockaddr.sin_addr.s_addr,
-								pfcp_config.pfcp_port, tx_sockaddr.sin_port);
+								fill_ip_info(tx_sockaddr.type,
+										config.pfcp_ip.s_addr,
+										config.pfcp_ip_v6.s6_addr),
+								fill_ip_info(tx_sockaddr.type,
+										tx_sockaddr.ipv4.sin_addr.s_addr,
+										tx_sockaddr.ipv6.sin6_addr.s6_addr),
+								config.pfcp_port,
+								((tx_sockaddr.type == IPTYPE_IPV4_LI) ?
+									tx_sockaddr.ipv4.sin_port : tx_sockaddr.ipv6.sin6_port));
 					}
 					break;
 				default:
@@ -296,62 +341,169 @@ timer_retry_send(int fd, peerData *t_tx, ue_context *context)
 	}
 }
 
-/**
- * @brief  : Util to send or dump gtpv2c messages
- * @param  : gtpv2c_if_fd, interface indentifier
- * @param  : gtpv2c_tx_buf, buffer to store data for peer node
- * @param  : gtpv2c_pyld_len, data length
- * @param  : dest_addr, destination address
- * @param  : dest_addr_len, destination address length
- * @return : returns the transmitted bytes
- */
+int create_udp_socket_v4(uint32_t ipv4_addr, uint16_t port,
+					peer_addr_t *addr) {
+
+	int mode = 1;
+	int fd = socket(AF_INET, SOCK_DGRAM, 0);
+
+	socklen_t v4_addr_len = sizeof(addr->ipv4);
+
+	if (fd < 0) {
+		rte_panic("Socket call error : %s", strerror(errno));
+		return -1;
+	}
+
+	/*Below Option allows to bind to same port for multiple IPv6 addresses*/
+	setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &mode, sizeof(mode));
+
+	bzero(addr->ipv4.sin_zero, sizeof(addr->ipv4.sin_zero));
+
+	addr->ipv4.sin_family = AF_INET;
+	addr->ipv4.sin_port = port;
+	addr->ipv4.sin_addr.s_addr = ipv4_addr;
+
+	int ret = bind(fd, (struct sockaddr *) &addr->ipv4, v4_addr_len);
+	if (ret < 0) {
+		rte_panic("Bind error for V4 UDP Socket %s:%u - %s\n",
+			inet_ntoa(addr->ipv4.sin_addr),
+			ntohs(addr->ipv4.sin_port),
+			strerror(errno));
+		return -1;
+	}
+
+	addr->type = PDN_TYPE_IPV4;
+	return fd;
+
+}
+
+int create_udp_socket_v6(uint8_t ipv6_addr[], uint16_t port,
+					peer_addr_t *addr) {
+
+	int mode = 1, ret = 0;
+	socklen_t v6_addr_len = sizeof(addr->ipv6);
+
+	int fd = socket(AF_INET6, SOCK_DGRAM, 0);
+
+	if (fd < 0) {
+		rte_panic("Socket call error : %s", strerror(errno));
+		return -1;
+	}
+
+	/*Below Option allows to bind to same port for multiple IPv6 addresses*/
+	setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &mode, sizeof(mode));
+
+	/*Below Option allows to bind to same port for IPv4 and IPv6 addresses*/
+	setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, (char*)&mode, sizeof(mode));
+
+	addr->ipv6.sin6_family = AF_INET6;
+	memcpy(addr->ipv6.sin6_addr.s6_addr, ipv6_addr, IPV6_ADDRESS_LEN);
+	addr->ipv6.sin6_port = port;
+
+	ret = bind(fd, (struct sockaddr *) &addr->ipv6, v6_addr_len);
+	if (ret < 0) {
+		rte_panic("Bind error for V6 UDP Socket "IPv6_FMT":%u - %s\n",
+			IPv6_PRINT(addr->ipv6.sin6_addr),
+			ntohs(addr->ipv4.sin_port),
+			strerror(errno));
+		return -1;
+	}
+
+	addr->type = PDN_TYPE_IPV6;
+	return fd;
+
+}
+
+
 int
-gtpv2c_send(int gtpv2c_if_fd, uint8_t *gtpv2c_tx_buf,
-		uint16_t gtpv2c_pyld_len, struct sockaddr *dest_addr,
-		socklen_t dest_addr_len,Dir dir)
+gtpv2c_send(int gtpv2c_if_fd_v4, int gtpv2c_if_fd_v6, uint8_t *gtpv2c_tx_buf,
+			uint16_t gtpv2c_pyld_len, peer_addr_t dest_addr,Dir dir)
 {
 	CLIinterface it;
-	gtpv2c_header_t *gtpv2c_s11_tx = (gtpv2c_header_t *) gtpv2c_tx_buf;
-	int bytes_tx;
-	struct sockaddr_in *sin = (struct sockaddr_in *) dest_addr;
-	sin->sin_addr.s_addr = htonl(sin->sin_addr.s_addr);
-
-
+	gtpv2c_header_t *gtpv2c_tx = (gtpv2c_header_t *) gtpv2c_tx_buf;
+	gtpv2c_header_t *piggy_backed;
+	int bytes_tx = 0;
 	if (pcap_dumper) {
 		dump_pcap(gtpv2c_pyld_len, gtpv2c_tx_buf);
 	} else {
-		bytes_tx = sendto(gtpv2c_if_fd, gtpv2c_tx_buf, gtpv2c_pyld_len, 0,
-			(struct sockaddr *) dest_addr, dest_addr_len);
 
-		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"NGIC- main.c::gtpv2c_send()"
-			"\n\tgtpv2c_if_fd= %d, payload_length= %d ,Direction= %d, tx bytes= %d\n",
-			LOG_VALUE, gtpv2c_if_fd, gtpv2c_pyld_len, dir, bytes_tx);
+		if(dest_addr.type == PDN_TYPE_IPV4) {
 
+			if(gtpv2c_if_fd_v4 <= 0) {
+
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"GTPV2C send not possible due to incompatiable "
+				"IP Type at Source and Destination \n", LOG_VALUE);
+				return 0;
+			}
+
+			bytes_tx = sendto(gtpv2c_if_fd_v4, gtpv2c_tx_buf, gtpv2c_pyld_len, 0,
+			(struct sockaddr *) &dest_addr.ipv4, sizeof(dest_addr.ipv4));
+
+			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"NGIC- main.c::gtpv2c_send()"
+				"on IPv4 socket "
+				"\n\tgtpv2c_if_fd_v4 = %d, payload_length= %d ,Direction= %d,"
+				"tx bytes= %d\n", LOG_VALUE, gtpv2c_if_fd_v4, gtpv2c_pyld_len,
+				dir, bytes_tx);
+
+		} else if(dest_addr.type == PDN_TYPE_IPV6) {
+
+			if(gtpv2c_if_fd_v6 <= 0) {
+
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"GTPV2C send not possible due to incompatiable "
+					"IP Type at Source and Destination \n", LOG_VALUE);
+				return 0;
+			}
+
+			bytes_tx = sendto(gtpv2c_if_fd_v6, gtpv2c_tx_buf, gtpv2c_pyld_len, 0,
+			(struct sockaddr *) &dest_addr.ipv6, sizeof(dest_addr.ipv6));
+
+			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"NGIC- main.c::gtpv2c_send()"
+				"on IPv6 socket "
+				"\n\tgtpv2c_if_fd_v6 = %d, payload_length= %d ,Direction= %d,"
+				"tx bytes= %d\n", LOG_VALUE, gtpv2c_if_fd_v6, gtpv2c_pyld_len,
+				dir, bytes_tx);
+
+		} else {
+
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Niether IPV4 nor IPV6 type is set "
+			"of %d TYPE \n", LOG_VALUE, dest_addr.type);
+		}
+
+	}
 	if (bytes_tx != (int) gtpv2c_pyld_len) {
-			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Transmitted Incomplete GTPv2c Message:"
-					"%u of %d tx bytes\n", LOG_VALUE,
-					gtpv2c_pyld_len, bytes_tx);
-	}
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Transmitted Incomplete GTPv2c Message:"
+		"%u of %d tx bytes\n", LOG_VALUE,
+		gtpv2c_pyld_len, bytes_tx);
 	}
 
-	if(gtpv2c_if_fd == s11_fd) {
+	if(((gtpv2c_if_fd_v4 == s11_fd) && (gtpv2c_if_fd_v4 != -1)) ||
+		((gtpv2c_if_fd_v6 == s11_fd_v6) &&  (gtpv2c_if_fd_v6 != -1))) {
 		it = S11;
-	}
-	else if(gtpv2c_if_fd == s5s8_fd) {
+	} else if(((gtpv2c_if_fd_v4 == s5s8_fd) && (gtpv2c_if_fd_v4 != -1)) ||
+		((gtpv2c_if_fd_v6 == s5s8_fd_v6) &&  (gtpv2c_if_fd_v6 != -1))) {
 		if(cli_node.s5s8_selection == NOT_PRESENT) {
 			cli_node.s5s8_selection = OSS_S5S8_SENDER;
 		}
 		it = S5S8;
-	}
-	else if (gtpv2c_if_fd == pfcp_fd) {
+	} else if (((gtpv2c_if_fd_v4 == pfcp_fd) && (gtpv2c_if_fd_v4 != -1))
+			|| ((gtpv2c_if_fd_v6 == pfcp_fd_v6) &&  (gtpv2c_if_fd_v6  != -1))) {
 		it = SX;
-	}
-	else
+	} else {
 		clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT"\nunknown file discriptor, "
-			"file discriptor = %d\n", LOG_VALUE, gtpv2c_if_fd);
-	update_cli_stats(sin->sin_addr.s_addr, gtpv2c_s11_tx->gtpc.message_type, dir,it);
+				"IPV4 file discriptor = %d::IPV6 file discriptor = %d\n",
+				LOG_VALUE, gtpv2c_if_fd_v4, gtpv2c_if_fd_v6);
+	}
 
-	sin->sin_addr.s_addr = ntohl(sin->sin_addr.s_addr);
+	update_cli_stats((peer_address_t *) &dest_addr,
+		gtpv2c_tx->gtpc.message_type, dir, it);
+
+	if(gtpv2c_tx->gtpc.piggyback) {
+		piggy_backed = (gtpv2c_header_t*) ((uint8_t *)gtpv2c_tx +
+				sizeof(gtpv2c_tx->gtpc) + ntohs(gtpv2c_tx->gtpc.message_len));
+		update_cli_stats((peer_address_t *) &dest_addr,
+				piggy_backed->gtpc.message_type, dir, it);
+	}
+
 
 	return bytes_tx;
 }
@@ -364,78 +516,106 @@ gtpv2c_send(int gtpv2c_if_fd, uint8_t *gtpv2c_tx_buf,
 static void
 set_dns_config(void)
 {
-	if (pfcp_config.use_dns){
-		set_dnscache_refresh_params(pfcp_config.dns_cache.concurrent,
-				pfcp_config.dns_cache.percent, pfcp_config.dns_cache.sec);
+	if (config.use_dns){
+		set_dnscache_refresh_params(config.dns_cache.concurrent,
+				config.dns_cache.percent, config.dns_cache.sec);
 
-		set_dns_retry_params(pfcp_config.dns_cache.timeoutms,
-				pfcp_config.dns_cache.tries);
+		set_dns_retry_params(config.dns_cache.timeoutms,
+				config.dns_cache.tries);
 
 		/* set OPS dns config */
-		for (uint32_t i = 0; i < pfcp_config.ops_dns.nameserver_cnt; i++)
+		for (uint32_t i = 0; i < config.ops_dns.nameserver_cnt; i++)
 		{
-			set_nameserver_config(pfcp_config.ops_dns.nameserver_ip[i],
+			set_nameserver_config(config.ops_dns.nameserver_ip[i],
 					DNS_PORT, DNS_PORT, NS_OPS);
 		}
 
+		set_dns_local_ip(NS_OPS, config.cp_dns_ip_buff);
 		apply_nameserver_config(NS_OPS);
-		init_save_dns_queries(NS_OPS, pfcp_config.ops_dns.filename,
-				pfcp_config.ops_dns.freq_sec);
-		load_dns_queries(NS_OPS, pfcp_config.ops_dns.filename);
+		init_save_dns_queries(NS_OPS, config.ops_dns.filename,
+				config.ops_dns.freq_sec);
+		load_dns_queries(NS_OPS, config.ops_dns.filename);
 
 		/* set APP dns config */
-		for (uint32_t i = 0; i < pfcp_config.app_dns.nameserver_cnt; i++)
-			set_nameserver_config(pfcp_config.app_dns.nameserver_ip[i],
+		for (uint32_t i = 0; i < config.app_dns.nameserver_cnt; i++)
+			set_nameserver_config(config.app_dns.nameserver_ip[i],
 					DNS_PORT, DNS_PORT, NS_APP);
-
+		set_dns_local_ip(NS_APP, config.cp_dns_ip_buff);
 		apply_nameserver_config(NS_APP);
-		init_save_dns_queries(NS_APP, pfcp_config.app_dns.filename,
-				pfcp_config.app_dns.freq_sec);
-		load_dns_queries(NS_APP, pfcp_config.app_dns.filename);
+		init_save_dns_queries(NS_APP, config.app_dns.filename,
+				config.app_dns.freq_sec);
+		load_dns_queries(NS_APP, config.app_dns.filename);
 	}
 }
 
 void
 init_pfcp(void)
 {
-	int ret;
-	upf_pfcp_sockaddr.sin_port = htons(pfcp_config.upf_pfcp_port);
-	pfcp_port = htons(pfcp_config.pfcp_port);
+	int fd = 0;
+	upf_pfcp_sockaddr.ipv4.sin_port = htons(config.upf_pfcp_port);
+	upf_pfcp_sockaddr.ipv6.sin6_port = htons(config.upf_pfcp_port);
+	pfcp_port = htons(config.pfcp_port);
 
-	pfcp_fd = socket(AF_INET, SOCK_DGRAM, 0);
-	my_sock.sock_fd = pfcp_fd;
+	if (config.pfcp_ip_type == PDN_TYPE_IPV6 || config.pfcp_ip_type == PDN_TYPE_IPV4_IPV6) {
 
-	if (pfcp_fd < 0)
-		rte_panic("Socket call error : %s", strerror(errno));
+		fd = create_udp_socket_v6(config.pfcp_ip_v6.s6_addr,
+							pfcp_port, &pfcp_sockaddr);
 
-	bzero(pfcp_sockaddr.sin_zero,
-			sizeof(pfcp_sockaddr.sin_zero));
-	pfcp_sockaddr.sin_family = AF_INET;
-	pfcp_sockaddr.sin_port = pfcp_port;
-	pfcp_sockaddr.sin_addr = pfcp_config.pfcp_ip;
-
-	ret = bind(pfcp_fd, (struct sockaddr *) &pfcp_sockaddr,
-			sizeof(struct sockaddr_in));
-
-	clLog(clSystemLog, eCLSeverityInfo, LOG_FORMAT"NGIC- main.c::init_pfcp()" "\n\tpfcp_fd = %d :: "
-			"\n\tpfcp_ip = %s : pfcp_port = %d\n", LOG_VALUE,
-			pfcp_fd, inet_ntoa(pfcp_config.pfcp_ip),
-			ntohs(pfcp_port));
-	if (ret < 0) {
-		rte_panic("Bind error for %s:%u - %s\n",
-				inet_ntoa(pfcp_sockaddr.sin_addr),
-				ntohs(pfcp_sockaddr.sin_port),
-				strerror(errno));
+		if (fd > 0) {
+			my_sock.sock_fd_v6 = fd;
+			pfcp_fd_v6 = fd;
+		}
 	}
-	if (pfcp_config.use_dns == 0){
+
+	if (config.pfcp_ip_type == PDN_TYPE_IPV4 || config.pfcp_ip_type == PDN_TYPE_IPV4_IPV6) {
+
+		fd = create_udp_socket_v4(config.pfcp_ip.s_addr,
+							pfcp_port, &pfcp_sockaddr);
+
+		if (fd > 0) {
+			my_sock.sock_fd = fd;
+			pfcp_fd = fd;
+		}
+	}
+
+	if (config.use_dns == 0) {
 		/* Initialize peer UPF inteface for sendto(.., dest_addr), If DNS is Disable */
-		upf_pfcp_port =  htons(pfcp_config.upf_pfcp_port);
-		bzero(upf_pfcp_sockaddr.sin_zero,
-				sizeof(upf_pfcp_sockaddr.sin_zero));
-		upf_pfcp_sockaddr.sin_family = AF_INET;
-		upf_pfcp_sockaddr.sin_port = upf_pfcp_port;
-		upf_pfcp_sockaddr.sin_addr = pfcp_config.upf_pfcp_ip;
+		upf_pfcp_port =  htons(config.upf_pfcp_port);
+		bzero(upf_pfcp_sockaddr.ipv4.sin_zero,
+				sizeof(upf_pfcp_sockaddr.ipv4.sin_zero));
+
+		if ((config.pfcp_ip_type == PDN_TYPE_IPV6
+					|| config.pfcp_ip_type == PDN_TYPE_IPV4_IPV6)
+				&& (config.upf_pfcp_ip_type == PDN_TYPE_IPV6
+					|| config.upf_pfcp_ip_type == PDN_TYPE_IPV4_IPV6)) {
+
+			upf_pfcp_sockaddr.ipv6.sin6_family = AF_INET6;
+			upf_pfcp_sockaddr.ipv6.sin6_port = upf_pfcp_port;
+			memcpy(upf_pfcp_sockaddr.ipv6.sin6_addr.s6_addr, config.upf_pfcp_ip_v6.s6_addr,
+				IPV6_ADDRESS_LEN);
+
+			upf_pfcp_sockaddr.type = PDN_TYPE_IPV6;
+
+		} else if ((config.pfcp_ip_type == PDN_TYPE_IPV4
+					|| config.pfcp_ip_type == PDN_TYPE_IPV4_IPV6)
+				&& (config.upf_pfcp_ip_type == PDN_TYPE_IPV4
+					|| config.upf_pfcp_ip_type == PDN_TYPE_IPV4_IPV6)) {
+			upf_pfcp_sockaddr.ipv4.sin_family = AF_INET;
+			upf_pfcp_sockaddr.ipv4.sin_port = upf_pfcp_port;
+			upf_pfcp_sockaddr.ipv4.sin_addr.s_addr = config.upf_pfcp_ip.s_addr;
+
+			upf_pfcp_sockaddr.type = PDN_TYPE_IPV4;
+		}
+
 	}
+
+	clLog(clSystemLog, eCLSeverityInfo, LOG_FORMAT"NGIC- main.c::init_pfcp()"
+		"\n\tpfcp_fd_v4 = %d :: \n\tpfcp_fd_v6 = %d :: "
+		"\n\tpfcp_ip_v4 = %s :: \n\tpfcp_ip_v6 = "IPv6_FMT" ::"
+		"\n\tpfcp_port = %d\n", LOG_VALUE,
+		pfcp_fd, pfcp_fd_v6, inet_ntoa(config.pfcp_ip),
+		IPv6_PRINT(config.pfcp_ip_v6), ntohs(pfcp_port));
+
 }
 
 /**
@@ -446,40 +626,43 @@ init_pfcp(void)
 static void
 init_s11(void)
 {
-	int ret;
+	int fd = 0;
 	/* TODO: Need to think*/
-	s11_mme_sockaddr.sin_port = htons(pfcp_config.s11_port);
-	s11_port = htons(pfcp_config.s11_port);
+	s11_mme_sockaddr.ipv4.sin_port = htons(config.s11_port);
+	s11_mme_sockaddr.ipv6.sin6_port = htons(config.s11_port);
+	s11_port = htons(config.s11_port);
 
 	if (pcap_reader != NULL && pcap_dumper != NULL)
 		return;
 
-	s11_fd = socket(AF_INET, SOCK_DGRAM, 0);
-	my_sock.sock_fd_s11 = s11_fd;
+	if (config.s11_ip_type == PDN_TYPE_IPV6 || config.s11_ip_type == PDN_TYPE_IPV4_IPV6) {
 
-	if (s11_fd < 0)
-		rte_panic("Socket call error : %s", strerror(errno));
+		fd = create_udp_socket_v6(config.s11_ip_v6.s6_addr,
+							s11_port, &s11_sockaddr);
 
-	bzero(s11_sockaddr.sin_zero,
-			sizeof(s11_sockaddr.sin_zero));
-	s11_sockaddr.sin_family = AF_INET;
-	s11_sockaddr.sin_port = s11_port;
-	s11_sockaddr.sin_addr = pfcp_config.s11_ip;
+		if (fd > 0) {
+			my_sock.sock_fd_s11_v6 = fd;
+			s11_fd_v6 = fd;
+		}
+	}
 
-	ret = bind(s11_fd, (struct sockaddr *) &s11_sockaddr,
-			    sizeof(struct sockaddr_in));
+	if (config.s11_ip_type == PDN_TYPE_IPV4 || config.s11_ip_type == PDN_TYPE_IPV4_IPV6) {
+
+		fd = create_udp_socket_v4(config.s11_ip.s_addr, s11_port,
+									&s11_sockaddr);
+
+		if (fd > 0) {
+			my_sock.sock_fd_s11 = fd;
+			s11_fd = fd;
+		}
+	}
 
 	clLog(clSystemLog, eCLSeverityInfo, LOG_FORMAT"NGIC- main.c::init_s11()"
-			"\n\ts11_fd= %d :: "
-			"\n\ts11_ip= %s : s11_port= %d\n", LOG_VALUE,
-			s11_fd, inet_ntoa(pfcp_config.s11_ip), ntohs(s11_port));
-
-	if (ret < 0) {
-		rte_panic("Bind error for %s:%u - %s\n",
-			inet_ntoa(s11_sockaddr.sin_addr),
-			ntohs(s11_sockaddr.sin_port),
-			strerror(errno));
-	}
+			"\n\ts11_fd_v4 = %d :: \n\ts11_fd_v6= %d :: "
+			"\n\ts11_ip_v4 = %s :: \n\ts11_ip_v6 = "IPv6_FMT" ::"
+			"\n\ts11_port = %d\n", LOG_VALUE,
+			s11_fd, s11_fd_v6, inet_ntoa(config.s11_ip),
+			IPv6_PRINT(config.s11_ip_v6), ntohs(s11_port));
 }
 
 /**
@@ -490,41 +673,43 @@ init_s11(void)
 static void
 init_s5s8(void)
 {
-	int ret;
+	int fd = 0;
 	/* TODO: Need to think*/
-	s5s8_recv_sockaddr.sin_port = htons(pfcp_config.s5s8_port);
-	s5s8_port = htons(pfcp_config.s5s8_port);
+	s5s8_recv_sockaddr.ipv4.sin_port = htons(config.s5s8_port);
+	s5s8_recv_sockaddr.ipv6.sin6_port = htons(config.s5s8_port);
+	s5s8_port = htons(config.s5s8_port);
 
 	if (pcap_reader != NULL && pcap_dumper != NULL)
 		return;
 
-	s5s8_fd = socket(AF_INET, SOCK_DGRAM, 0);
-	my_sock.sock_fd_s5s8 = s5s8_fd;
+	if (config.s5s8_ip_type == PDN_TYPE_IPV6 || config.s5s8_ip_type == PDN_TYPE_IPV4_IPV6) {
 
-	if (s5s8_fd < 0)
-		rte_panic("Socket call error : %s", strerror(errno));
+		fd = create_udp_socket_v6(config.s5s8_ip_v6.s6_addr,
+							s5s8_port, &s5s8_sockaddr);
 
-	bzero(s5s8_sockaddr.sin_zero,
-			sizeof(s5s8_sockaddr.sin_zero));
-	s5s8_sockaddr.sin_family = AF_INET;
-	s5s8_sockaddr.sin_port = s5s8_port;
-	s5s8_sockaddr.sin_addr = pfcp_config.s5s8_ip;
+		if (fd > 0) {
+			my_sock.sock_fd_s5s8_v6 = fd;
+			s5s8_fd_v6 = fd;
+		}
+	}
 
-	ret = bind(s5s8_fd, (struct sockaddr *) &s5s8_sockaddr,
-			    sizeof(struct sockaddr_in));
+	if (config.s5s8_ip_type == PDN_TYPE_IPV4 || config.s5s8_ip_type == PDN_TYPE_IPV4_IPV6) {
+
+		fd = create_udp_socket_v4(config.s5s8_ip.s_addr,
+								s5s8_port, &s5s8_sockaddr);
+
+		if (fd > 0) {
+			my_sock.sock_fd_s5s8 = fd;
+			s5s8_fd = fd;
+		}
+	}
 
 	clLog(clSystemLog, eCLSeverityInfo, LOG_FORMAT"NGIC- main.c::init_s5s8_sgwc()"
-			"\n\ts5s8_fd= %d :: "
-			"\n\ts5s8_ip= %s : s5s8_port= %d\n", LOG_VALUE,
-			s5s8_fd, inet_ntoa(pfcp_config.s5s8_ip),
-			ntohs(s5s8_port));
-
-	if (ret < 0) {
-		rte_panic("Bind error for %s:%u - %s\n",
-			inet_ntoa(s5s8_sockaddr.sin_addr),
-			ntohs(s5s8_sockaddr.sin_port),
-			strerror(errno));
-	}
+			"\n\ts5s8_fd_v4 = %d :: \n\ts5s8_fd_v6 = %d :: "
+			"\n\ts5s8_ip_v4 = %s :: \n\ts5s8_ip_v6 = "IPv6_FMT" ::"
+			"\n\ts5s8_port = %d\n", LOG_VALUE,
+			s5s8_fd, s5s8_fd_v6, inet_ntoa(config.s5s8_ip),
+			IPv6_PRINT(config.s5s8_ip_v6), ntohs(s5s8_port));
 }
 
 void
@@ -589,7 +774,7 @@ init_cp(void)
 
 	init_pfcp();
 
-	switch (pfcp_config.cp_type) {
+	switch (config.cp_type) {
 	case SGWC:
 		init_s11();
 	case PGWC:
@@ -601,7 +786,7 @@ init_cp(void)
 		break;
 	default:
 		rte_panic("main.c::init_cp()-"
-				"Unknown CP_TYPE= %u\n", pfcp_config.cp_type);
+				"Unknown CP_TYPE= %u\n", config.cp_type);
 		break;
 	}
 
@@ -618,7 +803,7 @@ init_cp(void)
 
 	create_li_info_hash();
 
-	if(pfcp_config.use_dns)
+	if(config.use_dns)
 		set_dns_config();
 }
 
@@ -626,36 +811,32 @@ int
 init_redis(void)
 {
 	redis_config_t cfg = {0};
-	char redis_cert_path[PATH_MAX] = {0};
-	char redis_key_path[PATH_MAX] = {0};
-	char redis_ca_cert_path[PATH_MAX] = {0};
+
 	cfg.type = REDIS_TLS;
 
-	if(pfcp_config.redis_ip.s_addr == 0
-			|| pfcp_config.cp_redis_ip.s_addr == 0) {
-		clLog(clSystemLog, eCLSeverityCritical,"Redis"
-				"ip/cp redis ip missing,"
-				"Connection to redis failed\n");
+	if (config.redis_server_ip_type !=
+			config.cp_redis_ip_type) {
+		clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Invalid Redis configuration "
+					"Use only ipv4 or only ipv6 for "
+					"connection\n", LOG_VALUE);
 		return -1;
+
 	}
 
-	strncpy(redis_cert_path, pfcp_config.redis_cert_path, PATH_MAX);
-	strncat(redis_cert_path,"/redis.crt", PATH_MAX);
-	strncpy(redis_key_path, pfcp_config.redis_cert_path, PATH_MAX);
-	strncat(redis_key_path,"/redis.key", PATH_MAX);
-	strncpy(redis_ca_cert_path, pfcp_config.redis_cert_path, PATH_MAX);
-	strncat(redis_ca_cert_path,"/ca.crt", PATH_MAX);
-
-	strncpy(cfg.conf.tls.cert_path, redis_cert_path, PATH_MAX);
-	strncpy(cfg.conf.tls.key_path, redis_key_path, PATH_MAX);
-	strncpy(cfg.conf.tls.ca_cert_path, redis_ca_cert_path, PATH_MAX);
+	strncpy(cfg.conf.tls.cert_path, config.redis_cert_path, PATH_MAX);
+	strncat(cfg.conf.tls.cert_path,"/redis.crt", PATH_MAX);
+	strncpy(cfg.conf.tls.key_path, config.redis_cert_path, PATH_MAX);
+	strncat(cfg.conf.tls.key_path,"/redis.key", PATH_MAX);
+	strncpy(cfg.conf.tls.ca_cert_path, config.redis_cert_path, PATH_MAX);
+	strncat(cfg.conf.tls.ca_cert_path,"/ca.crt", PATH_MAX);
 
 	/*Store redis ip and cp redis ip*/
+	cfg.conf.tls.port = (int)config.redis_port;
 	snprintf(cfg.conf.tls.host, IP_BUFF_SIZE, "%s",
-			inet_ntoa(*((struct in_addr *)&pfcp_config.redis_ip.s_addr)));
-	cfg.conf.tls.port = (int)pfcp_config.redis_port;
+			config.redis_ip_buff);
 	snprintf(cfg.cp_ip, IP_BUFF_SIZE, "%s",
-			inet_ntoa(*((struct in_addr *)&pfcp_config.cp_redis_ip.s_addr)));
+			config.cp_redis_ip_buff);
 
 	struct timeval tm = {REDIS_CONN_TIMEOUT, 0};
 	cfg.conf.tls.timeout = tm;

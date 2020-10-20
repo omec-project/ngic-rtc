@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,13 +25,20 @@
 #define SGW_CDR			84
 #define PGW_CDR			85
 
+#define SGW_RECORD_TYPE "84"
+#define PGW_RECORD_TYPE "85"
+#define FORWARD_GATEWAY_RECORD_TYPE "FORWARDING_GATEWAY"
+
 #define CDR_BUFF_SIZE		512
 #define MCC_BUFF_SIZE		5
 #define MNC_BUFF_SIZE		5
 #define CDR_TIME_BUFF		16
-#define CDR_PDN_BUFF		8
+#define CDR_PDN_BUFF		16
 #define CDR_TRIGG_BUFF		16
-#define MAX_ULI_LENGTH 256
+#define MAX_ULI_LENGTH      256
+#define IP_TYPE_V4          1
+#define IP_TYPE_V6          2
+#define IP_TYPE_V4V6        3
 
 
 #define VOLUME_LIMIT        "Volume_Limit"
@@ -38,6 +46,7 @@
 #define CDR_TERMINATION		"TERMINATION"
 #define IPV4				"ipv4"
 #define IPV6				"ipv6"
+#define IPV4V6              "ipv4v6"
 
 typedef enum cp_cdr_type {
 	CDR_BY_URR,
@@ -98,6 +107,9 @@ typedef struct cdr_param_t {
 	char trigg_buff[CDR_TRIGG_BUFF];
 
 	uint8_t pdn_type;
+
+	uint32_t timestamp_value;
+	uint8_t counter_value;
 
 }cdr;
 

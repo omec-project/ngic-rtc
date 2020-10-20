@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,8 +20,7 @@
 
 #include "up_acl.h"
 #include "up_main.h"
-#include "clogger.h"
-
+#include "gw_adapter.h"
 #define ACL_DENY_SIGNATURE	0x00000000
 
 /* Currently restrict acl context to use single category*/
@@ -35,8 +35,11 @@
 
 #define OFF_ETHHEAD	(sizeof(struct ether_hdr))
 #define OFF_IPV42PROTO (offsetof(struct ipv4_hdr, next_proto_id))
+#define OFF_IPV62PROTO (offsetof(struct ipv6_hdr, proto))
 #define MBUF_IPV4_2PROTO(m)	\
 	rte_pktmbuf_mtod_offset((m), uint8_t *, OFF_ETHHEAD + OFF_IPV42PROTO)
+#define MBUF_IPV6_2PROTO(m) \
+    rte_pktmbuf_mtod_offset((m), uint8_t *, OFF_ETHHEAD + OFF_IPV62PROTO)
 
 #define GET_CB_FIELD(in, fd, base, lim, dlm)	do {        \
 	unsigned long val;                                      \
@@ -71,24 +74,7 @@ static uint32_t acl_table_indx_offset = 1;
 static uint32_t acl_table_indx;
 /* Max number of sdf rules */
 static uint8_t sdf_rule_id;
-
-enum {
-	PROTO_FIELD_IPV4,
-	SRC_FIELD_IPV4,
-	DST_FIELD_IPV4,
-	SRCP_FIELD_IPV4,
-	DSTP_FIELD_IPV4,
-	NUM_FIELDS_IPV4
-};
-
-enum {
-	RTE_ACL_IPV4VLAN_PROTO,
-	RTE_ACL_IPV4VLAN_VLAN,
-	RTE_ACL_IPV4VLAN_SRC,
-	RTE_ACL_IPV4VLAN_DST,
-	RTE_ACL_IPV4VLAN_PORTS,
-	RTE_ACL_IPV4VLAN_NUM
-};
+extern int clSystemLog;
 
 /**
  * @brief  : Maintains acl field type information
@@ -136,39 +122,111 @@ struct rte_acl_field_def ipv4_defs[NUM_FIELDS_IPV4] = {
 	},
 };
 
-enum {
-	CB_FLD_SRC_ADDR,
-	CB_FLD_DST_ADDR,
-	CB_FLD_SRC_PORT_LOW,
-	CB_FLD_SRC_PORT_DLM,
-	CB_FLD_SRC_PORT_HIGH,
-	CB_FLD_DST_PORT_LOW,
-	CB_FLD_DST_PORT_DLM,
-	CB_FLD_DST_PORT_HIGH,
-	CB_FLD_PROTO,
-	CB_FLD_USERDATA,
-	CB_FLD_NUM,
+struct rte_acl_field_def ipv6_defs[NUM_FIELDS_IPV6] = {
+    {
+        .type = RTE_ACL_FIELD_TYPE_BITMASK,
+        .size = sizeof(uint8_t),
+        .field_index = PROTO_FIELD_IPV6,
+        .input_index = PROTO_FIELD_IPV6,
+        .offset = 0,
+    },
+    {
+        .type = RTE_ACL_FIELD_TYPE_MASK,
+        .size = sizeof(uint32_t),
+        .field_index = SRC1_FIELD_IPV6,
+        .input_index = SRC1_FIELD_IPV6,
+        .offset = offsetof(struct ipv6_hdr, src_addr) -
+            offsetof(struct ipv6_hdr, proto),
+    },
+    {
+        .type = RTE_ACL_FIELD_TYPE_MASK,
+        .size = sizeof(uint32_t),
+        .field_index = SRC2_FIELD_IPV6,
+        .input_index = SRC2_FIELD_IPV6,
+        .offset = offsetof(struct ipv6_hdr, src_addr) -
+            offsetof(struct ipv6_hdr, proto) + sizeof(uint32_t),
+    },
+    {
+        .type = RTE_ACL_FIELD_TYPE_MASK,
+        .size = sizeof(uint32_t),
+        .field_index = SRC3_FIELD_IPV6,
+        .input_index = SRC3_FIELD_IPV6,
+        .offset = offsetof(struct ipv6_hdr, src_addr) -
+            offsetof(struct ipv6_hdr, proto) +
+            2 * sizeof(uint32_t),
+    },
+    {
+        .type = RTE_ACL_FIELD_TYPE_MASK,
+        .size = sizeof(uint32_t),
+        .field_index = SRC4_FIELD_IPV6,
+        .input_index = SRC4_FIELD_IPV6,
+        .offset = offsetof(struct ipv6_hdr, src_addr) -
+            offsetof(struct ipv6_hdr, proto) +
+            3 * sizeof(uint32_t),
+    },
+    {
+        .type = RTE_ACL_FIELD_TYPE_MASK,
+        .size = sizeof(uint32_t),
+        .field_index = DST1_FIELD_IPV6,
+        .input_index = DST1_FIELD_IPV6,
+        .offset = offsetof(struct ipv6_hdr, dst_addr)
+                - offsetof(struct ipv6_hdr, proto),
+    },
+    {
+        .type = RTE_ACL_FIELD_TYPE_MASK,
+        .size = sizeof(uint32_t),
+        .field_index = DST2_FIELD_IPV6,
+        .input_index = DST2_FIELD_IPV6,
+        .offset = offsetof(struct ipv6_hdr, dst_addr) -
+            offsetof(struct ipv6_hdr, proto) + sizeof(uint32_t),
+    },
+    {
+        .type = RTE_ACL_FIELD_TYPE_MASK,
+        .size = sizeof(uint32_t),
+        .field_index = DST3_FIELD_IPV6,
+        .input_index = DST3_FIELD_IPV6,
+        .offset = offsetof(struct ipv6_hdr, dst_addr) -
+            offsetof(struct ipv6_hdr, proto) +
+            2 * sizeof(uint32_t),
+    },
+    {
+        .type = RTE_ACL_FIELD_TYPE_MASK,
+        .size = sizeof(uint32_t),
+        .field_index = DST4_FIELD_IPV6,
+        .input_index = DST4_FIELD_IPV6,
+        .offset = offsetof(struct ipv6_hdr, dst_addr) -
+            offsetof(struct ipv6_hdr, proto) +
+            3 * sizeof(uint32_t),
+    },
 };
 
 RTE_ACL_RULE_DEF(acl4_rule, RTE_DIM(ipv4_defs));
+RTE_ACL_RULE_DEF(acl6_rule, RTE_DIM(ipv6_defs));
 
 /**
  * @brief  : Maintains acl configuration
  */
 struct acl_config {
 	struct rte_acl_ctx *acx_ipv4;
+	struct rte_acl_ctx *acx_ipv6;
 	uint8_t acx_ipv4_built;
+	uint8_t acx_ipv6_built;
 };
 
 /**
  * @brief  : Maintains acl parameters
  */
 struct acl_search {
-	const uint8_t *data_ipv4[MAX_BURST_SZ];
-	struct rte_mbuf *m_ipv4[MAX_BURST_SZ];
-	uint32_t res_ipv4[MAX_BURST_SZ];
-	int num_ipv4;
+    const uint8_t *data_ipv4[MAX_BURST_SZ];
+    struct rte_mbuf *m_ipv4[MAX_BURST_SZ];
+    uint32_t res_ipv4[MAX_BURST_SZ];
+    int num_ipv4;
+    const uint8_t *data_ipv6[MAX_BURST_SZ];
+    struct rte_mbuf *m_ipv6[MAX_BURST_SZ];
+    uint32_t res_ipv6[MAX_BURST_SZ];
+    int num_ipv6;
 };
+
 
 /**
  * @brief  : Maintains parm config
@@ -190,8 +248,10 @@ struct acl_rules_table {
 	uint16_t max_entries;
 	int (*compare)(const void *r1p, const void *r2p);
 	int (*compare_rule)(const void *r1p, const void *r2p);
+	int (*compare_ipv6_rule)(const void *r1p, const void *r2p);
 	void (*print_entry)(const void *nodep, const VISIT which, const int depth);
 	void (*add_entry)(const void *nodep, const VISIT which, const int depth);
+	void (*add_ipv6_entry)(const void *nodep, const VISIT which, const int depth);
 	uint16_t num_of_ue;
 };
 
@@ -234,26 +294,50 @@ static inline void print_one_ipv4_rule(struct acl4_rule *rule, int extra)
 			rule->data.userdata & ~ACL_DENY_SIGNATURE);
 }
 
-/**
- * @brief  : Print acl rule information
- * @param  : rule, acl rule
- * @param  : num, number of rules
- * @param  : extra, data
- * @return : Returns nothing
- */
-static inline void dump_ipv4_rules(struct acl4_rule *rule, int num, int extra)
+static inline void
+print_one_ipv6_rule(struct acl6_rule *rule, int extra)
 {
-	int i;
-	int j;
-
-	for (i = 0, j = 0; i < MAX_SDF_RULE_NUM; i++, rule++) {
-		clLog(clSystemLog, eCLSeverityDebug,
-			LOG_FORMAT"ACL Rule Info : %d\n", LOG_VALUE, i + 1);
-		print_one_ipv4_rule(rule, extra);
-		j++;
-		if (j == num)
-			break;
-	}
+    unsigned char a, b, c, d;
+    uint32_t_to_char(rule->field[SRC1_FIELD_IPV6].value.u32,
+        &a, &b, &c, &d);
+   clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"%.2x%.2x:%.2x%.2x", LOG_VALUE, a, b, c, d);
+    uint32_t_to_char(rule->field[SRC2_FIELD_IPV6].value.u32,
+        &a, &b, &c, &d);
+    clLog(clSystemLog, eCLSeverityDebug,":%.2x%.2x:%.2x%.2x", a, b, c, d);
+    uint32_t_to_char(rule->field[SRC3_FIELD_IPV6].value.u32,
+        &a, &b, &c, &d);
+    clLog(clSystemLog, eCLSeverityDebug,":%.2x%.2x:%.2x%.2x", a, b, c, d);
+    uint32_t_to_char(rule->field[SRC4_FIELD_IPV6].value.u32,
+        &a, &b, &c, &d);
+    clLog(clSystemLog, eCLSeverityDebug,":%.2x%.2x:%.2x%.2x/%u ", a, b, c, d,
+            rule->field[SRC1_FIELD_IPV6].mask_range.u32
+            + rule->field[SRC2_FIELD_IPV6].mask_range.u32
+            + rule->field[SRC3_FIELD_IPV6].mask_range.u32
+            + rule->field[SRC4_FIELD_IPV6].mask_range.u32);
+    uint32_t_to_char(rule->field[DST1_FIELD_IPV6].value.u32,
+        &a, &b, &c, &d);
+    clLog(clSystemLog, eCLSeverityDebug,"%.2x%.2x:%.2x%.2x", a, b, c, d);
+    uint32_t_to_char(rule->field[DST2_FIELD_IPV6].value.u32,
+        &a, &b, &c, &d);
+    clLog(clSystemLog, eCLSeverityDebug,":%.2x%.2x:%.2x%.2x", a, b, c, d);
+    uint32_t_to_char(rule->field[DST3_FIELD_IPV6].value.u32,
+        &a, &b, &c, &d);
+    clLog(clSystemLog, eCLSeverityDebug,":%.2x%.2x:%.2x%.2x", a, b, c, d);
+    uint32_t_to_char(rule->field[DST4_FIELD_IPV6].value.u32,
+        &a, &b, &c, &d);
+    clLog(clSystemLog, eCLSeverityDebug,":%.2x%.2x:%.2x%.2x/%u ", a, b, c, d,
+            rule->field[DST1_FIELD_IPV6].mask_range.u32
+            + rule->field[DST2_FIELD_IPV6].mask_range.u32
+            + rule->field[DST3_FIELD_IPV6].mask_range.u32
+            + rule->field[DST4_FIELD_IPV6].mask_range.u32);
+    clLog(clSystemLog, eCLSeverityDebug,"0x%hhx/0x%hhx \n",
+        rule->field[PROTO_FIELD_IPV6].value.u8,
+        rule->field[PROTO_FIELD_IPV6].mask_range.u8);
+    if (extra)
+        clLog(clSystemLog, eCLSeverityDebug,"0x%x-0x%x-0x%x ",
+            rule->data.category_mask,
+            rule->data.priority,
+            rule->data.userdata);
 }
 
 /**
@@ -264,14 +348,41 @@ static inline void dump_ipv4_rules(struct acl4_rule *rule, int num, int extra)
  * @return : Returns nothing
  */
 static inline void
-prepare_one_packet_ipv4(struct rte_mbuf **pkts_in, struct acl_search *acl,
+prepare_one_packet(struct rte_mbuf **pkts_in, struct acl_search *acl,
 		int index)
 {
 	struct rte_mbuf *pkt = pkts_in[index];
+	uint64_t len = 0;
+	uint8_t *data = NULL;
+
+	len = ETH_HDR_SIZE;
+
+	/*Get pointer to IP frame in packet*/
+	data = rte_pktmbuf_mtod_offset(pkt, uint8_t *, len);
 
 	/* Fill acl structure */
-	acl->data_ipv4[acl->num_ipv4] = MBUF_IPV4_2PROTO(pkt);
-	acl->m_ipv4[(acl->num_ipv4)++] = pkt;
+	if (( data[0] & VERSION_FLAG_CHECK ) == IPv4_VERSION) {
+        /* Fill acl structure */
+        acl->data_ipv4[acl->num_ipv4] = MBUF_IPV4_2PROTO(pkt);
+        if (acl->data_ipv4[acl->num_ipv4] != NULL) {
+            acl->m_ipv4[(acl->num_ipv4)++] = pkt;
+        } else {
+            /* Malformed packet, drop the packet */
+            rte_pktmbuf_free(pkt);
+        }
+    } else if (( data[0] & VERSION_FLAG_CHECK ) == IPv6_VERSION) {
+        /* Fill acl structure */
+        acl->data_ipv6[acl->num_ipv6] = MBUF_IPV6_2PROTO(pkt);
+        if (acl->data_ipv6[acl->num_ipv6] != NULL) {
+            acl->m_ipv6[(acl->num_ipv6)++] = pkt;
+        } else {
+            /* Malformed packet, drop the packet */
+            rte_pktmbuf_free(pkt);
+        }
+    } else {
+        /* Unknown type, drop the packet */
+        rte_pktmbuf_free(pkt);
+    }
 }
 
 /**
@@ -288,6 +399,7 @@ prepare_acl_parameter(struct rte_mbuf **pkts_in, struct acl_search *acl,
 	int i;
 
 	acl->num_ipv4 = 0;
+	acl->num_ipv6 = 0;
 
 	/* Prefetch first packets */
 	for (i = 0; i < PREFETCH_OFFSET && i < nb_rx; i++)
@@ -297,12 +409,12 @@ prepare_acl_parameter(struct rte_mbuf **pkts_in, struct acl_search *acl,
 	for (i = 0; i < (nb_rx - PREFETCH_OFFSET); i++) {
 		rte_prefetch0(rte_pktmbuf_mtod
 				(pkts_in[i + PREFETCH_OFFSET], void *));
-		prepare_one_packet_ipv4(pkts_in, acl, i);
+		prepare_one_packet(pkts_in, acl, i);
 	}
 
 	/* Process left packets */
 	for (; i < nb_rx; i++)
-		prepare_one_packet_ipv4(pkts_in, acl, i);
+		prepare_one_packet(pkts_in, acl, i);
 }
 
 /**
@@ -489,6 +601,122 @@ parse_cb_ipv4vlan_rule(char *str, struct rte_acl_rule *v, int has_userdata)
 	return 0;
 }
 
+static
+void ipv6_expander(const struct in6_addr *addr, char *str){
+    snprintf(str, IPV6_STR_LEN,"%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x",
+    (int)addr->s6_addr[0], (int)addr->s6_addr[1],
+    (int)addr->s6_addr[2], (int)addr->s6_addr[3],
+    (int)addr->s6_addr[4], (int)addr->s6_addr[5],
+    (int)addr->s6_addr[6], (int)addr->s6_addr[7],
+    (int)addr->s6_addr[8], (int)addr->s6_addr[9],
+    (int)addr->s6_addr[10], (int)addr->s6_addr[11],
+    (int)addr->s6_addr[12], (int)addr->s6_addr[13],
+    (int)addr->s6_addr[14], (int)addr->s6_addr[15]);
+    return;
+
+}
+
+static int
+parse_ipv6_addr(char *in, const char **end, uint32_t v[IPV6_ADDR_U32],
+    char dlm)
+{
+	struct in6_addr ipv6 = {0};
+	char tmp[IPV6_STR_LEN];
+	char *saveptr, *ipv6_str, *final_ipv6 = NULL;
+	final_ipv6 = (char *)malloc(MAX_LEN * sizeof(char));
+
+	ipv6_str = strtok_r(in, "/", &saveptr);
+	if(inet_pton(AF_INET6, ipv6_str, &ipv6)) {
+	    ipv6_expander(&ipv6, tmp);
+	}else{
+		clLog(clSystemLog, eCLSeverityCritical,"IP conversion failes");
+		return -1;
+	}
+
+    snprintf(final_ipv6, MAX_LEN, "%s/%s", tmp, saveptr);
+    char *temp = final_ipv6;
+
+    uint32_t addr[IPV6_ADDR_U16];
+    GET_CB_FIELD(final_ipv6, addr[0], 16, UINT16_MAX, ':');
+    GET_CB_FIELD(final_ipv6, addr[1], 16, UINT16_MAX, ':');
+    GET_CB_FIELD(final_ipv6, addr[2], 16, UINT16_MAX, ':');
+    GET_CB_FIELD(final_ipv6, addr[3], 16, UINT16_MAX, ':');
+    GET_CB_FIELD(final_ipv6, addr[4], 16, UINT16_MAX, ':');
+    GET_CB_FIELD(final_ipv6, addr[5], 16, UINT16_MAX, ':');
+    GET_CB_FIELD(final_ipv6, addr[6], 16, UINT16_MAX, ':');
+    GET_CB_FIELD(final_ipv6, addr[7], 16, UINT16_MAX, dlm);
+    *end = final_ipv6;
+    v[0] = (addr[0] << 16) + addr[1];
+    v[1] = (addr[2] << 16) + addr[3];
+    v[2] = (addr[4] << 16) + addr[5];
+    v[3] = (addr[6] << 16) + addr[7];
+    free(temp);
+    return 0;
+}
+
+static int
+parse_ipv6_net(char *in, struct rte_acl_field field[4])
+{
+    int32_t rc;
+    const char *mp;
+    uint32_t i, m, v[4];
+    const uint32_t nbu32 = sizeof(uint32_t) * CHAR_BIT;
+    /* get address. */
+    rc = parse_ipv6_addr(in, &mp, v, '/');
+    if (rc != 0)
+        return rc;
+    /* get mask. */
+    GET_CB_FIELD(mp, m, 0, CHAR_BIT * sizeof(v), 0);
+    /* put all together. */
+    for (i = 0; i != RTE_DIM(v); i++) {
+        if (m >= (i + 1) * nbu32)
+            field[i].mask_range.u32 = nbu32;
+        else
+            field[i].mask_range.u32 = m > (i * nbu32) ?
+                m - (i * 32) : 0;
+        field[i].value.u32 = v[i];
+    }
+    return 0;
+}
+
+static int
+parse_cb_ipv6_rule(char *str, struct rte_acl_rule *v, int has_userdata)
+{
+    int i, rc;
+    char *s, *sp, *in[CB_IPV6_FLD_NUM], tmp[MAX_LEN] = {0};
+    static const char *dlm = " \t\n";
+    int dim = has_userdata ? CB_IPV6_FLD_NUM : CB_IPV6_FLD_USERDATA;
+    strncpy(tmp, str, MAX_LEN);
+    s = tmp;
+    for (i = 0; i != dim; i++, s = NULL) {
+        in[i] = strtok_r(s, dlm, &sp);
+        if (in[i] == NULL)
+            return -EINVAL;
+    }
+    rc = parse_ipv6_net(in[CB_IPV6_FLD_SRC_ADDR], v->field + SRC1_FIELD_IPV6);
+    if (rc != 0) {
+        clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"failed to read source address/mask: %s\n",LOG_VALUE,
+            in[CB_FLD_SRC_ADDR]);
+        return rc;
+    }
+    rc = parse_ipv6_net(in[CB_IPV6_FLD_DST_ADDR], v->field + DST1_FIELD_IPV6);
+    if (rc != 0) {
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"failed to read destination address/mask: %s\n",LOG_VALUE,
+            in[CB_FLD_SRC_ADDR]);
+        return rc;
+    }
+    GET_CB_FIELD(in[CB_IPV6_FLD_PROTO], v->field[PROTO_FIELD_IPV6].value.u8,
+        0, UINT8_MAX, '/');
+    GET_CB_FIELD(in[CB_IPV6_FLD_PROTO], v->field[PROTO_FIELD_IPV6].mask_range.u8,
+        0, UINT8_MAX, 0);
+    if (has_userdata)
+        GET_CB_FIELD(in[CB_IPV6_FLD_USERDATA], v->data.userdata,
+            0, UINT32_MAX, 0);
+    return 0;
+}
+
 /**
  * @brief  : Print the Rule entry.
  * @param  : nodep, node to print
@@ -522,16 +750,6 @@ static void acl_rule_print(const void *nodep, const VISIT which, const int depth
 }
 
 /**
- * @brief  : Dump the table entries.
- * @param  : table, table pointer whose entries to dump.
- * @return : Returns nothing
- */
-void acl_table_dump(struct acl_rules_table *t)
-{
-	twalk(t->root, t->print_entry);
-}
-
-/**
  * @brief  : Add the Rule entry in rte acl table.
  * @param  : nodep, node to add
  * @param  : which, traversal order
@@ -548,6 +766,40 @@ static void add_single_rule(const void *nodep, const VISIT which, const int dept
 #pragma GCC diagnostic push  /* require GCC 4.6 */
 #pragma GCC diagnostic ignored "-Wcast-qual"
 	r = *(struct acl4_rule **) nodep;
+#pragma GCC diagnostic pop   /* require GCC 4.6 */
+
+	switch (which) {
+	case leaf:
+	case postorder:
+		if (rte_acl_add_rules(context, (struct rte_acl_rule *)r, 1)) {
+			clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Failed to Add SDF rule\n", LOG_VALUE);
+		}
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"SDF Rule Added in ACL table\n", LOG_VALUE);
+		break;
+	default:
+		break;
+	}
+}
+
+/**
+ * @brief  : Add the IPv6 Rule entry in rte acl table.
+ * @param  : nodep, node to add
+ * @param  : which, traversal order
+ * @param  : depth, node depth
+ * @return : Returns nothing
+ */
+static void add_single_ipv6_rule(const void *nodep, const VISIT which, const int depth)
+{
+	struct acl6_rule *r = NULL;
+
+	struct acl_config *pacl_config = &acl_config[acl_table_indx];
+	struct rte_acl_ctx *context = pacl_config->acx_ipv6;
+
+#pragma GCC diagnostic push  /* require GCC 4.6 */
+#pragma GCC diagnostic ignored "-Wcast-qual"
+	r = *(struct acl6_rule **) nodep;
 #pragma GCC diagnostic pop   /* require GCC 4.6 */
 
 	switch (which) {
@@ -647,13 +899,86 @@ static int acl_rule_compare(const void *r1p, const void *r2p)
 }
 
 /**
+ * @brief  : Compare rule entry.
+ * @param  : r1p, first acl rule
+ * @param  : r2p, second acl rule
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+static int acl_ipv6_rule_compare(const void *r1p, const void *r2p)
+{
+	struct acl6_rule *rule1, *rule2;
+
+	rule1 = (struct acl6_rule *) r1p;
+	rule2 = (struct acl6_rule *) r2p;
+
+	/* compare rule */
+	if ((rule1->data.userdata == rule2->data.userdata) &&
+
+		(rule1->field[SRC1_FIELD_IPV6].value.u32 ==
+			rule2->field[SRC1_FIELD_IPV6].value.u32) &&
+
+		(rule1->field[SRC2_FIELD_IPV6].value.u32 ==
+			rule2->field[SRC2_FIELD_IPV6].value.u32) &&
+
+		(rule1->field[SRC3_FIELD_IPV6].value.u32 ==
+			rule2->field[SRC3_FIELD_IPV6].value.u32) &&
+
+		(rule1->field[SRC4_FIELD_IPV6].value.u32 ==
+			rule2->field[SRC4_FIELD_IPV6].value.u32) &&
+
+		(rule1->field[DST1_FIELD_IPV6].value.u32 ==
+			rule2->field[DST1_FIELD_IPV6].value.u32) &&
+
+		(rule1->field[DST2_FIELD_IPV6].value.u32 ==
+			rule2->field[DST2_FIELD_IPV6].value.u32) &&
+
+		(rule1->field[DST3_FIELD_IPV6].value.u32 ==
+			rule2->field[DST3_FIELD_IPV6].value.u32) &&
+
+		(rule1->field[DST4_FIELD_IPV6].value.u32 ==
+			rule2->field[DST4_FIELD_IPV6].value.u32) &&
+
+		(rule1->field[PROTO_FIELD_IPV6].value.u8 ==
+			rule2->field[PROTO_FIELD_IPV6].value.u8) &&
+
+		(rule1->field[PROTO_FIELD_IPV6].mask_range.u8 ==
+			rule2->field[PROTO_FIELD_IPV6].mask_range.u8) &&
+
+		((rule1->field[SRC1_FIELD_IPV6].mask_range.u32
+            + rule1->field[SRC2_FIELD_IPV6].mask_range.u32
+            + rule1->field[SRC3_FIELD_IPV6].mask_range.u32
+            + rule1->field[SRC4_FIELD_IPV6].mask_range.u32) ==
+			(rule2->field[SRC1_FIELD_IPV6].mask_range.u32
+            + rule2->field[SRC2_FIELD_IPV6].mask_range.u32
+            + rule2->field[SRC3_FIELD_IPV6].mask_range.u32
+            + rule2->field[SRC4_FIELD_IPV6].mask_range.u32)) &&
+
+		((rule1->field[DST1_FIELD_IPV6].mask_range.u32
+            + rule1->field[DST2_FIELD_IPV6].mask_range.u32
+            + rule1->field[DST3_FIELD_IPV6].mask_range.u32
+            + rule1->field[DST4_FIELD_IPV6].mask_range.u32) ==
+			(rule2->field[DST1_FIELD_IPV6].mask_range.u32
+            + rule2->field[DST2_FIELD_IPV6].mask_range.u32
+            + rule2->field[DST3_FIELD_IPV6].mask_range.u32
+            + rule2->field[DST4_FIELD_IPV6].mask_range.u32))) {
+
+				clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"SDF Rule matched\n", LOG_VALUE);
+				return 0;
+	}
+	clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT"SDF Rule mismatched\n", LOG_VALUE);
+	return -1;
+}
+
+/**
  * @brief  : Create ACL table.
  * @param  : ACL Table index
  * @param  : max_element, max number of elements in this table.
  * @return : Returns 0 in case of success , -1 otherwise
  */
 static int
-up_acl_rules_table_create(uint32_t indx, uint32_t max_elements)
+up_acl_rules_table_create(uint32_t indx, uint32_t max_elements, uint8_t is_ipv6)
 {
 	struct acl_rules_table *t = &acl_rules_table[indx];
 	if (t->root != NULL) {
@@ -667,8 +992,10 @@ up_acl_rules_table_create(uint32_t indx, uint32_t max_elements)
 	snprintf(t->name, MAX_LEN, "ACL_RULES_TABLE-%u", indx);
 	t->compare = acl_rule_prcdnc_compare;
 	t->compare_rule = acl_rule_compare;
+	t->compare_ipv6_rule = acl_ipv6_rule_compare;
 	t->print_entry = acl_rule_print;
 	t->add_entry = add_single_rule;
+	t->add_ipv6_entry = add_single_ipv6_rule;
 	clLog(clSystemLog, eCLSeverityDebug,
 		LOG_FORMAT"ACL Rules table for \"%s\" Created\n", LOG_VALUE, t->name);
 	return 0;
@@ -688,12 +1015,11 @@ up_acl_rules_table_create(uint32_t indx, uint32_t max_elements)
  * @return : Returns rte_acl_ctx on Success, NULL otherwise
  */
 static struct rte_acl_ctx *acl_context_init(char *name,
-		unsigned int max_elements, int rs, int ipv6,
-		int socketid)
+		unsigned int max_elements, int socketid, uint8_t is_ipv6)
 {
 	struct rte_acl_ctx *context = NULL;
 	struct rte_acl_param acl_param = {0};
-	int dim = RTE_DIM(ipv4_defs);
+	int dim = (is_ipv6 ? RTE_DIM(ipv6_defs) : RTE_DIM(ipv4_defs));
 
 	/* Create ACL contexts */
 	acl_param.name = name;
@@ -730,13 +1056,18 @@ static struct rte_acl_ctx *acl_context_init(char *name,
  */
 static int
 acl_config_init(struct acl_config *acl_config,
-		char *name, uint32_t max_elements, int rs)
+		char *name, uint32_t max_elements, uint8_t is_ipv6)
 {
 
 	memset(acl_config, 0, sizeof(struct acl_config));
 
-	acl_config->acx_ipv4 =
-	acl_context_init(name, max_elements, rs, 0, 0);
+	if(!is_ipv6){
+		acl_config->acx_ipv4 =
+		acl_context_init(name, max_elements, 0, is_ipv6);
+	} else{
+		acl_config->acx_ipv6 =
+		acl_context_init(name, max_elements, 0, is_ipv6);
+	}
 	return 0;
 }
 
@@ -746,7 +1077,7 @@ acl_config_init(struct acl_config *acl_config,
  * @return : Returns 0 in case of success , -1 otherwise
  */
 static int
-up_sdf_filter_table_create(uint32_t max_elements)
+up_sdf_filter_table_create(uint32_t max_elements, uint8_t is_ipv6)
 {
 	char name[NAME_LEN];
 	char *buf = "ACLTable-";
@@ -757,7 +1088,7 @@ up_sdf_filter_table_create(uint32_t max_elements)
 
 	/* Configure the ACL table */
 	if (acl_config_init(&acl_config[acl_table_indx], name,
-			max_elements, sizeof(struct acl4_rule)) < 0) {
+			max_elements, is_ipv6) < 0) {
 		clLog(clSystemLog, eCLSeverityCritical,
 			LOG_FORMAT"Acl config init failed\n", LOG_VALUE);
 		/* TODO: Error Handling */
@@ -765,7 +1096,7 @@ up_sdf_filter_table_create(uint32_t max_elements)
 	}
 
 	/* Create the local acl rules table copy */
-	if (up_acl_rules_table_create(acl_table_indx, max_elements)) {
+	if (up_acl_rules_table_create(acl_table_indx, max_elements, is_ipv6)) {
 		clLog(clSystemLog, eCLSeverityCritical,
 			LOG_FORMAT"Up acl rules table create failed\n", LOG_VALUE);
 		/* TODO: Error Handling */
@@ -784,11 +1115,14 @@ up_sdf_filter_table_create(uint32_t max_elements)
  * @return : Returns nothing
  */
 static void
-add_rules_to_rte_acl(uint8_t indx)
+add_rules_to_rte_acl(uint8_t indx, uint8_t is_ipv6)
 {
 	struct acl_rules_table *t = &acl_rules_table[indx];
 	acl_table_indx = indx;
-	twalk(t->root, t->add_entry);
+	if(!is_ipv6)
+		twalk(t->root, t->add_entry);
+	else
+		twalk(t->root, t->add_ipv6_entry);
 }
 
 /**
@@ -800,27 +1134,35 @@ add_rules_to_rte_acl(uint8_t indx)
  * @return : Returns 0 in case of success , -1 otherwise
  */
 static int
-reset_and_build_rules(uint32_t indx)
+reset_and_build_rules(uint32_t indx, uint8_t is_ipv6)
 {
 	int ret = 0;
-	int dim = RTE_DIM(ipv4_defs);
+	int dim = is_ipv6 ? RTE_DIM(ipv4_defs) : RTE_DIM(ipv4_defs);
 	struct rte_acl_config acl_build_param = {0};
 	struct acl_config *pacl_config = &acl_config[indx];
-	struct rte_acl_ctx *context = pacl_config->acx_ipv4;
+	struct rte_acl_ctx *context = NULL;
+	if(!is_ipv6)
+		context = pacl_config->acx_ipv4;
+	else
+		context = pacl_config->acx_ipv6;
 
 	/* Delete all rules from the ACL context. */
 	rte_acl_reset_rules(context);
 
 	/* Add the rules from local table to ACL table */
-	add_rules_to_rte_acl(indx);
+	add_rules_to_rte_acl(indx, is_ipv6);
 
 	/* Perform builds */
 	memset(&acl_build_param, 0, sizeof(acl_build_param));
 
 	acl_build_param.num_categories = DEFAULT_MAX_CATEGORIES;
 	acl_build_param.num_fields = dim;
-	memcpy(&acl_build_param.defs, ipv4_defs,
-			sizeof(ipv4_defs));
+	if(!is_ipv6)
+		memcpy(&acl_build_param.defs, ipv4_defs,
+				sizeof(ipv4_defs));
+	else
+		memcpy(&acl_build_param.defs, ipv6_defs,
+				sizeof(ipv6_defs));
 
 	/* Build the ACL run time structure */
 	if ((ret = rte_acl_build(context, &acl_build_param)) != 0) {
@@ -829,7 +1171,10 @@ reset_and_build_rules(uint32_t indx)
 				LOG_VALUE, indx, ret, rte_strerror(rte_errno));
 	}
 
-	pacl_config->acx_ipv4_built = 1;
+	if(!is_ipv6)
+		pacl_config->acx_ipv4_built = 1;
+	else
+		pacl_config->acx_ipv6_built = 1;
 
 #ifdef DEBUG_ACL
 	rte_acl_dump(context);
@@ -845,26 +1190,44 @@ reset_and_build_rules(uint32_t indx)
  */
 static int
 up_rules_entry_add(struct acl_rules_table *t,
-				struct acl4_rule *rule)
+				struct acl4_rule *rule, uint8_t is_ipv6)
 {
 	if (t->num_entries == t->max_entries)
 		clLog(clSystemLog, eCLSeverityDebug,
 			LOG_FORMAT":%s reached max rules entries\n", LOG_VALUE, t->name);
+	if(!is_ipv6){
+		struct acl4_rule *new = rte_malloc("acl_rule", sizeof(struct acl4_rule),
+				RTE_CACHE_LINE_SIZE);
+		if (new == NULL) {
+			clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"ADC: Failed to allocate memory\n", LOG_VALUE);
+			return -1;
+		}
+		memcpy(new, rule, sizeof(struct acl4_rule));
+		/* put node into the tree */
+		if (tsearch(new, &t->root, t->compare_rule) == 0) {
+			clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT":Fail to add acl precedance %d\n", LOG_VALUE,
+				rule->data.userdata - ACL_DENY_SIGNATURE);
+			return -1;
+		}
+	} else {
+		struct acl6_rule *new = rte_malloc("acl_rule", sizeof(struct acl6_rule),
+				RTE_CACHE_LINE_SIZE);
+		if (new == NULL) {
+			clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"ADC: Failed to allocate memory\n", LOG_VALUE);
+			return -1;
+		}
+		memcpy(new, rule, sizeof(struct acl6_rule));
 
-	struct acl4_rule *new = rte_malloc("acl_rule", sizeof(struct acl4_rule),
-			RTE_CACHE_LINE_SIZE);
-	if (new == NULL) {
-		clLog(clSystemLog, eCLSeverityDebug,
-			LOG_FORMAT"ADC: Failed to allocate memory\n", LOG_VALUE);
-		return -1;
-	}
-	memcpy(new, rule, sizeof(struct acl4_rule));
-	/* put node into the tree */
-	if (tsearch(new, &t->root, t->compare_rule) == 0) {
-		clLog(clSystemLog, eCLSeverityDebug,
-			LOG_FORMAT":Fail to add acl precedance %d\n", LOG_VALUE,
-			rule->data.userdata - ACL_DENY_SIGNATURE);
-		return -1;
+		/* put node into the tree */
+		if (tsearch(new, &t->root, t->compare_ipv6_rule) == 0) {
+			clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT":Fail to add acl precedance %d\n", LOG_VALUE,
+				rule->data.userdata - ACL_DENY_SIGNATURE);
+			return -1;
+		}
 	}
 
 	t->num_entries++;
@@ -934,13 +1297,13 @@ up_filter_entry_add(uint32_t indx, struct sdf_pkt_filter *pkt_filter)
 	}
 
 	if (up_rules_entry_add(&acl_rules_table[indx],
-				(struct acl4_rule *)next) < 0) {
+				(struct acl4_rule *)next, 0) < 0) {
 		clLog(clSystemLog, eCLSeverityCritical,
 			LOG_FORMAT"Up rules entry add failed\n", LOG_VALUE);
 		return -1;
 	}
 
-	if (reset_and_build_rules(indx) < 0) {
+	if (reset_and_build_rules(indx, 0) < 0) {
 		clLog(clSystemLog, eCLSeverityCritical,
 				LOG_FORMAT"Reset and build rules Failed\n", LOG_VALUE);
 		return -1;
@@ -951,23 +1314,6 @@ up_filter_entry_add(uint32_t indx, struct sdf_pkt_filter *pkt_filter)
 	return 0;
 }
 
-int
-up_sdf_filter_entry_add(uint32_t indx, struct sdf_pkt_filter *pkt_filter)
-{
-	static int is_first = 1;
-	if (is_first == 1) {
-		is_first = 0;
-	}
-
-	if (up_filter_entry_add(indx, pkt_filter)) {
-		clLog(clSystemLog, eCLSeverityCritical,
-			LOG_FORMAT"Failed in up filter entry addition\n", LOG_VALUE);
-		/* TODO: ERROR Handling */
-		return -1;
-	}
-
-	return 0;
-}
 
 /* Function to retrive the acl table index */
 int
@@ -976,9 +1322,10 @@ get_acl_table_indx(struct sdf_pkt_filter *pkt_filter, uint8_t is_create)
 	uint8_t prio = 0;
 	uint32_t it = 0;
 	char *buf = NULL;
-	struct acl4_rule r = {0};
+	struct acl4_rule r4 = {0};
+	struct acl6_rule r6 = {0};
 	struct rte_acl_rule *next = NULL;
-
+	uint8_t is_ipv6 = (pkt_filter->rule_ip_type == RULE_IPV6);
 	/* check sdf filter exist or not */
 	if (pkt_filter == NULL) {
 		clLog(clSystemLog, eCLSeverityCritical,
@@ -988,19 +1335,34 @@ get_acl_table_indx(struct sdf_pkt_filter *pkt_filter, uint8_t is_create)
 
 	prio = (255 - pkt_filter->precedence);
 	buf = (char *)&pkt_filter->u.rule_str[0];
-	next = (struct rte_acl_rule *)&r;
 
-	/* Parse the sdf filter into acl ipv4 rule format */
-	if (parse_cb_ipv4vlan_rule(buf, next, 0) != 0) {
-		clLog(clSystemLog, eCLSeverityCritical,
-			LOG_FORMAT"Parse rules error\n", LOG_VALUE);
-		return -1;
+	if(!is_ipv6){
+		next = (struct rte_acl_rule *)&r4;
+		/* Parse the sdf filter into acl ipv4 rule format */
+		if (parse_cb_ipv4vlan_rule(buf, next, 0) != 0) {
+			clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Parse IPv4 rules error\n", LOG_VALUE);
+			return -1;
+		}
+	}else{
+		next = (struct rte_acl_rule *)&r6;
+		/* Parse the sdf filter into acl ipv6 rule format */
+		if (parse_cb_ipv6_rule(buf, next, 0) != 0) {
+			clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Parse IPv6 rules error\n", LOG_VALUE);
+			print_one_ipv6_rule((struct acl6_rule  *)next, 1);
+			return -1;
+		}
+
 	}
 
 	/* Fill the received rule information */
 	next->data.userdata = pkt_filter->precedence + ACL_DENY_SIGNATURE;
 	next->data.priority = prio;
 	next->data.category_mask = -1;
+
+
+	print_one_ipv6_rule((struct acl6_rule  *)next, 1);
 
 	/* Find similar rule is present or not */
 	for (uint32_t itr = 1; itr < acl_table_indx_offset; itr++) {
@@ -1012,7 +1374,10 @@ get_acl_table_indx(struct sdf_pkt_filter *pkt_filter, uint8_t is_create)
 		clLog(clSystemLog, eCLSeverityDebug,
 			LOG_FORMAT"Search SDF Rule in ACL_Table_Index :%u\n",
 			LOG_VALUE, itr);
-		t = tfind(next, &ctx->root, ctx->compare_rule);
+		if(!is_ipv6)
+			t = tfind(next, &ctx->root, ctx->compare_rule);
+		else
+			t = tfind(next, &ctx->root, ctx->compare_ipv6_rule);
 		if (t != NULL) {
 			clLog(clSystemLog, eCLSeverityDebug,
 				LOG_FORMAT"SDF Rule match in ACL_Table_Index-%u\nDP: SDF Rule:%s\n",
@@ -1027,7 +1392,7 @@ get_acl_table_indx(struct sdf_pkt_filter *pkt_filter, uint8_t is_create)
 		return -1;
 
 	/* If ACL table is not present than create the new ACL table */
-	if ((it = up_sdf_filter_table_create(MAX_SDF_RULE_NUM)) < 0) {
+	if ((it = up_sdf_filter_table_create(MAX_SDF_RULE_NUM, is_ipv6)) < 0) {
 		clLog(clSystemLog, eCLSeverityCritical,
 				LOG_FORMAT"Failed to create up sdf filter table\n", LOG_VALUE);
 		return -1;
@@ -1035,7 +1400,7 @@ get_acl_table_indx(struct sdf_pkt_filter *pkt_filter, uint8_t is_create)
 
 	/* Add the sdf filter rule in ACL table */
 	if (up_rules_entry_add(&acl_rules_table[it],
-				(struct acl4_rule *)next) < 0) {
+				(struct acl4_rule *)next, is_ipv6) < 0) {
 		clLog(clSystemLog, eCLSeverityCritical,
 				LOG_FORMAT"Up rules entry addtion failed\n", LOG_VALUE);
 		return -1;
@@ -1047,7 +1412,7 @@ get_acl_table_indx(struct sdf_pkt_filter *pkt_filter, uint8_t is_create)
 		"SDF", pkt_filter->precedence, pkt_filter->u.rule_str);
 
 	/* Rebuild the ACl table */
-	if (reset_and_build_rules(it) < 0) {
+	if (reset_and_build_rules(it, is_ipv6) < 0) {
 		clLog(clSystemLog, eCLSeverityCritical,
 				LOG_FORMAT"Failed in reset and build rules\n", LOG_VALUE);
 		return -1;
@@ -1067,48 +1432,6 @@ free_node(void *p)
 }
 
 /**
- * @brief  : Delete Rules table.
- * @param  : t, rules table pointer.
- * @return : Returns 0 in case of success , -1 otherwise
- */
-static int
-up_acl_rules_table_delete(struct acl_rules_table *t)
-{
-	tdestroy(&t->root, free_node);
-	clLog(clSystemLog, eCLSeverityDebug,
-		LOG_FORMAT"ACL Rules table : \"%s\" destroyed\n", LOG_VALUE, t->name);
-	memset(t, 0, sizeof(struct acl_rules_table));
-	return 0;
-}
-
-int
-up_sdf_filter_table_delete(uint32_t indx)
-{
-	struct rte_acl_ctx *ctx = acl_config[indx].acx_ipv4;
-	struct acl_rules_table *t = &acl_rules_table[indx];
-
-	/* Delete all rules from the ACL context and destroy all internal run-time structures */
-	rte_acl_reset(ctx);
-
-	/* Delete entry from local table */
-	if(up_acl_rules_table_delete(t)) {
-		clLog(clSystemLog, eCLSeverityCritical,
-				LOG_FORMAT"Failed in up acl table delete\n", LOG_VALUE);
-		/* TODO: ERROR Handling */
-		return -1;
-	}
-
-	/* Deleted ACL Table */
-	--acl_table_indx_offset;
-	acl_table_indx = 0;
-	clLog(clSystemLog, eCLSeverityDebug,
-		LOG_FORMAT"ACL table %s deleted", LOG_VALUE, ctx->name);
-
-	rte_free(ctx);
-	return 0;
-}
-
-/**
  * @brief  : Delete rules entry.
  * @param  : t, rules table pointer
  * @param  : rule, element to be deleted from this table.
@@ -1116,15 +1439,73 @@ up_sdf_filter_table_delete(uint32_t indx)
  */
 int
 up_rules_entry_delete(struct acl_rules_table *t,
-				struct acl4_rule *rule)
+				struct sdf_pkt_filter *pkt_filter_entry)
 {
 	void **p;
-	/* delete node from the tree */
-	p = tdelete(rule, &t->root, t->compare);
+	struct acl4_rule rule_v4 = {0};
+	uint8_t prio = 0;
+	char *buf = NULL;
+	struct rte_acl_rule *next = NULL;
+
+	prio = (255 - pkt_filter_entry->precedence);
+	buf = (char *)&pkt_filter_entry->u.rule_str[0];
+
+	next = (struct rte_acl_rule *)&rule_v4;
+	if (parse_cb_ipv4vlan_rule(buf, next, 0) != 0) {
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"Parse IPv4 rules error\n", LOG_VALUE);
+		return -1;
+	}
+
+	next->data.userdata = pkt_filter_entry->precedence + ACL_DENY_SIGNATURE;
+	next->data.priority = prio;
+	next->data.category_mask = -1;
+
+	p = tdelete(next, &t->root, t->compare_rule);
 	if (p == NULL) {
 		clLog(clSystemLog, eCLSeverityDebug,
 			LOG_FORMAT"Fail to delete acl rule id %d\n", LOG_VALUE,
-			rule->data.userdata - ACL_DENY_SIGNATURE);
+			rule_v4.data.userdata - ACL_DENY_SIGNATURE);
+		return -1;
+	}
+	t->num_entries--;
+	rte_free(*p);
+	return 0;
+}
+
+/**
+ * @brief  : Delete IPV6 rules entry.
+ * @param  : t, rules table pointer
+ * @param  : rule, element to be deleted from this table.
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+int
+up_ipv6_rules_entry_delete(struct acl_rules_table *t,
+				struct sdf_pkt_filter *pkt_filter_entry)
+{
+	void **p;
+	struct acl6_rule rule_v6 = {0};
+	uint8_t prio = 0;
+	char *buf = NULL;
+	struct rte_acl_rule *next = NULL;
+
+	prio = (255 - pkt_filter_entry->precedence);
+	buf = (char *)&pkt_filter_entry->u.rule_str[0];
+	next = (struct rte_acl_rule *)&rule_v6;
+	if (parse_cb_ipv6_rule(buf, next, 0) != 0) {
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"Parse IPv6 rules error\n", LOG_VALUE);
+		return -1;
+	}
+	next->data.userdata = pkt_filter_entry->precedence + ACL_DENY_SIGNATURE;
+	next->data.priority = prio;
+	next->data.category_mask = -1;
+
+	p = tdelete(next, &t->root, t->compare_ipv6_rule);
+	if (p == NULL) {
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Fail to delete acl rule id %d\n", LOG_VALUE,
+			next->data.userdata - ACL_DENY_SIGNATURE);
 		return -1;
 	}
 	t->num_entries--;
@@ -1136,23 +1517,18 @@ int
 up_sdf_filter_entry_delete(uint32_t indx,
 			struct sdf_pkt_filter *pkt_filter_entry)
 {
-	uint32_t precedence = 0;
-	struct acl4_rule rule = {0};
-	struct rte_acl_ctx *ctx = acl_config[indx].acx_ipv4;
+	uint8_t is_ipv6 = (pkt_filter_entry->rule_ip_type == RULE_IPV6);
 
 	if (pkt_filter_entry == NULL) {
 		clLog(clSystemLog, eCLSeverityCritical,
 			LOG_FORMAT"Read msg Payload failed\n", LOG_VALUE);
 		return -1;
 	}
+	if(!is_ipv6)
+		up_rules_entry_delete(&acl_rules_table[indx], pkt_filter_entry);
+	else
+		up_ipv6_rules_entry_delete(&acl_rules_table[indx], pkt_filter_entry);
 
-	precedence = pkt_filter_entry->precedence;
-	clLog(clSystemLog, eCLSeverityDebug,
-		LOG_FORMAT"ACL DEL: %s, precedence: %u\n",
-		LOG_VALUE, ctx->name, precedence);
-
-	rule.data.userdata = precedence + ACL_DENY_SIGNATURE;
-	up_rules_entry_delete(&acl_rules_table[indx], &rule);
 	return 0;
 }
 
@@ -1168,21 +1544,41 @@ static uint32_t *acl_lookup(struct rte_mbuf **m, uint32_t indx,
 		struct acl_config *acl_config,
 		struct acl_search *acl_search)
 {
+	struct rte_acl_ctx *context = NULL;
+	context = acl_config->acx_ipv4;
+	if(context == NULL){
+		context = acl_config->acx_ipv6;
+		if(context == NULL){
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"No context available for Lookup",
+														LOG_VALUE);
+			return 0;
+		}
+	}
+
 	if (acl_config != NULL) {
 
-		if (((acl_config->acx_ipv4)->trans_table != NULL)) {
+		if ((context->trans_table != NULL)) {
 
 			prepare_acl_parameter(m, acl_search, 1);
 
 			if (acl_search->num_ipv4) {
-				rte_acl_classify(acl_config->acx_ipv4,
+				rte_acl_classify(context,
 						acl_search->data_ipv4,
 						acl_search->res_ipv4,
 						acl_search->num_ipv4,
 						DEFAULT_MAX_CATEGORIES);
+
+				return (uint32_t *)&(acl_search->res_ipv4);
+			} else if(acl_search->num_ipv6) {
+				rte_acl_classify(context,
+						acl_search->data_ipv6,
+						acl_search->res_ipv6,
+						acl_search->num_ipv6,
+						DEFAULT_MAX_CATEGORIES);
+
+				return (uint32_t *)&(acl_search->res_ipv6);
 			}
 		}
-		return (uint32_t *)&(acl_search->res_ipv4);
 	}
 	clLog(clSystemLog, eCLSeverityDebug,
 		LOG_FORMAT"ERROR: ACL Context is Not Found \n", LOG_VALUE);
@@ -1193,60 +1589,6 @@ uint32_t *sdf_lookup(struct rte_mbuf **m, int nb_rx, uint32_t indx)
 {
 	RTE_SET_USED(nb_rx);
 	return acl_lookup(m, indx, &acl_config[indx], &acl_search);
-}
-
-int
-default_up_filter_entry_add(uint32_t precedence, uint8_t direction)
-{
-	uint32_t indx = 0;
-	struct sdf_pkt_filter pktf = {
-			.precedence = precedence,
-		};
-
-	if (direction == UPLINK ) {
-		snprintf(pktf.u.rule_str, MAX_LEN, "%s/%"PRIu8" %s/%"PRIu8" %"
-			PRIu16" : %"PRIu16" %"PRIu16" : %"PRIu16" 0x%"
-			PRIx8"/0x%"PRIx8"\n",
-			"0.0.0.0", 0, /*local_ip & mask */
-			"0.0.0.0", 0, /*remote_ip, mask,*/
-			0, /*local_port_low),*/
-			65535, /*local_port_high),*/
-			0,/*remote_port_low),*/
-			65535, /*remote_port_high),*/
-			0, 0/*proto, proto_mask)*/
-			);
-	} else {
-		snprintf(pktf.u.rule_str, MAX_LEN, "%s/%"PRIu8" %s/%"PRIu8" %"
-			PRIu16" : %"PRIu16" %"PRIu16" : %"PRIu16" 0x%"
-			PRIx8"/0x%"PRIx8"\n",
-			"0.0.0.0", 0, /*local_ip & mask */
-			"0.0.0.0", 0, /*remote_ip, mask,*/
-			0, /*local_port_low),*/
-			65535, /*local_port_high),*/
-			0,/*remote_port_low),*/
-			65535, /*remote_port_high),*/
-			0, 0/*proto, proto_mask)*/
-			);
-	}
-
-	/* If ACL table is not present than create the new ACL table */
-	if ((indx = up_sdf_filter_table_create(MAX_SDF_RULE_NUM)) < 0) {
-		clLog(clSystemLog, eCLSeverityCritical,
-			LOG_FORMAT"Failed to create up sdf filter table\n", LOG_VALUE);
-		return -1;
-	}
-
-	if (up_filter_entry_add(indx, &pktf)) {
-		clLog(clSystemLog, eCLSeverityCritical,
-				LOG_FORMAT"Failed to add up filter entry\n", LOG_VALUE);
-		/* TODO: ERROR Handling */
-		return -1;
-	}
-
-	clLog(clSystemLog, eCLSeverityDebug,
-		LOG_FORMAT"ACL ADD:%s, precedence:%u, rule:%s\n",
-		"SDF", LOG_VALUE, pktf.precedence, pktf.u.rule_str);
-	return indx;
 }
 
 /* Function to add the default entry into the acl table */
@@ -1297,20 +1639,26 @@ int up_sdf_default_entry_add(uint32_t indx, uint32_t precedence, uint8_t directi
 int
 sdf_table_delete(uint32_t indx,
 					struct sdf_pkt_filter *pkt_filter_entry){
-	uint32_t precedence = 0;
-	struct rte_acl_ctx *ctx = acl_config[indx].acx_ipv4;
-	struct acl_rules_table *t = &acl_rules_table[indx];
 
+	struct rte_acl_ctx *ctx = NULL;
+	struct acl_rules_table *t = &acl_rules_table[indx];
+	uint8_t is_ipv6 = (pkt_filter_entry->rule_ip_type == RULE_IPV6);
+	if(!is_ipv6)
+		ctx = acl_config[indx].acx_ipv4;
+	else
+		ctx = acl_config[indx].acx_ipv6;
 	/* Delete all rules from the ACL context and destroy all internal run-time structures */
 	rte_acl_reset(ctx);
 
-	struct acl4_rule rule = {0};
-	precedence = pkt_filter_entry->precedence;
-	clLog(clSystemLog, eCLSeverityDebug,
-		LOG_FORMAT"ACL DEL:%s precedence: %u\n", LOG_VALUE, ctx->name, precedence);
 
-	rule.data.userdata = precedence + ACL_DENY_SIGNATURE;
-	up_rules_entry_delete(t, &rule);
+	if(!is_ipv6){
+		up_rules_entry_delete(t, pkt_filter_entry);
+	} else {
+		up_ipv6_rules_entry_delete(t, pkt_filter_entry);
+	}
+	clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT"ACL DEL:%s \n", LOG_VALUE, ctx->name);
+
 	t = NULL;
 	free(t);
 	return 0;
@@ -1321,7 +1669,7 @@ remove_rule_entry_acl(uint32_t indx,
 			struct sdf_pkt_filter *pkt_filter_entry){
 
 	struct acl_rules_table *t = &acl_rules_table[indx];
-
+	uint8_t is_ipv6 = (pkt_filter_entry->rule_ip_type == RULE_IPV6);
 	if(t->num_of_ue > 1){
 		t->num_of_ue--;
 		clLog(clSystemLog, eCLSeverityDebug,
@@ -1336,6 +1684,7 @@ remove_rule_entry_acl(uint32_t indx,
 		LOG_FORMAT"No Acl Entery in Given Index table\n", LOG_VALUE);
 		return 0;
 	}
+
 	if(t->num_entries == 1)
 		return sdf_table_delete(indx, pkt_filter_entry);
 	else{
@@ -1344,6 +1693,7 @@ remove_rule_entry_acl(uint32_t indx,
 				"Failed to delete up sdf filter entry\n", LOG_VALUE);
 			return -1;
 		}
-		return reset_and_build_rules(indx);
+		return reset_and_build_rules(indx, is_ipv6);
 	}
 }
+/****************************************[END]****************************************/
