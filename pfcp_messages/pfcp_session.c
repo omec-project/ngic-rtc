@@ -5812,6 +5812,11 @@ process_pfcp_sess_est_request(uint32_t teid, pdn_connection *pdn, upf_context_t 
 				"structure entry in SM_HASH\n", LOG_VALUE);
 		return -1;
 	}
+	if(resp != NULL){
+		rte_free(resp);
+		resp = NULL;
+	}
+
 	return 0;
 }
 
@@ -10793,7 +10798,7 @@ process_pfcp_sess_del_resp_indirect_tunnel(uint64_t sess_id, gtpv2c_header_t *gt
 
 	if(context->indirect_tunnel_flag == CANCEL_S1_HO_INDICATION)
 	{
-		delete_sess_context(context, context->pdns[ebi_index]);
+		delete_sess_context(&context, context->pdns[ebi_index]);
 	}
 
 	/*ANCHOR GAETWAY*/
@@ -11681,16 +11686,6 @@ process_pfcp_sess_del_resp(uint64_t sess_id, gtpv2c_header_t *gtpv2c_tx,
 	/*Encode the S11 delete session response message. */
 	encode_del_sess_rsp(&del_resp, (uint8_t *)gtpv2c_tx);
 
-	if(context->indirect_tunnel_flag == 0) {
-		/* Update status of dsr processing for ue */
-		delete_sess_context(context, pdn);
-	}
-	else {
-		context->indirect_tunnel_flag = CANCEL_S1_HO_INDICATION;
-		context->indirect_tunnel->eps_bearer_id = pdn->default_bearer_id;
-	}
-
-
 	/* Update status of dsr processing for ue */
 	context->dsr_info.seq = 0;
 	context->dsr_info.status = DSR_PROCESS_DONE;
@@ -11700,7 +11695,13 @@ process_pfcp_sess_del_resp(uint64_t sess_id, gtpv2c_header_t *gtpv2c_tx,
 	delete_entry_from_sess_hash(sess_id, pfcp_rep_by_seid_hash);
 	delete_sess_in_thrtl_timer(context, sess_id);
 
-	//delete_sess_context(context, pdn);
+	if(context->indirect_tunnel_flag == 0) {
+		/* Update status of dsr processing for ue */
+		delete_sess_context(&context, pdn);
+	} else {
+		context->indirect_tunnel_flag = CANCEL_S1_HO_INDICATION;
+		context->indirect_tunnel->eps_bearer_id = pdn->default_bearer_id;
+	}
 
 	return 0;
 }

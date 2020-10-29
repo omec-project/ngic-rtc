@@ -199,7 +199,6 @@ int main(int argc, char **argv)
 				LOG_FORMAT"Unable to connect to DDF3\n", LOG_VALUE);
 	}
 
-	create_node_id_hash();
 	create_heartbeat_hash_table();
 
 	/* Initialize DP PORTS and membufs */

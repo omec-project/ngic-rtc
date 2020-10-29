@@ -89,7 +89,7 @@ download_hyperscan()
 download_freediameter()
 {
         cd $CUR_DIR
-        [ -d $DEPS_DIR/freediameter ] && echo "FreeDiameter already exists at $DEPS_DIR/freediameter" && return
+        [ -d $DEPS_DIR/freeDiameter ] && echo "FreeDiameter already exists at $DEPS_DIR/freeDiameter" && return
         echo "Download FreeDiameter from sprint-repos....."
         if [ ! -d $THIRD_PARTY_SW_PATH ]; then
              mkdir $THIRD_PARTY_SW_PATH
@@ -120,7 +120,7 @@ download_hiredis()
 
 build_fd_lib()
 {
-	pushd $CUR_DIR/$THIRD_PARTY_SW_PATH/freediameter
+	pushd $CUR_DIR/$THIRD_PARTY_SW_PATH/freeDiameter
 	if [ ! -e "build" ]; then
 		mkdir build
 	fi

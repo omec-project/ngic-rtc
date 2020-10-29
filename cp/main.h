@@ -104,6 +104,7 @@
  * max length of name string.
  */
 #define MAX_LEN 128
+#define GX_SESS_ID_LEN 256
 #ifdef USE_REST
 
 /* VS: Number of connection can maitain in the hash */

@@ -87,11 +87,9 @@ notification_handler(struct rte_mbuf **pkts,
 	struct rte_ring *ring = NULL;
 	struct rte_mbuf *buf_pkt = NULL;
 	pfcp_session_datat_t *data = NULL;
-	pdr_info_t *pdr[MAX_BURST_SZ] = {NULL};
-	pfcp_session_datat_t *sess_info[MAX_BURST_SZ] = {NULL};
 	uint64_t pkts_mask = 0, pkts_queue_mask = 0, fwd_pkts_mask = 0, snd_err_pkts_mask;
 	uint32_t *key = NULL;
-	unsigned int ret = 32, num = 32, i;
+	unsigned int ret = 0, num = 32, i;
 
 	pfcp_session_datat_t *sess_data[MAX_BURST_SZ] = {NULL};
 
@@ -142,9 +140,29 @@ notification_handler(struct rte_mbuf **pkts,
 		}
 
 		/* de-queue this ring and send the downlink pkts*/
-		while (ret) {
+		uint32_t cnt_t = rte_ring_count(ring);
+		while (cnt_t) {
 			ret = rte_ring_sc_dequeue_burst(ring,
 					(void **)pkts, num, ring_entry);
+			if (!ret) {
+				clLog(clSystemLog, eCLSeverityDebug,
+						LOG_FORMAT"DDN:Error not able to dequeue pts from ring, pkts_cnt:%u, cnt_t:%u\n",
+						LOG_VALUE, ret, cnt_t);
+				cnt_t = 0;
+				continue;
+			}
+
+			/* Reset the Session and PDR info */
+			pdr_info_t *pdr[MAX_BURST_SZ] = {NULL};
+			pfcp_session_datat_t *sess_info[MAX_BURST_SZ] = {NULL};
+			pkts_mask = 0;
+			fwd_pkts_mask = 0;
+			pkts_queue_mask = 0;
+			snd_err_pkts_mask = 0;
+
+			/* Decrement the packet counter */
+			cnt_t -= ret;
+
 			pkts_mask = (~0LLU) >> (64 - ret);
 
 			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"DDN:Dequeue pkts from the ring, pkts_cnt:%u\n",

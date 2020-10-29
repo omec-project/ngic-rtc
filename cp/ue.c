@@ -547,24 +547,12 @@ acquire_ip(struct in_addr ip_pool,
 	return 0;
 }
 
-
 static int
 fill_ipv6(uint8_t *ipv6, uint64_t prefix_len){
 
-	static uint8_t next_ipv6_index;
-	static uint8_t pos;
-	if(next_ipv6_index == MAX_UINT8_T_VAL){
-		pos++;
-		next_ipv6_index = 0;
-		if(pos + prefix_len >= IPV6_ADDRESS_LEN)
-			return -1;
-	}
-
-	int i = 0;
-	for(i = 0; i < pos; i++){
-		*(ipv6 + i) = MAX_UINT8_T_VAL;
-	}
-	*(ipv6 + i) = ++next_ipv6_index;
+	static uint64_t next_ipv6_index;
+	++next_ipv6_index;
+	memcpy(ipv6, &next_ipv6_index, (IPV6_ADDRESS_LEN - prefix_len));
 
 	return 0;
 }

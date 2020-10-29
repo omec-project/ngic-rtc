@@ -33,6 +33,7 @@
 #include <rte_malloc.h>
 #include <rte_jhash.h>
 
+#include "main.h"
 #include "gtpv2c_ie.h"
 #include "interface.h"
 #include "packet_filters.h"
@@ -838,7 +839,7 @@ typedef struct pdn_connection_t {
 
 	struct eps_bearer_t *packet_filter_map[MAX_FILTERS_PER_UE];
 
-	char gx_sess_id[MAX_LEN];
+	char gx_sess_id[GX_SESS_ID_LEN];
 
 	/*Structure used to store rule status for sending
 	 * provision ack */

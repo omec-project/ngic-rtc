@@ -65,7 +65,7 @@ add_sess_entry(uint64_t sess_id, struct resp_info *resp)
 
 		/* Session Entry not present. Add session Entry */
 		ret = rte_hash_add_key_data(sm_hash,
-						&sess_id, resp);
+						&sess_id, tmp);
 		if (ret) {
 			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to add entry = %lu"
 					"\n\tError= %s\n",

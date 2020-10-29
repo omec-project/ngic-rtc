@@ -1801,8 +1801,7 @@ delete_bearer_context(pdn_connection *pdn, int ebi_index ) {
 		if(delete_rule_in_bearer(pdn->eps_bearers[ebi_index])){
 			return -1;
 		}
-		/* TODO: Temp. Solution, Need to fix bug #1182 segmentation fault issue */
-		//rte_free(pdn->eps_bearers[ebi_index]);
+		rte_free(pdn->eps_bearers[ebi_index]);
 		pdn->eps_bearers[ebi_index] = NULL;
 		pdn->context->eps_bearers[ebi_index] = NULL;
 		pdn->context->bearer_bitmap &= ~(1 << ebi_index);
@@ -1811,9 +1810,10 @@ delete_bearer_context(pdn_connection *pdn, int ebi_index ) {
 }
 
 void
-delete_sess_context(ue_context *context, pdn_connection *pdn) {
+delete_sess_context(ue_context **_context, pdn_connection *pdn) {
 
 	int ret = 0;
+	ue_context *context = *_context;
 	/* Deleting session entry */
 	del_sess_entry(pdn->seid);
 
@@ -1897,8 +1897,8 @@ delete_sess_context(ue_context *context, pdn_connection *pdn) {
 		}
 
 		if (context != NULL) {
-			rte_free(context);
-			context = NULL;
+			rte_free(*_context);
+			*_context = NULL;
 		}
 	}
 	return;

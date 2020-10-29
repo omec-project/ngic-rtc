@@ -245,12 +245,12 @@ gen_ccru_request(ue_context *context, eps_bearer *bearer, bearer_rsrc_cmd_t *bea
 
 /**
  * @brief  : Delete session context in case of context replacement.
- * @param  : context, UE context information.
+ * @param  : _context, UE context information.
  * @param  : pdn, pdn information
  * @return : Returns nothing.
  */
 void
-delete_sess_context(ue_context *context, pdn_connection *pdn);
+delete_sess_context(ue_context **_context, pdn_connection *pdn);
 
 /**
  * @brief  : Delete rules in bearer context.

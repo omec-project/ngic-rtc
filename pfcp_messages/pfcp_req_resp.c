@@ -66,7 +66,6 @@ extern socklen_t s11_mme_sockaddr_len;
 extern socklen_t s11_mme_sockaddr_ipv6_len;
 extern peer_addr_t s5s8_recv_sockaddr;
 #else
-extern struct rte_hash *node_id_hash;
 #endif /* CP_BUILD */
 
 #if defined(CP_BUILD) || defined(DP_BUILD)
@@ -413,7 +412,6 @@ process_pfcp_msg(uint8_t *buf_rx, peer_addr_t *peer_addr, bool is_ipv6)
 						LOG_VALUE, (pfcp_ass_setup_req.rcvry_time_stmp.rcvry_time_stmp_val),
 						(pfcp_ass_setup_req.cp_func_feat.sup_feat));
 
-				uint32_t nodeid = 0;
 				uint8_t cause_id = 0;
 				node_address_t pfcp_ass_setup_req_node = {0};
 				node_address_t pfcp_ass_setup_resp_node = {0};
@@ -440,25 +438,6 @@ process_pfcp_msg(uint8_t *buf_rx, peer_addr_t *peer_addr, bool is_ipv6)
 							"IP address", LOG_VALUE);
 					}
 
-					if (pfcp_ass_setup_req_node.ip_type == PDN_TYPE_IPV6
-						|| pfcp_ass_setup_req_node.ip_type == PDN_TYPE_IPV4_IPV6) {
-
-						*data = NODE_ID_TYPE_TYPE_IPV6ADDRESS;
-					} else if (pfcp_ass_setup_req_node.ip_type == PDN_TYPE_IPV4) {
-
-						*data = NODE_ID_TYPE_TYPE_IPV4ADDRESS;
-						nodeid =(ntohl(pfcp_ass_setup_req_node.ipv4_addr));
-					}
-
-
-					clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"NODEID in INTERRFACE [%u]\n", LOG_VALUE, nodeid);
-					clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"DATA[%lu]\n", LOG_VALUE, *data);
-					add_node_id_hash(&nodeid, data);
-					/*Data was not being in use , Doing rte free */
-					if (data != NULL) {
-						rte_free(data);
-						data = NULL;
-					}
 				}
 
 				add_ip_to_heartbeat_hash(&peer_info,

@@ -48,7 +48,6 @@ extern pfcp_config_t config;
 static uint32_t pfcp_sgwc_seid_offset;
 #endif /* CP_BUILD */
 
-extern struct rte_hash *node_id_hash;
 extern struct rte_hash *heartbeat_recovery_hash;
 const uint64_t pfcp_sgwc_base_seid = 0xC0FFEE;
 
@@ -1556,42 +1555,6 @@ upf_context_entry_lookup(node_address_t upf_ip, upf_context_t **entry)
 
 #endif /* CP_BUILD */
 
-uint8_t
-add_node_id_hash(uint32_t *nodeid, uint64_t *data )
-{
-	int ret = 0;
-	uint32_t key = UINT32_MAX;
-	uint64_t *temp = NULL;
-
-	key = *nodeid;
-
-	ret = rte_hash_lookup_data(node_id_hash,(const void*) &key,
-							(void **) &(temp));
-	if (ret < 0) {
-
-		temp =(uint64_t *) rte_zmalloc_socket(NULL, sizeof(uint64_t),
-				RTE_CACHE_LINE_SIZE, rte_socket_id());
-		if (temp == NULL) {
-			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to allocate "
-				"memory for Node id, Error : %s\n", LOG_VALUE,
-				rte_strerror(rte_errno));
-			return 1;
-		}
-		*temp = *data;
-		ret = rte_hash_add_key_data(node_id_hash,
-				(const void *)&key , (void *)temp);
-		if (ret < 0) {
-			clLog(clSystemLog, eCLSeverityCritical,
-				LOG_FORMAT" Failed to add Node ID entry in hash\n",
-				LOG_VALUE, strerror(ret));
-			rte_free((temp));
-			return 1;
-		}
-	}
-	return 0;
-}
-
-
 void
 cause_check_sess_modification(pfcp_sess_mod_req_t *pfcp_session_mod_req,
 		uint8_t *cause_id, int *offend_id)
@@ -1758,7 +1721,7 @@ create_gx_context_hash(void)
 	struct rte_hash_parameters rte_hash_params = {
 			.name = "gx_context_by_sess_id_hash",
 	    .entries = UPF_ENTRIES_DEFAULT,
-	    .key_len = MAX_LEN,
+	    .key_len = GX_SESS_ID_LEN,
 	    .hash_func = rte_jhash,
 	    .hash_func_init_val = 0,
 	    .socket_id = rte_socket_id(),

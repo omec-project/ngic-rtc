@@ -161,7 +161,7 @@ clean_up_while_error(uint8_t ebi, ue_context *context, uint32_t teid, uint64_t *
 	} else {
 		if(config.use_dns) {
 			/* Delete UPFList entry from UPF Hash */
-			if ((upflist_by_ue_hash_entry_delete(&context->imsi, sizeof(context->imsi)))
+			if ((upflist_by_ue_hash_entry_delete(imsi_val, sizeof(imsi_val)))
 					< 0) {
 				clLog(clSystemLog, eCLSeverityCritical,
 						LOG_FORMAT"Error on upflist_by_ue_hash deletion of IMSI \n",
@@ -1491,7 +1491,7 @@ void ds_error_response(msg_info *msg, uint8_t cause_value, uint8_t cause_source,
 
 	/* cleanup the ue info structures */
 	if(context && pdn) {
-		delete_sess_context(context, pdn);
+		delete_sess_context(&context, pdn);
 	}
 
 	return;

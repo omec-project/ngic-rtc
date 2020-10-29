@@ -1004,21 +1004,24 @@ decode_check_csr(gtpv2c_header_t *gtpv2c_rx,
 															" Requested PGW IP type\n", LOG_VALUE);
 			return GTPV2C_CAUSE_REQUEST_REJECTED;
 		}
+		struct in6_addr temp = {0};
 		if ((csr->pgw_s5s8_addr_ctl_plane_or_pmip.ipv4_address != 0
 				|| csr->pgw_s5s8_addr_ctl_plane_or_pmip.ipv6_address != 0)
 				&& (config.s5s8_ip.s_addr != 0
 					|| *config.s5s8_ip_v6.s6_addr)) {
 			/* Selection Criteria for Combined GW, SAEGWC */
 			if((((csr->pgw_s5s8_addr_ctl_plane_or_pmip.v4)
-					&& (csr->pgw_s5s8_addr_ctl_plane_or_pmip.ipv4_address == config.s5s8_ip.s_addr))
-					|| (csr->pgw_s5s8_addr_ctl_plane_or_pmip.v6
-						&& memcmp(csr->pgw_s5s8_addr_ctl_plane_or_pmip.ipv6_address,
-								config.s5s8_ip_v6.s6_addr, IPV6_ADDRESS_LEN) == 0))
+							&& (csr->pgw_s5s8_addr_ctl_plane_or_pmip.ipv4_address == config.s5s8_ip.s_addr))
+						|| (csr->pgw_s5s8_addr_ctl_plane_or_pmip.v6
+							&& (!memcmp(csr->pgw_s5s8_addr_ctl_plane_or_pmip.ipv6_address,
+										temp.s6_addr, IPV6_ADDRESS_LEN)
+								|| (memcmp(csr->pgw_s5s8_addr_ctl_plane_or_pmip.ipv6_address,
+										config.s5s8_ip_v6.s6_addr, IPV6_ADDRESS_LEN) == 0))))
 					|| (((csr->pgw_s5s8_addr_ctl_plane_or_pmip.v4)
-						&& (csr->pgw_s5s8_addr_ctl_plane_or_pmip.ipv4_address == config.s11_ip.s_addr))
+							&& (csr->pgw_s5s8_addr_ctl_plane_or_pmip.ipv4_address == config.s11_ip.s_addr))
 						|| (csr->pgw_s5s8_addr_ctl_plane_or_pmip.v6
 							&& memcmp(csr->pgw_s5s8_addr_ctl_plane_or_pmip.ipv6_address,
-											config.s11_ip_v6.s6_addr, IPV6_ADDRESS_LEN) == 0))) {
+								config.s11_ip_v6.s6_addr, IPV6_ADDRESS_LEN) == 0))) {
 
 				/* Condition to Allow GW run as a Combined GW */
 				if (config.cp_type == SAEGWC) {

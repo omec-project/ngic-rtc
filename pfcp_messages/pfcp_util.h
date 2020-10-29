@@ -55,7 +55,6 @@
 #define FRWDING_PLCY_ID						6
 
 extern uint32_t start_time;
-extern struct rte_hash *node_id_hash;
 extern struct rte_hash *heartbeat_recovery_hash;
 
 #define QUERY_RESULT_COUNT 16
@@ -161,14 +160,6 @@ pfcp_send(int fd_v4 , int fd_v6, void *msg_payload, uint32_t size,
  */
 long
 uptime(void);
-
-/**
- * @brief  : Creates node id hash
- * @param  : No param
- * @return : Returns nothing
- */
-void
-create_node_id_hash(void );
 
 /**
  * @brief  : creates associated upf hash

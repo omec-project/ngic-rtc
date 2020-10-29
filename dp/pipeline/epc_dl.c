@@ -589,7 +589,8 @@ void epc_dl(void *args)
 
 			/* Free allocated Mbufs */
 			for (uint16_t inx = 0; inx < pkt_cnt; inx++) {
-				rte_pktmbuf_free(pkts[inx]);
+				if (pkts[inx])
+					rte_pktmbuf_free(pkts[inx]);
 			}
 
 			rx_cnt -= tx_cnt;
@@ -598,14 +599,22 @@ void epc_dl(void *args)
 	}
 
 	uint32_t count = rte_ring_count(notify_ring);
-	if (count) {
+	while (count) {
 		struct rte_mbuf *pkts[count];
 		uint32_t rx_cnt = rte_ring_dequeue_bulk(notify_ring,
 				(void**)pkts, count, NULL);
-		int ret  = notification_handler(pkts, rx_cnt);
-		if (ret < 0)
+		int ret = notification_handler(pkts, rx_cnt);
+		if (ret < 0) {
 			clLog(clSystemLog, eCLSeverityCritical,
 				LOG_FORMAT"ERROR: Notification handler failed\n", LOG_VALUE);
+		}
+
+		/* Free allocated Mbufs */
+		for (uint16_t inx = 0; inx < rx_cnt; inx++) {
+			if (pkts[inx])
+				rte_pktmbuf_free(pkts[inx]);
+		}
+		count -= rx_cnt;
 	}
 
 }

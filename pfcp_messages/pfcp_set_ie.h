@@ -156,7 +156,7 @@ typedef struct gx_context_t {
 	uint8_t cp_mode;
 	uint8_t state;
 	uint8_t proc;
-	char gx_sess_id[MAX_LEN];
+	char gx_sess_id[GX_SESS_ID_LEN];
 	unsigned long  rqst_ptr; /*In Case of RAA, need to store RAR pointer*/
 } gx_context_t;
 
@@ -915,16 +915,6 @@ cause_check_sess_modification(pfcp_sess_mod_req_t
 void
 cause_check_delete_session(pfcp_sess_del_req_t
 		*pfcp_session_delete_req, uint8_t *cause_id, int *offend_id);
-
-/**
- * @brief  : Add new node in node id hash
- * @param  : nodeid, node id value
- * @param  : data, node type ipv4 or ipv6
- * @return : Returns 0 in case of success , -1 otherwise
- */
-uint8_t
-add_node_id_hash(uint32_t *nodeid, uint64_t *data);
-
 /**
  * @brief  : Create recovery time hash table
  * @param  : No param

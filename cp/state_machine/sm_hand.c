@@ -2433,7 +2433,7 @@ process_pfcp_sess_del_resp_dbr_handler(void *data, void *unused_param)
 					ntohs(s5s8_recv_sockaddr.ipv6.sin6_port)));
 	}
 
-	delete_sess_context(context, pdn);
+	delete_sess_context(&context, pdn);
 
 	RTE_SET_USED(unused_param);
 
@@ -3848,7 +3848,7 @@ process_pfcp_sess_del_resp_context_replacement_handler(void *data, void *unused_
 	msg->gtpc_msg.csr = resp->gtpc_msg.csr;
 
 	/* deleting UE context */
-	delete_sess_context(context, pdn);
+	delete_sess_context(&context, pdn);
 
 	/* new csr handling */
 	ret = process_create_sess_req(&msg->gtpc_msg.csr,
@@ -3883,8 +3883,25 @@ process_pfcp_sess_del_resp_context_replacement_handler(void *data, void *unused_
 				push_dns_query(pdn);
 				return 0;
 			} else {
-			/*SJ : Add Conditional based IP assignment for IPv6/IPv4*/
-			pdn->upf_ip.ipv4_addr = config.upf_pfcp_ip.s_addr;
+
+				/*Filling Node ID*/
+				if (config.upf_pfcp_ip_type == PDN_IP_TYPE_IPV4) {
+
+					uint8_t temp[IPV6_ADDRESS_LEN] = {0};
+					ret = fill_ip_addr(config.upf_pfcp_ip.s_addr, temp, &pdn->upf_ip);
+					if (ret < 0) {
+						clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+								"IP address", LOG_VALUE);
+					}
+				} else if (config.upf_pfcp_ip_type == PDN_IP_TYPE_IPV6) {
+
+					ret = fill_ip_addr(0, config.upf_pfcp_ip_v6.s6_addr, &pdn->upf_ip);
+					if (ret < 0) {
+						clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+								"IP address", LOG_VALUE);
+					}
+
+				}
 			}
 		}
 

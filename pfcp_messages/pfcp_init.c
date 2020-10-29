@@ -749,7 +749,7 @@ gen_sess_id_string(char *str_buf, char *timestamp , uint32_t value)
 		return -1;
 	}
 
-	snprintf(str_buf, MAX_LEN,"%s%s", timestamp, buf);
+	snprintf(str_buf, GX_SESS_ID_LEN,"%s%s", timestamp, buf);
 	return 0;
 }
 
@@ -801,7 +801,7 @@ retrieve_call_id(char *str, uint32_t *call_id)
 int8_t
 gen_sess_id_for_ccr(char *sess_id, uint32_t call_id)
 {
-	char timestamp[MAX_LEN] = {0};
+	char timestamp[GX_SESS_ID_LEN] = {0};
 
 	get_timestamp(timestamp);
 

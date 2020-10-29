@@ -1545,7 +1545,7 @@ parse_gx_cca_msg(GxCCA *cca, pdn_connection **_pdn)
 		/* Check for implimentation wise Mandotory AVP */
 		if ( cca->presence.charging_rule_install != PRESENT ) {
 			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT" Error : "
-					"default_eps_bearer_qos is missing \n", LOG_VALUE);
+					"AVP: charging_rule_install is missing \n", LOG_VALUE);
 			return GTPV2C_CAUSE_INVALID_REPLY_FROM_REMOTE_PEER;
 		}
 

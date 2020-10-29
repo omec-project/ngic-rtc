@@ -34,7 +34,6 @@ extern uint16_t dp_comm_port;
 extern struct in_addr dp_comm_ip;
 extern struct in6_addr dp_comm_ipv6;
 extern struct in_addr cp_comm_ip;
-extern struct rte_hash *node_id_hash;
 extern int clSystemLog;
 
 #ifdef USE_CSID
@@ -2220,27 +2219,34 @@ process_update_far_info(pfcp_update_far_ie_t *far, uint64_t up_seid,
 						/** Resolved queued pkts by dl core and enqueue pkts into notification ring */
 							struct rte_mbuf *buf_pkt =
 								rte_ctrlmbuf_alloc(notify_msg_pool);
-							uint32_t *key =
-								rte_pktmbuf_mtod(buf_pkt, uint32_t *);
-
-							if ((far_t->session)->pdrs) {
-								if ((far_t->session)->pdrs->pdi.local_fteid.teid) {
-									*key = (far_t->session)->pdrs->pdi.local_fteid.teid;
-								} else if ((far_t->session)->pdrs->pdi.ue_addr.ipv4_address) {
-									*key = (far_t->session)->pdrs->pdi.ue_addr.ipv4_address;
-								}
-							} else {
-								clLog(clSystemLog, eCLSeverityDebug,
-									LOG_FORMAT"ERROR: PDRs value is NULL\n", LOG_VALUE);
-								break;
+							if (buf_pkt == NULL) {
+								clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT
+										"Failed to Allocate a new mbuf from mempool \n", LOG_VALUE);
 							}
+							if (buf_pkt != NULL) {
+								uint32_t *key =
+									rte_pktmbuf_mtod(buf_pkt, uint32_t *);
 
-							rte_ring_enqueue(notify_ring,
-							        buf_pkt);
 
-							(far_t->session)->sess_state = CONNECTED;
-							clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Session State Change : "
+								if ((far_t->session)->pdrs) {
+									if ((far_t->session)->pdrs->pdi.local_fteid.teid) {
+										*key = (far_t->session)->pdrs->pdi.local_fteid.teid;
+									} else if ((far_t->session)->pdrs->pdi.ue_addr.ipv4_address) {
+										*key = (far_t->session)->pdrs->pdi.ue_addr.ipv4_address;
+									}
+								} else {
+									clLog(clSystemLog, eCLSeverityDebug,
+											LOG_FORMAT"ERROR: PDRs value is NULL\n", LOG_VALUE);
+									break;
+								}
+								rte_ring_enqueue(notify_ring,
+										buf_pkt);
+
+
+								(far_t->session)->sess_state = CONNECTED;
+								clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Session State Change : "
 										"IN_PROGRESS --> CONNECTED\n", LOG_VALUE);
+							}
 						}
 						break;
 					default:
@@ -3284,8 +3290,10 @@ up_delete_session_entry(pfcp_session_t *sess, pfcp_sess_del_rsp_t *sess_del_rsp)
 				        (void **)m, MAX_BURST_SZ, ring_entry);
 #endif
 
-				for (i = 0; i < ret; ++i)
-				    rte_pktmbuf_free(m[i]);
+				for (i = 0; i < ret; ++i) {
+					if (m[i] != NULL)
+						rte_pktmbuf_free(m[i]);
+				}
 				count += ret;
 			} while (ret);
 
