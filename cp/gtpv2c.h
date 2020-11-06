@@ -802,4 +802,16 @@ set_release_access_bearer_response(gtpv2c_header_t *gtpv2c_tx, pdn_connection *p
 void
 set_create_indir_data_frwd_tun_response(gtpv2c_header_t *gtpv2c_tx, pdn_connection *pdn);
 
+
+/*
+ * @brief  : process  session modification response after mbr in s1 handover
+ * @param  : mb_rsp , modify bearer response object
+ * @param  : conetxt, ue_context
+ * @param  : pdn_connection structre pointer
+ * @param  : bearer, eps_bearer
+ * @return : Returns zero on success.
+ */
+int
+process_pfcp_sess_mod_resp_s1_handover(mod_bearer_rsp_t *mb_rsp, ue_context *context,
+		pdn_connection *pdn, eps_bearer *bearer);
 #endif /* GTPV2C_H */

@@ -1402,3 +1402,134 @@ process_mb_request_cb_response(mod_bearer_req_t *mbr, create_bearer_rsp_t *cb_rs
 	return 0;
 }
 
+int
+process_pfcp_sess_mod_resp_s1_handover(mod_bearer_rsp_t *mb_rsp, ue_context *context,
+		pdn_connection *pdn, eps_bearer *bearer)
+{
+	struct resp_info *resp = NULL;
+	uint32_t seq = 0;
+	int ret = 0;
+	if (get_sess_entry(pdn->seid, &resp) != 0){
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"No Session entry found "
+			"for seid: %lu", LOG_VALUE, pdn->seid);
+		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+	}
+#ifdef USE_CSID
+		fqcsid_t *tmp = NULL;
+		pfcp_sess_mod_req_t pfcp_sess_mod_req = {0};
+		/* PGW FQ-CSID */
+		if ( mb_rsp->pgw_fqcsid.header.len) {
+			/* Remove Exsiting PGW CSID linked with session */
+			if (pdn->pgw_csid.num_csid) {
+				memset(&pdn->pgw_csid, 0,  sizeof(fqcsid_t));
+			}
+
+			ret = add_peer_addr_entry_for_fqcsid_ie_node_addr(
+					&pdn->s5s8_pgw_gtpc_ip, &mb_rsp->pgw_fqcsid,
+					S5S8_SGWC_PORT_ID);
+			if (ret)
+				return ret;
+
+			/* Stored the PGW CSID by PGW Node address */
+			ret = add_fqcsid_entry(&mb_rsp->pgw_fqcsid, context->pgw_fqcsid);
+			if(ret)
+				return ret;
+
+			fill_pdn_fqcsid_info(&pdn->pgw_csid, context->pgw_fqcsid);
+
+		} else {
+			tmp = get_peer_addr_csids_entry(&(pdn->s5s8_pgw_gtpc_ip),
+					ADD_NODE);
+			if (tmp == NULL) {
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Error: Failed to "
+						"add PGW CSID by PGW Node addres %s \n", LOG_VALUE,
+						strerror(errno));
+				return GTPV2C_CAUSE_SYSTEM_FAILURE;
+			}
+			memcpy(&(tmp->node_addr),
+					&(pdn->s5s8_pgw_gtpc_ip), sizeof(node_address_t));
+			memcpy(&((context->pgw_fqcsid)->node_addr[(context->pgw_fqcsid)->num_csid]),
+					&(pdn->s5s8_pgw_gtpc_ip), sizeof(node_address_t));
+		}
+
+		/* Link local CSID with PGW CSID */
+		if (pdn->pgw_csid.num_csid) {
+			if (link_gtpc_peer_csids(&pdn->pgw_csid,
+						&pdn->sgw_csid, S5S8_SGWC_PORT_ID)) {
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to Link "
+						"Local CSID entry to link with PGW FQCSID, Error : %s \n", LOG_VALUE,
+						strerror(errno));
+				return -1;
+			}
+
+			if (link_sess_with_peer_csid(&pdn->pgw_csid, pdn, S5S8_SGWC_PORT_ID)) {
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Error : Failed to Link "
+						"Session with Peer CSID\n", LOG_VALUE);
+				return -1;
+			}
+
+			/* Send pfcp mod req to SGWU for pgwc csid */
+			seq = get_pfcp_sequence_number(PFCP_SESSION_MODIFICATION_REQUEST, seq);
+
+			set_pfcp_seid_header((pfcp_header_t *) &(pfcp_sess_mod_req.header),
+					PFCP_SESSION_MODIFICATION_REQUEST, HAS_SEID, seq, context->cp_mode);
+
+			pfcp_sess_mod_req.header.seid_seqno.has_seid.seid = pdn->dp_seid;
+
+			node_address_t node_value = {0};
+			/*Filling Node ID for F-SEID*/
+			if (pdn->upf_ip.ip_type == PDN_IP_TYPE_IPV4) {
+				uint8_t temp[IPV6_ADDRESS_LEN] = {0};
+				ret = fill_ip_addr(config.pfcp_ip.s_addr, temp, &node_value);
+				if (ret < 0) {
+					clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+							"IP address", LOG_VALUE);
+				}
+
+			} else if (pdn->upf_ip.ip_type == PDN_IP_TYPE_IPV6) {
+
+				ret = fill_ip_addr(0, config.pfcp_ip_v6.s6_addr, &node_value);
+				if (ret < 0) {
+					clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+							"IP address", LOG_VALUE);
+				}
+
+			}
+			set_fseid(&(pfcp_sess_mod_req.cp_fseid), pdn->seid, node_value);
+
+			/* Set PGW FQ-CSID */
+			set_fq_csid_t(&pfcp_sess_mod_req.pgw_c_fqcsid, &pdn->pgw_csid);
+
+			uint8_t pfcp_msg[PFCP_MSG_LEN] = {0};
+			int encoded = encode_pfcp_sess_mod_req_t(&pfcp_sess_mod_req, pfcp_msg);
+			pfcp_header_t *header = (pfcp_header_t *)pfcp_msg;
+			header->message_len = htons(encoded - PFCP_IE_HDR_SIZE);
+
+			if (pfcp_send(pfcp_fd, pfcp_fd_v6, pfcp_msg, encoded, upf_pfcp_sockaddr,SENT) < 0){
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to Send "
+						"PFCP Session Modification to SGW-U",LOG_VALUE);
+			}else{
+#ifdef CP_BUILD
+				/*extract ebi_id from array as all the ebi's will be of same pdn.*/
+				int ebi_index = GET_EBI_INDEX(bearer->eps_bearer_id);
+				if (ebi_index == -1) {
+					clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Invalid EBI ID\n", LOG_VALUE);
+					return GTPV2C_CAUSE_SYSTEM_FAILURE;
+				}
+				add_pfcp_if_timer_entry(context->s11_sgw_gtpc_teid,
+						&upf_pfcp_sockaddr, pfcp_msg, encoded, ebi_index);
+#endif /* CP_BUILD */
+			}
+
+			/* Update UE State */
+			pdn->state = PFCP_SESS_MOD_REQ_SNT_STATE;
+			/* Set create session response */
+			/*extract ebi_id from array as all the ebi's will be of same pdn.*/
+			resp->linked_eps_bearer_id = bearer->eps_bearer_id;
+			resp->msg_type = GTP_MODIFY_BEARER_REQ;
+			resp->state = PFCP_SESS_MOD_REQ_SNT_STATE;
+			context->update_sgw_fteid = FALSE;
+		}
+#endif /* USE_CSID */
+		return 0;
+}

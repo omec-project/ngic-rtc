@@ -9698,6 +9698,11 @@ process_pfcp_sess_mod_resp_mbr_req(pfcp_sess_mod_rsp_t *pfcp_sess_mod_rsp,
 		gtpv2c_send(s5s8_fd, s5s8_fd_v6, tx_buf, payload_length,
 				s5s8_recv_sockaddr, SENT);
 
+		context->uli_flag = 0;
+		context->ue_time_zone_flag = FALSE;
+		context->serving_nw_flag = FALSE;
+		pdn->flag_fqcsid_modified = FALSE;
+
 		cp_mode = pdn->context->cp_mode;
 		add_gtpv2c_if_timer_entry(
 				pdn->context->s11_sgw_gtpc_teid,

@@ -605,7 +605,7 @@ process_sess_mod_resp_handler(void *data, void *unused_param)
 	if (ret) {
 		pfcp_modification_error_response(resp, msg, GTPV2C_CAUSE_CONTEXT_NOT_FOUND);
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to get UE "
-			"context for teid: %u\n", LOG_VALUE, teid);
+				"context for teid: %u\n", LOG_VALUE, teid);
 		return -1;
 	}
 
@@ -621,7 +621,7 @@ process_sess_mod_resp_handler(void *data, void *unused_param)
 	pdn = GET_PDN(context, ebi_index);
 	if(pdn == NULL){
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to get "
-					"pdn for ebi_index %d\n", LOG_VALUE, ebi_index);
+				"pdn for ebi_index %d\n", LOG_VALUE, ebi_index);
 		pfcp_modification_error_response(resp, msg, GTPV2C_CAUSE_CONTEXT_NOT_FOUND);
 		return -1;
 	}
@@ -3180,7 +3180,7 @@ int process_pfcp_sess_set_del_rsp(void *data, void *unused_param)
 	msg_info *msg = (msg_info *)data;
 
 	ret = process_pfcp_sess_set_del_rsp_t(&msg->pfcp_msg.pfcp_sess_set_del_rsp);
-	if (ret) {
+	if (ret){
 			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Error recieved while"
 				" processing PFCP Set Deletion Response with cause: %s \n",
 				LOG_VALUE, cause_str(ret));
@@ -3220,7 +3220,6 @@ process_mb_resp_handler(void *data, void *unused_param)
 			LOG_VALUE, msg->gtpc_msg.mb_rsp.header.teid.has_teid.teid);
 		return -1;
 	}
-
 	if(msg->gtpc_msg.mb_rsp.pres_rptng_area_act.header.len){
 		store_presc_reporting_area_act_to_ue_context(&msg->gtpc_msg.mb_rsp.pres_rptng_area_act,
 																						context);
@@ -3248,42 +3247,47 @@ process_mb_resp_handler(void *data, void *unused_param)
 		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 	}
 
-	set_modify_bearer_response(gtpv2c_tx,
-			context->sequence, context, bearer, &resp->gtpc_msg.mbr);
+	if(context->update_sgw_fteid != TRUE ) {
+		set_modify_bearer_response(gtpv2c_tx,
+				context->sequence, context, bearer, &resp->gtpc_msg.mbr);
 
-	ret = set_dest_address(context->s11_mme_gtpc_ip, &s11_mme_sockaddr);
-	if (ret < 0) {
-		clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
-			"IP address", LOG_VALUE);
+		ret = set_dest_address(context->s11_mme_gtpc_ip, &s11_mme_sockaddr);
+		if (ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+		}
+
+		int payload_length = ntohs(gtpv2c_tx->gtpc.message_len)
+			+ sizeof(gtpv2c_tx->gtpc);
+
+		gtpv2c_send(s11_fd, s11_fd_v6, tx_buf, payload_length,
+				s11_mme_sockaddr, ACC);
+
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Modify Bearer Response SNT \n",
+				LOG_VALUE);
+
+		process_cp_li_msg(
+				msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid,
+				S11_INTFC_OUT, tx_buf, payload_length,
+				fill_ip_info(s11_mme_sockaddr.type,
+					config.s11_ip.s_addr,
+					config.s11_ip_v6.s6_addr),
+				fill_ip_info(s11_mme_sockaddr.type,
+					s11_mme_sockaddr.ipv4.sin_addr.s_addr,
+					s11_mme_sockaddr.ipv6.sin6_addr.s6_addr),
+				config.s11_port,
+				((s11_mme_sockaddr.type == IPTYPE_IPV4_LI) ?
+				 ntohs(s11_mme_sockaddr.ipv4.sin_port) :
+				 ntohs(s11_mme_sockaddr.ipv6.sin6_port)));
+
+		RTE_SET_USED(unused_param);
+
+		resp->state = CONNECTED_STATE;
+		pdn->state =  CONNECTED_STATE;
+	} else {
+		process_pfcp_sess_mod_resp_s1_handover(&msg->gtpc_msg.mb_rsp,
+					context, pdn, bearer);
 	}
-
-	int payload_length = ntohs(gtpv2c_tx->gtpc.message_len)
-		+ sizeof(gtpv2c_tx->gtpc);
-
-	gtpv2c_send(s11_fd, s11_fd_v6, tx_buf, payload_length,
-			s11_mme_sockaddr, ACC);
-
-	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Modify Bearer Response SNT \n",
-			LOG_VALUE);
-
-	process_cp_li_msg(
-			msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid,
-			S11_INTFC_OUT, tx_buf, payload_length,
-			fill_ip_info(s11_mme_sockaddr.type,
-				config.s11_ip.s_addr,
-				config.s11_ip_v6.s6_addr),
-			fill_ip_info(s11_mme_sockaddr.type,
-				s11_mme_sockaddr.ipv4.sin_addr.s_addr,
-				s11_mme_sockaddr.ipv6.sin6_addr.s6_addr),
-			config.s11_port,
-			((s11_mme_sockaddr.type == IPTYPE_IPV4_LI) ?
-				ntohs(s11_mme_sockaddr.ipv4.sin_port) :
-				ntohs(s11_mme_sockaddr.ipv6.sin6_port)));
-
-	RTE_SET_USED(unused_param);
-
-	resp->state = CONNECTED_STATE;
-	pdn->state =  CONNECTED_STATE;
 	RTE_SET_USED(unused_param);
 	return 0;
 }

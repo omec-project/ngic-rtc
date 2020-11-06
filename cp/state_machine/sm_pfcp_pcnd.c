@@ -110,7 +110,7 @@ pfcp_pcnd_check(uint8_t *pfcp_rx, msg_info *msg, int bytes_rx, peer_addr_t *peer
 				if (ret < 0) {
 					clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
 						"IP address", LOG_VALUE);
-				}				
+				}
 				dump_predefined_rules_on_up(msg->upf_ip);
 			}
 
@@ -199,7 +199,7 @@ pfcp_pcnd_check(uint8_t *pfcp_rx, msg_info *msg, int bytes_rx, peer_addr_t *peer
 					"with IPv4 : "IPV4_ADDR"\t and IPv6 : "IPv6_FMT"",
 					LOG_VALUE, ip_type_str(msg->upf_ip.ip_type),
 					IPV4_ADDR_HOST_FORMAT(msg->upf_ip.ipv4_addr),
-					PRINT_IPV6_ADDR(msg->upf_ip.ipv6_addr));				
+					PRINT_IPV6_ADDR(msg->upf_ip.ipv6_addr));
 				return -1;
 			}
 
@@ -257,7 +257,7 @@ pfcp_pcnd_check(uint8_t *pfcp_rx, msg_info *msg, int bytes_rx, peer_addr_t *peer
 					"IPv4 : "IPV4_ADDR"\t and IPv6 : "IPv6_FMT"",
 					LOG_VALUE, msg->msg_type, ip_type_str(msg->upf_ip.ip_type),
 					IPV4_ADDR_HOST_FORMAT(msg->upf_ip.ipv4_addr),
-					PRINT_IPV6_ADDR(msg->upf_ip.ipv6_addr));				
+					PRINT_IPV6_ADDR(msg->upf_ip.ipv6_addr));
 				return -1;
 			}
 
