@@ -257,7 +257,7 @@ struct acl_rules_table {
 
 struct acl_config acl_config[MAX_ACL_TABLES];
 struct acl_rules_table acl_rules_table[MAX_ACL_TABLES];
-struct acl_search acl_search;
+struct acl_search acl_search = {0};
 
 
 /*******************************************************[START]**********************************************************/
@@ -352,37 +352,20 @@ prepare_one_packet(struct rte_mbuf **pkts_in, struct acl_search *acl,
 		int index)
 {
 	struct rte_mbuf *pkt = pkts_in[index];
-	uint64_t len = 0;
-	uint8_t *data = NULL;
-
-	len = ETH_HDR_SIZE;
-
-	/*Get pointer to IP frame in packet*/
-	data = rte_pktmbuf_mtod_offset(pkt, uint8_t *, len);
 
 	/* Fill acl structure */
-	if (( data[0] & VERSION_FLAG_CHECK ) == IPv4_VERSION) {
-        /* Fill acl structure */
-        acl->data_ipv4[acl->num_ipv4] = MBUF_IPV4_2PROTO(pkt);
-        if (acl->data_ipv4[acl->num_ipv4] != NULL) {
-            acl->m_ipv4[(acl->num_ipv4)++] = pkt;
-        } else {
-            /* Malformed packet, drop the packet */
-            rte_pktmbuf_free(pkt);
-        }
-    } else if (( data[0] & VERSION_FLAG_CHECK ) == IPv6_VERSION) {
-        /* Fill acl structure */
-        acl->data_ipv6[acl->num_ipv6] = MBUF_IPV6_2PROTO(pkt);
-        if (acl->data_ipv6[acl->num_ipv6] != NULL) {
-            acl->m_ipv6[(acl->num_ipv6)++] = pkt;
-        } else {
-            /* Malformed packet, drop the packet */
-            rte_pktmbuf_free(pkt);
-        }
-    } else {
-        /* Unknown type, drop the packet */
-        rte_pktmbuf_free(pkt);
-    }
+	if (RTE_ETH_IS_IPV4_HDR(pkt->packet_type)) {
+		/* IPv4 Information */
+		acl->data_ipv4[acl->num_ipv4] = MBUF_IPV4_2PROTO(pkt);
+		acl->m_ipv4[(acl->num_ipv4)++] = pkt;
+	} else if (RTE_ETH_IS_IPV6_HDR(pkt->packet_type)) {
+		/* IPv6 Information */
+		acl->data_ipv6[acl->num_ipv6] = MBUF_IPV6_2PROTO(pkt);
+		acl->m_ipv6[(acl->num_ipv6)++] = pkt;
+	} else {
+		/* Malformed packet, drop the packet */
+		rte_pktmbuf_free(pkt);
+	}
 }
 
 /**
@@ -1544,6 +1527,8 @@ static uint32_t *acl_lookup(struct rte_mbuf **m, uint32_t indx,
 		struct acl_config *acl_config,
 		struct acl_search *acl_search)
 {
+	/* Reset the acl_search struct */
+	memset(acl_search, 0, sizeof(struct acl_search));
 	struct rte_acl_ctx *context = NULL;
 	context = acl_config->acx_ipv4;
 	if(context == NULL){
@@ -1638,7 +1623,7 @@ int up_sdf_default_entry_add(uint32_t indx, uint32_t precedence, uint8_t directi
 
 int
 sdf_table_delete(uint32_t indx,
-					struct sdf_pkt_filter *pkt_filter_entry){
+		struct sdf_pkt_filter *pkt_filter_entry){
 
 	struct rte_acl_ctx *ctx = NULL;
 	struct acl_rules_table *t = &acl_rules_table[indx];

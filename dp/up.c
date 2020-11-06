@@ -1207,130 +1207,134 @@ update_enb_info(struct rte_mbuf **pkts, uint32_t n,
 	for (i = 0; i < n; i++) {
 		if ((ISSET_BIT(*pkts_mask, i)) &&
 				(ISSET_BIT(*fd_pkts_mask, i))) {
+			if(sess_data[i] != NULL) {
+				if ((sess_data[i]->pdrs != NULL) &&
+						((sess_data[i]->pdrs)->far != NULL)) {
+					struct ether_hdr *ether = NULL;
+					/* Get the ether header info */
+					ether = (struct ether_hdr *)rte_pktmbuf_mtod(pkts[i], uint8_t *);
 
-			if ((sess_data[i]->pdrs != NULL) &&
-					((sess_data[i]->pdrs)->far != NULL)) {
-				struct ether_hdr *ether = NULL;
-				/* Get the ether header info */
-				ether = (struct ether_hdr *)rte_pktmbuf_mtod(pkts[i], uint8_t *);
+					/* Construct the IPv4/IPv6 header */
+					if ((((sess_data[i]->pdrs)->far)->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc == GTPU_UDP_IPv4)
+							&& (sess_data[i]->hdr_crt == GTPU_UDP_IPv4)) {
+						/* Next hop or destination IPv4 Address */
+						uint32_t enb_addr =
+							ntohl(sess_data[i]->pdrs->far->frwdng_parms.outer_hdr_creation.ipv4_address);
 
-				/* Construct the IPv4/IPv6 header */
-				if ((((sess_data[i]->pdrs)->far)->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc == GTPU_UDP_IPv4)
-						&& (sess_data[i]->hdr_crt == GTPU_UDP_IPv4)) {
-					/* Next hop or destination IPv4 Address */
-					uint32_t enb_addr =
-						ntohl(sess_data[i]->pdrs->far->frwdng_parms.outer_hdr_creation.ipv4_address);
-
-					uint32_t src_addr = 0;
-					/* Validate the Destination IPv4 Address subnet */
-					if (validate_Subnet(enb_addr, app.wb_net, app.wb_bcast_addr)) {
-						/* Source interface IPv4 address */
-						src_addr = app.wb_ip;
-					} else if (validate_Subnet(enb_addr, app.wb_li_net, app.wb_li_bcast_addr)) {
-						/* Source interface IPv4 address */
-						src_addr = app.wb_li_ip;
-					} else {
-						clLog(clSystemLog, eCLSeverityCritical,
-								LOG_FORMAT"Destination eNB IPv4 Addr "IPV4_ADDR" "
-								"is NOT in local intf subnet\n",
-								LOG_VALUE, IPV4_ADDR_HOST_FORMAT(enb_addr));
-						RESET_BIT(*pkts_mask, i);
-						continue;
-					}
-
-					/* Translator to convert IPv6 header to IPv4 header */
-					if ((ether->ether_type == rte_cpu_to_be_16(ETHER_TYPE_IPv6))) {
-						if (translator_ip_hdr(pkts[i], NOT_PRESENT)) {
+						uint32_t src_addr = 0;
+						/* Validate the Destination IPv4 Address subnet */
+						if (validate_Subnet(enb_addr, app.wb_net, app.wb_bcast_addr)) {
+							/* Source interface IPv4 address */
+							src_addr = app.wb_ip;
+						} else if (validate_Subnet(enb_addr, app.wb_li_net, app.wb_li_bcast_addr)) {
+							/* Source interface IPv4 address */
+							src_addr = app.wb_li_ip;
+						} else {
 							clLog(clSystemLog, eCLSeverityCritical,
-									LOG_FORMAT"Failed to translate IP HDR from IPv6 to IPv4\n",
-									LOG_VALUE);
+									LOG_FORMAT"Destination eNB IPv4 Addr "IPV4_ADDR" "
+									"is NOT in local intf subnet\n",
+									LOG_VALUE, IPV4_ADDR_HOST_FORMAT(enb_addr));
 							RESET_BIT(*pkts_mask, i);
 							continue;
 						}
-					}
-					/* Calculate the IPv4 header length */
-					len = rte_pktmbuf_data_len(pkts[i]);
-					len = len - ETH_HDR_SIZE;
 
-					/* Update tied in GTP U header*/
-					((struct gtpu_hdr *)get_mtogtpu(pkts[i]))->teid  =
+						/* Translator to convert IPv6 header to IPv4 header */
+						if ((ether->ether_type == rte_cpu_to_be_16(ETHER_TYPE_IPv6))) {
+							if (translator_ip_hdr(pkts[i], NOT_PRESENT)) {
+								clLog(clSystemLog, eCLSeverityCritical,
+										LOG_FORMAT"Failed to translate IP HDR from IPv6 to IPv4\n",
+										LOG_VALUE);
+								RESET_BIT(*pkts_mask, i);
+								continue;
+							}
+						}
+						/* Calculate the IPv4 header length */
+						len = rte_pktmbuf_data_len(pkts[i]);
+						len = len - ETH_HDR_SIZE;
+
+						/* Update tied in GTP U header*/
+						((struct gtpu_hdr *)get_mtogtpu(pkts[i]))->teid  =
 							ntohl(sess_data[i]->pdrs->far->frwdng_parms.outer_hdr_creation.teid);
 
-					/* Fill the Source and Destination IP address in the IPv4 Header */
-					construct_ipv4_hdr(pkts[i], len, IP_PROTO_UDP, src_addr, enb_addr);
+						/* Fill the Source and Destination IP address in the IPv4 Header */
+						construct_ipv4_hdr(pkts[i], len, IP_PROTO_UDP, src_addr, enb_addr);
 
-					/* Update the UDP checksum */
-					reset_udp_hdr_checksum(pkts[i], IPV4_TYPE);
+						/* Update the UDP checksum */
+						reset_udp_hdr_checksum(pkts[i], IPV4_TYPE);
 
-					/* Fill the PDR info form the session data */
-					pdr[i] = sess_data[i]->pdrs;
+						/* Fill the PDR info form the session data */
+						pdr[i] = sess_data[i]->pdrs;
 
-				} else if ((((sess_data[i]->pdrs)->far)->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc == GTPU_UDP_IPv6)
-						&& (sess_data[i]->hdr_crt == GTPU_UDP_IPv6)) {
-					/* Retrieve Next Hop Destination Address */
-					struct in6_addr enb_addr = {0};
+					} else if ((((sess_data[i]->pdrs)->far)->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc == GTPU_UDP_IPv6)
+							&& (sess_data[i]->hdr_crt == GTPU_UDP_IPv6)) {
+						/* Retrieve Next Hop Destination Address */
+						struct in6_addr enb_addr = {0};
 
-					/* Copy destination address from FAR */
-					memcpy(&enb_addr.s6_addr,
-							((sess_data[i]->pdrs)->far)->frwdng_parms.outer_hdr_creation.ipv6_address,
-							IPV6_ADDRESS_LEN);
+						/* Copy destination address from FAR */
+						memcpy(&enb_addr.s6_addr,
+								((sess_data[i]->pdrs)->far)->frwdng_parms.outer_hdr_creation.ipv6_address,
+								IPV6_ADDRESS_LEN);
 
-					/* VS: Validate the Destination IPv6 Address Subnet */
-					struct in6_addr src_addr = {0};
-					/* Validate the Destination IPv6 Address Network */
-					if (validate_ipv6_network(enb_addr, app.wb_ipv6,
-								app.wb_ipv6_prefix_len)) {
-						/* Source interface IPv6 address */
-						memcpy(&src_addr, &app.wb_ipv6, sizeof(struct in6_addr));
+						/* VS: Validate the Destination IPv6 Address Subnet */
+						struct in6_addr src_addr = {0};
+						/* Validate the Destination IPv6 Address Network */
+						if (validate_ipv6_network(enb_addr, app.wb_ipv6,
+									app.wb_ipv6_prefix_len)) {
+							/* Source interface IPv6 address */
+							memcpy(&src_addr, &app.wb_ipv6, sizeof(struct in6_addr));
 
-					} else if (validate_ipv6_network(enb_addr, app.wb_li_ipv6,
-							app.wb_li_ipv6_prefix_len)) {
-						/* Source interface IPv6 address */
-						memcpy(&src_addr, &app.wb_li_ipv6, sizeof(struct in6_addr));
+						} else if (validate_ipv6_network(enb_addr, app.wb_li_ipv6,
+									app.wb_li_ipv6_prefix_len)) {
+							/* Source interface IPv6 address */
+							memcpy(&src_addr, &app.wb_li_ipv6, sizeof(struct in6_addr));
 
-					} else {
-						clLog(clSystemLog, eCLSeverityCritical,
-								LOG_FORMAT"Destination S5S8 intf IPv6 addr "IPv6_FMT" "
-								"is NOT in local intf Network\n",
-								LOG_VALUE, IPv6_PRINT(enb_addr));
-						RESET_BIT(*pkts_mask, i);
-						continue;
-					}
-
-					/* Translator to convert IPv4 header to IPv6 header */
-					if ((ether->ether_type == rte_cpu_to_be_16(ETHER_TYPE_IPv4))) {
-						if (translator_ip_hdr(pkts[i], PRESENT)) {
+						} else {
 							clLog(clSystemLog, eCLSeverityCritical,
-									LOG_FORMAT"Failed to translate IP HDR from IPv4 to IPv6\n",
-									LOG_VALUE);
+									LOG_FORMAT"Destination S5S8 intf IPv6 addr "IPv6_FMT" "
+									"is NOT in local intf Network\n",
+									LOG_VALUE, IPv6_PRINT(enb_addr));
 							RESET_BIT(*pkts_mask, i);
 							continue;
 						}
-					}
 
-					/* Calculate the payload length */
-					len = rte_pktmbuf_data_len(pkts[i]);
-					len = len - (ETH_HDR_SIZE + IPv6_HDR_SIZE);
+						/* Translator to convert IPv4 header to IPv6 header */
+						if ((ether->ether_type == rte_cpu_to_be_16(ETHER_TYPE_IPv4))) {
+							if (translator_ip_hdr(pkts[i], PRESENT)) {
+								clLog(clSystemLog, eCLSeverityCritical,
+										LOG_FORMAT"Failed to translate IP HDR from IPv4 to IPv6\n",
+										LOG_VALUE);
+								RESET_BIT(*pkts_mask, i);
+								continue;
+							}
+						}
 
-					/* Update the GTP-U header teid of S5S8 PGWU */
-					((struct gtpu_hdr *)get_mtogtpu_v6(pkts[i]))->teid  =
+						/* Calculate the payload length */
+						len = rte_pktmbuf_data_len(pkts[i]);
+						len = len - (ETH_HDR_SIZE + IPv6_HDR_SIZE);
+
+						/* Update the GTP-U header teid of S5S8 PGWU */
+						((struct gtpu_hdr *)get_mtogtpu_v6(pkts[i]))->teid  =
 							ntohl(((sess_data[i]->pdrs)->far)->frwdng_parms.outer_hdr_creation.teid);
 
-					/* Fill the Source and Destination IP address in the IPv6 Header */
-					construct_ipv6_hdr(pkts[i], len, IP_PROTO_UDP, &src_addr, &enb_addr);
+						/* Fill the Source and Destination IP address in the IPv6 Header */
+						construct_ipv6_hdr(pkts[i], len, IP_PROTO_UDP, &src_addr, &enb_addr);
 
-					/* Update the UDP checksum */
-					reset_udp_hdr_checksum(pkts[i], IPV6_TYPE);
+						/* Update the UDP checksum */
+						reset_udp_hdr_checksum(pkts[i], IPV6_TYPE);
 
-					/* Fill the PDR info form the session data */
-					pdr[i] = sess_data[i]->pdrs;
+						/* Fill the PDR info form the session data */
+						pdr[i] = sess_data[i]->pdrs;
+					}
+				} else {
+					RESET_BIT(*pkts_mask, i);
+					clLog(clSystemLog, eCLSeverityDebug,
+							LOG_FORMAT"Session Data don't have PDR info\n", LOG_VALUE);
+					sess_data[i]->pdrs = NULL;
+					pdr[i] = NULL;
 				}
 			} else {
-				RESET_BIT(*pkts_mask, i);
 				clLog(clSystemLog, eCLSeverityDebug,
-					LOG_FORMAT"Session Data don't have PDR info\n", LOG_VALUE);
-				sess_data[i]->pdrs = NULL;
-				pdr[i] = NULL;
+						LOG_FORMAT"Session Data not found\n", LOG_VALUE);
 			}
 		}
 	}

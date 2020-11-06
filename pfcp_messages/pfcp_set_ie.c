@@ -1692,6 +1692,11 @@ void add_ip_to_heartbeat_hash(node_address_t *peer_addr, uint32_t recovery_time)
 				"default recovery time in heartbeat recovery hash\n",
 				LOG_VALUE, strerror(ret));
 		}
+
+		if (default_recov_time != NULL) {
+			rte_free(default_recov_time);
+			default_recov_time = NULL;
+		}
 	}
 }
 

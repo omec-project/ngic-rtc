@@ -603,7 +603,7 @@ cleanup_sess_csid_entry(pdn_connection *pdn)
 
 			if ((context->mme_fqcsid)->num_csid == 0)
 			{
-				if ((context->mme_fqcsid != NULL) && ((context->mme_fqcsid)->num_csid)) {
+				if (context->mme_fqcsid != NULL) {
 					rte_free(context->mme_fqcsid);
 				}
 				context->mme_fqcsid = NULL;
@@ -618,7 +618,7 @@ cleanup_sess_csid_entry(pdn_connection *pdn)
 
 			if ((context->sgw_fqcsid)->num_csid == 0)
 			{
-				if ((context->sgw_fqcsid != NULL) && ((context->sgw_fqcsid)->num_csid)) {
+				if (context->sgw_fqcsid != NULL) {
 					rte_free(context->sgw_fqcsid);
 				}
 				context->sgw_fqcsid = NULL;
@@ -633,7 +633,7 @@ cleanup_sess_csid_entry(pdn_connection *pdn)
 
 			if ((context->pgw_fqcsid)->num_csid == 0)
 			{
-				if ((context->pgw_fqcsid != NULL) && ((context->pgw_fqcsid)->num_csid)) {
+				if (context->pgw_fqcsid != NULL) {
 					rte_free(context->pgw_fqcsid);
 				}
 				context->pgw_fqcsid = NULL;
@@ -648,7 +648,7 @@ cleanup_sess_csid_entry(pdn_connection *pdn)
 
 			if ((context->up_fqcsid)->num_csid == 0)
 			{
-				if ((context->up_fqcsid != NULL) && ((context->up_fqcsid)->num_csid)) {
+				if (context->up_fqcsid != NULL) {
 					rte_free(context->up_fqcsid);
 				}
 				context->up_fqcsid = NULL;
@@ -2434,7 +2434,7 @@ del_peer_addr_node_entry(pdn_connection *pdn) {
 	fqcsid_ie_node_addr_t *node_addr = NULL;
 	fqcsid_t *tmp = NULL;
 
-	if (((pdn->context)->cp_mode != PGWC)
+	if ((is_present(&pdn->mme_csid.node_addr)) && ((pdn->context)->cp_mode != PGWC)
 			&& (COMPARE_IP_ADDRESS(pdn->mme_csid.node_addr,
 					(pdn->context)->s11_mme_gtpc_ip) != 0)) {
 		key.iface = S11_SGW_PORT_ID;
@@ -2552,12 +2552,30 @@ cleanup_csid_entry(uint64_t seid,
 				}
 
 				del_peer_addr_node_entry(pdn);
+
+				if (((pdn->context)->cp_mode == SGWC) || ((pdn->context)->cp_mode == SAEGWC)) {
+					del_peer_addr_csids_entry(&(pdn->context)->s11_sgw_gtpc_ip);
+					if ((pdn->context)->pgw_fqcsid != NULL) {
+						rte_free((pdn->context)->pgw_fqcsid);
+						(pdn->context)->pgw_fqcsid = NULL;
+					}
+				}
+				if ((pdn->context)->cp_mode == PGWC) {
+					del_peer_addr_csids_entry(&pdn->s5s8_pgw_gtpc_ip);
+				}
 			} else {
 				/* Remove session csid from UE context */
 				cleanup_sess_csid_entry(pdn);
+				if (((pdn->context)->cp_mode == SGWC) || ((pdn->context)->cp_mode == SAEGWC)) {
+					if ((pdn->context)->pgw_fqcsid != NULL) {
+						rte_free((pdn->context)->pgw_fqcsid);
+						(pdn->context)->pgw_fqcsid = NULL;
+					}
+				}
 			}
 			/*Delete Session Link with Peer CSID */
 			del_session_csid_entry(pdn);
+
 		}
 		return 0;
 	}

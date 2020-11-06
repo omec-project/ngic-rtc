@@ -3297,12 +3297,17 @@ up_delete_session_entry(pfcp_session_t *sess, pfcp_sess_del_rsp_t *sess_del_rsp)
 				count += ret;
 			} while (ret);
 
-			if (rte_ring_enqueue(dl_ring_container, ring) ==
-			        ENOBUFS) {
-			    clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Can't put ring back, so free it - "
-		            "dropped %d pkts\n", LOG_VALUE, count);
+			if(ring) {
 			    rte_ring_free(ring);
 			}
+			if(rte_ring_sc_dequeue(dl_ring_container, (void *)&ring) == -ENOENT) {
+				clLog(clSystemLog, eCLSeverityCritical,
+					LOG_FORMAT"Ring not found\n",LOG_VALUE);
+			} else{
+				clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Dequeued Ring \n",LOG_VALUE);
+			}
+			ring = NULL;
 		}
 
 		/* Cleanup PDRs info from the linked list */

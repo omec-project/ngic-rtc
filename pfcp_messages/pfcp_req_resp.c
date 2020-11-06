@@ -85,7 +85,6 @@ process_heartbeat_request(uint8_t *buf_rx, peer_addr_t *peer_addr)
 
 	RTE_SET_USED(decoded);
 
-	memset(pfcp_msg, 0, PFCP_MSG_LEN);
 	pfcp_hrtbeat_req_t *pfcp_heartbeat_req = malloc(sizeof(pfcp_hrtbeat_req_t));
 	pfcp_hrtbeat_rsp_t  pfcp_heartbeat_resp = {0};
 	decoded = decode_pfcp_hrtbeat_req_t(buf_rx, pfcp_heartbeat_req);
@@ -347,7 +346,6 @@ process_pfcp_msg(uint8_t *buf_rx, peer_addr_t *peer_addr, bool is_ipv6)
 	int encoded = 0;
 	int decoded = 0;
 	uint8_t pfcp_msg[2048]= {0};
-	struct msgbuf rule_msg = {0} ;
 	node_address_t node_value = {0};
 
 	uint8_t cli_cause = 0;
@@ -401,7 +399,6 @@ process_pfcp_msg(uint8_t *buf_rx, peer_addr_t *peer_addr, bool is_ipv6)
 			break;
 		case PFCP_ASSOCIATION_SETUP_REQUEST:
 			{
-				memset(pfcp_msg, 0, 2048);
 				pfcp_assn_setup_req_t pfcp_ass_setup_req = {0};
 				pfcp_assn_setup_rsp_t pfcp_ass_setup_resp = {0} ;
 
@@ -487,8 +484,6 @@ process_pfcp_msg(uint8_t *buf_rx, peer_addr_t *peer_addr, bool is_ipv6)
 			{
 				int offend_id = 0;
 				uint8_t cause_id = 0;
-				memset(pfcp_msg, 0, 2048);
-				memset(&rule_msg, 0, sizeof(struct msgbuf));
 				pfcp_pfd_mgmt_rsp_t pfcp_pfd_mgmt_resp = {0};
 
 				pfcp_pfd_mgmt_req_t *pfcp_pfd_mgmt_req = malloc(sizeof(pfcp_pfd_mgmt_req_t));
@@ -520,14 +515,13 @@ process_pfcp_msg(uint8_t *buf_rx, peer_addr_t *peer_addr, bool is_ipv6)
 
 				RTE_LOG_DP(DEBUG, DP, "sending response of sess [%d] from dp\n",pfcp_hdr->message_type);
 				RTE_LOG_DP(DEBUG, DP, "length[%d]\n",htons(pfcp_hdr->message_len));
-
+				free(pfcp_pfd_mgmt_req);
 				break;
 
 
 			}
 		case PFCP_SESSION_ESTABLISHMENT_REQUEST:
 			{
-				memset(pfcp_msg, 0, 2048);
 				pfcp_sess_estab_req_t *pfcp_session_request = malloc(sizeof(pfcp_sess_estab_req_t));
 				memset(pfcp_session_request, 0, sizeof(pfcp_sess_estab_req_t));
 				pfcp_sess_estab_rsp_t pfcp_session_response = {0};
@@ -595,7 +589,6 @@ process_pfcp_msg(uint8_t *buf_rx, peer_addr_t *peer_addr, bool is_ipv6)
 			{
 				int offend_id = 0;
 				uint8_t cause_id = REQUESTACCEPTED;
-				memset(pfcp_msg, 0, 2048);
 
 				pfcp_sess_mod_req_t pfcp_session_mod_req = {0};
 
@@ -649,7 +642,6 @@ process_pfcp_msg(uint8_t *buf_rx, peer_addr_t *peer_addr, bool is_ipv6)
 				int offend_id = 0;
 				uint8_t cause_id = 0;
 				uint64_t cp_seid = 0;
-				memset(pfcp_msg, 0, 2048);
 
 				pfcp_sess_del_req_t *pfcp_session_del_req =
 						malloc(sizeof(pfcp_sess_del_req_t));
@@ -744,7 +736,6 @@ process_pfcp_msg(uint8_t *buf_rx, peer_addr_t *peer_addr, bool is_ipv6)
 #ifdef USE_CSID
 				int offend_id = 0;
 				uint8_t cause_id = 0;
-				memset(pfcp_msg, 0, 2048);
 
 				/* Handle PFCP Session SET Deletion Response */
 				pfcp_sess_set_del_req_t pfcp_sess_set_del_req = {0};

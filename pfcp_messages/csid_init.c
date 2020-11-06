@@ -486,13 +486,12 @@ del_sess_csid_entry(uint16_t csid)
 					LOG_VALUE, csid);
 		return -1;
 	}
-
 	/* CSID Entry is present. Delete Session Entry */
 	ret = rte_hash_del_key(seids_by_csid_hash, &csid);
 
 	/* Free data from hash */
 	if (tmp != NULL) {
-		if ((tmp->up_seid != 0) && (tmp->next !=0)) {
+		if ((tmp->up_seid != 0)) {
 			rte_free(tmp);
 			tmp = NULL;
 		}

@@ -1406,7 +1406,6 @@ fill_pfcp_association_setup_resp(pfcp_assn_setup_rsp_t *pfcp_ass_setup_resp,
 void
 fill_pfcp_pfd_mgmt_resp(pfcp_pfd_mgmt_rsp_t *pfd_resp, uint8_t cause_val, int offending_id)
 {
-	memset(pfd_resp, 0, sizeof(pfcp_pfd_mgmt_rsp_t));
 
 	set_pfcp_header(&pfd_resp->header, PFCP_PFD_MGMT_RSP, 0);
 

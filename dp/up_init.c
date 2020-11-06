@@ -192,6 +192,8 @@ static inline int port_init(uint8_t port, struct rte_mempool *mbuf_pool)
 			ports_eth_addr[port].addr_bytes[4],
 			ports_eth_addr[port].addr_bytes[5]);
 
+	/* Enable RX to received the multicast packet in PMD */
+	rte_eth_allmulticast_enable(port);
 	/* Enable RX in promiscuous mode for the Ethernet device. */
 	/* rte_eth_promiscuous_enable(port); */
 	rte_eth_promiscuous_disable(port);
