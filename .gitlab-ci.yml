@@ -3,7 +3,7 @@ variables:
     GIT_IP: "10.155.205.206"
     OSS_UTIL_BRANCH: "delivery_1.9"
     FDM_BRANCH: "gx"
-    FDM_GIT_URL: "https://github.com/omec-project/freediameter.git"
+    FDM_GIT_URL: "https://github.com/omec-project/freeDiameter.git"
 
 stages:
     - build
