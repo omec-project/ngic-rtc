@@ -1,10 +1,6 @@
 variables:
     LOCAL_ARTIFACT_DIR: "/home/gitlab-runner/artifacts/"
     GIT_IP: "10.155.205.206"
-    FDM_BRANCH: "gx"
-    FDM_GIT_URL: "https://github.com/omec-project/freeDiameter.git"
-    LIB_GTPV2C_REPO: "https://github.com/omec-project/libgtpv2c.git"
-    LIB_GTPV2C_COMMIT_ID: "9f954fb781d94186a8957cf1b60d48e5d0b5e7f3"
 
 stages:
     - build
@@ -17,9 +13,9 @@ build:
         - echo -e "*************************************\n\tNGIC Build Started\n*************************************"
     script:
         - ssh-keyscan $GIT_IP >> ~/.ssh/known_hosts
-        - mkdir -p $CI_PROJECT_DIR/third_party && cd $CI_PROJECT_DIR/third_party && git clone $FDM_GIT_URL -b $FDM_BRANCH && git clone $LIB_GTPV2C_REPO && cd libgtpv2c && git checkout $LIB_GTPV2C_COMMIT_ID
+        - mkdir -p $CI_PROJECT_DIR/third_party && cd $CI_PROJECT_DIR/third_party
         - sudo chown gitlab-runner:gitlab-runner -R $CI_PROJECT_DIR/third_party
-        - cd $CI_PROJECT_DIR && chmod +x install_builddeps.sh && sudo ./install_builddeps.sh
+        - cd $CI_PROJECT_DIR && chmod +x install_builddeps.sh && sudo ./install_builddeps.sh cp && sudo ./install_builddeps.sh dp
         - cd $CI_PROJECT_DIR && source setenv.sh && cd cp && make
         - cd $CI_PROJECT_DIR && source setenv.sh && make build-lib && cd dp && make
         - cd $CI_PROJECT_DIR && sudo chown gitlab-runner:gitlab-runner -R *
