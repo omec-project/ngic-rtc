@@ -17,7 +17,6 @@ build:
         - ssh-keyscan $GIT_IP >> ~/.ssh/known_hosts
         - mkdir -p $CI_PROJECT_DIR/third_party && cd $CI_PROJECT_DIR/third_party && git clone $FDM_GIT_URL -b $FDM_BRANCH
         - sudo chown gitlab-runner:gitlab-runner -R $CI_PROJECT_DIR/third_party
-        - apt-get clean
         - cd $CI_PROJECT_DIR && chmod +x install_builddeps.sh && sudo ./install_builddeps.sh
         - cd $CI_PROJECT_DIR && source setenv.sh && cd cp && make
         - cd $CI_PROJECT_DIR && source setenv.sh && make build-lib && cd dp && make
