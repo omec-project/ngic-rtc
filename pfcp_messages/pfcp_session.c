@@ -4828,7 +4828,7 @@ ccru_req_for_bear_termination(pdn_connection *pdn, eps_bearer *bearer)
 	ccr_request.data.ccr.presence.charging_rule_report = PRESENT;
 	ccr_request.data.ccr.charging_rule_report.count = 1;
 	ccr_request.data.ccr.charging_rule_report.list = rte_malloc_socket(NULL,
-			(sizeof(GxChargingRuleReportList)*1),
+			((sizeof(GxChargingRuleReport))*1),
 			RTE_CACHE_LINE_SIZE, rte_socket_id());
 	if (ccr_request.data.ccr.charging_rule_report.list == NULL) {
 		clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT
@@ -4839,7 +4839,7 @@ ccru_req_for_bear_termination(pdn_connection *pdn, eps_bearer *bearer)
 
 	ccr_request.data.ccr.charging_rule_report.list[idx].presence.charging_rule_name = PRESENT;
 	ccr_request.data.ccr.charging_rule_report.list[idx].charging_rule_name.list = rte_malloc_socket(NULL,
-			(sizeof(GxChargingRuleNameOctetString)*1),
+			((sizeof(GxChargingRuleNameOctetString))*1),
 			RTE_CACHE_LINE_SIZE, rte_socket_id());
 
 	if (ccr_request.data.ccr.charging_rule_report.list[idx]
@@ -9698,10 +9698,12 @@ process_pfcp_sess_mod_resp_mbr_req(pfcp_sess_mod_rsp_t *pfcp_sess_mod_rsp,
 		gtpv2c_send(s5s8_fd, s5s8_fd_v6, tx_buf, payload_length,
 				s5s8_recv_sockaddr, SENT);
 
-		context->uli_flag = 0;
-		context->ue_time_zone_flag = FALSE;
-		context->serving_nw_flag = FALSE;
-		pdn->flag_fqcsid_modified = FALSE;
+		if (context->update_sgw_fteid == TRUE) {
+			context->uli_flag = 0;
+			context->ue_time_zone_flag = FALSE;
+			context->serving_nw_flag = FALSE;
+			pdn->flag_fqcsid_modified = FALSE;
+		}
 
 		cp_mode = pdn->context->cp_mode;
 		add_gtpv2c_if_timer_entry(

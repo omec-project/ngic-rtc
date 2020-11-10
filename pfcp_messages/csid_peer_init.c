@@ -450,10 +450,10 @@ del_peer_addr_csids_entry(node_address_t *node_addr)
 	ret = rte_hash_del_key(hash, node_addr);
 
 	/* Free data from hash */
-	if ((tmp != NULL) && (tmp->num_csid)){
+	if ((tmp != NULL)){
 		rte_free(tmp);
+		tmp = NULL;
 	}
-	tmp = NULL;
 
 	clLog(clSystemLog, eCLSeverityDebug,
 			LOG_FORMAT"Entry deleted for node addr:"IPV4_ADDR"\n",

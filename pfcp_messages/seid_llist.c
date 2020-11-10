@@ -119,7 +119,7 @@ remove_sess_csid_first_node(sess_csid *head) {
 
 	/* Free the 1st node from linked list */
 	if(current != NULL)
-		//rte_free(current);
+		rte_free(current);
 
 	current = NULL;
 	return tmp;
@@ -147,7 +147,7 @@ remove_sess_csid_last_node(sess_csid *head) {
 
 	/* free the last node from linked list */
 	if (current != NULL)
-		//rte_free(current);
+		rte_free(current);
 
 	current = NULL;
 	return head;
