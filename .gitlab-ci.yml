@@ -17,6 +17,7 @@ build:
         - echo -e "*************************************\n\tNGIC Build Started\n*************************************"
     script:
         - ssh-keyscan $GIT_IP >> ~/.ssh/known_hosts
+        - sudo rm -rf $CI_PROJECT_DIR/third_party
         - mkdir -p $CI_PROJECT_DIR/third_party && cd $CI_PROJECT_DIR/third_party && git clone $FDM_GIT_URL -b $FDM_BRANCH && git clone $LIB_GTPV2C_REPO && cd libgtpv2c && git checkout $LIB_GTPV2C_COMMIT_ID
         - sudo chown gitlab-runner:gitlab-runner -R $CI_PROJECT_DIR/third_party
         - cd $CI_PROJECT_DIR && chmod +x install_builddeps.sh && sudo ./install_builddeps.sh
