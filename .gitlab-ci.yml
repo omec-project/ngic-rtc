@@ -2,7 +2,7 @@ variables:
     LOCAL_ARTIFACT_DIR: "/home/gitlab-runner/artifacts/"
     GIT_IP: "10.155.205.206"
     FDM_BRANCH: "gx"
-    FDM_GIT_URL: "https://github.com/omec-project/freediameter.git"
+    FDM_GIT_URL: "https://github.com/omec-project/freeDiameter.git"
 
 stages:
     - build
