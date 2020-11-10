@@ -15,7 +15,7 @@ build:
         - ssh-keyscan $GIT_IP >> ~/.ssh/known_hosts
         - mkdir -p $CI_PROJECT_DIR/third_party && cd $CI_PROJECT_DIR/third_party
         - sudo chown gitlab-runner:gitlab-runner -R $CI_PROJECT_DIR/third_party
-        - cd $CI_PROJECT_DIR && chmod +x install_builddeps.sh && sudo ./install_builddeps.sh cp && sudo ./install_builddeps.sh dp
+        - cd $CI_PROJECT_DIR && chmod +x install_builddeps.sh && sudo ./install_builddeps.sh
         - cd $CI_PROJECT_DIR && source setenv.sh && cd cp && make
         - cd $CI_PROJECT_DIR && source setenv.sh && make build-lib && cd dp && make
         - cd $CI_PROJECT_DIR && sudo chown gitlab-runner:gitlab-runner -R *
