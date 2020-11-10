@@ -6,7 +6,6 @@ variables:
     LIB_GTPV2C_REPO: "https://github.com/omec-project/libgtpv2c.git"
     LIB_GTPV2C_COMMIT_ID: "9f954fb781d94186a8957cf1b60d48e5d0b5e7f3"
 
-
 stages:
     - build
 
