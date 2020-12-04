@@ -406,6 +406,79 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 				IPV4_ADDR_HOST_FORMAT(pfcp_config->upf_s5s8_bcast_addr));
 	}
 
+
+	/*Read Default configuration of URR*/
+	num_urr_entries =
+		rte_cfgfile_section_num_entries(file, URR_DEFAULT);
+
+	if (num_urr_entries > 0) {
+		urr_entries = rte_malloc_socket(NULL,
+						sizeof(struct rte_cfgfile_entry)
+							*num_urr_entries,
+							RTE_CACHE_LINE_SIZE,
+							rte_socket_id());
+	}
+
+	if (urr_entries != NULL){
+
+		rte_cfgfile_section_entries(file, URR_DEFAULT,
+						urr_entries,
+						num_urr_entries);
+
+		for (i = 0; i < num_urr_entries; ++i) {
+			fprintf(stderr, "\nCP: [%s] = %s",
+					urr_entries[i].name,
+					urr_entries[i].value);
+			if (strncmp(TRIGGER_TYPE, urr_entries[i].name,
+							ENTRY_NAME_SIZE) == 0)
+				pfcp_config->trigger_type =
+						(int)atoi(urr_entries[i].value);
+			if (strncmp(UPLINK_VOLTH, urr_entries[i].name,
+							ENTRY_NAME_SIZE) == 0)
+				pfcp_config->uplink_volume_th =
+						(int)atoi(urr_entries[i].value);
+			if (strncmp(DOWNLINK_VOLTH, urr_entries[i].name,
+							ENTRY_NAME_SIZE) == 0)
+				pfcp_config->downlink_volume_th =
+						(int)atoi(urr_entries[i].value);
+			if (strncmp(TIMETH, urr_entries[i].name,
+							ENTRY_NAME_SIZE) == 0)
+				pfcp_config->time_th =
+						(int)atoi(urr_entries[i].value);
+		}
+
+	} else {
+		pfcp_config->trigger_type = DEFAULT_TRIGGER_TYPE;
+		pfcp_config->uplink_volume_th = DEFAULT_VOL_THRESHOLD;
+		pfcp_config->downlink_volume_th = DEFAULT_VOL_THRESHOLD;
+		pfcp_config->time_th = DEFAULT_TIME_THRESHOLD;
+	}
+	/*check for valid configuration*/
+
+	if(pfcp_config->trigger_type < 0 || pfcp_config->trigger_type > 2) {
+			fprintf(stderr, "\nConfigured Wrong Default trigger_type"
+					" Using default value as: [%d]", DEFAULT_TRIGGER_TYPE);
+		pfcp_config->trigger_type = DEFAULT_TRIGGER_TYPE;
+	}
+
+	if(pfcp_config->uplink_volume_th <= 0 ) {
+			fprintf(stderr, "\nConfigured Wrong Default uplink_volume_th"
+					" Using default value as: [%d]", DEFAULT_VOL_THRESHOLD);
+		pfcp_config->uplink_volume_th = DEFAULT_VOL_THRESHOLD;
+	}
+
+	if(pfcp_config->downlink_volume_th <= 0 ) {
+			fprintf(stderr, "\nConfigured Wrong Default downlink_volume_th"
+					" Using default value as: [%d]", DEFAULT_VOL_THRESHOLD);
+		pfcp_config->downlink_volume_th = DEFAULT_VOL_THRESHOLD;
+	}
+
+	if(pfcp_config->time_th <= 0 ) {
+			fprintf(stderr, "\nConfigured Wrong Default time_th"
+					" Using default value as: [%d]", DEFAULT_TIME_THRESHOLD);
+		pfcp_config->time_th = DEFAULT_TIME_THRESHOLD;
+	}
+	rte_free(urr_entries);
 	/* Parse APN and nameserver values. */
 	uint16_t app_nameserver_ip_idx = 0;
 	uint16_t ops_nameserver_ip_idx = 0;
@@ -497,27 +570,35 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 			 /*check for valid configuration*/
 
 			 if(apn_list[apn_idx].trigger_type < 0 || apn_list[apn_idx].trigger_type > 2) {
-				 fprintf(stderr, "\ncp.cfg : Wrong trigger_type"
-						 " for apn : %s\n",apn_list[apn_idx].apn_name_label);
-				 rte_panic("Line no : %d\n",__LINE__);
+				fprintf(stderr, "\nConfigured Wrong trigger_type for apn [%s]"
+						" Using trigger_type: [%d] ",
+						 apn_list[apn_idx].apn_name_label,
+							pfcp_config->trigger_type);
+				 apn_list[apn_idx].trigger_type = pfcp_config->trigger_type;
 			 }
 
 			 if(apn_list[apn_idx].uplink_volume_th <= 0 ) {
-				 fprintf(stderr, "\ncp.cfg : Wrong uplink_volume_th"
-						 " for apn : %s\n",apn_list[apn_idx].apn_name_label);
-				 rte_panic("Line no : %d\n",__LINE__);
+				fprintf(stderr, "\nConfigured Wrong uplink_volume_th for apn [%s]"
+						" Using uplink_volume_th: [%d] ",
+						 apn_list[apn_idx].apn_name_label,
+						 pfcp_config->uplink_volume_th);
+				apn_list[apn_idx].uplink_volume_th = pfcp_config->uplink_volume_th;
 			 }
 
 			 if(apn_list[apn_idx].downlink_volume_th <= 0 ) {
-				 fprintf(stderr, "\ncp.cfg : Wrong downlink_volume_th"
-						 " for apn : %s\n",apn_list[apn_idx].apn_name_label);
-				 rte_panic("Line no : %d\n",__LINE__);
+				fprintf(stderr, "\nConfigured Wrong downlink_volume_th for apn [%s]"
+						" Using downlink_volume_th: [%d] ",
+						 apn_list[apn_idx].apn_name_label,
+						 pfcp_config->downlink_volume_th);
+				apn_list[apn_idx].downlink_volume_th = pfcp_config->downlink_volume_th;
 			 }
 
 			 if(apn_list[apn_idx].time_th <= 0 ) {
-				 fprintf(stderr, "\ncp.cfg : Wrong time_th"
-						 " for apn : %s\n",apn_list[apn_idx].apn_name_label);
-				 rte_panic("Line no : %d\n",__LINE__);
+				fprintf(stderr, "\nConfigured Wrong time_th for apn [%s]"
+						" Using time_th: [%d] ",
+						 apn_list[apn_idx].apn_name_label,
+						 pfcp_config->time_th);
+				apn_list[apn_idx].time_th = pfcp_config->time_th;
 			 }
 			 set_apn_name(&apn_list[apn_idx], apn_list[apn_idx].apn_name_label);
 			 apn_idx++;
@@ -525,75 +606,6 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 		}
 	}
 	rte_free(apn_entries);
-
-	/*Read Default configuration of URR*/
-	num_urr_entries =
-		rte_cfgfile_section_num_entries(file, URR_DEFAULT);
-
-	if (num_urr_entries > 0) {
-		urr_entries = rte_malloc_socket(NULL,
-						sizeof(struct rte_cfgfile_entry)
-							*num_urr_entries,
-							RTE_CACHE_LINE_SIZE,
-							rte_socket_id());
-	}
-
-	if (urr_entries == NULL)
-		rte_panic("Error configuring"
-				"URR_DEFAULT entry of %s\n", STATIC_CP_FILE);
-
-	rte_cfgfile_section_entries(file, URR_DEFAULT,
-					urr_entries,
-					num_urr_entries);
-
-	for (i = 0; i < num_urr_entries; ++i) {
-		fprintf(stderr, "\nCP: [%s] = %s",
-				urr_entries[i].name,
-				urr_entries[i].value);
-		if (strncmp(TRIGGER_TYPE, urr_entries[i].name,
-						ENTRY_NAME_SIZE) == 0)
-			pfcp_config->trigger_type =
-					(int)atoi(urr_entries[i].value);
-		if (strncmp(UPLINK_VOLTH, urr_entries[i].name,
-						ENTRY_NAME_SIZE) == 0)
-			pfcp_config->uplink_volume_th =
-					(int)atoi(urr_entries[i].value);
-		if (strncmp(DOWNLINK_VOLTH, urr_entries[i].name,
-						ENTRY_NAME_SIZE) == 0)
-			pfcp_config->downlink_volume_th =
-					(int)atoi(urr_entries[i].value);
-		if (strncmp(TIMETH, urr_entries[i].name,
-						ENTRY_NAME_SIZE) == 0)
-			pfcp_config->time_th =
-					(int)atoi(urr_entries[i].value);
-	}
-
-	/*check for valid configuration*/
-
-	if(pfcp_config->trigger_type < 0 || pfcp_config->trigger_type > 2) {
-		fprintf(stderr, "\ncp.cfg : Wrong trigger_type"
-				" for defalt configuration type [URR_DEFAULT]\n");
-		rte_panic("Line no : %d\n",__LINE__);
-	}
-
-	if(pfcp_config->uplink_volume_th <= 0 ) {
-		fprintf(stderr, "\ncp.cfg : Wrong uplink_volume_th"
-				" for defalt configuration type [URR_DEFAULT]\n");
-		rte_panic("Line no : %d\n",__LINE__);
-	}
-
-	if(pfcp_config->downlink_volume_th <= 0 ) {
-		fprintf(stderr, "\ncp.cfg : Wrong downlink_volume_th"
-				" for defalt configuration type [URR_DEFAULT]\n");
-		rte_panic("Line no : %d\n",__LINE__);
-	}
-
-	if(pfcp_config->time_th <= 0 ) {
-		fprintf(stderr, "\ncp.cfg : Wrong time_th"
-				" for defalt configuration type [URR_DEFAULT]\n");
-		rte_panic("Line no : %d\n",__LINE__);
-	}
-	rte_free(urr_entries);
 
 	/* Read cache values from cfg seaction. */
 	num_cache_entries =

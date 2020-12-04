@@ -107,6 +107,11 @@
 #define IP_BUFF_SIZE             16
 #define REQUEST_TIMEOUT_DEFAULT_VALUE 3000
 #define REQUEST_TRIES_DEFAULT_VALUE   2
+
+/*Default URR paramters*/
+#define DEFAULT_VOL_THRESHOLD 1048576
+#define DEFAULT_TIME_THRESHOLD 120
+#define DEFAULT_TRIGGER_TYPE 2
 uint8_t recovery_flag;
 
 /**
