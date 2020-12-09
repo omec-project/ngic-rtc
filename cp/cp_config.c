@@ -483,20 +483,6 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 	uint16_t app_nameserver_ip_idx = 0;
 	uint16_t ops_nameserver_ip_idx = 0;
 
-	num_apn_entries =
-		rte_cfgfile_section_num_entries(file, APN_ENTRIES);
-
-	if (num_apn_entries > 0) {
-		/* Allocate the memory. */
-		apn_entries = rte_malloc_socket(NULL,
-				sizeof(struct rte_cfgfile_entry) *
-				num_apn_entries,
-				RTE_CACHE_LINE_SIZE, rte_socket_id());
-	if (apn_entries == NULL)
-		rte_panic("Error configuring"
-				"apn entry of %s\n", STATIC_CP_FILE);
-	}
-
 
 	/* Fill the entries in APN list. */
 	int num_apn = 0;
@@ -513,6 +499,20 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 
 	for(i = 1 ; i <= num_apn; i++ )
 	{
+
+		num_apn_entries =
+			rte_cfgfile_section_num_entries_by_index(file, apn_name, i);
+
+		if (num_apn_entries > 0) {
+			/* Allocate the memory. */
+			apn_entries = rte_malloc_socket(NULL,
+					sizeof(struct rte_cfgfile_entry) *
+					num_apn_entries,
+					RTE_CACHE_LINE_SIZE, rte_socket_id());
+			if (apn_entries == NULL)
+				rte_panic("Error configuring"
+					"apn entry of %s\n", STATIC_CP_FILE);
+		}
 
 		apn_num_entries = rte_cfgfile_section_entries_by_index(file,
 				i, apn_name, apn_entries, 10);
@@ -604,8 +604,9 @@ config_cp_ip_port(pfcp_config_t *pfcp_config)
 			 apn_idx++;
 			 total_apn_cnt++;
 		}
+		rte_free(apn_entries);
+		apn_entries = NULL;
 	}
-	rte_free(apn_entries);
 
 	/* Read cache values from cfg seaction. */
 	num_cache_entries =
