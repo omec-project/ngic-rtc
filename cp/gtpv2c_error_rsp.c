@@ -1327,9 +1327,6 @@ void ds_error_response(msg_info *msg, uint8_t cause_value, uint8_t cause_source,
 						clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Error "
 								"in Sending Session Modification Request. "
 								"Error : %i\n", LOG_VALUE, errno);
-					} else {
-						add_pfcp_if_timer_entry(context->s11_sgw_gtpc_teid, &upf_pfcp_sockaddr,
-								pfcp_msg, encoded, ebi_index);
 					}
 				}
 			}
