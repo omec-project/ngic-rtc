@@ -1,0 +1,8 @@
+# Configuration file
+	config/legacy_admf.json
+
+# Run LEGACY_ADMF using following command
+	./run.sh
+
+# Configurations
+

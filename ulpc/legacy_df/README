@@ -1,0 +1,8 @@
+# Configuration file
+	config/legacy_df.json
+
+# Run LEGACY_DF using following command
+	./run.sh
+
+# Configurations
+

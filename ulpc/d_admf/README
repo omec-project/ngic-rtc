@@ -1,0 +1,8 @@
+# Configuration file
+	config/d_admf.json
+
+# Run D_ADMF using following command
+	./run.sh
+
+# Configurations
+
