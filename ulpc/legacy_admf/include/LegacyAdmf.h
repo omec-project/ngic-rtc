@@ -22,7 +22,12 @@
 #include "epctools.h"
 #include "etevent.h"
 #include "esocket.h"
+
 #include "emgmt.h"
+
+#define RAPIDJSON_NAMESPACE ulpcrapidjson
+#include "rapidjson/rapidjson.h"
+#include "rapidjson/document.h"
 
 #define LOG_SYSTEM				1
 #define EMPTY_STRING				""

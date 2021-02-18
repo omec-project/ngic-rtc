@@ -17,6 +17,7 @@
 
 #include <dlfcn.h>
 
+#include "emgmt.h"
 #include "elogger.h"
 
 #include "AdmfApp.h"

@@ -21,7 +21,12 @@
 #include <iostream>
 
 
-#define RAPIDJSON_NAMESPACE	epctoolsrapidjson
+#ifdef RAPIDJSON_NAMESPACE
+#undef RAPIDJSON_NAMESPACE
+#endif
+#define RAPIDJSON_NAMESPACE ulpcrapidjson
+#include "rapidjson/rapidjson.h"
+#include "rapidjson/document.h"
 
 #define ADD			1
 #define UPDATE			2

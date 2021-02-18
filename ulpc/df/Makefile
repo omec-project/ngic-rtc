@@ -20,7 +20,7 @@ BIN := df
 
 SOURCES := $(shell find $(SRCDIR) -type f -name '*.cpp')
 OBJECTS := $(patsubst $(SRCDIR)/%,$(SRCDIR)/%,$(SOURCES:.cpp=.o))
-CPPFLAGS := -std=c++11 -Wreturn-type $(LIBS) -Wall -Werror
+CPPFLAGS := -std=c++14 -Wreturn-type $(LIBS) -Wall -Werror
 
 INC := -I/usr/local/include/epc/ -I ./include/
 LIBS := \

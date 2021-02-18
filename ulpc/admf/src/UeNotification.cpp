@@ -17,6 +17,7 @@
 
 #include <list>
 
+#include "emgmt.h"
 #include "estats.h"
 #include "etime.h"
 #include "elogger.h"

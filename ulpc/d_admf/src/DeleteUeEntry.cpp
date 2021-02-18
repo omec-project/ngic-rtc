@@ -15,6 +15,9 @@
  */
 
 
+#define RAPIDJSON_NAMESPACE ulpcrapidjson
+#include "rapidjson/rapidjson.h"
+#include "rapidjson/document.h"
 #include "DeleteUeEntry.h"
 #include "DAdmf.h"
 

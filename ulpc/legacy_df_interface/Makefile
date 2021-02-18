@@ -10,7 +10,7 @@ SRCEXT := cpp
 SOURCES := $(shell find $(SRCDIR) -type f -name *.$(SRCEXT))
 OBJECTS := $(patsubst $(SRCDIR)/%,$(BUILDDIR)/%,$(SOURCES:.$(SRCEXT)=.o))
 DEPENDS := $(OBJECTS:%.o=%.d)
-CFLAGS := -std=c++11 -Wall -Werror -fPIC
+CFLAGS := -std=c++14 -Wall -Werror -fPIC
 LFLAGS := -pthread -lpthread
 LIBFLAGS := -shared -fPIC
 

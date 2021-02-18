@@ -36,13 +36,13 @@ echo "Downloading Epctools ..."
 
 mkdir -p $THIRDPARTY
 pushd $THIRDPARTY
-  git clone https://github.com/brianwaters3/epctools epctools
+  git clone https://github.com/omec-project/epctools.git
   echo "Downloading Complete."
 popd
 
 pushd $EPCTOOLS
-  echo "Checkout Epctools to specific commit id..."
-  git checkout 3f2e728bafd5111678794940e936d3f28a0540dc
+  #echo "Checkout Epctools to specific commit id..."
+  #git checkout 3f2e728bafd5111678794940e936d3f28a0540dc
 
   echo "Installing Epctools ..."
   ./configure
