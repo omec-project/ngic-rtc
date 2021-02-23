@@ -42,7 +42,7 @@ popd
 
 pushd $EPCTOOLS
   #echo "Checkout Epctools to specific commit id..."
-  #git checkout 3f2e728bafd5111678794940e936d3f28a0540dc
+  git checkout e14e3788bc5dc88e58cd421fc144ca637a2027f7
 
   echo "Installing Epctools ..."
   ./configure
