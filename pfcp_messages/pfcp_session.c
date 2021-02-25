@@ -2236,9 +2236,6 @@ fill_context_info(create_sess_req_t *csr, ue_context *context, pdn_connection *p
 		context->sequence = pdn->csr_sequence = csr->header.teid.no_teid.seq;
 	}
 
-		s11_mme_sockaddr.sin_addr.s_addr =
-			htonl(csr->sender_fteid_ctl_plane.ipv4_address);
-	}
 	return 0;
 }
 
