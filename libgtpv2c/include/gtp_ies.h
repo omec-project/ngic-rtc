@@ -17,13 +17,14 @@
 #ifndef __GTP_IES_H
 #define __GTP_IES_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include <stdint.h>
 #include <arpa/inet.h>
 #include <string.h>
 #include <unistd.h>
-
-#define IE_HEADER_SIZE sizeof(ie_header_t)
 
 #define CHAR_SIZE 8
 #define GTP_IE_IMSI (1)
@@ -185,15 +186,23 @@
 #define GTP_IE_SECDRY_RAT_USAGE_DATA_RPT (201)
 #define GTP_IE_UP_FUNC_SEL_INDCTN_FLGS (202)
 #define GTP_IE_MAX_PCKT_LOSS_RATE (206)
-/*Indication Flag Length*/
-#define INDICATION_OCT_5  1
-#define INDICATION_OCT_6  2
-#define INDICATION_OCT_7  3
-#define INDICATION_OCT_8  4
-#define INDICATION_OCT_9  5
-#define INDICATION_OCT_10 6
-#define INDICATION_OCT_11 7
+/* TODO: No type defined in Spec, need to revisit */
+#define GTP_IE_MM_CTXT_TYPE (225)
 
+/*Indication Flag Length*/
+#define INDICATION_LEN_1  1
+#define INDICATION_LEN_2  2
+#define INDICATION_LEN_3  3
+#define INDICATION_LEN_4  4
+#define INDICATION_LEN_5  5
+#define INDICATION_LEN_6  6
+#define INDICATION_LEN_7  7
+
+#define IE_HEADER_SIZE sizeof(ie_header_t)
+
+#define START_REPORT_TAI_ECGI 6
+
+#define BUFF_SIZE 257
 
 #pragma pack(1)
 
@@ -594,7 +603,7 @@ typedef struct gtp_pdn_addr_alloc_ie_t {
   ie_header_t header;
   uint8_t spare2 :5;
   uint8_t pdn_type :3;
-  uint8_t pdn_addr_and_pfx[PDN_ADDR_AND_PFX_LEN];
+  uint64_t pdn_addr_and_pfx;
 } gtp_pdn_addr_alloc_ie_t;
 
 typedef struct gtp_bearer_qlty_of_svc_ie_t {
@@ -637,12 +646,13 @@ typedef struct gtp_serving_network_ie_t {
 
 typedef struct gtp_eps_bearer_lvl_traffic_flow_tmpl_ie_t {
   ie_header_t header;
-  uint8_t eps_bearer_lvl_tft[257];
+  uint8_t eps_bearer_lvl_tft[BUFF_SIZE];
 } gtp_eps_bearer_lvl_traffic_flow_tmpl_ie_t;
 
 typedef struct gtp_traffic_agg_desc_ie_t {
   ie_header_t header;
   uint8_t traffic_agg_desc;
+  uint8_t pkt_fltr_buf[BUFF_SIZE];
 } gtp_traffic_agg_desc_ie_t;
 
 typedef struct gtp_user_loc_info_ie_t {
@@ -1262,6 +1272,7 @@ typedef struct gtp_user_csg_info_ie_t {
   uint8_t mnc_digit_2 :4;
   uint8_t mnc_digit_1 :4;
   uint8_t spare2 :5;
+  uint32_t csg_id :3;
   uint32_t csg_id2 :24;
   uint8_t access_mode :2;
   uint8_t spare3 :4;
@@ -1683,16 +1694,16 @@ typedef struct gtp_secdry_rat_usage_data_rpt_ie_t {
   uint8_t secdry_rat_type;
   uint8_t spare3 :4;
   uint8_t ebi :4;
-  uint8_t start_timestamp;
-  uint8_t end_timestamp;
-  uint8_t usage_data_dl;
-  uint8_t usage_data_ul;
+  uint32_t start_timestamp;
+  uint32_t end_timestamp;
+  uint64_t usage_data_dl;
+  uint64_t usage_data_ul;
 } gtp_secdry_rat_usage_data_rpt_ie_t;
 
 typedef struct gtp_up_func_sel_indctn_flgs_ie_t {
-  ie_header_t header;
-  uint8_t spare2 :7;
-  uint8_t dcnr :1;
+	ie_header_t header;
+	uint8_t spare2 :7;
+	uint8_t dcnr :1;
 } gtp_up_func_sel_indctn_flgs_ie_t;
 
 typedef struct gtp_max_pckt_loss_rate_ie_t {
@@ -1884,5 +1895,9 @@ enum secdry_rat_type_values_type {
 };
 
 #pragma pack()
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

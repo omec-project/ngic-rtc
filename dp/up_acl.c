@@ -156,11 +156,8 @@ RTE_ACL_RULE_DEF(acl4_rule, RTE_DIM(ipv4_defs));
  * @brief  : Maintains acl configuration
  */
 struct acl_config {
-	//char mapped[NB_SOCKETS];
 	struct rte_acl_ctx *acx_ipv4;
-	//struct rte_acl_ctx *acx_ipv4[NB_SOCKETS];
 	uint8_t acx_ipv4_built;
-	//uint8_t acx_ipv4_built[NB_SOCKETS];
 };
 
 /**
@@ -195,6 +192,7 @@ struct acl_rules_table {
 	int (*compare_rule)(const void *r1p, const void *r2p);
 	void (*print_entry)(const void *nodep, const VISIT which, const int depth);
 	void (*add_entry)(const void *nodep, const VISIT which, const int depth);
+	uint16_t num_of_ue;
 };
 
 struct acl_config acl_config[MAX_ACL_TABLES];
@@ -214,23 +212,26 @@ static inline void print_one_ipv4_rule(struct acl4_rule *rule, int extra)
 	unsigned char a, b, c, d;
 
 	uint32_t_to_char(rule->field[SRC_FIELD_IPV4].value.u32, &a, &b, &c, &d);
-	clLog(clSystemLog, eCLSeverityDebug,"%hhu.%hhu.%hhu.%hhu/%u ", a, b, c, d,
-			rule->field[SRC_FIELD_IPV4].mask_range.u32);
+	clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT"ACL Rule Info : %hhu.%hhu.%hhu.%hhu/%u\n", LOG_VALUE, a, b, c, d,
+		rule->field[SRC_FIELD_IPV4].mask_range.u32);
 	uint32_t_to_char(rule->field[DST_FIELD_IPV4].value.u32, &a, &b, &c, &d);
-	clLog(clSystemLog, eCLSeverityDebug,"%hhu.%hhu.%hhu.%hhu/%u ", a, b, c, d,
-			rule->field[DST_FIELD_IPV4].mask_range.u32);
-	clLog(clSystemLog, eCLSeverityDebug,"%hu : %hu %hu : %hu 0x%hhx/0x%hhx ",
-			rule->field[SRCP_FIELD_IPV4].value.u16,
-			rule->field[SRCP_FIELD_IPV4].mask_range.u16,
-			rule->field[DSTP_FIELD_IPV4].value.u16,
-			rule->field[DSTP_FIELD_IPV4].mask_range.u16,
-			rule->field[PROTO_FIELD_IPV4].value.u8,
-			rule->field[PROTO_FIELD_IPV4].mask_range.u8);
+	clLog(clSystemLog, eCLSeverityDebug,"ACL Rule Info : %hhu.%hhu.%hhu.%hhu/%u \n",
+		LOG_VALUE, a, b, c, d, rule->field[DST_FIELD_IPV4].mask_range.u32);
+	clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT"ACL Rule Info : %hu : %hu %hu : %hu 0x%hhx/0x%hhx \n",LOG_VALUE,
+		rule->field[SRCP_FIELD_IPV4].value.u16,
+		rule->field[SRCP_FIELD_IPV4].mask_range.u16,
+		rule->field[DSTP_FIELD_IPV4].value.u16,
+		rule->field[DSTP_FIELD_IPV4].mask_range.u16,
+		rule->field[PROTO_FIELD_IPV4].value.u8,
+		rule->field[PROTO_FIELD_IPV4].mask_range.u8);
 	if (extra)
-		clLog(clSystemLog, eCLSeverityDebug,"0x%x-0x%x-0x%x \n",
-				rule->data.category_mask,
-				rule->data.priority,
-				rule->data.userdata & ~ACL_DENY_SIGNATURE);
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"ACL Rule Info : 0x%x-0x%x-0x%x \n", LOG_VALUE,
+			rule->data.category_mask,
+			rule->data.priority,
+			rule->data.userdata & ~ACL_DENY_SIGNATURE);
 }
 
 /**
@@ -246,9 +247,9 @@ static inline void dump_ipv4_rules(struct acl4_rule *rule, int num, int extra)
 	int j;
 
 	for (i = 0, j = 0; i < MAX_SDF_RULE_NUM; i++, rule++) {
-		clLog(clSystemLog, eCLSeverityDebug,"\t%d:", i + 1);
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"ACL Rule Info : %d\n", LOG_VALUE, i + 1);
 		print_one_ipv4_rule(rule, extra);
-		clLog(clSystemLog, eCLSeverityDebug,"\n");
 		j++;
 		if (j == num)
 			break;
@@ -322,19 +323,6 @@ static inline void send_one_packet(struct rte_mbuf *m, uint32_t res)
 	}
 }
 
-/**
-*static inline void update_stats(uint32_t *res, int num)
-*{
-*	int i;
-*
-*	for (i = 0; i < num; i++) {
-*		res[i] &= ~ACL_DENY_SIGNATURE;
-*		acl_rule_stats[res[i]]++;
-*		clLog(clSystemLog, eCLSeverityDebug, "ACL_LKUP: rid[%d]:%u\n", i, res[i]);
-*	}
-*}
-*/
-
 /*
  * Parse ClassBench rules file.
  * Expected format:
@@ -373,12 +361,13 @@ swap_src_dst_ip(char *str)
 {
 	char *s, *sp, *in[CB_FLD_NUM], tmp[MAX_LEN] = {0};
 	static const char *dlm = " \t\n";
-	strncpy(tmp, str, strlen(str));
+	strncpy(tmp, str, MAX_LEN);
 	s = tmp;
 	in[0] = strtok_r(s, dlm, &sp);
 	in[1] = strtok_r(NULL, dlm, &sp);
-	sprintf(str, "%s %s %s\n", in[1], in[0], sp);
-	clLog(clSystemLog, eCLSeverityDebug, "SDF: UL LINK: %s\n", str);
+	snprintf(str, MAX_LEN,"%s %s %s\n", in[1], in[0], sp);
+	clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT"SDF UL LINK : %s\n", LOG_VALUE, str);
 }
 
 
@@ -399,13 +388,14 @@ parse_cb_ipv4vlan_rule(char *str, struct rte_acl_rule *v, int has_userdata)
 
 	char *src_low_port = "0", *src_high_port = "65535";
 	char *dst_low_port = "0", *dst_high_port = "65535";
-	strncpy(tmp, str, strlen(str));
+	strncpy(tmp, str, MAX_LEN);
 	s = tmp;
 
 	for (i = 0; i != dim; i++, s = NULL) {
 		in[i] = strtok_r(s, dlm, &sp);
 		if (in[i] == NULL) {
-			clLog(clSystemLog, eCLSeverityDebug, "ERROR: String is NULL..\n");
+			clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"ERROR: String is NULL\n", LOG_VALUE);
 			return -EINVAL;
 		}
 	}
@@ -414,8 +404,9 @@ parse_cb_ipv4vlan_rule(char *str, struct rte_acl_rule *v, int has_userdata)
 			&v->field[SRC_FIELD_IPV4].value.u32,
 			&v->field[SRC_FIELD_IPV4].mask_range.u32);
 	if (rc != 0) {
-		clLog(clSystemLog, eCLSeverityCritical, "INVALID Source Address/Mask: %s\n",
-				in[CB_FLD_SRC_ADDR]);
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"INVALID Source Address/Mask: %s\n", LOG_VALUE,
+			in[CB_FLD_SRC_ADDR]);
 		return rc;
 	}
 
@@ -423,13 +414,15 @@ parse_cb_ipv4vlan_rule(char *str, struct rte_acl_rule *v, int has_userdata)
 			&v->field[DST_FIELD_IPV4].value.u32,
 			&v->field[DST_FIELD_IPV4].mask_range.u32);
 	if (rc != 0) {
-		clLog(clSystemLog, eCLSeverityCritical, "INVALID Destination Address/Mask: %s\n",
-				in[CB_FLD_DST_ADDR]);
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"INVALID Destination Address/Mask: %s\n", LOG_VALUE,
+			in[CB_FLD_DST_ADDR]);
 		return rc;
 	}
 
 	if(atoi(in[CB_FLD_SRC_PORT_LOW]) == 0 && atoi(in[CB_FLD_SRC_PORT_HIGH]) == 0){
-		clLog(clSystemLog, eCLSeverityDebug, "SRC Port LOW and High both 0\n");
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"SRC Port LOW and High both 0\n", LOG_VALUE);
 		GET_CB_FIELD(src_low_port,
 			v->field[SRCP_FIELD_IPV4].value.u16, 0, UINT16_MAX, 0);
 
@@ -446,13 +439,15 @@ parse_cb_ipv4vlan_rule(char *str, struct rte_acl_rule *v, int has_userdata)
 
 	if (strncmp(in[CB_FLD_SRC_PORT_DLM], cb_port_delim,
 				sizeof(cb_port_delim)) != 0) {
-		clLog(clSystemLog, eCLSeverityCritical, "INVALID Source Port/Mask: %s\n",
-				in[CB_FLD_SRC_PORT_DLM]);
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"INVALID Source Port/Mask: %s\n", LOG_VALUE,
+			in[CB_FLD_SRC_PORT_DLM]);
 		return -EINVAL;
 	}
 
 	if(atoi(in[CB_FLD_DST_PORT_LOW]) == 0 && atoi(in[CB_FLD_DST_PORT_HIGH]) == 0){
-		clLog(clSystemLog, eCLSeverityDebug, "DST Port LOW and High both 0\n");
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"DST Port LOW and High both 0\n", LOG_VALUE);
 		GET_CB_FIELD(dst_low_port,
 			v->field[DSTP_FIELD_IPV4].value.u16, 0, UINT16_MAX, 0);
 
@@ -467,8 +462,9 @@ parse_cb_ipv4vlan_rule(char *str, struct rte_acl_rule *v, int has_userdata)
 
 	if (strncmp(in[CB_FLD_DST_PORT_DLM], cb_port_delim,
 				sizeof(cb_port_delim)) != 0) {
-		clLog(clSystemLog, eCLSeverityCritical, "INVALID Destination Port/Mask: %s\n",
-				in[CB_FLD_DST_PORT_DLM]);
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"INVALID Destination Port/Mask: %s\n", LOG_VALUE,
+			in[CB_FLD_DST_PORT_DLM]);
 		return -EINVAL;
 	}
 
@@ -476,7 +472,8 @@ parse_cb_ipv4vlan_rule(char *str, struct rte_acl_rule *v, int has_userdata)
 			< v->field[SRCP_FIELD_IPV4].value.u16
 			|| v->field[DSTP_FIELD_IPV4].mask_range.u16
 			< v->field[DSTP_FIELD_IPV4].value.u16) {
-		clLog(clSystemLog, eCLSeverityCritical, "INVALID Src and Dst Mask Ranges\n");
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"INVALID Src and Dst Mask Ranges\n", LOG_VALUE);
 		return -EINVAL;
 	}
 
@@ -511,10 +508,12 @@ static void acl_rule_print(const void *nodep, const VISIT which, const int depth
 	switch (which) {
 	case leaf:
 	case postorder:
-		clLog(clSystemLog, eCLSeverityDebug,"Depth: %d, Precedence: %u,",
-				depth, precedence);
-		clLog(clSystemLog, eCLSeverityDebug,"Prio: %x, Category mask: %x\n",
-				r->data.priority, r->data.category_mask);
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Depth : %d, Precedence : %u", LOG_VALUE,
+			depth, precedence);
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Prio : %x, Category Mask : %x\n", LOG_VALUE,
+			r->data.priority, r->data.category_mask);
 		print_one_ipv4_rule(r, 1);
 		break;
 	default:
@@ -555,9 +554,11 @@ static void add_single_rule(const void *nodep, const VISIT which, const int dept
 	case leaf:
 	case postorder:
 		if (rte_acl_add_rules(context, (struct rte_acl_rule *)r, 1)) {
-			clLog(clSystemLog, eCLSeverityCritical, FORMAT":Failed to add sdf rule\n", ERR_MSG);
+			clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Failed to Add SDF rule\n", LOG_VALUE);
 		}
-		clLog(clSystemLog, eCLSeverityDebug, "SDF Rule Added in ACL table\n");
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"SDF Rule Added in ACL table\n", LOG_VALUE);
 		break;
 	default:
 		break;
@@ -578,8 +579,11 @@ static int acl_rule_prcdnc_compare(const void *r1p, const void *r2p)
 	r2 = (struct acl4_rule *) r2p;
 
 	/* compare precedence */
-	if (r1->data.userdata < r2->data.userdata)
+	if (r1->data.userdata < r2->data.userdata) {
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Compare precendence failed\n", LOG_VALUE);
 		return -1;
+	}
 	else if (r1->data.userdata == r2->data.userdata)
 		return 0;
 	else
@@ -633,9 +637,12 @@ static int acl_rule_compare(const void *r1p, const void *r2p)
 		(rule1->field[PROTO_FIELD_IPV4].mask_range.u8 ==
 			rule2->field[PROTO_FIELD_IPV4].mask_range.u8)){
 
-				clLog(clSystemLog, eCLSeverityDebug, "SDF Rule matched...\n");
+				clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"SDF Rule matched\n", LOG_VALUE);
 				return 0;
 	}
+	clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT"SDF Rule mismatched\n", LOG_VALUE);
 	return -1;
 }
 
@@ -650,18 +657,20 @@ up_acl_rules_table_create(uint32_t indx, uint32_t max_elements)
 {
 	struct acl_rules_table *t = &acl_rules_table[indx];
 	if (t->root != NULL) {
-		clLog(clSystemLog, eCLSeverityDebug, FORMAT"ACL table: \"%s\" exist\n", ERR_MSG, t->name);
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"ACL table for index : \"%s\" Exist\n", LOG_VALUE, t->name);
 		return -1;
 	}
 
 	t->num_entries = 0;
 	t->max_entries = max_elements;
-	sprintf(t->name, "ACL_RULES_TABLE-%u", indx);
+	snprintf(t->name, MAX_LEN, "ACL_RULES_TABLE-%u", indx);
 	t->compare = acl_rule_prcdnc_compare;
 	t->compare_rule = acl_rule_compare;
 	t->print_entry = acl_rule_print;
 	t->add_entry = add_single_rule;
-	clLog(clSystemLog, eCLSeverityDebug, "ACL rules table: \"%s\" created\n", t->name);
+	clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT"ACL Rules table for \"%s\" Created\n", LOG_VALUE, t->name);
 	return 0;
 }
 
@@ -695,14 +704,14 @@ static struct rte_acl_ctx *acl_context_init(char *name,
 	/*Create the ACL Table */
 	context = rte_acl_create(&acl_param);
 	if (context == NULL)
-		rte_exit(EXIT_FAILURE, FORMAT"Failed to create ACL context\n", ERR_MSG);
+		rte_exit(EXIT_FAILURE, LOG_FORMAT"Failed to create ACL context\n", LOG_VALUE);
 
 	if (parm_config.scalar
 			&& rte_acl_set_ctx_classify(context,
 				RTE_ACL_CLASSIFY_SCALAR)
 			!= 0)
-		rte_exit(EXIT_FAILURE, FORMAT"Failed to setup classify method for ACL context\n",
-			ERR_MSG);
+		rte_exit(EXIT_FAILURE, LOG_FORMAT"Failed to setup classify method for ACL context\n",
+			LOG_VALUE);
 
 	return context;
 }
@@ -739,22 +748,26 @@ acl_config_init(struct acl_config *acl_config,
 static int
 up_sdf_filter_table_create(uint32_t max_elements)
 {
-	char name[32];
+	char name[NAME_LEN];
 	char *buf = "ACLTable-";
 	acl_table_indx = acl_table_indx_offset;
 
 	/* Increment the New Created ACL tables */
-	sprintf(name, "%s%u", buf, acl_table_indx);
+	snprintf(name, NAME_LEN, "%s%u", buf, acl_table_indx);
 
 	/* Configure the ACL table */
 	if (acl_config_init(&acl_config[acl_table_indx], name,
 			max_elements, sizeof(struct acl4_rule)) < 0) {
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"Acl config init failed\n", LOG_VALUE);
 		/* TODO: Error Handling */
 		return -1;
 	}
 
 	/* Create the local acl rules table copy */
 	if (up_acl_rules_table_create(acl_table_indx, max_elements)) {
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"Up acl rules table create failed\n", LOG_VALUE);
 		/* TODO: Error Handling */
 		return -1;
 	}
@@ -811,9 +824,9 @@ reset_and_build_rules(uint32_t indx)
 
 	/* Build the ACL run time structure */
 	if ((ret = rte_acl_build(context, &acl_build_param)) != 0) {
-		rte_exit(EXIT_FAILURE, FORMAT"Failed to build ACL trie,"
+		rte_exit(EXIT_FAILURE, LOG_FORMAT"Failed to build ACL trie,"
 				"ACL_RULES_TABLE-%u, ret:%d, error:%s\n",
-				ERR_MSG, indx, ret, rte_strerror(rte_errno));
+				LOG_VALUE, indx, ret, rte_strerror(rte_errno));
 	}
 
 	pacl_config->acx_ipv4_built = 1;
@@ -835,19 +848,22 @@ up_rules_entry_add(struct acl_rules_table *t,
 				struct acl4_rule *rule)
 {
 	if (t->num_entries == t->max_entries)
-		clLog(clSystemLog, eCLSeverityDebug, FORMAT":%s reached max rules entries\n", ERR_MSG, t->name);
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT":%s reached max rules entries\n", LOG_VALUE, t->name);
 
 	struct acl4_rule *new = rte_malloc("acl_rule", sizeof(struct acl4_rule),
 			RTE_CACHE_LINE_SIZE);
 	if (new == NULL) {
-		clLog(clSystemLog, eCLSeverityDebug, FORMAT"ADC: Failed to allocate memory\n", ERR_MSG);
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"ADC: Failed to allocate memory\n", LOG_VALUE);
 		return -1;
 	}
-	*new = *rule;
+	memcpy(new, rule, sizeof(struct acl4_rule));
 	/* put node into the tree */
-	if (tsearch(new, &t->root, t->compare) == 0) {
-		clLog(clSystemLog, eCLSeverityDebug, FORMAT":Fail to add acl precedance %d\n", ERR_MSG,
-				rule->data.userdata - ACL_DENY_SIGNATURE);
+	if (tsearch(new, &t->root, t->compare_rule) == 0) {
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT":Fail to add acl precedance %d\n", LOG_VALUE,
+			rule->data.userdata - ACL_DENY_SIGNATURE);
 		return -1;
 	}
 
@@ -877,11 +893,12 @@ up_filter_entry_add(uint32_t indx, struct sdf_pkt_filter *pkt_filter)
 
 	/* check sdf filter exist or not */
 	if (pkt_filter == NULL) {
-		clLog(clSystemLog, eCLSeverityCritical, "%s:%d read msg_payload failed\n", __func__, __LINE__);
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"Read msg payload failed\n", LOG_VALUE);
 		return -1;
 	}
 
-	/* TODO: Ensure rule_id does not exceed max num rules*/
+	/* Ensure rule_id does not exceed max num rules*/
 	if (sdf_rule_id == SDF_DEFAULT_DROP_RULE_ID)
 		prio = 0;
 
@@ -891,8 +908,8 @@ up_filter_entry_add(uint32_t indx, struct sdf_pkt_filter *pkt_filter)
 
 	/* Parse the sdf filter into acl ipv4 rule format */
 	if (parse_cb_ipv4vlan_rule(buf, next, 0) != 0) {
-		clLog(clSystemLog, eCLSeverityCritical, "%s:%d\n"
-				"parse rules error\n", __func__, __LINE__);
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"Parse rules error\n", LOG_VALUE);
 		return -1;
 	}
 
@@ -905,25 +922,32 @@ up_filter_entry_add(uint32_t indx, struct sdf_pkt_filter *pkt_filter)
 	struct acl_rules_table *t = NULL;
 	if (ctx != NULL) {
 
-		clLog(clSystemLog, eCLSeverityDebug, "Search SDF Rule in ACL_Table_Index-%u\n", indx);
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Search SDF Rule in ACL_Table_Index-%u\n", LOG_VALUE, indx);
 		t = tfind(next, &ctx->root, ctx->compare_rule);
 		if (t != NULL) {
-			clLog(clSystemLog, eCLSeverityDebug, "SDF Rule match in ACL_Table_Index-%u\nDP: SDF Rule:%s\n",
-				indx, pkt_filter->u.rule_str);
+			clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"SDF Rule match in ACL_Table_Index-%u\nDP: SDF Rule:%s\n",
+				LOG_VALUE, indx, pkt_filter->u.rule_str);
 			return 0;
 		}
 	}
 
 	if (up_rules_entry_add(&acl_rules_table[indx],
 				(struct acl4_rule *)next) < 0) {
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"Up rules entry add failed\n", LOG_VALUE);
 		return -1;
 	}
 
-	if (reset_and_build_rules(indx) < 0)
+	if (reset_and_build_rules(indx) < 0) {
+		clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Reset and build rules Failed\n", LOG_VALUE);
 		return -1;
-
-	clLog(clSystemLog, eCLSeverityDebug, "ACL ADD: %s, ACL_Indx:%u, precedence:%u, rule:%s\n",
-			"SDF RULE", indx, pkt_filter->precedence, pkt_filter->u.rule_str);
+	}
+	clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT"ACL ADD: %s, ACL_Indx:%u, precedence:%u, rule:%s\n",
+		"SDF RULE", LOG_VALUE, indx, pkt_filter->precedence, pkt_filter->u.rule_str);
 	return 0;
 }
 
@@ -931,13 +955,13 @@ int
 up_sdf_filter_entry_add(uint32_t indx, struct sdf_pkt_filter *pkt_filter)
 {
 	static int is_first = 1;
-	/* TODO: Need to think on CDR records */
 	if (is_first == 1) {
-		//cdr_init();
 		is_first = 0;
 	}
 
 	if (up_filter_entry_add(indx, pkt_filter)) {
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"Failed in up filter entry addition\n", LOG_VALUE);
 		/* TODO: ERROR Handling */
 		return -1;
 	}
@@ -947,7 +971,7 @@ up_sdf_filter_entry_add(uint32_t indx, struct sdf_pkt_filter *pkt_filter)
 
 /* Function to retrive the acl table index */
 int
-get_acl_table_indx(struct sdf_pkt_filter *pkt_filter)
+get_acl_table_indx(struct sdf_pkt_filter *pkt_filter, uint8_t is_create)
 {
 	uint8_t prio = 0;
 	uint32_t it = 0;
@@ -957,24 +981,24 @@ get_acl_table_indx(struct sdf_pkt_filter *pkt_filter)
 
 	/* check sdf filter exist or not */
 	if (pkt_filter == NULL) {
-		clLog(clSystemLog, eCLSeverityCritical, FORMAT":read msg_payload failed\n", ERR_MSG);
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"read msg_payload failed\n", LOG_VALUE);
 		return -1;
 	}
 
-	/* TODO: Need to check this */
 	prio = (255 - pkt_filter->precedence);
 	buf = (char *)&pkt_filter->u.rule_str[0];
 	next = (struct rte_acl_rule *)&r;
 
 	/* Parse the sdf filter into acl ipv4 rule format */
 	if (parse_cb_ipv4vlan_rule(buf, next, 0) != 0) {
-		clLog(clSystemLog, eCLSeverityCritical, FORMAT": parse rules error\n", ERR_MSG);
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"Parse rules error\n", LOG_VALUE);
 		return -1;
 	}
 
 	/* Fill the received rule information */
 	next->data.userdata = pkt_filter->precedence + ACL_DENY_SIGNATURE;
-	/* TODO: Need to check */
 	next->data.priority = prio;
 	next->data.category_mask = -1;
 
@@ -985,32 +1009,49 @@ get_acl_table_indx(struct sdf_pkt_filter *pkt_filter)
 		if (ctx == NULL)
 			continue;
 
-		clLog(clSystemLog, eCLSeverityDebug, "Search SDF Rule in ACL_Table_Index-%u\n", itr);
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Search SDF Rule in ACL_Table_Index :%u\n",
+			LOG_VALUE, itr);
 		t = tfind(next, &ctx->root, ctx->compare_rule);
 		if (t != NULL) {
-			clLog(clSystemLog, eCLSeverityDebug, "SDF Rule match in ACL_Table_Index-%u\nDP: SDF Rule:%s\n",
-				itr, pkt_filter->u.rule_str);
+			clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"SDF Rule match in ACL_Table_Index-%u\nDP: SDF Rule:%s\n",
+				LOG_VALUE, itr, pkt_filter->u.rule_str);
+			if(SESS_CREATE == is_create)
+				acl_rules_table[itr].num_of_ue++;
 			return itr;
 		}
 	}
 
+	if(SESS_CREATE != is_create)
+		return -1;
+
 	/* If ACL table is not present than create the new ACL table */
 	if ((it = up_sdf_filter_table_create(MAX_SDF_RULE_NUM)) < 0) {
+		clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Failed to create up sdf filter table\n", LOG_VALUE);
 		return -1;
 	}
 
 	/* Add the sdf filter rule in ACL table */
 	if (up_rules_entry_add(&acl_rules_table[it],
 				(struct acl4_rule *)next) < 0) {
+		clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Up rules entry addtion failed\n", LOG_VALUE);
 		return -1;
 	}
+	acl_rules_table[it].num_of_ue++;
 
-	clLog(clSystemLog, eCLSeverityDebug, "ACL ADD:%s, precedence:%u, rule:%s\n",
-			"SDF", pkt_filter->precedence, pkt_filter->u.rule_str);
+	clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT"ACL ADD:%s, precedence:%u, rule:%s\n", LOG_VALUE,
+		"SDF", pkt_filter->precedence, pkt_filter->u.rule_str);
 
 	/* Rebuild the ACl table */
-	if (reset_and_build_rules(it) < 0)
+	if (reset_and_build_rules(it) < 0) {
+		clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Failed in reset and build rules\n", LOG_VALUE);
 		return -1;
+	}
 	return it;
 }
 
@@ -1034,8 +1075,8 @@ static int
 up_acl_rules_table_delete(struct acl_rules_table *t)
 {
 	tdestroy(&t->root, free_node);
-	clLog(clSystemLog, eCLSeverityDebug, FORMAT"ACL Rules table: \"%s\" destroyed\n",
-				ERR_MSG, t->name);
+	clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT"ACL Rules table : \"%s\" destroyed\n", LOG_VALUE, t->name);
 	memset(t, 0, sizeof(struct acl_rules_table));
 	return 0;
 }
@@ -1051,6 +1092,8 @@ up_sdf_filter_table_delete(uint32_t indx)
 
 	/* Delete entry from local table */
 	if(up_acl_rules_table_delete(t)) {
+		clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Failed in up acl table delete\n", LOG_VALUE);
 		/* TODO: ERROR Handling */
 		return -1;
 	}
@@ -1058,7 +1101,8 @@ up_sdf_filter_table_delete(uint32_t indx)
 	/* Deleted ACL Table */
 	--acl_table_indx_offset;
 	acl_table_indx = 0;
-	clLog(clSystemLog, eCLSeverityDebug, "ACL table %s deleted", ctx->name);
+	clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT"ACL table %s deleted", LOG_VALUE, ctx->name);
 
 	rte_free(ctx);
 	return 0;
@@ -1078,12 +1122,13 @@ up_rules_entry_delete(struct acl_rules_table *t,
 	/* delete node from the tree */
 	p = tdelete(rule, &t->root, t->compare);
 	if (p == NULL) {
-		clLog(clSystemLog, eCLSeverityDebug, FORMAT"Fail to delete acl rule id %d\n", ERR_MSG,
-						rule->data.userdata - ACL_DENY_SIGNATURE);
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Fail to delete acl rule id %d\n", LOG_VALUE,
+			rule->data.userdata - ACL_DENY_SIGNATURE);
 		return -1;
 	}
 	t->num_entries--;
-
+	rte_free(*p);
 	return 0;
 }
 
@@ -1096,18 +1141,19 @@ up_sdf_filter_entry_delete(uint32_t indx,
 	struct rte_acl_ctx *ctx = acl_config[indx].acx_ipv4;
 
 	if (pkt_filter_entry == NULL) {
-		clLog(clSystemLog, eCLSeverityCritical, FORMAT":read msg_payload failed\n", ERR_MSG);
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"Read msg Payload failed\n", LOG_VALUE);
 		return -1;
 	}
 
 	precedence = pkt_filter_entry->precedence;
-	clLog(clSystemLog, eCLSeverityDebug, "ACL DEL:%s precedence:%u\n",
-			ctx->name, precedence);
+	clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT"ACL DEL: %s, precedence: %u\n",
+		LOG_VALUE, ctx->name, precedence);
 
 	rule.data.userdata = precedence + ACL_DENY_SIGNATURE;
 	up_rules_entry_delete(&acl_rules_table[indx], &rule);
 	return 0;
-	//return reset_and_build_rules(indx);
 }
 
 /**
@@ -1134,14 +1180,12 @@ static uint32_t *acl_lookup(struct rte_mbuf **m, uint32_t indx,
 						acl_search->res_ipv4,
 						acl_search->num_ipv4,
 						DEFAULT_MAX_CATEGORIES);
-
-				//update_stats((acl_search+lcore_id)->res_ipv4,
-				//		(acl_search+lcore_id)->num_ipv4);
 			}
 		}
 		return (uint32_t *)&(acl_search->res_ipv4);
 	}
-	clLog(clSystemLog, eCLSeverityDebug, "ERROR: ACL Context is NULL \n");
+	clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT"ERROR: ACL Context is Not Found \n", LOG_VALUE);
 	return 0;
 }
 
@@ -1187,16 +1231,21 @@ default_up_filter_entry_add(uint32_t precedence, uint8_t direction)
 
 	/* If ACL table is not present than create the new ACL table */
 	if ((indx = up_sdf_filter_table_create(MAX_SDF_RULE_NUM)) < 0) {
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"Failed to create up sdf filter table\n", LOG_VALUE);
 		return -1;
 	}
 
 	if (up_filter_entry_add(indx, &pktf)) {
+		clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Failed to add up filter entry\n", LOG_VALUE);
 		/* TODO: ERROR Handling */
 		return -1;
 	}
 
-	clLog(clSystemLog, eCLSeverityDebug, "ACL ADD:%s, precedence:%u, rule:%s\n",
-			"SDF", pktf.precedence, pktf.u.rule_str);
+	clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT"ACL ADD:%s, precedence:%u, rule:%s\n",
+		"SDF", LOG_VALUE, pktf.precedence, pktf.u.rule_str);
 	return indx;
 }
 
@@ -1233,81 +1282,17 @@ int up_sdf_default_entry_add(uint32_t indx, uint32_t precedence, uint8_t directi
 			);
 	}
 
-	if (up_filter_entry_add(indx, &pktf))
+	if (up_filter_entry_add(indx, &pktf)){
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"Failed to add up filter entry\n", LOG_VALUE);
 		return -1;
+	}
 
-	clLog(clSystemLog, eCLSeverityDebug, "ACL ADD:%s, precedence:%u, rule:%s\n",
-			"SDF", pktf.precedence, pktf.u.rule_str);
+	clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT"ACL ADD:%s, precedence:%u, rule:%s\n",
+		"SDF", LOG_VALUE, pktf.precedence, pktf.u.rule_str);
 	return 0;
 }
-/*******************************************************[END]**********************************************************/
-/**
-static uint8_t
-retrive_acl_table_indx(char *str)
-{
-	uint8_t idx = 0, index = 0, indx = 0;
-	char buf[MAX_LEN] = {0};
-
-	if(str == NULL)
-	{
-		clLog(clSystemLog, eCLSeverityCritical, "%s:%d String is NULL\n",
-				__func__, __LINE__);
-		return -1;
-	}
-
-	idx = 9;
-	for(;str[idx] != '\0'; ++idx)
-	{
-		buf[index] = str[idx];
-		++index;
-	}
-
-	indx = atoi(buf);
-	if (indx < 0) {
-		clLog(clSystemLog, eCLSeverityCritical, "%s:%d ACL Table index not found\n",
-				__func__, __LINE__);
-		return -1;
-	}
-
-	return indx;
-}
-*/
-
-////VS
-//int up_sdf_default_entry_action_modify(uint32_t itr, uint32_t precedence)
-//{
-//	struct acl4_rule rule = {0};
-//	struct rte_acl_ctx *ctx = &acl_config[itr];
-//
-//	clLog(clSystemLog, eCLSeverityDebug, "ACL DEL:%s precedence:%d\n",
-//			"SDF", precedence);
-//
-//	rule.data.userdata = precedence + ACL_DENY_SIGNATURE;
-//	if (up_rules_entry_delete(&acl_rules_table[itr], &rule))
-//		return -1;
-//
-//	struct sdf_pkt_filter pktf = {
-//			.precedence = 0,
-//			//.precedence = SDF_DEFAULT_RULE_ID,
-//		};
-//
-//	snprintf(pktf.u.rule_str, MAX_LEN, "%s/%"PRIu8" %s/%"PRIu8" %"
-//		PRIu16" : %"PRIu16" %"PRIu16" : %"PRIu16" 0x%"
-//		PRIx8"/0x%"PRIx8"\n",
-//		"0.0.0.0", 0, /*local_ip & mask */
-//		"0.0.0.0", 0, /*remote_ip, mask,*/
-//		0, /*local_port_low),*/
-//		65535, /*local_port_high),*/
-//		0,/*remote_port_low),*/
-//		65535, /*remote_port_high),*/
-//		0, 0/*proto, proto_mask)*/
-//		);
-//
-//	if (up_filter_entry_add(ctx, &pktf) < 0)
-//		return -1;
-//
-//	return 0;
-//}
 
 int
 sdf_table_delete(uint32_t indx,
@@ -1321,8 +1306,8 @@ sdf_table_delete(uint32_t indx,
 
 	struct acl4_rule rule = {0};
 	precedence = pkt_filter_entry->precedence;
-	clLog(clSystemLog, eCLSeverityDebug, "ACL DEL:%s precedence:%u\n",
-												ctx->name, precedence);
+	clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT"ACL DEL:%s precedence: %u\n", LOG_VALUE, ctx->name, precedence);
 
 	rule.data.userdata = precedence + ACL_DENY_SIGNATURE;
 	up_rules_entry_delete(t, &rule);
@@ -1337,15 +1322,28 @@ remove_rule_entry_acl(uint32_t indx,
 
 	struct acl_rules_table *t = &acl_rules_table[indx];
 
+	if(t->num_of_ue > 1){
+		t->num_of_ue--;
+		clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT"Rule is used for more then one Bearer/UE"
+		" So not removing that table rule left for %u UE\n",
+		LOG_VALUE, t->num_of_ue);
+		return 0;
+	}
+
 	if(t->num_entries == 0){
-		clLog(clSystemLog, eCLSeverityDebug, "[%s:%d]No Acl Entery in Given Index table\n",__func__, __LINE__);
+		clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT"No Acl Entery in Given Index table\n", LOG_VALUE);
 		return 0;
 	}
 	if(t->num_entries == 1)
 		return sdf_table_delete(indx, pkt_filter_entry);
 	else{
-		if(up_sdf_filter_entry_delete(indx, pkt_filter_entry))
+		if(up_sdf_filter_entry_delete(indx, pkt_filter_entry)) {
+			clLog(clSystemLog, eCLSeverityCritical,
+				"Failed to delete up sdf filter entry\n", LOG_VALUE);
 			return -1;
+		}
 		return reset_and_build_rules(indx);
 	}
 }

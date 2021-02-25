@@ -1176,289 +1176,289 @@ typedef struct gxCcMoney {
 } GxCcMoney;
 
 typedef struct gxUsedServiceUnit {
-    GxUsedServiceUnitPresence presence;
-    int32_t reporting_reason;
-    int32_t tariff_change_usage;
-    uint32_t cc_time;
-    GxCcMoney cc_money;
-    uint64_t cc_total_octets;
-    uint64_t cc_input_octets;
-    uint64_t cc_output_octets;
-    uint64_t cc_service_specific_units;
-    GxEventChargingTimestampList event_charging_timestamp;
+	GxUsedServiceUnitPresence presence;
+	int32_t reporting_reason;
+	int32_t tariff_change_usage;
+	uint32_t cc_time;
+	GxCcMoney cc_money;
+	uint64_t cc_total_octets;
+	uint64_t cc_input_octets;
+	uint64_t cc_output_octets;
+	uint64_t cc_service_specific_units;
+	GxEventChargingTimestampList event_charging_timestamp;
 } GxUsedServiceUnit;
 
 typedef struct gxUsedServiceUnitList {
-    int32_t count;
-    GxUsedServiceUnit *list;
+	int32_t count;
+	GxUsedServiceUnit *list;
 } GxUsedServiceUnitList;
 
 typedef struct gxGrantedServiceUnit {
-    GxGrantedServiceUnitPresence presence;
-    FdTime tariff_time_change;
-    uint32_t cc_time;
-    GxCcMoney cc_money;
-    uint64_t cc_total_octets;
-    uint64_t cc_input_octets;
-    uint64_t cc_output_octets;
-    uint64_t cc_service_specific_units;
+	GxGrantedServiceUnitPresence presence;
+	FdTime tariff_time_change;
+	uint32_t cc_time;
+	GxCcMoney cc_money;
+	uint64_t cc_total_octets;
+	uint64_t cc_input_octets;
+	uint64_t cc_output_octets;
+	uint64_t cc_service_specific_units;
 } GxGrantedServiceUnit;
 
 typedef struct gxGrantedServiceUnitList {
-    int32_t count;
-    GxGrantedServiceUnit *list;
+	int32_t count;
+	GxGrantedServiceUnit *list;
 } GxGrantedServiceUnitList;
 
 typedef struct gxUsageMonitoringInformation {
-    GxUsageMonitoringInformationPresence presence;
-    GxMonitoringKeyOctetString monitoring_key;
-    GxGrantedServiceUnitList granted_service_unit;
-    GxUsedServiceUnitList used_service_unit;
-    uint32_t quota_consumption_time;
-    int32_t usage_monitoring_level;
-    int32_t usage_monitoring_report;
-    int32_t usage_monitoring_support;
+	GxUsageMonitoringInformationPresence presence;
+	GxMonitoringKeyOctetString monitoring_key;
+	GxGrantedServiceUnitList granted_service_unit;
+	GxUsedServiceUnitList used_service_unit;
+	uint32_t quota_consumption_time;
+	int32_t usage_monitoring_level;
+	int32_t usage_monitoring_report;
+	int32_t usage_monitoring_support;
 } GxUsageMonitoringInformation;
 
 typedef struct gxUsageMonitoringInformationList {
-    int32_t count;
-    GxUsageMonitoringInformation *list;
+	int32_t count;
+	GxUsageMonitoringInformation *list;
 } GxUsageMonitoringInformationList;
 
 typedef struct gxTunnelHeaderFilterList {
-    int32_t count;
-    GxTunnelHeaderFilterOctetString *list;
+	int32_t count;
+	GxTunnelHeaderFilterOctetString *list;
 } GxTunnelHeaderFilterList;
 
 typedef struct gxTunnelInformation {
-    GxTunnelInformationPresence presence;
-    uint32_t tunnel_header_length;
-    GxTunnelHeaderFilterList tunnel_header_filter;
+	GxTunnelInformationPresence presence;
+	uint32_t tunnel_header_length;
+	GxTunnelHeaderFilterList tunnel_header_filter;
 } GxTunnelInformation;
 
 typedef struct gxCoaInformation {
-    GxCoaInformationPresence presence;
-    GxTunnelInformation tunnel_information;
-    FdAddress coa_ip_address;
+	GxCoaInformationPresence presence;
+	GxTunnelInformation tunnel_information;
+	FdAddress coa_ip_address;
 } GxCoaInformation;
 
 typedef struct gxCoaInformationList {
-    int32_t count;
-    GxCoaInformation *list;
+	int32_t count;
+	GxCoaInformation *list;
 } GxCoaInformationList;
 
 typedef struct gxChargingRuleNameList {
-    int32_t count;
-    GxChargingRuleNameOctetString *list;
+	int32_t count;
+	GxChargingRuleNameOctetString *list;
 } GxChargingRuleNameList;
 
 typedef struct gxChargingRuleBaseNameList {
-    int32_t count;
-    GxChargingRuleBaseNameOctetString *list;
+	int32_t count;
+	GxChargingRuleBaseNameOctetString *list;
 } GxChargingRuleBaseNameList;
 
 typedef struct gxAccessNetworkChargingIdentifierGx {
-    GxAccessNetworkChargingIdentifierGxPresence presence;
-    GxAccessNetworkChargingIdentifierValueOctetString access_network_charging_identifier_value;
-    GxChargingRuleBaseNameList charging_rule_base_name;
-    GxChargingRuleNameList charging_rule_name;
-    int32_t ip_can_session_charging_scope;
+	GxAccessNetworkChargingIdentifierGxPresence presence;
+	GxAccessNetworkChargingIdentifierValueOctetString access_network_charging_identifier_value;
+	GxChargingRuleBaseNameList charging_rule_base_name;
+	GxChargingRuleNameList charging_rule_name;
+	int32_t ip_can_session_charging_scope;
 } GxAccessNetworkChargingIdentifierGx;
 
 typedef struct gxAccessNetworkChargingIdentifierGxList {
-    int32_t count;
-    GxAccessNetworkChargingIdentifierGx *list;
+	int32_t count;
+	GxAccessNetworkChargingIdentifierGx *list;
 } GxAccessNetworkChargingIdentifierGxList;
 
 typedef struct gxMbsfnArea {
-    GxMbsfnAreaPresence presence;
-    uint32_t mbsfn_area_id;
-    uint32_t carrier_frequency;
+	GxMbsfnAreaPresence presence;
+	uint32_t mbsfn_area_id;
+	uint32_t carrier_frequency;
 } GxMbsfnArea;
 
 typedef struct gxMbsfnAreaList {
-    int32_t count;
-    GxMbsfnArea *list;
+	int32_t count;
+	GxMbsfnArea *list;
 } GxMbsfnAreaList;
 
 typedef struct gxMdtAllowedPlmnIdList {
-    int32_t count;
-    GxMdtAllowedPlmnIdOctetString *list;
+	int32_t count;
+	GxMdtAllowedPlmnIdOctetString *list;
 } GxMdtAllowedPlmnIdList;
 
 typedef struct gxTrackingAreaIdentityList {
-    int32_t count;
-    GxTrackingAreaIdentityOctetString *list;
+	int32_t count;
+	GxTrackingAreaIdentityOctetString *list;
 } GxTrackingAreaIdentityList;
 
 typedef struct gxLocationAreaIdentityList {
-    int32_t count;
-    GxLocationAreaIdentityOctetString *list;
+	int32_t count;
+	GxLocationAreaIdentityOctetString *list;
 } GxLocationAreaIdentityList;
 
 typedef struct gxRoutingAreaIdentityList {
-    int32_t count;
-    GxRoutingAreaIdentityOctetString *list;
+	int32_t count;
+	GxRoutingAreaIdentityOctetString *list;
 } GxRoutingAreaIdentityList;
 
 typedef struct gxEUtranCellGlobalIdentityList {
-    int32_t count;
-    GxEUtranCellGlobalIdentityOctetString *list;
+	int32_t count;
+	GxEUtranCellGlobalIdentityOctetString *list;
 } GxEUtranCellGlobalIdentityList;
 
 typedef struct gxCellGlobalIdentityList {
-    int32_t count;
-    GxCellGlobalIdentityOctetString *list;
+	int32_t count;
+	GxCellGlobalIdentityOctetString *list;
 } GxCellGlobalIdentityList;
 
 typedef struct gxAreaScope {
-    GxAreaScopePresence presence;
-    GxCellGlobalIdentityList cell_global_identity;
-    GxEUtranCellGlobalIdentityList e_utran_cell_global_identity;
-    GxRoutingAreaIdentityList routing_area_identity;
-    GxLocationAreaIdentityList location_area_identity;
-    GxTrackingAreaIdentityList tracking_area_identity;
+	GxAreaScopePresence presence;
+	GxCellGlobalIdentityList cell_global_identity;
+	GxEUtranCellGlobalIdentityList e_utran_cell_global_identity;
+	GxRoutingAreaIdentityList routing_area_identity;
+	GxLocationAreaIdentityList location_area_identity;
+	GxTrackingAreaIdentityList tracking_area_identity;
 } GxAreaScope;
 
 typedef struct gxMdtConfiguration {
-    GxMdtConfigurationPresence presence;
-    int32_t job_type;
-    GxAreaScope area_scope;
-    uint32_t list_of_measurements;
-    uint32_t reporting_trigger;
-    int32_t report_interval;
-    int32_t report_amount;
-    uint32_t event_threshold_rsrp;
-    uint32_t event_threshold_rsrq;
-    int32_t logging_interval;
-    int32_t logging_duration;
-    int32_t measurement_period_lte;
-    int32_t measurement_period_umts;
-    int32_t collection_period_rrm_lte;
-    int32_t collection_period_rrm_umts;
-    GxPositioningMethodOctetString positioning_method;
-    GxMeasurementQuantityOctetString measurement_quantity;
-    int32_t event_threshold_event_1f;
-    int32_t event_threshold_event_1i;
-    GxMdtAllowedPlmnIdList mdt_allowed_plmn_id;
-    GxMbsfnAreaList mbsfn_area;
+	GxMdtConfigurationPresence presence;
+	int32_t job_type;
+	GxAreaScope area_scope;
+	uint32_t list_of_measurements;
+	uint32_t reporting_trigger;
+	int32_t report_interval;
+	int32_t report_amount;
+	uint32_t event_threshold_rsrp;
+	uint32_t event_threshold_rsrq;
+	int32_t logging_interval;
+	int32_t logging_duration;
+	int32_t measurement_period_lte;
+	int32_t measurement_period_umts;
+	int32_t collection_period_rrm_lte;
+	int32_t collection_period_rrm_umts;
+	GxPositioningMethodOctetString positioning_method;
+	GxMeasurementQuantityOctetString measurement_quantity;
+	int32_t event_threshold_event_1f;
+	int32_t event_threshold_event_1i;
+	GxMdtAllowedPlmnIdList mdt_allowed_plmn_id;
+	GxMbsfnAreaList mbsfn_area;
 } GxMdtConfiguration;
 
 typedef struct gxTraceData {
-    GxTraceDataPresence presence;
-    GxTraceReferenceOctetString trace_reference;
-    int32_t trace_depth;
-    GxTraceNeTypeListOctetString trace_ne_type_list;
-    GxTraceInterfaceListOctetString trace_interface_list;
-    GxTraceEventListOctetString trace_event_list;
-    GxOmcIdOctetString omc_id;
-    FdAddress trace_collection_entity;
-    GxMdtConfiguration mdt_configuration;
+	GxTraceDataPresence presence;
+	GxTraceReferenceOctetString trace_reference;
+	int32_t trace_depth;
+	GxTraceNeTypeListOctetString trace_ne_type_list;
+	GxTraceInterfaceListOctetString trace_interface_list;
+	GxTraceEventListOctetString trace_event_list;
+	GxOmcIdOctetString omc_id;
+	FdAddress trace_collection_entity;
+	GxMdtConfiguration mdt_configuration;
 } GxTraceData;
 
 typedef struct gxAnGwAddressList {
-    int32_t count;
-    FdAddress *list;
+	int32_t count;
+	FdAddress *list;
 } GxAnGwAddressList;
 
 typedef struct gxUserCsgInformation {
-    GxUserCsgInformationPresence presence;
-    uint32_t csg_id;
-    int32_t csg_access_mode;
-    int32_t csg_membership_indication;
+	GxUserCsgInformationPresence presence;
+	uint32_t csg_id;
+	int32_t csg_access_mode;
+	int32_t csg_membership_indication;
 } GxUserCsgInformation;
 
 typedef struct gxEventTriggerList {
-    int32_t count;
-    int32_t *list;
+	int32_t count;
+	int32_t *list;
 } GxEventTriggerList;
 
 typedef struct gxEventReportIndication {
-    GxEventReportIndicationPresence presence;
-    int32_t an_trusted;
-    GxEventTriggerList event_trigger;
-    GxUserCsgInformation user_csg_information;
-    int32_t ip_can_type;
-    GxAnGwAddressList an_gw_address;
-    Gx3gppSgsnAddressOctetString tgpp_sgsn_address;
-    Gx3gppSgsnIpv6AddressOctetString tgpp_sgsn_ipv6_address;
-    Gx3gppSgsnMccMncOctetString tgpp_sgsn_mcc_mnc;
-    GxFramedIpAddressOctetString framed_ip_address;
-    int32_t rat_type;
-    GxRaiOctetString rai;
-    Gx3gppUserLocationInfoOctetString tgpp_user_location_info;
-    GxTraceData trace_data;
-    GxTraceReferenceOctetString trace_reference;
-    Gx3gpp2BsidOctetString tgpp2_bsid;
-    Gx3gppMsTimezoneOctetString tgpp_ms_timezone;
-    FdAddress routing_ip_address;
-    FdAddress ue_local_ip_address;
-    FdAddress henb_local_ip_address;
-    uint32_t udp_source_port;
-    GxPresenceReportingAreaInformation presence_reporting_area_information;
+	GxEventReportIndicationPresence presence;
+	int32_t an_trusted;
+	GxEventTriggerList event_trigger;
+	GxUserCsgInformation user_csg_information;
+	int32_t ip_can_type;
+	GxAnGwAddressList an_gw_address;
+	Gx3gppSgsnAddressOctetString tgpp_sgsn_address;
+	Gx3gppSgsnIpv6AddressOctetString tgpp_sgsn_ipv6_address;
+	Gx3gppSgsnMccMncOctetString tgpp_sgsn_mcc_mnc;
+	GxFramedIpAddressOctetString framed_ip_address;
+	int32_t rat_type;
+	GxRaiOctetString rai;
+	Gx3gppUserLocationInfoOctetString tgpp_user_location_info;
+	GxTraceData trace_data;
+	GxTraceReferenceOctetString trace_reference;
+	Gx3gpp2BsidOctetString tgpp2_bsid;
+	Gx3gppMsTimezoneOctetString tgpp_ms_timezone;
+	FdAddress routing_ip_address;
+	FdAddress ue_local_ip_address;
+	FdAddress henb_local_ip_address;
+	uint32_t udp_source_port;
+	GxPresenceReportingAreaInformation presence_reporting_area_information;
 } GxEventReportIndication;
 
 typedef struct gxFlowInformation {
-    GxFlowInformationPresence presence;
-    GxFlowDescriptionOctetString flow_description;
-    GxPacketFilterIdentifierOctetString packet_filter_identifier;
-    int32_t packet_filter_usage;
-    GxTosTrafficClassOctetString tos_traffic_class;
-    GxSecurityParameterIndexOctetString security_parameter_index;
-    GxFlowLabelOctetString flow_label;
-    int32_t flow_direction;
-    GxRoutingRuleIdentifierOctetString routing_rule_identifier;
+	GxFlowInformationPresence presence;
+	GxFlowDescriptionOctetString flow_description;
+	GxPacketFilterIdentifierOctetString packet_filter_identifier;
+	int32_t packet_filter_usage;
+	GxTosTrafficClassOctetString tos_traffic_class;
+	GxSecurityParameterIndexOctetString security_parameter_index;
+	GxFlowLabelOctetString flow_label;
+	int32_t flow_direction;
+	GxRoutingRuleIdentifierOctetString routing_rule_identifier;
 } GxFlowInformation;
 
 typedef struct gxFlowInformationList {
-    int32_t count;
-    GxFlowInformation *list;
+	int32_t count;
+	GxFlowInformation *list;
 } GxFlowInformationList;
 
 typedef struct gxApplicationDetectionInformation {
-    GxApplicationDetectionInformationPresence presence;
-    GxTdfApplicationIdentifierOctetString tdf_application_identifier;
-    GxTdfApplicationInstanceIdentifierOctetString tdf_application_instance_identifier;
-    GxFlowInformationList flow_information;
+	GxApplicationDetectionInformationPresence presence;
+	GxTdfApplicationIdentifierOctetString tdf_application_identifier;
+	GxTdfApplicationInstanceIdentifierOctetString tdf_application_instance_identifier;
+	GxFlowInformationList flow_information;
 } GxApplicationDetectionInformation;
 
 typedef struct gxApplicationDetectionInformationList {
-    int32_t count;
-    GxApplicationDetectionInformation *list;
+	int32_t count;
+	GxApplicationDetectionInformation *list;
 } GxApplicationDetectionInformationList;
 
 typedef struct gxContentVersionList {
-    int32_t count;
-    uint64_t *list;
+	int32_t count;
+	uint64_t *list;
 } GxContentVersionList;
 
 typedef struct gxRanNasReleaseCauseList {
-    int32_t count;
-    GxRanNasReleaseCauseOctetString *list;
+	int32_t count;
+	GxRanNasReleaseCauseOctetString *list;
 } GxRanNasReleaseCauseList;
 
 typedef struct gxRedirectServer {
-    GxRedirectServerPresence presence;
-    int32_t redirect_address_type;
-    GxRedirectServerAddressOctetString redirect_server_address;
+	GxRedirectServerPresence presence;
+	int32_t redirect_address_type;
+	GxRedirectServerAddressOctetString redirect_server_address;
 } GxRedirectServer;
 
 typedef struct gxFilterIdList {
-    int32_t count;
-    GxFilterIdOctetString *list;
+	int32_t count;
+	GxFilterIdOctetString *list;
 } GxFilterIdList;
 
 typedef struct gxRestrictionFilterRuleList {
-    int32_t count;
-    GxRestrictionFilterRuleOctetString *list;
+	int32_t count;
+	GxRestrictionFilterRuleOctetString *list;
 } GxRestrictionFilterRuleList;
 
 typedef struct gxFinalUnitIndication {
-    GxFinalUnitIndicationPresence presence;
-    int32_t final_unit_action;
-    GxRestrictionFilterRuleList restriction_filter_rule;
-    GxFilterIdList filter_id;
-    GxRedirectServer redirect_server;
+	GxFinalUnitIndicationPresence presence;
+	int32_t final_unit_action;
+	GxRestrictionFilterRuleList restriction_filter_rule;
+	GxFilterIdList filter_id;
+	GxRedirectServer redirect_server;
 } GxFinalUnitIndication;
 
 typedef struct gxChargingRuleReport {
@@ -1899,71 +1899,71 @@ typedef struct gxRedirectHostList {
 } GxRedirectHostList;
 
 typedef struct gxOcOlr {
-    GxOcOlrPresence presence;
-    uint64_t oc_sequence_number;
-    int32_t oc_report_type;
-    uint32_t oc_reduction_percentage;
-    uint32_t oc_validity_duration;
+	GxOcOlrPresence presence;
+	uint64_t oc_sequence_number;
+	int32_t oc_report_type;
+	uint32_t oc_reduction_percentage;
+	uint32_t oc_validity_duration;
 } GxOcOlr;
 
 typedef struct gxExperimentalResult {
-    GxExperimentalResultPresence presence;
-    uint32_t vendor_id;
-    uint32_t experimental_result_code;
+	GxExperimentalResultPresence presence;
+	uint32_t vendor_id;
+	uint32_t experimental_result_code;
 } GxExperimentalResult;
 
 typedef struct gxCCA {
-    GxCcaPresence presence;
-    GxSessionIdOctetString session_id;
-    int32_t drmp;
-    uint32_t auth_application_id;
-    GxOriginHostOctetString origin_host;
-    GxOriginRealmOctetString origin_realm;
-    uint32_t result_code;
-    GxExperimentalResult experimental_result;
-    int32_t cc_request_type;
-    uint32_t cc_request_number;
-    GxOcSupportedFeatures oc_supported_features;
-    GxOcOlr oc_olr;
-    GxSupportedFeaturesList supported_features;
-    int32_t bearer_control_mode;
-    GxEventTriggerList event_trigger;
-    GxEventReportIndication event_report_indication;
-    uint32_t origin_state_id;
-    GxRedirectHostList redirect_host;
-    int32_t redirect_host_usage;
-    uint32_t redirect_max_cache_time;
-    GxChargingRuleRemoveList charging_rule_remove;
-    GxChargingRuleInstallList charging_rule_install;
-    GxChargingInformation charging_information;
-    int32_t online;
-    int32_t offline;
-    GxQosInformationList qos_information;
-    FdTime revalidation_time;
-    GxDefaultEpsBearerQos default_eps_bearer_qos;
-    GxDefaultQosInformation default_qos_information;
-    int32_t bearer_usage;
-    GxUsageMonitoringInformationList usage_monitoring_information;
-    GxCsgInformationReportingList csg_information_reporting;
-    GxUserCsgInformation user_csg_information;
-    GxPraInstall pra_install;
-    GxPraRemove pra_remove;
-    GxPresenceReportingAreaInformation presence_reporting_area_information;
-    int32_t session_release_cause;
-    int32_t nbifom_support;
-    int32_t nbifom_mode;
-    int32_t default_access;
-    uint32_t ran_rule_support;
-    GxRoutingRuleReportList routing_rule_report;
-    GxConditionalPolicyInformationList conditional_policy_information;
-    int32_t removal_of_access;
-    int32_t ip_can_type;
-    GxErrorMessageOctetString error_message;
-    GxErrorReportingHostOctetString error_reporting_host;
-    GxFailedAvp failed_avp;
-    GxProxyInfoList proxy_info;
-    GxRouteRecordList route_record;
-    GxLoadList load;
+	GxCcaPresence presence;
+	GxSessionIdOctetString session_id;
+	int32_t drmp;
+	uint32_t auth_application_id;
+	GxOriginHostOctetString origin_host;
+	GxOriginRealmOctetString origin_realm;
+	uint32_t result_code;
+	GxExperimentalResult experimental_result;
+	int32_t cc_request_type;
+	uint32_t cc_request_number;
+	GxOcSupportedFeatures oc_supported_features;
+	GxOcOlr oc_olr;
+	GxSupportedFeaturesList supported_features;
+	int32_t bearer_control_mode;
+	GxEventTriggerList event_trigger;
+	GxEventReportIndication event_report_indication;
+	uint32_t origin_state_id;
+	GxRedirectHostList redirect_host;
+	int32_t redirect_host_usage;
+	uint32_t redirect_max_cache_time;
+	GxChargingRuleRemoveList charging_rule_remove;
+	GxChargingRuleInstallList charging_rule_install;
+	GxChargingInformation charging_information;
+	int32_t online;
+	int32_t offline;
+	GxQosInformationList qos_information;
+	FdTime revalidation_time;
+	GxDefaultEpsBearerQos default_eps_bearer_qos;
+	GxDefaultQosInformation default_qos_information;
+	int32_t bearer_usage;
+	GxUsageMonitoringInformationList usage_monitoring_information;
+	GxCsgInformationReportingList csg_information_reporting;
+	GxUserCsgInformation user_csg_information;
+	GxPraInstall pra_install;
+	GxPraRemove pra_remove;
+	GxPresenceReportingAreaInformation presence_reporting_area_information;
+	int32_t session_release_cause;
+	int32_t nbifom_support;
+	int32_t nbifom_mode;
+	int32_t default_access;
+	uint32_t ran_rule_support;
+	GxRoutingRuleReportList routing_rule_report;
+	GxConditionalPolicyInformationList conditional_policy_information;
+	int32_t removal_of_access;
+	int32_t ip_can_type;
+	GxErrorMessageOctetString error_message;
+	GxErrorReportingHostOctetString error_reporting_host;
+	GxFailedAvp failed_avp;
+	GxProxyInfoList proxy_info;
+	GxRouteRecordList route_record;
+	GxLoadList load;
 } GxCCA;
 
 typedef struct gxRAA {

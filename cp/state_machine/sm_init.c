@@ -26,9 +26,9 @@ extern struct rte_hash *bearer_by_fteid_hash;
 
 #define SM_HASH_SIZE (1 << 18)
 
-char proc_name[40];
-char state_name[40];
-char event_name[40];
+char proc_name[PROC_NAME_LEN];
+char state_name[STATE_NAME_LEN];
+char event_name[EVNT_NAME_LEN];
 
 /**
  * @brief  : Add session entry in state machine hash table.
@@ -61,9 +61,9 @@ add_sess_entry(uint64_t sess_id, struct resp_info *resp)
 		ret = rte_hash_add_key_data(sm_hash,
 						&sess_id, resp);
 		if (ret) {
-			clLog(clSystemLog, eCLSeverityCritical, "%s: Failed to add entry = %lu"
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to add entry = %lu"
 					"\n\tError= %s\n",
-					__func__, sess_id,
+					LOG_VALUE, sess_id,
 					rte_strerror(abs(ret)));
 			return -1;
 		}
@@ -71,8 +71,8 @@ add_sess_entry(uint64_t sess_id, struct resp_info *resp)
 		memcpy(tmp, resp, sizeof(struct resp_info));
 	}
 
-	clLog(clSystemLog, eCLSeverityDebug, "%s: Sess Entry add for Msg_Type:%u, Sess ID:%lu, State:%s\n",
-			__func__, tmp->msg_type, sess_id, get_state_string(tmp->state));
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Sess Entry add for Msg_Type:%u, Sess ID:%lu, State:%s\n",
+			LOG_VALUE, tmp->msg_type, sess_id, get_state_string(tmp->state));
 	return 0;
 }
 
@@ -83,14 +83,14 @@ get_sess_entry(uint64_t sess_id, struct resp_info **resp)
 	ret = rte_hash_lookup_data(sm_hash,
 				&sess_id, (void **)resp);
 
-	if ( ret < 0) {
-		clLog(clSystemLog, eCLSeverityCritical, "%s %s %d Entry not found for sess_id:%lu...\n",__func__,
-				__file__, __LINE__,sess_id);
+	if (ret < 0 || *resp == NULL) {
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Entry not found for"
+									" sess_id:%lu...\n", LOG_VALUE, sess_id);
 		return -1;
 	}
 
-	clLog(clSystemLog, eCLSeverityDebug, "%s: Msg_type:%u, Sess ID:%lu, State:%s\n",
-			__func__, (*resp)->msg_type, sess_id, get_state_string((*resp)->state));
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Msg_type:%u, Sess ID:%lu, State:%s\n",
+			LOG_VALUE, (*resp)->msg_type, sess_id, get_state_string((*resp)->state));
 	return 0;
 
 }
@@ -104,13 +104,13 @@ get_sess_state(uint64_t sess_id)
 				&sess_id, (void **)&resp);
 
 	if ( ret < 0) {
-		clLog(clSystemLog, eCLSeverityCritical, "%s %s %d Entry not found for sess_id:%lu...\n",__func__,
-				__file__, __LINE__,sess_id);
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Entry not found for sess_id:%lu...\n",
+			LOG_VALUE, sess_id);
 		return -1;
 	}
 
-	clLog(clSystemLog, eCLSeverityDebug, "%s: Msg_Type:%u, Sess ID:%lu, State:%s\n",
-			__func__, resp->msg_type, sess_id, get_state_string(resp->state));
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Msg_Type:%u, Sess ID:%lu, State:%s\n",
+			LOG_VALUE, resp->msg_type, sess_id, get_state_string(resp->state));
 
 	return resp->state;
 
@@ -125,15 +125,15 @@ update_sess_state(uint64_t sess_id, uint8_t state)
 				&sess_id, (void **)&resp);
 
 	if ( ret < 0) {
-		clLog(clSystemLog, eCLSeverityCritical, "%s %s %d :Entry not found for sess_id:%lu...\n", __func__,
-				__file__, __LINE__, sess_id);
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Entry not found for sess_id:%lu...\n",
+			LOG_VALUE, sess_id);
 		return -1;
 	}
 
 	resp->state = state;
 
-	clLog(clSystemLog, eCLSeverityDebug, "%s: Msg_Type:%u, Sess ID:%lu, State:%s\n",
-			__func__, resp->msg_type, sess_id, get_state_string(resp->state));
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Msg_Type:%u, Sess ID:%lu, State:%s\n",
+			LOG_VALUE, resp->msg_type, sess_id, get_state_string(resp->state));
 
 	return 0;
 
@@ -147,52 +147,57 @@ del_sess_entry(uint64_t sess_id)
 
 	/* Check Session Entry is present or Not */
 	ret = rte_hash_lookup_data(sm_hash,
-					&sess_id, (void **)resp);
-	if (ret) {
-		/* Session Entry is present. Delete Session Entry */
-		ret = rte_hash_del_key(sm_hash, &sess_id);
+			&sess_id, (void **)resp);
 
-		if ( ret < 0) {
-			clLog(clSystemLog, eCLSeverityCritical, "%s %s %d:Entry not found for sess_id:%lu...\n",
-						__func__, __file__, __LINE__, sess_id);
-			return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
-		}
+	if ( ret < 0) {
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Entry not found for "
+			"sess_id : %lu\n",LOG_VALUE, sess_id);
+		return 0;
+	}
+
+	/* Session Entry is present. Delete Session Entry */
+	ret = rte_hash_del_key(sm_hash, &sess_id);
+
+	if ( ret < 0) {
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to delete session "
+			"entry for sess_id : %lu\n", LOG_VALUE, sess_id);
+		return -1;
 	}
 
 	/* Free data from hash */
-	rte_free(resp);
+	if (resp != NULL) {
+		rte_free(resp);
+		resp = NULL;
+	}
 
-	clLog(clSystemLog, eCLSeverityDebug, "%s: Sess ID:%lu\n",
-			__func__, sess_id);
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Session deletion for Sess ID:"
+									"%lu Success\n", LOG_VALUE, sess_id);
 
 	return 0;
 }
 
 uint8_t
-update_ue_state(uint32_t teid_key, uint8_t state,  uint8_t ebi_index)
+update_ue_state(ue_context *context, uint8_t state,  int ebi_index)
 {
-	int ret = 0;
-	ue_context *context = NULL;
 	pdn_connection *pdn = NULL;
-	ret = rte_hash_lookup_data(ue_context_by_fteid_hash,
-				&teid_key, (void **)&context);
 
-	if ( ret < 0) {
-		clLog(clSystemLog, eCLSeverityCritical, "%s:Failed to update UE State for Teid:%x...\n", __func__,
-				teid_key);
+	pdn = GET_PDN(context , ebi_index);
+	if(pdn == NULL){
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to get "
+					"pdn for ebi_index %d\n", LOG_VALUE, ebi_index);
 		return -1;
 	}
-	pdn = GET_PDN(context , ebi_index);
+
 	pdn->state = state;
 
-	clLog(clSystemLog, eCLSeverityDebug, "%s: Change UE State for Teid:%u, State:%s\n",
-			__func__, teid_key, get_state_string(pdn->state));
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Changed UE State, State:%s\n",
+			LOG_VALUE, get_state_string(pdn->state));
 	return 0;
 
 }
 
 uint8_t
-get_ue_state(uint32_t teid_key, uint8_t ebi_index)
+get_ue_state(uint32_t teid_key, int ebi_index)
 {
 	int ret = 0;
 	ue_context *context = NULL;
@@ -201,50 +206,56 @@ get_ue_state(uint32_t teid_key, uint8_t ebi_index)
 				&teid_key, (void **)&context);
 
 	if ( ret < 0) {
-		clLog(clSystemLog, eCLSeverityCritical, "%s:Entry not found for teid:%x...\n", __func__, teid_key);
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Entry not found for teid:%x...\n", LOG_VALUE, teid_key);
 		return -1;
 	}
 	pdn = GET_PDN(context , ebi_index);
-	clLog(clSystemLog, eCLSeverityDebug, "%s: Teid:%u, State:%s\n",
-			__func__, teid_key, get_state_string(pdn->state));
+	if(pdn == NULL){
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to get "
+					"pdn for ebi_index %d\n", LOG_VALUE, ebi_index);
+		return -1;
+	}
+
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT" Teid:%u, State:%s\n",
+			LOG_VALUE, teid_key, get_state_string(pdn->state));
 	return pdn->state;
 }
 
 int
-get_pdn(uint32_t teid_key, pdn_connection **pdn)
+get_pdn(ue_context **context, apn *apn_requested, pdn_connection **pdn)
 {
-	int ret = 0;
-	ret = rte_hash_lookup_data(pdn_by_fteid_hash,
-				&teid_key, (void **)pdn);
+	for (int i = 0; i < MAX_BEARERS; i++) {
 
-	if ( ret < 0) {
-		clLog(clSystemLog, eCLSeverityCritical, "%s:Entry not found for teid:%x...\n", __func__, teid_key);
-		return -1;
+		(*pdn) = (*context)->pdns[i];
+		if (*pdn) {
+			if (strncmp((*pdn)->apn_in_use->apn_name_label,
+				apn_requested->apn_name_label, apn_requested->apn_name_length) == 0 )
+
+				return 0;
+
+		}
 	}
 
-	clLog(clSystemLog, eCLSeverityDebug, "%s: Teid:%u\n",
-			__func__, teid_key);
-	return 0;
-
+	(*pdn) = NULL;
+	return -1;
 }
 
 int8_t
 get_bearer_by_teid(uint32_t teid_key, struct eps_bearer_t **bearer)
 {
 	int ret = 0;
-        ret = rte_hash_lookup_data(bearer_by_fteid_hash,
-                                        &teid_key, (void **)bearer);
+	ret = rte_hash_lookup_data(bearer_by_fteid_hash,
+			&teid_key, (void **)bearer);
 
 
-        if ( ret < 0) {
-               // clLog(clSystemLog, eCLSeverityCritical, "%s:Entry not found for teid:%x...\n", __func__, teid_key);
-                return -1;
-        }
+	if ( ret < 0) {
+		return -1;
+	}
 
 
-        clLog(clSystemLog, eCLSeverityDebug, "%s: Teid %u\n",
-                        __func__, teid_key);
-        return 0;
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Teid %u\n",
+			LOG_VALUE, teid_key);
+	return 0;
 }
 
 int8_t
@@ -255,11 +266,15 @@ get_ue_context_by_sgw_s5s8_teid(uint32_t teid_key, ue_context **context)
 
 	ret = get_bearer_by_teid(teid_key, &bearer);
 	if(ret < 0) {
-		clLog(clSystemLog, eCLSeverityCritical, "%s:%d Entry not found for teid:%x...\n", __func__, __LINE__, teid_key);
-                return -1;
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"No Bearer found "
+				"for teid: %x\n", LOG_VALUE, teid_key);
+		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 	}
 	if(bearer != NULL && bearer->pdn != NULL && bearer->pdn->context != NULL ) {
 		*context = bearer->pdn->context;
+		clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"Get bearer entry by sgw_s5s8_teid:%u\n",
+				LOG_VALUE, teid_key);
 		return 0;
 	}
 	return -1;
@@ -272,16 +287,22 @@ get_ue_context_while_error(uint32_t teid_key, ue_context **context)
 	struct eps_bearer_t *bearer = NULL;
 	/* If teid key is sgwc s11 */
 	ret = rte_hash_lookup_data(ue_context_by_fteid_hash,
-                                        &teid_key, (void **)context);
+			&teid_key, (void **)context);
 	if( ret < 0) {
 		/* If teid key is sgwc s5s8 */
 		ret = get_bearer_by_teid(teid_key, &bearer);
 		if(ret < 0) {
-			clLog(clSystemLog, eCLSeverityCritical, "%s:%d Entry not found for teid:%x...\n", __func__, __LINE__, teid_key);
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"No Bearer found "
+				"for teid: %x\n", LOG_VALUE, teid_key);
 			return -1;
 		}
-
-     	   *context = bearer->pdn->context;
+		if ((*context == NULL) && 
+			(((bearer != NULL) && (bearer->pdn != NULL)) 
+			&& ((bearer->pdn)->context != NULL))) {
+			*context = (bearer->pdn)->context;
+		} else {
+			return -1;
+		}
 	}
 	return 0;
 }
@@ -295,14 +316,15 @@ get_ue_context(uint32_t teid_key, ue_context **context)
 					&teid_key, (void **)context);
 
 
-	if ( ret < 0) {
-		clLog(clSystemLog, eCLSeverityCritical, "%s:Entry not found for teid:%x...\n", __func__, teid_key);
+	if ( ret < 0 || *context == NULL) {
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to get UE"
+								" context for teid:%x...\n", LOG_VALUE, teid_key);
 		return -1;
 	}
 
 
-	clLog(clSystemLog, eCLSeverityDebug, "%s: Teid %u\n",
-			__func__, teid_key);
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Teid %u\n",
+			LOG_VALUE, teid_key);
 	return 0;
 
 }
@@ -340,43 +362,61 @@ const char * get_proc_string(int value)
 {
 	switch(value) {
 		case NONE_PROC:
-			strcpy(proc_name, "NONE_PROC");
+			strncpy(proc_name, "NONE_PROC", PROC_NAME_LEN);
 			break;
 		case INITIAL_PDN_ATTACH_PROC:
-			strcpy(proc_name, "INITIAL_PDN_ATTACH_PROC");
+			strncpy(proc_name, "INITIAL_PDN_ATTACH_PROC", PROC_NAME_LEN);
 			break;
 		case SERVICE_REQUEST_PROC:
-			strcpy(proc_name, "SERVICE_REQUEST_PROC");
+			strncpy(proc_name, "SERVICE_REQUEST_PROC", PROC_NAME_LEN);
 			break;
 		case SGW_RELOCATION_PROC:
-			strcpy(proc_name, "SGW_RELOCATION_PROC");
+			strncpy(proc_name, "SGW_RELOCATION_PROC", PROC_NAME_LEN);
 			break;
 		case CONN_SUSPEND_PROC:
-			strcpy(proc_name, "CONN_SUSPEND_PROC");
+			strncpy(proc_name, "CONN_SUSPEND_PROC", PROC_NAME_LEN);
 			break;
 		case DETACH_PROC:
-			strcpy(proc_name, "DETACH_PROC");
+			strncpy(proc_name, "DETACH_PROC", PROC_NAME_LEN);
 			break;
 		case DED_BER_ACTIVATION_PROC:
-			strcpy(proc_name, "DED_BER_ACTIVATION_PROC");
+			strncpy(proc_name, "DED_BER_ACTIVATION_PROC", PROC_NAME_LEN);
 			break;
 		case PDN_GW_INIT_BEARER_DEACTIVATION:
-			strcpy(proc_name, "PDN_GW_INIT_BEARER_DEACTIVATION");
+			strncpy(proc_name, "PDN_GW_INIT_BEARER_DEACTIVATION", PROC_NAME_LEN);
 			break;
 		case MME_INI_DEDICATED_BEARER_DEACTIVATION_PROC:
-			strcpy(proc_name, "MME_INI_DEDICATED_BEARER_DEACTIVATION_PROC");
+			strncpy(proc_name, "MME_INI_DEDICATED_BEARER_DEACTIVATION_PROC", PROC_NAME_LEN);
 			break;
 		case UPDATE_BEARER_PROC:
-			strcpy(proc_name, "UPDATE_BEARER_PROC");
+			strncpy(proc_name, "UPDATE_BEARER_PROC", PROC_NAME_LEN);
 			break;
 		case RESTORATION_RECOVERY_PROC:
-			strcpy(proc_name, "RESTORATION_RECOVERY_PROC");
+			strncpy(proc_name, "RESTORATION_RECOVERY_PROC", PROC_NAME_LEN);
+			break;
+		case MODIFY_BEARER_PROCEDURE:
+			 strncpy(proc_name, "MODIFY_BEARER_PROCEDURE", PROC_NAME_LEN);
+			 break;
+		case ATTACH_DEDICATED_PROC:
+			strncpy(proc_name, "ATTACH_DEDICATED_PROC", PROC_NAME_LEN);
+			 break;
+		case MODIFICATION_PROC:
+			 strncpy(proc_name, "MODIFICATION_PROC", PROC_NAME_LEN);
+			 break;
+		case CHANGE_NOTIFICATION_PROC:
+			strncpy(proc_name, "CHANGE_NOTIFICATION_PROC", PROC_NAME_LEN);
+			break;
+		case UPDATE_PDN_CONNECTION_PROC:
+			strncpy(proc_name, "UPDATE_PDN_CONNECTION_PROC", PROC_NAME_LEN);
+			break;
+		case UE_REQ_BER_RSRC_MOD_PROC:
+			strncpy(proc_name, "UE_REQ_BEARER_MOD_PROC", PROC_NAME_LEN);
 			break;
 		case END_PROC:
-			strcpy(proc_name, "END_PROC");
+			strncpy(proc_name, "END_PROC", PROC_NAME_LEN);
 			break;
 		default:
-			strcpy(proc_name, "UNDEFINED PROC");
+			strncpy(proc_name, "UNDEFINED PROC", PROC_NAME_LEN);
 			break;
 	}
 	return proc_name;
@@ -389,123 +429,126 @@ const char * get_proc_string(int value)
  */
 const char * get_state_string(int value)
 {
-    switch(value) {
-        case SGWC_NONE_STATE:
-            strcpy(state_name, "SGWC_NONE_STATE");
-            break;
-        case PFCP_ASSOC_REQ_SNT_STATE:
-            strcpy(state_name, "PFCP_ASSOC_REQ_SNT_STATE");
-            break;
-        case PFCP_ASSOC_RESP_RCVD_STATE:
-            strcpy(state_name, "PFCP_ASSOC_RESP_RCVD_STATE");
-            break;
-        case PFCP_SESS_EST_REQ_SNT_STATE:
-            strcpy(state_name, "PFCP_SESS_EST_REQ_SNT_STATE");
-            break;
-        case PFCP_SESS_EST_RESP_RCVD_STATE:
-            strcpy(state_name, "PFCP_SESS_EST_RESP_RCVD_STATE");
-            break;
-        case CONNECTED_STATE:
-            strcpy(state_name, "CONNECTED_STATE");
-            break;
-        case IDEL_STATE:
-            strcpy(state_name, "IDEL_STATE");
-            break;
-        case CS_REQ_SNT_STATE:
-            strcpy(state_name, "CS_REQ_SNT_STATE");
-            break;
-        case CS_RESP_RCVD_STATE:
-            strcpy(state_name, "CS_RESP_RCVD_STATE");
-            break;
-        case PFCP_SESS_MOD_REQ_SNT_STATE:
-            strcpy(state_name, "PFCP_SESS_MOD_REQ_SNT_STATE");
-            break;
-        case PFCP_SESS_MOD_RESP_RCVD_STATE:
-            strcpy(state_name, "PFCP_SESS_MOD_RESP_RCVD_STATE");
-            break;
-        case PFCP_SESS_DEL_REQ_SNT_STATE:
-            strcpy(state_name, "PFCP_SESS_DEL_REQ_SNT_STATE");
-            break;
-        case PFCP_SESS_DEL_RESP_RCVD_STATE:
-            strcpy(state_name, "PFCP_SESS_DEL_RESP_RCVD_STATE");
-            break;
-        case DS_REQ_SNT_STATE:
-            strcpy(state_name, "DS_REQ_SNT_STATE");
-            break;
-        case DS_RESP_RCVD_STATE:
-            strcpy(state_name, "DS_RESP_RCVD_STATE");
-            break;
-        case DDN_REQ_SNT_STATE:
-            strcpy(state_name, "DDN_REQ_SNT_STATE");
-            break;
-        case DDN_ACK_RCVD_STATE:
-            strcpy(state_name, "DDN_ACK_RCVD_STATE");
-            break;
+	switch(value) {
+		case SGWC_NONE_STATE:
+			strncpy(state_name, "SGWC_NONE_STATE", STATE_NAME_LEN);
+			break;
+		case PFCP_ASSOC_REQ_SNT_STATE:
+			strncpy(state_name, "PFCP_ASSOC_REQ_SNT_STATE", STATE_NAME_LEN);
+			break;
+		case PFCP_ASSOC_RESP_RCVD_STATE:
+			strncpy(state_name, "PFCP_ASSOC_RESP_RCVD_STATE", STATE_NAME_LEN);
+			break;
+		case PFCP_SESS_EST_REQ_SNT_STATE:
+			strncpy(state_name, "PFCP_SESS_EST_REQ_SNT_STATE", STATE_NAME_LEN);
+			break;
+		case PFCP_SESS_EST_RESP_RCVD_STATE:
+			strncpy(state_name, "PFCP_SESS_EST_RESP_RCVD_STATE", STATE_NAME_LEN);
+			break;
+		case CONNECTED_STATE:
+			strncpy(state_name, "CONNECTED_STATE", STATE_NAME_LEN);
+			break;
+		case IDEL_STATE:
+			strncpy(state_name, "IDEL_STATE", STATE_NAME_LEN);
+			break;
+		case CS_REQ_SNT_STATE:
+			strncpy(state_name, "CS_REQ_SNT_STATE", STATE_NAME_LEN);
+			break;
+		case CS_RESP_RCVD_STATE:
+			strncpy(state_name, "CS_RESP_RCVD_STATE", STATE_NAME_LEN);
+			break;
+		case PFCP_SESS_MOD_REQ_SNT_STATE:
+			strncpy(state_name, "PFCP_SESS_MOD_REQ_SNT_STATE", STATE_NAME_LEN);
+			break;
+		case PFCP_SESS_MOD_RESP_RCVD_STATE:
+			strncpy(state_name, "PFCP_SESS_MOD_RESP_RCVD_STATE", STATE_NAME_LEN);
+			break;
+		case PFCP_SESS_DEL_REQ_SNT_STATE:
+			strncpy(state_name, "PFCP_SESS_DEL_REQ_SNT_STATE", STATE_NAME_LEN);
+			break;
+		case PFCP_SESS_DEL_RESP_RCVD_STATE:
+			strncpy(state_name, "PFCP_SESS_DEL_RESP_RCVD_STATE", STATE_NAME_LEN);
+			break;
+		case DS_REQ_SNT_STATE:
+			strncpy(state_name, "DS_REQ_SNT_STATE", STATE_NAME_LEN);
+			break;
+		case DS_RESP_RCVD_STATE:
+			strncpy(state_name, "DS_RESP_RCVD_STATE", STATE_NAME_LEN);
+			break;
+		case DDN_REQ_SNT_STATE:
+			strncpy(state_name, "DDN_REQ_SNT_STATE", STATE_NAME_LEN);
+			break;
+		case DDN_ACK_RCVD_STATE:
+			strncpy(state_name, "DDN_ACK_RCVD_STATE", STATE_NAME_LEN);
+			break;
 		case MBR_REQ_SNT_STATE:
-			strcpy(state_name, "MBR_REQ_SNT_STATE");
+			strncpy(state_name, "MBR_REQ_SNT_STATE", STATE_NAME_LEN);
 			break;
 		case MBR_RESP_RCVD_STATE:
-			strcpy(state_name, "MBR_RESP_RCVD_STATE");
+			strncpy(state_name, "MBR_RESP_RCVD_STATE", STATE_NAME_LEN);
 			break;
 		case CREATE_BER_REQ_SNT_STATE:
-			strcpy(state_name, "CREATE_BER_REQ_SNT_STATE");
+			strncpy(state_name, "CREATE_BER_REQ_SNT_STATE", STATE_NAME_LEN);
 			break;
 		case RE_AUTH_ANS_SNT_STATE:
-			 strcpy(state_name, "RE_AUTH_ANS_SNT_STATE");
+			strncpy(state_name, "RE_AUTH_ANS_SNT_STATE", STATE_NAME_LEN);
 			break;
 		case PGWC_NONE_STATE:
-		        strcpy(state_name, "PGWC_NONE_STATE");
-		        break;
+			strncpy(state_name, "PGWC_NONE_STATE", STATE_NAME_LEN);
+			break;
 		case CCR_SNT_STATE:
-		        strcpy(state_name, "CCR_SNT_STATE");
-		        break;
+			strncpy(state_name, "CCR_SNT_STATE", STATE_NAME_LEN);
+			break;
 		case CREATE_BER_RESP_SNT_STATE:
-		        strcpy(state_name, "CREATE_BER_RESP_SNT_STATE");
-		        break;
+			strncpy(state_name, "CREATE_BER_RESP_SNT_STATE", STATE_NAME_LEN);
+			break;
 		case PFCP_PFD_MGMT_RESP_RCVD_STATE:
-		        strcpy(state_name, "PFCP_PFD_MGMT_RESP_RCVD_STATE");
-		        break;
+			strncpy(state_name, "PFCP_PFD_MGMT_RESP_RCVD_STATE", STATE_NAME_LEN);
+			break;
 		case ERROR_OCCURED_STATE:
-		        strcpy(state_name, "ERROR_OCCURED_STATE");
-				break;
+			strncpy(state_name, "ERROR_OCCURED_STATE", STATE_NAME_LEN);
+			break;
 		case UPDATE_BEARER_REQ_SNT_STATE:
-		        strcpy(state_name, "UPDATE_BEARER_REQ_SNT_STATE");
-				break;
+			strncpy(state_name, "UPDATE_BEARER_REQ_SNT_STATE", STATE_NAME_LEN);
+			break;
 		case UPDATE_BEARER_RESP_SNT_STATE:
-		        strcpy(state_name, "UPDATE_BEARER_RESP_SNT_STATE");
-				break;
+			strncpy(state_name, "UPDATE_BEARER_RESP_SNT_STATE", STATE_NAME_LEN);
+			break;
 		case DELETE_BER_REQ_SNT_STATE:
-		    strcpy(state_name, "DELETE_BER_REQ_SNT_STATE");
+			strncpy(state_name, "DELETE_BER_REQ_SNT_STATE", STATE_NAME_LEN);
 			break;
 		case CCRU_SNT_STATE:
-		    strcpy(state_name, "CCRU_SNT_STATE");
+			strncpy(state_name, "CCRU_SNT_STATE", STATE_NAME_LEN);
 			break;
 		case PGW_RSTRT_NOTIF_REQ_SNT_STATE:
-		    strcpy(state_name, "PGW_RSTRT_NOTIF_REQ_SNT_STATE");
+		    strncpy(state_name, "PGW_RSTRT_NOTIF_REQ_SNT_STATE", STATE_NAME_LEN);
 			break;
 		case UPD_PDN_CONN_SET_REQ_SNT_STATE:
-		    strcpy(state_name, "UPD_PDN_CONN_SET_REQ_SNT_STATE");
+		    strncpy(state_name, "UPD_PDN_CONN_SET_REQ_SNT_STATE", STATE_NAME_LEN);
 			break;
 		case DEL_PDN_CONN_SET_REQ_SNT_STATE:
-		    strcpy(state_name, "DEL_PDN_CONN_SET_REQ_SNT_STATE");
+		    strncpy(state_name, "DEL_PDN_CONN_SET_REQ_SNT_STATE", STATE_NAME_LEN);
 			break;
 		case DEL_PDN_CONN_SET_REQ_RCVD_STATE:
-		    strcpy(state_name, "DEL_PDN_CONN_SET_REQ_RCVD_STATE");
+		    strncpy(state_name, "DEL_PDN_CONN_SET_REQ_RCVD_STATE", STATE_NAME_LEN);
 			break;
 		case PFCP_SESS_SET_DEL_REQ_SNT_STATE:
-		    strcpy(state_name, "PFCP_SESS_SET_DEL_REQ_SNT_STATE");
+		    strncpy(state_name, "PFCP_SESS_SET_DEL_REQ_SNT_STATE", STATE_NAME_LEN);
 			break;
 		case PFCP_SESS_SET_DEL_REQ_RCVD_STATE:
-		    strcpy(state_name, "PFCP_SESS_SET_DEL_REQ_RCVD_STATE");
+		    strncpy(state_name, "PFCP_SESS_SET_DEL_REQ_RCVD_STATE", STATE_NAME_LEN);
 			break;
 		case END_STATE:
-		    strcpy(state_name, "END_STATE");
+		    strncpy(state_name, "END_STATE", STATE_NAME_LEN);
+			break;
+		case PROVISION_ACK_SNT_STATE:
+			strncpy(state_name, "PROVISION_ACK_SNT_STATE", STATE_NAME_LEN);
 			break;
 		default:
-		    strcpy(state_name, "UNDEFINED STATE");
-		    break;
-    }
-    return state_name;
+		    strncpy(state_name, "UNDEFINED STATE", STATE_NAME_LEN);
+			break;
+	}
+	return state_name;
 }
 
 /**
@@ -515,132 +558,132 @@ const char * get_state_string(int value)
  */
 const char * get_event_string(int value)
 {
-    switch(value) {
-        case NONE_EVNT:
-            strcpy(event_name, "NONE_EVNT");
-            break;
-        case CS_REQ_RCVD_EVNT:
-            strcpy(event_name, "CS_REQ_RCVD_EVNT");
-            break;
-        case PFCP_ASSOC_SETUP_SNT_EVNT:
-            strcpy(event_name, "PFCP_ASSOC_SETUP_SNT_EVNT");
-            break;
-        case PFCP_ASSOC_SETUP_RESP_RCVD_EVNT:
-            strcpy(event_name, "PFCP_ASSOC_SETUP_RESP_RCVD_EVNT");
-            break;
-        case PFCP_SESS_EST_REQ_RCVD_EVNT:
-            strcpy(event_name, "PFCP_SESS_EST_REQ_RCVD_EVNT");
-            break;
-        case PFCP_SESS_EST_RESP_RCVD_EVNT:
-            strcpy(event_name, "PFCP_SESS_EST_RESP_RCVD_EVNT");
-            break;
-        case CS_RESP_RCVD_EVNT:
-            strcpy(event_name, "CS_RESP_RCVD_EVNT");
-            break;
-        case MB_REQ_RCVD_EVNT:
-            strcpy(event_name,"MB_REQ_RCVD_EVNT");
-            break;
-        case PFCP_SESS_MOD_REQ_RCVD_EVNT:
-            strcpy(event_name, "PFCP_SESS_MOD_REQ_RCVD_EVNT");
-            break;
-        case PFCP_SESS_MOD_RESP_RCVD_EVNT:
-            strcpy(event_name, "PFCP_SESS_MOD_RESP_RCVD_EVNT");
-            break;
-        case MB_RESP_RCVD_EVNT:
-            strcpy(event_name,"MB_RESP_RCVD_EVNT");
-            break;
-        case REL_ACC_BER_REQ_RCVD_EVNT:
-            strcpy(event_name, "REL_ACC_BER_REQ_RCVD_EVNT");
-            break;
-        case DS_REQ_RCVD_EVNT:
-            strcpy(event_name, "DS_REQ_RCVD_EVNT");
-            break;
-        case PFCP_SESS_DEL_REQ_RCVD_EVNT:
-            strcpy(event_name, "PFCP_SESS_DEL_REQ_RCVD_EVNT");
-            break;
-        case PFCP_SESS_DEL_RESP_RCVD_EVNT:
-            strcpy(event_name, "PFCP_SESS_DEL_RESP_RCVD_EVNT");
-            break;
-        case DS_RESP_RCVD_EVNT:
-            strcpy(event_name, "DS_RESP_RCVD_EVNT");
-            break;
-        case ECHO_REQ_RCVD_EVNT:
-            strcpy(event_name, "DDN_ACK_RCVD_EVNT");
-            break;
-        case ECHO_RESP_RCVD_EVNT:
-            strcpy(event_name, "ECHO_RESP_RCVD_EVNT");
-            break;
-        case DDN_ACK_RESP_RCVD_EVNT:
-            strcpy(event_name, "DDN_ACK_RESP_RCVD_EVNT");
-            break;
-        case PFCP_SESS_RPT_REQ_RCVD_EVNT:
-            strcpy(event_name, "PFCP_SESS_RPT_REQ_RCVD_EVNT");
-            break;
-	case RE_AUTH_REQ_RCVD_EVNT:
-            strcpy(event_name, "RE_AUTH_REQ_RCVD_EVNT");
+	switch(value) {
+		case NONE_EVNT:
+			strncpy(event_name, "NONE_EVNT", EVNT_NAME_LEN);
 			break;
-	case CREATE_BER_RESP_RCVD_EVNT:
-            strcpy(event_name, "CREATE_BER_RESP_RCVD_EVNT");
+		case CS_REQ_RCVD_EVNT:
+			strncpy(event_name, "CS_REQ_RCVD_EVNT", EVNT_NAME_LEN);
 			break;
-	case CCA_RCVD_EVNT:
-            strcpy(event_name, "CCA_RCVD_EVNT");
+		case PFCP_ASSOC_SETUP_SNT_EVNT:
+			strncpy(event_name, "PFCP_ASSOC_SETUP_SNT_EVNT", EVNT_NAME_LEN);
 			break;
-	case CREATE_BER_REQ_RCVD_EVNT:
-            strcpy(event_name, "CREATE_BER_REQ_RCVD_EVNT");
+		case PFCP_ASSOC_SETUP_RESP_RCVD_EVNT:
+			strncpy(event_name, "PFCP_ASSOC_SETUP_RESP_RCVD_EVNT", EVNT_NAME_LEN);
 			break;
-	case PFCP_PFD_MGMT_RESP_RCVD_EVNT:
-            strcpy(event_name, "PFCP_PFD_MGMT_RESP_RCVD_EVNT");
+		case PFCP_SESS_EST_REQ_RCVD_EVNT:
+			strncpy(event_name, "PFCP_SESS_EST_REQ_RCVD_EVNT", EVNT_NAME_LEN);
 			break;
-	case ERROR_OCCURED_EVNT:
-            strcpy(event_name, "ERROR_OCCURED_EVNT");
-            break;
-	case UPDATE_BEARER_REQ_RCVD_EVNT:
-            strcpy(event_name, "UPDATE_BEARER_REQ_RCVD_EVNT");
-            break;
-	case UPDATE_BEARER_RSP_RCVD_EVNT:
-            strcpy(event_name, "UPDATE_BEARER_RSP_RCVD_EVNT");
-            break;
-	case DELETE_BER_REQ_RCVD_EVNT:
-            strcpy(event_name, "DELETE_BER_REQ_RCVD_EVNT");
-            break;
-	case DELETE_BER_RESP_RCVD_EVNT:
-            strcpy(event_name, "DELETE_BER_RESP_RCVD_EVNT");
-            break;
-	case DELETE_BER_CMD_RCVD_EVNT:
-            strcpy(event_name, "DELETE_BER_CMD_RCVD_EVNT");
-            break;
-	case CCAU_RCVD_EVNT:
-            strcpy(event_name, "CCAU_RCVD_EVNT");
-            break;
-        case PFCP_SESS_SET_DEL_REQ_RCVD_EVNT:
-            strcpy(event_name, "PFCP_SESS_SET_DEL_REQ_RCVD_EVNT");
-            break;
-        case PFCP_SESS_SET_DEL_RESP_RCVD_EVNT:
-            strcpy(event_name, "PFCP_SESS_SET_DEL_RSEP_RCVD_EVNT");
-            break;
+		case PFCP_SESS_EST_RESP_RCVD_EVNT:
+			strncpy(event_name, "PFCP_SESS_EST_RESP_RCVD_EVNT", EVNT_NAME_LEN);
+			break;
+		case CS_RESP_RCVD_EVNT:
+			strncpy(event_name, "CS_RESP_RCVD_EVNT", EVNT_NAME_LEN);
+			break;
+		case MB_REQ_RCVD_EVNT:
+			strncpy(event_name,"MB_REQ_RCVD_EVNT", EVNT_NAME_LEN);
+			break;
+		case PFCP_SESS_MOD_REQ_RCVD_EVNT:
+			strncpy(event_name, "PFCP_SESS_MOD_REQ_RCVD_EVNT", EVNT_NAME_LEN);
+			break;
+		case PFCP_SESS_MOD_RESP_RCVD_EVNT:
+			strncpy(event_name, "PFCP_SESS_MOD_RESP_RCVD_EVNT", EVNT_NAME_LEN);
+			break;
+		case MB_RESP_RCVD_EVNT:
+			strncpy(event_name,"MB_RESP_RCVD_EVNT", EVNT_NAME_LEN);
+			break;
+		case REL_ACC_BER_REQ_RCVD_EVNT:
+			strncpy(event_name, "REL_ACC_BER_REQ_RCVD_EVNT", EVNT_NAME_LEN);
+			break;
+		case DS_REQ_RCVD_EVNT:
+			strncpy(event_name, "DS_REQ_RCVD_EVNT", EVNT_NAME_LEN);
+			break;
+		case PFCP_SESS_DEL_REQ_RCVD_EVNT:
+			strncpy(event_name, "PFCP_SESS_DEL_REQ_RCVD_EVNT", EVNT_NAME_LEN);
+			break;
+		case PFCP_SESS_DEL_RESP_RCVD_EVNT:
+			strncpy(event_name, "PFCP_SESS_DEL_RESP_RCVD_EVNT", EVNT_NAME_LEN);
+			break;
+		case DS_RESP_RCVD_EVNT:
+			strncpy(event_name, "DS_RESP_RCVD_EVNT", EVNT_NAME_LEN);
+			break;
+		case ECHO_REQ_RCVD_EVNT:
+			strncpy(event_name, "DDN_ACK_RCVD_EVNT", EVNT_NAME_LEN);
+			break;
+		case ECHO_RESP_RCVD_EVNT:
+			strncpy(event_name, "ECHO_RESP_RCVD_EVNT", EVNT_NAME_LEN);
+			break;
+		case DDN_ACK_RESP_RCVD_EVNT:
+			strncpy(event_name, "DDN_ACK_RESP_RCVD_EVNT", EVNT_NAME_LEN);
+			break;
+		case PFCP_SESS_RPT_REQ_RCVD_EVNT:
+			strncpy(event_name, "PFCP_SESS_RPT_REQ_RCVD_EVNT", EVNT_NAME_LEN);
+			break;
+		case RE_AUTH_REQ_RCVD_EVNT:
+			strncpy(event_name, "RE_AUTH_REQ_RCVD_EVNT", EVNT_NAME_LEN);
+			break;
+		case CREATE_BER_RESP_RCVD_EVNT:
+			strncpy(event_name, "CREATE_BER_RESP_RCVD_EVNT", EVNT_NAME_LEN);
+			break;
+		case CCA_RCVD_EVNT:
+			strncpy(event_name, "CCA_RCVD_EVNT", EVNT_NAME_LEN);
+			break;
+		case CREATE_BER_REQ_RCVD_EVNT:
+			strncpy(event_name, "CREATE_BER_REQ_RCVD_EVNT", EVNT_NAME_LEN);
+			break;
+		case PFCP_PFD_MGMT_RESP_RCVD_EVNT:
+			strncpy(event_name, "PFCP_PFD_MGMT_RESP_RCVD_EVNT", EVNT_NAME_LEN);
+			break;
+		case ERROR_OCCURED_EVNT:
+			strncpy(event_name, "ERROR_OCCURED_EVNT", EVNT_NAME_LEN);
+			break;
+		case UPDATE_BEARER_REQ_RCVD_EVNT:
+			strncpy(event_name, "UPDATE_BEARER_REQ_RCVD_EVNT", EVNT_NAME_LEN);
+			break;
+		case UPDATE_BEARER_RSP_RCVD_EVNT:
+			strncpy(event_name, "UPDATE_BEARER_RSP_RCVD_EVNT", EVNT_NAME_LEN);
+			break;
+		case DELETE_BER_REQ_RCVD_EVNT:
+			strncpy(event_name, "DELETE_BER_REQ_RCVD_EVNT", EVNT_NAME_LEN);
+			break;
+		case DELETE_BER_RESP_RCVD_EVNT:
+			strncpy(event_name, "DELETE_BER_RESP_RCVD_EVNT", EVNT_NAME_LEN);
+			break;
+		case DELETE_BER_CMD_RCVD_EVNT:
+			strncpy(event_name, "DELETE_BER_CMD_RCVD_EVNT", EVNT_NAME_LEN);
+			break;
+		case CCAU_RCVD_EVNT:
+			strncpy(event_name, "CCAU_RCVD_EVNT", EVNT_NAME_LEN);
+			break;
+		case PFCP_SESS_SET_DEL_REQ_RCVD_EVNT:
+			strncpy(event_name, "PFCP_SESS_SET_DEL_REQ_RCVD_EVNT", EVNT_NAME_LEN);
+			break;
+		case PFCP_SESS_SET_DEL_RESP_RCVD_EVNT:
+			strncpy(event_name, "PFCP_SESS_SET_DEL_RSEP_RCVD_EVNT", EVNT_NAME_LEN);
+			break;
 		case PGW_RSTRT_NOTIF_ACK_RCVD_EVNT:
-		    strcpy(event_name, "PGW_RSTRT_NOTIF_ACK_RCVD_EVNT");
-		    break;
+			strncpy(event_name, "PGW_RSTRT_NOTIF_ACK_RCVD_EVNT", EVNT_NAME_LEN);
+			break;
 		case UPD_PDN_CONN_SET_REQ_RCVD_EVNT:
-		    strcpy(event_name, "UPD_PDN_CONN_SET_REQ_RCVD_EVNT");
-		    break;
+			strncpy(event_name, "UPD_PDN_CONN_SET_REQ_RCVD_EVNT", EVNT_NAME_LEN);
+			break;
 		case UPD_PDN_CONN_SET_RESP_RCVD_EVNT:
-		    strcpy(event_name, "UPD_PDN_CONN_SET_RESP_RCVD_EVNT");
-		    break;
+			strncpy(event_name, "UPD_PDN_CONN_SET_RESP_RCVD_EVNT", EVNT_NAME_LEN);
+			break;
 		case DEL_PDN_CONN_SET_REQ_RCVD_EVNT:
-		    strcpy(event_name, "DEL_PDN_CONN_SET_REQ_RCVD_EVNT");
-		    break;
+			strncpy(event_name, "DEL_PDN_CONN_SET_REQ_RCVD_EVNT", EVNT_NAME_LEN);
+			break;
 		case DEL_PDN_CONN_SET_RESP_RCVD_EVNT:
-		    strcpy(event_name, "DEL_PDN_CONN_SET_RESP_RCVD_EVNT");
-		    break;
-        case END_EVNT:
-            strcpy(event_name, "END_EVNT");
-            break;
-        default:
-            strcpy(event_name, "UNDEFINED EVNT");
-            break;
-    }
-    return event_name;
+			strncpy(event_name, "DEL_PDN_CONN_SET_RESP_RCVD_EVNT", EVNT_NAME_LEN);
+			break;
+		case END_EVNT:
+			strncpy(event_name, "END_EVNT", EVNT_NAME_LEN);
+			break;
+		default:
+			strncpy(event_name, "UNDEFINED_EVNT", EVNT_NAME_LEN);
+			break;
+	}
+	return event_name;
 }
 
 uint8_t
@@ -653,7 +696,7 @@ get_procedure(msg_info *msg)
 			if (1 == msg->gtpc_msg.csr.indctn_flgs.indication_oi) {
 				/*Set SGW Relocation Case */
 				proc = SGW_RELOCATION_PROC;
-			} else if (msg->gtpc_msg.csr.bearer_contexts_to_be_created.s5s8_u_pgw_fteid.header.len) {
+			} else if (msg->gtpc_msg.csr.bearer_contexts_to_be_created[msg->eps_bearer_id].s5s8_u_pgw_fteid.header.len) {
 				/* S1 Based Handover */
 				proc = SERVICE_REQUEST_PROC;
 			} else {
@@ -662,19 +705,24 @@ get_procedure(msg_info *msg)
 
 			break;
 		}
+
+		case GTP_CHANGE_NOTIFICATION_REQ: {
+			proc = CHANGE_NOTIFICATION_PROC;
+			break;
+		}
+
+		case GTP_CHANGE_NOTIFICATION_RSP: {
+			proc = CHANGE_NOTIFICATION_PROC;
+			break;
+		}
+
 		 case GTP_MODIFY_BEARER_REQ : {
-	               proc = SGW_RELOCATION_PROC;
-				   break;
+	        proc = MODIFY_BEARER_PROCEDURE;
+			break;
 	     }
 
 		case GTP_DELETE_SESSION_REQ: {
-		/*if (0 == msg->gtpc_msg.dsr.indctn_flgs.indication_oi &&
-						msg->gtpc_msg.dsr.indctn_flgs.header.len !=0) {
-				proc = SGW_RELOCATION_PROC;
-			} else */{
 				proc = DETACH_PROC;
-			}
-
 			break;
 		}
 
@@ -728,6 +776,12 @@ get_procedure(msg_info *msg)
 			proc = MME_INI_DEDICATED_BEARER_DEACTIVATION_PROC;
 			break;
 		}
+
+		case GTP_BEARER_RESOURCE_CMD : {
+			proc = UE_REQ_BER_RSRC_MOD_PROC;
+			break;
+		}
+
 		case GTP_DELETE_PDN_CONNECTION_SET_REQ: {
 			proc = RESTORATION_RECOVERY_PROC;
 
@@ -739,12 +793,12 @@ get_procedure(msg_info *msg)
 			break;
 		}
 		case GTP_UPDATE_PDN_CONNECTION_SET_REQ: {
-			proc = RESTORATION_RECOVERY_PROC;
+			proc = UPDATE_PDN_CONNECTION_PROC;
 
 			break;
 		}
 		case GTP_UPDATE_PDN_CONNECTION_SET_RSP: {
-			proc = RESTORATION_RECOVERY_PROC;
+			proc = MODIFY_BEARER_PROCEDURE;
 
 			break;
 		}
@@ -763,7 +817,7 @@ get_csr_proc(create_sess_req_t *csr)
 {
 	if (1 == csr->indctn_flgs.indication_oi) {
 		return SGW_RELOCATION_PROC;
-	} else if (csr->bearer_contexts_to_be_created.s5s8_u_pgw_fteid.header.len) {
+	} else if (csr->bearer_contexts_to_be_created[0].s5s8_u_pgw_fteid.header.len) {
 		return SERVICE_REQUEST_PROC;
 	} else {
 		return INITIAL_PDN_ATTACH_PROC;
@@ -771,33 +825,22 @@ get_csr_proc(create_sess_req_t *csr)
 }
 
 uint8_t
-update_ue_proc(uint32_t teid_key, uint8_t proc, uint8_t ebi_index)
+update_ue_proc(ue_context *context, uint8_t proc, int ebi_index)
 {
-	int ret = 0;
-	ue_context *context = NULL;
 	pdn_connection *pdn = NULL;
-	ret = rte_hash_lookup_data(ue_context_by_fteid_hash,
-				&teid_key, (void **)&context);
-
-	if ( ret < 0) {
-		clLog(clSystemLog, eCLSeverityCritical, "%s:Failed to update UE State for Teid:%x...\n", __func__,
-				teid_key);
-		return -1;
-	}
-
-	if (context == NULL)
-		return -1;
 
 	pdn = GET_PDN(context, ebi_index);
-
-	if (pdn == NULL)
+	if(pdn == NULL){
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to get "
+					"pdn for ebi_index %d\n", LOG_VALUE, ebi_index);
 		return -1;
+	}
 
 	pdn->proc = proc;
 
 	clLog(clSystemLog, eCLSeverityDebug,
-			"%s: Change UE State for Teid:%u, Procedure:%s, State:%s\n",
-			__func__, teid_key, get_proc_string(pdn->proc),
+			LOG_FORMAT"Change UE State, Procedure:%s, State:%s\n",
+			LOG_VALUE, get_proc_string(pdn->proc),
 			get_state_string(pdn->state));
 
 	return 0;

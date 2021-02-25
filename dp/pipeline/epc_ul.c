@@ -50,6 +50,7 @@
 #include "up_main.h"
 #include "epc_packet_framework.h"
 #include "clogger.h"
+#include "gw_adapter.h"
 #ifdef USE_REST
 #include "../restoration/restoration_timer.h"
 #endif /* USE_REST */
@@ -58,11 +59,8 @@
 #define PRIME_VALUE	0xeaad8405
 
 /* Generate new pcap for s1u port */
-#ifdef PCAP_GEN
 extern pcap_dumper_t *pcap_dumper_west;
 extern pcap_dumper_t *pcap_dumper_east;
-#endif /* PCAP_GEN */
-
 extern struct kni_port_params *kni_port_params_array[RTE_MAX_ETHPORTS];
 
 #ifdef TIMER_STATS
@@ -80,19 +78,21 @@ uint32_t ul_nkni_pkts = 0;
  */
 static inline void check_activity(uint32_t srcIp)
 {
-	/* VS: TODO */
+	/* VS: Reset the in-activity flag to activity */
 	int ret = 0;
 	peerData *conn_data = NULL;
 
 	ret = rte_hash_lookup_data(conn_hash_handle,
 				&srcIp, (void **)&conn_data);
 	if ( ret < 0) {
-		clLog(clSystemLog, eCLSeverityDebug, "Entry not found for NODE :%s\n",
-							inet_ntoa(*(struct in_addr *)&srcIp));
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Entry not found for NODE: %s\n",
+			LOG_VALUE, inet_ntoa(*(struct in_addr *)&srcIp));
 		return;
 	} else {
-		clLog(clSystemLog, eCLSeverityDebug, "Recv pkts from NODE :%s\n",
-						inet_ntoa(*(struct in_addr *)&srcIp));
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Recv pkts from NODE :%s\n",
+			LOG_VALUE, inet_ntoa(*(struct in_addr *)&srcIp));
 		conn_data->activityFlag = 1;
 	}
 }
@@ -135,40 +135,38 @@ static inline void epc_ul_set_port_id(struct rte_mbuf *m)
 	if (eh->ether_type == rte_cpu_to_be_16(ETHER_TYPE_ARP) ||
 			ipv4_hdr->next_proto_id == IPPROTO_ICMP)
 	{
-		clLog(clSystemLog, eCLSeverityDebug, "epc_ul.c:%s::"
-				"\n\t@S1U:eh->ether_type==ETHER_TYPE_ARP= 0x%X\n",
-				__func__, eh->ether_type);
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"WB_IN:eh->ether_type==ETHER_TYPE_ARP= 0x%X\n",
+			LOG_VALUE, eh->ether_type);
 		ul_arp_pkt = 1;
 		return;
 	}
-	ho_addr = ntohl(ipv4_hdr->dst_addr);
+
+	ho_addr = ipv4_hdr->dst_addr;
 	/* Flag pkt destined to S1U_IP for linux handling */
-	if (app.s1u_ip == ho_addr)
+	if ((app.wb_ip == ho_addr) || (app.wb_li_ip == ho_addr))
 	{
-		clLog(clSystemLog, eCLSeverityDebug, "epc_ul.c:%s::"
-				"\n\t@S1U:app.s1u_ip==ipv4_hdr->dst_addr= %s\n",
-				__func__,
-				inet_ntoa(*(struct in_addr *)&ho_addr));
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"WB_IN:app.wb_ip==ipv4_hdr->dst_addr= %s\n",
+			LOG_VALUE, inet_ntoa(*(struct in_addr *)&ho_addr));
 		ul_arp_pkt = 1;
 		return;
 	}
 	/* Flag MCAST pkt for linux handling */
 	if (IS_IPV4_MCAST(ho_addr))
 	{
-		clLog(clSystemLog, eCLSeverityDebug, "epc_ul.c:%s::"
-				"\n\t@S1U:IPV$_MCAST==ipv4_hdr->dst_addr= %s\n",
-				__func__,
-				inet_ntoa(*(struct in_addr *)&ho_addr));
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"WB_IN:IPV$_MCAST==ipv4_hdr->dst_addr= %s\n", LOG_VALUE,
+			inet_ntoa(*(struct in_addr *)&ho_addr));
 		ul_arp_pkt = 1;
 		return;
 	}
 	/* Flag BCAST pkt for linux handling */
-	if (app.s1u_bcast_addr == ho_addr)
+	if ((app.wb_bcast_addr == ho_addr) || (app.wb_li_bcast_addr == ho_addr))
 	{
-		clLog(clSystemLog, eCLSeverityDebug, "epc_ul.c:%s::"
-				"\n\t@S1U:app.s1u_bcast_addr==ipv4_hdr->dst_addr= %s\n",
-				__func__,
-				inet_ntoa(*(struct in_addr *)&ho_addr));
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"WB_IN:app.wb_bcast_addr==ipv4_hdr->dst_addr= %s\n",
+			LOG_VALUE, inet_ntoa(*(struct in_addr *)&ho_addr));
 		ul_arp_pkt = 1;
 		return;
 	}
@@ -181,7 +179,7 @@ static inline void epc_ul_set_port_id(struct rte_mbuf *m)
 			ip_len];
 		if (likely(udph->dst_port == UDP_PORT_GTPU_NW_ORDER)) {
 #ifdef USE_REST
-			/* VS: TODO Set activity flag if data receive from peer node */
+			/* VS: Set activity flag if data receive from peer node */
 			check_activity(ipv4_hdr->src_addr);
 #endif /* USE_REST */
 			struct gtpu_hdr *gtpuhdr = get_mtogtpu(m);
@@ -189,7 +187,7 @@ static inline void epc_ul_set_port_id(struct rte_mbuf *m)
 					gtpuhdr->msgtype == GTPU_ECHO_RESPONSE) {
 					return;
 			} else {
-				/* TODO: Inner could be ipv6 ? */
+				/* Inner could be ipv6 ? */
 				struct ipv4_hdr *inner_ipv4_hdr =
 					(struct ipv4_hdr *)RTE_PTR_ADD(udph,
 							UDP_HDR_SIZE +
@@ -197,7 +195,8 @@ static inline void epc_ul_set_port_id(struct rte_mbuf *m)
 								gtpu_hdr));
 				const uint32_t *p =
 					(const uint32_t *)&inner_ipv4_hdr->src_addr;
-				clLog(clSystemLog, eCLSeverityDebug, "UL: gtpu packet\n");
+				clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"WB: GTPU packet\n", LOG_VALUE);
 				*port_id_offset = 0;
 				ul_gtpu_pkt = 1;
 				ul_arp_pkt = 0;
@@ -261,10 +260,8 @@ static int epc_ul_port_in_ah(struct rte_pipeline *p,
 #endif /* STATS */
 	ul_pkts_nbrst++;
 
-/* Capture packets on s1u_port.*/
-#ifdef PCAP_GEN
-	    dump_pcap(pkts, n, pcap_dumper_west);
-#endif /* PCAP_GEN */
+	/* Capture packets on s1u_port.*/
+	up_pcap_dumper(pcap_dumper_west, pkts, n);
 	return 0;
 }
 
@@ -289,8 +286,14 @@ static inline int epc_ul_port_out_ah(struct rte_pipeline *p, struct rte_mbuf **p
 	} else if (ul_ndata_pkts)	{
 		ul_pkts_nbrst_prv = ul_pkts_nbrst;
 		epc_ul_handler f = epc_ul_worker_func[portno];
-		/* ASR- NGCORE_SHRINK: worker_index-TBC */
-		ret = f(p, pkts, ul_ndata_pkts, worker_index);
+		/* VS- NGCORE_SHRINK: worker_index-TBC */
+		if ( f != NULL) {
+			ret = f(p, pkts, ul_ndata_pkts, worker_index);
+		} else {
+			clLog(clSystemLog, eCLSeverityCritical,
+					LOG_FORMAT"Not Register WB pkts handler, Configured WB MAC was wrong\n",
+					LOG_VALUE);
+		}
 	}
 #ifdef TIMER_STATS
 #ifndef AUTO_ANALYSIS
@@ -309,31 +312,14 @@ static inline int epc_ul_port_out_ah(struct rte_pipeline *p, struct rte_mbuf **p
 
 void epc_ul_init(struct epc_ul_params *param, int core, uint8_t in_port_id, uint8_t out_port_id)
 {
-	struct rte_pipeline *p;
 	unsigned i;
+	struct rte_pipeline *p;
 
 	ul_pkts_nbrst = 0;
 	ul_pkts_nbrst_prv = 0;
 
-	switch (app.spgw_cfg) {
-	    case SGWU:
-	        if (in_port_id != app.s5s8_sgwu_port && in_port_id != app.s1u_port)
-				rte_exit(EXIT_FAILURE, "Wrong MAC configured for S1U/S5S8_SGWU interface\n");
-	        break;
-
-	    case PGWU:
-	        if (in_port_id != app.sgi_port && in_port_id != app.s5s8_pgwu_port)
-				rte_exit(EXIT_FAILURE, "Wrong MAC configured for S5S8_PGWU/SGI interface\n");
-		break;
-
-	    case SAEGWU:
-		if (in_port_id != app.sgi_port && in_port_id != app.s1u_port)
-				rte_exit(EXIT_FAILURE, "Wrong MAC configured for S1U/SGI interface\n");
-		break;
-
-	    default:
-	        rte_exit(EXIT_FAILURE, "Invalid DP type(SPGW_CFG).\n");
-	}
+	if (in_port_id != app.eb_port && in_port_id != app.wb_port)
+			rte_exit(EXIT_FAILURE, LOG_FORMAT"Wrong MAC configured for WB interface\n", LOG_VALUE);
 
 	memset(param, 0, sizeof(*param));
 
@@ -350,10 +336,10 @@ void epc_ul_init(struct epc_ul_params *param, int core, uint8_t in_port_id, uint
 	if (rte_eth_dev_socket_id(in_port_id)
 			!= (int)lcore_config[core].socket_id) {
 		clLog(clSystemLog, eCLSeverityMinor,
-				"location of the RX core for port=%d is not optimal\n",
-				in_port_id);
+			LOG_FORMAT"location of the RX core for port: %d is not optimal\n",
+			LOG_VALUE, in_port_id);
 		clLog(clSystemLog, eCLSeverityMinor,
-				"***** performance may be degradated !!!!! *******\n");
+			LOG_FORMAT"Performance may be degradated \n", LOG_VALUE);
 	}
 
 	struct rte_port_ethdev_reader_params port_ethdev_params = {
@@ -497,21 +483,27 @@ void epc_ul(void *args)
 
 	uint32_t queued_cnt = rte_ring_count(shared_ring[SGI_PORT_ID]);
 	if (queued_cnt) {
+		uint32_t pkt_indx = 0;
 		struct rte_mbuf *pkts[queued_cnt];
 		uint32_t rx_cnt = rte_ring_dequeue_bulk(shared_ring[SGI_PORT_ID],
 				(void**)pkts, queued_cnt, NULL);
-		uint32_t pkt_indx = 0;
-/* Capture the echo packets.*/
-#ifdef PCAP_GEN
-		dump_pcap(pkts, rx_cnt, pcap_dumper_east);
-#endif /* PCAP_GEN */
+
+		/* Capture the echo packets.*/
+		up_pcap_dumper(pcap_dumper_west, pkts, rx_cnt);
 		while (rx_cnt) {
 			uint16_t pkt_cnt = PKT_BURST_SZ;
 			if (rx_cnt < PKT_BURST_SZ)
 				pkt_cnt = rx_cnt;
+
 			/* ARP_REQ on SGI direct driven by epc_ul core */
 			uint16_t tx_cnt = rte_eth_tx_burst(SGI_PORT_ID,
 					0, &pkts[pkt_indx], pkt_cnt);
+
+			/* Free allocated Mbufs */
+			for (uint16_t inx = 0; inx < pkt_cnt; inx++) {
+				rte_pktmbuf_free(pkts[pkt_indx]);
+			}
+
 			rx_cnt -= tx_cnt;
 			pkt_indx += tx_cnt;
 		}

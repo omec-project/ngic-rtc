@@ -19,9 +19,6 @@
 #include <unistd.h>
 #include <string.h>
 
-#ifdef SDN_ODL_BUILD
-#include "nb.h"
-#endif
 #include "cp_stats.h"
 #include "cp.h"
 #include <sys/stat.h>
@@ -75,33 +72,6 @@ stats_time(void)
 	return ret;
 }
 
-#ifdef SDN_ODL_BUILD
-/**
- * @brief  : Calculates difference between nb sent and received messages
- * @param  : void
- * @return : Returns difference.
- */
-static uint64_t
-nb_ok_delta(void)
-{
-	uint64_t nb_ok = cp_stats.nb_ok;
-	uint64_t nb_sent = cp_stats.nb_sent;
-	return (nb_ok < nb_sent ? nb_sent - nb_ok : 0);
-}
-
-/**
- * @brief  : Calculates difference between nb sent and cnr messages
- * @param  : void
- * @return : Returns difference.
- */
-static uint64_t
-nb_cnr_delta(void)
-{
-	uint64_t nb_cnr = cp_stats.nb_cnr;
-	uint64_t nb_sent = cp_stats.nb_sent;
-	return (nb_cnr < nb_sent ? nb_sent - nb_cnr : 0);
-}
-#endif
 /**
  * @brief  : statistics entry used to simplify statistics by providing a common
  *           interface for statistic values or calculations and their names
@@ -145,11 +115,6 @@ struct stat_entry_t stat_entries[] = {
 	DEFINE_VALUE_STAT(8, &cp_stats.rel_access_bearer, "rel acc", "bearer"),
 	DEFINE_VALUE_STAT(8, &cp_stats.ddn, "",	"ddn"),
 	DEFINE_VALUE_STAT(8, &cp_stats.ddn_ack, "ddn", "ack"),
-#ifdef SDN_ODL_BUILD
-	DEFINE_VALUE_STAT(8, &cp_stats.nb_sent, "nb", "sent"),
-	DEFINE_LAMBDA_STAT(8, nb_ok_delta, "nb ok", "delta"),
-	DEFINE_LAMBDA_STAT(8, nb_cnr_delta, "nb cnr", "delta"),
-#endif
 };
 
 
@@ -186,15 +151,8 @@ int
 do_stats(__rte_unused void *ptr)
 {
 	while (1) {
-#ifdef SDN_ODL_BUILD
-		/* Only print stats when dpn_id is set to display CP is ready
-		 * to handle signaling
-		 */
-		if (dpn_id)
-#endif
 			print_stat_entries();
-
-		sleep(1);
+			sleep(1);
 	}
 
 	return 0;

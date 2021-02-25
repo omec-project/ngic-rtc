@@ -61,6 +61,9 @@
  */
 #define NGIC_DEBUG 2
 
+#define LOG_LEVEL_SET      (0x0001)
+#define REQ_ARGS           (LOG_LEVEL_SET)
+
 #ifndef PERF_TEST
 /** Temp. work around for support debug log level into DP, DPDK version 16.11.4 */
 #if (RTE_VER_YEAR >= 16) && (RTE_VER_MONTH >= 11)
@@ -97,11 +100,6 @@
 #define METER_PROFILE_SDF_TABLE_SIZE (2048)
 #define DPN_ID                       (12345)
 
-#define __file__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
-
-#define FORMAT "%s:%s:%d:"
-#define ERR_MSG __file__, __func__, __LINE__
-
 /**
  * max length of name string.
  */
@@ -110,6 +108,11 @@
 
 /* VS: Number of connection can maitain in the hash */
 #define NUM_CONN	500
+
+/**
+ * max li supported limit
+ */
+#define LI_MAX_SIZE								1024
 
 /**
  * no. of mbuf.
@@ -136,10 +139,11 @@ void rest_thread_init(void);
  * @brief  : Adds node connection entry
  * @param  : dstIp, node ip address
  * @param  : portId, port number of node
+ * @return : cp_mode,[SGWC/PGWC/SAEGWC]
  * @return : Returns nothing
  */
 uint8_t
-add_node_conn_entry(uint32_t dstIp, uint8_t portId);
+add_node_conn_entry(uint32_t dstIp, uint8_t portId, uint8_t cp_mode);
 
 /**
  * @brief  : Updates restart counter Value
@@ -166,6 +170,15 @@ flush_eNB_session(peerData *data_t);
 void
 dp_flush_session(uint32_t ip_addr, uint32_t sess_id);
 #endif  /* USE_REST */
+
+/**
+ * @brief  : Functino to handle signals.
+ * @param  : signo
+ *           signal number signal to be handled
+ * @return : Returns nothing
+ */
+void cp_sig_handler(int signo);
+
 
 #ifdef USE_REST
 /**

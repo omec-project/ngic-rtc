@@ -17,6 +17,9 @@
 #ifndef __PFCP_IES_H
 #define __PFCP_IES_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include <stdint.h>
 #include <arpa/inet.h>
@@ -24,6 +27,8 @@
 #include <unistd.h>
 
 #define CHAR_SIZE 8
+#define PFCP_IE_HEADER_SIZE 4
+
 #define PFCP_IE_CAUSE (19)
 #define PFCP_IE_SRC_INTFC (20)
 #define PFCP_IE_FTEID (21)
@@ -65,7 +70,8 @@
 /* TODO: Revisit this for change in yang */
 #define IPV6_ADDRESS_LEN 16
 #define PFCP_IE_NODE_ID (60)
-#define NODE_ID_VALUE_LEN 8
+//#define NODE_ID_VALUE_LEN 8
+#define NODE_ID_VALUE_LEN 16
 #define PFCP_IE_PFD_CONTENTS (61)
 #define PFCP_IE_MEAS_MTHD (62)
 #define PFCP_IE_USAGE_RPT_TRIG (63)
@@ -155,7 +161,12 @@
 #define PFCP_IE_EVNT_TIME_STMP (156)
 #define PFCP_IE_AVGNG_WND (157)
 #define PFCP_IE_PAGING_PLCY_INDCTR (158)
-
+#define PFCP_IE_APN_DNN (159)
+#define PFCP_IE_3GPP_INTFC_TYPE (160)
+#define PFCP_MAX_RULE_LEN  255
+#define PFCP_APPLICATION_ID_LEN 5
+#define PFCP_NTWK_INST_LEN 253
+#define PFCP_FQDN_LEN 253
 #pragma pack(1)
 
 typedef struct pfcp_ie_header_t {
@@ -224,7 +235,7 @@ Description -Network Instance
 typedef struct pfcp_ntwk_inst_ie_t {
   pfcp_ie_header_t header;
 /* TODO: Revisit this for change in yang */
-  uint8_t ntwk_inst[32];
+  uint8_t ntwk_inst[PFCP_NTWK_INST_LEN];
 } pfcp_ntwk_inst_ie_t;
 
 /**
@@ -253,7 +264,7 @@ Description -Application ID
 typedef struct pfcp_application_id_ie_t {
   pfcp_ie_header_t header;
   /* TODO: Revisit this for change in yang */
-  uint8_t app_ident[8];
+  uint8_t app_ident[PFCP_APPLICATION_ID_LEN];
 } pfcp_application_id_ie_t;
 
 /**
@@ -428,7 +439,7 @@ Description -Forwarding Policy
 typedef struct pfcp_frwdng_plcy_ie_t {
   pfcp_ie_header_t header;
   uint8_t frwdng_plcy_ident_len;
-  uint8_t frwdng_plcy_ident;
+  uint8_t frwdng_plcy_ident[255];
 } pfcp_frwdng_plcy_ie_t;
 
 /**
@@ -590,7 +601,9 @@ typedef struct pfcp_node_id_ie_t {
   pfcp_ie_header_t header;
   uint8_t node_id_spare :4;
   uint8_t node_id_type :4;
-  uint8_t node_id_value[NODE_ID_VALUE_LEN];
+  uint32_t node_id_value_ipv4_address;
+  uint8_t node_id_value_ipv6_address[IPV6_ADDRESS_LEN];
+  uint8_t node_id_value_fqdn[PFCP_FQDN_LEN];
 } pfcp_node_id_ie_t;
 
 /**
@@ -969,7 +982,7 @@ Description -Activate Predefined Rules
 typedef struct pfcp_actvt_predef_rules_ie_t {
   pfcp_ie_header_t header;
   /* TODO: Revisit this for change in yang */
-  uint8_t predef_rules_nm[8];
+  uint8_t predef_rules_nm[PFCP_MAX_RULE_LEN];
 } pfcp_actvt_predef_rules_ie_t;
 
 /**
@@ -1431,7 +1444,7 @@ enum cause_values_type {
   SYSTEMFAILURE =77,
 };
 
-struct src_intfc_intfc_valType_t {
+typedef struct src_intfc_intfc_valType_t {
   uint8_t zero :1;
   uint8_t one :1;
   uint8_t two :1;
@@ -1446,7 +1459,7 @@ enum redir_addr_type_type {
   SIPURI =3,
 };
 
-struct dst_intfc_intfc_valType_t {
+typedef struct dst_intfc_intfc_valType_t {
   uint8_t zero :1;
   uint8_t one :1;
   uint8_t two :1;
@@ -1455,7 +1468,7 @@ struct dst_intfc_intfc_valType_t {
   uint8_t fiveto15 :1;
 } dst_intfc_intfc_valType_t;
 
-struct up_func_featType_t {
+typedef struct up_func_featType_t {
   uint8_t bucp :1;
   uint8_t ddnd :1;
   uint8_t dlbd :1;
@@ -1478,7 +1491,7 @@ enum node_id_type_type {
   FQDN =2,
 };
 
-struct outer_hdr_creation_descType_t {
+typedef struct outer_hdr_creation_descType_t {
   uint8_t gtpu_udp_ipv4 :1;
   uint8_t gtpu_udp_ipv6 :1;
   uint8_t udp_ipv4 :1;
@@ -1489,10 +1502,27 @@ struct outer_hdr_creation_descType_t {
   uint8_t stag :1;
 } outer_hdr_creation_descType_t;
 
-struct cp_func_featType_t {
+typedef struct cp_func_featType_t {
   uint8_t load :1;
   uint8_t ovrl :1;
 } cp_func_featType_t;
+
+/**
+Description - 3GPP Interface Type
+*/
+typedef struct pfcp_3gpp_intfc_type_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t interface_type_value :6;
+  uint8_t spare :2;
+} pfcp_3gpp_intfc_type_ie_t;
+
+/**
+Description - APN/DNN
+*/
+typedef struct pfcp_apn_dnn_ie_t {
+  pfcp_ie_header_t header;
+  uint8_t apn_dnn[63];
+} pfcp_apn_dnn_ie_t;
 
 enum flow_direction_type {
   UNSPECIFIED =0,
@@ -1524,4 +1554,9 @@ enum base_time_int_type_type {
 };
 
 #pragma pack()
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif

@@ -21,7 +21,9 @@
 
 #ifdef CP_BUILD
 #include "sm_struct.h"
+#include "seid_llist.h"
 #endif /* CP_BUILD */
+
 
 /**
  * @brief  : This is a function to fill pfcp association update response
@@ -54,7 +56,7 @@ fill_pfcp_association_update_req(pfcp_assn_upd_req_t *pfcp_ass_update_req);
  * @return : This function dose not return anything
  */
 void
-fill_pfcp_association_setup_resp(pfcp_assn_setup_rsp_t *pfcp_ass_setup_resp, uint8_t cause);
+fill_pfcp_association_setup_resp(pfcp_assn_setup_rsp_t *pfcp_ass_setup_resp, uint8_t cause, uint32_t peer_addr);
 
 /**
  * @brief  : This is a function to fill pfcp association release request
@@ -119,10 +121,12 @@ fill_pfcp_heartbeat_req(pfcp_hrtbeat_req_t *pfcp_heartbeat_req, uint32_t seq);
  * @brief  : This is a function to fill pfcp session report request
  * @param  : pfcp_sess_req_resp is pointer to structure of pfcp session report request
  * @param  : seq indicates the sequence number
+ * @param  : cp_type, [SGWC/SAEGWC/PGWC]
  * @return : This function dose not return anything
  */
 void
-fill_pfcp_sess_report_resp(pfcp_sess_rpt_rsp_t *pfcp_sess_rep_resp, uint32_t seq);
+fill_pfcp_sess_report_resp(pfcp_sess_rpt_rsp_t *pfcp_sess_rep_resp, uint32_t seq,
+		uint8_t cp_type);
 
 #ifdef CP_BUILD
 /**

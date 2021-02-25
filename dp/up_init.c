@@ -53,7 +53,6 @@
  *	NUM_MBUFS >= 1.5x MBUF_CACHE_SIZE::
  *		Else rte_pktmbuf_pool_create(...) { FAIL; ...}
  */
-/*#define NUM_MBUFS		(TX_NUM_DESC*2)	*/ /* 2048, (TX_NUM_DESC*2) */	/* NUM_MBUFS = 4096 */
 #define NUM_MBUFS		(TX_NUM_DESC*2) > (1.5 * MBUF_CACHE_SIZE) ? \
 						(TX_NUM_DESC*2) : (2 * MBUF_CACHE_SIZE)
 
@@ -134,7 +133,6 @@ static inline int port_init(uint8_t port, struct rte_mempool *mbuf_pool)
 
 	if (port >= rte_eth_dev_count())
 		return -1;
-	/* TODO: use q 1 for arp */
 
 	/* Configure the Ethernet device. */
 	retval = rte_eth_dev_configure(port, rx_rings, tx_rings, &port_conf);
@@ -202,8 +200,8 @@ void dp_port_init(void)
 {
 	uint8_t port_id;
 	enum {
-		S1U_PORT = 0,
-		SGI_PORT = 1
+		WB_PORT = 0,
+		EB_PORT = 1
 	};
 	int i = 0, j; //GCC_Security flag
 
@@ -248,14 +246,14 @@ void dp_port_init(void)
 
 		kni_port_params_array[port_id]->port_id = port_id;
 
-		if (port_id == 0) {
+		if (port_id == WB_PORT) {
 			kni_port_params_array[port_id]->lcore_rx =
 				(uint8_t)epc_app.core_ul[S1U_PORT_ID];
 			kni_port_params_array[port_id]->lcore_tx = (uint8_t)epc_app.core_mct;
 			printf("KNI lcore on port :%u rx :%u tx :%u\n", port_id,
 					kni_port_params_array[port_id]->lcore_rx,
 					kni_port_params_array[port_id]->lcore_tx);
-		} else if (port_id == 1) {
+		} else if (port_id == EB_PORT) {
 			kni_port_params_array[port_id]->lcore_rx =
 				(uint8_t)epc_app.core_dl[SGI_PORT_ID];
 			kni_port_params_array[port_id]->lcore_tx = (uint8_t)epc_app.core_mct;
@@ -279,16 +277,17 @@ void dp_port_init(void)
 	/* Initialize KNI subsystem */
 	init_kni();
 
-	/* Initialize S1U & SGi ports. */
-	if (port_init(S1U_PORT, s1u_mempool) != 0)
-		rte_exit(EXIT_FAILURE, "Cannot init s1u port %" PRIu8 "\n",
-				S1U_PORT);
+	/* Initialize WB & EB ports. */
+	if (port_init(WB_PORT, s1u_mempool) != 0)
+		rte_exit(EXIT_FAILURE, LOG_FORMAT"Cannot init WB PORT %" PRIu8 "\n",
+				LOG_VALUE, WB_PORT);
 	/* Alloc kni on interface. */
-	kni_alloc(S1U_PORT);
-	if (port_init(SGI_PORT, sgi_mempool) != 0)
-		rte_exit(EXIT_FAILURE, "Cannot init s1u port %" PRIu8 "\n",
-				SGI_PORT);
-	kni_alloc(SGI_PORT);
+	kni_alloc(WB_PORT);
+
+	if (port_init(EB_PORT, sgi_mempool) != 0)
+		rte_exit(EXIT_FAILURE, LOG_FORMAT"Cannot init EB_PORT %" PRIu8 "\n",
+				LOG_VALUE, EB_PORT);
+	kni_alloc(EB_PORT);
 
 	/* Routing Discovery : Create route hash for s1u and sgi port */
 	route_hash_params.socket_id = rte_socket_id();
@@ -336,9 +335,9 @@ dp_ddn_init(void)
 		rte_exit(EXIT_FAILURE, "Cannot create notify_msg_pool !!!\n");
 
 
-	/* VS: TODO Temp. filled CP comm IP and PORT*/
+	/* VS: Temp. filled CP comm IP and PORT*/
 	dest_addr_t.sin_family = AF_INET;
-	dest_addr_t.sin_addr.s_addr = cp_comm_ip.s_addr;
+	dest_addr_t.sin_addr.s_addr = htonl(cp_comm_ip.s_addr);
 	dest_addr_t.sin_port = htons(cp_comm_port);
 
 }

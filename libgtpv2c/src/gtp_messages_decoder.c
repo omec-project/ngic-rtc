@@ -17,10 +17,6 @@
 #include "../include/gtp_messages_decoder.h"
 #include "../include/sv_ies_decoder.h"
 #include "../include/enc_dec_bits.h"
-#define IE_HEADER_SIZE sizeof(ie_header_t)
-
-int decode_gtp_del_bearer_response_bearer_ctxt_ie(uint8_t *buf,
-      gtp_del_bearer_response_bearer_ctxt_ie_t *value);
 
 /**
 * Decodes detach_ack_t to buffer.
@@ -314,7 +310,7 @@ int decode_gtp_ctxt_acknowledge__bearer_ctxt_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes gtp_del_bearer_request__overload_ctl_info_ie_t to buffer.
@@ -350,7 +346,7 @@ int decode_gtp_del_bearer_request__overload_ctl_info_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes gtp_create_bearer_response__overload_ctl_info_ie_t to buffer.
@@ -384,7 +380,7 @@ int decode_gtp_create_bearer_response__overload_ctl_info_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes gtp_mod_acc_bearers_request__bearer_ctxt_to_be_modified_ie_t to buffer.
@@ -418,7 +414,7 @@ int decode_gtp_mod_acc_bearers_request__bearer_ctxt_to_be_modified_ie(uint8_t *b
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes ran_info_rly_t to buffer.
@@ -565,7 +561,7 @@ int decode_gtp_rmt_ue_rpt_notification__remote_ue_ctxt_disconnected_ie(uint8_t *
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes gtp_rmt_ue_rpt_notification__remote_ue_ctxt_connected_ie_t to buffer.
@@ -597,7 +593,7 @@ int decode_gtp_rmt_ue_rpt_notification__remote_ue_ctxt_connected_ie(uint8_t *buf
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes fwd_reloc_cmplt_notif_t to buffer.
@@ -668,7 +664,7 @@ int decode_gtp_del_bearer_fail_indication__overload_ctl_info_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes gtp_create_sess_request_bearer_ctxt_to_be_created_ie_t to buffer.
@@ -718,7 +714,7 @@ int decode_gtp_create_sess_request_bearer_ctxt_to_be_created_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes del_bearer_cmd_t to buffer.
@@ -827,98 +823,107 @@ int decode_mod_bearer_cmd(uint8_t *buf,
 *   number of decoded bytes.
 */
 int decode_mod_bearer_req(uint8_t *buf,
-      mod_bearer_req_t *value)
+		mod_bearer_req_t *value)
 {
-      uint16_t count = 0;
-      uint16_t buf_len = 0;
+	uint16_t count = 0;
+	uint16_t buf_len = 0;
 
-    count += decode_gtpv2c_header_t(buf + count, &value->header);
-    if (value->header.gtpc.teid_flag)
-      buf_len = value->header.gtpc.message_len - 8;
-      else
-      buf_len = value->header.gtpc.message_len - 4;
-      buf = buf + count;
-      count = 0;
-            while (count < buf_len) {
+	value->bearer_count = 0;
+	value->second_rat_count = 0;
+	count += decode_gtpv2c_header_t(buf + count, &value->header);
+	if (value->header.gtpc.teid_flag)
+		buf_len = value->header.gtpc.message_len - 8;
+	else
+		buf_len = value->header.gtpc.message_len - 4;
 
-          ie_header_t *ie_header = (ie_header_t *) (buf + count);
+	buf = buf + count;
 
-          if (ie_header->type == GTP_IE_MBL_EQUIP_IDNTY && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_mbl_equip_idnty_ie(buf + count, &value->mei);
-      }  else if (ie_header->type == GTP_IE_USER_LOC_INFO && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_user_loc_info_ie(buf + count, &value->uli);
-      }  else if (ie_header->type == GTP_IE_SERVING_NETWORK && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_serving_network_ie(buf + count, &value->serving_network);
-      /*
-	}  else if (ie_header->type == GTP_IE_INDICATION && ie_header->instance == GTP_IE_INSTANCE_ZERO) {\
-            count += decode_gtp_indication_ie(buf + count, &value->indctn_flgs);
-	*/
-	  }  else if (ie_header->type == GTP_IE_SELECTION_MODE && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-		   count += decode_gtp_selection_mode_ie(buf + count, &value->selection_mode);
-      }  else if (ie_header->type == GTP_IE_FULLY_QUAL_TUNN_ENDPT_IDNT && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_fully_qual_tunn_endpt_idnt_ie(buf + count, &value->sender_fteid_ctl_plane);
-      }  else if (ie_header->type == GTP_IE_AGG_MAX_BIT_RATE && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_agg_max_bit_rate_ie(buf + count, &value->apn_ambr);
-      }  else if (ie_header->type == GTP_IE_DELAY_VALUE && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_delay_value_ie(buf + count, &value->delay_dnlnk_pckt_notif_req);
-      }  else if (ie_header->type == GTP_IE_MOD_BEARER_REQUEST_BEARER_CTXT_TO_BE_MODIFIED && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_mod_bearer_request_bearer_ctxt_to_be_modified_ie(buf + count, &value->bearer_contexts_to_be_modified);
-      }  else if (ie_header->type == GTP_IE_MOD_BEARER_REQUEST_BEARER_CTXT_TO_BE_REMOVED && ie_header->instance == GTP_IE_INSTANCE_ONE) {
-            count += decode_gtp_mod_bearer_request_bearer_ctxt_to_be_removed_ie(buf + count, &value->bearer_contexts_to_be_removed);
-      }  else if (ie_header->type == GTP_IE_RECOVERY && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_recovery_ie(buf + count, &value->recovery);
-      }  else if (ie_header->type == GTP_IE_UE_TIME_ZONE && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_ue_time_zone_ie(buf + count, &value->ue_time_zone);
-      }  else if (ie_header->type == GTP_IE_FQCSID && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_fqcsid_ie(buf + count, &value->mme_fqcsid);
-      }  else if (ie_header->type == GTP_IE_FQCSID && ie_header->instance == GTP_IE_INSTANCE_ONE) {
-            count += decode_gtp_fqcsid_ie(buf + count, &value->sgw_fqcsid);
-      }  else if (ie_header->type == GTP_IE_USER_CSG_INFO && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_user_csg_info_ie(buf + count, &value->uci);
-      }  else if (ie_header->type == GTP_IE_IP_ADDRESS && ie_header->instance == GTP_IE_INSTANCE_ONE) {
-            count += decode_gtp_ip_address_ie(buf + count, &value->ue_local_ip_addr);
-      }  else if (ie_header->type == GTP_IE_PORT_NUMBER && ie_header->instance == GTP_IE_INSTANCE_ONE) {
-            count += decode_gtp_port_number_ie(buf + count, &value->ue_udp_port);
-      }  else if (ie_header->type == GTP_IE_LOCAL_DISTGSD_NAME && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_local_distgsd_name_ie(buf + count, &value->mmes4_sgsn_ldn);
-      }  else if (ie_header->type == GTP_IE_LOCAL_DISTGSD_NAME && ie_header->instance == GTP_IE_INSTANCE_ONE) {
-            count += decode_gtp_local_distgsd_name_ie(buf + count, &value->sgw_ldn);
-      }  else if (ie_header->type == GTP_IE_IP_ADDRESS && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_ip_address_ie(buf + count, &value->henb_local_ip_addr);
-      }  else if (ie_header->type == GTP_IE_PORT_NUMBER && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_port_number_ie(buf + count, &value->henb_udp_port);
-      }  else if (ie_header->type == GTP_IE_IP_ADDRESS && ie_header->instance == GTP_IE_INSTANCE_TWO) {
-            count += decode_gtp_ip_address_ie(buf + count, &value->mmes4_sgsn_idnt);
-      }  else if (ie_header->type == GTP_IE_CN_OPER_SEL_ENTITY && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_cn_oper_sel_entity_ie(buf + count, &value->cn_oper_sel_entity);
-      }  else if (ie_header->type == GTP_IE_PRES_RPTNG_AREA_INFO && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_pres_rptng_area_info_ie(buf + count, &value->pres_rptng_area_info);
-      }  else if (ie_header->type == GTP_IE_OVRLD_CTL_INFO && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_ovrld_ctl_info_ie(buf + count, &value->mmes4_sgsns_ovrld_ctl_info);
-      }  else if (ie_header->type == GTP_IE_OVRLD_CTL_INFO && ie_header->instance == GTP_IE_INSTANCE_ONE) {
-            count += decode_gtp_ovrld_ctl_info_ie(buf + count, &value->sgws_ovrld_ctl_info);
-      }  else if (ie_header->type == GTP_IE_OVRLD_CTL_INFO && ie_header->instance == GTP_IE_INSTANCE_TWO) {
-            count += decode_gtp_ovrld_ctl_info_ie(buf + count, &value->epdgs_ovrld_ctl_info);
-      }  else if (ie_header->type == GTP_IE_SRVNG_PLMN_RATE_CTL && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_srvng_plmn_rate_ctl_ie(buf + count, &value->srvng_plmn_rate_ctl);
-      }  else if (ie_header->type == GTP_IE_COUNTER && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_counter_ie(buf + count, &value->mo_exception_data_cntr);
-      }  else if (ie_header->type == GTP_IE_IMSI && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_imsi_ie(buf + count, &value->imsi);
-      }  else if (ie_header->type == GTP_IE_USER_LOC_INFO && ie_header->instance == GTP_IE_INSTANCE_ONE) {
-            count += decode_gtp_user_loc_info_ie(buf + count, &value->user_loc_info_sgw);
-      }  else if (ie_header->type == GTP_IE_TWAN_IDENTIFIER && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_twan_identifier_ie(buf + count, &value->wlan_loc_info);
-      }  else if (ie_header->type == GTP_IE_TWAN_IDNT_TS && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_twan_idnt_ts_ie(buf + count, &value->wlan_loc_ts);
-      }  else if (ie_header->type == GTP_IE_SECDRY_RAT_USAGE_DATA_RPT && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_secdry_rat_usage_data_rpt_ie(buf + count, &value->secdry_rat_usage_data_rpt);
-      }  else if (ie_header->type == GTP_IE_PRIV_EXT) {
-            count += decode_gtp_priv_ext_ie(buf + count, &value->priv_ext);
-      }  else
-            count += sizeof(ie_header_t) + ntohs(ie_header->len);
-      }
-      return count;
+	if(buf_len)
+		count = 0;
+
+	while (count < buf_len) {
+
+		ie_header_t *ie_header = (ie_header_t *) (buf + count);
+
+		if (ie_header->type == GTP_IE_MBL_EQUIP_IDNTY && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_mbl_equip_idnty_ie(buf + count, &value->mei);
+		}  else if (ie_header->type == GTP_IE_USER_LOC_INFO && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_user_loc_info_ie(buf + count, &value->uli);
+		}  else if (ie_header->type == GTP_IE_SERVING_NETWORK && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_serving_network_ie(buf + count, &value->serving_network);
+		}  else if (ie_header->type == GTP_IE_INDICATION && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_indication_ie(buf + count, &value->indctn_flgs);
+		}  else if (ie_header->type == GTP_IE_SELECTION_MODE && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_selection_mode_ie(buf + count, &value->selection_mode);
+		}  else if (ie_header->type == GTP_IE_FULLY_QUAL_TUNN_ENDPT_IDNT && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_fully_qual_tunn_endpt_idnt_ie(buf + count, &value->sender_fteid_ctl_plane);
+		}  else if (ie_header->type == GTP_IE_AGG_MAX_BIT_RATE && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_agg_max_bit_rate_ie(buf + count, &value->apn_ambr);
+		}  else if (ie_header->type == GTP_IE_DELAY_VALUE && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_delay_value_ie(buf + count, &value->delay_dnlnk_pckt_notif_req);
+		}  else if (ie_header->type == GTP_IE_MOD_BEARER_REQUEST_BEARER_CTXT_TO_BE_MODIFIED && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_mod_bearer_request_bearer_ctxt_to_be_modified_ie(buf + count, &value->bearer_contexts_to_be_modified[value->bearer_count]);
+			value->bearer_count++;
+		}  else if (ie_header->type == GTP_IE_MOD_BEARER_REQUEST_BEARER_CTXT_TO_BE_REMOVED && ie_header->instance == GTP_IE_INSTANCE_ONE) {
+			count += decode_gtp_mod_bearer_request_bearer_ctxt_to_be_removed_ie(buf + count, &value->bearer_contexts_to_be_removed);
+		}  else if (ie_header->type == GTP_IE_RECOVERY && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_recovery_ie(buf + count, &value->recovery);
+		}  else if (ie_header->type == GTP_IE_UE_TIME_ZONE && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_ue_time_zone_ie(buf + count, &value->ue_time_zone);
+		}  else if (ie_header->type == GTP_IE_FQCSID && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_fqcsid_ie(buf + count, &value->mme_fqcsid);
+		}  else if (ie_header->type == GTP_IE_FQCSID && ie_header->instance == GTP_IE_INSTANCE_ONE) {
+			count += decode_gtp_fqcsid_ie(buf + count, &value->sgw_fqcsid);
+		}  else if (ie_header->type == GTP_IE_USER_CSG_INFO && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_user_csg_info_ie(buf + count, &value->uci);
+		}  else if (ie_header->type == GTP_IE_IP_ADDRESS && ie_header->instance == GTP_IE_INSTANCE_ONE) {
+			count += decode_gtp_ip_address_ie(buf + count, &value->ue_local_ip_addr);
+		}  else if (ie_header->type == GTP_IE_PORT_NUMBER && ie_header->instance == GTP_IE_INSTANCE_ONE) {
+			count += decode_gtp_port_number_ie(buf + count, &value->ue_udp_port);
+		}  else if (ie_header->type == GTP_IE_LOCAL_DISTGSD_NAME && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_local_distgsd_name_ie(buf + count, &value->mmes4_sgsn_ldn);
+		}  else if (ie_header->type == GTP_IE_LOCAL_DISTGSD_NAME && ie_header->instance == GTP_IE_INSTANCE_ONE) {
+			count += decode_gtp_local_distgsd_name_ie(buf + count, &value->sgw_ldn);
+		}  else if (ie_header->type == GTP_IE_IP_ADDRESS && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_ip_address_ie(buf + count, &value->henb_local_ip_addr);
+		}  else if (ie_header->type == GTP_IE_PORT_NUMBER && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_port_number_ie(buf + count, &value->henb_udp_port);
+		}  else if (ie_header->type == GTP_IE_IP_ADDRESS && ie_header->instance == GTP_IE_INSTANCE_TWO) {
+			count += decode_gtp_ip_address_ie(buf + count, &value->mmes4_sgsn_idnt);
+		}  else if (ie_header->type == GTP_IE_CN_OPER_SEL_ENTITY && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_cn_oper_sel_entity_ie(buf + count, &value->cn_oper_sel_entity);
+		}  else if (ie_header->type == GTP_IE_PRES_RPTNG_AREA_INFO && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_pres_rptng_area_info_ie(buf + count, &value->pres_rptng_area_info);
+		}  else if (ie_header->type == GTP_IE_OVRLD_CTL_INFO && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_ovrld_ctl_info_ie(buf + count, &value->mmes4_sgsns_ovrld_ctl_info);
+		}  else if (ie_header->type == GTP_IE_OVRLD_CTL_INFO && ie_header->instance == GTP_IE_INSTANCE_ONE) {
+			count += decode_gtp_ovrld_ctl_info_ie(buf + count, &value->sgws_ovrld_ctl_info);
+		}  else if (ie_header->type == GTP_IE_OVRLD_CTL_INFO && ie_header->instance == GTP_IE_INSTANCE_TWO) {
+			count += decode_gtp_ovrld_ctl_info_ie(buf + count, &value->epdgs_ovrld_ctl_info);
+		}  else if (ie_header->type == GTP_IE_SRVNG_PLMN_RATE_CTL && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_srvng_plmn_rate_ctl_ie(buf + count, &value->srvng_plmn_rate_ctl);
+		}  else if (ie_header->type == GTP_IE_COUNTER && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_counter_ie(buf + count, &value->mo_exception_data_cntr);
+		}  else if (ie_header->type == GTP_IE_IMSI && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_imsi_ie(buf + count, &value->imsi);
+		}  else if (ie_header->type == GTP_IE_USER_LOC_INFO && ie_header->instance == GTP_IE_INSTANCE_ONE) {
+			count += decode_gtp_user_loc_info_ie(buf + count, &value->user_loc_info_sgw);
+		}  else if (ie_header->type == GTP_IE_TWAN_IDENTIFIER && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_twan_identifier_ie(buf + count, &value->wlan_loc_info);
+		}  else if (ie_header->type == GTP_IE_TWAN_IDNT_TS && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_twan_idnt_ts_ie(buf + count, &value->wlan_loc_ts);
+		}  else if (ie_header->type == GTP_IE_SECDRY_RAT_USAGE_DATA_RPT && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_secdry_rat_usage_data_rpt_ie(buf + count, &value->secdry_rat_usage_data_rpt[value->second_rat_count]);
+			value->second_rat_count++;
+		}  else if (ie_header->type == GTP_IE_PRIV_EXT) {
+			count += decode_gtp_priv_ext_ie(buf + count, &value->priv_ext);
+		}  else if (ie_header->type == GTP_IE_RAT_TYPE && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_rat_type_ie(buf + count, &value->rat_type);
+		}  else
+			count += sizeof(ie_header_t) + ntohs(ie_header->len);
+	}
+
+	return count;
 }
 /**
 * Decodes gtp_upd_bearer_response__overload_ctl_info_ie_t to buffer.
@@ -952,7 +957,7 @@ int decode_gtp_upd_bearer_response__overload_ctl_info_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes gtp_del_bearer_request__bearer_ctxt_ie_t to buffer.
@@ -984,7 +989,7 @@ int decode_gtp_del_bearer_request__bearer_ctxt_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes gtp_upd_bearer_request__overload_ctl_info_ie_t to buffer.
@@ -1020,7 +1025,7 @@ int decode_gtp_upd_bearer_request__overload_ctl_info_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes id_req_t to buffer.
@@ -1178,7 +1183,7 @@ int decode_gtp_fwd_reloc_request__mmesgsnamf_ue_eps_pdn_connections_ie(uint8_t *
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes gtp_dnlnk_data_notification__load_ctl_info_ie_t to buffer.
@@ -1210,7 +1215,7 @@ int decode_gtp_dnlnk_data_notification__load_ctl_info_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes del_sess_rsp_t to buffer.
@@ -1495,7 +1500,7 @@ int decode_gtp_ctxt_response__bearer_ctxt_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes gtp_ctxt_response__remote_ue_ctxt_connected_ie_t to buffer.
@@ -1527,7 +1532,7 @@ int decode_gtp_ctxt_response__remote_ue_ctxt_connected_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes gtp_mod_bearer_request_overload_ctl_info_ie_t to buffer.
@@ -1561,7 +1566,7 @@ int decode_gtp_mod_bearer_request_overload_ctl_info_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes gtp_fwd_reloc_request__bearer_ctxt_ie_t to buffer.
@@ -1607,7 +1612,7 @@ int decode_gtp_fwd_reloc_request__bearer_ctxt_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes echo_request_t to buffer.
@@ -1712,7 +1717,7 @@ int decode_del_bearer_fail_indctn(uint8_t *buf,
           if (ie_header->type == GTP_IE_CAUSE && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
             count += decode_gtp_cause_ie(buf + count, &value->cause);
       }  else if (ie_header->type == GTP_IE_BEARER_CONTEXT && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_bearer_context_ie(buf + count, &value->bearer_context);
+            count += decode_gtp_del_bearer_fail_indication__bearer_ctxt_ie(buf + count, &value->bearer_context[value->bearer_count++]);
       }  else if (ie_header->type == GTP_IE_RECOVERY && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
             count += decode_gtp_recovery_ie(buf + count, &value->recovery);
       }  else if (ie_header->type == GTP_IE_INDICATION && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
@@ -1848,7 +1853,7 @@ int decode_mod_bearer_rsp(uint8_t *buf,
       }  else if (ie_header->type == GTP_IE_PROT_CFG_OPTS && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
             count += decode_gtp_prot_cfg_opts_ie(buf + count, &value->pco);
       }  else if (ie_header->type == GTP_IE_MOD_BEARER_RESPONSE_BEARER_CTXT_MODIFIED && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_mod_bearer_response_bearer_ctxt_modified_ie(buf + count, &value->bearer_contexts_modified);
+            count += decode_gtp_mod_bearer_response_bearer_ctxt_modified_ie(buf + count, &value->bearer_contexts_modified[value->bearer_count++]);
       }  else if (ie_header->type == GTP_IE_MOD_BEARER_RESPONSE_BEARER_CTXT_MARKED_REMOVAL && ie_header->instance == GTP_IE_INSTANCE_ONE) {
             count += decode_gtp_mod_bearer_response_bearer_ctxt_marked_removal_ie(buf + count, &value->bearer_contexts_marked_removal);
       }  else if (ie_header->type == GTP_IE_CHG_RPTNG_ACT && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
@@ -1924,7 +1929,7 @@ int decode_gtp_create_sess_request__remote_ue_ctxt_connected_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes gtp_mod_bearer_command__overload_ctl_info_ie_t to buffer.
@@ -1958,7 +1963,7 @@ int decode_gtp_mod_bearer_command__overload_ctl_info_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes mbms_sess_start_rsp_t to buffer.
@@ -2106,7 +2111,7 @@ int decode_gtp_fwd_reloc_request__mme_ue_scef_pdn_connections_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes mbms_sess_upd_req_t to buffer.
@@ -2175,7 +2180,7 @@ int decode_create_sess_rsp(uint8_t *buf,
 {
       uint16_t count = 0;
       uint16_t buf_len = 0;
-
+	  value->bearer_count = 0;
     count += decode_gtpv2c_header_t(buf + count, &value->header);
     if (value->header.gtpc.teid_flag)
       buf_len = value->header.gtpc.message_len - 8;
@@ -2210,7 +2215,7 @@ int decode_create_sess_rsp(uint8_t *buf,
       }  else if (ie_header->type == GTP_IE_PROT_CFG_OPTS && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
             count += decode_gtp_prot_cfg_opts_ie(buf + count, &value->pco);
       }  else if (ie_header->type == GTP_IE_CREATE_SESS_RESPONSE_BEARER_CTXT_CREATED && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_create_sess_response_bearer_ctxt_created_ie(buf + count, &value->bearer_contexts_created);
+            count += decode_gtp_create_sess_response_bearer_ctxt_created_ie(buf + count, &value->bearer_contexts_created[value->bearer_count++]);
       }  else if (ie_header->type == GTP_IE_CREATE_SESS_RESPONSE_BEARER_CTXT_MARKED_REMOVAL && ie_header->instance == GTP_IE_INSTANCE_ONE) {
             count += decode_gtp_create_sess_response_bearer_ctxt_marked_removal_ie(buf + count, &value->bearer_contexts_marked_removal);
       }  else if (ie_header->type == GTP_IE_RECOVERY && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
@@ -2345,7 +2350,7 @@ int decode_gtp_create_sess_response_bearer_ctxt_created_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count + 4;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes gtp_create_bearer_request__load_ctl_info_ie_t to buffer.
@@ -2379,7 +2384,7 @@ int decode_gtp_create_bearer_request__load_ctl_info_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes create_bearer_req_t to buffer.
@@ -2414,7 +2419,7 @@ int decode_create_bearer_req(uint8_t *buf,
       }  else if (ie_header->type == GTP_IE_PROT_CFG_OPTS && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
             count += decode_gtp_prot_cfg_opts_ie(buf + count, &value->pco);
       }  else if (ie_header->type == GTP_IE_BEARER_CONTEXT && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_create_bearer_request_bearer_ctxt_ie(buf + count, &value->bearer_contexts);
+            count += decode_gtp_create_bearer_request_bearer_ctxt_ie(buf + count, &value->bearer_contexts[value->bearer_cnt++]);
       }  else if (ie_header->type == GTP_IE_FQCSID && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
             count += decode_gtp_fqcsid_ie(buf + count, &value->pgw_fqcsid);
       }  else if (ie_header->type == GTP_IE_FQCSID && ie_header->instance == GTP_IE_INSTANCE_ONE) {
@@ -2480,7 +2485,7 @@ int decode_gtp_create_sess_request__overload_ctl_info_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes bearer_rsrc_fail_indctn_t to buffer.
@@ -2585,7 +2590,7 @@ int decode_gtp_create_bearer_request_bearer_ctxt_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes gtp_create_sess_response_bearer_ctxt_marked_removal_ie_t to buffer.
@@ -2617,7 +2622,7 @@ int decode_gtp_create_sess_response_bearer_ctxt_marked_removal_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes gtp_create_sess_response__overload_ctl_info_ie_t to buffer.
@@ -2653,7 +2658,7 @@ int decode_gtp_create_sess_response__overload_ctl_info_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes pgw_dnlnk_trigrng_ack_t to buffer.
@@ -2728,7 +2733,7 @@ int decode_gtp_create_bearer_request__overload_ctl_info_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes gtp_del_sess_request__overload_ctl_info_ie_t to buffer.
@@ -2762,7 +2767,7 @@ int decode_gtp_del_sess_request__overload_ctl_info_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes echo_response_t to buffer.
@@ -2872,7 +2877,7 @@ int decode_gtp_del_bearer_fail_indication__bearer_ctxt_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes gtp_del_bearer_command__overload_ctl_info_ie_t to buffer.
@@ -2906,7 +2911,7 @@ int decode_gtp_del_bearer_command__overload_ctl_info_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes gtp_fwd_reloc_request__remote_ue_ctxt_connected_ie_t to buffer.
@@ -2938,7 +2943,7 @@ int decode_gtp_fwd_reloc_request__remote_ue_ctxt_connected_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes mod_acc_bearers_rsp_t to buffer.
@@ -3019,7 +3024,7 @@ int decode_gtp_mod_acc_bearers_response__overload_ctl_info_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes mod_bearer_fail_indctn_t to buffer.
@@ -3171,7 +3176,7 @@ int decode_gtp_ctxt_response__mmesgsn_ue_eps_pdn_connections_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes gtp_del_bearer_command_bearer_ctxt_ie_t to buffer.
@@ -3205,7 +3210,7 @@ int decode_gtp_del_bearer_command_bearer_ctxt_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes pgw_dnlnk_trigrng_notif_t to buffer.
@@ -3280,9 +3285,8 @@ int decode_gtp_mod_bearer_response__overload_ctl_info_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
-#if 0
 /**
 * Decodes id_rsp_t to buffer.
 * @param buf
@@ -3313,8 +3317,8 @@ int decode_id_rsp(uint8_t *buf,
             count += decode_gtp_cause_ie(buf + count, &value->cause);
       }  else if (ie_header->type == GTP_IE_IMSI && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
             count += decode_gtp_imsi_ie(buf + count, &value->imsi);
-      }  else if (ie_header->type == 'CTXT') {
-            count += decode_gtp_mm_context(buf + count, &value->mmesgsn_ue_mm_ctxt);
+      }  else if (ie_header->type == GTP_IE_MM_CTXT_TYPE) {		/* TODO Confirm Once */
+            /*count += decode_gtp_mm_context(buf + count, &value->mmesgsn_ue_mm_ctxt);*/
       }  else if (ie_header->type == GTP_IE_TRC_INFO && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
             count += decode_gtp_trc_info_ie(buf + count, &value->trc_info);
       }  else if (ie_header->type == GTP_IE_INTEGER_NUMBER && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
@@ -3328,7 +3332,6 @@ int decode_id_rsp(uint8_t *buf,
       }
       return count;
 }
-#endif
 /**
 * Decodes gtp_create_indir_data_fwdng_tunn_request__bearer_ctxt_ie_t to buffer.
 * @param buf
@@ -3369,7 +3372,7 @@ int decode_gtp_create_indir_data_fwdng_tunn_request__bearer_ctxt_ie(uint8_t *buf
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes create_sess_req_t to buffer.
@@ -3381,155 +3384,156 @@ int decode_gtp_create_indir_data_fwdng_tunn_request__bearer_ctxt_ie(uint8_t *buf
 *   number of decoded bytes.
 */
 int decode_create_sess_req(uint8_t *buf,
-      create_sess_req_t *value)
+		create_sess_req_t *value)
 {
-      uint16_t count = 0;
-      uint16_t buf_len = 0;
+	uint16_t count = 0;
+	uint16_t buf_len = 0;
 
-    count += decode_gtpv2c_header_t(buf + count, &value->header);
-    if (value->header.gtpc.teid_flag)
-      buf_len = value->header.gtpc.message_len - 8;
-      else
-      buf_len = value->header.gtpc.message_len - 4;
-      buf = buf + count;
-      count = 0;
-            while (count < buf_len) {
+	value->bearer_count = 0;
+	count += decode_gtpv2c_header_t(buf + count, &value->header);
+	if (value->header.gtpc.teid_flag)
+		buf_len = value->header.gtpc.message_len - 8;
+	else
+		buf_len = value->header.gtpc.message_len - 4;
+	buf = buf + count;
+	count = 0;
+	while (count < buf_len) {
 
-          ie_header_t *ie_header = (ie_header_t *) (buf + count);
+		ie_header_t *ie_header = (ie_header_t *) (buf + count);
 
-          if (ie_header->type == GTP_IE_IMSI && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_imsi_ie(buf + count, &value->imsi);
-      }  else if (ie_header->type == GTP_IE_MSISDN && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_msisdn_ie(buf + count, &value->msisdn);
-      }  else if (ie_header->type == GTP_IE_MBL_EQUIP_IDNTY && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_mbl_equip_idnty_ie(buf + count, &value->mei);
-      }  else if (ie_header->type == GTP_IE_USER_LOC_INFO && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_user_loc_info_ie(buf + count, &value->uli);
-      }  else if (ie_header->type == GTP_IE_RAT_TYPE && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_rat_type_ie(buf + count, &value->rat_type);
-      }  else if (ie_header->type == GTP_IE_FULLY_QUAL_TUNN_ENDPT_IDNT && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_fully_qual_tunn_endpt_idnt_ie(buf + count, &value->sender_fteid_ctl_plane);
-      }  else if (ie_header->type == GTP_IE_FULLY_QUAL_TUNN_ENDPT_IDNT && ie_header->instance == GTP_IE_INSTANCE_ONE) {
-            count += decode_gtp_fully_qual_tunn_endpt_idnt_ie(buf + count, &value->pgw_s5s8_addr_ctl_plane_or_pmip);
-      }  else if (ie_header->type == GTP_IE_ACC_PT_NAME && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_acc_pt_name_ie(buf + count, &value->apn);
-      }  else if (ie_header->type == GTP_IE_SELECTION_MODE && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_selection_mode_ie(buf + count, &value->selection_mode);
-      }  else if (ie_header->type == GTP_IE_PDN_TYPE && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_pdn_type_ie(buf + count, &value->pdn_type);
-      }  else if (ie_header->type == GTP_IE_PDN_ADDR_ALLOC && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_pdn_addr_alloc_ie(buf + count, &value->paa);
-      }  else if (ie_header->type == GTP_IE_APN_RESTRICTION && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_apn_restriction_ie(buf + count, &value->max_apn_rstrct);
-      }  else if (ie_header->type == GTP_IE_AGG_MAX_BIT_RATE && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_agg_max_bit_rate_ie(buf + count, &value->apn_ambr);
-      }  else if (ie_header->type == GTP_IE_EPS_BEARER_ID && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_eps_bearer_id_ie(buf + count, &value->linked_eps_bearer_id);
-      }  else if (ie_header->type == GTP_IE_TRSTD_WLAN_MODE_INDCTN && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_trstd_wlan_mode_indctn_ie(buf + count, &value->trstd_wlan_mode_indctn);
-      }  else if (ie_header->type == GTP_IE_PROT_CFG_OPTS && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_prot_cfg_opts_ie(buf + count, &value->pco);
-      }  else if (ie_header->type == GTP_IE_CREATE_SESS_REQUEST_BEARER_CTXT_TO_BE_CREATED && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_create_sess_request_bearer_ctxt_to_be_created_ie(buf + count, &value->bearer_contexts_to_be_created);
-      }  else if (ie_header->type == GTP_IE_CREATE_SESS_REQUEST_BEARER_CTXT_TO_BE_REMOVED && ie_header->instance == GTP_IE_INSTANCE_ONE) {
-            count += decode_gtp_create_sess_request_bearer_ctxt_to_be_removed_ie(buf + count, &value->bearer_contexts_to_be_removed);
-      }  else if (ie_header->type == GTP_IE_TRC_INFO && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_trc_info_ie(buf + count, &value->trc_info);
-      }  else if (ie_header->type == GTP_IE_RECOVERY && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_recovery_ie(buf + count, &value->recovery);
-      }  else if (ie_header->type == GTP_IE_FQCSID && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_fqcsid_ie(buf + count, &value->mme_fqcsid);
-      }  else if (ie_header->type == GTP_IE_FQCSID && ie_header->instance == GTP_IE_INSTANCE_ONE) {
-            count += decode_gtp_fqcsid_ie(buf + count, &value->sgw_fqcsid);
-      }  else if (ie_header->type == GTP_IE_FQCSID && ie_header->instance == GTP_IE_INSTANCE_TWO) {
-            count += decode_gtp_fqcsid_ie(buf + count, &value->epdg_fqcsid);
-      }  else if (ie_header->type == GTP_IE_FQCSID && ie_header->instance == GTP_IE_INSTANCE_THREE) {
-            count += decode_gtp_fqcsid_ie(buf + count, &value->twan_fqcsid);
-      }  else if (ie_header->type == GTP_IE_UE_TIME_ZONE && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_ue_time_zone_ie(buf + count, &value->ue_time_zone);
-      }  else if (ie_header->type == GTP_IE_USER_CSG_INFO && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_user_csg_info_ie(buf + count, &value->uci);
-      }  else if (ie_header->type == GTP_IE_CHRGNG_CHAR && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_chrgng_char_ie(buf + count, &value->chrgng_char);
-      }  else if (ie_header->type == GTP_IE_LOCAL_DISTGSD_NAME && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_local_distgsd_name_ie(buf + count, &value->mmes4_sgsn_ldn);
-      }  else if (ie_header->type == GTP_IE_LOCAL_DISTGSD_NAME && ie_header->instance == GTP_IE_INSTANCE_ONE) {
-            count += decode_gtp_local_distgsd_name_ie(buf + count, &value->sgw_ldn);
-      }  else if (ie_header->type == GTP_IE_LOCAL_DISTGSD_NAME && ie_header->instance == GTP_IE_INSTANCE_TWO) {
-            count += decode_gtp_local_distgsd_name_ie(buf + count, &value->epdg_ldn);
-      }  else if (ie_header->type == GTP_IE_LOCAL_DISTGSD_NAME && ie_header->instance == GTP_IE_INSTANCE_THREE) {
-            count += decode_gtp_local_distgsd_name_ie(buf + count, &value->twan_ldn);
-      }  else if (ie_header->type == GTP_IE_SGNLLNG_PRIORITY_INDCTN && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_sgnllng_priority_indctn_ie(buf + count, &value->sgnllng_priority_indctn);
-      }  else if (ie_header->type == GTP_IE_IP_ADDRESS && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_ip_address_ie(buf + count, &value->ue_local_ip_addr);
-      }  else if (ie_header->type == GTP_IE_PORT_NUMBER && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_port_number_ie(buf + count, &value->ue_udp_port);
-      }  else if (ie_header->type == GTP_IE_ADDTL_PROT_CFG_OPTS && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_addtl_prot_cfg_opts_ie(buf + count, &value->apco);
-      }  else if (ie_header->type == GTP_IE_IP_ADDRESS && ie_header->instance == GTP_IE_INSTANCE_ONE) {
-            count += decode_gtp_ip_address_ie(buf + count, &value->henb_local_ip_addr);
-      }  else if (ie_header->type == GTP_IE_PORT_NUMBER && ie_header->instance == GTP_IE_INSTANCE_ONE) {
-            count += decode_gtp_port_number_ie(buf + count, &value->henb_udp_port);
-      }  else if (ie_header->type == GTP_IE_IP_ADDRESS && ie_header->instance == GTP_IE_INSTANCE_TWO) {
-            count += decode_gtp_ip_address_ie(buf + count, &value->mmes4_sgsn_idnt);
-      }  else if (ie_header->type == GTP_IE_TWAN_IDENTIFIER && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_twan_identifier_ie(buf + count, &value->twan_identifier);
-      }  else if (ie_header->type == GTP_IE_IP_ADDRESS && ie_header->instance == GTP_IE_INSTANCE_THREE) {
-            count += decode_gtp_ip_address_ie(buf + count, &value->epdg_ip_address);
-      }  else if (ie_header->type == GTP_IE_CN_OPER_SEL_ENTITY && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_cn_oper_sel_entity_ie(buf + count, &value->cn_oper_sel_entity);
-      }  else if (ie_header->type == GTP_IE_PRES_RPTNG_AREA_INFO && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_pres_rptng_area_info_ie(buf + count, &value->pres_rptng_area_info);
-      }  else if (ie_header->type == GTP_IE_OVRLD_CTL_INFO && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_ovrld_ctl_info_ie(buf + count, &value->mmes4_sgsns_ovrld_ctl_info);
-      }  else if (ie_header->type == GTP_IE_OVRLD_CTL_INFO && ie_header->instance == GTP_IE_INSTANCE_ONE) {
-            count += decode_gtp_ovrld_ctl_info_ie(buf + count, &value->sgws_ovrld_ctl_info);
-      }  else if (ie_header->type == GTP_IE_OVRLD_CTL_INFO && ie_header->instance == GTP_IE_INSTANCE_TWO) {
-            count += decode_gtp_ovrld_ctl_info_ie(buf + count, &value->twanepdgs_ovrld_ctl_info);
-      }  else if (ie_header->type == GTP_IE_MSEC_TIME_STMP && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_msec_time_stmp_ie(buf + count, &value->origination_time_stmp);
-      }  else if (ie_header->type == GTP_IE_INTEGER_NUMBER && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_integer_number_ie(buf + count, &value->max_wait_time);
-      }  else if (ie_header->type == GTP_IE_TWAN_IDENTIFIER && ie_header->instance == GTP_IE_INSTANCE_ONE) {
-            count += decode_gtp_twan_identifier_ie(buf + count, &value->wlan_loc_info);
-      }  else if (ie_header->type == GTP_IE_TWAN_IDNT_TS && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_twan_idnt_ts_ie(buf + count, &value->wlan_loc_ts);
-      }  else if (ie_header->type == GTP_IE_FULL_QUAL_CNTNR && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_full_qual_cntnr_ie(buf + count, &value->nbifom_cntnr);
-      }  else if (ie_header->type == GTP_IE_RMT_UE_CTXT && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_rmt_ue_ctxt_ie(buf + count, &value->rmt_ue_ctxt_connected);
-      }  else if (ie_header->type == GTP_IE_NODE_IDENTIFIER && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_node_identifier_ie(buf + count, &value->threegpp_aaa_server_idnt);
-      }  else if (ie_header->type == GTP_IE_EXTNDED_PROT_CFG_OPTS && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_extnded_prot_cfg_opts_ie(buf + count, &value->epco);
-      }  else if (ie_header->type == GTP_IE_SRVNG_PLMN_RATE_CTL && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_srvng_plmn_rate_ctl_ie(buf + count, &value->srvng_plmn_rate_ctl);
-      }  else if (ie_header->type == GTP_IE_COUNTER && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_counter_ie(buf + count, &value->mo_exception_data_cntr);
-      }  else if (ie_header->type == GTP_IE_PORT_NUMBER && ie_header->instance == GTP_IE_INSTANCE_TWO) {
-            count += decode_gtp_port_number_ie(buf + count, &value->ue_tcp_port);
-      }  else if (ie_header->type == GTP_IE_MAPPED_UE_USAGE_TYPE && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_mapped_ue_usage_type_ie(buf + count, &value->mapped_ue_usage_type);
-      }  else if (ie_header->type == GTP_IE_USER_LOC_INFO && ie_header->instance == GTP_IE_INSTANCE_ONE) {
-            count += decode_gtp_user_loc_info_ie(buf + count, &value->user_loc_info_sgw);
-      }  else if (ie_header->type == GTP_IE_FULLY_QUAL_DOMAIN_NAME && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_fully_qual_domain_name_ie(buf + count, &value->sgw_u_node_name);
-      }  else if (ie_header->type == GTP_IE_SECDRY_RAT_USAGE_DATA_RPT && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_secdry_rat_usage_data_rpt_ie(buf + count, &value->secdry_rat_usage_data_rpt);
-      }  else if (ie_header->type == GTP_IE_UP_FUNC_SEL_INDCTN_FLGS && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_up_func_sel_indctn_flgs_ie(buf + count, &value->up_func_sel_indctn_flgs);
-      }  else if (ie_header->type == GTP_IE_PRIV_EXT) {
-            count += decode_gtp_priv_ext_ie(buf + count, &value->priv_ext);
-      }  else if (ie_header->type == GTP_IE_SERVING_NETWORK && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_serving_network_ie(buf + count, &value->serving_network);
-      }  else if (ie_header->type == GTP_IE_INDICATION && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-		  	count += decode_gtp_indication_ie(buf + count, &value->indctn_flgs);
-	  } else {
-            count += sizeof(ie_header_t) + ntohs(ie_header->len);
-      }
+		if (ie_header->type == GTP_IE_IMSI && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_imsi_ie(buf + count, &value->imsi);
+		}  else if (ie_header->type == GTP_IE_MSISDN && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_msisdn_ie(buf + count, &value->msisdn);
+		}  else if (ie_header->type == GTP_IE_MBL_EQUIP_IDNTY && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_mbl_equip_idnty_ie(buf + count, &value->mei);
+		}  else if (ie_header->type == GTP_IE_USER_LOC_INFO && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_user_loc_info_ie(buf + count, &value->uli);
+		}  else if (ie_header->type == GTP_IE_RAT_TYPE && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_rat_type_ie(buf + count, &value->rat_type);
+		}  else if (ie_header->type == GTP_IE_FULLY_QUAL_TUNN_ENDPT_IDNT && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_fully_qual_tunn_endpt_idnt_ie(buf + count, &value->sender_fteid_ctl_plane);
+		}  else if (ie_header->type == GTP_IE_FULLY_QUAL_TUNN_ENDPT_IDNT && ie_header->instance == GTP_IE_INSTANCE_ONE) {
+			count += decode_gtp_fully_qual_tunn_endpt_idnt_ie(buf + count, &value->pgw_s5s8_addr_ctl_plane_or_pmip);
+		}  else if (ie_header->type == GTP_IE_ACC_PT_NAME && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_acc_pt_name_ie(buf + count, &value->apn);
+		}  else if (ie_header->type == GTP_IE_SELECTION_MODE && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_selection_mode_ie(buf + count, &value->selection_mode);
+		}  else if (ie_header->type == GTP_IE_PDN_TYPE && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_pdn_type_ie(buf + count, &value->pdn_type);
+		}  else if (ie_header->type == GTP_IE_PDN_ADDR_ALLOC && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_pdn_addr_alloc_ie(buf + count, &value->paa);
+		}  else if (ie_header->type == GTP_IE_APN_RESTRICTION && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_apn_restriction_ie(buf + count, &value->max_apn_rstrct);
+		}  else if (ie_header->type == GTP_IE_AGG_MAX_BIT_RATE && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_agg_max_bit_rate_ie(buf + count, &value->apn_ambr);
+		}  else if (ie_header->type == GTP_IE_EPS_BEARER_ID && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_eps_bearer_id_ie(buf + count, &value->linked_eps_bearer_id);
+		}  else if (ie_header->type == GTP_IE_TRSTD_WLAN_MODE_INDCTN && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_trstd_wlan_mode_indctn_ie(buf + count, &value->trstd_wlan_mode_indctn);
+		}  else if (ie_header->type == GTP_IE_PROT_CFG_OPTS && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_prot_cfg_opts_ie(buf + count, &value->pco);
+		}  else if (ie_header->type == GTP_IE_CREATE_SESS_REQUEST_BEARER_CTXT_TO_BE_CREATED && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_create_sess_request_bearer_ctxt_to_be_created_ie(buf + count, &value->bearer_contexts_to_be_created[value->bearer_count++]);
+		}  else if (ie_header->type == GTP_IE_CREATE_SESS_REQUEST_BEARER_CTXT_TO_BE_REMOVED && ie_header->instance == GTP_IE_INSTANCE_ONE) {
+			count += decode_gtp_create_sess_request_bearer_ctxt_to_be_removed_ie(buf + count, &value->bearer_contexts_to_be_removed);
+		}  else if (ie_header->type == GTP_IE_TRC_INFO && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_trc_info_ie(buf + count, &value->trc_info);
+		}  else if (ie_header->type == GTP_IE_RECOVERY && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_recovery_ie(buf + count, &value->recovery);
+		}  else if (ie_header->type == GTP_IE_FQCSID && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_fqcsid_ie(buf + count, &value->mme_fqcsid);
+		}  else if (ie_header->type == GTP_IE_FQCSID && ie_header->instance == GTP_IE_INSTANCE_ONE) {
+			count += decode_gtp_fqcsid_ie(buf + count, &value->sgw_fqcsid);
+		}  else if (ie_header->type == GTP_IE_FQCSID && ie_header->instance == GTP_IE_INSTANCE_TWO) {
+			count += decode_gtp_fqcsid_ie(buf + count, &value->epdg_fqcsid);
+		}  else if (ie_header->type == GTP_IE_FQCSID && ie_header->instance == GTP_IE_INSTANCE_THREE) {
+			count += decode_gtp_fqcsid_ie(buf + count, &value->twan_fqcsid);
+		}  else if (ie_header->type == GTP_IE_UE_TIME_ZONE && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_ue_time_zone_ie(buf + count, &value->ue_time_zone);
+		}  else if (ie_header->type == GTP_IE_USER_CSG_INFO && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_user_csg_info_ie(buf + count, &value->uci);
+		}  else if (ie_header->type == GTP_IE_CHRGNG_CHAR && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_chrgng_char_ie(buf + count, &value->chrgng_char);
+		}  else if (ie_header->type == GTP_IE_LOCAL_DISTGSD_NAME && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_local_distgsd_name_ie(buf + count, &value->mmes4_sgsn_ldn);
+		}  else if (ie_header->type == GTP_IE_LOCAL_DISTGSD_NAME && ie_header->instance == GTP_IE_INSTANCE_ONE) {
+			count += decode_gtp_local_distgsd_name_ie(buf + count, &value->sgw_ldn);
+		}  else if (ie_header->type == GTP_IE_LOCAL_DISTGSD_NAME && ie_header->instance == GTP_IE_INSTANCE_TWO) {
+			count += decode_gtp_local_distgsd_name_ie(buf + count, &value->epdg_ldn);
+		}  else if (ie_header->type == GTP_IE_LOCAL_DISTGSD_NAME && ie_header->instance == GTP_IE_INSTANCE_THREE) {
+			count += decode_gtp_local_distgsd_name_ie(buf + count, &value->twan_ldn);
+		}  else if (ie_header->type == GTP_IE_SGNLLNG_PRIORITY_INDCTN && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_sgnllng_priority_indctn_ie(buf + count, &value->sgnllng_priority_indctn);
+		}  else if (ie_header->type == GTP_IE_IP_ADDRESS && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_ip_address_ie(buf + count, &value->ue_local_ip_addr);
+		}  else if (ie_header->type == GTP_IE_PORT_NUMBER && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_port_number_ie(buf + count, &value->ue_udp_port);
+		}  else if (ie_header->type == GTP_IE_ADDTL_PROT_CFG_OPTS && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_addtl_prot_cfg_opts_ie(buf + count, &value->apco);
+		}  else if (ie_header->type == GTP_IE_IP_ADDRESS && ie_header->instance == GTP_IE_INSTANCE_ONE) {
+			count += decode_gtp_ip_address_ie(buf + count, &value->henb_local_ip_addr);
+		}  else if (ie_header->type == GTP_IE_PORT_NUMBER && ie_header->instance == GTP_IE_INSTANCE_ONE) {
+			count += decode_gtp_port_number_ie(buf + count, &value->henb_udp_port);
+		}  else if (ie_header->type == GTP_IE_IP_ADDRESS && ie_header->instance == GTP_IE_INSTANCE_TWO) {
+			count += decode_gtp_ip_address_ie(buf + count, &value->mmes4_sgsn_idnt);
+		}  else if (ie_header->type == GTP_IE_TWAN_IDENTIFIER && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_twan_identifier_ie(buf + count, &value->twan_identifier);
+		}  else if (ie_header->type == GTP_IE_IP_ADDRESS && ie_header->instance == GTP_IE_INSTANCE_THREE) {
+			count += decode_gtp_ip_address_ie(buf + count, &value->epdg_ip_address);
+		}  else if (ie_header->type == GTP_IE_CN_OPER_SEL_ENTITY && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_cn_oper_sel_entity_ie(buf + count, &value->cn_oper_sel_entity);
+		}  else if (ie_header->type == GTP_IE_PRES_RPTNG_AREA_INFO && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_pres_rptng_area_info_ie(buf + count, &value->pres_rptng_area_info);
+		}  else if (ie_header->type == GTP_IE_OVRLD_CTL_INFO && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_ovrld_ctl_info_ie(buf + count, &value->mmes4_sgsns_ovrld_ctl_info);
+		}  else if (ie_header->type == GTP_IE_OVRLD_CTL_INFO && ie_header->instance == GTP_IE_INSTANCE_ONE) {
+			count += decode_gtp_ovrld_ctl_info_ie(buf + count, &value->sgws_ovrld_ctl_info);
+		}  else if (ie_header->type == GTP_IE_OVRLD_CTL_INFO && ie_header->instance == GTP_IE_INSTANCE_TWO) {
+			count += decode_gtp_ovrld_ctl_info_ie(buf + count, &value->twanepdgs_ovrld_ctl_info);
+		}  else if (ie_header->type == GTP_IE_MSEC_TIME_STMP && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_msec_time_stmp_ie(buf + count, &value->origination_time_stmp);
+		}  else if (ie_header->type == GTP_IE_INTEGER_NUMBER && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_integer_number_ie(buf + count, &value->max_wait_time);
+		}  else if (ie_header->type == GTP_IE_TWAN_IDENTIFIER && ie_header->instance == GTP_IE_INSTANCE_ONE) {
+			count += decode_gtp_twan_identifier_ie(buf + count, &value->wlan_loc_info);
+		}  else if (ie_header->type == GTP_IE_TWAN_IDNT_TS && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_twan_idnt_ts_ie(buf + count, &value->wlan_loc_ts);
+		}  else if (ie_header->type == GTP_IE_FULL_QUAL_CNTNR && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_full_qual_cntnr_ie(buf + count, &value->nbifom_cntnr);
+		}  else if (ie_header->type == GTP_IE_RMT_UE_CTXT && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_rmt_ue_ctxt_ie(buf + count, &value->rmt_ue_ctxt_connected);
+		}  else if (ie_header->type == GTP_IE_NODE_IDENTIFIER && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_node_identifier_ie(buf + count, &value->threegpp_aaa_server_idnt);
+		}  else if (ie_header->type == GTP_IE_EXTNDED_PROT_CFG_OPTS && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_extnded_prot_cfg_opts_ie(buf + count, &value->epco);
+		}  else if (ie_header->type == GTP_IE_SRVNG_PLMN_RATE_CTL && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_srvng_plmn_rate_ctl_ie(buf + count, &value->srvng_plmn_rate_ctl);
+		}  else if (ie_header->type == GTP_IE_COUNTER && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_counter_ie(buf + count, &value->mo_exception_data_cntr);
+		}  else if (ie_header->type == GTP_IE_PORT_NUMBER && ie_header->instance == GTP_IE_INSTANCE_TWO) {
+			count += decode_gtp_port_number_ie(buf + count, &value->ue_tcp_port);
+		}  else if (ie_header->type == GTP_IE_MAPPED_UE_USAGE_TYPE && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_mapped_ue_usage_type_ie(buf + count, &value->mapped_ue_usage_type);
+		}  else if (ie_header->type == GTP_IE_USER_LOC_INFO && ie_header->instance == GTP_IE_INSTANCE_ONE) {
+			count += decode_gtp_user_loc_info_ie(buf + count, &value->user_loc_info_sgw);
+		}  else if (ie_header->type == GTP_IE_FULLY_QUAL_DOMAIN_NAME && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_fully_qual_domain_name_ie(buf + count, &value->sgw_u_node_name);
+		}  else if (ie_header->type == GTP_IE_SECDRY_RAT_USAGE_DATA_RPT && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_secdry_rat_usage_data_rpt_ie(buf + count, &value->secdry_rat_usage_data_rpt);
+		}  else if (ie_header->type == GTP_IE_UP_FUNC_SEL_INDCTN_FLGS && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_up_func_sel_indctn_flgs_ie(buf + count, &value->up_func_sel_indctn_flgs);
+		}  else if (ie_header->type == GTP_IE_PRIV_EXT) {
+			count += decode_gtp_priv_ext_ie(buf + count, &value->priv_ext);
+		}  else if (ie_header->type == GTP_IE_SERVING_NETWORK && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_serving_network_ie(buf + count, &value->serving_network);
+		}  else if (ie_header->type == GTP_IE_INDICATION && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_indication_ie(buf + count, &value->indctn_flgs);
+		} else {
+			count += sizeof(ie_header_t) + ntohs(ie_header->len);
+		}
 	}
-      return count;
+	return count;
 }
 /**
 * Decodes gtp_create_sess_request_bearer_ctxt_to_be_removed_ie_t to buffer.
@@ -3561,7 +3565,7 @@ int decode_gtp_create_sess_request_bearer_ctxt_to_be_removed_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes upd_bearer_req_t to buffer.
@@ -3745,7 +3749,7 @@ int decode_gtp_mod_bearer_response_bearer_ctxt_marked_removal_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes pgw_rstrt_notif_t to buffer.
@@ -3859,7 +3863,7 @@ int decode_gtp_del_sess_response__load_ctl_info_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes gtp_upd_bearer_request__load_ctl_info_ie_t to buffer.
@@ -3893,7 +3897,7 @@ int decode_gtp_upd_bearer_request__load_ctl_info_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes gtp_upd_bearer_response__bearer_ctxt_ie_t to buffer.
@@ -3935,7 +3939,7 @@ int decode_gtp_upd_bearer_response__bearer_ctxt_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count + IE_HEADER_SIZE;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes gtp_create_bearer_response__bearer_ctxt_ie_t to buffer.
@@ -3997,7 +4001,7 @@ int decode_gtp_create_bearer_response_bearer_ctxt_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes gtp_mod_acc_bearers_response__bearer_ctxt_marked_removal_ie_t to buffer.
@@ -4029,7 +4033,7 @@ int decode_gtp_mod_acc_bearers_response__bearer_ctxt_marked_removal_ie(uint8_t *
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes gtp_upd_bearer_request__bearer_ctxt_ie_t to buffer.
@@ -4073,7 +4077,7 @@ int decode_gtp_upd_bearer_request__bearer_ctxt_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count + IE_HEADER_SIZE;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes upd_bearer_rsp_t to buffer.
@@ -4196,7 +4200,7 @@ int decode_gtp_mod_bearer_response_bearer_ctxt_modified_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count + sizeof(ie_header_t);
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes gtp_create_sess_response__load_ctl_info_ie_t to buffer.
@@ -4230,7 +4234,7 @@ int decode_gtp_create_sess_response__load_ctl_info_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes mod_acc_bearers_req_t to buffer.
@@ -4352,7 +4356,7 @@ int decode_gtp_mod_acc_bearers_response__bearer_ctxt_modified_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes del_pdn_conn_set_req_t to buffer.
@@ -4507,7 +4511,7 @@ int decode_gtp_del_bearer_request__load_ctl_info_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes gtp_del_bearer_response__overload_ctl_info_ie_t to buffer.
@@ -4541,7 +4545,7 @@ int decode_gtp_del_bearer_response__overload_ctl_info_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes gtp_dnlnk_data_notification__overload_ctl_info_ie_t to buffer.
@@ -4575,7 +4579,7 @@ int decode_gtp_dnlnk_data_notification__overload_ctl_info_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes gtp_release_acc_bearers_response__overload_ctl_info_ie_t to buffer.
@@ -4609,7 +4613,7 @@ int decode_gtp_release_acc_bearers_response__overload_ctl_info_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes gtp_mod_bearer_fail_indication__overload_ctl_info_ie_t to buffer.
@@ -4645,7 +4649,7 @@ int decode_gtp_mod_bearer_fail_indication__overload_ctl_info_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes ctxt_ack_t to buffer.
@@ -4845,7 +4849,7 @@ int decode_gtp_mod_bearer_request_bearer_ctxt_to_be_modified_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return (count + sizeof(ie_header_t));
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes ue_actvty_ack_t to buffer.
@@ -4912,7 +4916,7 @@ int decode_gtp_mod_bearer_command__bearer_ctxt_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes gtp_ctxt_response__mmesgsn_ue_scef_pdn_connections_ie_t to buffer.
@@ -4946,7 +4950,7 @@ int decode_gtp_ctxt_response__mmesgsn_ue_scef_pdn_connections_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes gtp_release_acc_bearers_response__load_ctl_info_ie_t to buffer.
@@ -4978,7 +4982,7 @@ int decode_gtp_release_acc_bearers_response__load_ctl_info_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes trc_sess_deact_t to buffer.
@@ -5233,7 +5237,6 @@ int decode_del_bearer_req(uint8_t *buf,
       }
       return count;
 }
-#if 0
 /**
 * Decodes fwd_reloc_req_t to buffer.
 * @param buf
@@ -5270,8 +5273,8 @@ int decode_fwd_reloc_req(uint8_t *buf,
             count += decode_gtp_fully_qual_tunn_endpt_idnt_ie(buf + count, &value->sgw_s11s4_ip_addr_and_teid_ctl_plane);
       }  else if (ie_header->type == GTP_IE_FULLY_QUAL_DOMAIN_NAME && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
             count += decode_gtp_fully_qual_domain_name_ie(buf + count, &value->sgw_node_name);
-      }  else if (ie_header->type == 'CTXT') {
-            count += decode_gtp_mm_context(buf + count, &value->mmesgsnamf_ue_mm_ctxt);
+      }  else if (ie_header->type == GTP_IE_FWD_RELOC_REQUEST__MMESGSNAMF_UE_EPS_PDN_CONNECTIONS) {  /*TODO: Confirm once*/
+            /*count += decode_gtp_mm_context(buf + count, &value->mmesgsnamf_ue_mm_ctxt);*/
       }  else if (ie_header->type == GTP_IE_INDICATION && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
             count += decode_gtp_indication_ie(buf + count, &value->indctn_flgs);
       }  else if (ie_header->type == GTP_IE_FULL_QUAL_CNTNR && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
@@ -5349,7 +5352,6 @@ int decode_fwd_reloc_req(uint8_t *buf,
       }
       return count;
 }
-#endif
 /**
 * Decodes gtp_mod_bearer_request_bearer_ctxt_to_be_removed_ie_t to buffer.
 * @param buf
@@ -5378,7 +5380,7 @@ int decode_gtp_mod_bearer_request_bearer_ctxt_to_be_removed_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes gtp_bearer_rsrc_fail_indication__overload_ctl_info_ie_t to buffer.
@@ -5414,7 +5416,7 @@ int decode_gtp_bearer_rsrc_fail_indication__overload_ctl_info_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes del_sess_req_t to buffer.
@@ -5523,7 +5525,7 @@ int decode_gtp_mod_bearer_response__load_ctl_info_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes upd_pdn_conn_set_rsp_t to buffer.
@@ -5596,7 +5598,7 @@ int decode_gtp_bearer_rsrc_command__overload_ctl_info_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes stop_paging_indctn_t to buffer.
@@ -5662,7 +5664,7 @@ int decode_create_bearer_rsp(uint8_t *buf,
           if (ie_header->type == GTP_IE_CAUSE && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
             count += decode_gtp_cause_ie(buf + count, &value->cause);
       }  else if (ie_header->type == GTP_IE_BEARER_CONTEXT && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
-            count += decode_gtp_create_bearer_response_bearer_ctxt_ie(buf + count, &value->bearer_contexts);
+            count += decode_gtp_create_bearer_response_bearer_ctxt_ie(buf + count, &value->bearer_contexts[value->bearer_cnt++]);
       }  else if (ie_header->type == GTP_IE_RECOVERY && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
             count += decode_gtp_recovery_ie(buf + count, &value->recovery);
       }  else if (ie_header->type == GTP_IE_FQCSID && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
@@ -5740,7 +5742,7 @@ int decode_gtp_mod_acc_bearers_response__load_ctl_info_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes rmt_ue_rpt_ack_t to buffer.
@@ -5813,7 +5815,7 @@ int decode_gtp_del_bearer_response_bearer_ctxt_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return (count + sizeof(ie_header_t));
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes create_fwdng_tunn_req_t to buffer.
@@ -5921,7 +5923,7 @@ int decode_gtp_del_sess_response__overload_ctl_info_ie(uint8_t *buf,
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes gtp_mod_acc_bearers_request__bearer_ctxt_to_be_removed_ie_t to buffer.
@@ -5951,7 +5953,7 @@ int decode_gtp_mod_acc_bearers_request__bearer_ctxt_to_be_removed_ie(uint8_t *bu
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
 }
 /**
 * Decodes gtp_create_indir_data_fwdng_tunn_response__bearer_ctxt_ie_t to buffer.
@@ -5995,5 +5997,145 @@ int decode_gtp_create_indir_data_fwdng_tunn_response__bearer_ctxt_ie(uint8_t *bu
       }  else
             count += sizeof(ie_header_t) + ntohs(ie_header->len);
       }
-      return count;
+      return value->header.len + IE_HEADER_SIZE;
+}
+
+/**
+ * Decodes change_noti_req_t to buffer.
+ * @param buf
+ *   buffer to store decoded values.
+ * @param value
+	 change_noti_req_t
+ * @return
+ *   number of decoded bytes.
+ */
+
+int decode_change_noti_req(uint8_t *buf, change_noti_req_t *value)
+{
+
+	uint16_t count = 0;
+	uint16_t buf_len = 0;
+
+	value->second_rat_count = 0;
+	count += decode_gtpv2c_header_t(buf + count, &value->header);
+	if (value->header.gtpc.teid_flag)
+		buf_len = value->header.gtpc.message_len - 8;
+	else
+		buf_len = value->header.gtpc.message_len - 4;
+
+	buf = buf + count;
+	count = 0;
+
+	while (count < buf_len) {
+
+		ie_header_t *ie_header = (ie_header_t *) (buf + count);
+
+		if (ie_header->type == GTP_IE_IMSI && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_imsi_ie(buf + count, &value->imsi);
+		} else if (ie_header->type == GTP_IE_RAT_TYPE && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_rat_type_ie(buf + count, &value->rat_type);
+		} else if (ie_header->type == GTP_IE_USER_LOC_INFO && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_user_loc_info_ie(buf + count, &value->uli);
+		} else if (ie_header->type == GTP_IE_USER_CSG_INFO && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_user_csg_info_ie(buf + count, &value->uci);
+		} else if (ie_header->type == GTP_IE_IP_ADDRESS && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_ip_address_ie(buf + count, &value->ipv4_address);
+		} else if (ie_header->type == GTP_IE_EPS_BEARER_ID && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_eps_bearer_id_ie(buf + count, &value->lbi);
+		} else if (ie_header->type == GTP_IE_SECDRY_RAT_USAGE_DATA_RPT && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_secdry_rat_usage_data_rpt_ie(buf + count, &value->secdry_rat_usage_data_rpt[value->second_rat_count++]);
+		}  else {
+			count += sizeof(ie_header_t) + ntohs(ie_header->len);
+		}
+	}
+
+	return count;
+}
+
+
+/**
+ * Decodes change_notifi_rsp to buffer.
+ * @param buf
+ *   buffer to store decoded values.
+ * @param value
+	 change_noti_rsp_t
+ * @return
+ *   number of decoded bytes.
+ */
+
+int decode_change_noti_rsp(uint8_t *buf, change_noti_rsp_t *value)
+{
+
+	uint16_t count = 0;
+	uint16_t buf_len = 0;
+
+	count += decode_gtpv2c_header_t(buf + count, &value->header);
+	if (value->header.gtpc.teid_flag)
+		buf_len = value->header.gtpc.message_len - 8;
+	else
+		buf_len = value->header.gtpc.message_len - 4;
+	buf = buf + count;
+	count = 0;
+
+	while (count < buf_len) {
+
+		ie_header_t *ie_header = (ie_header_t *) (buf + count);
+
+		if (ie_header->type == GTP_IE_IMSI && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_imsi_ie(buf + count, &value->imsi);
+
+		} else if (ie_header->type == GTP_IE_CAUSE && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_cause_ie(buf + count, &value->cause);
+		}  else {
+			count += sizeof(ie_header_t) + ntohs(ie_header->len);
+		}
+
+	}
+
+	return count;
+
+}
+
+/**
+ * Decodes release_access_bearer_req to buffer.
+ * @param buf
+ *   buffer to store decoded values.
+ * @param value
+	 rel_acc_ber_req
+ * @return
+ *   number of decoded bytes.
+ */
+
+int decode_release_access_bearer_req(uint8_t *buf, rel_acc_ber_req_t *value)
+{
+
+	uint16_t count = 0;
+	uint16_t buf_len = 0;
+
+	value->second_rat_count = 0;
+	count += decode_gtpv2c_header_t(buf + count, &value->header);
+
+	if (value->header.gtpc.teid_flag)
+		buf_len = value->header.gtpc.message_len - 8;
+	else
+		buf_len = value->header.gtpc.message_len - 4;
+
+	buf = buf + count;
+	if(buf_len)
+		count = 0;
+
+	while (count < buf_len) {
+
+		ie_header_t *ie_header = (ie_header_t *) (buf + count);
+
+		if (ie_header->type == GTP_IE_SECDRY_RAT_USAGE_DATA_RPT && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_secdry_rat_usage_data_rpt_ie(buf + count, &value->secdry_rat_usage_data_rpt[value->second_rat_count++]);
+		} else if (ie_header->type == GTP_IE_INDICATION && ie_header->instance == GTP_IE_INSTANCE_ZERO) {
+			count += decode_gtp_indication_ie(buf + count, &value->indctn_flgs);
+		} else {
+			count += sizeof(ie_header_t) + ntohs(ie_header->len);
+		}
+	}
+
+	return count;
 }

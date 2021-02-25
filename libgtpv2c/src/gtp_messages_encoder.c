@@ -265,7 +265,7 @@ if (value->priv_ext.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_ctxt_acknowledge__bearer_ctxt_ie(gtp_ctxt_acknowledge__bearer_ctxt_ie_t *value,
+int encode_gtp_ctxt_acknowledge__bearer_ctxt_ie(const gtp_ctxt_acknowledge__bearer_ctxt_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -292,7 +292,7 @@ if (value->fwdng_fteid.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_del_bearer_request__overload_ctl_info_ie(gtp_del_bearer_request__overload_ctl_info_ie_t *value,
+int encode_gtp_del_bearer_request__overload_ctl_info_ie(const gtp_del_bearer_request__overload_ctl_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -325,7 +325,7 @@ if (value->apn.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_create_bearer_response__overload_ctl_info_ie(gtp_create_bearer_response__overload_ctl_info_ie_t *value,
+int encode_gtp_create_bearer_response__overload_ctl_info_ie(const gtp_create_bearer_response__overload_ctl_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -355,7 +355,7 @@ if (value->prd_of_validity.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mod_acc_bearers_request__bearer_ctxt_to_be_modified_ie(gtp_mod_acc_bearers_request__bearer_ctxt_to_be_modified_ie_t *value,
+int encode_gtp_mod_acc_bearers_request__bearer_ctxt_to_be_modified_ie(const gtp_mod_acc_bearers_request__bearer_ctxt_to_be_modified_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -481,7 +481,7 @@ if (value->priv_ext.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_rmt_ue_rpt_notification__remote_ue_ctxt_disconnected_ie(gtp_rmt_ue_rpt_notification__remote_ue_ctxt_disconnected_ie_t *value,
+int encode_gtp_rmt_ue_rpt_notification__remote_ue_ctxt_disconnected_ie(const gtp_rmt_ue_rpt_notification__remote_ue_ctxt_disconnected_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -505,7 +505,7 @@ if (value->remote_user_id.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_rmt_ue_rpt_notification__remote_ue_ctxt_connected_ie(gtp_rmt_ue_rpt_notification__remote_ue_ctxt_connected_ie_t *value,
+int encode_gtp_rmt_ue_rpt_notification__remote_ue_ctxt_connected_ie(const gtp_rmt_ue_rpt_notification__remote_ue_ctxt_connected_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -558,7 +558,7 @@ if (value->priv_ext.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_del_bearer_fail_indication__overload_ctl_info_ie(gtp_del_bearer_fail_indication__overload_ctl_info_ie_t *value,
+int encode_gtp_del_bearer_fail_indication__overload_ctl_info_ie(const gtp_del_bearer_fail_indication__overload_ctl_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -591,7 +591,7 @@ if (value->apn.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_create_sess_request_bearer_ctxt_to_be_created_ie(gtp_create_sess_request_bearer_ctxt_to_be_created_ie_t *value,
+int encode_gtp_create_sess_request_bearer_ctxt_to_be_created_ie(const gtp_create_sess_request_bearer_ctxt_to_be_created_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -736,118 +736,124 @@ if (value->priv_ext.header.len)
 *   number of encoded bytes.
 */
 int encode_mod_bearer_req(mod_bearer_req_t *value,
-    uint8_t *buf)
+		uint8_t *buf)
 {
-    uint16_t encoded = 0;
-    encoded += encode_gtpv2c_header_t(&value->header, buf +encoded);
+	uint16_t encoded = 0;
+	encoded += encode_gtpv2c_header_t(&value->header, buf +encoded);
 
 
-if (value->mei.header.len)
-        encoded += encode_gtp_mbl_equip_idnty_ie(&(value->mei), buf + encoded);
+	if (value->mei.header.len)
+		encoded += encode_gtp_mbl_equip_idnty_ie(&(value->mei), buf + encoded);
 
-if (value->uli.header.len)
-        encoded += encode_gtp_user_loc_info_ie(&(value->uli), buf + encoded);
+	if (value->uli.header.len)
+		encoded += encode_gtp_user_loc_info_ie(&(value->uli), buf + encoded);
 
-if (value->serving_network.header.len)
-        encoded += encode_gtp_serving_network_ie(&(value->serving_network), buf + encoded);
+	if (value->serving_network.header.len)
+		encoded += encode_gtp_serving_network_ie(&(value->serving_network), buf + encoded);
 
-if (value->selection_mode.header.len)
-        encoded += encode_gtp_selection_mode_ie(&(value->selection_mode), buf + encoded);
+	if (value->selection_mode.header.len)
+		encoded += encode_gtp_selection_mode_ie(&(value->selection_mode), buf + encoded);
 
-if (value->indctn_flgs.header.len)
-        encoded += encode_gtp_indication_ie(&(value->indctn_flgs), buf + encoded);
+	if (value->indctn_flgs.header.len)
+		encoded += encode_gtp_indication_ie(&(value->indctn_flgs), buf + encoded);
 
-if (value->sender_fteid_ctl_plane.header.len)
-        encoded += encode_gtp_fully_qual_tunn_endpt_idnt_ie(&(value->sender_fteid_ctl_plane), buf + encoded);
+	if (value->sender_fteid_ctl_plane.header.len)
+		encoded += encode_gtp_fully_qual_tunn_endpt_idnt_ie(&(value->sender_fteid_ctl_plane), buf + encoded);
 
-if (value->apn_ambr.header.len)
-        encoded += encode_gtp_agg_max_bit_rate_ie(&(value->apn_ambr), buf + encoded);
+	if (value->apn_ambr.header.len)
+		encoded += encode_gtp_agg_max_bit_rate_ie(&(value->apn_ambr), buf + encoded);
 
-if (value->delay_dnlnk_pckt_notif_req.header.len)
-        encoded += encode_gtp_delay_value_ie(&(value->delay_dnlnk_pckt_notif_req), buf + encoded);
+	if (value->delay_dnlnk_pckt_notif_req.header.len)
+		encoded += encode_gtp_delay_value_ie(&(value->delay_dnlnk_pckt_notif_req), buf + encoded);
 
-if (value->bearer_contexts_to_be_modified.header.len)
-        encoded += encode_gtp_mod_bearer_request_bearer_ctxt_to_be_modified_ie(&(value->bearer_contexts_to_be_modified), buf + encoded);
+	for (uint8_t iCnt = 0; iCnt < MAX_BEARERS; ++iCnt) {
+		if (value->bearer_contexts_to_be_modified[iCnt].header.len)
+			encoded += encode_gtp_mod_bearer_request_bearer_ctxt_to_be_modified_ie(&(value->bearer_contexts_to_be_modified[iCnt]), buf + encoded);
+	}
 
-if (value->bearer_contexts_to_be_removed.header.len)
-        encoded += encode_gtp_mod_bearer_request_bearer_ctxt_to_be_removed_ie(&(value->bearer_contexts_to_be_removed), buf + encoded);
+	if (value->bearer_contexts_to_be_removed.header.len)
+		encoded += encode_gtp_mod_bearer_request_bearer_ctxt_to_be_removed_ie(&(value->bearer_contexts_to_be_removed), buf + encoded);
 
-if (value->recovery.header.len)
-        encoded += encode_gtp_recovery_ie(&(value->recovery), buf + encoded);
+	if (value->recovery.header.len)
+		encoded += encode_gtp_recovery_ie(&(value->recovery), buf + encoded);
 
-if (value->ue_time_zone.header.len)
-        encoded += encode_gtp_ue_time_zone_ie(&(value->ue_time_zone), buf + encoded);
+	if (value->ue_time_zone.header.len)
+		encoded += encode_gtp_ue_time_zone_ie(&(value->ue_time_zone), buf + encoded);
 
-if (value->mme_fqcsid.header.len)
-        encoded += encode_gtp_fqcsid_ie(&(value->mme_fqcsid), buf + encoded);
+	if (value->mme_fqcsid.header.len)
+		encoded += encode_gtp_fqcsid_ie(&(value->mme_fqcsid), buf + encoded);
 
-if (value->sgw_fqcsid.header.len)
-        encoded += encode_gtp_fqcsid_ie(&(value->sgw_fqcsid), buf + encoded);
+	if (value->sgw_fqcsid.header.len)
+		encoded += encode_gtp_fqcsid_ie(&(value->sgw_fqcsid), buf + encoded);
 
-if (value->uci.header.len)
-        encoded += encode_gtp_user_csg_info_ie(&(value->uci), buf + encoded);
+	if (value->uci.header.len)
+		encoded += encode_gtp_user_csg_info_ie(&(value->uci), buf + encoded);
 
-if (value->ue_local_ip_addr.header.len)
-        encoded += encode_gtp_ip_address_ie(&(value->ue_local_ip_addr), buf + encoded);
+	if (value->ue_local_ip_addr.header.len)
+		encoded += encode_gtp_ip_address_ie(&(value->ue_local_ip_addr), buf + encoded);
 
-if (value->ue_udp_port.header.len)
-        encoded += encode_gtp_port_number_ie(&(value->ue_udp_port), buf + encoded);
+	if (value->ue_udp_port.header.len)
+		encoded += encode_gtp_port_number_ie(&(value->ue_udp_port), buf + encoded);
 
-if (value->mmes4_sgsn_ldn.header.len)
-        encoded += encode_gtp_local_distgsd_name_ie(&(value->mmes4_sgsn_ldn), buf + encoded);
+	if (value->mmes4_sgsn_ldn.header.len)
+		encoded += encode_gtp_local_distgsd_name_ie(&(value->mmes4_sgsn_ldn), buf + encoded);
 
-if (value->sgw_ldn.header.len)
-        encoded += encode_gtp_local_distgsd_name_ie(&(value->sgw_ldn), buf + encoded);
+	if (value->sgw_ldn.header.len)
+		encoded += encode_gtp_local_distgsd_name_ie(&(value->sgw_ldn), buf + encoded);
 
-if (value->henb_local_ip_addr.header.len)
-        encoded += encode_gtp_ip_address_ie(&(value->henb_local_ip_addr), buf + encoded);
+	if (value->henb_local_ip_addr.header.len)
+		encoded += encode_gtp_ip_address_ie(&(value->henb_local_ip_addr), buf + encoded);
 
-if (value->henb_udp_port.header.len)
-        encoded += encode_gtp_port_number_ie(&(value->henb_udp_port), buf + encoded);
+	if (value->henb_udp_port.header.len)
+		encoded += encode_gtp_port_number_ie(&(value->henb_udp_port), buf + encoded);
 
-if (value->mmes4_sgsn_idnt.header.len)
-        encoded += encode_gtp_ip_address_ie(&(value->mmes4_sgsn_idnt), buf + encoded);
+	if (value->mmes4_sgsn_idnt.header.len)
+		encoded += encode_gtp_ip_address_ie(&(value->mmes4_sgsn_idnt), buf + encoded);
 
-if (value->cn_oper_sel_entity.header.len)
-        encoded += encode_gtp_cn_oper_sel_entity_ie(&(value->cn_oper_sel_entity), buf + encoded);
+	if (value->cn_oper_sel_entity.header.len)
+		encoded += encode_gtp_cn_oper_sel_entity_ie(&(value->cn_oper_sel_entity), buf + encoded);
 
-if (value->pres_rptng_area_info.header.len)
-        encoded += encode_gtp_pres_rptng_area_info_ie(&(value->pres_rptng_area_info), buf + encoded);
+	if (value->pres_rptng_area_info.header.len)
+		encoded += encode_gtp_pres_rptng_area_info_ie(&(value->pres_rptng_area_info), buf + encoded);
 
-if (value->mmes4_sgsns_ovrld_ctl_info.header.len)
-        encoded += encode_gtp_ovrld_ctl_info_ie(&(value->mmes4_sgsns_ovrld_ctl_info), buf + encoded);
+	if (value->mmes4_sgsns_ovrld_ctl_info.header.len)
+		encoded += encode_gtp_ovrld_ctl_info_ie(&(value->mmes4_sgsns_ovrld_ctl_info), buf + encoded);
 
-if (value->sgws_ovrld_ctl_info.header.len)
-        encoded += encode_gtp_ovrld_ctl_info_ie(&(value->sgws_ovrld_ctl_info), buf + encoded);
+	if (value->sgws_ovrld_ctl_info.header.len)
+		encoded += encode_gtp_ovrld_ctl_info_ie(&(value->sgws_ovrld_ctl_info), buf + encoded);
 
-if (value->epdgs_ovrld_ctl_info.header.len)
-        encoded += encode_gtp_ovrld_ctl_info_ie(&(value->epdgs_ovrld_ctl_info), buf + encoded);
+	if (value->epdgs_ovrld_ctl_info.header.len)
+		encoded += encode_gtp_ovrld_ctl_info_ie(&(value->epdgs_ovrld_ctl_info), buf + encoded);
 
-if (value->srvng_plmn_rate_ctl.header.len)
-        encoded += encode_gtp_srvng_plmn_rate_ctl_ie(&(value->srvng_plmn_rate_ctl), buf + encoded);
+	if (value->srvng_plmn_rate_ctl.header.len)
+		encoded += encode_gtp_srvng_plmn_rate_ctl_ie(&(value->srvng_plmn_rate_ctl), buf + encoded);
 
-if (value->mo_exception_data_cntr.header.len)
-        encoded += encode_gtp_counter_ie(&(value->mo_exception_data_cntr), buf + encoded);
+	if (value->mo_exception_data_cntr.header.len)
+		encoded += encode_gtp_counter_ie(&(value->mo_exception_data_cntr), buf + encoded);
 
-if (value->imsi.header.len)
-        encoded += encode_gtp_imsi_ie(&(value->imsi), buf + encoded);
+	if (value->imsi.header.len)
+		encoded += encode_gtp_imsi_ie(&(value->imsi), buf + encoded);
 
-if (value->user_loc_info_sgw.header.len)
-        encoded += encode_gtp_user_loc_info_ie(&(value->user_loc_info_sgw), buf + encoded);
+	if (value->user_loc_info_sgw.header.len)
+		encoded += encode_gtp_user_loc_info_ie(&(value->user_loc_info_sgw), buf + encoded);
 
-if (value->wlan_loc_info.header.len)
-        encoded += encode_gtp_twan_identifier_ie(&(value->wlan_loc_info), buf + encoded);
+	if (value->wlan_loc_info.header.len)
+		encoded += encode_gtp_twan_identifier_ie(&(value->wlan_loc_info), buf + encoded);
 
-if (value->wlan_loc_ts.header.len)
-        encoded += encode_gtp_twan_idnt_ts_ie(&(value->wlan_loc_ts), buf + encoded);
+	if (value->wlan_loc_ts.header.len)
+		encoded += encode_gtp_twan_idnt_ts_ie(&(value->wlan_loc_ts), buf + encoded);
 
-if (value->secdry_rat_usage_data_rpt.header.len)
-        encoded += encode_gtp_secdry_rat_usage_data_rpt_ie(&(value->secdry_rat_usage_data_rpt), buf + encoded);
+	for (uint8_t i= 0; i < value->second_rat_count; i++) {
+		if (value->secdry_rat_usage_data_rpt[i].header.len)
+			encoded += encode_gtp_secdry_rat_usage_data_rpt_ie(&(value->secdry_rat_usage_data_rpt[i]), buf + encoded);
+	}
+	if (value->priv_ext.header.len)
+		encoded += encode_gtp_priv_ext_ie(&(value->priv_ext), buf + encoded);
 
-if (value->priv_ext.header.len)
-        encoded += encode_gtp_priv_ext_ie(&(value->priv_ext), buf + encoded);
+	if (value->rat_type.header.len)
+		encoded += encode_gtp_rat_type_ie(&(value->rat_type), buf + encoded);
 
-    return encoded;
+	return encoded;
 }
 
 
@@ -860,7 +866,7 @@ if (value->priv_ext.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_upd_bearer_response__overload_ctl_info_ie(gtp_upd_bearer_response__overload_ctl_info_ie_t *value,
+int encode_gtp_upd_bearer_response__overload_ctl_info_ie(const gtp_upd_bearer_response__overload_ctl_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -890,7 +896,7 @@ if (value->prd_of_validity.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_del_bearer_request__bearer_ctxt_ie(gtp_del_bearer_request__bearer_ctxt_ie_t *value,
+int encode_gtp_del_bearer_request__bearer_ctxt_ie(const gtp_del_bearer_request__bearer_ctxt_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -917,7 +923,7 @@ if (value->cause.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_upd_bearer_request__overload_ctl_info_ie(gtp_upd_bearer_request__overload_ctl_info_ie_t *value,
+int encode_gtp_upd_bearer_request__overload_ctl_info_ie(const gtp_upd_bearer_request__overload_ctl_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1026,7 +1032,7 @@ if (value->priv_ext.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_fwd_reloc_request__mmesgsnamf_ue_eps_pdn_connections_ie(gtp_fwd_reloc_request__mmesgsnamf_ue_eps_pdn_connections_ie_t *value,
+int encode_gtp_fwd_reloc_request__mmesgsnamf_ue_eps_pdn_connections_ie(const gtp_fwd_reloc_request__mmesgsnamf_ue_eps_pdn_connections_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1113,7 +1119,7 @@ if (value->hdr_comp_cfg.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_dnlnk_data_notification__load_ctl_info_ie(gtp_dnlnk_data_notification__load_ctl_info_ie_t *value,
+int encode_gtp_dnlnk_data_notification__load_ctl_info_ie(const gtp_dnlnk_data_notification__load_ctl_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1366,7 +1372,7 @@ if (value->priv_ext.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_ctxt_response__bearer_ctxt_ie(gtp_ctxt_response__bearer_ctxt_ie_t *value,
+int encode_gtp_ctxt_response__bearer_ctxt_ie(const gtp_ctxt_response__bearer_ctxt_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1411,7 +1417,7 @@ if (value->sgw_s11_ip_addr_and_teid_user_plane.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_ctxt_response__remote_ue_ctxt_connected_ie(gtp_ctxt_response__remote_ue_ctxt_connected_ie_t *value,
+int encode_gtp_ctxt_response__remote_ue_ctxt_connected_ie(const gtp_ctxt_response__remote_ue_ctxt_connected_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1438,7 +1444,7 @@ if (value->rmt_ue_ip_info.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mod_bearer_request_overload_ctl_info_ie(gtp_mod_bearer_request_overload_ctl_info_ie_t *value,
+int encode_gtp_mod_bearer_request_overload_ctl_info_ie(const gtp_mod_bearer_request_overload_ctl_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1468,7 +1474,7 @@ if (value->prd_of_validity.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_fwd_reloc_request__bearer_ctxt_ie(gtp_fwd_reloc_request__bearer_ctxt_ie_t *value,
+int encode_gtp_fwd_reloc_request__bearer_ctxt_ie(const gtp_fwd_reloc_request__bearer_ctxt_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1584,9 +1590,10 @@ int encode_del_bearer_fail_indctn(del_bearer_fail_indctn_t *value,
 if (value->cause.header.len)
         encoded += encode_gtp_cause_ie(&(value->cause), buf + encoded);
 
-if (value->bearer_context.header.len)
-        encoded += encode_gtp_bearer_context_ie(&(value->bearer_context), buf + encoded);
-
+for(uint8_t count =0; count < value->bearer_count; count++){
+    if (value->bearer_context[count].header.len)
+            encoded += encode_gtp_del_bearer_fail_indication__bearer_ctxt_ie(&(value->bearer_context[count]), buf + encoded);
+}
 if (value->recovery.header.len)
         encoded += encode_gtp_recovery_ie(&(value->recovery), buf + encoded);
 
@@ -1735,8 +1742,10 @@ if (value->apn_restriction.header.len)
 if (value->pco.header.len)
         encoded += encode_gtp_prot_cfg_opts_ie(&(value->pco), buf + encoded);
 
-if (value->bearer_contexts_modified.header.len)
-        encoded += encode_gtp_mod_bearer_response_bearer_ctxt_modified_ie(&(value->bearer_contexts_modified), buf + encoded);
+for (uint8_t iCnt = 0; iCnt < value->bearer_count; ++iCnt) {
+	if (value->bearer_contexts_modified[iCnt].header.len)
+		encoded += encode_gtp_mod_bearer_response_bearer_ctxt_modified_ie(&(value->bearer_contexts_modified[iCnt]), buf + encoded);
+}
 
 if (value->bearer_contexts_marked_removal.header.len)
         encoded += encode_gtp_mod_bearer_response_bearer_ctxt_marked_removal_ie(&(value->bearer_contexts_marked_removal), buf + encoded);
@@ -1811,7 +1820,7 @@ if (value->priv_ext.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_create_sess_request__remote_ue_ctxt_connected_ie(gtp_create_sess_request__remote_ue_ctxt_connected_ie_t *value,
+int encode_gtp_create_sess_request__remote_ue_ctxt_connected_ie(const gtp_create_sess_request__remote_ue_ctxt_connected_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1838,7 +1847,7 @@ if (value->rmt_ue_ip_info.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mod_bearer_command__overload_ctl_info_ie(gtp_mod_bearer_command__overload_ctl_info_ie_t *value,
+int encode_gtp_mod_bearer_command__overload_ctl_info_ie(const gtp_mod_bearer_command__overload_ctl_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -1986,7 +1995,7 @@ if (value->priv_ext.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_fwd_reloc_request__mme_ue_scef_pdn_connections_ie(gtp_fwd_reloc_request__mme_ue_scef_pdn_connections_ie_t *value,
+int encode_gtp_fwd_reloc_request__mme_ue_scef_pdn_connections_ie(const gtp_fwd_reloc_request__mme_ue_scef_pdn_connections_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2109,8 +2118,11 @@ if (value->linked_eps_bearer_id.header.len)
 if (value->pco.header.len)
         encoded += encode_gtp_prot_cfg_opts_ie(&(value->pco), buf + encoded);
 
-if (value->bearer_contexts_created.header.len)
-        encoded += encode_gtp_create_sess_response_bearer_ctxt_created_ie(&(value->bearer_contexts_created), buf + encoded);
+	for(uint8_t i= 0; i< value->bearer_count; i++) {
+		if (value->bearer_contexts_created[i].header.len) {
+			encoded += encode_gtp_create_sess_response_bearer_ctxt_created_ie(&(value->bearer_contexts_created[i]), buf + encoded);
+		}
+	}
 
 if (value->bearer_contexts_marked_removal.header.len)
         encoded += encode_gtp_create_sess_response_bearer_ctxt_marked_removal_ie(&(value->bearer_contexts_marked_removal), buf + encoded);
@@ -2217,7 +2229,7 @@ if (value->priv_ext.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_create_sess_response_bearer_ctxt_created_ie(gtp_create_sess_response_bearer_ctxt_created_ie_t *value,
+int encode_gtp_create_sess_response_bearer_ctxt_created_ie(const gtp_create_sess_response_bearer_ctxt_created_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2274,7 +2286,7 @@ if (value->s11_u_sgw_fteid.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_create_bearer_request__load_ctl_info_ie(gtp_create_bearer_request__load_ctl_info_ie_t *value,
+int encode_gtp_create_bearer_request__load_ctl_info_ie(const gtp_create_bearer_request__load_ctl_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2320,8 +2332,10 @@ if (value->lbi.header.len)
 if (value->pco.header.len)
         encoded += encode_gtp_prot_cfg_opts_ie(&(value->pco), buf + encoded);
 
-if (value->bearer_contexts.header.len)
-        encoded += encode_gtp_create_bearer_request_bearer_ctxt_ie(&(value->bearer_contexts), buf + encoded);
+for(uint8_t idx = 0; idx < value->bearer_cnt; ++idx) {
+	if (value->bearer_contexts[idx].header.len)
+			encoded += encode_gtp_create_bearer_request_bearer_ctxt_ie(&(value->bearer_contexts[idx]), buf + encoded);
+}
 
 if (value->pgw_fqcsid.header.len)
         encoded += encode_gtp_fqcsid_ie(&(value->pgw_fqcsid), buf + encoded);
@@ -2378,7 +2392,7 @@ if (value->priv_ext.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_create_sess_request__overload_ctl_info_ie(gtp_create_sess_request__overload_ctl_info_ie_t *value,
+int encode_gtp_create_sess_request__overload_ctl_info_ie(const gtp_create_sess_request__overload_ctl_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2455,7 +2469,7 @@ if (value->priv_ext.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_create_bearer_request_bearer_ctxt_ie(gtp_create_bearer_request_bearer_ctxt_ie_t *value,
+int encode_gtp_create_bearer_request_bearer_ctxt_ie(const gtp_create_bearer_request_bearer_ctxt_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2518,7 +2532,7 @@ if (value->max_pckt_loss_rate.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_create_sess_response_bearer_ctxt_marked_removal_ie(gtp_create_sess_response_bearer_ctxt_marked_removal_ie_t *value,
+int encode_gtp_create_sess_response_bearer_ctxt_marked_removal_ie(const gtp_create_sess_response_bearer_ctxt_marked_removal_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2545,7 +2559,7 @@ if (value->cause.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_create_sess_response__overload_ctl_info_ie(gtp_create_sess_response__overload_ctl_info_ie_t *value,
+int encode_gtp_create_sess_response__overload_ctl_info_ie(const gtp_create_sess_response__overload_ctl_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2610,7 +2624,7 @@ if (value->priv_ext.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_create_bearer_request__overload_ctl_info_ie(gtp_create_bearer_request__overload_ctl_info_ie_t *value,
+int encode_gtp_create_bearer_request__overload_ctl_info_ie(const gtp_create_bearer_request__overload_ctl_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2643,7 +2657,7 @@ if (value->apn.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_del_sess_request__overload_ctl_info_ie(gtp_del_sess_request__overload_ctl_info_ie_t *value,
+int encode_gtp_del_sess_request__overload_ctl_info_ie(const gtp_del_sess_request__overload_ctl_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2737,7 +2751,7 @@ if (value->priv_ext.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_del_bearer_fail_indication__bearer_ctxt_ie(gtp_del_bearer_fail_indication__bearer_ctxt_ie_t *value,
+int encode_gtp_del_bearer_fail_indication__bearer_ctxt_ie(const gtp_del_bearer_fail_indication__bearer_ctxt_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2764,7 +2778,7 @@ if (value->cause.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_del_bearer_command__overload_ctl_info_ie(gtp_del_bearer_command__overload_ctl_info_ie_t *value,
+int encode_gtp_del_bearer_command__overload_ctl_info_ie(const gtp_del_bearer_command__overload_ctl_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2794,7 +2808,7 @@ if (value->prd_of_validity.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_fwd_reloc_request__remote_ue_ctxt_connected_ie(gtp_fwd_reloc_request__remote_ue_ctxt_connected_ie_t *value,
+int encode_gtp_fwd_reloc_request__remote_ue_ctxt_connected_ie(const gtp_fwd_reloc_request__remote_ue_ctxt_connected_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2865,7 +2879,7 @@ if (value->priv_ext.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mod_acc_bearers_response__overload_ctl_info_ie(gtp_mod_acc_bearers_response__overload_ctl_info_ie_t *value,
+int encode_gtp_mod_acc_bearers_response__overload_ctl_info_ie(const gtp_mod_acc_bearers_response__overload_ctl_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -2959,7 +2973,7 @@ if (value->priv_ext.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_ctxt_response__mmesgsn_ue_eps_pdn_connections_ie(gtp_ctxt_response__mmesgsn_ue_eps_pdn_connections_ie_t *value,
+int encode_gtp_ctxt_response__mmesgsn_ue_eps_pdn_connections_ie(const gtp_ctxt_response__mmesgsn_ue_eps_pdn_connections_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3049,7 +3063,7 @@ if (value->hdr_comp_cfg.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_del_bearer_command_bearer_ctxt_ie(gtp_del_bearer_command_bearer_ctxt_ie_t *value,
+int encode_gtp_del_bearer_command_bearer_ctxt_ie(const gtp_del_bearer_command_bearer_ctxt_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t encoded = 0;
@@ -3112,7 +3126,7 @@ if (value->priv_ext.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mod_bearer_response__overload_ctl_info_ie(gtp_mod_bearer_response__overload_ctl_info_ie_t *value,
+int encode_gtp_mod_bearer_response__overload_ctl_info_ie(const gtp_mod_bearer_response__overload_ctl_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3186,7 +3200,7 @@ if (value->priv_ext.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_create_indir_data_fwdng_tunn_request__bearer_ctxt_ie(gtp_create_indir_data_fwdng_tunn_request__bearer_ctxt_ie_t *value,
+int encode_gtp_create_indir_data_fwdng_tunn_request__bearer_ctxt_ie(const gtp_create_indir_data_fwdng_tunn_request__bearer_ctxt_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3286,8 +3300,11 @@ if (value->trstd_wlan_mode_indctn.header.len)
 if (value->pco.header.len)
         encoded += encode_gtp_prot_cfg_opts_ie(&(value->pco), buf + encoded);
 
-if (value->bearer_contexts_to_be_created.header.len)
-        encoded += encode_gtp_create_sess_request_bearer_ctxt_to_be_created_ie(&(value->bearer_contexts_to_be_created), buf + encoded);
+for (uint8_t iCnt = 0; iCnt < value->bearer_count; ++iCnt) {
+	if (value->bearer_contexts_to_be_created[iCnt].header.len) {
+		encoded += encode_gtp_create_sess_request_bearer_ctxt_to_be_created_ie(&(value->bearer_contexts_to_be_created[iCnt]), buf + encoded);
+	}
+}
 
 if (value->bearer_contexts_to_be_removed.header.len)
         encoded += encode_gtp_create_sess_request_bearer_ctxt_to_be_removed_ie(&(value->bearer_contexts_to_be_removed), buf + encoded);
@@ -3312,6 +3329,10 @@ if (value->twan_fqcsid.header.len)
 
 if (value->ue_time_zone.header.len)
         encoded += encode_gtp_ue_time_zone_ie(&(value->ue_time_zone), buf + encoded);
+
+if (value->indctn_flgs.header.len) {
+         encoded += encode_gtp_indication_ie(&(value->indctn_flgs), buf + encoded);
+}
 
 if (value->uci.header.len)
         encoded += encode_gtp_user_csg_info_ie(&(value->uci), buf + encoded);
@@ -3440,7 +3461,7 @@ if (value->priv_ext.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_create_sess_request_bearer_ctxt_to_be_removed_ie(gtp_create_sess_request_bearer_ctxt_to_be_removed_ie_t *value,
+int encode_gtp_create_sess_request_bearer_ctxt_to_be_removed_ie(const gtp_create_sess_request_bearer_ctxt_to_be_removed_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3644,7 +3665,7 @@ int encode_del_bearer_rsp(del_bearer_rsp_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mod_bearer_response_bearer_ctxt_marked_removal_ie(gtp_mod_bearer_response_bearer_ctxt_marked_removal_ie_t *value,
+int encode_gtp_mod_bearer_response_bearer_ctxt_marked_removal_ie(const gtp_mod_bearer_response_bearer_ctxt_marked_removal_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3738,7 +3759,7 @@ if (value->priv_ext.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_del_sess_response__load_ctl_info_ie(gtp_del_sess_response__load_ctl_info_ie_t *value,
+int encode_gtp_del_sess_response__load_ctl_info_ie(const gtp_del_sess_response__load_ctl_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3768,7 +3789,7 @@ if (value->list_of_apn_and_rltv_cap.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_upd_bearer_request__load_ctl_info_ie(gtp_upd_bearer_request__load_ctl_info_ie_t *value,
+int encode_gtp_upd_bearer_request__load_ctl_info_ie(const gtp_upd_bearer_request__load_ctl_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3798,7 +3819,7 @@ if (value->list_of_apn_and_rltv_cap.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_upd_bearer_response__bearer_ctxt_ie(gtp_upd_bearer_response__bearer_ctxt_ie_t *value,
+int encode_gtp_upd_bearer_response__bearer_ctxt_ie(const gtp_upd_bearer_response__bearer_ctxt_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3840,7 +3861,7 @@ if (value->epco.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_create_bearer_response_bearer_ctxt_ie(gtp_create_bearer_response_bearer_ctxt_ie_t *value,
+int encode_gtp_create_bearer_response_bearer_ctxt_ie(const gtp_create_bearer_response_bearer_ctxt_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3912,7 +3933,7 @@ if (value->epco.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mod_acc_bearers_response__bearer_ctxt_marked_removal_ie(gtp_mod_acc_bearers_response__bearer_ctxt_marked_removal_ie_t *value,
+int encode_gtp_mod_acc_bearers_response__bearer_ctxt_marked_removal_ie(const gtp_mod_acc_bearers_response__bearer_ctxt_marked_removal_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -3939,7 +3960,7 @@ if (value->cause.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_upd_bearer_request__bearer_ctxt_ie(gtp_upd_bearer_request__bearer_ctxt_ie_t *value,
+int encode_gtp_upd_bearer_request__bearer_ctxt_ie(const gtp_upd_bearer_request__bearer_ctxt_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -4078,7 +4099,7 @@ if (value->priv_ext.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mod_bearer_response_bearer_ctxt_modified_ie(gtp_mod_bearer_response_bearer_ctxt_modified_ie_t *value,
+int encode_gtp_mod_bearer_response_bearer_ctxt_modified_ie(const gtp_mod_bearer_response_bearer_ctxt_modified_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -4123,7 +4144,7 @@ if (value->s11_u_sgw_fteid.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_create_sess_response__load_ctl_info_ie(gtp_create_sess_response__load_ctl_info_ie_t *value,
+int encode_gtp_create_sess_response__load_ctl_info_ie(const gtp_create_sess_response__load_ctl_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -4229,7 +4250,7 @@ if (value->priv_ext.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mod_acc_bearers_response__bearer_ctxt_modified_ie(gtp_mod_acc_bearers_response__bearer_ctxt_modified_ie_t *value,
+int encode_gtp_mod_acc_bearers_response__bearer_ctxt_modified_ie(const gtp_mod_acc_bearers_response__bearer_ctxt_modified_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -4356,7 +4377,7 @@ if (value->priv_ext.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_del_bearer_request__load_ctl_info_ie(gtp_del_bearer_request__load_ctl_info_ie_t *value,
+int encode_gtp_del_bearer_request__load_ctl_info_ie(const gtp_del_bearer_request__load_ctl_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -4386,7 +4407,7 @@ if (value->list_of_apn_and_rltv_cap.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_del_bearer_response__overload_ctl_info_ie(gtp_del_bearer_response__overload_ctl_info_ie_t *value,
+int encode_gtp_del_bearer_response__overload_ctl_info_ie(const gtp_del_bearer_response__overload_ctl_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -4416,7 +4437,7 @@ if (value->prd_of_validity.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_dnlnk_data_notification__overload_ctl_info_ie(gtp_dnlnk_data_notification__overload_ctl_info_ie_t *value,
+int encode_gtp_dnlnk_data_notification__overload_ctl_info_ie(const gtp_dnlnk_data_notification__overload_ctl_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -4446,7 +4467,7 @@ if (value->prd_of_validity.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_release_acc_bearers_response__overload_ctl_info_ie(gtp_release_acc_bearers_response__overload_ctl_info_ie_t *value,
+int encode_gtp_release_acc_bearers_response__overload_ctl_info_ie(const gtp_release_acc_bearers_response__overload_ctl_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -4476,7 +4497,7 @@ if (value->prd_of_validity.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mod_bearer_fail_indication__overload_ctl_info_ie(gtp_mod_bearer_fail_indication__overload_ctl_info_ie_t *value,
+int encode_gtp_mod_bearer_fail_indication__overload_ctl_info_ie(const gtp_mod_bearer_fail_indication__overload_ctl_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -4643,7 +4664,7 @@ if (value->priv_ext.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mod_bearer_request_bearer_ctxt_to_be_modified_ie(gtp_mod_bearer_request_bearer_ctxt_to_be_modified_ie_t *value,
+int encode_gtp_mod_bearer_request_bearer_ctxt_to_be_modified_ie(const gtp_mod_bearer_request_bearer_ctxt_to_be_modified_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -4708,7 +4729,7 @@ if (value->priv_ext.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mod_bearer_command__bearer_ctxt_ie(gtp_mod_bearer_command__bearer_ctxt_ie_t *value,
+int encode_gtp_mod_bearer_command__bearer_ctxt_ie(const gtp_mod_bearer_command__bearer_ctxt_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -4735,7 +4756,7 @@ if (value->bearer_lvl_qos.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_ctxt_response__mmesgsn_ue_scef_pdn_connections_ie(gtp_ctxt_response__mmesgsn_ue_scef_pdn_connections_ie_t *value,
+int encode_gtp_ctxt_response__mmesgsn_ue_scef_pdn_connections_ie(const gtp_ctxt_response__mmesgsn_ue_scef_pdn_connections_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -4765,7 +4786,7 @@ if (value->scef_id.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_release_acc_bearers_response__load_ctl_info_ie(gtp_release_acc_bearers_response__load_ctl_info_ie_t *value,
+int encode_gtp_release_acc_bearers_response__load_ctl_info_ie(const gtp_release_acc_bearers_response__load_ctl_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -5187,7 +5208,7 @@ if (value->priv_ext.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mod_bearer_request_bearer_ctxt_to_be_removed_ie(gtp_mod_bearer_request_bearer_ctxt_to_be_removed_ie_t *value,
+int encode_gtp_mod_bearer_request_bearer_ctxt_to_be_removed_ie(const gtp_mod_bearer_request_bearer_ctxt_to_be_removed_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -5211,7 +5232,7 @@ if (value->eps_bearer_id.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_bearer_rsrc_fail_indication__overload_ctl_info_ie(gtp_bearer_rsrc_fail_indication__overload_ctl_info_ie_t *value,
+int encode_gtp_bearer_rsrc_fail_indication__overload_ctl_info_ie(const gtp_bearer_rsrc_fail_indication__overload_ctl_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -5330,7 +5351,7 @@ if (value->priv_ext.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mod_bearer_response__load_ctl_info_ie(gtp_mod_bearer_response__load_ctl_info_ie_t *value,
+int encode_gtp_mod_bearer_response__load_ctl_info_ie(const gtp_mod_bearer_response__load_ctl_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -5392,7 +5413,7 @@ if (value->priv_ext.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_bearer_rsrc_command__overload_ctl_info_ie(gtp_bearer_rsrc_command__overload_ctl_info_ie_t *value,
+int encode_gtp_bearer_rsrc_command__overload_ctl_info_ie(const gtp_bearer_rsrc_command__overload_ctl_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -5458,8 +5479,10 @@ int encode_create_bearer_rsp(create_bearer_rsp_t *value,
 if (value->cause.header.len)
         encoded += encode_gtp_cause_ie(&(value->cause), buf + encoded);
 
-if (value->bearer_contexts.header.len)
-        encoded += encode_gtp_create_bearer_response_bearer_ctxt_ie(&(value->bearer_contexts), buf + encoded);
+for(uint8_t idx = 0; idx < value->bearer_cnt; idx++) {
+	if (value->bearer_contexts[idx].header.len)
+		encoded += encode_gtp_create_bearer_response_bearer_ctxt_ie(&value->bearer_contexts[idx], buf + encoded);
+}
 
 if (value->recovery.header.len)
         encoded += encode_gtp_recovery_ie(&(value->recovery), buf + encoded);
@@ -5537,7 +5560,7 @@ if (value->priv_ext.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mod_acc_bearers_response__load_ctl_info_ie(gtp_mod_acc_bearers_response__load_ctl_info_ie_t *value,
+int encode_gtp_mod_acc_bearers_response__load_ctl_info_ie(const gtp_mod_acc_bearers_response__load_ctl_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -5590,7 +5613,7 @@ if (value->priv_ext.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_del_bearer_response_bearer_ctxt_ie(gtp_del_bearer_response_bearer_ctxt_ie_t *value,
+int encode_gtp_del_bearer_response_bearer_ctxt_ie(const gtp_del_bearer_response_bearer_ctxt_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -5680,7 +5703,7 @@ if (value->priv_ext.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_del_sess_response__overload_ctl_info_ie(gtp_del_sess_response__overload_ctl_info_ie_t *value,
+int encode_gtp_del_sess_response__overload_ctl_info_ie(const gtp_del_sess_response__overload_ctl_info_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -5713,7 +5736,7 @@ if (value->apn.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_mod_acc_bearers_request__bearer_ctxt_to_be_removed_ie(gtp_mod_acc_bearers_request__bearer_ctxt_to_be_removed_ie_t *value,
+int encode_gtp_mod_acc_bearers_request__bearer_ctxt_to_be_removed_ie(const gtp_mod_acc_bearers_request__bearer_ctxt_to_be_removed_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -5737,7 +5760,7 @@ if (value->eps_bearer_id.header.len)
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_create_indir_data_fwdng_tunn_response__bearer_ctxt_ie(gtp_create_indir_data_fwdng_tunn_response__bearer_ctxt_ie_t *value,
+int encode_gtp_create_indir_data_fwdng_tunn_response__bearer_ctxt_ie(const gtp_create_indir_data_fwdng_tunn_response__bearer_ctxt_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;
@@ -5772,3 +5795,84 @@ if (value->sgw_fteid_ul_data_fwdng.header.len)
     return encoded;
 }
 
+
+/**
+* Encodes change notification_req to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+	change_noti_req_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_change_noti_req(change_noti_req_t *value,
+		uint8_t *buf)
+{
+	uint16_t encoded = 0;
+	encoded += encode_gtpv2c_header_t(&value->header, buf +encoded);
+
+	if (value->imsi.header.len)
+		encoded += encode_gtp_imsi_ie(&(value->imsi), buf + encoded);
+
+	if(value->rat_type.header.len)
+		encoded += encode_gtp_rat_type_ie(&(value->rat_type), buf + encoded);
+
+	if(value->uli.header.len)
+		encoded += encode_gtp_user_loc_info_ie(&(value->uli), buf + encoded);
+
+	if(value->uci.header.len)
+		encoded += encode_gtp_user_csg_info_ie(&(value->uci), buf + encoded);
+
+	if(value->ipv4_address.header.len)
+		encoded += encode_gtp_ip_address_ie(&(value->ipv4_address), buf + encoded);
+
+	if (value->lbi.header.len)
+		encoded += encode_gtp_eps_bearer_id_ie(&(value->lbi), buf + encoded);
+
+	for(uint8_t i = 0; i< value->second_rat_count; i++) {
+		if(value->secdry_rat_usage_data_rpt[i].header.len)
+			encoded += encode_gtp_secdry_rat_usage_data_rpt_ie(&(value->secdry_rat_usage_data_rpt[i]), buf + encoded);
+	}
+
+	return encoded;
+}
+
+
+
+/**
+* Encodes change notification_rsp to buffer.
+* @param buf
+*   buffer to store encoded values.
+* @param value
+	change_noti_rsp_t
+* @return
+*   number of encoded bytes.
+*/
+int encode_change_noti_rsp(change_noti_rsp_t *value,
+		uint8_t *buf)
+{
+
+	uint16_t encoded = 0;
+	encoded += encode_gtpv2c_header_t(&value->header, buf +encoded);
+
+	if (value->imsi.header.len) {
+		encoded += encode_gtp_imsi_ie(&(value->imsi), buf + encoded);
+	}
+	if(value->cause.header.len)
+		encoded += encode_gtp_cause_ie(&(value->cause), buf + encoded);
+
+	return encoded;
+}
+
+int encode_release_access_bearers_rsp(release_access_bearer_resp_t *value,
+        uint8_t *buf)
+{
+
+    uint16_t encoded = 0;
+    encoded += encode_gtpv2c_header_t(&value->header, buf +encoded);
+
+    if(value->cause.header.len)
+        encoded += encode_gtp_cause_ie(&(value->cause), buf + encoded);
+
+    return encoded;
+}

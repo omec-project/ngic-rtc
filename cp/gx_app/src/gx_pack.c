@@ -213,6 +213,7 @@
       __data__->__member__.list = (__listtype__*)malloc(sizeof(__listtype__) * __data__->__member__.count);          \
       if (!__data__->__member__.list)                                                                                \
          return 0;                                                                                                   \
+	   memset(__data__->__member__.list, 0, sizeof(__listtype__)* __data__->__member__.count);                       \
       for (int32_t idx=0; idx <__data__->__member__.count; idx++) {                                                  \
          if (*__offset__ + sizeof(uint32_t) > __buflen__)                                                            \
             return 0;                                                                                                \

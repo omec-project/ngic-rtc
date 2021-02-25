@@ -15,6 +15,7 @@
  */
 #include "up_main.h"
 #include "epc_arp.h"
+#include "pfcp_util.h"
 #include "pfcp_enum.h"
 #include "pfcp_set_ie.h"
 #include "clogger.h"
@@ -30,10 +31,8 @@ fill_pfcp_session_est_resp(pfcp_sess_estab_rsp_t *pfcp_sess_est_resp,
 	uint32_t seq  = 0;
 	uint32_t node_value = 0;
 
-	//memset(pfcp_sess_est_resp, 0, sizeof(pfcp_sess_estab_rsp_t)) ;
-
 	set_pfcp_seid_header((pfcp_header_t *) &(pfcp_sess_est_resp->header),
-			PFCP_SESSION_ESTABLISHMENT_RESPONSE, HAS_SEID, seq);
+			PFCP_SESSION_ESTABLISHMENT_RESPONSE, HAS_SEID, seq, NO_CP_MODE_REQUIRED);
 
 	set_node_id(&(pfcp_sess_est_resp->node_id), dp_comm_ip.s_addr);
 	set_cause(&(pfcp_sess_est_resp->cause), cause);
@@ -55,18 +54,6 @@ fill_pfcp_session_est_resp(pfcp_sess_estab_rsp_t *pfcp_sess_est_resp,
 		set_olci(&(pfcp_sess_est_resp->ovrld_ctl_info));
 	}
 
-	/* TODO: Need to add condition for below
-	char sgwu_addr[INET_ADDRSTRLEN] ;
-	inet_ntop(AF_INET, &(dp_comm_ip), sgwu_addr, INET_ADDRSTRLEN);
-	unsigned long sgwu_value = inet_addr(sgwu_addr);
-	set_fq_csid( &(pfcp_sess_est_resp->sgw_u_fqcsid), sgwu_value);
-
-	char pgwu_addr[INET_ADDRSTRLEN] ;
-	inet_ntop(AF_INET, &(dp_comm_ip), pgwu_addr, INET_ADDRSTRLEN);
-	unsigned long pgwu_value = inet_addr(pgwu_addr);
-	set_fq_csid( &(pfcp_sess_est_resp->pgw_u_fqcsid), pgwu_value); */
-
-
 	if(RULECREATION_MODIFICATIONFAILURE == cause) {
 		set_failed_rule_id(&(pfcp_sess_est_resp->failed_rule_id));
 	}
@@ -77,10 +64,9 @@ fill_pfcp_session_modify_resp(pfcp_sess_mod_rsp_t *pfcp_sess_modify_resp,
 		pfcp_sess_mod_req_t *pfcp_session_mod_req, uint8_t cause, int offend)
 {
 	uint32_t seq  = 1;
-	memset(pfcp_sess_modify_resp, 0, sizeof(pfcp_sess_mod_rsp_t));
 
 	set_pfcp_seid_header((pfcp_header_t *) &(pfcp_sess_modify_resp->header),
-			PFCP_SESSION_MODIFICATION_RESPONSE, HAS_SEID, seq);
+			PFCP_SESSION_MODIFICATION_RESPONSE, HAS_SEID, seq, NO_CP_MODE_REQUIRED);
 
 	set_cause(&(pfcp_sess_modify_resp->cause), cause);
 
@@ -128,10 +114,9 @@ fill_pfcp_sess_del_resp(pfcp_sess_del_rsp_t *
 {
 
 	uint32_t seq  = 1;
-	memset(pfcp_sess_del_resp, 0, sizeof(pfcp_sess_del_rsp_t));
 
 	set_pfcp_seid_header((pfcp_header_t *) &(pfcp_sess_del_resp->header), PFCP_SESSION_DELETION_RESPONSE,
-			HAS_SEID, seq);
+			HAS_SEID, seq, NO_CP_MODE_REQUIRED);
 
 	set_cause(&(pfcp_sess_del_resp->cause), cause);
 
@@ -155,22 +140,55 @@ int sess_modify_with_endmarker(far_info_t *far)
 	int ret = 0;
 
 	/*Retrieve the destination MAC*/
-	edmk.dst_ip = htonl(far->frwdng_parms.outer_hdr_creation.ipv4_address);
+	edmk.dst_ip = ntohl(far->frwdng_parms.outer_hdr_creation.ipv4_address);
 	edmk.teid = far->frwdng_parms.outer_hdr_creation.teid;
 
 	ret = rte_hash_lookup_data(arp_hash_handle[S1U_PORT_ID],
 			&edmk.dst_ip, (void **)&ret_arp_data);
 
 	if (ret < 0) {
-		clLog(clSystemLog, eCLSeverityDebug, "IP is not resolved for sending endmarker:%u\n",
-				edmk.dst_ip);
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"IP is not resolved for sending endmarker:%u\n",
+			LOG_VALUE, edmk.dst_ip);
 		return -1;
 	}
 
 	memcpy(&(edmk.destination_MAC), &(ret_arp_data->eth_addr) , sizeof(struct ether_addr));
 	edmk.dst_port = ret_arp_data->port;
-	edmk.source_MAC = app.s1u_ether_addr;
-	edmk.src_ip = app.s1u_ip;
+
+	/* Get the Source interface address from PDR */
+	uint32_t src_addr = 0;
+
+	/* Fill the Local SRC Address of the intf in the IPV4 header */
+	if (!src_addr) {
+	    /* Validate the Destination IP Address subnet */
+	    if (validate_Subnet(ntohl(edmk.dst_ip), app.wb_net, app.wb_bcast_addr)) {
+	        /* construct iphdr with local IP Address */
+	        src_addr = app.wb_ip;
+	    } else if (validate_Subnet(ntohl(edmk.dst_ip), app.wb_li_net, app.wb_li_bcast_addr)) {
+	        /* construct iphdr with local IP Address */
+	        src_addr = app.wb_li_ip;
+	    } else if (validate_Subnet(ntohl(edmk.dst_ip), app.eb_net, app.eb_bcast_addr)) {
+	        /* construct iphdr with local IP Address */
+	        src_addr = app.eb_ip;
+	    } else {
+	        clLog(clSystemLog, eCLSeverityCritical,
+	                LOG_FORMAT"Destination IPv4 Addr "IPV4_ADDR" is NOT in local intf subnet\n",
+	                LOG_VALUE, IPV4_ADDR_HOST_FORMAT(edmk.dst_ip));
+	        return -1;
+	    }
+	}
+
+
+	/* Fill the source interface address in packet */
+	edmk.src_ip = htonl(src_addr);
+
+	/* VS: Fill the Source IP and Physical Address of the interface based on the interface value */
+	if (far->frwdng_parms.dst_intfc.interface_value == ACCESS) {
+		edmk.source_MAC = app.wb_ether_addr;
+	}else if(far->frwdng_parms.dst_intfc.interface_value == CORE){
+		edmk.source_MAC = app.eb_ether_addr;
+	}
+
 	build_endmarker_and_send(&edmk);
 	return 0;
 }

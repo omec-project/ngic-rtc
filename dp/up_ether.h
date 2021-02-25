@@ -27,6 +27,7 @@
 
 #include "up_main.h"
 #include "pfcp_up_struct.h"
+
 #define ETH_TYPE_IPv4 0x0800
 
 /**
@@ -49,4 +50,4 @@ static inline struct ether_hdr *get_mtoeth(struct rte_mbuf *m)
 int construct_ether_hdr(struct rte_mbuf *m, uint8_t portid,
 		pdr_info_t **pdr);
 
-#endif				/* _ETHER_H_ */
+#endif /* _ETHER_H_ */

@@ -27,18 +27,20 @@
 
 #define TIMESTAMP_LEN 14
 #define NUM_OF_TABLES 4
+#define NUM_INIT_TABLES 3
 
 #define MAX_HASH_SIZE (1 << 15)
+#define MAX_SEQ_ENTRIES_HASH_SIZE (1 << 10)
 #define MAX_PDN_HASH_SIZE (1 << 8)
-/* Number of Entries: 1023 can be stored */
-#define MAX_RULES_ENTRIES_HASH_SIZE (1 << 10)
 
 const uint8_t bar_base_rule_id = 0xFF;
 static uint8_t bar_rule_id_offset;
 const uint16_t pdr_base_rule_id = 0x0000;
 static uint16_t pdr_rule_id_offset;
 const uint32_t far_base_rule_id = 0x00000000;
+const uint32_t urr_base_rule_id = 0x00000000;
 static uint32_t far_rule_id_offset;
+static uint32_t urr_rule_id_offset;
 const uint32_t qer_base_rule_id = 0x00000000;
 static uint32_t qer_rule_id_offset;
 /* VS: Need to decide the base value of call id */
@@ -49,6 +51,8 @@ static uint64_t dp_sess_id_offset;
 const uint32_t rar_base_rule_id = 0x00000000;
 static uint32_t rar_rule_id_offset;
 
+const uint32_t base_seq_number = 0x00000000;
+static uint32_t seq_number_offset;
 
 
 /**
@@ -75,18 +79,18 @@ add_pdn_conn_entry(uint32_t call_id, pdn_connection *pdn)
 		ret = rte_hash_add_key_data(pdn_conn_hash,
 						&call_id, pdn);
 		if (ret) {
-			clLog(clSystemLog, eCLSeverityCritical, "%s:%d Failed to add pdn connection for CALL_ID = %u"
-					"\n\tError= %s\n",
-					__func__, __LINE__, call_id,
-					rte_strerror(abs(ret)));
-			return -1;
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to add pdn "
+				"connection for CALL_ID = %u"
+				"\n\tError= %s\n", LOG_VALUE, call_id,
+				rte_strerror(abs(ret)));
+			return GTPV2C_CAUSE_SYSTEM_FAILURE;
 		}
 	} else {
 		memcpy(tmp, pdn, sizeof(pdn_connection));
 	}
 
-	clLog(clSystemLog, eCLSeverityDebug, "%s:%d PDN Connection entry add for CALL_ID:%u",
-			__func__, __LINE__, call_id);
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT" PDN Connection entry add for CALL_ID:%u",
+		LOG_VALUE, call_id);
 	return 0;
 }
 
@@ -108,13 +112,12 @@ pdn_connection *get_pdn_conn_entry(uint32_t call_id)
 				&call_id, (void **)&pdn);
 
 	if ( ret < 0) {
-		clLog(clSystemLog, eCLSeverityCritical, "%s:%d Entry not found for CALL_ID:%u...\n",
-				__func__, __LINE__, call_id);
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Entry not found for CALL_ID:%u "
+			"while extrating PDN entry\n", LOG_VALUE, call_id);
 		return NULL;
 	}
 
-	clLog(clSystemLog, eCLSeverityDebug, "%s:%d CALL_ID:%u",
-			__func__, __LINE__, call_id);
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"CALL_ID for PDN connection entry:%u", LOG_VALUE, call_id);
 	return pdn;
 
 }
@@ -136,22 +139,24 @@ del_pdn_conn_entry(uint32_t call_id)
 	/* Check PDN Conn entry is present or Not */
 	ret = rte_hash_lookup_data(pdn_conn_hash,
 					&call_id, (void **)&pdn);
-	if (ret) {
+	if (ret >= 0) {
 		/* PDN Conn Entry is present. Delete PDN Conn Entry */
 		ret = rte_hash_del_key(pdn_conn_hash, &call_id);
 
 		if ( ret < 0) {
-			clLog(clSystemLog, eCLSeverityCritical, "%s:%d Entry not found for CALL_ID:%u...\n",
-						__func__, __LINE__, call_id);
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Entry not found "
+				"for CALL_ID :%u while deleting PDN connection entry\n", LOG_VALUE, call_id);
 			return -1;
 		}
 	}
 
 	/* Free data from hash */
-	rte_free(pdn);
+	if (pdn != NULL) {
+		rte_free(pdn);
+		pdn = NULL;
+	}
 
-	clLog(clSystemLog, eCLSeverityDebug, "%s: CALL_ID:%u",
-			__func__, call_id);
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"CALL_ID for PDN connection entry:%u", LOG_VALUE, call_id);
 
 	return 0;
 }
@@ -179,18 +184,19 @@ add_rule_name_entry(const rule_name_key_t rule_key, bearer_id_t *bearer)
 		ret = rte_hash_add_key_data(rule_name_bearer_id_map_hash,
 						&rule_key, bearer);
 		if (ret) {
-			clLog(clSystemLog, eCLSeverityCritical, "%s:%d Failed to add rule entry for Rule_Name = %s"
-					"\n\tError= %s\n",
-					__func__, __LINE__, rule_key.rule_name,
-					rte_strerror(abs(ret)));
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to add rule "
+				"entry for Rule_Name = %s"
+				"\n\tError= %s\n", LOG_VALUE, rule_key.rule_name,
+				rte_strerror(abs(ret)));
 			return -1;
 		}
 	} else {
 		memcpy(tmp, bearer, sizeof(bearer_id_t));
 	}
 
-	clLog(clSystemLog, eCLSeverityDebug, "%s: Rule Name entry add for Rule_Name:%s, Bearer_id:%u\n",
-			__func__, rule_key.rule_name, bearer->bearer_id);
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT":Rule Name entry add for "
+		"Rule_Name:%s, Bearer_id:%u\n",
+		LOG_VALUE, rule_key.rule_name, bearer->bearer_id);
 	return 0;
 }
 
@@ -211,17 +217,91 @@ get_rule_name_entry(const rule_name_key_t rule_key)
 	/* Check Rule Name entry is present or Not */
 	ret = rte_hash_lookup_data(rule_name_bearer_id_map_hash,
 				&rule_key, (void **)&bearer);
-
 	if ( ret < 0) {
-		/* clLog(clSystemLog, eCLSeverityCritical, "%s:%d Entry not found for Rule_Name:%s...\n",
-				__func__, __LINE__, rule_key.rule_name); */
 		return -1;
 	}
 
-	clLog(clSystemLog, eCLSeverityDebug, "%s: Rule_Name:%s, Bearer_ID:%u\n",
-			__func__, rule_key.rule_name, bearer->bearer_id);
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT": Rule_Name:%s, Bearer_ID:%u\n",
+		LOG_VALUE, rule_key.rule_name, bearer->bearer_id);
 	return bearer->bearer_id;
+}
 
+int8_t
+add_seq_number_for_teid(const teid_key_t teid_key, struct teid_value_t *teid_value)
+{
+	int ret = 0;
+	struct teid_value_t *tmp = NULL;
+
+	ret = rte_hash_lookup_data(ds_seq_key_with_teid,
+				&teid_key, (void **)&tmp);
+	if(ret < 0) {
+		ret = rte_hash_add_key_data(ds_seq_key_with_teid,
+						&teid_key, teid_value);
+		if (ret) {	
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to add TEID "
+				"entry for key = %s"
+				"\n\tError= %s\n", LOG_VALUE, teid_key.teid_key,
+				rte_strerror(abs(ret)));
+			return -1;
+		}
+	} else {
+		memcpy(tmp, &teid_value, sizeof(struct teid_value_t));
+	}
+
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT":TEID entry added for "
+		"key :%s, TEID : %u\n",
+		LOG_VALUE, teid_key.teid_key, teid_value->teid);
+	return 0;
+}
+
+teid_value_t *get_teid_for_seq_number(const teid_key_t teid_key)
+{
+	int ret = 0;
+	teid_value_t *teid_value = NULL;
+
+	/* lookup the entry based on the sequence number */
+	ret = rte_hash_lookup_data(ds_seq_key_with_teid,
+				&teid_key, (void **)&teid_value);
+	if ( ret < 0) {
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to get teid value "
+			"for key : %s\n", LOG_VALUE, teid_key.teid_key);
+		return NULL;
+	}
+	//memcpy(teid_t, teid, sizeof(uint32_t));
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Found entry for Key:%s, TEID:%u\n",
+			LOG_VALUE, teid_key.teid_key, teid_value->teid);
+
+	return teid_value;
+}
+
+int8_t
+delete_teid_entry_for_seq(const teid_key_t teid_key)
+{
+	int ret = 0;
+	struct teid_value_t *teid_value = NULL;
+
+	ret = rte_hash_lookup_data(ds_seq_key_with_teid,
+				&teid_key, (void **)&teid_value);
+	if(ret >= 0) {
+
+		ret = rte_hash_del_key(ds_seq_key_with_teid, &teid_key);
+		if (ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to "
+				"delete TEID entry for key = %s\n\tError= %s\n", LOG_VALUE,
+				teid_key.teid_key, rte_strerror(abs(ret)));
+			return -1;
+		}
+	}
+
+	/* Free data from hash */
+	if (teid_value != NULL) {
+		rte_free(teid_value);
+		teid_value = NULL;
+	}
+
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"TEID entry deleted for "
+		"teid key :%s\n", LOG_VALUE, teid_key.teid_key);
+	return 0;
 }
 
 /**
@@ -241,135 +321,30 @@ del_rule_name_entry(const rule_name_key_t rule_key)
 	/* Check Rule Name entry is present or Not */
 	ret = rte_hash_lookup_data(rule_name_bearer_id_map_hash,
 					&rule_key, (void **)bearer);
-	if (ret) {
+	if (ret >= 0) {
 		/* Rule Name Entry is present. Delete Rule Name Entry */
 		ret = rte_hash_del_key(rule_name_bearer_id_map_hash, &rule_key);
 		if ( ret < 0) {
-			clLog(clSystemLog, eCLSeverityCritical, FORMAT"Entry not found for Rule_Name:%s...\n",
-						ERR_MSG, rule_key.rule_name);
+			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Entry not found for Rule_Name:%s...\n",
+						LOG_VALUE, rule_key.rule_name);
 			return -1;
 		}
-		clLog(clSystemLog, eCLSeverityDebug, FORMAT"Rule_Name:%s is found \n",
-				ERR_MSG, rule_key.rule_name);
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Rule_Name:%s is found \n",
+				LOG_VALUE, rule_key.rule_name);
 	} else {
-		clLog(clSystemLog, eCLSeverityDebug, FORMAT"Rule_Name:%s is not found \n",
-				ERR_MSG, rule_key.rule_name);
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Rule_Name:%s is not "
+			"found \n", LOG_VALUE, rule_key.rule_name);
 	}
 
 	/* Free data from hash */
 	if (bearer != NULL) {
-		rte_free(bearer);
+		free(bearer);
 		bearer = NULL;
 	}
 
 	return 0;
 }
 
-/**
- * Add context entry in pfcp context hash table.
- *
- * @param sess_id
- * key.
- * @param pfcp_cntxt cntxt
- * return 0 or 1.
- *
- */
-uint8_t
-add_pfcp_cntxt_entry(uint64_t sess_id, struct pfcp_cntxt *cntxt)
-{
-	int ret = 0;
-	struct pfcp_cntxt *tmp = NULL;
-
-	/* Lookup for pfcp context entry. */
-	ret = rte_hash_lookup_data(pfcp_cntxt_hash,
-				&sess_id, (void **)&tmp);
-
-	if ( ret < 0) {
-		/* pfcp context Entry not present. Add pfcp context Entry */
-		ret = rte_hash_add_key_data(pfcp_cntxt_hash,
-						&sess_id, cntxt);
-		if (ret) {
-			clLog(clSystemLog, eCLSeverityCritical, "%s:%d Failed to add entry for Sess_id = %lu"
-					"\n\tError= %s\n",
-					__func__, __LINE__, sess_id,
-					rte_strerror(abs(ret)));
-			return -1;
-		}
-	} else {
-		memcpy(tmp, cntxt, sizeof(struct pfcp_cntxt));
-	}
-
-	clLog(clSystemLog, eCLSeverityDebug, "%s: PFCP context entry add for Sess_Id:%lu\n",
-			__func__, sess_id);
-	return 0;
-}
-
-/**
- * Get PFCP Context entry from pfcp context table.
- *
- * @param SESS ID
- * key.
- * return pfcp_cntxt cntxt or NULL
- *
- */
-
-struct pfcp_cntxt *
-get_pfcp_cntxt_entry(uint64_t sess_id)
-{
-	int ret = 0;
-	struct pfcp_cntxt *cntxt = NULL;
-
-	ret = rte_hash_lookup_data(pfcp_cntxt_hash,
-				&sess_id, (void **)&cntxt);
-
-	if ( ret < 0) {
-		clLog(clSystemLog, eCLSeverityCritical, "%s:%d Entry not found for Sess_Id:%lu...\n",
-				__func__, __LINE__, sess_id);
-		return NULL;
-	}
-
-	clLog(clSystemLog, eCLSeverityDebug, "%s: Sess_Id:%lu\n",
-			__func__, sess_id);
-	return cntxt;
-
-}
-
-/**
- * Delete PFCP context entry from PFCP Context hash table.
- *
- * @param SESS ID
- * key.
- * return 0 or 1.
- *
- */
-uint8_t
-del_pfcp_cntxt_entry(uint64_t sess_id)
-{
-	int ret = 0;
-	struct pfcp_cntxt *cntxt = NULL;
-
-	/* Check pfcp context entry is present or Not */
-	ret = rte_hash_lookup_data(pfcp_cntxt_hash,
-					&sess_id, (void **)&cntxt);
-	if (ret) {
-		/* pfcp context Entry is present. Delete Session Entry */
-		ret = rte_hash_del_key(pfcp_cntxt_hash, &sess_id);
-
-		if ( ret < 0) {
-			clLog(clSystemLog, eCLSeverityCritical, "%s:%d Entry not found for Sess_Id:%lu...\n",
-						__func__, __LINE__, sess_id);
-			return -1;
-		}
-	}
-
-	/* Free data from hash */
-	rte_free(cntxt);
-
-	clLog(clSystemLog, eCLSeverityDebug, "%s: Sess_Id:%lu\n",
-			__func__, sess_id);
-
-	return 0;
-}
 
 /**
  * Add PDR entry in PDR hash table.
@@ -395,18 +370,16 @@ add_pdr_entry(uint16_t rule_id, pdr_t *cntxt)
 		ret = rte_hash_add_key_data(pdr_entry_hash,
 						&rule_id, cntxt);
 		if (ret) {
-			clLog(clSystemLog, eCLSeverityCritical, "%s:%d Failed to add entry for PDR_ID = %u"
-					"\n\tError= %s\n",
-					__func__, __LINE__, rule_id,
-					rte_strerror(abs(ret)));
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to add entry for PDR_ID = %u"
+				"\n\tError= %s\n", LOG_VALUE, rule_id, rte_strerror(abs(ret)));
 			return -1;
 		}
 	} else {
 		memcpy(tmp, cntxt, sizeof(struct pfcp_cntxt));
 	}
 
-	clLog(clSystemLog, eCLSeverityDebug, "%s: PDR entry add for PDR_ID:%u\n",
-			__func__, rule_id);
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT": PDR entry added for PDR_ID:%u\n",
+		LOG_VALUE, rule_id);
 	return 0;
 }
 
@@ -427,13 +400,13 @@ pdr_t *get_pdr_entry(uint16_t rule_id)
 				&rule_id, (void **)&cntxt);
 
 	if ( ret < 0) {
-		clLog(clSystemLog, eCLSeverityCritical, "%s:%d Entry not found for PDR_ID:%u...\n",
-				__func__, __LINE__, rule_id);
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Entry not found for PDR_ID:%u...\n",
+			LOG_VALUE, rule_id);
 		return NULL;
 	}
 
-	clLog(clSystemLog, eCLSeverityDebug, "%s: PDR_ID:%u\n",
-			__func__, rule_id);
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT": PDR_ID:%u\n",
+		LOG_VALUE, rule_id);
 	return cntxt;
 
 }
@@ -449,9 +422,9 @@ update_pdr_teid(eps_bearer *bearer, uint32_t teid, uint32_t ip, uint8_t iface){
 	for(uint8_t itr = 0; itr < bearer->pdr_count ; itr++) {
 		if(bearer->pdrs[itr]->pdi.src_intfc.interface_value == iface){
 			bearer->pdrs[itr]->pdi.local_fteid.teid = teid;
-			bearer->pdrs[itr]->pdi.local_fteid.ipv4_address = htonl(ip);
-			clLog(clSystemLog, eCLSeverityDebug, "%s: Updated pdr entry Successfully for PDR_ID:%u\n",
-					__func__, bearer->pdrs[itr]->rule_id);
+			bearer->pdrs[itr]->pdi.local_fteid.ipv4_address = ip;
+			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT" Updated pdr entry Successfully for PDR_ID:%u\n",
+				LOG_VALUE, bearer->pdrs[itr]->rule_id);
 			ret = 0;
 			break;
 		}
@@ -476,23 +449,24 @@ del_pdr_entry(uint16_t rule_id)
 	/* Check PDR entry is present or Not */
 	ret = rte_hash_lookup_data(pdr_entry_hash,
 					&rule_id, (void **)cntxt);
-	if (ret) {
+	if (ret >= 0) {
 		/* PDR Entry is present. Delete PDR Entry */
 		ret = rte_hash_del_key(pdr_entry_hash, &rule_id);
 
 		if ( ret < 0) {
-			clLog(clSystemLog, eCLSeverityCritical, "%s:%d Entry not found for PDR_ID:%u...\n",
-						__func__, __LINE__, rule_id);
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Entry not found "
+				"for PDR_ID:%u\n", LOG_VALUE, rule_id);
 			return -1;
 		}
 	}
 
 	/* Free data from hash */
-	rte_free(cntxt);
-	cntxt = NULL;
+	if (cntxt != NULL) {
+		rte_free(cntxt);
+		cntxt = NULL;
+	}
 
-	clLog(clSystemLog, eCLSeverityDebug, "%s: PDR_ID:%u\n",
-			__func__, rule_id);
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"PDR_ID:%u\n",LOG_VALUE, rule_id);
 
 	return 0;
 }
@@ -521,18 +495,15 @@ add_qer_entry(uint32_t qer_id, qer_t *cntxt)
 		ret = rte_hash_add_key_data(qer_entry_hash,
 						&qer_id, cntxt);
 		if (ret) {
-			clLog(clSystemLog, eCLSeverityCritical, "%s:%d Failed to add QER entry for QER_ID = %u"
-					"\n\tError= %s\n",
-					__func__, __LINE__, qer_id,
-					rte_strerror(abs(ret)));
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to add QER entry for QER_ID = %u"
+				"\n\tError= %s\n", LOG_VALUE, qer_id, rte_strerror(abs(ret)));
 			return -1;
 		}
 	} else {
 		memcpy(tmp, cntxt, sizeof(qer_t));
 	}
 
-	clLog(clSystemLog, eCLSeverityDebug, "%s: QER entry add for QER_ID:%u\n",
-			__func__, qer_id);
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT" QER entry add for QER_ID:%u\n", LOG_VALUE, qer_id);
 	return 0;
 }
 
@@ -554,13 +525,12 @@ qer_t *get_qer_entry(uint32_t qer_id)
 				&qer_id, (void **)&cntxt);
 
 	if ( ret < 0) {
-		clLog(clSystemLog, eCLSeverityCritical, "%s:%d Entry not found for QER_ID:%u...\n",
-				__func__, __LINE__, qer_id);
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Entry not found for QER_ID:%u "
+			"while extrating QER\n", LOG_VALUE, qer_id);
 		return NULL;
 	}
 
-	clLog(clSystemLog, eCLSeverityDebug, "%s: QER_ID:%u\n",
-			__func__, qer_id);
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT": QER_ID:%u\n", LOG_VALUE, qer_id);
 	return cntxt;
 
 }
@@ -582,128 +552,24 @@ del_qer_entry(uint32_t qer_id)
 	/* Check QER entry is present or Not */
 	ret = rte_hash_lookup_data(qer_entry_hash,
 					&qer_id, (void **)cntxt);
-	if (ret) {
+	if (ret >= 0) {
 		/* QER Entry is present. Delete Session Entry */
 		ret = rte_hash_del_key(qer_entry_hash, &qer_id);
 
 		if ( ret < 0) {
-			clLog(clSystemLog, eCLSeverityCritical, "%s:%d Entry not found for QER_ID:%u...\n",
-						__func__, __LINE__, qer_id);
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Entry not found "
+				"for QER_ID:%u while deleting QER\n", LOG_VALUE, qer_id);
 			return -1;
 		}
 	}
 
 	/* Free data from hash */
-	if (cntxt != NULL)
+	if (cntxt != NULL) {
 		rte_free(cntxt);
-
-	clLog(clSystemLog, eCLSeverityDebug, "%s: QER_ID:%u\n",
-			__func__, qer_id);
-
-	return 0;
-}
-
-/**
- * Add URR entry in URR hash table.
- *
- * @param urr_id
- * key.
- * @param urr_t context
- * return 0 or 1.
- *
- */
-uint8_t
-add_urr_entry(uint32_t urr_id, urr_t *cntxt)
-{
-	int ret = 0;
-	urr_t *tmp = NULL;
-
-	/* Lookup for URR entry. */
-	ret = rte_hash_lookup_data(urr_entry_hash,
-				&urr_id, (void **)&tmp);
-
-	if ( ret < 0) {
-		/* URR Entry not present. Add URR Entry in table */
-		ret = rte_hash_add_key_data(urr_entry_hash,
-						&urr_id, cntxt);
-		if (ret) {
-			clLog(clSystemLog, eCLSeverityCritical, "%s:%d Failed to add URR entry for URR_ID = %u"
-					"\n\tError= %s\n",
-					__func__, __LINE__, urr_id,
-					rte_strerror(abs(ret)));
-			return -1;
-		}
-	} else {
-		memcpy(tmp, cntxt, sizeof(urr_t));
+		cntxt = NULL;
 	}
 
-	clLog(clSystemLog, eCLSeverityDebug, "%s: URR entry add for URR_ID:%u\n",
-			__func__, urr_id);
-	return 0;
-}
-
-/**
- * Get URR entry from urr hash table.
- *
- * @param URR ID
- * key.
- * return urr_t cntxt or NULL
- *
- */
-urr_t *get_urr_entry(uint32_t urr_id)
-{
-	int ret = 0;
-	urr_t *cntxt = NULL;
-
-	/* Retireve URR entry */
-	ret = rte_hash_lookup_data(urr_entry_hash,
-				&urr_id, (void **)&cntxt);
-
-	if ( ret < 0) {
-		clLog(clSystemLog, eCLSeverityCritical, "%s:%d Entry not found for URR_ID:%u...\n",
-				__func__, __LINE__, urr_id);
-		return NULL;
-	}
-
-	clLog(clSystemLog, eCLSeverityDebug, "%s: URR_ID:%u\n",
-			__func__, urr_id);
-	return cntxt;
-
-}
-
-/**
- * Delete URR entry from URR hash table.
- *
- * @param URR ID
- * key.
- * return 0 or 1.
- *
- */
-uint8_t
-del_urr_entry(uint32_t urr_id)
-{
-	int ret = 0;
-	urr_t *cntxt = NULL;
-
-	/* Check URR entry is present or Not */
-	ret = rte_hash_lookup_data(urr_entry_hash,
-					&urr_id, (void **)&cntxt);
-	if (ret) {
-		/* URR Entry is present. Delete Session Entry */
-		ret = rte_hash_del_key(urr_entry_hash, &urr_id);
-
-		if ( ret < 0) {
-			clLog(clSystemLog, eCLSeverityCritical, "%s:%d Entry not found for URR_ID:%u...\n",
-						__func__, __LINE__, urr_id);
-			return -1;
-		}
-	}
-
-	/* Free data from hash */
-	rte_free(cntxt);
-
-	clLog(clSystemLog, eCLSeverityDebug, "%s: URR_ID:%u\n",
-			__func__, urr_id);
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"QER_ID:%u\n", LOG_VALUE, qer_id);
 
 	return 0;
 }
@@ -748,6 +614,19 @@ generate_far_id(void)
 }
 
 /**
+ * NK:Generate the URR ID
+ */
+uint32_t
+generate_urr_id(void)
+{
+	uint32_t id = 0;
+
+	id = urr_base_rule_id + (++urr_rule_id_offset);
+
+	return id;
+}
+
+/**
  * Generate the QER ID
  */
 uint32_t
@@ -768,6 +647,20 @@ generate_rar_seq(void)
 	uint32_t id = 0;
 
 	id = rar_base_rule_id + (++rar_rule_id_offset);
+
+	return id;
+}
+
+/**
+ * Generates sequence numbers for sgwc generated
+ * gtpv2c messages for mme
+ */
+uint32_t
+generate_seq_number(void)
+{
+	uint32_t id = 0;
+
+	id = base_seq_number + (++seq_number_offset);
 
 	return id;
 }
@@ -837,8 +730,8 @@ gen_sess_id_string(char *str_buf, char *timestamp , uint32_t value)
 
 	if (timestamp == NULL)
 	{
-		clLog(clSystemLog, eCLSeverityCritical, "%s:%d Time stamp is NULL \n",
-				__func__, __LINE__);
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Time stamp is NULL "
+			"while generating session ID\n", LOG_VALUE);
 		return -1;
 	}
 
@@ -847,12 +740,12 @@ gen_sess_id_string(char *str_buf, char *timestamp , uint32_t value)
 
 	if(buf[0] == 0)
 	{
-		clLog(clSystemLog, eCLSeverityCritical, "%s:%d Failed coversion of integer to string, len:%d \n",
-			__func__, __LINE__, len);
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed in coversion of "
+			"integer to string, len:%d \n", LOG_VALUE, len);
 		return -1;
 	}
 
-	sprintf(str_buf, "%s%s", timestamp, buf);
+	snprintf(str_buf, MAX_LEN,"%s%s", timestamp, buf);
 	return 0;
 }
 
@@ -879,8 +772,7 @@ retrieve_call_id(char *str, uint32_t *call_id)
 
 	if(str == NULL)
 	{
-		clLog(clSystemLog, eCLSeverityCritical, "%s:%d String is NULL\n",
-				__func__, __LINE__);
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"String is NULL \n", LOG_VALUE);
 		return -1;
 	}
 
@@ -893,8 +785,7 @@ retrieve_call_id(char *str, uint32_t *call_id)
 
 	*call_id = atoi(buf);
 	if (*call_id == 0) {
-		clLog(clSystemLog, eCLSeverityCritical, "%s:%d Call ID not found\n",
-				__func__, __LINE__);
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Call ID not found\n", LOG_VALUE);
 		return -1;
 	}
 	return 0;
@@ -912,8 +803,8 @@ gen_sess_id_for_ccr(char *sess_id, uint32_t call_id)
 
 	if((gen_sess_id_string(sess_id, timestamp, call_id)) < 0)
 	{
-		clLog(clSystemLog, eCLSeverityCritical, "%s:%d Failed to generate session id for CCR\n",
-				__func__, __LINE__);
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to generate "
+			"session id for CCR\n", LOG_VALUE);
 		return -1;
 	}
 	return 0;
@@ -999,7 +890,7 @@ init_pfcp_tables(void)
 {
 
 	struct rte_hash_parameters
-		pfcp_hash_params[2] = {
+		pfcp_hash_params[NUM_INIT_TABLES] = {
 		{	.name = "PFCP_CNTXT_HASH",
 			.entries = PFCP_CNTXT_HASH_SIZE,
 			.key_len = sizeof(uint64_t),
@@ -1008,8 +899,15 @@ init_pfcp_tables(void)
 			.socket_id = rte_socket_id()
 		},
 		{	.name = "RULE_NAME_BEARER_ID_HASH",
-			.entries = MAX_RULES_ENTRIES_HASH_SIZE,
+			.entries = MAX_PDN_HASH_SIZE,
 			.key_len = sizeof(rule_name_key_t),
+			.hash_func = rte_hash_crc,
+			.hash_func_init_val = 0,
+			.socket_id = rte_socket_id()
+		},
+		{	.name = "DS_SEQ_TEID_HASH",
+			.entries = MAX_HASH_SIZE,
+			.key_len = sizeof(uint32_t),
 			.hash_func = rte_hash_crc,
 			.hash_func_init_val = 0,
 			.socket_id = rte_socket_id()
@@ -1027,6 +925,13 @@ init_pfcp_tables(void)
 	if (!rule_name_bearer_id_map_hash) {
 		rte_panic("%s: hash create failed: %s (%u)\n",
 				pfcp_hash_params[1].name,
+		    rte_strerror(rte_errno), rte_errno);
+	}
+
+	ds_seq_key_with_teid = rte_hash_create(&pfcp_hash_params[2]);
+	if (!ds_seq_key_with_teid) {
+		rte_panic("%s: hash create failed: %s (%u)\n",
+				pfcp_hash_params[2].name,
 		    rte_strerror(rte_errno), rte_errno);
 	}
 

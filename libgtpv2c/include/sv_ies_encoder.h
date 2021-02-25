@@ -15,6 +15,11 @@
 
 #ifndef __SV_IES_ENCODE_H__
 #define __SV_IES_ENCODE_H__
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "sv_ies.h"
 
 /**
@@ -26,7 +31,11 @@
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_stn_sr_ie(gtp_stn_sr_ie_t *value,
+int encode_gtp_stn_sr_ie(const gtp_stn_sr_ie_t *value,
     uint8_t *buf);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /*__GTP_IES_ENCODE_H__*/

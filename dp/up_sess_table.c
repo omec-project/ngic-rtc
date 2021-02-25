@@ -25,6 +25,8 @@ extern struct rte_hash *pdr_by_id_hash;
 extern struct rte_hash *far_by_id_hash;
 extern struct rte_hash *qer_by_id_hash;
 extern struct rte_hash *urr_by_id_hash;
+extern struct rte_hash *timer_by_id_hash;
+extern struct rte_hash *qer_rule_hash;
 
 
 /* Retrive the Session information based on teid */

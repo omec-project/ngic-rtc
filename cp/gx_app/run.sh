@@ -27,6 +27,11 @@ USAGE=$"Usage: run.sh"
 if [ -z "$1" ]; then
 	$GX_APP_PATH/$GX_APP
 
+elif [ "$1" == "core" ]; then
+	/bin/rm -f ./core
+	ulimit -c unlimited
+	$GX_APP_PATH/$GX_APP
+
 else
 	echo "$USAGE"
 fi

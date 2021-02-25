@@ -79,7 +79,8 @@ void epc_spns_dns_init(void)
 						RTE_MBUF_DEFAULT_BUF_SIZE,
 						rte_socket_id());
 	if (message_pool == NULL)
-		rte_exit(EXIT_FAILURE, "Create msg mempool failed\n");
+		rte_exit(EXIT_FAILURE,
+				LOG_FORMAT"Create msg mempool failed\n", LOG_VALUE);
 }
 
 int push_dns_ring(struct rte_mbuf *pkts)
@@ -87,29 +88,30 @@ int push_dns_ring(struct rte_mbuf *pkts)
 	void *msg;
 	int ret;
 
-	if (epc_mct_spns_dns_rx == NULL)
+	if (epc_mct_spns_dns_rx == NULL) {
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"rte ring value is NULL\n", LOG_VALUE);
 		return -1;
+	}
 
 	msg = (void *)rte_pktmbuf_clone(pkts, message_pool);
 	if (msg == NULL) {
-		clLog(clSystemLog, eCLSeverityDebug, "Error to get message buffer\n");
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Error to get message buffer\n", LOG_VALUE);
 		return -1;
 	}
 
 	ret = rte_ring_mp_enqueue(epc_mct_spns_dns_rx, (void *)msg);
 	if (ret != 0) {
-		clLog(clSystemLog, eCLSeverityDebug, "DNS ring: error enqueuing\n");
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"DNS ring: error enqueuing\n", LOG_VALUE);
 		rte_pktmbuf_free(msg);
 		return -1;
 	}
 	return 0;
 }
 
-#ifdef NGCORE_SHRINK
 void scan_dns_ring(void)
-#else
-void scan_dns_ring(__rte_unused void *args)
-#endif
 {
 	void *msg;
 	int ret;
@@ -143,8 +145,9 @@ void scan_dns_ring(__rte_unused void *args)
 		for (i = 0; i < addr4_cnt; ++i) {
 			//struct msg_adc msg = { .ipv4 = addr4[i].s_addr, .rule_id = match_id };
 
-			clLog(clSystemLog, eCLSeverityDebug, "adding a rule with IP: %s, rule id %d\n",
-					inet_ntoa(addr4[i]), match_id);
+			clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"Adding a rule with IP: %s, rule id: %d\n",
+				LOG_VALUE, inet_ntoa(addr4[i]), match_id);
 			//adc_dns_entry_add(&msg);
 		}
 		rte_pktmbuf_free(msg);

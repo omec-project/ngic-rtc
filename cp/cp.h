@@ -26,6 +26,7 @@
 
 #include "main.h"
 #include "ue.h"
+#include "teid.h"
 
 #ifdef USE_REST
 #include "../restoration/restoration_timer.h"
@@ -34,6 +35,8 @@
 #if defined(CP_BUILD)
 #include "../libgtpv2c/include/gtp_messages.h"
 #endif
+
+#define SLEEP_TIME (100)
 
 #ifndef PERF_TEST
 /** Temp. work around for support debug log level into DP, DPDK version 16.11.4 */
@@ -64,7 +67,6 @@
 #define ACK       1
 #define RESPONSE  2
 
-
 typedef long long int _timer_t;
 
 #define GET_CURRENT_TS(now)                                             \
@@ -77,12 +79,23 @@ typedef long long int _timer_t;
 
 #endif /* SYNC_STATS */
 
-#define MAX_UPF 10
+#define MAX_UPF					10
 
-#define DNSCACHE_CONCURRENT 2
-#define DNSCACHE_PERCENTAGE 70
-#define DNSCACHE_INTERVAL 4000
-#define DNS_PORT 53
+#define S11_INTFC				0
+#define S5S8_INTFC				1
+
+#define DNSCACHE_CONCURRENT		2
+#define DNSCACHE_PERCENTAGE		70
+#define DNSCACHE_INTERVAL		4000
+#define DNS_PORT				53
+
+#define PIGGYBACKED     (1)
+#define NOT_PIGGYBACKED (0)
+
+#define CAUSE_SOURCE_SET_TO_1  (1)
+#define CAUSE_SOURCE_SET_TO_0  (0)
+
+#define NUM_RESERVED_EBI_INDEX 5
 
 #define __file__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 
@@ -116,7 +129,18 @@ enum cp_config {
 	PGWC = 02,
 	SAEGWC = 03,
 };
-extern enum cp_config spgw_cfg;
+
+enum charging_characteristics {
+	HOME = 03,
+	VISITING = 04,
+	ROAMING = 05,
+};
+
+enum cdr_config_values {
+	CDR_OFF = 00,
+	CDR_ON = 01,
+	SGW_CC_CHECK = 02,
+};
 
 #ifdef SYNC_STATS
 /**
@@ -175,6 +199,8 @@ extern int s5s8_pgwc_fd;
 extern int pfcp_sgwc_fd ;
 extern struct cp_params cp_params;
 
+extern teid_info *upf_teid_info_head;
+
 #if defined (SYNC_STATS) || defined (SDN_ODL_BUILD)
 extern uint64_t op_id;
 #endif /* SDN_ODL_BUILD */
@@ -200,59 +226,59 @@ initialize_tables_on_dp(void);
 #ifdef CP_BUILD
 
 /**
- * @brief  : Set values in create bearer request
- * @param  : gtpv2c_tx, transmission buffer to contain 'create bearer request' message
- * @param  : sequence, sequence number as described by clause 7.6 3gpp 29.274
- * @param  : context, UE Context data structure pertaining to the bearer to be created
- * @param  : bearer, EPS Bearer data structure to be created
- * @param  : lbi, 'Linked Bearer Identifier': indicates the default bearer identifier
- *           associated to the PDN connection to which the dedicated bearer is to be
- *           created
- * @param  : pti, 'Procedure Transaction Identifier' according to clause 8.35 3gpp 29.274,
- *           as specified by table 7.2.3-1 3gpp 29.274, 'shall be the same as the one
- *           used in the corresponding bearer resource command'
- * @param  : eps_bearer_lvl_tft
- * @param  : tft_len
- * @return : Returns nothing
+ * @brief  : sets delete bearer request
+ * @param  : gtpv2c_tx, transmision buffer
+ * @param  : sequence, sequence number
+ * @param  : pdn, pointer of pdn_connection structure
+ * @param  : linked_eps_bearer_id, default bearer id
+ * @param  : pti,Proc Trans Identifier
+ * @param  : ded_eps_bearer_ids, array of dedicated bearers
+ * @param  : ded_bearer_counter, count of dedicated bearers
+ * @return : nothing
  */
-void
-set_create_bearer_request(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
-			  ue_context *context, eps_bearer *bearer,
-			  uint8_t lbi, uint8_t pti, uint8_t eps_bearer_lvl_tft[],
-			  uint8_t tft_len);
-
-/**
- * @brief  : Set values in create bearer response
- * @param  : gtpv2c_tx, transmission buffer to contain 'create bearer response' message
- * @param  : sequence, sequence number as described by clause 7.6 3gpp 29.274
- * @param  : context, UE Context data structure pertaining to the bearer to be created
- * @param  : bearer, EPS Bearer data structure to be created
- * @param  : lbi, 'Linked Bearer Identifier': indicates the default bearer identifier
- *           associated to the PDN connection to which the dedicated bearer is to be
- *           created
- * @param  : pti, 'Procedure Transaction Identifier' according to clause 8.35 3gpp 29.274,
- *           as specified by table 7.2.3-1 3gpp 29.274, 'shall be the same as the one
- *           used in the corresponding bearer resource command'
- * @return : Returns nothing
- */
-void
-set_create_bearer_response(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
-			  ue_context *context, eps_bearer *bearer,
-			  uint8_t lbi, uint8_t pti);
-
 void
 set_delete_bearer_request(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
-	ue_context *context, uint8_t linked_eps_bearer_id,
+	pdn_connection *pdn, uint8_t linked_eps_bearer_id, uint8_t pti,
 	uint8_t ded_eps_bearer_ids[], uint8_t ded_bearer_counter);
 
+/**
+ * @brief  : sets delete bearer response
+ * @param  : gtpv2c_tx, transmision buffer
+ * @param  : sequence, sequence number
+ * @param  : linked_eps_bearer_id, default bearer id
+ * @param  : ded_eps_bearer_ids, array of dedicated bearers
+ * @param  : ded_bearer_counter, count of dedicated bearers
+ * @param  : s5s8_pgw_gtpc_teid, teid value
+ * @return : nothing
+ */
 void
 set_delete_bearer_response(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
 	uint8_t linked_eps_bearer_id, uint8_t ded_eps_bearer_ids[],
 	uint8_t ded_bearer_counter, uint32_t s5s8_pgw_gtpc_teid);
 
 
+/**
+ * @brief  : sets delete bearer command
+ * @param  : del_bearer_cmd, pointer of del_bearer_cmd_t structure
+ * @param  : pdn, pointer of pdn_connection structure
+ * @param  : gtpv2c_tx, transmission buffer
+ * @return : nothing
+ */
 void
 set_delete_bearer_command(del_bearer_cmd_t *del_bearer_cmd, pdn_connection *pdn, gtpv2c_header_t *gtpv2c_tx);
+
+/**
+ * @brief  : Fill bearer resource command to forward to PGWC
+ * @param  : bearer_rsrc_cmd, decoded message receive on s11
+ * @param  : pdn, pdn connection of bearer
+ * @param  : gtpv2c_tx,transmission buffer
+ * @return : nothing
+ *
+ */
+void
+set_bearer_resource_command(bearer_rsrc_cmd_t *bearer_rsrc_cmd, pdn_connection *pdn,
+								gtpv2c_header_t *gtpv2c_tx);
+
 /**
  * @brief  : To Downlink data notification ack of user.
  * @param  : dp_id, table identifier.
@@ -344,6 +370,8 @@ close_stats(void);
 #define SGWU_PFCP_PORT   8805
 #define PGWU_PFCP_PORT   8805
 #define SAEGWU_PFCP_PORT   8805
+#define DDF_INTFC_LEN			64
+#define REDIS_CERT_PATH_LEN  256
 
 /**
  * @brief  : Maintains dns cache information
@@ -378,17 +406,35 @@ typedef struct pfcp_config_t {
 	uint16_t s11_mme_port;
 	struct in_addr s11_mme_ip;
 
+	/* DDF2 Interface Name */
+	char ddf2_intfc[DDF_INTFC_LEN];
+	struct in_addr dadmf_local_addr;
+
 	/* Control-Plane IPs and Ports Params. */
 	uint16_t s11_port;
 	uint16_t s5s8_port;
 	uint16_t pfcp_port;
+	uint16_t dadmf_port;
+	uint16_t ddf2_port;
 	struct in_addr s11_ip;
 	struct in_addr s5s8_ip;
 	struct in_addr pfcp_ip;
+	struct in_addr dadmf_ip;
+	struct in_addr ddf2_ip;
 
 	/* User-Plane IPs and Ports Params. */
 	uint16_t upf_pfcp_port;
 	struct in_addr upf_pfcp_ip;
+	uint32_t upf_s5s8_ip;
+	uint32_t upf_s5s8_mask;
+	uint32_t upf_s5s8_net;
+	uint32_t upf_s5s8_bcast_addr;
+
+	/*Redis server config*/
+	uint16_t redis_port;
+	struct in_addr redis_ip;
+	struct in_addr cp_redis_ip;
+	char redis_cert_path[REDIS_CERT_PATH_LEN];
 
 	/* RESTORATION PARAMETERS */
 	uint8_t transmit_cnt;
@@ -399,12 +445,20 @@ typedef struct pfcp_config_t {
 	uint8_t request_tries;
 	int request_timeout;    /* Request time out in milisecond */
 
-	/* logger parameter */
-	uint8_t cp_logger;
+	uint8_t cp_logger;      /* logger parameter */
+
+	uint8_t use_dns;        /*enable or disable dns query*/
+	uint8_t use_gx;        /*enable or disable gx interface*/
 
 	/* APN */
 	uint32_t num_apn;
 	/* apn apn_list[MAX_NUM_APN]; */
+
+	/*Default URR configuration*/
+	int trigger_type;
+	int uplink_volume_th;
+	int downlink_volume_th;
+	int time_th;
 
 	dns_cache_params_t dns_cache;
 	dns_config_t ops_dns;
@@ -413,6 +467,14 @@ typedef struct pfcp_config_t {
 	/* IP_POOL_CONFIG Params */
 	struct in_addr ip_pool_ip;
 	struct in_addr ip_pool_mask;
+
+	/* CP CDR generation Parameter */
+	uint8_t generate_cdr;
+	uint8_t generate_sgw_cdr;
+	uint16_t sgw_cc;
+
+	/* ADD_DEFAULT_RULE */
+	uint8_t add_default_rule;
 
 } pfcp_config_t;
 
@@ -433,6 +495,15 @@ init_pfcp(void);
  */
 void
 init_cp(void);
+
+/**
+ * @brief  : Initializes redis node to send generated CDR
+ * @param  : void
+ * @return : 0 on success, -1 on failure
+ */
+int
+init_redis(void);
+
 
 /**
  * @brief  : Initialize dp rule table
@@ -460,57 +531,219 @@ init_stats_hash(void);
 void received_create_session_request(void);
 
 #ifdef USE_CSID
+/**
+ * @brief  : Function to peer node address and generate unique csid identifier
+ * @param  : pdn_connection, pdn connection info
+ * @param  : eps_bearer, bearer info
+ * @return : 0: Success, -1: otherwise
+ */
 int
 fill_peer_node_info(pdn_connection *pdn, eps_bearer *bearer);
 
-/* Fill the FQ-CSID values in session est request */
+/**
+ * @brief  : Function to Fill the FQ-CSID values in session est request
+ * @param  : pfcp_sess_estab_req_t, Session Est Req obj
+ * @param  : ue_context, UE info
+ * @return : 0: Success, -1: otherwise
+ */
 int8_t
 fill_fqcsid_sess_est_req(pfcp_sess_estab_req_t *pfcp_sess_est_req, ue_context *context);
 
-/* Cleanup Session information by local csid*/
+/**
+ * @brief  : Function to Fill the FQ-CSID values in session modification request
+ * @param  : pfcp_sess_mod_req_t
+ * @param  : ue_context, UE info
+ * @return : 0: Success, -1: otherwise
+ */
 int8_t
-del_peer_node_sess(uint32_t node_addr, uint8_t iface);
+fill_fqcsid_sess_mod_req(pfcp_sess_mod_req_t *pfcp_sess_mod_req, ue_context *context);
 
-/* Cleanup Session information by local csid*/
+/**
+ * @brief  : Function to Cleanup Session information by local csid
+ * @param  : node_addr, peer node IP Address
+ * @param  : iface, interface info
+ * @param  : cp_mode, control-plane type
+ * @return : 0: Success, -1: otherwise
+ */
+int8_t
+del_peer_node_sess(uint32_t node_addr, uint8_t iface, uint8_t cp_mode);
+
+/**
+ * @brief  : Function to Cleanup Session information by local csid
+ * @param  : node_addr, peer node IP Address
+ * @param  : iface, interface info
+ * @return : 0: Success, -1: otherwise
+ */
 int8_t
 del_pfcp_peer_node_sess(uint32_t node_addr, uint8_t iface);
 
+/**
+ * @brief  : Function to fill fqcsid into gtpv2c messages
+ * @param  : fqcsid, gtpv2c fqcsid ie
+ * @param  : ie_instance, info of instance
+ * @param  : csids, csids info
+ * @return : Nothing
+ */
 void
 set_gtpc_fqcsid_t(gtp_fqcsid_ie_t *fqcsid,
 		enum ie_instance instance, fqcsid_t *csids);
-int
-csrsp_fill_peer_node_info(create_sess_req_t *csr,
-			pdn_connection *pdn, eps_bearer *bearer);
+
+/**
+ * @brief  : Function to fill PGW restart notification message
+ * @param  : gtpv2c_tx, message
+ * @param  : s11_sgw, SGW S11 interface IP Address
+ * @param  : s5s8_pgw, PGW S5S8 interface IP Address
+ * @param  : cp_mode, Control-plane type
+ * @return : 0: Success, -1: otherwise
+ */
 int8_t
 fill_pgw_restart_notification(gtpv2c_header_t *gtpv2c_tx,
-		uint32_t s11_sgw, uint32_t s5s8_pgw);
+		uint32_t s11_sgw, uint32_t s5s8_pgw, uint8_t cp_mode);
 
+/**
+ * @brief  : Function to link peer node csid with local csid
+ * @param  : fqcsid, peer node csid
+ * @param  : fqcsid_t, local csids
+ * @return : 0: Success, -1: otherwise
+ */
 int8_t
 update_peer_csid_link(fqcsid_t *fqcsid, fqcsid_t *fqcsid_t);
 
+/**
+ * @brief  : Function to process delete pdn connection set request
+ * @param  : del_pdn_conn_set_req_t, request info
+ * @param  : gtpv2c_header_t, gtpv2c buf for resp
+ * @param  : node_addr_t, peer node info
+ * @param  : intf, received message interface info
+ * @return : 0: Success, -1: otherwise
+ */
 int8_t
 process_del_pdn_conn_set_req_t(del_pdn_conn_set_req_t *del_pdn_req,
-		gtpv2c_header_t *gtpv2c_tx);
+		gtpv2c_header_t *gtpv2c_tx, node_addr_t *peer_dst_addr, uint8_t intfc);
 
+/**
+ * @brief  : Function to process delete pdn connection set response
+ * @param  : del_pdn_conn_set_rsp_t, response info
+ * @return : 0: Success, -1: otherwise
+ */
 int8_t
 process_del_pdn_conn_set_rsp_t(del_pdn_conn_set_rsp_t *del_pdn_rsp);
 
+/**
+ * @brief  : Function to process update pdn connection set request
+ * @param  : upd_pdn_conn_set_req_t, request info
+ * @return : 0: Success, -1: otherwise
+ */
 int8_t
 process_upd_pdn_conn_set_req_t(upd_pdn_conn_set_req_t *upd_pdn_req);
 
+/**
+ * @brief  : Function to process update pdn connection set response
+ * @param  : upd_pdn_conn_set_rsp_t, response info
+ * @return : 0: Success, -1: otherwise
+ */
 int8_t
 process_upd_pdn_conn_set_rsp_t(upd_pdn_conn_set_rsp_t *upd_pdn_rsp);
 
-/* Function */
+/**
+ * @brief  : Function to process pfcp session set deletion request
+ * @param  : pfcp_sess_set_del_req_t, request info
+ * @param  : gtpv2c_tx, fill request info to forward peer node
+ * @return : 0: Success, -1: otherwise
+ */
 int process_pfcp_sess_set_del_req_t(pfcp_sess_set_del_req_t *del_set_req,
 		gtpv2c_header_t *gtpv2c_tx);
 
-/* Function */
+/**
+ * @brief  : Function to process pfcp session set deletion response
+ * @param  : pfcp_sess_set_del_rsp_t, response info
+ * @return : 0: Success, -1: otherwise
+ */
 int process_pfcp_sess_set_del_rsp_t(pfcp_sess_set_del_rsp_t *del_set_rsp);
 
+/**
+ * @brief  : Function to fill the gtpc delete set pdn connection response
+ * @param  : gtpv2c_header_t, response buffer
+ * @param  : seq_t, sequence number
+ * @param  : casue_value
+ * @return : 0: Success, -1: otherwise
+ */
 int8_t
 fill_gtpc_del_set_pdn_conn_rsp(gtpv2c_header_t *gtpv2c_tx, uint8_t seq_t,
 		uint8_t casue_value);
+
+/**
+ * @brief  : Function to cleanup sessions based on the local csids
+ * @param  : local_csid
+ * @param  : ue_context, UE info
+ * @return : 0: Success, -1: otherwise
+ */
+int8_t
+cleanup_session_entries(uint16_t local_csid, ue_context *context);
+
+/*
+ * @brief  : Remove Temporary Local CSID linked with peer node CSID
+ * @param  : peer_fqcsid, structure to store peer node fqcsid info.
+ * @param  : tmp_csid, Temporary Local CSID.
+ * @param  : iface, Interface .
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+int
+remove_peer_temp_csid(fqcsid_t *peer_fqcsid, uint16_t tmp_csid, uint8_t iface);
+
+/*
+ * @brief  : Remove Session entry linked with Local CSID .
+ * @param  : seid, session id .
+ * @param  : peer_fqcsid, st1ructure to store peer node fqcsid info.
+ * @param  : context, Structure to store UE context,
+ * @return : Returns 0 in case of success ,-1 or cause value otherwise.
+ */
+int
+cleanup_csid_entry(uint64_t seid, fqcsid_t *peer_fqcsid, ue_context *context);
+
+/*
+ * @brief  : Update Peer node CSID.
+ * @param  : pfcp_sess_mod_rsp_t, structure to store sess. mod. req.
+ * @param  : context, Structure to store UE context,
+ * @return : Returns 0 in case of success ,-1 or cause value otherwise.
+ */
+int
+update_peer_node_csid(pfcp_sess_mod_rsp_t  *pfcp_sess_mod_rsp, ue_context *context);
 #endif /* USE_CSID */
 
+/* SAEGWC --> PGWC demotion scenario, Cleanup the SGW related data structures */
+/*
+ * @brief  : Cleanup SGW Session Info
+ * @param  : del_sess_req_t, TEID, Seq etc
+ * @param  : context, Structure to store UE context,
+ * @return : Returns 0 in case of success ,-1 or cause value otherwise.
+ */
+int8_t
+cleanup_sgw_context(del_sess_req_t *ds_req, ue_context *context);
+
+/* SAEGWC --> SGWC Promtion scenario, Cleanup the PGWC related data structures */
+/*
+ * @brief  : Cleanup PGW Session Info
+ * @param  : del_sess_req_t, TEID, Seq etc
+ * @param  : context, Structure to store UE context,
+ * @return : Returns 0 in case of success ,-1 or cause value otherwise.
+ */
+int8_t
+cleanup_pgw_context(del_sess_req_t *ds_req, ue_context *context);
+
+/*
+ * @brief  : Send the predefined rules SDF, MTR, ADC, and PCC on UP.
+ * @param  : upf IP address.
+ * @return : Returns 0 in case of success ,-1 or cause value otherwise.
+ */
+int8_t
+dump_predefined_rules_on_up(uint32_t upf_ip);
+
+/*
+ * @brief  : Convert Int value of charging characteristic to string
+ * @param  : cc_value, Int value of charging characteristic
+ * @return : Returns string value of charging characteristic.
+ */
+const char *
+get_cc_string(uint16_t cc_value);
 #endif

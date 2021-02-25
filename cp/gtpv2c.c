@@ -66,10 +66,10 @@ get_next_ie(gtpv2c_ie *gtpv2c_ie_ptr, gtpv2c_ie *limit)
 void
 set_gtpv2c_header(gtpv2c_header_t *gtpv2c_tx,
 				uint8_t teid_flag, uint8_t type,
-				uint32_t has_teid, uint32_t seq)
+				uint32_t has_teid, uint32_t seq, uint8_t is_piggybacked)
 {
 	gtpv2c_tx->gtpc.version = GTP_VERSION_GTPV2C;
-	gtpv2c_tx->gtpc.piggyback = 0;
+	gtpv2c_tx->gtpc.piggyback = is_piggybacked;
 	gtpv2c_tx->gtpc.message_type = type;
 	gtpv2c_tx->gtpc.spare = 0;
 	gtpv2c_tx->gtpc.teid_flag = teid_flag;
@@ -89,10 +89,10 @@ set_gtpv2c_header(gtpv2c_header_t *gtpv2c_tx,
 
 void
 set_gtpv2c_teid_header(gtpv2c_header_t *gtpv2c_tx, uint8_t type,
-	uint32_t teid, uint32_t seq)
+	uint32_t teid, uint32_t seq, uint8_t is_piggybacked)
 {
 	/* Default set teid_flag = 1 */
-	set_gtpv2c_header(gtpv2c_tx, 1, type, teid, seq);
+	set_gtpv2c_header(gtpv2c_tx, 1, type, teid, seq, is_piggybacked);
 }
 
 
@@ -101,7 +101,7 @@ set_gtpv2c_echo(gtpv2c_header_t *gtpv2c_tx,
 			uint8_t teid_flag, uint8_t type,
 			uint32_t teid, uint32_t seq)
 {
-	set_gtpv2c_header(gtpv2c_tx, teid_flag, type, teid, seq);
+	set_gtpv2c_header(gtpv2c_tx, teid_flag, type, teid, seq, 0);
 	set_recovery_ie(gtpv2c_tx, IE_INSTANCE_ZERO);
 }
 

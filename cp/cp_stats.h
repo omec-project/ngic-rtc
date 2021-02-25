@@ -20,7 +20,7 @@
 #include <stdint.h>
 #include <time.h>
 #include <rte_common.h>
-#define LAST_TIMER_SIZE 80
+#include "gw_adapter.h"
 #define __file__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 /**
  * @file
@@ -53,22 +53,9 @@ struct cp_stats_t {
 	uint64_t tx_last;
 
 	char stat_timestamp[LAST_TIMER_SIZE];
-
-#ifdef SDN_ODL_BUILD
-	uint64_t nb_sent;
-	uint64_t nb_ok;
-	uint64_t nb_cnr;
-#endif
 };
 
 extern struct cp_stats_t cp_stats;
-
-extern int s11logger;
-extern int s5s8logger;
-extern int sxlogger;
-extern int gxlogger;
-extern int apilogger;
-extern int epclogger;
 
 /**
  * @brief  : Prints control plane signaling message statistics

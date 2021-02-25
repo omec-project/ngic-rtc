@@ -19,9 +19,10 @@
 #include "up_main.h"
 #include "pfcp_util.h"
 #include "pfcp_set_ie.h"
-#include "pfcp_messages_encoder.h"
 #include "clogger.h"
 #include "gw_adapter.h"
+#include "interface.h"
+#include "pfcp_messages_encoder.h"
 
 /**
  * @brief  : Allocates ring for buffering downlink packets
@@ -55,15 +56,15 @@ rte_ring *allocate_ring(void)
 
 				if (ret == ENOBUFS) {
 					clLog(clSystemLog, eCLSeverityDebug,
-						"Cannot hold more dl rings\n");
+						LOG_FORMAT"Cannot hold more dl rings\n", LOG_VALUE);
 					rte_ring_free(tmp);
 					break;
 				}
 				num_dl_rings++;
 			} else {
-				clLog(clSystemLog, eCLSeverityCritical, "Couldnt create %s for DL "
-						"pkts - %s\n", name,
-						rte_strerror(rte_errno));
+				clLog(clSystemLog, eCLSeverityCritical,
+					LOG_FORMAT"Couldnt create %s for DL PKTS %s\n",
+					LOG_VALUE, name, rte_strerror(rte_errno));
 				if (rte_errno == EEXIST)
 					num_dl_rings++;
 			}
@@ -85,7 +86,8 @@ dp_ddn_ack(struct dp_id dp_id,
 	 *  default behaviour is ddn will be issued for the 1st packet for which the
 	 *  session is IDEL and it will issued after ring is full. */
 
-	clLog(clSystemLog, eCLSeverityInfo, "DDN ACK processed..\n");
+	clLog(clSystemLog, eCLSeverityInfo,
+		LOG_FORMAT"DDN ACK processed\n", LOG_VALUE);
 
 	return 0;
 }
@@ -119,30 +121,11 @@ static void
 set_dldr_ie(pfcp_dnlnk_data_rpt_ie_t *dl)
 {
 	dl->pdr_id_count = 1;
-	//pfcp_set_ie_header(&(dl->header), IE_DNLNK_DATA_RPT, 13);
 	pfcp_set_ie_header(&(dl->header), IE_DNLNK_DATA_RPT, 6);
-			/*((sizeof(pfcp_dnlnk_data_rpt_ie_t) - ((MAX_LIST_SIZE - dl->pdr_id_count) * sizeof(dl->pdr_id) - 5))));*/
-
-	set_pdr_id(dl->pdr_id);
-	//set_dndl_data_srv_if_ie(&dl->dnlnk_data_svc_info);
+	set_pdr_id(dl->pdr_id, 0);
 
 }
 
-/**
- * @brief  : Set values session report type ie
- * @param  : rt, structure to be filled
- * @return : Returns nothing
- */
-static void
-set_sess_report_type(pfcp_report_type_ie_t *rt)
-{
-	pfcp_set_ie_header(&(rt->header), PFCP_IE_REPORT_TYPE, UINT8_SIZE);
-	rt->rpt_type_spare = 0;
-	rt->upir  = 0;
-	rt->erir  = 0;
-	rt->usar  = 0;
-	rt->dldr  = 1;
-}
 
 /**
  * @brief  : Fill pfcp session report request
@@ -160,13 +143,13 @@ fill_pfcp_sess_rep_req(pfcp_sess_rpt_req_t *pfcp_sess_rep_req,
 
 	seq = get_pfcp_sequence_number(PFCP_SESSION_REPORT_REQUEST, seq);
 	set_pfcp_seid_header((pfcp_header_t *) &(pfcp_sess_rep_req->header),
-		PFCP_SESSION_REPORT_REQUEST, HAS_SEID, seq);
+		PFCP_SESSION_REPORT_REQUEST, HAS_SEID, seq, NO_CP_MODE_REQUIRED);
 
 	pfcp_sess_rep_req->header.seid_seqno.has_seid.seid = (*ddn)->cp_seid;
 
 	set_sess_report_type(&pfcp_sess_rep_req->report_type);
 
-	/* TODO Need to Implement handling of other IE's when Rules implementation is done  */
+	/* Need to Implement handling of other IE's when Rules implementation is done  */
 	if (pfcp_sess_rep_req->report_type.dldr == 1) {
 		set_dldr_ie(&pfcp_sess_rep_req->dnlnk_data_rpt);
 		pfcp_sess_rep_req->dnlnk_data_rpt.pdr_id[0].rule_id = (*ddn)->pdr_id;
@@ -175,8 +158,9 @@ fill_pfcp_sess_rep_req(pfcp_sess_rpt_req_t *pfcp_sess_rep_req,
 	pfcp_sess_rep_req->header.message_len = pfcp_sess_rep_req->report_type.header.len +
 		pfcp_sess_rep_req->dnlnk_data_rpt.header.len + 8;
 
-	clLog(clSystemLog, eCLSeverityDebug, "VS: Sending DDN Request to control-plane for CP_Seid:%lu, PDR_ID:%u\n",
-			(*ddn)->cp_seid, (*ddn)->pdr_id);
+	clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT"VS:- Sending DDN Request to Control Plane for CP Seid: %lu, PDR_ID:%u\n",
+		LOG_VALUE, (*ddn)->cp_seid, (*ddn)->pdr_id);
 }
 
 uint8_t
@@ -193,16 +177,17 @@ process_pfcp_session_report_req(struct sockaddr_in *peer_addr,
 	encoded = encode_pfcp_sess_rpt_req_t(&pfcp_sess_rep_req, pfcp_msg);
 
 	pfcp_header_t *header = (pfcp_header_t *) pfcp_msg;
-	header->message_len = htons(encoded - 4);
+	header->message_len = htons(encoded - PFCP_IE_HDR_SIZE);
 
-	if ( pfcp_send(my_sock.sock_fd, pfcp_msg, encoded, peer_addr) < 0 ) {
-	                clLog(clSystemLog, eCLSeverityDebug, "Error sending: %i\n",errno);
-	                return -1;
+	if ( pfcp_send(my_sock.sock_fd, pfcp_msg, encoded, peer_addr, SENT) < 0 ) {
+		clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT"Error in Sending PFCP SESSION REPORT REQ %i\n",
+		LOG_VALUE, errno);
+		return -1;
 	}
-	else {
-		update_cli_stats((uint32_t)peer_addr->sin_addr.s_addr,
-				pfcp_sess_rep_req.header.message_type,SENT,SX);	
-	}
+	clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Sends Report Request message to CP:"IPV4_ADDR" for trigger DDN\n",
+			LOG_VALUE, IPV4_ADDR_HOST_FORMAT(peer_addr->sin_addr.s_addr));
 
 	return 0;
 }
@@ -250,10 +235,17 @@ enqueue_dl_pkts(pdr_info_t **pdrs, pfcp_session_datat_t **sess_info,
 		si = sess_info[i];
 		pdr = pdrs[i];
 
+		if (pdr == NULL) {
+			clLog(clSystemLog, eCLSeverityCritical,
+					LOG_FORMAT"DROPPED Packet, PDR is NULL\n", LOG_VALUE);
+			rte_pktmbuf_free(pkts[i]);
+			continue;
+		}
+
 		/* Check the action */
 		if ((pdr->far)->actions.drop) {
-			clLog(clSystemLog, eCLSeverityInfo, "Action : DROP :"
-					"Dropping pkts for this session:%lu\n",
+			clLog(clSystemLog, eCLSeverityInfo, LOG_FORMAT"Action : DROP :"
+					"Dropping pkts for this Session:%lu\n", LOG_VALUE,
 					(pdr->session)->up_seid);
 			rte_pktmbuf_free(pkts[i]);
 			continue;
@@ -263,9 +255,9 @@ enqueue_dl_pkts(pdr_info_t **pdrs, pfcp_session_datat_t **sess_info,
 		if (!ring) {
 			ring = allocate_ring();
 			if (ring == NULL) {
-				clLog(clSystemLog, eCLSeverityInfo, "Not enough memory, can't "
-						"buffer this session:%lu\n",
-						(pdr->session)->up_seid);
+				clLog(clSystemLog, eCLSeverityInfo, LOG_FORMAT"Not enough memory, can't "
+					"buffer this Session: %lu\n", LOG_VALUE,
+					(pdr->session)->up_seid);
 				rte_pktmbuf_free(pkts[i]);
 				continue;
 			}
@@ -276,9 +268,9 @@ enqueue_dl_pkts(pdr_info_t **pdrs, pfcp_session_datat_t **sess_info,
 					rc = send_ddn_request(pdr);
 
 					if(rc < 0) {
-						clLog(clSystemLog, eCLSeverityCritical, "failed to send ddn req  "
-								"for this session:%lu\n",
-								(pdr->session)->up_seid);
+						clLog(clSystemLog, eCLSeverityCritical,
+							LOG_FORMAT"Failed to send ddn req for session: %lu\n",
+							LOG_VALUE, (pdr->session)->up_seid);
 
 					}
 
@@ -295,11 +287,12 @@ enqueue_dl_pkts(pdr_info_t **pdrs, pfcp_session_datat_t **sess_info,
 				si->dl_ring = NULL;
 				si->sess_state = IDLE;
 
-				clLog(clSystemLog, eCLSeverityCritical, "%s::Can't queue pkt- ring full..."
-						" Dropping pkt\n", __func__);
+				clLog(clSystemLog, eCLSeverityCritical,
+					LOG_FORMAT"Can't queue pkt ring full"
+					" So Dropping pkt\n", LOG_VALUE);
 			} else {
-				clLog(clSystemLog, eCLSeverityDebug, "ACTIONS : %s :"
-						"Buffering the pkts\n",
+				clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"ACTIONS : %s :"
+						"Buffering the PKTS\n", LOG_VALUE,
 						(((pdr->far)->actions.nocp != 0) &&
 						((pdr->far)->actions.nocp != 0)) ? "Notify to CP, Buffer," :
 						(pdr->far)->actions.nocp != 0 ? "Notify to CP" :

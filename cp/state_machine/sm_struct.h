@@ -24,10 +24,18 @@
 #include "pfcp_messages.h"
 #include "gtp_messages.h"
 
+#define PROC_NAME_LEN 128
+#define STATE_NAME_LEN 128
+#define EVNT_NAME_LEN 128
+#define MAX_TFT_LEN 257
 
 struct rte_hash *sm_hash;
-extern char state_name[40];
-extern char event_name[40];
+
+extern char state_name[STATE_NAME_LEN];
+extern char event_name[EVNT_NAME_LEN];
+extern struct rte_hash *li_info_by_id_hash;
+extern struct rte_hash *li_id_by_imsi_hash;
+
 
 enum source_interface {
 	GX_IFACE = 1,
@@ -36,20 +44,38 @@ enum source_interface {
 	PFCP_IFACE = 4,
 };
 
+enum fteid_interface {
+	S1_U_eNodeB_GTP_U = 0,
+	S1_U_SGW_GTP_U    = 1,
+	S12_RNC_GTP_U     = 2,
+	S12_SGW_GTP_U     = 3,
+	S5_S8_SGW_GTP_U   = 4,
+	S5_S8_PGW_GTP_U   = 5,
+	S5_S8_SGW_GTP_C   = 6,
+	S5_S8_PGW_GTP_C   = 7,
+	S5_S8_SGW_PMIPv6  = 8,
+	S5_S8_PGW_PMIPv6  = 9,
+	S11_MME_GTP_C     = 10,
+};
+
 //extern enum source_interface iface;
 
 /**
  * @brief  : Maintains ue context Bearer identifier and tied
  */
 typedef struct ue_context_key {
-	/* Bearer identifier */
-	uint8_t ebi_index;
+	/* default bearer identifier index */
+	int32_t ebi_index;
 	/* UE Context key == teid */
 	uint32_t teid;
 	/* UE Context key == sender teid */
 	uint32_t sender_teid;
 	/* UE Context key == sequence number */
 	uint32_t sequence;
+	/*list of Bearers indentifiers*/
+	uint32_t bearer_ids[MAX_BEARERS];
+	/*imsi value */
+	uint64_t imsi;
 } context_key;
 
 /* TODO: Need to optimized generic structure. */
@@ -61,7 +87,8 @@ typedef struct msg_info{
 	uint8_t state;
 	uint8_t event;
 	uint8_t proc;
-
+	uint8_t cp_mode;
+	uint8_t interface_type;
 	/* VS: GX Msg retrieve teid of key for UE Context */
 	uint8_t eps_bearer_id;
 	uint32_t teid;
@@ -78,7 +105,7 @@ typedef struct msg_info{
 		mod_bearer_rsp_t mb_rsp;
 		del_sess_req_t dsr;
 		del_sess_rsp_t ds_rsp;
-		rel_acc_ber_req rel_acc_ber_req_t;
+		rel_acc_ber_req_t rel_acc_ber_req;
 		downlink_data_notification_t ddn_ack;
 		create_bearer_req_t cb_req;
 		create_bearer_rsp_t cb_rsp;
@@ -92,6 +119,11 @@ typedef struct msg_info{
 		del_pdn_conn_set_req_t del_pdn_req;
 		del_pdn_conn_set_rsp_t del_pdn_rsp;
 		del_bearer_cmd_t  del_ber_cmd;
+		del_bearer_fail_indctn_t del_fail_ind;
+		bearer_rsrc_cmd_t bearer_rsrc_cmd;
+		bearer_rsrc_fail_indctn_t ber_rsrc_fail_ind;
+		change_noti_req_t change_not_req;
+		change_noti_rsp_t change_not_rsp;
 	}gtpc_msg;
 	union pfcp_msg_info_t {
 		pfcp_pfd_mgmt_rsp_t pfcp_pfd_resp;
@@ -118,29 +150,44 @@ struct resp_info {
 	uint8_t proc;
 	uint8_t state;
 	uint8_t msg_type;
-	uint8_t num_of_bearers;
-	uint8_t eps_bearer_id;
-	uint8_t list_bearer_ids[MAX_BEARERS];
+	uint8_t cp_mode;
 
 	/* Default Bearer Id */
 	uint8_t linked_eps_bearer_id;
-
+	uint8_t eps_bearer_id;
 	/* Dedicated Bearer Id */
 	uint8_t bearer_count;
 	uint8_t eps_bearer_ids[MAX_BEARERS];
 
 	uint32_t s5s8_sgw_gtpc_teid;
 	uint32_t s5s8_pgw_gtpc_ipv4;
-
-	uint8_t eps_bearer_lvl_tft[257];
-	uint8_t tft_header_len;
+	uint32_t teid;
+	uint8_t eps_bearer_lvl_tft[MAX_BEARERS][MAX_TFT_LEN];
+	uint8_t tft_header_len[MAX_BEARERS];
 
 	union gtpc_msg {
 		create_sess_req_t csr;
+		create_sess_rsp_t cs_rsp;
 		mod_bearer_req_t mbr;
+		create_bearer_rsp_t cb_rsp;
+		create_bearer_req_t cb_req;
 		del_sess_req_t dsr;
+		rel_acc_ber_req_t rel_acc_ber_req;
 		del_bearer_cmd_t del_bearer_cmd;
+		bearer_rsrc_cmd_t bearer_rsrc_cmd;
+		change_noti_req_t change_not_req;
+		del_bearer_req_t db_req;
+		upd_bearer_req_t ub_req;
+		upd_bearer_rsp_t ub_rsp;
+		upd_pdn_conn_set_req_t upd_req;
+		upd_pdn_conn_set_rsp_t upd_rsp;
 	}gtpc_msg;
+
+	union gx_msg_t {
+		GxCCA cca;
+		GxRAR rar;
+	}gx_msg;
+
 }__attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
 
 
@@ -193,20 +240,20 @@ update_sess_state(uint64_t sess_id, uint8_t state);
 /**
  * @brief  : Delete session entry from session table.
  * @param  : sess_id, session id
- * @return : Returns 0 in case of success , -1 otherwise
+ * @return : Returns 0 in case of success , Cause value otherwise
  */
 uint8_t
 del_sess_entry(uint64_t sess_id);
 
 /**
  * @brief  : Update UE state in UE Context.
- * @param  : teid_key, key to search context
+ * @param  : context, structure for context information
  * @param  : state, new state to be updated
  * @param  : ebi_index, index of bearer id stored in array
  * @return : Returns 0 in case of success , -1 otherwise
  */
 uint8_t
-update_ue_state(uint32_t teid_key, uint8_t state, uint8_t ebi_index);
+update_ue_state(ue_context *context, uint8_t state, int ebi_index);
 
 /**
  * @brief  : Retrive UE state from UE Context.
@@ -215,7 +262,7 @@ update_ue_state(uint32_t teid_key, uint8_t state, uint8_t ebi_index);
  * @return : Returns 0 in case of success , -1 otherwise
  */
 uint8_t
-get_ue_state(uint32_t teid_key ,uint8_t ebi_index);
+get_ue_state(uint32_t teid_key ,int ebi_index);
 
 /**
  * Retrive Bearer entry from Bearer table.
@@ -238,7 +285,12 @@ get_ue_context_by_sgw_s5s8_teid(uint32_t teid_key, ue_context **context);
 int8_t
 get_ue_context(uint32_t teid_key, ue_context **context);
 
-/* This function use only in clean up while error */
+/**
+ * @brief  : This function use only in clean up while error.
+ * @param  : teid_key, key to search context
+ * @param  : context, structure to store retrived context
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
 int8_t
 get_ue_context_while_error(uint32_t teid_key, ue_context **context);
 
@@ -249,7 +301,7 @@ get_ue_context_while_error(uint32_t teid_key, ue_context **context);
  * @return : Returns 0 in case of success , -1 otherwise
  */
 int
-get_pdn(uint32_t teid_key, pdn_connection **pdn);
+get_pdn(ue_context **context, apn *apn_requested, pdn_connection **pdn);
 
 /**
  * @brief  : Get proc name from enum
@@ -274,22 +326,13 @@ const char * get_event_string(int value);
 
 /**
  * @brief  : Update UE proc in UE Context.
- * @param  : teid_key, key for search
+ * @param  : context, structure for context information
  * @param  : proc, procedure
  * @param  : ebi_index, index of bearer id stored in array
  * @return : Returns 0 in case of success , -1 otherwise
  */
 uint8_t
-update_ue_proc(uint32_t teid_key, uint8_t proc, uint8_t ebi_index);
-
-/**
- * @brief  : Retrive UE Context.
- * @param  : teid_key, key for search
- * @param  : context, structure to store retrived ue context
- * @return : Returns 0 in case of success , -1 otherwise
- */
-int8_t
-get_ue_context(uint32_t teid_key, ue_context **context);
+update_ue_proc(ue_context *context, uint8_t proc, int ebi_index);
 
 /**
  * @brief  : Update Procedure according to indication flags

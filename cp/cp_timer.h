@@ -27,11 +27,12 @@ extern pfcp_config_t pfcp_config;
  * @param  : buf_len, total length of data
  * @param  : itr, request_tries value in pfcp config
  * @param  : teid, teid value
+ * @param  : ebi_index
  * @return : Returns pointer to filled timer entry structure
  */
 peerData *
 fill_timer_entry_data(enum source_interface iface, struct sockaddr_in *peer_addr,
-	uint8_t *buf, uint16_t buf_len, uint8_t itr, uint32_t teid,  uint8_t ebi_index);
+	uint8_t *buf, uint16_t buf_len, uint8_t itr, uint32_t teid,  int ebi_index );
 
 /**
  * @brief  : add timer entry
@@ -62,16 +63,35 @@ void
 timer_callback(gstimerinfo_t *ti, const void *data_t);
 
 /**
+ * @brief  : fills error response
+ * @param  : data, Peer node connection information
+ * @return : Returns nothing
+ */
+void association_fill_error_response(peerData *data);
+/**
+ * @brief  : timer callback for association request
+ * @param  : ti, timer information
+ * @param  : data_t, Peer node connection information
+ * @return : Returns nothing
+ */
+void
+association_timer_callback(gstimerinfo_t *ti, const void *data_t);
+
+/**
  * @brief  : Fills and adds timer entry, and starts periodic timer for gtpv2c messages
  * @param  : teid, teid value
  * @param  : peer_addr, peer node address
  * @param  : buf, holds timer data
  * @param  : buf_len, total length of data
+ * @param  : ebi_index
+ * @param  : iface, source interface
+ * @param  : cp_mode, cp mode type[SGWC/SAEGWC/PGWC]
  * @return : Returns nothing
  */
 void
 add_gtpv2c_if_timer_entry(uint32_t teid, struct sockaddr_in *peer_addr,
-	uint8_t *buf, uint16_t buf_len, uint8_t ebi_index, enum source_interface iface);
+	uint8_t *buf, uint16_t buf_len, int ebi_index , enum source_interface iface,
+	uint8_t cp_mode);
 
 /**
  * @brief  : Fills and adds timer entry, and starts periodic timer for pfcp message
@@ -79,16 +99,35 @@ add_gtpv2c_if_timer_entry(uint32_t teid, struct sockaddr_in *peer_addr,
  * @param  : peer_addr, peer node address
  * @param  : buf, holds timer data
  * @param  : buf_len, total length of data
+ * @param  : ebi_index
  * @return : Returns nothing
  */
 void
 add_pfcp_if_timer_entry(uint32_t teid, struct sockaddr_in *peer_addr,
-	uint8_t *buf, uint16_t buf_len, uint8_t ebi_index);
+	uint8_t *buf, uint16_t buf_len, int ebi_index );
 
+/**
+ * @brief  : Deletes pfcp timer entry
+ * @param  : teid, teid value
+ * @param  : ebi_index
+ * @return : Returns nothing
+ */
 void
-delete_pfcp_if_timer_entry(uint32_t teid, uint8_t ebi_index);
+delete_pfcp_if_timer_entry(uint32_t teid, int ebi_index );
 
+/**
+ * @brief  : Deletes gtp timer entry
+ * @param  : teid, teid value
+ * @return : Returns nothing
+ */
 void
 delete_gtpv2c_if_timer_entry(uint32_t teid);
 
+/**
+ * @brief  : Deletes association  timer entry
+ * @param  : data, peerData pointer
+ * @return : Returns nothing
+ */
+void
+delete_association_timer(peerData *data);
 #endif

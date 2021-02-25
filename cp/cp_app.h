@@ -39,9 +39,10 @@
 #include "../libgtpv2c/include/gtp_messages.h"
 
 
-#define SERVER_PATH "/usr/sock_server"
-#define CLIENT_PATH "/usr/sock_client"
+#define SERVER_PATH "/usr/sock_server_cca_rar"
+#define CLIENT_PATH "/usr/sock_client_ccr_raa"
 
+#define MAX_PATH_LEN 32
 #define MULTIPLIER 50
 #define BUFFSIZE MULTIPLIER * 1024
 #define BACKLOG  100
@@ -76,6 +77,7 @@ enum e_BUF_HDR {
  */
 typedef struct Gx_msg {
 	uint8_t msg_type;
+	uint16_t msg_len;
 	union data_t {
 		GxRAR cp_rar;
 		GxRAA cp_raa;
@@ -126,11 +128,12 @@ start_cp_app( void );
  * @param  : context, ue context data
  * @param  : ebi_index, array index of bearer
  * @param  : sess_id, session id
+ * @param  : flow_flag, 1 for bearer resource mod flow,else 0
  * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 fill_ccr_request(GxCCR *ccr, ue_context *context,
-		uint8_t ebi_index, char *sess_id);
+		int ebi_index, char *sess_id, uint8_t flow_flag);
 
 #endif /* CP_BUILD */
 
@@ -190,5 +193,15 @@ process_create_bearer_resp_and_send_raa( int sock );
  */
 void
 bin_to_str(unsigned char *b_val, char *s_val, int b_len, int s_len);
+
+/**
+ * @brief  : Encode imsi to binary value
+ * @param  : imsi, imput imsi value
+ * @param  : imsi_len, length of imsi
+ * @param  : bin_imsi, output value
+ * @return : Returns nothing
+ */
+void
+encode_imsi_to_bin(uint64_t imsi, int imsi_len, uint8_t *bin_imsi);
 
 #endif /* CP_APP_H_ */

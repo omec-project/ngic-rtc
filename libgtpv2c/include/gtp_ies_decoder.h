@@ -16,6 +16,9 @@
 #ifndef __GTP_IES_DECODE_H__
 #define __GTP_IES_DECODE_H__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include "gtp_ies.h"
 
@@ -1854,5 +1857,8 @@ int decode_gtp_up_func_sel_indctn_flgs_ie(uint8_t *buf,
 int decode_gtp_max_pckt_loss_rate_ie(uint8_t *buf,
     gtp_max_pckt_loss_rate_ie_t *value);
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif /*__GTP_IES_DECODE_H__*/

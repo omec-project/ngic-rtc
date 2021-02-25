@@ -19,6 +19,7 @@
 #include <rte_ether.h>
 #include <rte_ip.h>
 #include <rte_udp.h>
+
 #include "ipv4.h"
 #include "gtpu.h"
 #include "util.h"
@@ -44,7 +45,7 @@ typedef struct gtpuHdr_s {
 	uint8_t msg_type;
 	uint16_t tot_len;
 	uint32_t teid;
-	uint16_t seq_no;		/**< Optional fields if E, S or PN flags set */
+	uint16_t seq_no;                /**< Optional fields if E, S or PN flags set */
 } __attribute__((__packed__)) gtpuHdr_t;
 
 /**
@@ -146,18 +147,19 @@ static __inline__ void create_ether_hdr(struct rte_mbuf *m, peerData *entry)
 
 void build_echo_request(struct rte_mbuf *echo_pkt, peerData *entry, uint16_t gtpu_seqnb)
 {
-	echo_pkt->pkt_len = PKT_SIZE;
-	echo_pkt->data_len = PKT_SIZE;
+	if (echo_pkt != NULL) {
+		echo_pkt->pkt_len = PKT_SIZE;
+		echo_pkt->data_len = PKT_SIZE;
 
+		encap_gtpu_hdr(echo_pkt, gtpu_seqnb, GTPU_ECHO_REQUEST);
+		create_udp_hdr(echo_pkt, entry);
+		create_ipv4_hdr(echo_pkt, entry);
+		create_ether_hdr(echo_pkt, entry);
 
-	encap_gtpu_hdr(echo_pkt, gtpu_seqnb, GTPU_ECHO_REQUEST);
-	create_udp_hdr(echo_pkt, entry);
-	create_ipv4_hdr(echo_pkt, entry);
-	create_ether_hdr(echo_pkt, entry);
-
-	/* Set outer IP and UDP checksum, after inner IP and UDP checksum is set.
-	 */
-	set_checksum(echo_pkt);
+		/* Set outer IP and UDP checksum, after inner IP and UDP checksum is set.
+		 */
+		set_checksum(echo_pkt);
+	}
 }
 
 void build_endmarker_and_send(struct sess_info_endmark *edmk)
@@ -197,8 +199,7 @@ void build_endmarker_and_send(struct sess_info_endmark *edmk)
 
 	if (rte_ring_enqueue(shared_ring[S1U_PORT_ID], endmk_pkt) == -ENOBUFS) {
 		rte_pktmbuf_free(endmk_pkt);
-		clLog(clSystemLog, eCLSeverityCritical, "%s::Can't queue endmarker pkt- ring full..."
-				" Dropping pkt\n", __func__);
-
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Can't Queue Endmarker "
+			"PKT because shared ring full so Dropping PKT\n", LOG_VALUE);
 	}
 }
