@@ -21,7 +21,7 @@
 #include "ue.h"
 #include "../cp_dp_api/vepc_cp_dp_api.h"
 #include "clogger.h"
-
+#include "cp.h"
 /**
  * @brief  : Maintatins data from parsed delete bearer response
  */
@@ -59,13 +59,13 @@ parse_delete_bearer_response(gtpv2c_header_t *gtpv2c_rx,
 	int ret = rte_hash_lookup_data(ue_context_by_fteid_hash,
 	    (const void *) &gtpv2c_rx->teid.has_teid.teid,
 	    (void **) &dbr->context);
-
 	if (ret < 0 || !dbr->context)
 		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 
 	/** TODO: we should fully verify mandatory fields within received
 	 *  message */
 	FOR_EACH_GTPV2C_IE(gtpv2c_rx, current_ie, limit_ie)
+
 	{
 		if (current_ie->type == GTP_IE_CAUSE &&
 				current_ie->instance == IE_INSTANCE_ZERO) {
@@ -93,9 +93,9 @@ parse_delete_bearer_response(gtpv2c_header_t *gtpv2c_rx,
 
 	if (!dbr->cause_ie || !dbr->bearer_context_ebi_ie
 	    || !dbr->bearer_context_cause_ie) {
-		clLog(clSystemLog, eCLSeverityCritical, "Received Delete Bearer Response without "
-				"mandatory IEs\n");
-		return -EPERM;
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Received Delete Bearer Response without "
+				"mandatory IEs\n", LOG_VALUE);
+		return GTPV2C_CAUSE_MANDATORY_IE_MISSING;
 	}
 
 
@@ -115,23 +115,23 @@ process_delete_bearer_response(gtpv2c_header_t *gtpv2c_rx)
 {
 	struct parse_delete_bearer_rsp_t delete_bearer_rsp = { 0 };
 	int ret = parse_delete_bearer_response(gtpv2c_rx, &delete_bearer_rsp);
-	if (ret)
+	if (ret && ret!=-1)
 		return ret;
 
 	uint8_t ebi =
 	    IE_TYPE_PTR_FROM_GTPV2C_IE(eps_bearer_id_ie,
 			    delete_bearer_rsp.bearer_context_ebi_ie)->ebi;
-	uint8_t ebi_index = ebi - 5;
+	int  ebi_index = ebi;
 
 	delete_bearer_rsp.ded_bearer =
 	    delete_bearer_rsp.context->eps_bearers[ebi_index];
 
 	if (delete_bearer_rsp.ded_bearer == NULL) {
-		clLog(clSystemLog, eCLSeverityCritical,
+		clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT
 		    "Received Delete Bearer Response for"
-		    " non-existant EBI: %"PRIu8"\n",
+		    " non-existant EBI: %"PRIu8"\n",LOG_VALUE,
 		    ebi);
-		return -EPERM;
+		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 	}
 	delete_bearer_rsp.pdn = delete_bearer_rsp.ded_bearer->pdn;
 
@@ -144,8 +144,13 @@ process_delete_bearer_response(gtpv2c_header_t *gtpv2c_rx)
 	    ==
 	    IE_TYPE_PTR_FROM_GTPV2C_IE(eps_bearer_id_ie,
 			    delete_bearer_rsp.bearer_context_ebi_ie)->ebi) {
+		int ebi_index = GET_EBI_INDEX(delete_bearer_rsp.ded_bearer->eps_bearer_id);
+		if (ebi_index == -1) {
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Invalid EBI ID\n", LOG_VALUE);
+			return GTPV2C_CAUSE_SYSTEM_FAILURE;
+		}
 		delete_bearer_rsp.context->bearer_bitmap &= ~(1
-		    << (delete_bearer_rsp.ded_bearer->eps_bearer_id - 5));
+		    << ebi_index);
 		delete_bearer_rsp.context->eps_bearers[ebi_index] = NULL;
 		delete_bearer_rsp.pdn->eps_bearers[ebi_index] = NULL;
 		uint8_t index = ((0x0f000000
@@ -173,13 +178,21 @@ process_delete_bearer_response(gtpv2c_header_t *gtpv2c_rx)
 
 void
 set_delete_bearer_request(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
-	ue_context *context, uint8_t linked_eps_bearer_id,
+	pdn_connection *pdn, uint8_t linked_eps_bearer_id, uint8_t pti,
 	uint8_t ded_eps_bearer_ids[], uint8_t ded_bearer_counter)
 {
 	del_bearer_req_t db_req = {0};
 
-	set_gtpv2c_teid_header((gtpv2c_header_t *) &db_req, GTP_DELETE_BEARER_REQ,
-	    context->s11_mme_gtpc_teid, sequence);
+	if ((pdn->context)->cp_mode != PGWC) {
+		set_gtpv2c_teid_header((gtpv2c_header_t *) &db_req, GTP_DELETE_BEARER_REQ,
+		    (pdn->context)->s11_mme_gtpc_teid, sequence, 0);
+	} else {
+		set_gtpv2c_teid_header((gtpv2c_header_t *) &db_req, GTP_DELETE_BEARER_REQ,
+		    pdn->s5s8_sgw_gtpc_teid, sequence, 0);
+	}
+
+	if(pti)
+		set_pti(&db_req.pti, IE_INSTANCE_ZERO, pti);
 
 	if (linked_eps_bearer_id > 0) {
 		set_ebi(&db_req.lbi, IE_INSTANCE_ZERO, linked_eps_bearer_id);
@@ -194,7 +207,7 @@ set_delete_bearer_request(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
 
 	uint16_t msg_len = 0;
 	msg_len = encode_del_bearer_req(&db_req, (uint8_t *)gtpv2c_tx);
-	gtpv2c_tx->gtpc.message_len = htons(msg_len - 4);
+	gtpv2c_tx->gtpc.message_len = htons(msg_len - IE_HEADER_SIZE);
 }
 
 void
@@ -205,11 +218,10 @@ set_delete_bearer_response(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
 	del_bearer_rsp_t db_resp = {0};
 
 	set_gtpv2c_teid_header((gtpv2c_header_t *) &db_resp, GTP_DELETE_BEARER_RSP,
-		s5s8_pgw_gtpc_teid , sequence);
+		s5s8_pgw_gtpc_teid , sequence, 0);
 
 	set_cause_accepted(&db_resp.cause, IE_INSTANCE_ZERO);
 
-	//db_resp..header.gtpc.message_len += db_resp.cause.header.len + sizeof(ie_header_t);
 	if (linked_eps_bearer_id > 0) {
 		set_ebi(&db_resp.lbi, IE_INSTANCE_ZERO, linked_eps_bearer_id);
 	} else {
@@ -226,8 +238,6 @@ set_delete_bearer_response(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
 				IE_INSTANCE_ZERO);
 			db_resp.bearer_contexts[iCnt].header.len +=
 				sizeof(uint16_t) + IE_HEADER_SIZE;
-	//		db_resp..header.gtpc.message_len += db_resp.bearer_contexts[iCnt].header.len +
-	//					sizeof(ie_header_t);
 
 		}
 
@@ -236,6 +246,6 @@ set_delete_bearer_response(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
 
 	uint16_t msg_len = 0;
 	msg_len = encode_del_bearer_rsp(&db_resp, (uint8_t *)gtpv2c_tx);
-	gtpv2c_tx->gtpc.message_len = htons(msg_len - 4);
+	gtpv2c_tx->gtpc.message_len = htons(msg_len - IE_HEADER_SIZE);
 }
 

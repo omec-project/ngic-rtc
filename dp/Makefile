@@ -53,9 +53,10 @@ SRCS-y := up_main.c\
 	pipeline/epc_spns_dns.o\
 	pipeline/epc_packet_framework.o\
 	$(SRCDIR)/../interface/interface.o\
-	$(SRCDIR)/../interface/udp/vepc_udp.o\
 	$(SRCDIR)/../interface/ipc/dp_ipc_api.o\
 	$(SRCDIR)/../cp_dp_api/vepc_cp_dp_api.o\
+	$(SRCDIR)/../cp_dp_api/predef_rule_init.o\
+	$(SRCDIR)/../cp_dp_api/tcp_client.o\
 	$(SRCDIR)/../pfcp_messages/pfcp_util.o\
 	$(SRCDIR)/../pfcp_messages/pfcp_set_ie.o\
 	$(SRCDIR)/../pfcp_messages/pfcp_up_sess.o\
@@ -63,6 +64,7 @@ SRCS-y := up_main.c\
 	$(SRCDIR)/../pfcp_messages/pfcp_req_resp.o\
 	$(SRCDIR)/../pfcp_messages/pfcp_association.o\
 	$(SRCDIR)/../pfcp_messages/pfcp_up_sess_rsp.o\
+	$(SRCDIR)/../teid/teid_upf.o\
 	#$(SRCDIR)/../pfcp_messages/pfcp_session.o\
 
 SRCS-y += $(SRCDIR)/../oss_adapter/c3po_oss/gw_adapter.o
@@ -73,11 +75,11 @@ CFLAGS += -I$(SRCDIR)/pipeline
 CFLAGS += -I$(SRCDIR)/../cp_dp_api
 CFLAGS += -I$(SRCDIR)/../interface
 CFLAGS += -I$(SRCDIR)/../interface/ipc
-CFLAGS += -I$(SRCDIR)/../interface/udp
 CFLAGS += -I$(SRCDIR)/../interface/sdn
 CFLAGS += -I$(SRCDIR)/../interface/zmq
 CFLAGS += -I$(SRCDIR)/../lib/libsponsdn
 CFLAGS += -I$(SRCDIR)/../pfcp_messages
+CFLAGS += -I$(SRCDIR)/../teid
 CFLAGS += -I$(RTE_SDK)/lib/librte_acl/
 CFLAGS += -I$(LIBPFCP_ROOT)/include
 CFLAGS +=  -I$(OSS_UTIL_ROOT)/include
@@ -95,6 +97,7 @@ CFLAGS += -I$(LIBDNSCLIENT_ROOT)/include
 LDLIBS += $(LIBDNSCLIENT_ROOT)/lib/liboss-util.a -lstdc++ -lpistache
 LDLIBS += -L$(LIBDNSCLIENT_ROOT)/modules/c-ares -lcares
 
+CFLAGS += -Wall
 CFLAGS += -Werror
 CFLAGS += -Wunused-variable
 
@@ -135,30 +138,14 @@ ifneq (,$(findstring NGCORE_SHRINK, $(CFLAGS)))
         SRCS-y += pipeline/epc_dl.o
 endif
 
-ifneq (,$(findstring SDN_ODL_BUILD, $(CFLAGS)))
-	SRCS-y += $(SRCDIR)/../interface/zmq/zmqsub.o
-	SRCS-y += $(SRCDIR)/../interface/zmq/zmqpub.o
-	LDFLAGS += -L/usr/local/lib -lzmq
-endif
-
-ifeq ($(SGX_BUILD), 1)
-	SRCS-y += ssl_client.c
-	CFLAGS += -DSGX_CDR
-	CFLAGS += -I$(NG_CORE)/linux-sgx/common/inc
-	LDFLAGS += -lssl
-endif
-
 # ngic-dp debug/testing/profiling options CFLAGS
 # #############################################################
-# gdb: un-comment 'CFLAGS += -g -O0' comment 'CFLAGS += -O3'
-#CFLAGS += -O0
-CFLAGS += -g -O0
-
-#un-comment below line to remove all log level for preformance testing.
-#CFLAGS += -DPERF_TEST
-
-#un-comment below line to generate pcap on east-west interfaces
-CFLAGS += -DPCAP_GEN
+# gdb: Enable the DEBUG=1
+ifeq ($(DEBUG),1)
+	CFLAGS += -g -O0
+else
+	CFLAGS += -O0
+endif
 
 # Un-comment below line to read fake cp config.
 #CFLAGS += -DSIMU_CP
@@ -187,12 +174,6 @@ CFLAGS += -DSTATS
 # Un-comment below line to enable GTP-ECHO packets count on display(For SHRINK version).
 #CFLAGS += -DEXSTATS
 
-# ASR- Un-comment below line to enable PCC, ADC, CDR, FILTERING, METERING pipeline stages.
-#CFLAGS += -DINCLUDE_PIPELINE_STAGE
-
-# Un-comment below line to enable PCC, ADC, CDR, FILTERING, METERING pipeline stages.
-#CFLAGS += -DINCLUDE_ADC_STAGE
-
 # Un-comment below line if you have 16 x 1GB hugepages.
 #CFLAGS += -DHUGE_PAGE_16GB
 
@@ -205,11 +186,11 @@ CFLAGS += -DSTATS
 #CFLAGS += -DGTPU_HDR_SEQNB
 
 # Un-comment below line to enable hyperscan DPI.
-# ASR- NGCORE_SHRINK for HYPERSCAN to be tested
+# NGCORE_SHRINK for HYPERSCAN to be tested
 #CFLAGS += -DHYPERSCAN_DPI
 
 # Un-comment below line to enable ACL table creation and add default rule entry.
-CFLAGS += -DDEFAULT_ACL_TABLE
+#CFLAGS += -DDEFAULT_ACL_TABLE
 
 # Un-comment below line to enable add default rule entry in acl table .
 #CFLAGS += -DDEFAULT_ACL_RULE_ADD
@@ -236,16 +217,13 @@ ifneq (,$(findstring USE_CSID, $(CFLAGS)))
 	SRCS-y += $(SRCDIR)/../pfcp_messages/csid_api.o
 	SRCS-y += $(SRCDIR)/../pfcp_messages/csid_peer_init.o
 	SRCS-y += $(SRCDIR)/../pfcp_messages/csid_up_cleanup.o
+	SRCS-y += $(SRCDIR)/../pfcp_messages/seid_llist.o
 endif
 
 # ngic-dp  CFLAGS to be deprecated
 # #############################################################
 # Un-comment below line to get packet stats from command line.
 #CFLAGS += -DCMDLINE_STATS
-
-# Un-comment below line to enable core RX and core TX. All
-# processing stages will be skipped.
-#CFLAGS += -DRX_TX
 
 # ngic-dp include make overlays
 # #############################################################

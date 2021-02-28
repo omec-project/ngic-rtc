@@ -48,6 +48,7 @@
 #include "up_main.h"
 #include "epc_packet_framework.h"
 #include "clogger.h"
+#include "gw_adapter.h"
 
 #ifdef TIMER_STATS
 #include "perf_timer.h"
@@ -56,10 +57,8 @@ _timer_t _init_time = 0;
 
 extern struct kni_port_params *kni_port_params_array[RTE_MAX_ETHPORTS];
 /* Generate new pcap for sgi port. */
-#ifdef PCAP_GEN
 extern pcap_dumper_t *pcap_dumper_west;
 extern pcap_dumper_t *pcap_dumper_east;
-#endif /* PCAP_GEN */
 uint32_t dl_nkni_pkts = 0;
 
 #ifdef USE_REST
@@ -71,19 +70,19 @@ uint32_t dl_nkni_pkts = 0;
  */
 static inline void check_activity(uint32_t srcIp)
 {
-	/* VS: TODO */
+	/* VS: Check the in-activity on tunnel  */
 	int ret = 0;
 	peerData *conn_data = NULL;
 
 	ret = rte_hash_lookup_data(conn_hash_handle,
 				&srcIp, (void **)&conn_data);
 	if ( ret < 0) {
-		clLog(clSystemLog, eCLSeverityDebug, "Entry not found for NODE :%s\n",
-							inet_ntoa(*(struct in_addr *)&srcIp));
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Entry not found for NODE: %s\n",
+			LOG_VALUE, inet_ntoa(*(struct in_addr *)&srcIp));
 		return;
 	} else {
-		clLog(clSystemLog, eCLSeverityDebug, "Recv pkts from NODE :%s\n",
-						inet_ntoa(*(struct in_addr *)&srcIp));
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Recv pkts from NODE: %s\n",
+			LOG_VALUE, inet_ntoa(*(struct in_addr *)&srcIp));
 		conn_data->activityFlag = 1;
 	}
 }
@@ -124,40 +123,38 @@ static inline void epc_dl_set_port_id(struct rte_mbuf *m)
 	if (eh->ether_type == rte_cpu_to_be_16(ETHER_TYPE_ARP) ||
 			ipv4_hdr->next_proto_id == IPPROTO_ICMP)
 	{
-		clLog(clSystemLog, eCLSeverityDebug, "epc_dl.c:%s::"
-				"\n\t@SGI:eh->ether_type==ETHER_TYPE_ARP= 0x%X\n",
-				__func__, eh->ether_type);
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"EB_IN:eh->ether_type==ETHER_TYPE_ARP= 0x%X\n",
+			LOG_VALUE, eh->ether_type);
 		dl_arp_pkt = 1;
 		return;
 	}
-	ho_addr = ntohl(ipv4_hdr->dst_addr);
+
+	ho_addr = (ipv4_hdr->dst_addr);
 	/* Flag pkt destined to SGI_IP for linux handling */
-	if (app.sgi_ip == ho_addr)
+	if ((app.eb_ip == ho_addr) || (app.eb_li_ip == ho_addr))
 	{
-		clLog(clSystemLog, eCLSeverityDebug, "epc_dl.c:%s::"
-				"\n\t@SGI:app.sgi_ip==ipv4_hdr->dst_addr= %s\n",
-				__func__,
-				inet_ntoa(*(struct in_addr *)&ho_addr));
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"EB_IN:app.eb_ip==ipv4_hdr->dst_addr= %s\n",
+			LOG_VALUE, inet_ntoa(*(struct in_addr *)&ho_addr));
 		dl_arp_pkt = 1;
 		return;
 	}
 	/* Flag MCAST pkt for linux handling */
-	if (IS_IPV4_MCAST(ho_addr))
+	if (IS_IPV4_MCAST(ntohl(ho_addr)))
 	{
-		clLog(clSystemLog, eCLSeverityDebug, "epc_dl.c:%s::"
-				"\n\t@SGI:IPV$_MCAST==ipv4_hdr->dst_addr= %s\n",
-				__func__,
-				inet_ntoa(*(struct in_addr *)&ho_addr));
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"EB_IN:IPV$_MCAST ==ipv4_hdr->dst_addr= %s\n",
+			LOG_VALUE, inet_ntoa(*(struct in_addr *)&ho_addr));
 		dl_arp_pkt = 1;
 		return;
 	}
 	/* Flag BCAST pkt for linux handling */
-	if (app.sgi_bcast_addr == ho_addr)
+	if ((app.eb_bcast_addr == ho_addr) || (app.eb_li_bcast_addr == ho_addr))
 	{
-		clLog(clSystemLog, eCLSeverityDebug, "epc_dl.c:%s::"
-				"\n\t@SGI:app.sgi_bcast_addr==ipv4_hdr->dst_addr= %s\n",
-				__func__,
-				inet_ntoa(*(struct in_addr *)&ho_addr));
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"EB_IN:app.eb_bcast_addr == ipv4_hdr->dst_addr= %s\n",
+			LOG_VALUE, inet_ntoa(*(struct in_addr *)&ho_addr));
 		dl_arp_pkt = 1;
 		return;
 	}
@@ -167,23 +164,28 @@ static inline void epc_dl_set_port_id(struct rte_mbuf *m)
 			(ipv4_packet &&
 			((ipv4_hdr->next_proto_id == IPPROTO_UDP) ||
 			(ipv4_hdr->next_proto_id == IPPROTO_TCP)))) {
-			clLog(clSystemLog, eCLSeverityDebug, "SGI packet\n");
+			clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"East_Bound packet\n", LOG_VALUE);
 #ifdef USE_REST
-			if (app.spgw_cfg == SGWU) {
-				/* VS: TODO Set activity flag if data receive from peer node */
+			struct udp_hdr *udph =
+				(struct udp_hdr *)&m_data[sizeof(struct ether_hdr) +
+				((ipv4_hdr->version_ihl & 0xf) << 2)];
+
+			if (likely(udph->dst_port == UDP_PORT_GTPU_NW_ORDER)) {
+				/* VS: Set activity flag if data receive from peer node */
 				check_activity(ipv4_hdr->src_addr);
-				struct udp_hdr *udph =
-					(struct udp_hdr *)&m_data[sizeof(struct ether_hdr) +
-					((ipv4_hdr->version_ihl & 0xf) << 2)];
-				if (likely(udph->dst_port == UDP_PORT_GTPU_NW_ORDER)) {
-					struct gtpu_hdr *gtpuhdr = get_mtogtpu(m);
-					if (gtpuhdr->msgtype == GTPU_ECHO_REQUEST ||
-						gtpuhdr->msgtype == GTPU_ECHO_RESPONSE) {
-							return;
-					}
+				struct gtpu_hdr *gtpuhdr = get_mtogtpu(m);
+				if (gtpuhdr->msgtype == GTPU_ECHO_REQUEST ||
+					gtpuhdr->msgtype == GTPU_ECHO_RESPONSE) {
+						return;
 				}
 			}
 #endif /* USE_REST */
+			/* Ignore/Skip DHCP Pkts from the pipeline */
+			if (likely(udph->dst_port == UDP_PORT_DHCP_NW_ORDER)) {
+				return;
+			}
+
 			*port_id_offset = 0;
 			dl_sgi_pkt = 1;
 			dl_arp_pkt = 0;
@@ -239,10 +241,8 @@ static int epc_dl_port_in_ah(struct rte_pipeline *p,
 #endif /* STATS */
 	dl_pkts_nbrst++;
 
-/* Capture packets on sgi port. */
-#ifdef PCAP_GEN
-	    dump_pcap(pkts, n, pcap_dumper_east);
-#endif /* PCAP_GEN */
+	/* Capture packets on sgi port. */
+	 up_pcap_dumper(pcap_dumper_east, pkts, n);
 	return 0;
 }
 
@@ -267,9 +267,15 @@ static inline int epc_dl_port_out_ah(struct rte_pipeline *p, struct rte_mbuf **p
 	} else	if (dl_ndata_pkts)	{
 		dl_pkts_nbrst_prv = dl_pkts_nbrst;
 		epc_dl_handler f = epc_dl_worker_func[portno];
-		/* ASR- NGCORE_SHRINK: worker_index:TBC */
-		/* Vishnu: cmntd return f(p, pkts, dl_ndata_pkts, worker_index); */
-		f(p, pkts, dl_ndata_pkts, worker_index);
+		/* VS- NGCORE_SHRINK: worker_index:TBC */
+		/* cmntd return f(p, pkts, dl_ndata_pkts, worker_index); */
+		if(f != NULL){
+			f(p, pkts, dl_ndata_pkts, worker_index);
+		} else {
+			clLog(clSystemLog, eCLSeverityCritical,
+					LOG_FORMAT"Not Register EB pkts handler, Configured EB MAC was wrong\n",
+					LOG_VALUE);
+		}
 	}
 #ifdef TIMER_STATS
 #ifndef AUTO_ANALYSIS
@@ -294,26 +300,8 @@ void epc_dl_init(struct epc_dl_params *param, int core, uint8_t in_port_id, uint
 	dl_pkts_nbrst = 0;
 	dl_pkts_nbrst_prv = 0;
 
-	switch (app.spgw_cfg) {
-        case SGWU:
-            if (in_port_id != app.s5s8_sgwu_port && in_port_id != app.s1u_port)
-                rte_exit(EXIT_FAILURE, "Wrong MAC configured for S1U/S5S8_SGWU interface\n");
-            break;
-
-        case PGWU:
-            if (in_port_id != app.sgi_port && in_port_id != app.s5s8_pgwu_port)
-                rte_exit(EXIT_FAILURE, "Wrong MAC configured for S5S8_PGWU/SGI interface\n");
-            break;
-
-        case SAEGWU:
-            if (in_port_id != app.sgi_port && in_port_id != app.s1u_port)
-                rte_exit(EXIT_FAILURE, "Wrong MAC configured for S1U/SGI interface\n");
-            break;
-
-        default:
-            rte_exit(EXIT_FAILURE, "Invalid DP type(SPGW_CFG).\n");
-
-    	}
+	if (in_port_id != app.eb_port && in_port_id != app.wb_port)
+		rte_exit(EXIT_FAILURE, LOG_FORMAT"Wrong MAC configured for EB interface\n", LOG_VALUE);
 
 	memset(param, 0, sizeof(*param));
 
@@ -330,10 +318,10 @@ void epc_dl_init(struct epc_dl_params *param, int core, uint8_t in_port_id, uint
 	if (rte_eth_dev_socket_id(in_port_id)
 		!= (int)lcore_config[core].socket_id) {
 		clLog(clSystemLog, eCLSeverityMinor,
-			"location of the RX core for port=%d is not optimal\n",
-			in_port_id);
+			LOG_FORMAT"location of the RX core for port= %d is not optimal\n",
+			LOG_VALUE, in_port_id);
 		clLog(clSystemLog, eCLSeverityMinor,
-			"***** performance may be degradated !!!!! *******\n");
+			LOG_FORMAT"Performance may be Degradated\n", LOG_VALUE);
 	}
 
 	struct rte_port_ethdev_reader_params port_ethdev_params = {
@@ -347,7 +335,7 @@ void epc_dl_init(struct epc_dl_params *param, int core, uint8_t in_port_id, uint
 		.burst_size = epc_app.burst_size_rx_read,
 	};
 
-	if (in_port_id == SGI_PORT_ID)	{
+	if (in_port_id == SGI_PORT_ID) {
 		in_port_params.f_action = epc_dl_port_in_ah;
 		in_port_params.arg_ah = NULL;
 	}
@@ -360,7 +348,7 @@ void epc_dl_init(struct epc_dl_params *param, int core, uint8_t in_port_id, uint
 
 	/* Output port configuration */
 	for (i = 0; i < epc_app.n_ports; i++) {
-		if (i == 0)	{
+		if (i == 0) {
 			/* Pipeline driving decapped fast path pkts out the epc_ul core */
 			struct rte_port_ethdev_writer_nodrop_params port_ethdev_params =
 			{
@@ -382,8 +370,7 @@ void epc_dl_init(struct epc_dl_params *param, int core, uint8_t in_port_id, uint
 				    ("%s: Unable to configure output port\n"
 					"for ring RX %i\n", __func__, i);
 			}
-		}
-		else	{
+		} else {
 			/* Pipeline equeueing arp request pkts to epc_mct core ring */
 			struct rte_port_ring_writer_params port_ring_params = {
 				.tx_burst_sz = epc_app.burst_size_rx_write,
@@ -481,10 +468,10 @@ void epc_dl(void *args)
 		uint32_t rx_cnt = rte_ring_dequeue_bulk(shared_ring[S1U_PORT_ID],
 				(void**)pkts, queued_cnt, NULL);
 		uint32_t pkt_indx = 0;
-/* Capture the echo packets.*/
-#ifdef PCAP_GEN
-        	dump_pcap(pkts, rx_cnt, pcap_dumper_west);
-#endif /* PCAP_GEN */
+
+		/* Capture the echo packets.*/
+		up_pcap_dumper(pcap_dumper_east, pkts, rx_cnt);
+
 		while (rx_cnt) {
 			uint16_t pkt_cnt = PKT_BURST_SZ;
 			if (rx_cnt < PKT_BURST_SZ)
@@ -504,7 +491,8 @@ void epc_dl(void *args)
 				(void**)pkts, count, NULL);
 		int ret  = notification_handler(pkts, rx_cnt);
 		if (ret < 0)
-			clLog(clSystemLog, eCLSeverityCritical,"ERROR: notification handler failed..\n");
+			clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"ERROR: Notification handler failed\n", LOG_VALUE);
 	}
 
 }

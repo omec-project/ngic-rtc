@@ -65,6 +65,7 @@
 #include "stats.h"
 #include "up_main.h"
 #include "epc_arp.h"
+#include "pfcp_util.h"
 #include "epc_packet_framework.h"
 
 #ifdef use_rest
@@ -75,7 +76,7 @@
 #include "gw_adapter.h"
 #include "clogger.h"
 #endif
-
+#include "pfcp_enum.h"
 
 #ifdef STATIC_ARP
 #define STATIC_ARP_FILE "../config/static_arp.cfg"
@@ -174,11 +175,10 @@ int gatway_flag = 0;
 /**
  * @brief  : Structure for sending the request
  */
-typedef struct
-{
-    struct nlmsghdr nlMsgHdr;
-    struct rtmsg rtMsg;
-    char buf[4096];
+typedef struct {
+	struct nlmsghdr nlMsgHdr;
+	struct rtmsg rtMsg;
+	char buf[4096];
 }route_request;
 
 /**
@@ -208,8 +208,8 @@ static void print_arp_table(void);
  * memory pool for arp pkts.
  */
 static char *arp_xmpoolname[NUM_SPGW_PORTS] = {
-	"arp_icmp_S1Uxmpool",
-	"arp_icmp_SGixmpool"
+	"arp_icmp_ULxmpool",
+	"arp_icmp_DLxmpool"
 };
 struct rte_mempool *arp_xmpool[NUM_SPGW_PORTS];
 /**
@@ -221,8 +221,8 @@ struct rte_mbuf *arp_pkt[NUM_SPGW_PORTS];
  * memory pool for queued data pkts.
  */
 static char *arp_quxmpoolname[NUM_SPGW_PORTS] = {
-	"arp_S1Uquxmpool",
-	"arp_SGiquxmpool"
+	"arp_ULquxmpool",
+	"arp_DLquxmpool"
 };
 
 struct rte_mempool *arp_quxmpool[NUM_SPGW_PORTS];
@@ -232,7 +232,7 @@ struct rte_mempool *arp_quxmpool[NUM_SPGW_PORTS];
  */
 static struct rte_hash_parameters
 	arp_hash_params[NUM_SPGW_PORTS] = {
-		{	.name = "ARP_S1U",
+		{	.name = "ARP_UL",
 			.entries = 64*64,
 			.reserved = 0,
 			.key_len =
@@ -240,7 +240,7 @@ static struct rte_hash_parameters
 			.hash_func = rte_jhash,
 			.hash_func_init_val = 0 },
 		{
-			.name = "ARP_SGI",
+			.name = "ARP_DL",
 			.entries = 64*64,
 			.reserved = 0,
 			.key_len =
@@ -348,7 +348,9 @@ static void print_ip(int ip)
 	bytes[1] = (ip >> 8) & 0xFF;
 	bytes[2] = (ip >> 16) & 0xFF;
 	bytes[3] = (ip >> 24) & 0xFF;
-	clLog(clSystemLog, eCLSeverityDebug,"%d.%d.%d.%d\n", bytes[3], bytes[2], bytes[1], bytes[0]);
+	clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT"IP Address: %d.%d.%d.%d\n",
+		LOG_VALUE, bytes[3], bytes[2], bytes[1], bytes[0]);
 }
 
 /**
@@ -395,12 +397,11 @@ int arp_qunresolved_ulpkt(struct arp_entry_data *arp_data,
 	struct epc_meta_data *to_meta_data;
 
 	if (buf_pkt == NULL) {
-		clLog(clSystemLog, eCLSeverityDebug, "ARP:%s::"
-				"\n\tError rte_pktmbuf_clone... Dropping pkt"
-				"\n\tarp_data->ip= %s\n",
-				__func__,
-				inet_ntoa(*(struct in_addr *)&arp_data->ip));
-		clLog(clSystemLog, eCLSeverityCritical,"%s: Error rte_pktmbuf_clone... Dropping pkt.\n", __func__);
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"ARP:"
+			" Error rte pkt memory buf clone Dropping pkt"
+			"arp data IP: "IPV4_ADDR"\n", LOG_VALUE, IPV4_ADDR_HOST_FORMAT(arp_data->ip));
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"Error rte PKT memory buf clone Dropping pkt\n", LOG_VALUE);
 		print_arp_table();
 		return -1;
 	}
@@ -415,18 +416,15 @@ int arp_qunresolved_ulpkt(struct arp_entry_data *arp_data,
 	ret = rte_ring_enqueue(arp_data->queue, buf_pkt);
 	if (ret == -ENOBUFS) {
 		rte_pktmbuf_free(buf_pkt);
-		clLog(clSystemLog, eCLSeverityDebug, "%s::"
-			"\n\tCan't queue pkt- ring full... Dropping pkt"
-			"\n\tarp_data->ip= %s\n",
-			__func__,
-			inet_ntoa(*(struct in_addr *) &arp_data->ip));
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Can't queue PKT ring full, so dropping PKT"
+			"arp data IP: "IPV4_ADDR"\n",
+			LOG_VALUE, IPV4_ADDR_HOST_FORMAT(arp_data->ip));
 	} else {
 		if (ARPICMP_DEBUG) {
-			clLog(clSystemLog, eCLSeverityMajor, "%s::"
-					"\n\tQueued pkt"
-					"\n\tarp_data->ip= %20s\n",
-					__func__,
-					inet_ntoa(*(struct in_addr *) &arp_data->ip));
+			clLog(clSystemLog, eCLSeverityMajor,
+				LOG_FORMAT"Queued PKT arp data IP: "IPV4_ADDR"\n",
+				LOG_VALUE, IPV4_ADDR_HOST_FORMAT(arp_data->ip));
 		}
 	}
 	return ret;
@@ -443,12 +441,12 @@ int arp_qunresolved_dlpkt(struct arp_entry_data *arp_data,
 	struct epc_meta_data *to_meta_data;
 
 	if (buf_pkt == NULL) {
-		clLog(clSystemLog, eCLSeverityDebug, "ARP:%s::"
-				"\n\tError rte_pktmbuf_clone... Dropping pkt"
-				"\n\tarp_data->ip= %s\n",
-				__func__,
-				inet_ntoa(*(struct in_addr *)&arp_data->ip));
-		clLog(clSystemLog, eCLSeverityCritical,"%s: Error rte_pktmbuf_clone... Dropping pkt.\n", __func__);
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"ARP"
+				": Error rte PKT memory buf clone so dropping PKT"
+				"and arp data IP: "IPV4_ADDR"\n",
+				LOG_VALUE, IPV4_ADDR_HOST_FORMAT(arp_data->ip));
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"ARP :Error rte PKT memory buf clone so dropping PKT\n", LOG_VALUE);
 		print_arp_table();
 		return -1;
 	}
@@ -464,18 +462,16 @@ int arp_qunresolved_dlpkt(struct arp_entry_data *arp_data,
 	ret = rte_ring_enqueue(arp_data->queue, buf_pkt);
 	if (ret == -ENOBUFS) {
 		rte_pktmbuf_free(buf_pkt);
-		clLog(clSystemLog, eCLSeverityDebug, "%s::"
-			"\n\tCan't queue pkt- ring full... Dropping pkt"
-			"\n\tarp_data->ip= %s\n",
-			__func__,
-			inet_ntoa(*(struct in_addr *) &arp_data->ip));
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Can't queue PKT  ring full so dropping PKT"
+			" arp data IP: "IPV4_ADDR"\n",
+			LOG_VALUE, IPV4_ADDR_HOST_FORMAT(arp_data->ip));
 	} else {
 		if (ARPICMP_DEBUG) {
-			clLog(clSystemLog, eCLSeverityMajor, "%s::"
-					"\n\tQueued pkt"
-					"\n\tarp_data->ip= %20s\n",
-					__func__,
-					inet_ntoa(*(struct in_addr *) &arp_data->ip));
+			clLog(clSystemLog, eCLSeverityMajor,
+				LOG_FORMAT"Queued pkt"
+				" and arp data IP: "IPV4_ADDR"\n",
+				LOG_VALUE, IPV4_ADDR_HOST_FORMAT(arp_data->ip));
 		}
 	}
 	return ret;
@@ -516,13 +512,14 @@ arp_op_name(uint16_t arp_op)
 static void
 print_icmp_packet(struct icmp_hdr *icmp_h)
 {
-	clLog(clSystemLog, eCLSeverityDebug,"  ICMP: type=%d (%s) code=%d id=%d seqnum=%d\n",
-			icmp_h->icmp_type,
-			(icmp_h->icmp_type == IP_ICMP_ECHO_REPLY ? "Reply" :
-			 (icmp_h->icmp_type == IP_ICMP_ECHO_REQUEST ? "Reqest" : "Undef")),
-			icmp_h->icmp_code,
-			CHECK_ENDIAN_16(icmp_h->icmp_ident),
-			CHECK_ENDIAN_16(icmp_h->icmp_seq_nb));
+	clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT"ICMP: type=%d (%s) code=%d id=%d seqnum=%d\n", LOG_VALUE,
+		icmp_h->icmp_type,
+		(icmp_h->icmp_type == IP_ICMP_ECHO_REPLY ? "Reply" :
+		(icmp_h->icmp_type == IP_ICMP_ECHO_REQUEST ? "Reqest" : "Undef")),
+		icmp_h->icmp_code,
+		CHECK_ENDIAN_16(icmp_h->icmp_ident),
+		CHECK_ENDIAN_16(icmp_h->icmp_seq_nb));
 }
 
 /**
@@ -537,16 +534,18 @@ print_ipv4_h(struct ipv4_hdr *ip_h)
 				(struct icmp_hdr *)((char *)ip_h +
 				sizeof(struct ipv4_hdr));
 	clLog(clSystemLog, eCLSeverityDebug,
-			"\tIPv4: Version=%d"
-			"\n\tHLEN=%d Type=%d Protocol=%d Length=%d\n",
-			(ip_h->version_ihl & 0xf0) >> 4,
-			(ip_h->version_ihl & 0x0f),
-			ip_h->type_of_service,
-			ip_h->next_proto_id,
-			rte_cpu_to_be_16(ip_h->total_length));
-	clLog(clSystemLog, eCLSeverityDebug,"Dst IP:");
+		LOG_FORMAT"\tIPv4: Version=%d"
+		" Header LEN=%d Type=%d Protocol=%d Length=%d\n", LOG_VALUE,
+		(ip_h->version_ihl & 0xf0) >> 4,
+		(ip_h->version_ihl & 0x0f),
+		ip_h->type_of_service,
+		ip_h->next_proto_id,
+		rte_cpu_to_be_16(ip_h->total_length));
+	clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT"Dst IP:", LOG_VALUE);
 	print_ip(ntohl(ip_h->dst_addr));
-	clLog(clSystemLog, eCLSeverityDebug,"Src IP:");
+	clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT"Src IP:", LOG_VALUE);
 	print_ip(ntohl(ip_h->src_addr));
 
 	if (ip_h->next_proto_id == IPPROTO_ICMP) {
@@ -562,58 +561,67 @@ print_ipv4_h(struct ipv4_hdr *ip_h)
 static void
 print_arp_packet(struct arp_hdr *arp_h)
 {
-	clLog(clSystemLog, eCLSeverityDebug,"  ARP:  hrd=%d proto=0x%04x hln=%d "
-			"pln=%d op=%u (%s)\n",
-			CHECK_ENDIAN_16(arp_h->arp_hrd),
-			CHECK_ENDIAN_16(arp_h->arp_pro), arp_h->arp_hln,
-			arp_h->arp_pln, CHECK_ENDIAN_16(arp_h->arp_op),
-			arp_op_name(arp_h->arp_op));
+	clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT"ARP:  hrd=%d proto=0x%04x hln=%d "
+		"pln=%d op=%u (%s)\n", LOG_VALUE,
+		CHECK_ENDIAN_16(arp_h->arp_hrd),
+		CHECK_ENDIAN_16(arp_h->arp_pro), arp_h->arp_hln,
+		arp_h->arp_pln, CHECK_ENDIAN_16(arp_h->arp_op),
+		arp_op_name(arp_h->arp_op));
 
 	if (CHECK_ENDIAN_16(arp_h->arp_hrd) != ARP_HRD_ETHER) {
-		clLog(clSystemLog, eCLSeverityDebug,"incorrect arp_hrd format for IPv4 ARP (%d)\n",
-				(arp_h->arp_hrd));
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Incorrect arp header format for IPv4 ARP (%d)\n", LOG_VALUE,
+			(arp_h->arp_hrd));
 	} else if (CHECK_ENDIAN_16(arp_h->arp_pro) != ETHER_TYPE_IPv4) {
-		clLog(clSystemLog, eCLSeverityDebug,"incorrect arp_pro format for IPv4 ARP (%d)\n",
-				(arp_h->arp_pro));
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Incorrect arp protocol format for IPv4 ARP (%d)\n",
+			LOG_VALUE, (arp_h->arp_pro));
 	} else if (arp_h->arp_hln != 6) {
-		clLog(clSystemLog, eCLSeverityDebug,"incorrect arp_hln format for IPv4 ARP (%d)\n",
-				arp_h->arp_hln);
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Incorrect arp_hln format for IPv4 ARP (%d)\n",
+			LOG_VALUE, arp_h->arp_hln);
 	} else if (arp_h->arp_pln != 4) {
-		clLog(clSystemLog, eCLSeverityDebug,"incorrect arp_pln format for IPv4 ARP (%d)\n",
-				arp_h->arp_pln);
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Incorrect arp_pln format for IPv4 ARP (%d)\n",
+			LOG_VALUE, arp_h->arp_pln);
 	} else {
-		clLog(clSystemLog, eCLSeverityDebug,"  sha=%02X:%02X:%02X:%02X:%02X:%02X",
-				arp_h->arp_data.arp_sha.addr_bytes[0],
-				arp_h->arp_data.arp_sha.addr_bytes[1],
-				arp_h->arp_data.arp_sha.addr_bytes[2],
-				arp_h->arp_data.arp_sha.addr_bytes[3],
-				arp_h->arp_data.arp_sha.addr_bytes[4],
-				arp_h->arp_data.arp_sha.addr_bytes[5]);
-		clLog(clSystemLog, eCLSeverityDebug," sip=%d.%d.%d.%d\n",
-				(CHECK_ENDIAN_32(arp_h->arp_data.arp_sip) >> 24) &
-								0xFF,
-				(CHECK_ENDIAN_32(arp_h->arp_data.arp_sip) >> 16) &
-								0xFF,
-				(CHECK_ENDIAN_32(arp_h->arp_data.arp_sip) >>  8) &
-								0xFF,
-				CHECK_ENDIAN_32(arp_h->arp_data.arp_sip) &
-								0xFF);
-		clLog(clSystemLog, eCLSeverityDebug,"  tha=%02X:%02X:%02X:%02X:%02X:%02X",
-				arp_h->arp_data.arp_tha.addr_bytes[0],
-				arp_h->arp_data.arp_tha.addr_bytes[1],
-				arp_h->arp_data.arp_tha.addr_bytes[2],
-				arp_h->arp_data.arp_tha.addr_bytes[3],
-				arp_h->arp_data.arp_tha.addr_bytes[4],
-				arp_h->arp_data.arp_tha.addr_bytes[5]);
-		clLog(clSystemLog, eCLSeverityDebug," tip=%d.%d.%d.%d\n",
-				(CHECK_ENDIAN_32(arp_h->arp_data.arp_tip) >> 24) &
-								0xFF,
-				(CHECK_ENDIAN_32(arp_h->arp_data.arp_tip) >> 16) &
-								0xFF,
-				(CHECK_ENDIAN_32(arp_h->arp_data.arp_tip) >>  8) &
-								0xFF,
-				CHECK_ENDIAN_32(arp_h->arp_data.arp_tip) &
-								0xFF);
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Sha: %02X:%02X:%02X:%02X:%02X:%02X", LOG_VALUE,
+			arp_h->arp_data.arp_sha.addr_bytes[0],
+			arp_h->arp_data.arp_sha.addr_bytes[1],
+			arp_h->arp_data.arp_sha.addr_bytes[2],
+			arp_h->arp_data.arp_sha.addr_bytes[3],
+			arp_h->arp_data.arp_sha.addr_bytes[4],
+			arp_h->arp_data.arp_sha.addr_bytes[5]);
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"SIP: %d.%d.%d.%d\n", LOG_VALUE,
+			(CHECK_ENDIAN_32(arp_h->arp_data.arp_sip) >> 24) &
+							0xFF,
+			(CHECK_ENDIAN_32(arp_h->arp_data.arp_sip) >> 16) &
+							0xFF,
+			(CHECK_ENDIAN_32(arp_h->arp_data.arp_sip) >>  8) &
+							0xFF,
+			CHECK_ENDIAN_32(arp_h->arp_data.arp_sip) &
+							0xFF);
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Tha: %02X:%02X:%02X:%02X:%02X:%02X", LOG_VALUE,
+			arp_h->arp_data.arp_tha.addr_bytes[0],
+			arp_h->arp_data.arp_tha.addr_bytes[1],
+			arp_h->arp_data.arp_tha.addr_bytes[2],
+			arp_h->arp_data.arp_tha.addr_bytes[3],
+			arp_h->arp_data.arp_tha.addr_bytes[4],
+			arp_h->arp_data.arp_tha.addr_bytes[5]);
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT" Tip: %d.%d.%d.%d\n", LOG_VALUE,
+			(CHECK_ENDIAN_32(arp_h->arp_data.arp_tip) >> 24) &
+							0xFF,
+			(CHECK_ENDIAN_32(arp_h->arp_data.arp_tip) >> 16) &
+							0xFF,
+			(CHECK_ENDIAN_32(arp_h->arp_data.arp_tip) >>  8) &
+							0xFF,
+			CHECK_ENDIAN_32(arp_h->arp_data.arp_tip) &
+							0xFF);
 	}
 }
 
@@ -625,20 +633,22 @@ print_arp_packet(struct arp_hdr *arp_h)
 static void
 print_eth(struct ether_hdr *eth_h)
 {
-	clLog(clSystemLog, eCLSeverityDebug,"  ETH:  src=%02X:%02X:%02X:%02X:%02X:%02X",
-			eth_h->s_addr.addr_bytes[0],
-			eth_h->s_addr.addr_bytes[1],
-			eth_h->s_addr.addr_bytes[2],
-			eth_h->s_addr.addr_bytes[3],
-			eth_h->s_addr.addr_bytes[4],
-			eth_h->s_addr.addr_bytes[5]);
-	clLog(clSystemLog, eCLSeverityDebug," dst=%02X:%02X:%02X:%02X:%02X:%02X\n",
-			eth_h->d_addr.addr_bytes[0],
-			eth_h->d_addr.addr_bytes[1],
-			eth_h->d_addr.addr_bytes[2],
-			eth_h->d_addr.addr_bytes[3],
-			eth_h->d_addr.addr_bytes[4],
-			eth_h->d_addr.addr_bytes[5]);
+	clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT"  ETH: src: %02X:%02X:%02X:%02X:%02X:%02X", LOG_VALUE,
+		eth_h->s_addr.addr_bytes[0],
+		eth_h->s_addr.addr_bytes[1],
+		eth_h->s_addr.addr_bytes[2],
+		eth_h->s_addr.addr_bytes[3],
+		eth_h->s_addr.addr_bytes[4],
+		eth_h->s_addr.addr_bytes[5]);
+	clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT" dst: %02X:%02X:%02X:%02X:%02X:%02X\n", LOG_VALUE,
+		eth_h->d_addr.addr_bytes[0],
+		eth_h->d_addr.addr_bytes[1],
+		eth_h->d_addr.addr_bytes[2],
+		eth_h->d_addr.addr_bytes[3],
+		eth_h->d_addr.addr_bytes[4],
+		eth_h->d_addr.addr_bytes[5]);
 
 }
 
@@ -655,8 +665,9 @@ print_mbuf(const char *rx_tx, unsigned portid,
 				(struct ipv4_hdr *)((char *)eth_h +
 				sizeof(struct ether_hdr));
 
-	clLog(clSystemLog, eCLSeverityDebug,"%s(%u): on port %u pkt-len=%u nb-segs=%u\n",
-			rx_tx, line, portid, mbuf->pkt_len, mbuf->nb_segs);
+	clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT"%s(%u): on port %u pkt-len=%u nb-segs=%u\n", LOG_VALUE,
+		rx_tx, line, portid, mbuf->pkt_len, mbuf->nb_segs);
 	print_eth(eth_h);
 	switch (rte_cpu_to_be_16(eth_h->ether_type)) {
 	case ETHER_TYPE_IPv4:
@@ -666,7 +677,8 @@ print_mbuf(const char *rx_tx, unsigned portid,
 		print_arp_packet(arp_h);
 		break;
 	default:
-		clLog(clSystemLog, eCLSeverityDebug,"  unknown packet type\n");
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"  Unknown packet type\n", LOG_VALUE);
 		break;
 	}
 	fflush(stdout);
@@ -679,10 +691,11 @@ retrieve_arp_entry(struct arp_ipv4_key arp_key,
 	int ret;
 	struct arp_entry_data *ret_arp_data = NULL;
 	struct RouteInfo *route_entry = NULL;
-	if (ARPICMP_DEBUG)
-		clLog(clSystemLog, eCLSeverityDebug,"%s::"
-				"\n\tretrieve_arp_entry for ip 0x%x\n",
-				__func__, arp_key.ip);
+	if (ARPICMP_DEBUG) {
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Retrieve arp entry for ip: "IPV4_ADDR"\n",
+			LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ntohl(arp_key.ip)));
+	}
 
 	ret = rte_hash_lookup_data(arp_hash_handle[portid],
 					&arp_key.ip, (void **)&ret_arp_data);
@@ -693,8 +706,6 @@ retrieve_arp_entry(struct arp_ipv4_key arp_key,
 
 		ret = rte_hash_lookup_data(route_hash_handle,
 						&key.dstAddr, (void **)&route_entry);
-
-
 		if (ret == 0) {
 			if ((route_entry->gateWay != 0) && (route_entry->gateWay_Mac.addr_bytes != 0)) {
 					/* Fill the gateway entry */
@@ -711,8 +722,9 @@ retrieve_arp_entry(struct arp_ipv4_key arp_key,
 			} else if ((route_entry->gateWay != 0) && (route_entry->gateWay_Mac.addr_bytes == 0)) {
 						struct arp_ipv4_key gw_arp_key;
 						gw_arp_key.ip = route_entry->gateWay;
-						clLog(clSystemLog, eCLSeverityInfo, "GateWay ARP entry not found for %s!!!\n",
-								inet_ntoa(*((struct in_addr *)&gw_arp_key.ip)));
+						clLog(clSystemLog, eCLSeverityInfo,
+							LOG_FORMAT"GateWay ARP entry not found for %s\n",
+							LOG_VALUE, inet_ntoa(*((struct in_addr *)&gw_arp_key.ip)));
 						/* No arp entry for arp_key.ip
 						 * Add arp_data for arp_key.ip at
 						 * arp_hash_handle[portid]
@@ -737,14 +749,12 @@ retrieve_arp_entry(struct arp_ipv4_key arp_key,
 								rte_socket_id(), 0);
 
 						if (ret_arp_data->queue == NULL) {
-							clLog(clSystemLog, eCLSeverityDebug,"%s::"
-									"\n\tARP ring create error"
-									"\n\tarp_key.ip= %s; portid= %d"
-									"\n\tError=%s::errno(%d)\n",
-									__func__,
+							clLog(clSystemLog, eCLSeverityDebug,
+									LOG_FORMAT"ARP ring create error"
+									" arp key IP: %s, portid: %d"
+									"\n\tError: %s, errno(%d)\n", LOG_VALUE,
 									inet_ntoa(*(struct in_addr *)&gw_arp_key.ip),
-									portid,
-									rte_strerror(abs(rte_errno)), rte_errno);
+									portid, rte_strerror(abs(rte_errno)), rte_errno);
 							print_arp_table();
 							if (rte_errno == EEXIST) {
 								rte_free(ret_arp_data);
@@ -755,8 +765,9 @@ retrieve_arp_entry(struct arp_ipv4_key arp_key,
 				}
 			}
 
-		clLog(clSystemLog, eCLSeverityInfo, "ARP entry not found for %s!!!\n",
-				inet_ntoa(*((struct in_addr *)&arp_key.ip)));
+		clLog(clSystemLog, eCLSeverityInfo,
+			LOG_FORMAT"ARP entry not found for IP: "IPV4_ADDR"\n",
+			LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ntohl(arp_key.ip)));
 		/* No arp entry for arp_key.ip
 		 * Add arp_data for arp_key.ip at
 		 * arp_hash_handle[portid]
@@ -781,12 +792,12 @@ retrieve_arp_entry(struct arp_ipv4_key arp_key,
 				rte_socket_id(), 0);
 
 		if (ret_arp_data->queue == NULL) {
-			clLog(clSystemLog, eCLSeverityDebug,"%s::"
-					"\n\tARP ring create error"
-					"\n\tarp_key.ip= %s; portid= %d"
-					"\n\tError=%s::errno(%d)\n",
-					__func__,
-					inet_ntoa(*(struct in_addr *)&arp_key.ip),
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"ARP ring create error"
+					"arp key IP: "IPV4_ADDR", portid: %d"
+					",Error: %s , errno(%d)\n",
+					LOG_VALUE,
+					IPV4_ADDR_HOST_FORMAT(ntohl(arp_key.ip)),
 					portid,
 					rte_strerror(abs(rte_errno)), rte_errno);
 			print_arp_table();
@@ -820,16 +831,17 @@ print_arp_table(void)
 
 			memcpy(&tmp_arp_key, next_key,
 					sizeof(struct arp_ipv4_key));
-			clLog(clSystemLog, eCLSeverityDebug,"\t%02X:%02X:%02X:%02X:%02X:%02X  %10s  %s\n",
-					tmp_arp_data->eth_addr.addr_bytes[0],
-					tmp_arp_data->eth_addr.addr_bytes[1],
-					tmp_arp_data->eth_addr.addr_bytes[2],
-					tmp_arp_data->eth_addr.addr_bytes[3],
-					tmp_arp_data->eth_addr.addr_bytes[4],
-					tmp_arp_data->eth_addr.addr_bytes[5],
-					tmp_arp_data->status == COMPLETE ? "COMPLETE" : "INCOMPLETE",
-					inet_ntoa(
-						*((struct in_addr *)(&tmp_arp_data->ip))));
+			clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"\t%02X:%02X:%02X:%02X:%02X:%02X  %10s  %s\n", LOG_VALUE,
+				tmp_arp_data->eth_addr.addr_bytes[0],
+				tmp_arp_data->eth_addr.addr_bytes[1],
+				tmp_arp_data->eth_addr.addr_bytes[2],
+				tmp_arp_data->eth_addr.addr_bytes[3],
+				tmp_arp_data->eth_addr.addr_bytes[4],
+				tmp_arp_data->eth_addr.addr_bytes[5],
+				tmp_arp_data->status == COMPLETE ? "COMPLETE" : "INCOMPLETE",
+				inet_ntoa(
+					*((struct in_addr *)(&tmp_arp_data->ip))));
 		}
 	}
 }
@@ -859,8 +871,9 @@ arp_send_buffered_pkts(struct rte_ring *queue,
 					&e_hdr->s_addr);
 			if (rte_ring_enqueue(shared_ring[portid], pkt) == -ENOBUFS) {
 				rte_pktmbuf_free(pkt);
-				clLog(clSystemLog, eCLSeverityCritical, "%s::Can't queue pkt- ring full..."
-						" Dropping pkt\n", __func__);
+				clLog(clSystemLog, eCLSeverityCritical,
+					LOG_FORMAT"Can't queue PKT ring full"
+					" so dropping PKT\n", LOG_VALUE);
 				continue;
 			}
 			++count;
@@ -877,14 +890,13 @@ arp_send_buffered_pkts(struct rte_ring *queue,
 #endif /* NGCORE_SHRINK */
 
 	if (ARPICMP_DEBUG) {
-		clLog(clSystemLog, eCLSeverityDebug,"%s::"
-				"\n\tForwarded count pkts=  %u"
-				"\n\tOut of pkts in ring= %u\n",
-				__func__, count, ring_count);
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Forwarded count PKTS:  %u"
+			" Out of PKTS in ring: %u\n",
+			LOG_VALUE, count, ring_count);
 	}
 
 	rte_ring_free(queue);
-	//queue = NULL;
 }
 
 #ifdef USE_REST
@@ -900,29 +912,17 @@ process_echo_response(struct rte_mbuf *echo_pkt)
 	int ret = 0;
 	peerData *conn_data = NULL;
 
-	//uint8_t rest_cnt = 0;
-	//struct ether_hdr *eth_h = rte_pktmbuf_mtod(echo_pkt, struct ether_hdr *);
-	//struct ether_addr tmp_mac;
-	//ether_addr_copy(&eth_h->s_addr, &tmp_mac);
-
 	/* Retrive src IP addresses */
 	struct ipv4_hdr *ip_hdr = get_mtoip(echo_pkt);
 
-	//struct gtpu_hdr *gtpu_hdr = get_mtogtpu(echo_pkt);
-	//gtpu_recovery_ie *recovery_ie = (gtpu_recovery_ie*)(rte_pktmbuf_mtod(echo_pkt, unsigned char *) +
-	//		ETH_HDR_LEN + IPV4_HDR_LEN + UDP_HDR_LEN + GTPU_HDR_SIZE);
-	//recovery_ie = (gtpu_recovery_ie*)((char*)gtpu_hdr+
-	//		GTPU_HDR_SIZE + ntohs(gtpu_hdr->msglen));
-	//rest_cnt = recovery_ie->restart_cntr;
-	//
-
-	/* VS: TODO */
+	/* VS: */
 	ret = rte_hash_lookup_data(conn_hash_handle,
 				&ip_hdr->src_addr, (void **)&conn_data);
 
 	if ( ret < 0) {
-		clLog(clSystemLog, eCLSeverityDebug, " Entry not found for NODE :%s\n",
-							inet_ntoa(*(struct in_addr *)&ip_hdr->src_addr));
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT" Entry not found for NODE: %s\n",
+			LOG_VALUE, inet_ntoa(*(struct in_addr *)&ip_hdr->src_addr));
 		return;
 
 	} else {
@@ -937,18 +937,11 @@ process_echo_response(struct rte_mbuf *echo_pkt)
 		/* Stop periodic timer for specific Node */
 		stopTimer( &conn_data->pt );
 		/* Reset Periodic Timer */
-		if ( startTimer( &conn_data->pt ) < 0)
-			clLog(clSystemLog, eCLSeverityCritical, "Periodic Timer failed to start...\n");
+		if ( startTimer( &conn_data->pt ) < 0) {
+			clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Periodic Timer failed to start\n", LOG_VALUE);
+		}
 	}
-
-	//if (rest_cnt < conn_data->rstCnt) {
-	//	flush_eNB_session(&data[inx]);
-	//	conn_data->rstCnt = 0;
-	//	return;
-	//}
-	//
-	//conn_data->rstCnt = rest_cnt;
-
 }
 #endif /* USE_REST */
 
@@ -967,14 +960,13 @@ void process_arp_msg(const struct ether_addr *hw_addr,
 	arp_key.ip = ipaddr;
 
 	if (ARPICMP_DEBUG)
-		clLog(clSystemLog, eCLSeverityDebug,"%s::"
-				"\n\tarp_key.ip= 0x%x; portid= %d\n",
-				__func__, arp_key.ip, portid);
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"ARP_RESP: Arp key IP "IPV4_ADDR", portid= %d\n",
+			LOG_VALUE, IPV4_ADDR_HOST_FORMAT(arp_key.ip), portid);
 
 	/* On ARP_REQ || ARP_RSP retrieve_arp_entry */
 	struct arp_entry_data *arp_data =
 				retrieve_arp_entry(arp_key, portid);
-
 	if (arp_data) {
 		arp_data->last_update = time(NULL);
 		if (!(is_same_ether_addr(&arp_data->eth_addr, hw_addr))) {
@@ -990,6 +982,10 @@ void process_arp_msg(const struct ether_addr *hw_addr,
 				arp_data->status = COMPLETE;
 			}
 		}
+	} else {
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"ARP_RESP: Arp data not found for key IP "IPV4_ADDR", portid= %d\n",
+			LOG_VALUE, IPV4_ADDR_HOST_FORMAT(arp_key.ip), portid);
 	}
 }
 
@@ -997,17 +993,18 @@ void print_pkt1(struct rte_mbuf *pkt)
 {
 	if (ARPICMP_DEBUG < 2)
 		return;
+
 	uint8_t *rd = RTE_MBUF_METADATA_UINT8_PTR(pkt, 0);
 	int i = 0, j = 0;
 	clLog(clSystemLog, eCLSeverityDebug,
-			"ARPICMP Packet Stats"
-			"- hit = %u, miss = %u, key %u, out %u\n"
-			, pkt_hit_count, pkt_miss_count,
+			LOG_FORMAT"ARPICMP Packet Stats"
+			"- hit = %u, miss = %u, key %u, out %u\n",
+			LOG_VALUE, pkt_hit_count, pkt_miss_count,
 			pkt_key_count, pkt_out_count);
 	for (i = 0; i < 20; i++) {
 		for (j = 0; j < 20; j++)
-			clLog(clSystemLog, eCLSeverityDebug,"%02x ", rd[(20*i)+j]);
-		clLog(clSystemLog, eCLSeverityDebug,"\n");
+			clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"%02x \n", LOG_VALUE, rd[(20*i)+j]);
 	}
 }
 
@@ -1018,47 +1015,37 @@ void print_pkt1(struct rte_mbuf *pkt)
  * @return : Returns nothing
  */
 static void
-get_mac_ip_addr(struct arp_port_address *addr, uint8_t port_id)
+get_mac_ip_addr(struct arp_port_address *addr, uint32_t ip_addr,
+		uint8_t port_id)
 {
-	switch (app.spgw_cfg) {
-		case SGWU:
-			if (app.s1u_port == port_id) {
-				addr[port_id].ip = app.s1u_ip;
-				addr[port_id].mac_addr = &app.s1u_ether_addr;
-			} else if (app.s5s8_sgwu_port == port_id) {
-				addr[port_id].ip = app.s5s8_sgwu_ip;
-				addr[port_id].mac_addr = &app.s5s8_sgwu_ether_addr;
-			} else {
-				clLog(clSystemLog, eCLSeverityDebug,"Unknown input port\n");
-			}
-			break;
+	if (app.wb_port == port_id) {
+		/* Validate the Destination IP Address subnet */
+		if (validate_Subnet(ntohl(ip_addr), app.wb_net, app.wb_bcast_addr)) {
+			addr[port_id].ip = htonl(app.wb_ip);
+		} else if (validate_Subnet(ntohl(ip_addr), app.wb_li_net, app.wb_li_bcast_addr)) {
+			addr[port_id].ip = htonl(app.wb_li_ip);
+		} else {
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"ARP Destination IPv4 Addr "IPV4_ADDR" is NOT in local intf subnet\n",
+					LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ntohl(ip_addr)));
+		}
+		addr[port_id].mac_addr = &app.wb_ether_addr;
 
-		case PGWU:
-			if (app.s5s8_pgwu_port == port_id) {
-				addr[port_id].ip = app.s5s8_pgwu_ip;
-				addr[port_id].mac_addr = &app.s5s8_pgwu_ether_addr;
-			} else if (app.sgi_port == port_id) {
-				addr[port_id].ip = app.sgi_ip;
-				addr[port_id].mac_addr = &app.sgi_ether_addr;
-			} else {
-				clLog(clSystemLog, eCLSeverityDebug,"Unknown input port\n");
-			}
-			break;
-
-		case SAEGWU:
-			if (app.s1u_port == port_id) {
-				addr[port_id].ip = app.s1u_ip;
-				addr[port_id].mac_addr = &app.s1u_ether_addr;
-			} else if (app.sgi_port == port_id) {
-				addr[port_id].ip = app.sgi_ip;
-				addr[port_id].mac_addr = &app.sgi_ether_addr;
-			} else {
-				clLog(clSystemLog, eCLSeverityDebug,"Unknown input port\n");
-			}
-			break;
-
-		default:
-			break;
+	} else if (app.eb_port == port_id) {
+		/* Validate the Destination IP Address subnet */
+		if (validate_Subnet(ntohl(ip_addr), app.eb_net, app.eb_bcast_addr)) {
+			addr[port_id].ip = htonl(app.eb_ip);
+		} else if (validate_Subnet(ntohl(ip_addr), app.eb_li_net, app.eb_li_bcast_addr)) {
+			addr[port_id].ip = htonl(app.eb_li_ip);
+		} else {
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"ARP Destination IPv4 Addr "IPV4_ADDR" is NOT in local intf subnet\n",
+					LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ntohl(ip_addr)));
+		}
+		addr[port_id].mac_addr = &app.eb_ether_addr;
+	} else {
+		clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"Unknown input port\n", LOG_VALUE);
 	}
 }
 
@@ -1083,22 +1070,9 @@ pkt_work_arp_key(
 
 	if (in_port_id == S1U_PORT_ID)
 	{
-		if (app.spgw_cfg == SGWU || app.spgw_cfg == SAEGWU){
-			it = S1U;
-		} else if (app.spgw_cfg == PGWU)
-		{
-			it = S5S8;
-		}
-
-	} else { //if (in_port_id == SGI_PORT_ID){
-		if (app.spgw_cfg == SGWU )
-		{
-		  it = S5S8;
-		} else //if (app.spgw_cfg == PGWU || app.spgw_cfg == SAEGWU)
-		{
-			it = SGI;
-		}
-
+		it = S1U;
+	} else {
+		it = SGI;
 	}
 
 	struct ether_hdr *eth_h = rte_pktmbuf_mtod(pkt, struct ether_hdr *);
@@ -1123,46 +1097,41 @@ pkt_work_arp_key(
 			print_arp_packet(arp_h);
 
 		if (CHECK_ENDIAN_16(arp_h->arp_hrd) != ARP_HRD_ETHER) {
-			clLog(clSystemLog, eCLSeverityDebug,"Invalid hardware address format-"
-					"\nnot processing ARP_REQ\n");
+			clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"Invalid hardware address format-"
+				"not processing ARP REQ\n", LOG_VALUE);
 		} else if (CHECK_ENDIAN_16(arp_h->arp_pro) != ETHER_TYPE_IPv4) {
-			clLog(clSystemLog, eCLSeverityDebug,"Invalid protocol format-"
-					"\nnot processing ARP_REQ\n");
+			clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"Invalid protocol format-"
+					"not processing ARP REQ\n", LOG_VALUE);
 		} else if (arp_h->arp_hln != 6) {
-			clLog(clSystemLog, eCLSeverityDebug,"Invalid hardware address length-"
-					"\nnot processing ARP_REQ\n");
+			clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"Invalid hardware address length-"
+				"not processing ARP REQ\n", LOG_VALUE);
 		} else if (arp_h->arp_pln != 4) {
-			clLog(clSystemLog, eCLSeverityDebug,"Invalid protocol address length-"
-					"\nnot processing ARP_REQ\n");
+			clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"Invalid protocol address length-"
+				"not processing ARP REQ\n", LOG_VALUE);
 		} else {
-			get_mac_ip_addr(arp_port_addresses, in_port_id);
+			get_mac_ip_addr(arp_port_addresses, arp_h->arp_data.arp_tip, in_port_id);
 			if (arp_h->arp_data.arp_tip !=
 				arp_port_addresses[in_port_id].ip) {
 				if (ARPICMP_DEBUG) {
-					clLog(clSystemLog, eCLSeverityDebug,"%s::"
-						"ARP-REQ IP != Port IP::discarding"
-						"\n\tARP_REQ IP= %s;"
-						"\n\tPort ID= %X; IF IP= %s\n",
-						__func__,
-						inet_ntoa(
-							*(struct in_addr *)&arp_h->
-								arp_data.arp_tip),
-						in_port_id,
-						inet_ntoa(
-							*(struct in_addr *)
-								&arp_port_addresses[in_port_id].ip)
-							);
+					clLog(clSystemLog, eCLSeverityDebug,
+						LOG_FORMAT"ARP REQ IP != Port IP::discarding"
+						"ARP REQ IP: %s;"
+						"Port ID: %X; Interface IP: %s\n",LOG_VALUE,
+						inet_ntoa(*(struct in_addr *)&arp_h->arp_data.arp_tip), in_port_id,
+						inet_ntoa(*(struct in_addr *)&arp_port_addresses[in_port_id].ip));
 				}
 			} else if (arp_h->arp_op == rte_cpu_to_be_16(ARP_OP_REQUEST)) {
 				/* ARP_REQ IP matches. Process ARP_REQ */
 				if (ARPICMP_DEBUG) {
 					clLog(clSystemLog, eCLSeverityDebug,
-							"%s::"
-							"\n\tarp_op= %d; ARP_OP_REQUEST= %d"
-							"\n\tprint_mbuf=\n",
-							__func__,
-							arp_h->arp_op,
-							rte_cpu_to_be_16(ARP_OP_REQUEST));
+						LOG_FORMAT"\nArp op: %d; ARP OP REQUEST: %d"
+						" print memory bufffer:\n",
+						LOG_VALUE, arp_h->arp_op,
+						rte_cpu_to_be_16(ARP_OP_REQUEST));
 					print_mbuf("RX", in_port_id, pkt, __LINE__);
 				}
 				process_arp_msg(&arp_h->arp_data.arp_sha,
@@ -1204,7 +1173,7 @@ pkt_work_arp_key(
 				/* Process ARP_RSP */
 				if (ARPICMP_DEBUG) {
 					clLog(clSystemLog, eCLSeverityDebug,
-						"ARP_RSP::IP= %s; "FORMAT_MAC"\n",
+						LOG_FORMAT"ARP RSP::IP= %s; "FORMAT_MAC"\n", LOG_VALUE,
 						inet_ntoa(
 							*(struct in_addr *)&arp_h->
 									arp_data.arp_sip),
@@ -1215,18 +1184,27 @@ pkt_work_arp_key(
 						arp_h->arp_data.arp_sip, in_port_id);
 			} else {
 				if (ARPICMP_DEBUG)
-					clLog(clSystemLog, eCLSeverityDebug,"Invalid ARP_OPCODE= %X"
-							"\nnot processing ARP_REQ||ARP_RSP\n",
-							arp_h->arp_op);
+					clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Invalid ARP OPCODE= %X"
+						"\nnot processing ARP REQ||ARP RSP\n", LOG_VALUE,
+						arp_h->arp_op);
 			}
 		}
 	} else {
 		/* If UDP dest port is 2152, then pkt is GTPU-Echo request */
 		struct gtpu_hdr *gtpuhdr = get_mtogtpu(pkt);
-		if (gtpuhdr && gtpuhdr->msgtype == GTPU_ECHO_REQUEST) {
+		if (gtpuhdr && (gtpuhdr->msgtype == GTPU_ECHO_REQUEST)) {
 
 			struct ipv4_hdr *ip_hdr = get_mtoip(pkt);
-			update_cli_stats(ip_hdr->src_addr,GTPU_ECHO_REQUEST,RCVD,it);
+			/* Check Request recvd form Valid IP address */
+			if ((app.wb_ip != ntohl(ip_hdr->dst_addr)) && (app.eb_ip != ntohl(ip_hdr->dst_addr))) {
+				/* Check for logical interface */
+				if ((app.wb_li_ip != ntohl(ip_hdr->dst_addr))
+						&& (app.eb_li_ip != ntohl(ip_hdr->dst_addr))) {
+					return;
+				}
+			}
+
+			update_cli_stats(ip_hdr->src_addr, GTPU_ECHO_REQUEST, RCVD, it);
 
 			process_echo_request(pkt, in_port_id);
 			/* Send ECHO_RSP */
@@ -1238,20 +1216,22 @@ pkt_work_arp_key(
 				memcpy(pkt1, pkt, pkt_size);
 				if (rte_ring_enqueue(shared_ring[in_port_id], pkt1) == -ENOBUFS) {
 					rte_pktmbuf_free(pkt1);
-					clLog(clSystemLog, eCLSeverityCritical, "%s::Can't queue pkt- ring full..."
-							" Dropping pkt\n", __func__);
+					clLog(clSystemLog, eCLSeverityCritical,
+						LOG_FORMAT"Can't queue pkt- ring full"
+						" Dropping pkt\n", LOG_VALUE);
 					return;
 				}
-			update_cli_stats(ip_hdr->dst_addr,GTPU_ECHO_RESPONSE,SENT,it);
+			update_cli_stats(ip_hdr->dst_addr, GTPU_ECHO_RESPONSE, SENT,it);
 
 			}
 		} else if (gtpuhdr && gtpuhdr->msgtype == GTPU_ECHO_RESPONSE) {
 #ifdef USE_REST
-			/*VS: TODO Add check for Restart counter */
+			/*VS: Add check for Restart counter */
 			/* If peer Restart counter value of peer node is less than privious value than start flusing session*/
 			struct ipv4_hdr *ip_hdr = get_mtoip(pkt);
 			update_cli_stats(ip_hdr->src_addr,GTPU_ECHO_RESPONSE,RCVD,it);
-			clLog(clSystemLog, eCLSeverityDebug, "VS: GTP-U Echo Response Received\n");
+			clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"GTPU Echo Response Received\n", LOG_VALUE);
 			process_echo_response(pkt);
 #endif /* USE_REST */
 		}
@@ -1349,23 +1329,26 @@ add_static_arp_entry(struct rte_cfgfile_entry *entry,
 	high_ptr = strtok_r(NULL, " \t", &saveptr);
 
 	if (low_ptr == NULL) {
-		clLog(clSystemLog, eCLSeverityCritical,"Error parsing static arp entry: %s = %s\n",
-				entry->name, entry->value);
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"Error parsing static arp entry: %s = %s\n",
+			LOG_VALUE, entry->name, entry->value);
 		return;
 	}
 
 	ret = inet_aton(low_ptr, &low_addr);
 	if (ret == 0) {
-		clLog(clSystemLog, eCLSeverityCritical,"Error parsing static arp entry: %s = %s\n",
-				entry->name, entry->value);
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"Error parsing static arp entry: %s = %s\n",
+			LOG_VALUE, entry->name, entry->value);
 		return;
 	}
 
 	if (high_ptr) {
 		ret = inet_aton(high_ptr, &high_addr);
 		if (ret == 0) {
-			clLog(clSystemLog, eCLSeverityCritical,"Error parsing static arp entry: %s = %s\n",
-					entry->name, entry->value);
+			clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Error parsing static arp entry: %s = %s\n",
+				LOG_VALUE, entry->name, entry->value);
 			return;
 		}
 	} else {
@@ -1376,16 +1359,17 @@ add_static_arp_entry(struct rte_cfgfile_entry *entry,
 	high_ip = ntohl(high_addr.s_addr);
 
 	if (high_ip < low_ip) {
-		clLog(clSystemLog, eCLSeverityCritical,"Error parsing static arp entry"
-				" - range must be low to high: %s = %s\n",
-				entry->name, entry->value);
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"Error parsing static arp entry"
+			" - range must be low to high: %s = %s\n",
+			LOG_VALUE, entry->name, entry->value);
 		return;
 	}
 
 	if (parse_ether_addr(&hw_addr, entry->value)) {
-		clLog(clSystemLog, eCLSeverityCritical,"Error parsing static arp entry mac addr"
-				"%s = %s\n",
-				entry->name, entry->value);
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"Error parsing static arp entry mac addr"
+			"%s = %s\n", LOG_VALUE, entry->name, entry->value);
 		return;
 	}
 
@@ -1397,9 +1381,9 @@ add_static_arp_entry(struct rte_cfgfile_entry *entry,
 				sizeof(struct arp_entry_data),
 				RTE_CACHE_LINE_SIZE, rte_socket_id());
 		if (data == NULL) {
-			clLog(clSystemLog, eCLSeverityCritical,"Error allocating arp entry - "
-					"%s = %s\n",
-					entry->name, entry->value);
+			clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Error allocating arp entry - "
+				"%s = %s\n", LOG_VALUE, entry->name, entry->value);
 			return;
 		}
 
@@ -1422,62 +1406,66 @@ add_static_arp_entry(struct rte_cfgfile_entry *entry,
 static void
 config_static_arp(void)
 {
-	struct rte_cfgfile *file = rte_cfgfile_load(STATIC_ARP_FILE, 0);
-	struct rte_cfgfile_entry *sgi_entries = NULL;
-	struct rte_cfgfile_entry *s1u_entries = NULL;
-	int num_sgi_entries;
-	int num_s1u_entries;
 	int i;
+	int num_eb_entries;
+	int num_wb_entries;
+	struct rte_cfgfile_entry *eb_entries = NULL;
+	struct rte_cfgfile_entry *wb_entries = NULL;
+	struct rte_cfgfile *file = rte_cfgfile_load(STATIC_ARP_FILE, 0);
 
 	if (file == NULL) {
-		clLog(clSystemLog, eCLSeverityCritical,"Cannot load configuration file %s\n",
-				STATIC_ARP_FILE);
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"Cannot load configuration file %s\n",
+			LOG_VALUE, STATIC_ARP_FILE);
 		return;
 	}
 
-	clLog(clSystemLog, eCLSeverityCritical,"Parsing %s\n", STATIC_ARP_FILE);
+	clLog(clSystemLog, eCLSeverityCritical,
+		LOG_FORMAT"Parsing %s\n", LOG_VALUE, STATIC_ARP_FILE);
 
-	num_sgi_entries = rte_cfgfile_section_num_entries(file, "sgi");
-	if (num_sgi_entries > 0) {
-		sgi_entries = rte_malloc_socket(NULL,
+	num_eb_entries = rte_cfgfile_section_num_entries(file, "EASTBOUND");
+	if (num_eb_entries > 0) {
+		eb_entries = rte_malloc_socket(NULL,
 				sizeof(struct rte_cfgfile_entry) *
-				num_sgi_entries,
+				num_eb_entries,
 				RTE_CACHE_LINE_SIZE, rte_socket_id());
 	}
-	if (sgi_entries == NULL) {
-		clLog(clSystemLog, eCLSeverityCritical, "Error configuring sgi entry of %s\n",
+	if (eb_entries == NULL) {
+		clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Error configuring downlink entry of %s\n", LOG_VALUE,
 				STATIC_ARP_FILE);
 	} else {
-		rte_cfgfile_section_entries(file, "sgi", sgi_entries,
-				num_sgi_entries);
+		rte_cfgfile_section_entries(file, "EASTBOUND", eb_entries,
+				num_eb_entries);
 
-		for (i = 0; i < num_sgi_entries; ++i) {
-			clLog(clSystemLog, eCLSeverityDebug,"[SGI]: %s = %s\n", sgi_entries[i].name,
-					sgi_entries[i].value);
-			add_static_arp_entry(&sgi_entries[i], SGI_PORT_ID);
+		for (i = 0; i < num_eb_entries; ++i) {
+			clLog(clSystemLog, eCLSeverityDebug,"[EASTBOUND]: %s = %s\n", eb_entries[i].name,
+					eb_entries[i].value);
+			add_static_arp_entry(&eb_entries[i], SGI_PORT_ID);
 		}
-		rte_free(sgi_entries);
+		rte_free(eb_entries);
 	}
 
-	num_s1u_entries = rte_cfgfile_section_num_entries(file, "s1u");
-	if (num_s1u_entries > 0) {
-		s1u_entries = rte_malloc_socket(NULL,
+	num_wb_entries = rte_cfgfile_section_num_entries(file, "WESTBOUND");
+	if (num_wb_entries > 0) {
+		wb_entries = rte_malloc_socket(NULL,
 				sizeof(struct rte_cfgfile_entry) *
-				num_s1u_entries,
+				num_wb_entries,
 				RTE_CACHE_LINE_SIZE, rte_socket_id());
 	}
-	if (s1u_entries == NULL) {
-		clLog(clSystemLog, eCLSeverityCritical, "Error configuring s1u entry of %s\n",
+	if (wb_entries == NULL) {
+		clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Error configuring s1u entry of %s\n", LOG_VALUE,
 				STATIC_ARP_FILE);
 	} else {
-		rte_cfgfile_section_entries(file, "s1u", s1u_entries,
-				num_s1u_entries);
-		for (i = 0; i < num_sgi_entries; ++i) {
-			clLog(clSystemLog, eCLSeverityDebug,"[S1u]: %s = %s\n", s1u_entries[i].name,
-					s1u_entries[i].value);
-			add_static_arp_entry(&s1u_entries[i], S1U_PORT_ID);
+		rte_cfgfile_section_entries(file, "WESTBOUND", wb_entries,
+				num_wb_entries);
+		for (i = 0; i < num_wb_entries; ++i) {
+			clLog(clSystemLog, eCLSeverityDebug,"[WESTBOUND]: %s = %s\n", wb_entries[i].name,
+					wb_entries[i].value);
+			add_static_arp_entry(&wb_entries[i], S1U_PORT_ID);
 		}
-		rte_free(s1u_entries);
+		rte_free(wb_entries);
 	}
 
 	if (ARPICMP_DEBUG)
@@ -1624,7 +1612,8 @@ static void add_route_data(
 
 			gatway_flag = 0;
 
-			clLog(clSystemLog, eCLSeverityDebug,"Route entry ADDED in hash table :: \n");
+			clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"Route entry ADDED in hash table\n", LOG_VALUE);
 			print_route_entry(info);
 			return;
 		}
@@ -1662,7 +1651,7 @@ get_iface_name(int iface_index, char *iface_Name)
 		return -1;
 	}
 
-	strcpy(iface_Name, ifr.ifr_name);
+	strncpy(iface_Name, ifr.ifr_name, IF_NAMESIZE);
 	return 0;
 }
 
@@ -1676,6 +1665,7 @@ static int readCache(int Fd, char *Buffer)
 {
 	if (Fd < 0)
 	{
+		perror("Error");
 	    return -1;
 	}
 
@@ -1697,7 +1687,8 @@ static int readCache(int Fd, char *Buffer)
 		Buffer[Read] = 0;
 		return 0;
 	}
-
+	clLog(clSystemLog, eCLSeverityCritical,
+		LOG_FORMAT"Failed to readCache\n", LOG_VALUE);
 	return -1;
 
 }
@@ -1710,12 +1701,18 @@ static int readCache(int Fd, char *Buffer)
  */
 static char *getField(char *Line_Arg, int Field)
 {
-	char *ret;
-	char *s;
+	char *ret = NULL;
+	char *s = NULL;
 
-	char *Line = malloc(strlen(Line_Arg)), *ptr;
-	memcpy(Line, Line_Arg, strlen(Line_Arg));
-	ptr = Line;
+	char *Line = malloc(strnlen(Line_Arg, ARP_BUFFER_LEN)), *ptr;
+	if(Line != NULL){
+		memcpy(Line, Line_Arg, strnlen(Line_Arg, ARP_BUFFER_LEN));
+		ptr = Line;
+	} else {
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"Failed to allocate memory\n",
+			LOG_VALUE);
+	}
 
 	s = strtok(Line, ARP_DELIM);
 	while (Field && s)
@@ -1726,9 +1723,10 @@ static char *getField(char *Line_Arg, int Field)
 
 	if (s)
 	{
-	    ret = (char*)malloc(strlen(s) + 1);
-	    memset(ret, 0, strlen(s) + 1);
-	    memcpy(ret, s, strlen(s));
+	    int len = strnlen(s,ARP_BUFFER_LEN);
+		ret = (char*)malloc(len + 1);
+	    memset(ret, 0, len + 1);
+	    memcpy(ret, s, len);
 	}
 	free(ptr);
 
@@ -1775,7 +1773,7 @@ get_gateWay_mac(uint32_t IP_gateWay, char *iface_Mac)
 			//fprintf(stdout, "%03d: here, Mac Address of [%s] on [%s] is \"%s\"\n",
 			//        ++count, Ip, IfaceStr, Mac);
 
-			strcpy(iface_Mac, Mac);
+			strncpy(iface_Mac, Mac, MAC_ADDR_LEN);
 			return 0;
 		}
 
@@ -1822,7 +1820,8 @@ static void
 			recv_bytes = recv(route_sock, buffer, sizeof(buffer), 0);
 
 			if (recv_bytes < 0)
-			    clLog(clSystemLog, eCLSeverityDebug,"Error in recv\n");
+			    clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Error in recv\n", LOG_VALUE);
 
 		    nlp = (struct nlmsghdr *) buffer;
 
@@ -1872,16 +1871,15 @@ static void
 						case RTA_GATEWAY:
 							{
 								gatway_flag = 1;
-								char mac[64];
+								char mac[MAC_ADDR_LEN];
 
 								route[i].gateWay = *(uint32_t *) RTA_DATA(rtap);
 								get_gateWay_mac(route[i].gateWay, mac);
 
 								if (parse_ether_addr(&(route[i].gateWay_Mac), mac)) {
-									clLog(clSystemLog, eCLSeverityDebug,"Error parsing gatway arp entry mac addr"
-											"= %s\n",
-											mac);
-
+									clLog(clSystemLog, eCLSeverityDebug,
+										LOG_FORMAT"Error parsing gatway arp entry mac addr"
+										"= %s\n", LOG_VALUE, mac);
 								}
 
 								fprintf(stdout, "Gateway, Mac Address of [%s] is \"%02X:%02X:%02X:%02X:%02X:%02X\"\n",
@@ -1925,11 +1923,6 @@ static void
 			if (nlp->nlmsg_type == RTM_NEWROUTE) {
 				add_route_data(&route[i]);
 			}
-
-			//clLog(clSystemLog, eCLSeverityDebug,"%s  \t%8s\t%8s \t%u \t%s\n",
-			//        dest_addr, gw_addr, net_mask,
-			//        route[i].flags,
-			//        route[i].ifName);
 
 		}
 	}
@@ -2002,7 +1995,7 @@ void
 epc_arp_init(void)
 {
 	struct rte_pipeline *p;
-	uint32_t i, in_ports_arg_size;
+	uint32_t i;
 	struct epc_arp_params *params = &arp_params;
 
 	/* Pipeline */
@@ -2020,17 +2013,6 @@ epc_arp_init(void)
 
 		myP = p;
 	}
-
-	/* Memory allocation for in_port_h_arg */
-	in_ports_arg_size =
-		RTE_CACHE_LINE_ROUNDUP(
-				(sizeof(struct pipeline_arp_icmp_in_port_h_arg)) *
-				(NUM_SPGW_PORTS)); /* Fixme */
-	struct pipeline_arp_icmp_in_port_h_arg *ap =
-		rte_zmalloc_socket(NULL, in_ports_arg_size,
-				RTE_CACHE_LINE_SIZE, rte_socket_id());
-	if (ap == NULL)
-		return;
 
 	/* Input port configuration */
 	for (i = 0; i < epc_app.n_ports; i++) {
@@ -2053,12 +2035,10 @@ epc_arp_init(void)
 		if (status) {
 			rte_pipeline_free(p);
 		}
-		get_mac_ip_addr(arp_port_addresses, i);
 	}
 
 	/* Output port configuration */
 	for (i = 0; i < epc_app.n_ports; i++) {
-#ifdef NGCORE_SHRINK
 		struct rte_port_ethdev_writer_nodrop_params
 					port_ethdev_params =
 			{
@@ -2074,17 +2054,6 @@ epc_arp_init(void)
 			.f_action = NULL,
 			.arg_ah = NULL,
 		};
-#else
-		struct rte_port_ring_writer_params port_ring_params = {
-			.ring = epc_app.ring_tx[epc_app.core_mct][i],
-			.tx_burst_sz = epc_app.burst_size_tx_write,
-		};
-
-		struct rte_pipeline_port_out_params port_params = {
-			.ops = &rte_port_ring_writer_ops,
-			.arg_create = (void *) &port_ring_params,
-		};
-#endif /*NGCORE_SHRINK*/
 
 		if (
 			rte_pipeline_port_out_create(p,
@@ -2232,18 +2201,92 @@ static void *handle_kni_process(__rte_unused void *arg)
 	return NULL; //GCC_Security flag
 }
 
+void process_li_data(){
+
+	int ret = 0;
+	uint32_t li_ul_cnt = rte_ring_count(li_ul_ring);
+	if(li_ul_cnt){
+		li_data_t *li_data[li_ul_cnt];
+		uint32_t ul_cnt = rte_ring_dequeue_bulk(li_ul_ring,
+				(void**)li_data, li_ul_cnt, NULL);
+
+		for(uint32_t i = 0; i < ul_cnt; i++){
+
+			if (NULL == li_data[i]) {
+				continue;
+			}
+
+			int size = li_data[i]->size;
+			uint64_t id = li_data[i]->id;
+			uint64_t imsi = li_data[i]->imsi;
+
+			if (NULL == li_data[i]->pkts) {
+				continue;
+			}
+
+			create_li_header(li_data[i]->pkts, &size, CC_BASED, id, imsi, 0, 0,
+					0, 0, li_data[i]->forward);
+
+			ret = send_li_data_pkt(ddf3_fd, li_data[i]->pkts, size);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Failed to send UPLINK"
+					" data on TCP sock with error %d\n", LOG_VALUE, ret);
+			}
+			rte_free(li_data[i]->pkts);
+			rte_free(li_data[i]);
+		}
+	}
+	uint32_t li_dl_cnt = rte_ring_count(li_dl_ring);
+	if(li_dl_cnt){
+		li_data_t *li_data[li_dl_cnt];
+		uint32_t dl_cnt = rte_ring_dequeue_bulk(li_dl_ring,
+				(void**)li_data, li_dl_cnt, NULL);
+
+		for(uint32_t i = 0; i < dl_cnt; i++){
+			if (li_data[i] == NULL) {
+				continue;
+			}
+
+			int size = li_data[i]->size;
+			uint64_t id = li_data[i]->id;
+			uint64_t imsi = li_data[i]->imsi;
+
+			if (li_data[i]->pkts == NULL) {
+				continue;
+			}
+
+			create_li_header(li_data[i]->pkts, &size, CC_BASED, id, imsi, 0, 0,
+					0, 0, li_data[i]->forward);
+
+			ret = send_li_data_pkt(ddf3_fd, li_data[i]->pkts, size);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Failed to send DOWNLINK"
+					" data on TCP sock with error %d\n", LOG_VALUE, ret);
+			}
+
+			rte_free(li_data[i]->pkts);
+			rte_free(li_data[i]);
+		}
+	}
+
+	return;
+}
+
 void epc_arp(__rte_unused void *arg)
 {
 	struct epc_arp_params *param = &arp_params;
-		rte_pipeline_run(myP);
-		if (++param->flush_count >= param->flush_max) {
-			rte_pipeline_flush(myP);
-			param->flush_count = 0;
-		}
-		handle_kni_process(NULL);
+	rte_pipeline_run(myP);
+	if (++param->flush_count >= param->flush_max) {
+		rte_pipeline_flush(myP);
+		param->flush_count = 0;
+	}
+	handle_kni_process(NULL);
 #ifdef NGCORE_SHRINK
 #ifdef STATS
 	epc_stats_core();
 #endif
 #endif
+	process_li_data();
 }

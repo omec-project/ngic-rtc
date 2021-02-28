@@ -79,20 +79,10 @@ void nic_in_stats(void);
  */
 void print_headers(void);
 
-#ifdef NGCORE_SHRINK
 /**
  * @brief  : Core to print the pipeline stats.
  * @param  : No param
  * @return : Returns nothing
  */
 void epc_stats_core(void);
-#else
-/**
- * @brief  : Core to print the pipeline stats.
- * @param  : args, Unused param
- * @return : Returns nothing
- */
-void epc_stats_core(__rte_unused void *args);
-#endif
-
 #endif /*_STATS_H_ */

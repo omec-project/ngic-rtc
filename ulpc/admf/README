@@ -1,0 +1,8 @@
+# Configuration file
+	config/admf.json
+
+# Run ADMF using following command
+	./run.sh
+
+# Configurations
+

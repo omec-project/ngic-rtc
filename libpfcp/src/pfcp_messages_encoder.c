@@ -24,7 +24,7 @@
 * @return
 *   number of encoded bytes.
 */
-int encode_pfcp_sess_rpt_req_t(pfcp_sess_rpt_req_t *value,
+int encode_pfcp_sess_rpt_req_t(const pfcp_sess_rpt_req_t *value,
     uint8_t *buf)
 {
     uint16_t enc_len = 0;
@@ -67,7 +67,7 @@ int encode_pfcp_sess_rpt_req_t(pfcp_sess_rpt_req_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_pfcp_pfd_mgmt_req_t(pfcp_pfd_mgmt_req_t *value,
+int encode_pfcp_pfd_mgmt_req_t(const pfcp_pfd_mgmt_req_t *value,
     uint8_t *buf)
 {
     uint16_t enc_len = 0;
@@ -92,12 +92,13 @@ int encode_pfcp_pfd_mgmt_req_t(pfcp_pfd_mgmt_req_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_pfcp_create_traffic_endpt_ie_t(pfcp_create_traffic_endpt_ie_t *value,
+int encode_pfcp_create_traffic_endpt_ie_t(const pfcp_create_traffic_endpt_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
 
-	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+	enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+	enc_len /= CHAR_SIZE;
 
 	if (value->traffic_endpt_id.header.len)
 		enc_len += encode_pfcp_traffic_endpt_id_ie_t(&(value->traffic_endpt_id), buf + enc_len);
@@ -140,16 +141,17 @@ int encode_pfcp_create_traffic_endpt_ie_t(pfcp_create_traffic_endpt_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_pfcp_pfd_context_ie_t(pfcp_pfd_context_ie_t *value,
+int encode_pfcp_pfd_context_ie_t(const pfcp_pfd_context_ie_t *value,
     uint8_t *buf)
 {
     uint16_t enc_len = 0;
 
-    enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+    enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+    enc_len /= CHAR_SIZE;
 
     for (uint8_t i = 0; i < value->pfd_contents_count; i++) {
         if (value->pfd_contents[i].header.len)
-            enc_len += encode_pfcp_pfd_contents_ie_t(&(value->pfd_contents[i]), buf + (enc_len/CHAR_SIZE));
+            enc_len += encode_pfcp_pfd_contents_ie_t(&(value->pfd_contents[i]), buf + enc_len);
     }
 
 
@@ -165,12 +167,13 @@ int encode_pfcp_pfd_context_ie_t(pfcp_pfd_context_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_pfcp_create_urr_ie_t(pfcp_create_urr_ie_t *value,
+int encode_pfcp_create_urr_ie_t(const pfcp_create_urr_ie_t *value,
     uint8_t *buf)
 {
     uint16_t enc_len = 0;
 
-    enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+    enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+    enc_len /= CHAR_SIZE;
 
     if (value->urr_id.header.len)
         enc_len += encode_pfcp_urr_id_ie_t(&(value->urr_id), buf + enc_len);
@@ -272,12 +275,13 @@ int encode_pfcp_create_urr_ie_t(pfcp_create_urr_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_pfcp_eth_pckt_fltr_ie_t(pfcp_eth_pckt_fltr_ie_t *value,
+int encode_pfcp_eth_pckt_fltr_ie_t(const pfcp_eth_pckt_fltr_ie_t *value,
     uint8_t *buf)
 {
     uint16_t enc_len = 0;
 
-    enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+    enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+    enc_len /= CHAR_SIZE;
 
     if (value->eth_fltr_id.header.len)
         enc_len += encode_pfcp_eth_fltr_id_ie_t(&(value->eth_fltr_id), buf + enc_len);
@@ -315,12 +319,13 @@ int encode_pfcp_eth_pckt_fltr_ie_t(pfcp_eth_pckt_fltr_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_pfcp_remove_far_ie_t(pfcp_remove_far_ie_t *value,
+int encode_pfcp_remove_far_ie_t(const pfcp_remove_far_ie_t *value,
     uint8_t *buf)
 {
     uint16_t enc_len = 0;
 
-    enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+    enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+    enc_len /= CHAR_SIZE;
 
     if (value->far_id.header.len)
         enc_len += encode_pfcp_far_id_ie_t(&(value->far_id), buf + enc_len);
@@ -338,7 +343,7 @@ int encode_pfcp_remove_far_ie_t(pfcp_remove_far_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_pfcp_hrtbeat_req_t(pfcp_hrtbeat_req_t *value,
+int encode_pfcp_hrtbeat_req_t(const pfcp_hrtbeat_req_t *value,
     uint8_t *buf)
 {
     uint16_t enc_len = 0;
@@ -362,21 +367,22 @@ int encode_pfcp_hrtbeat_req_t(pfcp_hrtbeat_req_t *value,
 *   number of encoded bytes.
 */
 
-int encode_pfcp_create_far_ie_t(pfcp_create_far_ie_t *value,
+int encode_pfcp_create_far_ie_t(const pfcp_create_far_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
 
-	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+	enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+	enc_len /= CHAR_SIZE;
 
 	if (value->far_id.header.len)
-		enc_len += encode_pfcp_far_id_ie_t(&(value->far_id), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_far_id_ie_t(&(value->far_id), buf + enc_len);
 
 	if (value->apply_action.header.len)
-		enc_len += encode_pfcp_apply_action_ie_t(&(value->apply_action), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_apply_action_ie_t(&(value->apply_action), buf + enc_len);
 
 	if (value->frwdng_parms.header.len)
-		enc_len += encode_pfcp_frwdng_parms_ie_t(&(value->frwdng_parms), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_frwdng_parms_ie_t(&(value->frwdng_parms), buf + enc_len);
 
 	if (value->bar_id.header.len)
 		enc_len += encode_pfcp_bar_id_ie_t(&(value->bar_id), buf + enc_len);
@@ -386,7 +392,7 @@ int encode_pfcp_create_far_ie_t(pfcp_create_far_ie_t *value,
 			enc_len += encode_pfcp_dupng_parms_ie_t(&(value->dupng_parms[i]), buf + enc_len);
 	}
 
-	return enc_len/CHAR_SIZE;
+	return enc_len;
 }
 /**
 * Encodes pfcp_assn_setup_rsp_t to buffer.
@@ -397,7 +403,7 @@ int encode_pfcp_create_far_ie_t(pfcp_create_far_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_pfcp_assn_setup_rsp_t(pfcp_assn_setup_rsp_t *value,
+int encode_pfcp_assn_setup_rsp_t(const pfcp_assn_setup_rsp_t *value,
     uint8_t *buf)
 {
     uint16_t enc_len = 0;
@@ -437,23 +443,24 @@ int encode_pfcp_assn_setup_rsp_t(pfcp_assn_setup_rsp_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_pfcp_dnlnk_data_rpt_ie_t(pfcp_dnlnk_data_rpt_ie_t *value,
+int encode_pfcp_dnlnk_data_rpt_ie_t(const pfcp_dnlnk_data_rpt_ie_t *value,
     uint8_t *buf)
 {
     uint16_t enc_len = 0;
 
-    enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+    enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+    enc_len /= CHAR_SIZE;
 
     for (uint8_t i = 0; i < value->pdr_id_count; i++) {
         if (value->pdr_id[i].header.len)
-            enc_len += encode_pfcp_pdr_id_ie_t(&(value->pdr_id[i]), buf + (enc_len/CHAR_SIZE));
+            enc_len += encode_pfcp_pdr_id_ie_t(&(value->pdr_id[i]), buf + enc_len);
     }
 
     if (value->dnlnk_data_svc_info.header.len)
-        enc_len += encode_pfcp_dnlnk_data_svc_info_ie_t(&(value->dnlnk_data_svc_info), buf + (enc_len/CHAR_SIZE));
+        enc_len += encode_pfcp_dnlnk_data_svc_info_ie_t(&(value->dnlnk_data_svc_info), buf + enc_len);
 
 
-    return enc_len/CHAR_SIZE;
+    return enc_len;
 }
 
 /**
@@ -465,12 +472,13 @@ int encode_pfcp_dnlnk_data_rpt_ie_t(pfcp_dnlnk_data_rpt_ie_t *value,
 * @return
 *   number of encoded bytes.
 */
-int encode_pfcp_query_urr_ie_t(pfcp_query_urr_ie_t *value,
+int encode_pfcp_query_urr_ie_t(const pfcp_query_urr_ie_t *value,
     uint8_t *buf)
 {
     uint16_t enc_len = 0;
 
-    enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+    enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+    enc_len /= CHAR_SIZE;
 
     if (value->urr_id.header.len)
         enc_len += encode_pfcp_urr_id_ie_t(&(value->urr_id), buf + enc_len);
@@ -488,7 +496,7 @@ int encode_pfcp_query_urr_ie_t(pfcp_query_urr_ie_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_assn_setup_req_t(pfcp_assn_setup_req_t *value,
+int encode_pfcp_assn_setup_req_t(const pfcp_assn_setup_req_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
@@ -524,12 +532,13 @@ int encode_pfcp_assn_setup_req_t(pfcp_assn_setup_req_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_upd_bar_sess_rpt_rsp_ie_t(pfcp_upd_bar_sess_rpt_rsp_ie_t *value,
+int encode_pfcp_upd_bar_sess_rpt_rsp_ie_t(const pfcp_upd_bar_sess_rpt_rsp_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
 
-	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+	enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+	enc_len /= CHAR_SIZE;
 
 	if (value->bar_id.header.len)
 		enc_len += encode_pfcp_bar_id_ie_t(&(value->bar_id), buf + enc_len);
@@ -559,7 +568,7 @@ int encode_pfcp_upd_bar_sess_rpt_rsp_ie_t(pfcp_upd_bar_sess_rpt_rsp_ie_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_sess_mod_req_t(pfcp_sess_mod_req_t *value,
+int encode_pfcp_sess_mod_req_t(const pfcp_sess_mod_req_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
@@ -595,23 +604,20 @@ int encode_pfcp_sess_mod_req_t(pfcp_sess_mod_req_t *value,
 		enc_len += encode_pfcp_pfcpsmreq_flags_ie_t(&(value->pfcpsmreq_flags), buf + enc_len);
 	}
 
-	if (value->pgw_c_fqcsid.header.len) {
-		enc_len += encode_pfcp_fqcsid_ie_t(&(value->pgw_c_fqcsid), buf + enc_len);
-	}
+	if (value->pgw_c_fqcsid.header.len)
+	    enc_len += encode_pfcp_fqcsid_ie_t(&(value->pgw_c_fqcsid), buf + enc_len);
 
-	if (value->sgw_c_fqcsid.header.len) {
-		enc_len += encode_pfcp_fqcsid_ie_t(&(value->sgw_c_fqcsid), buf + enc_len);
-	}
+	if (value->sgw_c_fqcsid.header.len)
+	    enc_len += encode_pfcp_fqcsid_ie_t(&(value->sgw_c_fqcsid), buf + enc_len);
 
-	if (value->mme_fqcsid.header.len) {
-		enc_len += encode_pfcp_fqcsid_ie_t(&(value->mme_fqcsid), buf + enc_len);
-	}
+	if (value->mme_fqcsid.header.len)
+	    enc_len += encode_pfcp_fqcsid_ie_t(&(value->mme_fqcsid), buf + enc_len);
 
 	if (value->epdg_fqcsid.header.len)
-		enc_len += encode_pfcp_fqcsid_ie_t(&(value->epdg_fqcsid), buf + enc_len);
+	    enc_len += encode_pfcp_fqcsid_ie_t(&(value->epdg_fqcsid), buf + enc_len);
 
 	if (value->twan_fqcsid.header.len)
-		enc_len += encode_pfcp_fqcsid_ie_t(&(value->twan_fqcsid), buf + enc_len);
+	    enc_len += encode_pfcp_fqcsid_ie_t(&(value->twan_fqcsid), buf + enc_len);
 
 	if (value->user_plane_inact_timer.header.len)
 		enc_len += encode_pfcp_user_plane_inact_timer_ie_t(&(value->user_plane_inact_timer), buf + enc_len);
@@ -696,12 +702,13 @@ int encode_pfcp_sess_mod_req_t(pfcp_sess_mod_req_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_usage_rpt_sess_mod_rsp_ie_t(pfcp_usage_rpt_sess_mod_rsp_ie_t *value,
+int encode_pfcp_usage_rpt_sess_mod_rsp_ie_t(const pfcp_usage_rpt_sess_mod_rsp_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
 
-	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+	enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+	enc_len /= CHAR_SIZE;
 
 	if (value->urr_id.header.len)
 		enc_len += encode_pfcp_urr_id_ie_t(&(value->urr_id), buf + enc_len);
@@ -752,12 +759,13 @@ int encode_pfcp_usage_rpt_sess_mod_rsp_ie_t(pfcp_usage_rpt_sess_mod_rsp_ie_t *va
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_remove_urr_ie_t(pfcp_remove_urr_ie_t *value,
+int encode_pfcp_remove_urr_ie_t(const pfcp_remove_urr_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
 
-	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+	enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+	enc_len /= CHAR_SIZE;
 
 	if (value->urr_id.header.len)
 		enc_len += encode_pfcp_urr_id_ie_t(&(value->urr_id), buf + enc_len);
@@ -775,7 +783,7 @@ int encode_pfcp_remove_urr_ie_t(pfcp_remove_urr_ie_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_sess_rpt_rsp_t(pfcp_sess_rpt_rsp_t *value,
+int encode_pfcp_sess_rpt_rsp_t(const pfcp_sess_rpt_rsp_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
@@ -807,12 +815,13 @@ int encode_pfcp_sess_rpt_rsp_t(pfcp_sess_rpt_rsp_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_usage_rpt_sess_del_rsp_ie_t(pfcp_usage_rpt_sess_del_rsp_ie_t *value,
+int encode_pfcp_usage_rpt_sess_del_rsp_ie_t(const pfcp_usage_rpt_sess_del_rsp_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
 
-	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+	enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+	enc_len /= CHAR_SIZE;
 
 	if (value->urr_id.header.len)
 		enc_len += encode_pfcp_urr_id_ie_t(&(value->urr_id), buf + enc_len);
@@ -860,7 +869,7 @@ int encode_pfcp_usage_rpt_sess_del_rsp_ie_t(pfcp_usage_rpt_sess_del_rsp_ie_t *va
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_assn_upd_rsp_t(pfcp_assn_upd_rsp_t *value,
+int encode_pfcp_assn_upd_rsp_t(const pfcp_assn_upd_rsp_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
@@ -892,7 +901,7 @@ int encode_pfcp_assn_upd_rsp_t(pfcp_assn_upd_rsp_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_assn_rel_rsp_t(pfcp_assn_rel_rsp_t *value,
+int encode_pfcp_assn_rel_rsp_t(const pfcp_assn_rel_rsp_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
@@ -918,12 +927,13 @@ int encode_pfcp_assn_rel_rsp_t(pfcp_assn_rel_rsp_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_usage_rpt_sess_rpt_req_ie_t(pfcp_usage_rpt_sess_rpt_req_ie_t *value,
+int encode_pfcp_usage_rpt_sess_rpt_req_ie_t(const pfcp_usage_rpt_sess_rpt_req_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
 
-	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+	enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+	enc_len /= CHAR_SIZE;
 
 	if (value->urr_id.header.len)
 		enc_len += encode_pfcp_urr_id_ie_t(&(value->urr_id), buf + enc_len);
@@ -988,7 +998,7 @@ int encode_pfcp_usage_rpt_sess_rpt_req_ie_t(pfcp_usage_rpt_sess_rpt_req_ie_t *va
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_sess_del_rsp_t(pfcp_sess_del_rsp_t *value,
+int encode_pfcp_sess_del_rsp_t(const pfcp_sess_del_rsp_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
@@ -1025,7 +1035,7 @@ int encode_pfcp_sess_del_rsp_t(pfcp_sess_del_rsp_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_sess_set_del_req_t(pfcp_sess_set_del_req_t *value,
+int encode_pfcp_sess_set_del_req_t(const pfcp_sess_set_del_req_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
@@ -1041,11 +1051,8 @@ int encode_pfcp_sess_set_del_req_t(pfcp_sess_set_del_req_t *value,
 	if (value->pgw_c_fqcsid.header.len)
 		enc_len += encode_pfcp_fqcsid_ie_t(&(value->pgw_c_fqcsid), buf + enc_len);
 
-	if (value->sgw_u_fqcsid.header.len)
-		enc_len += encode_pfcp_fqcsid_ie_t(&(value->sgw_u_fqcsid), buf + enc_len);
-
-	if (value->pgw_u_fqcsid.header.len)
-		enc_len += encode_pfcp_fqcsid_ie_t(&(value->pgw_u_fqcsid), buf + enc_len);
+	if (value->up_fqcsid.header.len)
+		enc_len += encode_pfcp_fqcsid_ie_t(&(value->up_fqcsid), buf + enc_len);
 
 	if (value->twan_fqcsid.header.len)
 		enc_len += encode_pfcp_fqcsid_ie_t(&(value->twan_fqcsid), buf + enc_len);
@@ -1069,7 +1076,7 @@ int encode_pfcp_sess_set_del_req_t(pfcp_sess_set_del_req_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_sess_set_del_rsp_t(pfcp_sess_set_del_rsp_t *value,
+int encode_pfcp_sess_set_del_rsp_t(const pfcp_sess_set_del_rsp_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
@@ -1098,23 +1105,24 @@ int encode_pfcp_sess_set_del_rsp_t(pfcp_sess_set_del_rsp_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_created_pdr_ie_t(pfcp_created_pdr_ie_t *value,
+int encode_pfcp_created_pdr_ie_t(const pfcp_created_pdr_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
 
-	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+	enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+	enc_len /= CHAR_SIZE;
 
 	/* TODO: Revisit this for change in yang */
 	if (value->pdr_id.header.len)
-		enc_len += encode_pfcp_pdr_id_ie_t(&(value->pdr_id), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_pdr_id_ie_t(&(value->pdr_id), buf + enc_len);
 
 	/* TODO: Revisit this for change in yang */
 	if (value->local_fteid.header.len)
-		enc_len += encode_pfcp_fteid_ie_t(&(value->local_fteid), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_fteid_ie_t(&(value->local_fteid), buf + enc_len);
 
 
-	return enc_len/CHAR_SIZE;
+	return enc_len;
 }
 
 /**
@@ -1126,12 +1134,13 @@ int encode_pfcp_created_pdr_ie_t(pfcp_created_pdr_ie_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_load_ctl_info_ie_t(pfcp_load_ctl_info_ie_t *value,
+int encode_pfcp_load_ctl_info_ie_t(const pfcp_load_ctl_info_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
 
-	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+	enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+	enc_len /= CHAR_SIZE;
 
 	if (value->load_ctl_seqn_nbr.header.len)
 		enc_len += encode_pfcp_sequence_number_ie_t(&(value->load_ctl_seqn_nbr), buf + enc_len);
@@ -1152,7 +1161,7 @@ int encode_pfcp_load_ctl_info_ie_t(pfcp_load_ctl_info_ie_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_sess_mod_rsp_t(pfcp_sess_mod_rsp_t *value,
+int encode_pfcp_sess_mod_rsp_t(const pfcp_sess_mod_rsp_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
@@ -1161,6 +1170,9 @@ int encode_pfcp_sess_mod_rsp_t(pfcp_sess_mod_rsp_t *value,
 
 	if (value->cause.header.len)
 		enc_len += encode_pfcp_cause_ie_t(&(value->cause), buf + enc_len);
+
+	if (value->up_fqcsid.header.len)
+		enc_len += encode_pfcp_fqcsid_ie_t(&(value->up_fqcsid), buf + enc_len);
 
 	if (value->offending_ie.header.len)
 		enc_len += encode_pfcp_offending_ie_ie_t(&(value->offending_ie), buf + enc_len);
@@ -1201,12 +1213,13 @@ int encode_pfcp_sess_mod_rsp_t(pfcp_sess_mod_rsp_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_created_traffic_endpt_ie_t(pfcp_created_traffic_endpt_ie_t *value,
+int encode_pfcp_created_traffic_endpt_ie_t(const pfcp_created_traffic_endpt_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
 
-	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+	enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+	enc_len /= CHAR_SIZE;
 
 	if (value->traffic_endpt_id.header.len)
 		enc_len += encode_pfcp_traffic_endpt_id_ie_t(&(value->traffic_endpt_id), buf + enc_len);
@@ -1227,7 +1240,7 @@ int encode_pfcp_created_traffic_endpt_ie_t(pfcp_created_traffic_endpt_ie_t *valu
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_pfd_mgmt_rsp_t(pfcp_pfd_mgmt_rsp_t *value,
+int encode_pfcp_pfd_mgmt_rsp_t(const pfcp_pfd_mgmt_rsp_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
@@ -1253,12 +1266,13 @@ int encode_pfcp_pfd_mgmt_rsp_t(pfcp_pfd_mgmt_rsp_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_upd_traffic_endpt_ie_t(pfcp_upd_traffic_endpt_ie_t *value,
+int encode_pfcp_upd_traffic_endpt_ie_t(const pfcp_upd_traffic_endpt_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
 
-	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+	enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+	enc_len /= CHAR_SIZE;
 
 	if (value->traffic_endpt_id.header.len)
 		enc_len += encode_pfcp_traffic_endpt_id_ie_t(&(value->traffic_endpt_id), buf + enc_len);
@@ -1298,12 +1312,13 @@ int encode_pfcp_upd_traffic_endpt_ie_t(pfcp_upd_traffic_endpt_ie_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_upd_dupng_parms_ie_t(pfcp_upd_dupng_parms_ie_t *value,
+int encode_pfcp_upd_dupng_parms_ie_t(const pfcp_upd_dupng_parms_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
 
-	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+	enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+	enc_len /= CHAR_SIZE;
 
 	if (value->dst_intfc.header.len)
 		enc_len += encode_pfcp_dst_intfc_ie_t(&(value->dst_intfc), buf + enc_len);
@@ -1330,15 +1345,16 @@ int encode_pfcp_upd_dupng_parms_ie_t(pfcp_upd_dupng_parms_ie_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_frwdng_parms_ie_t(pfcp_frwdng_parms_ie_t *value,
+int encode_pfcp_frwdng_parms_ie_t(const pfcp_frwdng_parms_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
 
-	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+	enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+	enc_len /= CHAR_SIZE;
 
 	if (value->dst_intfc.header.len)
-		enc_len += encode_pfcp_dst_intfc_ie_t(&(value->dst_intfc), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_dst_intfc_ie_t(&(value->dst_intfc), buf + enc_len);
 
 	if (value->ntwk_inst.header.len)
 		enc_len += encode_pfcp_ntwk_inst_ie_t(&(value->ntwk_inst), buf + enc_len);
@@ -1347,7 +1363,7 @@ int encode_pfcp_frwdng_parms_ie_t(pfcp_frwdng_parms_ie_t *value,
 		enc_len += encode_pfcp_redir_info_ie_t(&(value->redir_info), buf + enc_len);
 
 	if (value->outer_hdr_creation.header.len)
-		enc_len += encode_pfcp_outer_hdr_creation_ie_t(&(value->outer_hdr_creation), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_outer_hdr_creation_ie_t(&(value->outer_hdr_creation), buf + enc_len);
 
 	if (value->trnspt_lvl_marking.header.len)
 		enc_len += encode_pfcp_trnspt_lvl_marking_ie_t(&(value->trnspt_lvl_marking), buf + enc_len);
@@ -1364,6 +1380,9 @@ int encode_pfcp_frwdng_parms_ie_t(pfcp_frwdng_parms_ie_t *value,
 	if (value->proxying.header.len)
 		enc_len += encode_pfcp_proxying_ie_t(&(value->proxying), buf + enc_len);
 
+	if (value->dst_intfc_type.header.len)
+		enc_len += encode_pfcp_3gpp_intfc_type_ie_t(&(value->dst_intfc_type), buf + enc_len);
+
 
 	return enc_len;
 }
@@ -1377,12 +1396,13 @@ int encode_pfcp_frwdng_parms_ie_t(pfcp_frwdng_parms_ie_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_dupng_parms_ie_t(pfcp_dupng_parms_ie_t *value,
+int encode_pfcp_dupng_parms_ie_t(const pfcp_dupng_parms_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
 
-	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+	enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+	enc_len /= CHAR_SIZE;
 
 	if (value->dst_intfc.header.len)
 		enc_len += encode_pfcp_dst_intfc_ie_t(&(value->dst_intfc), buf + enc_len);
@@ -1409,46 +1429,47 @@ int encode_pfcp_dupng_parms_ie_t(pfcp_dupng_parms_ie_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_update_pdr_ie_t(pfcp_update_pdr_ie_t *value,
+int encode_pfcp_update_pdr_ie_t(const pfcp_update_pdr_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
 
-	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+	enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+	enc_len /= CHAR_SIZE;
 
 	if (value->pdr_id.header.len)
-		enc_len += encode_pfcp_pdr_id_ie_t(&(value->pdr_id), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_pdr_id_ie_t(&(value->pdr_id), buf + enc_len);
 
 	if (value->outer_hdr_removal.header.len)
-		enc_len += encode_pfcp_outer_hdr_removal_ie_t(&(value->outer_hdr_removal), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_outer_hdr_removal_ie_t(&(value->outer_hdr_removal), buf + enc_len);
 
 	if (value->precedence.header.len)
-		enc_len += encode_pfcp_precedence_ie_t(&(value->precedence), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_precedence_ie_t(&(value->precedence), buf + enc_len);
 
 	if (value->pdi.header.len)
-		enc_len += encode_pfcp_pdi_ie_t(&(value->pdi), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_pdi_ie_t(&(value->pdi), buf + enc_len);
 
 	if (value->far_id.header.len)
-		enc_len += encode_pfcp_far_id_ie_t(&(value->far_id), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_far_id_ie_t(&(value->far_id), buf + enc_len);
 
 	if (value->urr_id.header.len)
-		enc_len += encode_pfcp_urr_id_ie_t(&(value->urr_id), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_urr_id_ie_t(&(value->urr_id), buf + enc_len);
 
 	if (value->qer_id.header.len)
-		enc_len += encode_pfcp_qer_id_ie_t(&(value->qer_id), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_qer_id_ie_t(&(value->qer_id), buf + enc_len);
 
 	for (uint8_t i = 0; i < value->actvt_predef_rules_count; i++) {
 		if (value->actvt_predef_rules[i].header.len)
-			enc_len += encode_pfcp_actvt_predef_rules_ie_t(&(value->actvt_predef_rules[i]), buf + (enc_len/CHAR_SIZE));
+			enc_len += encode_pfcp_actvt_predef_rules_ie_t(&(value->actvt_predef_rules[i]), buf + enc_len);
 	}
 
 	for (uint8_t i = 0; i < value->deact_predef_rules_count; i++) {
 		if (value->deact_predef_rules[i].header.len)
-			enc_len += encode_pfcp_deact_predef_rules_ie_t(&(value->deact_predef_rules[i]), buf + (enc_len/CHAR_SIZE));
+			enc_len += encode_pfcp_deact_predef_rules_ie_t(&(value->deact_predef_rules[i]), buf + enc_len);
 	}
 
 
-	return enc_len/CHAR_SIZE;
+	return enc_len;
 }
 
 /**
@@ -1460,15 +1481,16 @@ int encode_pfcp_update_pdr_ie_t(pfcp_update_pdr_ie_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_upd_frwdng_parms_ie_t(pfcp_upd_frwdng_parms_ie_t *value,
+int encode_pfcp_upd_frwdng_parms_ie_t(const pfcp_upd_frwdng_parms_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
 
-	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+	enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+	enc_len /= CHAR_SIZE;
 
 	if (value->dst_intfc.header.len)
-		enc_len += encode_pfcp_dst_intfc_ie_t(&(value->dst_intfc), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_dst_intfc_ie_t(&(value->dst_intfc), buf + enc_len);
 
 	if (value->ntwk_inst.header.len)
 		enc_len += encode_pfcp_ntwk_inst_ie_t(&(value->ntwk_inst), buf + enc_len);
@@ -1477,7 +1499,7 @@ int encode_pfcp_upd_frwdng_parms_ie_t(pfcp_upd_frwdng_parms_ie_t *value,
 		enc_len += encode_pfcp_redir_info_ie_t(&(value->redir_info), buf + enc_len);
 
 	if (value->outer_hdr_creation.header.len)
-		enc_len += encode_pfcp_outer_hdr_creation_ie_t(&(value->outer_hdr_creation), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_outer_hdr_creation_ie_t(&(value->outer_hdr_creation), buf + enc_len);
 
 	if (value->trnspt_lvl_marking.header.len)
 		enc_len += encode_pfcp_trnspt_lvl_marking_ie_t(&(value->trnspt_lvl_marking), buf + enc_len);
@@ -1489,15 +1511,14 @@ int encode_pfcp_upd_frwdng_parms_ie_t(pfcp_upd_frwdng_parms_ie_t *value,
 		enc_len += encode_pfcp_hdr_enrchmt_ie_t(&(value->hdr_enrchmt), buf + enc_len);
 
 	if (value->pfcpsmreq_flags.header.len) {
-		uint8_t len =
-		len = encode_pfcp_pfcpsmreq_flags_ie_t(&(value->pfcpsmreq_flags), buf + (enc_len/CHAR_SIZE));
-		len = (len * CHAR_SIZE);
-		enc_len += len;
+		enc_len += encode_pfcp_pfcpsmreq_flags_ie_t(&(value->pfcpsmreq_flags), buf + enc_len);
 	}
 
 	if (value->lnkd_traffic_endpt_id.header.len)
 		enc_len += encode_pfcp_traffic_endpt_id_ie_t(&(value->lnkd_traffic_endpt_id), buf + enc_len);
 
+	if (value->dst_intfc_type.header.len)
+		enc_len += encode_pfcp_3gpp_intfc_type_ie_t(&(value->dst_intfc_type), buf + enc_len);
 
 	return enc_len;
 }
@@ -1511,7 +1532,7 @@ int encode_pfcp_upd_frwdng_parms_ie_t(pfcp_upd_frwdng_parms_ie_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_node_rpt_rsp_t(pfcp_node_rpt_rsp_t *value,
+int encode_pfcp_node_rpt_rsp_t(const pfcp_node_rpt_rsp_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
@@ -1540,12 +1561,13 @@ int encode_pfcp_node_rpt_rsp_t(pfcp_node_rpt_rsp_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_ovrld_ctl_info_ie_t(pfcp_ovrld_ctl_info_ie_t *value,
+int encode_pfcp_ovrld_ctl_info_ie_t(const pfcp_ovrld_ctl_info_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
 
-	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+	enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+	enc_len /= CHAR_SIZE;
 
 	if (value->ovrld_ctl_seqn_nbr.header.len)
 		enc_len += encode_pfcp_sequence_number_ie_t(&(value->ovrld_ctl_seqn_nbr), buf + enc_len);
@@ -1572,7 +1594,7 @@ int encode_pfcp_ovrld_ctl_info_ie_t(pfcp_ovrld_ctl_info_ie_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_hrtbeat_rsp_t(pfcp_hrtbeat_rsp_t *value,
+int encode_pfcp_hrtbeat_rsp_t(const pfcp_hrtbeat_rsp_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
@@ -1595,7 +1617,7 @@ int encode_pfcp_hrtbeat_rsp_t(pfcp_hrtbeat_rsp_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_node_rpt_req_t(pfcp_node_rpt_req_t *value,
+int encode_pfcp_node_rpt_req_t(const pfcp_node_rpt_req_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
@@ -1624,12 +1646,13 @@ int encode_pfcp_node_rpt_req_t(pfcp_node_rpt_req_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_app_det_info_ie_t(pfcp_app_det_info_ie_t *value,
+int encode_pfcp_app_det_info_ie_t(const pfcp_app_det_info_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
 
-	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+	enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+	enc_len /= CHAR_SIZE;
 
 	if (value->application_id.header.len)
 		enc_len += encode_pfcp_application_id_ie_t(&(value->application_id), buf + enc_len);
@@ -1653,71 +1676,72 @@ int encode_pfcp_app_det_info_ie_t(pfcp_app_det_info_ie_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_pdi_ie_t(pfcp_pdi_ie_t *value,
+int encode_pfcp_pdi_ie_t(const pfcp_pdi_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
-	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+	enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+	enc_len /= CHAR_SIZE;
 
 /* TODO: Revisit this for change in yang */
 	if (value->src_intfc.header.len)
-		enc_len += encode_pfcp_src_intfc_ie_t(&(value->src_intfc), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_src_intfc_ie_t(&(value->src_intfc), buf + enc_len);
 
 /* TODO: Revisit this for change in yang */
 	if (value->local_fteid.header.len)
-		enc_len += encode_pfcp_fteid_ie_t(&(value->local_fteid), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_fteid_ie_t(&(value->local_fteid), buf + enc_len);
 
 /* TODO: Revisit this for change in yang */
 	if (value->ntwk_inst.header.len)
-		enc_len += encode_pfcp_ntwk_inst_ie_t(&(value->ntwk_inst), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_ntwk_inst_ie_t(&(value->ntwk_inst), buf + enc_len);
 
 /* TODO: Revisit this for change in yang */
 	if (value->ue_ip_address.header.len)
-		enc_len += encode_pfcp_ue_ip_address_ie_t(&(value->ue_ip_address), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_ue_ip_address_ie_t(&(value->ue_ip_address), buf + enc_len);
 
 /* TODO: Revisit this for change in yang */
 	if (value->traffic_endpt_id.header.len)
-		enc_len += encode_pfcp_traffic_endpt_id_ie_t(&(value->traffic_endpt_id), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_traffic_endpt_id_ie_t(&(value->traffic_endpt_id), buf + enc_len);
 /* TODO: Revisit this for change in yang */
 
 	if (value->application_id.header.len)
-		enc_len += encode_pfcp_application_id_ie_t(&(value->application_id), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_application_id_ie_t(&(value->application_id), buf + enc_len);
 
 /* TODO: Revisit this for change in yang */
 	if (value->eth_pdu_sess_info.header.len)
-		enc_len += encode_pfcp_eth_pdu_sess_info_ie_t(&(value->eth_pdu_sess_info), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_eth_pdu_sess_info_ie_t(&(value->eth_pdu_sess_info), buf + enc_len);
 
 	/* TODO: Revisit this for change in yang */
 	if (value->framed_routing.header.len)
-		enc_len += encode_pfcp_framed_routing_ie_t(&(value->framed_routing), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_framed_routing_ie_t(&(value->framed_routing), buf + enc_len);
 
 	/* TODO: Revisit this for change in yang */
 	for (uint8_t i = 0; i < value->sdf_filter_count; i++) {
 		if (value->sdf_filter[i].header.len)
-			enc_len += encode_pfcp_sdf_filter_ie_t(&(value->sdf_filter[i]), buf + (enc_len/CHAR_SIZE));
+			enc_len += encode_pfcp_sdf_filter_ie_t(&(value->sdf_filter[i]), buf + enc_len);
 	}
 /* TODO: Revisit this for change in yang */
 	for (uint8_t i = 0; i < value->eth_pckt_fltr_count; i++) {
 		if (value->eth_pckt_fltr[i].header.len)
-			enc_len += encode_pfcp_eth_pckt_fltr_ie_t(&(value->eth_pckt_fltr[i]), buf + (enc_len/CHAR_SIZE));
+			enc_len += encode_pfcp_eth_pckt_fltr_ie_t(&(value->eth_pckt_fltr[i]), buf + enc_len);
 	}
 
 /* TODO: Revisit this for change in yang */
 	for (uint8_t i = 0; i < value->qfi_count; i++) {
 		if (value->qfi[i].header.len)
-			enc_len += encode_pfcp_qfi_ie_t(&(value->qfi[i]), buf + (enc_len/CHAR_SIZE));
+			enc_len += encode_pfcp_qfi_ie_t(&(value->qfi[i]), buf + enc_len);
 	}
 
 /* TODO: Revisit this for change in yang */
 	for (uint8_t i = 0; i < value->framed_route_count; i++) {
 		if (value->framed_route[i].header.len)
-			enc_len += encode_pfcp_framed_route_ie_t(&(value->framed_route[i]), buf + (enc_len/CHAR_SIZE));
+			enc_len += encode_pfcp_framed_route_ie_t(&(value->framed_route[i]), buf + enc_len);
 	}
 
 	/* TODO: Revisit this for change in yang */
 	for (uint8_t i = 0; i < value->frmd_ipv6_rte_count; i++) {
 		if (value->frmd_ipv6_rte[i].header.len)
-			enc_len += encode_pfcp_frmd_ipv6_rte_ie_t(&(value->frmd_ipv6_rte[i]), buf + (enc_len/CHAR_SIZE));
+			enc_len += encode_pfcp_frmd_ipv6_rte_ie_t(&(value->frmd_ipv6_rte[i]), buf + enc_len);
 	}
 
 
@@ -1733,28 +1757,29 @@ int encode_pfcp_pdi_ie_t(pfcp_pdi_ie_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_create_bar_ie_t(pfcp_create_bar_ie_t *value,
+int encode_pfcp_create_bar_ie_t(const pfcp_create_bar_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
 
-	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+	enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+	enc_len /= CHAR_SIZE;
 
 	/* TODO: Revisit this for change in yang */
 	if (value->bar_id.header.len)
-		enc_len += encode_pfcp_bar_id_ie_t(&(value->bar_id), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_bar_id_ie_t(&(value->bar_id), buf + enc_len);
 
 	/* TODO: Revisit this for change in yang */
 	if (value->dnlnk_data_notif_delay.header.len)
-		enc_len += encode_pfcp_dnlnk_data_notif_delay_ie_t(&(value->dnlnk_data_notif_delay), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_dnlnk_data_notif_delay_ie_t(&(value->dnlnk_data_notif_delay), buf + enc_len);
 
 	/* TODO: Revisit this for change in yang */
 	if (value->suggstd_buf_pckts_cnt.header.len)
-		enc_len += encode_pfcp_suggstd_buf_pckts_cnt_ie_t(&(value->suggstd_buf_pckts_cnt), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_suggstd_buf_pckts_cnt_ie_t(&(value->suggstd_buf_pckts_cnt), buf + enc_len);
 
 
 	/* TODO: Revisit this for change in yang */
-	return enc_len/CHAR_SIZE;
+	return enc_len;
 }
 
 /**
@@ -1766,7 +1791,7 @@ int encode_pfcp_create_bar_ie_t(pfcp_create_bar_ie_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_sess_del_req_t(pfcp_sess_del_req_t *value,
+int encode_pfcp_sess_del_req_t(const pfcp_sess_del_req_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
@@ -1786,7 +1811,7 @@ int encode_pfcp_sess_del_req_t(pfcp_sess_del_req_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_assn_upd_req_t(pfcp_assn_upd_req_t *value,
+int encode_pfcp_assn_upd_req_t(const pfcp_assn_upd_req_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
@@ -1826,7 +1851,7 @@ int encode_pfcp_assn_upd_req_t(pfcp_assn_upd_req_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_sess_estab_req_t(pfcp_sess_estab_req_t *value,
+int encode_pfcp_sess_estab_req_t(const pfcp_sess_estab_req_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
@@ -1846,19 +1871,19 @@ int encode_pfcp_sess_estab_req_t(pfcp_sess_estab_req_t *value,
 		enc_len += encode_pfcp_pdn_type_ie_t(&(value->pdn_type), buf + enc_len);
 
 	if (value->sgw_c_fqcsid.header.len)
-		enc_len += encode_pfcp_fqcsid_ie_t(&(value->sgw_c_fqcsid), buf + enc_len);
+	    enc_len += encode_pfcp_fqcsid_ie_t(&(value->sgw_c_fqcsid), buf + enc_len);
 
 	if (value->mme_fqcsid.header.len)
-		enc_len += encode_pfcp_fqcsid_ie_t(&(value->mme_fqcsid), buf + enc_len);
+	    enc_len += encode_pfcp_fqcsid_ie_t(&(value->mme_fqcsid), buf + enc_len);
 
 	if (value->pgw_c_fqcsid.header.len)
-		enc_len += encode_pfcp_fqcsid_ie_t(&(value->pgw_c_fqcsid), buf + enc_len);
+	    enc_len += encode_pfcp_fqcsid_ie_t(&(value->pgw_c_fqcsid), buf + enc_len);
 
 	if (value->epdg_fqcsid.header.len)
-		enc_len += encode_pfcp_fqcsid_ie_t(&(value->epdg_fqcsid), buf + enc_len);
+	    enc_len += encode_pfcp_fqcsid_ie_t(&(value->epdg_fqcsid), buf + enc_len);
 
 	if (value->twan_fqcsid.header.len)
-		enc_len += encode_pfcp_fqcsid_ie_t(&(value->twan_fqcsid), buf + enc_len);
+	    enc_len += encode_pfcp_fqcsid_ie_t(&(value->twan_fqcsid), buf + enc_len);
 
 	if (value->user_plane_inact_timer.header.len)
 		enc_len += encode_pfcp_user_plane_inact_timer_ie_t(&(value->user_plane_inact_timer), buf + enc_len);
@@ -1868,6 +1893,9 @@ int encode_pfcp_sess_estab_req_t(pfcp_sess_estab_req_t *value,
 
 	if (value->trc_info.header.len)
 		enc_len += encode_pfcp_trc_info_ie_t(&(value->trc_info), buf + enc_len);
+
+	if (value->apn_dnn.header.len)
+		enc_len += encode_pfcp_apn_dnn_ie_t(&(value->apn_dnn), buf + enc_len);
 
 	for (uint8_t i = 0; i < value->create_pdr_count; i++) {
 		if (value->create_pdr[i].header.len)
@@ -1907,12 +1935,13 @@ int encode_pfcp_sess_estab_req_t(pfcp_sess_estab_req_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_err_indctn_rpt_ie_t(pfcp_err_indctn_rpt_ie_t *value,
+int encode_pfcp_err_indctn_rpt_ie_t(const pfcp_err_indctn_rpt_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
 
-	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+	enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+	enc_len /= CHAR_SIZE;
 
 	for (uint8_t i = 0; i < value->remote_fteid_count; i++) {
 		if (value->remote_fteid[i].header.len)
@@ -1932,12 +1961,13 @@ int encode_pfcp_err_indctn_rpt_ie_t(pfcp_err_indctn_rpt_ie_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_eth_traffic_info_ie_t(pfcp_eth_traffic_info_ie_t *value,
+int encode_pfcp_eth_traffic_info_ie_t(const pfcp_eth_traffic_info_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
 
-	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+	enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+	enc_len /= CHAR_SIZE;
 
 	if (value->mac_addrs_detctd.header.len)
 		enc_len += encode_pfcp_mac_addrs_detctd_ie_t(&(value->mac_addrs_detctd), buf + enc_len);
@@ -1958,23 +1988,24 @@ int encode_pfcp_eth_traffic_info_ie_t(pfcp_eth_traffic_info_ie_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_app_ids_pfds_ie_t(pfcp_app_ids_pfds_ie_t *value,
+int encode_pfcp_app_ids_pfds_ie_t(const pfcp_app_ids_pfds_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
 
-	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+	enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+	enc_len /= CHAR_SIZE;
 
 	if (value->application_id.header.len)
-		enc_len += encode_pfcp_application_id_ie_t(&(value->application_id), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_application_id_ie_t(&(value->application_id), buf + enc_len);
 
 	for (uint8_t i = 0; i < value->pfd_context_count; i++) {
 		if (value->pfd_context[i].header.len)
-			enc_len += encode_pfcp_pfd_context_ie_t(&(value->pfd_context[i]), buf + (enc_len/CHAR_SIZE));
+			enc_len += encode_pfcp_pfd_context_ie_t(&(value->pfd_context[i]), buf + enc_len);
 	}
 
 
-	return enc_len/CHAR_SIZE;
+	return enc_len;
 }
 
 /**
@@ -1986,12 +2017,13 @@ int encode_pfcp_app_ids_pfds_ie_t(pfcp_app_ids_pfds_ie_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_remove_qer_ie_t(pfcp_remove_qer_ie_t *value,
+int encode_pfcp_remove_qer_ie_t(const pfcp_remove_qer_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
 
-	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+	enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+	enc_len /= CHAR_SIZE;
 
 	if (value->qer_id.header.len)
 		enc_len += encode_pfcp_qer_id_ie_t(&(value->qer_id), buf + enc_len);
@@ -2009,48 +2041,49 @@ int encode_pfcp_remove_qer_ie_t(pfcp_remove_qer_ie_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_create_qer_ie_t(pfcp_create_qer_ie_t *value,
+int encode_pfcp_create_qer_ie_t(const pfcp_create_qer_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
 
-	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+	enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+	enc_len /= CHAR_SIZE;
 
 	if (value->qer_id.header.len)
-		enc_len += encode_pfcp_qer_id_ie_t(&(value->qer_id), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_qer_id_ie_t(&(value->qer_id), buf + enc_len);
 
 	if (value->qer_corr_id.header.len)
-		enc_len += encode_pfcp_qer_corr_id_ie_t(&(value->qer_corr_id), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_qer_corr_id_ie_t(&(value->qer_corr_id), buf + enc_len);
 
 	if (value->gate_status.header.len)
-		enc_len += encode_pfcp_gate_status_ie_t(&(value->gate_status), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_gate_status_ie_t(&(value->gate_status), buf + enc_len);
 
 	if (value->maximum_bitrate.header.len)
-		enc_len += encode_pfcp_mbr_ie_t(&(value->maximum_bitrate), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_mbr_ie_t(&(value->maximum_bitrate), buf + enc_len);
 
 	if (value->guaranteed_bitrate.header.len)
-		enc_len += encode_pfcp_gbr_ie_t(&(value->guaranteed_bitrate), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_gbr_ie_t(&(value->guaranteed_bitrate), buf + enc_len);
 
 	if (value->packet_rate.header.len)
-		enc_len += encode_pfcp_packet_rate_ie_t(&(value->packet_rate), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_packet_rate_ie_t(&(value->packet_rate), buf + enc_len);
 
 	if (value->dl_flow_lvl_marking.header.len)
-		enc_len += encode_pfcp_dl_flow_lvl_marking_ie_t(&(value->dl_flow_lvl_marking), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_dl_flow_lvl_marking_ie_t(&(value->dl_flow_lvl_marking), buf + enc_len);
 
 	if (value->qos_flow_ident.header.len)
-		enc_len += encode_pfcp_qfi_ie_t(&(value->qos_flow_ident), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_qfi_ie_t(&(value->qos_flow_ident), buf + enc_len);
 
 	if (value->reflective_qos.header.len)
-		enc_len += encode_pfcp_rqi_ie_t(&(value->reflective_qos), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_rqi_ie_t(&(value->reflective_qos), buf + enc_len);
 
 	if (value->paging_plcy_indctr.header.len)
-		enc_len += encode_pfcp_paging_plcy_indctr_ie_t(&(value->paging_plcy_indctr), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_paging_plcy_indctr_ie_t(&(value->paging_plcy_indctr), buf + enc_len);
 
 	if (value->avgng_wnd.header.len)
-		enc_len += encode_pfcp_avgng_wnd_ie_t(&(value->avgng_wnd), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_avgng_wnd_ie_t(&(value->avgng_wnd), buf + enc_len);
 
 
-	return enc_len/CHAR_SIZE;
+	return enc_len;
 }
 
 /**
@@ -2062,16 +2095,17 @@ int encode_pfcp_create_qer_ie_t(pfcp_create_qer_ie_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_rmv_traffic_endpt_ie_t(pfcp_rmv_traffic_endpt_ie_t *value,
+int encode_pfcp_rmv_traffic_endpt_ie_t(const pfcp_rmv_traffic_endpt_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
 
-	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+	enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+	enc_len /= CHAR_SIZE;
 
 	//TODO: Revisit this for change in yang
 	if (value->traffic_endpt_id.header.len)
-		enc_len += encode_pfcp_traffic_endpt_id_ie_t(&(value->traffic_endpt_id), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_traffic_endpt_id_ie_t(&(value->traffic_endpt_id), buf + enc_len);
 
 
 	return enc_len;
@@ -2086,12 +2120,13 @@ int encode_pfcp_rmv_traffic_endpt_ie_t(pfcp_rmv_traffic_endpt_ie_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_update_urr_ie_t(pfcp_update_urr_ie_t *value,
+int encode_pfcp_update_urr_ie_t(const pfcp_update_urr_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
 
-	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+	enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+	enc_len /= CHAR_SIZE;
 
 	if (value->urr_id.header.len)
 		enc_len += encode_pfcp_urr_id_ie_t(&(value->urr_id), buf + enc_len);
@@ -2191,21 +2226,22 @@ int encode_pfcp_update_urr_ie_t(pfcp_update_urr_ie_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_update_far_ie_t(pfcp_update_far_ie_t *value,
+int encode_pfcp_update_far_ie_t(const pfcp_update_far_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
 
-	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+	enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+	enc_len /= CHAR_SIZE;
 
 	if (value->far_id.header.len)
-		enc_len += encode_pfcp_far_id_ie_t(&(value->far_id), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_far_id_ie_t(&(value->far_id), buf + enc_len);
 
 	if (value->apply_action.header.len)
-		enc_len += encode_pfcp_apply_action_ie_t(&(value->apply_action), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_apply_action_ie_t(&(value->apply_action), buf + enc_len);
 
 	if (value->upd_frwdng_parms.header.len)
-		enc_len += encode_pfcp_upd_frwdng_parms_ie_t(&(value->upd_frwdng_parms), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_upd_frwdng_parms_ie_t(&(value->upd_frwdng_parms), buf + enc_len);
 
 	if (value->bar_id.header.len)
 		enc_len += encode_pfcp_bar_id_ie_t(&(value->bar_id), buf + enc_len);
@@ -2216,7 +2252,7 @@ int encode_pfcp_update_far_ie_t(pfcp_update_far_ie_t *value,
 	}
 
 
-	return enc_len/CHAR_SIZE;
+	return enc_len;
 }
 
 /**
@@ -2228,12 +2264,13 @@ int encode_pfcp_update_far_ie_t(pfcp_update_far_ie_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_user_plane_path_fail_rpt_ie_t(pfcp_user_plane_path_fail_rpt_ie_t *value,
+int encode_pfcp_user_plane_path_fail_rpt_ie_t(const pfcp_user_plane_path_fail_rpt_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
 
-	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+	enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+	enc_len /= CHAR_SIZE;
 
 	for (uint8_t i = 0; i < value->rmt_gtpu_peer_count; i++) {
 		if (value->rmt_gtpu_peer[i].header.len)
@@ -2253,18 +2290,19 @@ int encode_pfcp_user_plane_path_fail_rpt_ie_t(pfcp_user_plane_path_fail_rpt_ie_t
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_remove_pdr_ie_t(pfcp_remove_pdr_ie_t *value,
+int encode_pfcp_remove_pdr_ie_t(const pfcp_remove_pdr_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
 
-	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+	enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+	enc_len /= CHAR_SIZE;
 
 	if (value->pdr_id.header.len)
-		enc_len += encode_pfcp_pdr_id_ie_t(&(value->pdr_id), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_pdr_id_ie_t(&(value->pdr_id), buf + enc_len);
 
 
-	return enc_len/CHAR_SIZE;
+	return enc_len;
 }
 
 /**
@@ -2276,59 +2314,60 @@ int encode_pfcp_remove_pdr_ie_t(pfcp_remove_pdr_ie_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_update_qer_ie_t(pfcp_update_qer_ie_t *value,
+int encode_pfcp_update_qer_ie_t(const pfcp_update_qer_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
 
-	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+	enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+	enc_len /= CHAR_SIZE;
 
 	/* TODO: Revisit this for change in yang */
 	if (value->qer_id.header.len)
-		enc_len += encode_pfcp_qer_id_ie_t(&(value->qer_id), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_qer_id_ie_t(&(value->qer_id), buf + enc_len);
 
 	/* TODO: Revisit this for change in yang */
 	if (value->qer_corr_id.header.len)
-		enc_len += encode_pfcp_qer_corr_id_ie_t(&(value->qer_corr_id), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_qer_corr_id_ie_t(&(value->qer_corr_id), buf + enc_len);
 
 	/* TODO: Revisit this for change in yang */
 	if (value->gate_status.header.len)
-		enc_len += encode_pfcp_gate_status_ie_t(&(value->gate_status), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_gate_status_ie_t(&(value->gate_status), buf + enc_len);
 
 	/* TODO: Revisit this for change in yang */
 	if (value->maximum_bitrate.header.len)
-		enc_len += encode_pfcp_mbr_ie_t(&(value->maximum_bitrate), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_mbr_ie_t(&(value->maximum_bitrate), buf + enc_len);
 
 	/* TODO: Revisit this for change in yang */
 	if (value->guaranteed_bitrate.header.len)
-		enc_len += encode_pfcp_gbr_ie_t(&(value->guaranteed_bitrate), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_gbr_ie_t(&(value->guaranteed_bitrate), buf + enc_len);
 
 	/* TODO: Revisit this for change in yang */
 	if (value->packet_rate.header.len)
-		enc_len += encode_pfcp_packet_rate_ie_t(&(value->packet_rate), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_packet_rate_ie_t(&(value->packet_rate), buf + enc_len);
 
 	/* TODO: Revisit this for change in yang */
 	if (value->dl_flow_lvl_marking.header.len)
-		enc_len += encode_pfcp_dl_flow_lvl_marking_ie_t(&(value->dl_flow_lvl_marking), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_dl_flow_lvl_marking_ie_t(&(value->dl_flow_lvl_marking), buf + enc_len);
 
 	/* TODO: Revisit this for change in yang */
 	if (value->qos_flow_ident.header.len)
-		enc_len += encode_pfcp_qfi_ie_t(&(value->qos_flow_ident), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_qfi_ie_t(&(value->qos_flow_ident), buf + enc_len);
 
 	/* TODO: Revisit this for change in yang */
 	if (value->reflective_qos.header.len)
-		enc_len += encode_pfcp_rqi_ie_t(&(value->reflective_qos), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_rqi_ie_t(&(value->reflective_qos), buf + enc_len);
 
 	/* TODO: Revisit this for change in yang */
 	if (value->paging_plcy_indctr.header.len)
-		enc_len += encode_pfcp_paging_plcy_indctr_ie_t(&(value->paging_plcy_indctr), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_paging_plcy_indctr_ie_t(&(value->paging_plcy_indctr), buf + enc_len);
 
 	/* TODO: Revisit this for change in yang */
 	if (value->avgng_wnd.header.len)
-		enc_len += encode_pfcp_avgng_wnd_ie_t(&(value->avgng_wnd), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_avgng_wnd_ie_t(&(value->avgng_wnd), buf + enc_len);
 
 	/* TODO: Revisit this for change in yang */
-	return enc_len/CHAR_SIZE;
+	return enc_len;
 }
 
 /**
@@ -2340,12 +2379,13 @@ int encode_pfcp_update_qer_ie_t(pfcp_update_qer_ie_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_add_mntrng_time_ie_t(pfcp_add_mntrng_time_ie_t *value,
+int encode_pfcp_add_mntrng_time_ie_t(const pfcp_add_mntrng_time_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
 
-	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+	enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+	enc_len /= CHAR_SIZE;
 
 	if (value->monitoring_time.header.len)
 		enc_len += encode_pfcp_monitoring_time_ie_t(&(value->monitoring_time), buf + enc_len);
@@ -2381,7 +2421,7 @@ int encode_pfcp_add_mntrng_time_ie_t(pfcp_add_mntrng_time_ie_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_sess_estab_rsp_t(pfcp_sess_estab_rsp_t *value,
+int encode_pfcp_sess_estab_rsp_t(const pfcp_sess_estab_rsp_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
@@ -2409,11 +2449,8 @@ int encode_pfcp_sess_estab_rsp_t(pfcp_sess_estab_rsp_t *value,
 	if (value->ovrld_ctl_info.header.len)
 		enc_len += encode_pfcp_ovrld_ctl_info_ie_t(&(value->ovrld_ctl_info), buf + enc_len);
 
-	if (value->sgw_u_fqcsid.header.len)
-		enc_len += encode_pfcp_fqcsid_ie_t(&(value->sgw_u_fqcsid), buf + enc_len);
-
-	if (value->pgw_u_fqcsid.header.len)
-		enc_len += encode_pfcp_fqcsid_ie_t(&(value->pgw_u_fqcsid), buf + enc_len);
+	if (value->up_fqcsid.header.len)
+		enc_len += encode_pfcp_fqcsid_ie_t(&(value->up_fqcsid), buf + enc_len);
 
 	if (value->failed_rule_id.header.len)
 		enc_len += encode_pfcp_failed_rule_id_ie_t(&(value->failed_rule_id), buf + enc_len);
@@ -2434,20 +2471,21 @@ int encode_pfcp_sess_estab_rsp_t(pfcp_sess_estab_rsp_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_remove_bar_ie_t(pfcp_remove_bar_ie_t *value,
+int encode_pfcp_remove_bar_ie_t(const pfcp_remove_bar_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
 
-	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+	enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+	enc_len /= CHAR_SIZE;
 
 	//TODO: Revisit this for change in yang
 	if (value->bar_id.header.len)
-		enc_len += encode_pfcp_bar_id_ie_t(&(value->bar_id), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_bar_id_ie_t(&(value->bar_id), buf + enc_len);
 
 
 	//TODO: Revisit this for change in yang
-	return enc_len/CHAR_SIZE;
+	return enc_len;
 }
 
 /**
@@ -2459,7 +2497,7 @@ int encode_pfcp_remove_bar_ie_t(pfcp_remove_bar_ie_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_assn_rel_req_t(pfcp_assn_rel_req_t *value,
+int encode_pfcp_assn_rel_req_t(const pfcp_assn_rel_req_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
@@ -2482,53 +2520,54 @@ int encode_pfcp_assn_rel_req_t(pfcp_assn_rel_req_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_create_pdr_ie_t(pfcp_create_pdr_ie_t *value,
+int encode_pfcp_create_pdr_ie_t(const pfcp_create_pdr_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
 
-	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+	enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+	enc_len /= CHAR_SIZE;
 
 	/* TODO: Revisit this for change in yang */
 	if (value->pdr_id.header.len)
-		enc_len += encode_pfcp_pdr_id_ie_t(&(value->pdr_id), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_pdr_id_ie_t(&(value->pdr_id), buf + enc_len);
 
 	/* TODO: Revisit this for change in yang */
 	if (value->precedence.header.len)
-		enc_len += encode_pfcp_precedence_ie_t(&(value->precedence), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_precedence_ie_t(&(value->precedence), buf + enc_len);
 
 	/* TODO: Revisit this for change in yang */
 	if (value->pdi.header.len)
-		enc_len += encode_pfcp_pdi_ie_t(&(value->pdi), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_pdi_ie_t(&(value->pdi), buf + enc_len);
 
 	/* TODO: Revisit this for change in yang */
 	if (value->outer_hdr_removal.header.len)
-		enc_len += encode_pfcp_outer_hdr_removal_ie_t(&(value->outer_hdr_removal), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_outer_hdr_removal_ie_t(&(value->outer_hdr_removal), buf + enc_len);
 
 	/* TODO: Revisit this for change in yang */
 	if (value->far_id.header.len)
-		enc_len += encode_pfcp_far_id_ie_t(&(value->far_id), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_far_id_ie_t(&(value->far_id), buf + enc_len);
 
 	/* TODO: Revisit this for change in yang */
 	for (uint8_t i = 0; i < value->urr_id_count; i++) {
 		if (value->urr_id[i].header.len)
-			enc_len += encode_pfcp_urr_id_ie_t(&(value->urr_id[i]), buf + (enc_len/CHAR_SIZE));
+			enc_len += encode_pfcp_urr_id_ie_t(&(value->urr_id[i]), buf + enc_len);
 	}
 
 	/* TODO: Revisit this for change in yang */
 	for (uint8_t i = 0; i < value->qer_id_count; i++) {
 		if (value->qer_id[i].header.len)
-			enc_len += encode_pfcp_qer_id_ie_t(&(value->qer_id[i]), buf + (enc_len/CHAR_SIZE));
+			enc_len += encode_pfcp_qer_id_ie_t(&(value->qer_id[i]), buf + enc_len);
 	}
 
 	/* TODO: Revisit this for change in yang */
 	for (uint8_t i = 0; i < value->actvt_predef_rules_count; i++) {
 		if (value->actvt_predef_rules[i].header.len)
-			enc_len += encode_pfcp_actvt_predef_rules_ie_t(&(value->actvt_predef_rules[i]), buf + (enc_len/CHAR_SIZE));
+			enc_len += encode_pfcp_actvt_predef_rules_ie_t(&(value->actvt_predef_rules[i]), buf + enc_len);
 	}
 
 	/* TODO: Revisit this for change in yang */
-	return enc_len/CHAR_SIZE;
+	return enc_len;
 }
 
 /**
@@ -2540,12 +2579,13 @@ int encode_pfcp_create_pdr_ie_t(pfcp_create_pdr_ie_t *value,
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_aggregated_urrs_ie_t(pfcp_aggregated_urrs_ie_t *value,
+int encode_pfcp_aggregated_urrs_ie_t(const pfcp_aggregated_urrs_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
 
-	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+	enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+	enc_len /= CHAR_SIZE;
 
 	if (value->agg_urr_id.header.len)
 		enc_len += encode_pfcp_agg_urr_id_ie_t(&(value->agg_urr_id), buf + enc_len);
@@ -2562,30 +2602,31 @@ int encode_pfcp_aggregated_urrs_ie_t(pfcp_aggregated_urrs_ie_t *value,
  * @param buf
  *   buffer to store encoded values.
  * @param value
- pfcp_upd_bar_sess_mod_req_ie_t
+ *   pfcp_upd_bar_sess_mod_req_ie_t
  * @return
  *   number of encoded bytes.
  */
-int encode_pfcp_upd_bar_sess_mod_req_ie_t(pfcp_upd_bar_sess_mod_req_ie_t *value,
+int encode_pfcp_upd_bar_sess_mod_req_ie_t(const pfcp_upd_bar_sess_mod_req_ie_t *value,
 		uint8_t *buf)
 {
 	uint16_t enc_len = 0;
 
-	enc_len += encode_pfcp_ie_header_t(&value->header, buf + (enc_len/CHAR_SIZE));
+	enc_len = encode_pfcp_ie_header_t(&value->header, buf);
+	enc_len /= CHAR_SIZE;
 
 	/* TODO: Revisit this for change in yang */
 	if (value->bar_id.header.len)
-		enc_len += encode_pfcp_bar_id_ie_t(&(value->bar_id), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_bar_id_ie_t(&(value->bar_id), buf + enc_len);
 
 	/* TODO: Revisit this for change in yang */
 	if (value->dnlnk_data_notif_delay.header.len)
-		enc_len += encode_pfcp_dnlnk_data_notif_delay_ie_t(&(value->dnlnk_data_notif_delay), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_dnlnk_data_notif_delay_ie_t(&(value->dnlnk_data_notif_delay), buf + enc_len);
 
 	/* TODO: Revisit this for change in yang */
 	if (value->suggstd_buf_pckts_cnt.header.len)
-		enc_len += encode_pfcp_suggstd_buf_pckts_cnt_ie_t(&(value->suggstd_buf_pckts_cnt), buf + (enc_len/CHAR_SIZE));
+		enc_len += encode_pfcp_suggstd_buf_pckts_cnt_ie_t(&(value->suggstd_buf_pckts_cnt), buf + enc_len);
 
 	/* TODO: Revisit this for change in yang */
-	return enc_len/CHAR_SIZE;
+	return enc_len;
 }
 

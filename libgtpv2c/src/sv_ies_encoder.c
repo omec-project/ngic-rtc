@@ -26,7 +26,7 @@
 * @return
 *   number of encoded bytes.
 */
-int encode_gtp_stn_sr_ie(gtp_stn_sr_ie_t *value,
+int encode_gtp_stn_sr_ie(const gtp_stn_sr_ie_t *value,
     uint8_t *buf)
 {
     uint16_t encoded = 0;

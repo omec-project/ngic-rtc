@@ -71,12 +71,12 @@ set_ie_header(ie_header_t *header, uint8_t type,
  *           Information element instance as specified by 3gpp 29.274 clause 6.1.3
  * @param  : cause value
  *           cause value that we want to set on cause IE
- * @param  : rsp_info
- *          rsp_info specifies offending ie.
+ * @param  : cause source
  * @return : Returns nothing
  */
 void
-set_cause_error_value(gtp_cause_ie_t *cause, enum ie_instance instance, uint8_t cause_value);
+set_cause_error_value(gtp_cause_ie_t *cause, enum ie_instance instance, uint8_t cause_value,
+		uint8_t cause_source);
 
 /**
  * @brief  : Populates cause information element with accepted value
@@ -229,6 +229,20 @@ set_apn_restriction_ie(gtpv2c_header_t *header,
  * @return : Returns nothing
  */
 void
+set_change_reporting_action(gtp_chg_rptng_act_ie_t *chg_rptng_act,
+		          enum ie_instance instance, uint8_t action);
+/**
+ * @brief  : Populates 'Access Point Name' restriction information element
+ *           according to 3gpp 29.274 clause 8.57
+ * @param  : apn_restriction
+ *           apn restriction ie
+ * @param  : instance
+ *           Information element instance as specified by 3gpp 29.274 clause 6.1.3
+ * @param  : apn_restriction
+ *           value indicating the restriction according to 3gpp 29.274 table 8.57-1
+ * @return : Returns nothing
+ */
+void
 set_apn_restriction(gtp_apn_restriction_ie_t *apn_restriction,
 		enum ie_instance instance, uint8_t restriction_type);
 
@@ -368,17 +382,21 @@ set_bearer_tft_ie(gtpv2c_header_t *header, enum ie_instance instance,
  *           Structure to be filled
  * @param  : instance
  *           Information element instance as specified by 3gpp 29.274 clause 6.1.3
- * @param  : eps_bearer_lvl_tft
- *           eps bearer level tft value
+ * @param  : tft_op_code
+ *           tft_op_code value
  * @param  : bearer
  *           eps bearer data structure that contains tft data
+ * @param  : pdef_rule
+ *           spcifies predef rule or not
+ * @param  : rule_name
+ *           rule name for whict TFT has to upd/add/remove
  * @return :
  *           size of information element
  */
 uint8_t
 set_bearer_tft(gtp_eps_bearer_lvl_traffic_flow_tmpl_ie_t *tft,
-		enum ie_instance instance, uint8_t eps_bearer_lvl_tft,
-		eps_bearer *bearer);
+		enum ie_instance instance, uint8_t tft_op_code,
+		eps_bearer *bearer, bool pdef_rule, char *rule_name);
 
 /**
  * @brief  : Creates & populates 'recovery/restart counter' information element
@@ -407,25 +425,6 @@ set_recovery_ie(gtpv2c_header_t *header, enum ie_instance instance);
 void
 add_grouped_ie_length(gtpv2c_ie *group_ie, uint16_t grouped_ie_length);
 
-/**
- * @brief  : from parameters, populates gtpv2c message 'create session response' and
- *           populates required information elements
- * @param  : gtpv2c_tx
- *           transmission buffer to contain 'create session request' message
- * @param  : sequence
- *           sequence number as described by clause 7.6 3gpp 29.274
- * @param  : context
- *           UE Context data structure pertaining to the bearer to be modified
- * @param  : pdn
- *           pdn connection information
- * @param  : bearer
- *           bearer data structure to be modified
- * @return : Returns nothing
- */
-void
-set_create_session_response(gtpv2c_header_t *gtpv2c_tx,
-		uint32_t sequence, ue_context *context, pdn_connection *pdn,
-		eps_bearer *bearer);
 
 /**
  * @brief  : from parameters, populates gtpv2c message 'modify bearer response' and
@@ -443,7 +442,7 @@ set_create_session_response(gtpv2c_header_t *gtpv2c_tx,
  */
 void
 set_modify_bearer_response(gtpv2c_header_t *gtpv2c_tx,
-		uint32_t sequence, ue_context *context, eps_bearer *bearer);
+		uint32_t sequence, ue_context *context, eps_bearer *bearer, mod_bearer_req_t *mbr);
 
 /* @brief  : Function added to return Response in case of Handover
  *           It performs the same as the function set_modify_bearer_response
@@ -459,7 +458,8 @@ set_modify_bearer_response(gtpv2c_header_t *gtpv2c_tx,
  */
 void
 set_modify_bearer_response_handover(gtpv2c_header_t *gtpv2c_tx,
-		uint32_t sequence, ue_context *context, eps_bearer *bearer);
+		uint32_t sequence, ue_context *context, eps_bearer *bearer,
+		mod_bearer_req_t *mbr);
 /**
  * @brief  : Helper function to set the gtp header for a gtpv2c message.
  * @param  : gtpv2c_tx
@@ -471,12 +471,14 @@ set_modify_bearer_response_handover(gtpv2c_header_t *gtpv2c_tx,
  *           gtp header
  * @param  : seq
  *           sequence number as described by clause 7.6 3gpp 29.274
+ * @param  : is_piggybacked
+ *           piggybacked  as described by clause 5.5.1 3gpp 29.274
  * @return : Returns nothing
  */
 void
 set_gtpv2c_header(gtpv2c_header_t *gtpv2c_tx,
 				uint8_t teidFlg, uint8_t type,
-				uint32_t has_teid, uint32_t seq);
+				uint32_t has_teid, uint32_t seq, uint8_t is_piggybacked);
 
 /**
  * @brief  : Helper function to set the gtp header for a gtpv2c message with the
@@ -489,11 +491,13 @@ set_gtpv2c_header(gtpv2c_header_t *gtpv2c_tx,
  *           GTP teid, or TEID-C, to be populated in the GTP header
  * @param  : seq
  *           sequence number as described by clause 7.6 3gpp 29.274
+ * @param  : is_piggybacked
+ *           is_piggybacked as described by clause 5.5.1 3gpp 29.274
  * @return : Returns nothing
  */
 void
 set_gtpv2c_teid_header(gtpv2c_header_t *gtpv2c_tx, uint8_t type,
-		uint32_t teid, uint32_t seq);
+		uint32_t teid, uint32_t seq, uint8_t is_piggybacked);
 
 /**
  * @brief  : from parameters, populates gtpv2c message 'create session response' and
@@ -608,10 +612,6 @@ set_ue_timezone(gtp_ue_time_zone_ie_t *ue_timezone,
  */
 
 /* TODO: Remove #if 0 before rollup */
-void
-set_release_access_bearer_response(gtpv2c_header_t *gtpv2c_tx,
-		uint32_t sequence, uint32_t s11_mme_gtpc_teid);
-
 /**
  * @brief  : Set values in mapped ue usage type ie
  * @param  : ie
@@ -628,11 +628,22 @@ set_mapped_ue_usage_type(gtp_mapped_ue_usage_type_ie_t *ie, uint16_t usage_type_
  *           transmission buffer to contain 'create session request' message
  * @param  : csr
  *           buffer to store decoded information from create session request
+ * @param  : cp_type, cp config type [SGWC/PGWC/SAEGWC]
  * @return : Returns nothing
  */
 int
 decode_check_csr(gtpv2c_header_t *gtpv2c_rx,
-		create_sess_req_t *csr);
+		create_sess_req_t *csr, uint8_t *cp_type);
+
+/**
+ * @brief  : Precondition check for MBR
+ * @param  : mbr: MBR req. on SGWC/SAEGWC
+ * @return : 0 on success, else error type
+ *
+ */
+
+int
+mbr_req_pre_check(mod_bearer_req_t *mbr);
 
 #endif /*CP_BUILD*/
 #endif /* GTPV2C_SET_IE_H */

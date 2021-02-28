@@ -16,9 +16,11 @@
 
 #include <arpa/inet.h>
 #include <rte_ip.h>
+
 #include "up_main.h"
 #include "gtpu.h"
 #include "clogger.h"
+
 int (*fp_decap_gtpu_hdr)(struct rte_mbuf *m);
 int (*fp_encap_gtpu_hdr)(struct rte_mbuf *m, uint32_t teid);
 uint32_t (*fp_gtpu_inner_src_ip)(struct rte_mbuf *m);
@@ -86,13 +88,14 @@ int decap_gtpu_hdr_dynamic_seqnb(struct rte_mbuf *m)
 	pkt_ptr = (uint8_t *) get_mtogtpu(m);
 	ret = rte_pktmbuf_adj(m, GPDU_HDR_SIZE_DYNAMIC(*pkt_ptr) + UDP_HDR_SIZE + IPv4_HDR_SIZE);
 	if (ret == NULL) {
-		clLog(clSystemLog, eCLSeverityCritical, "Error: Failed to remove GTPU header\n");
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"Error: Failed to remove GTPU header\n", LOG_VALUE);
 		return -1;
 	}
 
 	clLog(clSystemLog, eCLSeverityDebug,
-			"Decap: modified mbuf offset %d, data_len %d, pkt_len%u\n",
-			m->data_off, m->data_len, m->pkt_len);
+			LOG_FORMAT"Decap: modified mbuf offset %d, data len %d, pkt len%u\n",
+			LOG_VALUE, m->data_off, m->data_len, m->pkt_len);
 	return 0;
 }
 
@@ -106,11 +109,12 @@ int decap_gtpu_hdr_with_seqnb(struct rte_mbuf *m)
 	 */
 	ret = rte_pktmbuf_adj(m, GPDU_HDR_SIZE_WITH_SEQNB + UDP_HDR_SIZE + IPv4_HDR_SIZE);
 	if (ret == NULL) {
-		RTE_LOG(ERR, DP, "Error: Failed to remove GTPU header\n");
+		clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Error: Failed to remove GTPU header\n", LOG_VALUE);
 		return -1;
 	}
 
-	RTE_LOG(DEBUG, DP,
+	clLog(clSystemLog, eCLSeverityDebug,
 			"Decap: modified mbuf offset %d, data_len %d, pkt_len%u\n",
 			m->data_off, m->data_len, m->pkt_len);
 	return 0;
@@ -126,11 +130,12 @@ int decap_gtpu_hdr_without_seqnb(struct rte_mbuf *m)
 	 */
 	ret = rte_pktmbuf_adj(m, GPDU_HDR_SIZE_WITHOUT_SEQNB + UDP_HDR_SIZE + IPv4_HDR_SIZE);
 	if (ret == NULL) {
-		RTE_LOG(ERR, DP, "Error: Failed to remove GTPU header\n");
+		clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Error: Failed to remove GTPU header\n", LOG_VALUE);
 		return -1;
 	}
 
-	RTE_LOG(DEBUG, DP,
+	clLog(clSystemLog, eCLSeverityDebug,
 			"Decap: modified mbuf offset %d, data_len %d, pkt_len%u\n",
 			m->data_off, m->data_len, m->pkt_len);
 	return 0;
@@ -151,12 +156,13 @@ int encap_gtpu_hdr_with_seqnb(struct rte_mbuf *m, uint32_t teid)
 				GPDU_HDR_SIZE_WITH_SEQNB +
 				UDP_HDR_SIZE + IPv4_HDR_SIZE);
 	if (pkt_ptr == NULL) {
-		clLog(clSystemLog, eCLSeverityCritical, "Error: Failed to add GTPU header\n");
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"Error: Failed to add GTPU header\n", LOG_VALUE);
 		return -1;
 	}
 	clLog(clSystemLog, eCLSeverityDebug,
-			"Encap: modified mbuf offset %d, data_len %d, pkt_len %u\n",
-			m->data_off, m->data_len, m->pkt_len);
+			LOG_FORMAT"Encap: modified mbuf offset %d, data len %d, PKT len %u\n",
+			LOG_VALUE, m->data_off, m->data_len, m->pkt_len);
 
 	construct_gtpu_hdr_with_seqnb(m, teid, tpdu_len);
 
@@ -178,10 +184,12 @@ int encap_gtpu_hdr_without_seqnb(struct rte_mbuf *m, uint32_t teid)
 				GPDU_HDR_SIZE_WITHOUT_SEQNB +
 				UDP_HDR_SIZE + IPv4_HDR_SIZE);
 	if (pkt_ptr == NULL) {
-		RTE_LOG(ERR, DP, "Error: Failed to add GTPU header\n");
+		clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Error: Failed to add GTPU header\n", LOG_VALUE);
 		return -1;
 	}
-	RTE_LOG(DEBUG, DP,
+
+	clLog(clSystemLog, eCLSeverityDebug,
 			"Encap: modified mbuf offset %d, data_len %d, pkt_len %u\n",
 			m->data_off, m->data_len, m->pkt_len);
 
@@ -196,8 +204,9 @@ uint32_t gtpu_inner_src_ip_dynamic_seqnb(struct rte_mbuf *m)
 	struct ipv4_hdr *inner_ipv4_hdr;
 
 	pkt_ptr = (uint8_t *) get_mtogtpu(m);
-	clLog(clSystemLog, eCLSeverityDebug, "VS-gtpu.c: GPDU_HDR_SIZE %u\n",
-			GPDU_HDR_SIZE_DYNAMIC(*pkt_ptr));
+	clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"VS-GPDU HDR SIZE: %u\n",
+			LOG_VALUE, GPDU_HDR_SIZE_DYNAMIC(*pkt_ptr));
 
 	pkt_ptr += GPDU_HDR_SIZE_DYNAMIC(*pkt_ptr);
 	inner_ipv4_hdr = (struct ipv4_hdr *)pkt_ptr;
@@ -211,7 +220,7 @@ uint32_t gtpu_inner_src_ip_with_seqnb(struct rte_mbuf *m)
 	struct ipv4_hdr *inner_ipv4_hdr;
 
 	pkt_ptr = (uint8_t *) get_mtogtpu(m);
-	RTE_LOG(DEBUG, DP, "VS-gtpu.c: GPDU_HDR_SIZE %u\n",
+	clLog(clSystemLog, eCLSeverityDebug, "VS-gtpu.c: GPDU_HDR_SIZE %u\n",
 			GPDU_HDR_SIZE_WITH_SEQNB);
 
 	pkt_ptr += GPDU_HDR_SIZE_WITH_SEQNB;
@@ -226,7 +235,7 @@ uint32_t gtpu_inner_src_ip_without_seqnb(struct rte_mbuf *m)
 	struct ipv4_hdr *inner_ipv4_hdr;
 
 	pkt_ptr = (uint8_t *) get_mtogtpu(m);
-	RTE_LOG(DEBUG, DP, "VS-gtpu.c: GPDU_HDR_SIZE %u\n",
+	clLog(clSystemLog, eCLSeverityDebug, "VS-gtpu.c: GPDU_HDR_SIZE %u\n",
 			GPDU_HDR_SIZE_WITHOUT_SEQNB);
 
 	pkt_ptr += GPDU_HDR_SIZE_WITHOUT_SEQNB;

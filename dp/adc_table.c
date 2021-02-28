@@ -73,8 +73,9 @@ static void adc_print_rule(const void *nodep, const VISIT which, const int depth
 	switch (which) {
 	case leaf:
 	case postorder:
-		clLog(clSystemLog, eCLSeverityDebug,"Depth: %d, Rule ID: %d\n",
-				depth, r->rule_id);
+    	clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Depth: %d, Rule ID: %d\n",
+			LOG_VALUE, depth, r->rule_id);
 		break;
 	default:
 		break;
@@ -104,7 +105,8 @@ int
 dp_adc_table_create(struct dp_id dp_id, uint32_t max_elements)
 {
 	if (adc_table.root != NULL) {
-		clLog(clSystemLog, eCLSeverityInfo, "ADC filter table: \"%s\" exist\n", dp_id.name);
+		clLog(clSystemLog, eCLSeverityInfo,
+			LOG_FORMAT"ADC filter table: "%s" exist\n", LOG_VALUE, dp_id.name);
 		return -1;
 	}
 	adc_table.num_entries = 0;
@@ -113,15 +115,16 @@ dp_adc_table_create(struct dp_id dp_id, uint32_t max_elements)
 	adc_table.active = 1;
 	adc_table.compare = adc_rule_id_compare;
 	adc_table.print_entry = adc_print_rule;
-	clLog(clSystemLog, eCLSeverityInfo, "ADC filter table: \"%s\" created\n", dp_id.name);
+	clLog(clSystemLog, eCLSeverityInfo,
+		LOG_FORMAT"ADC filter table: "%s" created\n", LOG_VALUE, dp_id.name);
 	return 0;
 }
 
 /**
- * @brief  : Free the memory allocated for node.
- * @param  : p, void pointer to be free.
- * @return : Returns nothing
- */
+ * - * @brief  : Free the memory allocated for node.
+ *   - * @param  : p, void pointer to be free.
+ *   - * @return : Returns nothing
+ *   - */
 static void free_node(void *p)
 {
 	rte_free(p);
@@ -138,7 +141,8 @@ dp_adc_table_delete(struct dp_id dp_id)
 {
 	tdestroy(&adc_table.root, free_node);
 	memset(&adc_table, 0, sizeof(struct table));
-	clLog(clSystemLog, eCLSeverityInfo, "ADC filter table: \"%s\" destroyed\n", dp_id.name);
+	clLog(clSystemLog, eCLSeverityInfo,
+		LOG_FORMAT"ADC filter table: "%s" destroyed\n",  LOG_VALUE, dp_id.name);
 	return 0;
 }
 
@@ -152,21 +156,25 @@ int
 dp_adc_entry_add(struct dp_id dp_id, struct adc_rules *adc_filter_entry)
 {
 	if (IS_MAX_REACHED(adc_table)) {
-		clLog(clSystemLog, eCLSeverityInfo, "Reached max ADC filter entries\n");
+		clLog(clSystemLog, eCLSeverityInfo,
+			LOG_FORMAT"Reached max ADC filter entries\n",  LOG_VALUE);
 		return -1;
 	}
 
 	struct adc_rules *new = rte_malloc("adc_filter", sizeof(struct adc_rules),
 			RTE_CACHE_LINE_SIZE);
 	if (new == NULL) {
-		clLog(clSystemLog, eCLSeverityInfo, "ADC: Failed to allocate memory\n");
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"Failed to allocate memory for adc filter , Error: %s\n",
+			LOG_VALUE, rte_strerror(rte_errno));
 		return -1;
 	}
 	*new = *adc_filter_entry;
 	/* put node into the tree */
 	if (tsearch(new, &adc_table.root, adc_table.compare) == 0) {
-		clLog(clSystemLog, eCLSeverityInfo, "Fail to add adc rule_id %d\n",
-				adc_filter_entry->rule_id);
+		clLog(clSystemLog, eCLSeverityInfo,
+			LOG_FORMAT"Failed to add adc rule id: %d\n",
+			LOG_VALUE, adc_filter_entry->rule_id);
 		return -1;
 	}
 
@@ -179,17 +187,20 @@ dp_adc_entry_add(struct dp_id dp_id, struct adc_rules *adc_filter_entry)
 
 		msg_payload.pcc_rule_id = adc_filter_entry->rule_id;
 		//msg_payload.precedence = adc_filter_entry->precedence;
-		sprintf(msg_payload.u.rule_str, "0.0.0.0/0 "IPV4_ADDR"/32 0 : 65535 0 : 65535 0x0/0x0 \n",
+		snprintf(msg_payload.u.rule_str, MAX_LEN,
+				"0.0.0.0/0 "IPV4_ADDR"/32 0 : 65535 0 : 65535 0x0/0x0 \n",
 				IPV4_ADDR_HOST_FORMAT(ipv4));
 		dp_adc_filter_entry_add(dp_id, &msg_payload);
-		sprintf(msg_payload.u.rule_str, ""IPV4_ADDR"/32 0.0.0.0/0 0 : 65535 0 : 65535 0x0/0x0 \n",
+		snprintf(msg_payload.u.rule_str, MAX_LEN,
+				""IPV4_ADDR"/32 0.0.0.0/0 0 : 65535 0 : 65535 0x0/0x0 \n",
 				IPV4_ADDR_HOST_FORMAT(ipv4));
 		dp_adc_filter_entry_add(dp_id, &msg_payload);
 
-		clLog(clSystemLog, eCLSeverityInfo, "ADC_TBL ADD: rule_id:%d, domain_ip:"\
-				IPV4_ADDR"\n", adc_filter_entry->rule_id,
-				IPV4_ADDR_HOST_FORMAT(\
-					adc_filter_entry->u.domain_ip.u.ipv4_addr));
+		clLog(clSystemLog, eCLSeverityInfo,
+			LOG_FORMAT"ADC TBL ADD: rule id: %d, domain ip: "\
+			IPV4_ADDR"\n",  LOG_VALUE, adc_filter_entry->rule_id,
+			IPV4_ADDR_HOST_FORMAT(\
+			adc_filter_entry->u.domain_ip.u.ipv4_addr));
 
 	} else if (adc_filter_entry->sel_type == DOMAIN_IP_ADDR_PREFIX) {
 		struct pkt_filter msg_payload;
@@ -198,27 +209,33 @@ dp_adc_entry_add(struct dp_id dp_id, struct adc_rules *adc_filter_entry)
 
 		msg_payload.pcc_rule_id = adc_filter_entry->rule_id;
 		//msg_payload.precedence = adc_filter_entry->precedence;
-		sprintf(msg_payload.u.rule_str, "0.0.0.0/0 "IPV4_ADDR"/%u 0 : 65535 0 : 65535 0x0/0x0 \n",
+		snprintf(msg_payload.u.rule_str, MAX_LEN,
+				"0.0.0.0/0 "IPV4_ADDR"/%u 0 : 65535 0 : 65535 0x0/0x0 \n",
 				IPV4_ADDR_HOST_FORMAT(ipv4), prefix);
 		dp_adc_filter_entry_add(dp_id, &msg_payload);
-		sprintf(msg_payload.u.rule_str, ""IPV4_ADDR"/%u 0.0.0.0/0 0 : 65535 0 : 65535 0x0/0x0 \n",
+		snprintf(msg_payload.u.rule_str, MAX_LEN,
+				""IPV4_ADDR"/%u 0.0.0.0/0 0 : 65535 0 : 65535 0x0/0x0 \n",
 				IPV4_ADDR_HOST_FORMAT(ipv4), prefix);
 		dp_adc_filter_entry_add(dp_id, &msg_payload);
 
-		clLog(clSystemLog, eCLSeverityInfo, "ADC_TBL ADD: rule_id:%d, domain_ip:"\
-				IPV4_ADDR"\n",
-				adc_filter_entry->rule_id,
-				IPV4_ADDR_HOST_FORMAT(\
-					adc_filter_entry->u.domain_prefix.ip_addr.u.ipv4_addr));
+		clLog(clSystemLog, eCLSeverityInfo,
+			LOG_FORMAT"ADC TBL ADD: rule id:%d, domain ip:"\
+			IPV4_ADDR"\n", LOG_VALUE,
+			adc_filter_entry->rule_id,
+			IPV4_ADDR_HOST_FORMAT(\
+			adc_filter_entry->u.domain_prefix.ip_addr.u.ipv4_addr));
 
 	} else if (adc_filter_entry->sel_type == DOMAIN_NAME) {
 		int ret;
 
 		ret = epc_sponsdn_dn_add_single(adc_filter_entry->u.domain_name, adc_filter_entry->rule_id);
 		if (ret)
-			clLog(clSystemLog, eCLSeverityDebug, "failed to add DN error code %d\n", ret);
-		clLog(clSystemLog, eCLSeverityInfo, "Spons DN ADD: rule_id:%d, domain_name:%s\n",
-				adc_filter_entry->rule_id, adc_filter_entry->u.domain_name);
+			clLog(clSystemLog, eCLSeverityDebug, 
+				LOG_FORMAT"Failed to add domain name error code %d\n",
+				LOG_VALUE, ret);
+			clLog(clSystemLog, eCLSeverityInfo,
+				LOG_FORMAT"Spons domain name add: rule id: %d, domain name: %s\n",
+				LOG_VALUE, adc_filter_entry->rule_id, adc_filter_entry->u.domain_name);
 	}
 	return 0;
 }
@@ -237,14 +254,16 @@ dp_adc_entry_delete(struct dp_id dp_id, struct adc_rules *adc_filter_entry)
 	/* delete node from the tree */
 	p = tdelete(adc_filter_entry, &adc_table.root, adc_rule_id_compare);
 	if (p == NULL) {
-		clLog(clSystemLog, eCLSeverityInfo, "Fail to delete rule_id %d\n",
-						adc_filter_entry->rule_id);
+		clLog(clSystemLog, eCLSeverityInfo,
+			LOG_FORMAT"Fail to delete rule id: %d\n",
+			LOG_VALUE, adc_filter_entry->rule_id);
 		return -1;
 	}
 	rte_free(*p);
 	adc_table.num_entries--;
-	clLog(clSystemLog, eCLSeverityInfo, "ADC filter entry with rule_id %d deleted\n",
-					adc_filter_entry->rule_id);
+	clLog(clSystemLog, eCLSeverityInfo,
+		LOG_FORMAT"ADC filter entry with rule id: %d deleted\n",
+		LOG_VALUE, adc_filter_entry->rule_id);
 	return 0;
 }
 
@@ -269,7 +288,8 @@ adc_rule_info_get(uint32_t *rid, uint32_t n, uint64_t *pkts_mask, void **adc_inf
 			/* adc rule not found, drop the pkt*/
 			RESET_BIT(*pkts_mask, i);
 			adc_info[i] = NULL;
-			clLog(clSystemLog, eCLSeverityDebug, "ADC rule not found for id %u\n", rid[i]);
+			clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"ADC rule not found for id: %u\n", LOG_VALUE,  rid[i]);
 		} else
 			adc_info[i] = *p;
 	}

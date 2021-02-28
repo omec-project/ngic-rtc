@@ -1,0 +1,132 @@
+{
+	"DAdmfApplication": {
+		"NodeName": "dadmf",
+		"DAdmfIP": "192.168.0.69",
+		"DAdmfPort": 8888,
+		"AdmfIP": "192.168.0.69",
+		"AdmfPort": 9081,
+		"AckCheckTimeInMin": 2
+	},
+	"UeDefaultValues": {
+		"s11": 1,
+		"sgw-s5s8c": 1,
+		"pgw-s5s8c": 1,
+		"sxa": 0,
+		"sxb": 0,
+		"sxasxb": 0,
+		"s1u": 0,
+		"sgw-s5s8u": 0,
+		"pgw-s5s8u": 0,
+		"sgi": 0,
+		"s1u_content": 1,
+		"sgw_s5s8u_content": 1,
+		"pgw_s5s8u_content": 1,
+		"sgi_content": 1,
+		"forward": 1
+	},
+	"EpcTools": {
+		"EnablePublicObjects": false,
+		"Debug": false,
+		"SynchronizationObjects": {
+			"NumberSemaphores": 100,
+			"NumberMutexes": 100
+		},
+		"Logger": {
+			"ApplicationName": "epc_app",
+			"QueueSize": 8192,
+			"NumberThreads": 1,
+			"SinkSets": [
+				{
+					"SinkID": 1,
+					"Sinks": [
+						{
+							"SinkType": "syslog",
+							"LogLevel": "startup",
+							"Pattern": "[__APPNAME__] [%n] [%l] %v"
+						},
+						{
+							"SinkType": "stdout",
+							"LogLevel": "info",
+							"Pattern": "[%Y-%m-%dT%H:%M:%S.%e] [stdout] [%^__APPNAME__%$] [%n] [%^%l%$] %v"
+						},
+						{
+							"SinkType": "stderr",
+							"LogLevel": "minor",
+							"Pattern": "[%Y-%m-%dT%H:%M:%S.%e] [stderr] [%^__APPNAME__%$] [%n] [%^%l%$] %v"
+						},
+						{
+							"SinkType": "basic_file",
+							"LogLevel": "info",
+							"Pattern": "[%Y-%m-%dT%H:%M:%S.%e] [%^__APPNAME__%$] [%n] [%^%l%$] %v",
+							"FileName": "./logs/epctest.basic.log",
+							"Truncate": false
+						},
+						{
+							"SinkType": "basic_file",
+							"LogLevel": "debug",
+							"Pattern": "[%Y-%m-%dT%H:%M:%S.%e] [%^__APPNAME__%$] [%n] [%^%l%$] %v",
+							"FileName": "./logs/epctest.basic.log",
+							"Truncate": false
+						}
+					]
+				},
+				{
+					"SinkID": 2,
+					"Sinks": [
+						{
+							"SinkType": "basic_file",
+							"LogLevel": "debug",
+							"Pattern": "%v",
+							"FileName": "./logs/epc_app_audit.log",
+							"Truncate": false
+						}
+					]
+				},
+				{
+					"SinkID": 3,
+					"Sinks": [
+						{
+							"SinkType": "basic_file",
+							"LogLevel": "debug",
+							"Pattern": "%v",
+							"FileName": "./logs/epc_app_stats.log",
+							"Truncate": false
+						}
+					]
+				}
+			],
+			"Logs": [
+				{
+					"LogID": 1,
+					"Category": "system",
+					"SinkID": 1,
+					"LogLevel": "debug"
+				},
+				{
+					"LogID": 4,
+					"Category": "swm",
+					"SinkID": 1,
+					"LogLevel": "debug"
+				},
+				{
+					"LogID": 5,
+					"Category": "diameter",
+					"SinkID": 1,
+					"LogLevel": "debug"
+				},
+				{
+					"LogID": 2,
+					"Category": "audit",
+					"SinkID": 2,
+					"LogLevel": "debug"
+				},
+				{
+					"LogID": 3,
+					"Category": "dadmf",
+					"SinkID": 1,
+					"LogLevel": "debug"
+				}
+			]
+		}
+	}
+}

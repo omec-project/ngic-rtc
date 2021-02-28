@@ -20,17 +20,19 @@
 
 #include <rte_ip.h>
 #include <rte_udp.h>
-#include <rte_common.h>
-#include <rte_ether.h>
 #include <rte_mbuf.h>
-#include <rte_branch_prediction.h>
 #include <sys/time.h>
+#include <rte_ether.h>
+#include <rte_common.h>
+#include <rte_branch_prediction.h>
 
 #include "clogger.h"
 #include "up_main.h"
 #include "epc_arp.h"
-#include "pfcp_association.h"
+#include "teid_upf.h"
+#include "pfcp_util.h"
 #include "pfcp_set_ie.h"
+#include "pfcp_association.h"
 #include "../restoration/restoration_timer.h"
 
 #include "gw_adapter.h"
@@ -40,16 +42,14 @@
 
 
 /* Generate new pcap for s1u port */
-#ifdef PCAP_GEN
 extern pcap_dumper_t *pcap_dumper_west;
 extern pcap_dumper_t *pcap_dumper_east;
-#endif /* PCAP_GEN */
-
 extern unsigned int fd_array[2];
 extern uint16_t cp_comm_port;
-//#ifndef STATIC_ARP
 static struct sockaddr_in dest_addr[2];
-//#endif /* STATIC_ARP */
+
+/* DP restart conuter */
+extern uint8_t dp_restart_cntr;
 
 /**
  * rte hash handler.
@@ -96,7 +96,7 @@ const char
 {
 
 	static char *str;
-	sprintf(str, "%02X:%02X:%02X:%02X:%02X:%02X",
+	snprintf(str, MAX_LEN, "%02X:%02X:%02X:%02X:%02X:%02X",
 			eth_h->addr_bytes[0],
 			eth_h->addr_bytes[1],
 			eth_h->addr_bytes[2],
@@ -117,21 +117,23 @@ static void
 print_eth(struct ether_addr *eth_h, uint8_t type)
 {
 	if (type == 0) {
-	clLog(clSystemLog, eCLSeverityDebug,"\n  ETH:  src=%02X:%02X:%02X:%02X:%02X:%02X",
-			eth_h->addr_bytes[0],
-			eth_h->addr_bytes[1],
-			eth_h->addr_bytes[2],
-			eth_h->addr_bytes[3],
-			eth_h->addr_bytes[4],
-			eth_h->addr_bytes[5]);
+	clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT"\n ETH : src=%02X:%02X:%02X:%02X:%02X:%02X\n", LOG_VALUE,
+		eth_h->addr_bytes[0],
+		eth_h->addr_bytes[1],
+		eth_h->addr_bytes[2],
+		eth_h->addr_bytes[3],
+		eth_h->addr_bytes[4],
+		eth_h->addr_bytes[5]);
 	} else if (type == 1) {
-	clLog(clSystemLog, eCLSeverityDebug,"\n  ETH:  dst=%02X:%02X:%02X:%02X:%02X:%02X",
-			eth_h->addr_bytes[0],
-			eth_h->addr_bytes[1],
-			eth_h->addr_bytes[2],
-			eth_h->addr_bytes[3],
-			eth_h->addr_bytes[4],
-			eth_h->addr_bytes[5]);
+	clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT"\n ETH : dst = %02X:%02X:%02X:%02X:%02X:%02X\n", LOG_VALUE,
+		eth_h->addr_bytes[0],
+		eth_h->addr_bytes[1],
+		eth_h->addr_bytes[2],
+		eth_h->addr_bytes[3],
+		eth_h->addr_bytes[4],
+		eth_h->addr_bytes[5]);
 	}
 
 }
@@ -145,24 +147,24 @@ static
 uint8_t arp_req_send(peerData *conn_data)
 {
 
-	clLog(clSystemLog, eCLSeverityDebug, "Sendto:: ret_arp_data->ip= %s\n",
-				inet_ntoa(*(struct in_addr *)&conn_data->dstIP));
+	clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT"Sendto ret arp data IP: %s\n", LOG_VALUE,
+		inet_ntoa(*(struct in_addr *)&conn_data->dstIP));
 
 	if (fd_array[conn_data->portId] > 0) {
 		/* setting sendto destination addr */
 		dest_addr[conn_data->portId].sin_family = AF_INET;
-		//dest_addr[portId].sin_addr.s_addr = htonl(dstIp);
 		dest_addr[conn_data->portId].sin_addr.s_addr = conn_data->dstIP;
 		dest_addr[conn_data->portId].sin_port = htons(SOCKET_PORT);
 
-		char *tmp_buf = (char *)malloc((512) * sizeof(char) + 1);
+		char tmp_buf[ARP_SEND_BUFF] = {0};
 
 		int k = 0;
-		for(k = 0; k < 512; k++) {
+		for(k = 0; k < ARP_SEND_BUFF; k++) {
 			tmp_buf[k] = 'v';
 		}
-		tmp_buf[512] = 0;
-
+		tmp_buf[ARP_SEND_BUFF] = 0;
+		/*TODO : change strlen with strnlen with proper size (n)*/
 		if ((sendto(fd_array[conn_data->portId], tmp_buf, strlen(tmp_buf), 0, (struct sockaddr *)
 					&dest_addr[conn_data->portId], sizeof(struct sockaddr_in))) < 0) {
 			perror("send failed");
@@ -171,6 +173,50 @@ uint8_t arp_req_send(peerData *conn_data)
 	}
 
 	return 0;
+}
+
+uint8_t
+get_dp_restart_cntr(void) {
+	FILE *fd = NULL;
+	int tmp_rstcnt = 0;
+
+	if ((fd = fopen(FILE_NAME, "r")) == NULL ) {
+		/* Creating new file */
+		if ((fd = fopen(FILE_NAME,"w")) == NULL) {
+			clLog(clSystemLog, eCLSeverityCritical,
+					LOG_FORMAT"Error! creating dp_rstCnt.txt file\n", LOG_VALUE);
+		}
+		return tmp_rstcnt;
+	}
+
+	/* */
+	if (fscanf(fd,"%d", &tmp_rstcnt) < 0) {
+		fclose(fd);
+		RTE_LOG(NOTICE, DP, "DP Restart Count : %d\n", tmp_rstcnt);
+		return tmp_rstcnt;
+	}
+
+	fclose(fd);
+	RTE_LOG(NOTICE, DP, "DP Restart Count : %d\n", tmp_rstcnt);
+	return tmp_rstcnt;
+}
+
+void
+update_dp_restart_cntr(void) {
+	FILE *fd;
+
+	if ((fd = fopen(FILE_NAME,"w")) == NULL){
+		clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Error! creating dp_rstCnt.txt file\n", LOG_VALUE);
+	}
+
+	fseek(fd, 0L, SEEK_SET);
+	fprintf(fd, "%d\n", ++dp_restart_cntr);
+
+	clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Updated restart counter Value of rstcnt: %d\n",
+			LOG_VALUE, dp_restart_cntr);
+	fclose(fd);
 }
 
 void timerCallback( gstimerinfo_t *ti, const void *data_t )
@@ -183,27 +229,13 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 	dest_addr.sin_addr.s_addr = md->dstIP;
 	dest_addr.sin_port = htons(cp_comm_port);
 
-	CLIinterface it;
-
-	if (( app.spgw_cfg == (SGWU || SAEGWU )) && md->portId == S1U_PORT_ID)
-	{
-		it = S1U;
-	}
-	 if (app.spgw_cfg == SGWU && md->portId == SGI_PORT_ID)
-	{
-		it = S5S8;
-	}
-	if (app.spgw_cfg == PGWU && md->portId == S1U_PORT_ID)
-	{
-		it = S5S8;
-	}
-
-
-	clLog(clSystemLog, eCLSeverityDebug, "%s - %s:%s:%u.%s (%dms) has expired\n", getPrintableTime(),
-	      md->name, inet_ntoa(*(struct in_addr *)&md->dstIP), md->portId,
-	      ti == &md->pt ? "Periodic_Timer" :
-	      ti == &md->tt ? "Transmit_Timer" : "unknown",
-	      ti->ti_ms );
+	md->itr = number_of_transmit_count;
+	clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT"%s - %s:%s:%u.%s (%dms) has expired\n", LOG_VALUE, getPrintableTime(),
+		md->name, inet_ntoa(*(struct in_addr *)&md->dstIP), md->portId,
+		ti == &md->pt ? "Periodic_Timer" :
+		ti == &md->tt ? "Transmit_Timer" : "unknown",
+		ti->ti_ms );
 
 	if (md->itr_cnt == md->itr) {
 		/* Stop transmit timer for specific Peer Node */
@@ -215,21 +247,31 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 		/* Deinit transmit timer for specific Peer Node */
 		deinitTimer( &md->pt );
 
-		clLog(clSystemLog, eCLSeverityDebug, "Stopped Periodic/transmit timer, peer node %s is not reachable\n",
-				inet_ntoa(*(struct in_addr *)&md->dstIP));
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Stopped Periodic/transmit timer, peer node %s is not reachable\n",
+			LOG_VALUE, inet_ntoa(*(struct in_addr *)&md->dstIP));
+
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Peer node %s is not reachable\n", LOG_VALUE,
+			inet_ntoa(*(struct in_addr *)&md->dstIP));
 
 		update_peer_status(md->dstIP,FALSE);
 		delete_cli_peer(md->dstIP);
-
 		/* VS: Flush eNB sessions */
 		if ((md->portId == S1U_PORT_ID) || (md->portId == SGI_PORT_ID)) {
-			/* TODO: Future Enhancement */
 			/* flush_eNB_session(md); */
 			del_entry_from_hash(md->dstIP);
+#ifdef USE_CSID
+			if (md->portId == S1U_PORT_ID) {
+				up_del_pfcp_peer_node_sess(ntohl(md->dstIP), S1U_PORT_ID);
+			} else {
+				up_del_pfcp_peer_node_sess(ntohl(md->dstIP), SGI_PORT_ID);
+			}
+#endif /* USE_CSID */
 		} else if (md->portId == SX_PORT_ID) {
 			delete_entry_heartbeat_hash(&dest_addr);
 #ifdef USE_CSID
-			up_del_pfcp_peer_node_sess(md->dstIP, SX_PORT_ID);
+			up_del_pfcp_peer_node_sess(ntohl(md->dstIP), SX_PORT_ID);
 #endif /* USE_CSID */
 
 		}
@@ -238,8 +280,9 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 	}
 
 	if (md->activityFlag == 1) {
-		clLog(clSystemLog, eCLSeverityDebug, "Channel is active for NODE :%s, No need to send echo to it's peer node ..!!\n",
-							inet_ntoa(*(struct in_addr *)&md->dstIP));
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Channel is active for NODE :%s, No need to send echo to it's peer node\n",
+			LOG_VALUE, inet_ntoa(*(struct in_addr *)&md->dstIP));
 		md->activityFlag = 0;
 		md->itr_cnt = 0;
 
@@ -249,15 +292,14 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 		stopTimer( &md->pt );
 		/* VS: Restet Periodic Timer */
 		if ( startTimer( &md->pt ) < 0)
-			clLog(clSystemLog, eCLSeverityCritical, "Periodic Timer failed to start...\n");
+			clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Periodic Timer failed to start\n", LOG_VALUE);
 		return;
 	}
 
-	//clLog(clSystemLog, eCLSeverityDebug,"MAC:%u\n", md->dst_eth_addr.addr_bytes[0]);
 	if (md->portId == SX_PORT_ID) {
-		clLog(clSystemLog, eCLSeverityDebug, "Send PFCP HeartBeat Request ..!!\n");
-		/* VS:TODO: Defined this part after merging sx heartbeat*/
-		//process_pfcp_heartbeat_req(md->dst_ip, up_time); /* TODO: Future Enhancement */
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Send PFCP HeartBeat Request\n", LOG_VALUE);
 		if (ti == &md->pt){
 			gtpu_sx_seqnb = get_pfcp_sequence_number(PFCP_HEARTBEAT_REQUEST, gtpu_sx_seqnb);;
 		}
@@ -268,10 +310,10 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 			(md->itr_cnt)++;
 			update_peer_timeouts(md->dstIP,md->itr_cnt);
 		}
-		/* TODO: */
 		if (ti == &md->pt) {
 			if ( startTimer( &md->tt ) < 0)
-				clLog(clSystemLog, eCLSeverityCritical, "Transmit Timer failed to start..\n");
+				clLog(clSystemLog, eCLSeverityCritical,
+					LOG_FORMAT"Transmit Timer failed to start\n", LOG_VALUE);
 
 			/* Stop periodic timer for specific Peer Node */
 			stopTimer( &md->pt );
@@ -287,11 +329,13 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 		ret = rte_hash_lookup_data(arp_hash_handle[md->portId],
 						&(md->dstIP), (void **)&ret_data);
 		if (ret < 0) {
-			clLog(clSystemLog, eCLSeverityDebug, "ARP is not resolved for NODE :%s\n",
-						inet_ntoa(*(struct in_addr *)&md->dstIP));
+			clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"ARP is not resolved for NODE :%s\n", LOG_VALUE,
+				inet_ntoa(*(struct in_addr *)&md->dstIP));
 			if ( (arp_req_send(md)) < 0)
-				clLog(clSystemLog, eCLSeverityCritical, "Failed to send ARP request to Node:%s\n",
-						inet_ntoa(*(struct in_addr *)&md->dstIP));
+				clLog(clSystemLog, eCLSeverityCritical,
+					LOG_FORMAT"Failed to send ARP request to Node:%s\n",LOG_VALUE,
+					inet_ntoa(*(struct in_addr *)&md->dstIP));
 			return;
 		}
 
@@ -320,20 +364,21 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 
 	}
 
-	//struct rte_mbuf *mt = pkt;
-	//struct ipv4_hdr *ipv4_hdr_t = (struct ipv4_hdr*)(rte_pktmbuf_mtod(mt, unsigned char*) + 14);
-	//clLog(clSystemLog, eCLSeverityDebug,"**** portId:%u : Enqueu IP DST:%s\n", md->portId, inet_ntoa(*(struct in_addr *)&ipv4_hdr_t->dst_addr));
+	if(pkt == NULL) {
+		return;
+	}
 
 	if (md->portId == S1U_PORT_ID) {
-		clLog(clSystemLog, eCLSeverityDebug, "Pkts enqueue for S1U port..!!\n");
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Pkts enqueue for S1U port\n", LOG_VALUE);
 
 		if (rte_ring_enqueue(shared_ring[S1U_PORT_ID], pkt) == -ENOBUFS) {
-			//rte_pktmbuf_free(pkt1);
-			clLog(clSystemLog, eCLSeverityCritical, "%s::Can't queue pkt- ring full..."
-					" Dropping pkt\n", __func__);
+			clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Can't queue PKT ring full"
+				" Dropping pkt\n", LOG_VALUE);
 		} else
 		{
-			update_cli_stats(md->dstIP,GTPU_ECHO_REQUEST,SENT,it);
+			update_cli_stats(md->dstIP, GTPU_ECHO_REQUEST, SENT, S1U);
 		}
 
 		if (ti == &md->tt)
@@ -343,15 +388,15 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 		}
 
 	} else if(md->portId == SGI_PORT_ID) {
-		clLog(clSystemLog, eCLSeverityDebug, "Pkts enqueue for SGI port..!!\n");
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"PKTS enqueue for SGI port\n", LOG_VALUE);
 
 		if (rte_ring_enqueue(shared_ring[SGI_PORT_ID], pkt) == -ENOBUFS) {
-			//rte_pktmbuf_free(pkt1);
-			clLog(clSystemLog, eCLSeverityCritical, "%s::Can't queue pkt- ring full..."
-					" Dropping pkt\n", __func__);
+			clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Can't queue PKT ring full so dropping PKT\n", LOG_VALUE);
 		} else
 		{
-			update_cli_stats(md->dstIP,GTPU_ECHO_REQUEST,SENT,it);
+			update_cli_stats(md->dstIP, GTPU_ECHO_REQUEST, SENT, S5S8);
 		}
 
 		if (ti == &md->tt)
@@ -360,10 +405,10 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 			update_peer_timeouts(md->dstIP,md->itr_cnt);
 		}
 	}
-	/* TODO: */
 	if (ti == &md->pt) {
 		if ( startTimer( &md->tt ) < 0)
-			clLog(clSystemLog, eCLSeverityCritical, "Transmit Timer failed to start..\n");
+			clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Transmit Timer failed to start\n", LOG_VALUE);
 
 		/* Stop periodic timer for specific Peer Node */
 		stopTimer( &md->pt );
@@ -377,16 +422,18 @@ dp_flush_session(uint32_t ip_addr, uint64_t sess_id)
 	int ret = 0;
 	peerData *conn_data = NULL;
 
-	clLog(clSystemLog, eCLSeverityDebug, "Flush sess entry from connection table of ip:%s, sess_id:%lu\n",
-				inet_ntoa(*(struct in_addr *)&ip_addr), sess_id);
+	clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT"Flush sess entry from connection table of ip:%s, sess_id: %lu\n",
+		LOG_VALUE, inet_ntoa(*(struct in_addr *)&ip_addr), sess_id);
 
-	/* VS: TODO */
+	/* VS: */
 	ret = rte_hash_lookup_data(conn_hash_handle,
 				&ip_addr, (void **)&conn_data);
 
 	if ( ret < 0) {
-		clLog(clSystemLog, eCLSeverityDebug, "Entry not found for NODE :%s\n",
-							inet_ntoa(*(struct in_addr *)&ip_addr));
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Entry not found for NODE :%s\n",
+			LOG_VALUE, inet_ntoa(*(struct in_addr *)&ip_addr));
 		return;
 
 	} else {
@@ -397,28 +444,28 @@ dp_flush_session(uint32_t ip_addr, uint64_t sess_id)
 					conn_data->sess_id[pos] = conn_data->sess_id[pos + 1];
 
 				conn_data->sess_cnt--;
-				clLog(clSystemLog, eCLSeverityDebug, "Session Deleted from connection table sid:%lu\n",
-						sess_id);
+				clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Session Deleted from connection table sid: %lu\n",
+					LOG_VALUE, sess_id);
 			}
 		}
 	}
 
-	/* VS: Why they remove this part */
-	//if (conn_data->sess_cnt == 0) {
-	//	/* Stop Timer for specific eNB */
-	//	stopTimer( &conn_data->tt );
-	//	stopTimer( &conn_data->pt );
+	if (conn_data->sess_cnt == 0) {
+		/* Stop Timer for specific eNB */
+		stopTimer( &conn_data->tt );
+		stopTimer( &conn_data->pt );
 
-	//	deinitTimer( &conn_data->tt );
-	//	deinitTimer( &conn_data->pt );
+		deinitTimer( &conn_data->tt );
+		deinitTimer( &conn_data->pt );
 
-	//	del_entry_from_hash(ip_addr);
-	//	/* rte_free(conn_data); */
-	//	conn_data = NULL;
+		del_entry_from_hash(ip_addr);
+		/* rte_free(conn_data); */
+		conn_data = NULL;
 
-	//	clLog(clSystemLog, eCLSeverityDebug, "Current Active Conn Cnt:%u\n", conn_cnt);
-	//	clLog(clSystemLog, eCLSeverityDebug, "Flushed the Timer Entry..!!\n");
-	//}
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Current Active Conn Cnt:%u\n", LOG_VALUE, conn_cnt);
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Flushed the Timer Entry..!!\n", LOG_VALUE);
+	}
 
 }
 
@@ -434,12 +481,9 @@ flush_eNB_session(peerData *data_t)
 		RTE_SET_USED(dp);
 		sess_info.sess_id = data_t->sess_id[cnt];
 
-		clLog(clSystemLog, eCLSeverityDebug, "%s: Sess ID's :%lu\n", __func__, sess_info.sess_id);
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Sess ID's :%lu\n", LOG_VALUE, sess_info.sess_id);
 
-		//dp_session_delete(dp, &sess_info);
-
-		/* TODO: VS send delete session request to peer control node  */
-		//fill_pfcp_sess_del_req();
 	}
 
 	/* VS: delete entry from connection hash table */
@@ -480,8 +524,9 @@ uint8_t add_node_conn_entry(uint32_t dstIp, uint64_t sess_id, uint8_t portId)
 				&dstIp, (void **)&conn_data);
 
 	if ( ret < 0) {
-		clLog(clSystemLog, eCLSeverityDebug, "Add entry in conn table :%s, up_seid:%lu\n",
-					inet_ntoa(*((struct in_addr *)&dstIp)), sess_id);
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Add entry in conn table :%s, up_seid:%lu\n",
+			LOG_VALUE, inet_ntoa(*((struct in_addr *)&dstIp)), sess_id);
 
 		/* No conn entry for dstIp
 		 * Add conn_data for dstIp at
@@ -492,27 +537,48 @@ uint8_t add_node_conn_entry(uint32_t dstIp, uint64_t sess_id, uint8_t portId)
 						sizeof(peerData),
 						RTE_CACHE_LINE_SIZE, rte_socket_id());
 
+		if (conn_data == NULL ){
+			clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Failure to allocate memory for connection data entry : %s\n",
+				LOG_VALUE, rte_strerror(rte_errno));
+			return -1;
+		}
+
 		if (portId == S1U_PORT_ID) {
-			if (app.spgw_cfg == PGWU) {
-				it = S5S8;
-				conn_data->src_eth_addr = app.s5s8_pgwu_ether_addr;
-				conn_data->srcIP = app.s5s8_pgwu_ip;
-			} else {
 				it = S1U;
-				conn_data->src_eth_addr = app.s1u_ether_addr;
-				conn_data->srcIP = app.s1u_ip;
-			}
+
+				/* Validate the Destination IP Address subnet */
+				if (validate_Subnet(ntohl(dstIp), app.wb_net, app.wb_bcast_addr)) {
+					conn_data->srcIP = htonl(app.wb_ip);
+				} else if (validate_Subnet(ntohl(dstIp), app.wb_li_net, app.wb_li_bcast_addr)) {
+					conn_data->srcIP = htonl(app.wb_li_ip);
+				} else {
+					clLog(clSystemLog, eCLSeverityCritical,
+							LOG_FORMAT"Destination IPv4 Addr "IPV4_ADDR" is NOT in local intf subnet\n",
+							LOG_VALUE, IPV4_ADDR_HOST_FORMAT(dstIp));
+					return -1;
+				}
+
+				/* Fill the source physical address */
+				conn_data->src_eth_addr = app.wb_ether_addr;
 
 		} else if (portId == SGI_PORT_ID) {
-			if (app.spgw_cfg == SGWU) {
 				it = S5S8;
-				conn_data->src_eth_addr = app.s5s8_sgwu_ether_addr;
-				conn_data->srcIP = app.s5s8_sgwu_ip;
-			} else {
-				it = SGI;
-				conn_data->src_eth_addr = app.sgi_ether_addr;
-				conn_data->srcIP = app.sgi_ip;
-			}
+
+				/* Validate the Destination IP Address subnet */
+				if (validate_Subnet(ntohl(dstIp), app.eb_net, app.eb_bcast_addr)) {
+					conn_data->srcIP = htonl(app.eb_ip);
+				} else if (validate_Subnet(ntohl(dstIp), app.eb_li_net, app.eb_li_bcast_addr)) {
+					conn_data->srcIP = htonl(app.eb_li_ip);
+				} else {
+					clLog(clSystemLog, eCLSeverityCritical,
+							LOG_FORMAT"Destination IPv4 Addr "IPV4_ADDR" is NOT in local intf subnet\n",
+							LOG_VALUE, IPV4_ADDR_HOST_FORMAT(dstIp));
+					return -1;
+				}
+
+				/* Fill the source physical address */
+				conn_data->src_eth_addr = app.eb_ether_addr;
 		}
 
 		if (portId == SX_PORT_ID)
@@ -524,7 +590,6 @@ uint8_t add_node_conn_entry(uint32_t dstIp, uint64_t sess_id, uint8_t portId)
 		conn_data->portId = portId;
 		conn_data->activityFlag = 0;
 		conn_data->dstIP = dstIp;
-		//conn_data->dstIP = htonl(dstIp);
 		conn_data->itr = app.transmit_cnt;
 		conn_data->itr_cnt = 0;
 		conn_data->sess_cnt = 0;
@@ -539,11 +604,13 @@ uint8_t add_node_conn_entry(uint32_t dstIp, uint64_t sess_id, uint8_t portId)
 
 			if (ret < 0) {
 				if ( (arp_req_send(conn_data)) < 0)
-					clLog(clSystemLog, eCLSeverityCritical, "Failed to send ARP request to Node:%s\n",
-							inet_ntoa(*(struct in_addr *)&conn_data->dstIP));
+					clLog(clSystemLog, eCLSeverityCritical,
+						LOG_FORMAT"Failed to send ARP request to Node:%s\n",
+						LOG_VALUE, inet_ntoa(*(struct in_addr *)&conn_data->dstIP));
 			} else {
-				clLog(clSystemLog, eCLSeverityDebug, "ARP Entry found for %s\n",
-						inet_ntoa(*((struct in_addr *)&dstIp)));
+				clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"ARP Entry found for %s\n", LOG_VALUE,
+					inet_ntoa(*((struct in_addr *)&dstIp)));
 				ether_addr_copy(&ret_conn_data->eth_addr, &conn_data->dst_eth_addr);
 			}
 		}
@@ -552,12 +619,16 @@ uint8_t add_node_conn_entry(uint32_t dstIp, uint64_t sess_id, uint8_t portId)
 		/* VS: Add peer node entry in connection hash table */
 		if ((rte_hash_add_key_data(conn_hash_handle,
 				&dstIp, conn_data)) < 0 ) {
-			clLog(clSystemLog, eCLSeverityCritical, "Failed to add entry in hash table");
+			clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Failed to add entry in hash table", LOG_VALUE);
 		}
 
-		if ( !initpeerData( conn_data, "PEER_NODE", (app.periodic_timer * 1000), (app.transmit_timer * 1000)) )
+		if ( !initpeerData( conn_data, "PEER_NODE",
+					(app.periodic_timer * 1000), (app.transmit_timer * 1000)) )
 		{
-		   clLog(clSystemLog, eCLSeverityCritical, "%s - initialization of %s failed\n", getPrintableTime(), conn_data->name );
+		   clLog(clSystemLog, eCLSeverityCritical,
+				   LOG_FORMAT"%s - initialization of %s failed\n",
+				   LOG_VALUE, getPrintableTime(), conn_data->name);
 		   return -1;
 		}
 
@@ -566,16 +637,16 @@ uint8_t add_node_conn_entry(uint32_t dstIp, uint64_t sess_id, uint8_t portId)
 		update_peer_status(dstIp,TRUE);
 
 		if ( startTimer( &conn_data->pt ) < 0)
-			clLog(clSystemLog, eCLSeverityCritical, "Periodic Timer failed to start...\n");
+			clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"Periodic Timer failed to start\n", LOG_VALUE);
 
 		conn_cnt++;
 
-
-
 	} else {
 		/* VS: eNB entry already exit in conn table */
-		clLog(clSystemLog, eCLSeverityDebug, "Conn entry already exit in conn table :%s\n",
-					inet_ntoa(*((struct in_addr *)&dstIp)));
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Conn entry already exit in conn table :%s\n", LOG_VALUE,
+			inet_ntoa(*((struct in_addr *)&dstIp)));
 
 		conn_data->sess_id[conn_data->sess_cnt] = sess_id;
 
@@ -586,10 +657,9 @@ uint8_t add_node_conn_entry(uint32_t dstIp, uint64_t sess_id, uint8_t portId)
 		}
 	}
 
-	clLog(clSystemLog, eCLSeverityDebug, "Current Active Conn Cnt:%u\n", conn_cnt);
+	clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT"Current Active Conn Cnt:%u\n", LOG_VALUE, conn_cnt);
 	return 0;
-
-
 
 }
 
@@ -642,8 +712,81 @@ void rest_thread_init(void)
 
 	if (!gst_init())
 	{
-		clLog(clSystemLog, eCLSeverityCritical, "%s - gstimer_init() failed!!\n", getPrintableTime() );
-		//return 1;
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"%s - gstimer_init() failed!!\n",
+			LOG_VALUE, getPrintableTime() );
+		rte_panic(LOG_FORMAT"Cration of timer thread failed.\n", LOG_VALUE);
 	}
 
+}
+
+void
+teidri_timer_cb(gstimerinfo_t *ti, const void *data_t ) {
+
+	int ret = 0;
+#pragma GCC diagnostic push  /* require GCC 4.6 */
+#pragma GCC diagnostic ignored "-Wcast-qual"
+	peerData *data =  (peerData *) data_t;
+#pragma GCC diagnostic pop   /* require GCC 4.6 */
+
+	clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT"TEIDRI Timer Callback Start \n", LOG_VALUE);
+
+	/* flush data for inactive peers and recreate file with data of active peers*/
+	ret = flush_inactive_teidri_data(TEIDRI_FILENAME, &upf_teidri_blocked_list, &upf_teidri_allocated_list,
+			&upf_teidri_free_list, app.teidri_val);
+	if(ret != 0){
+		clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"Error in flushing data of inactive peers\n", LOG_VALUE);
+	}
+
+	if(data->pt.ti_id != 0) {
+		stoptimer(&data->pt.ti_id);
+		deinittimer(&data->pt.ti_id);
+	}
+
+	if (data != NULL) {
+		rte_free(data);
+	}
+	clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"TEIDRI Timer Stop and Deinit : successfully \n", LOG_VALUE);
+}
+
+/* Function to add and start timer for flush the inactive teidri and peer node address from file,
+ * and put active teidri and peer node address into file
+ */
+bool
+start_dp_teidri_timer(void) {
+	peerData *timer_entry = NULL;
+
+	/* Allocate the memory. */
+	timer_entry = rte_zmalloc_socket(NULL, sizeof(peerData),
+			RTE_CACHE_LINE_SIZE, rte_socket_id());
+	if(timer_entry == NULL ){
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"Failure to allocate timer entry : %s \n",
+			LOG_VALUE, rte_strerror(rte_errno));
+		return false;
+	}
+
+	clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT"Init TEIDRI Timer Start \n", LOG_VALUE);
+	if (!init_timer(timer_entry, app.teidri_timeout, teidri_timer_cb)){
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"Initialization of TEIDRI Timer failed erro no %d\n",
+			LOG_VALUE, getPrintableTime(), errno);
+		return false;
+	}
+	clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT"Init TEIDRI Timer END \n", LOG_VALUE);
+
+	if (starttimer(&timer_entry->pt) < 0){
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"TEIDRI Timer failed to start\n", LOG_VALUE);
+		return false;
+	}
+
+	clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT"TEIDRI Timer Started successfully \n", LOG_VALUE);
+	return true;
 }

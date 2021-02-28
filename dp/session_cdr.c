@@ -27,10 +27,11 @@
 #include <rte_debug.h>
 
 #include "cdr.h"
-#include "session_cdr.h"
 #include "util.h"
+#include "session_cdr.h"
 
 #define SESS_CDR_FILE "/var/log/dpn/sess_cdr.csv"
+
 FILE *sess_cdr_file;
 
 void
@@ -45,7 +46,9 @@ sess_cdr_init(void)
 		mkdir("/var/log/dpn/", S_IRWXU);
 	}
 
-	clLog(clSystemLog, eCLSeverityDebug,"Logging Session ID based CDR Records to %s\n", filename);
+	clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT"Logging Session ID based CDR Records to %s\n",
+		LOG_VALUE, filename);
 
 	sess_cdr_file = fopen(filename, "w");
 	if (!sess_cdr_file)

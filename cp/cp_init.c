@@ -19,6 +19,7 @@
 #include <rte_udp.h>
 #include <rte_hash_crc.h>
 #include <errno.h>
+#include <sys/time.h>
 
 #include "ue.h"
 #include "pfcp.h"
@@ -30,16 +31,16 @@
 #include "restoration_timer.h"
 #include "sm_struct.h"
 #include "cp_timer.h"
-#include"cp_config.h"
-
-#ifdef USE_DNS_QUERY
+#include "cp_config.h"
+#include "redis_client.h"
+#include "clogger.h"
+#include "pfcp_util.h"
 #include "cdnshelper.h"
-#endif /* USE_DNS_QUERY */
-
-#define PCAP_TTL           (64)
-#define PCAP_VIHL          (0x0045)
+#include "interface.h"
+#include "predef_rule_init.h"
 
 int s11_fd = -1;
+int ddf2_fd = -1;
 int s5s8_fd = -1;
 int pfcp_fd = -1;
 int s11_pcap_fd = -1;
@@ -47,10 +48,9 @@ int s11_pcap_fd = -1;
 pcap_t *pcap_reader;
 pcap_dumper_t *pcap_dumper;
 
-enum cp_config spgw_cfg;
 struct cp_stats_t cp_stats;
 extern pfcp_config_t pfcp_config;
-
+extern udp_sock_t my_sock;
 /* MME */
 struct sockaddr_in s11_mme_sockaddr;
 
@@ -76,7 +76,7 @@ uint8_t s11_rx_buf[MAX_GTPV2C_UDP_LEN];
 uint8_t s11_tx_buf[MAX_GTPV2C_UDP_LEN];
 uint8_t pfcp_tx_buf[MAX_GTPV2C_UDP_LEN];
 uint8_t msg_buf_t[MAX_GTPV2C_UDP_LEN];
-uint8_t tx_buf[MAX_GTPV2C_UDP_LEN];
+uint8_t tx_buf[MAX_GTPV2C_UDP_LEN] = {0};
 
 #ifdef USE_REST
 /* ECHO PKTS HANDLING */
@@ -84,8 +84,8 @@ uint8_t echo_tx_buf[MAX_GTPV2C_UDP_LEN];
 #endif /* USE_REST */
 
 
-uint8_t s5s8_rx_buf[MAX_GTPV2C_UDP_LEN];
-uint8_t s5s8_tx_buf[MAX_GTPV2C_UDP_LEN];
+uint8_t s5s8_rx_buf[MAX_GTPV2C_UDP_LEN] = {0};
+uint8_t s5s8_tx_buf[MAX_GTPV2C_UDP_LEN] = {0};
 
 #ifdef SYNC_STATS
 /**
@@ -163,7 +163,7 @@ stats_update(uint8_t msg_type)
 			break;
 	default:
 			rte_panic("main.c::control_plane::cp_stats-"
-					"Unknown spgw_cfg= %d.", pfcp_config.cp_type);
+					"Unknown gw_cfg= %d.", pfcp_config.cp_type);
 			break;
 		}
 }
@@ -221,26 +221,76 @@ dump_pcap(uint16_t payload_length, uint8_t *tx_buf)
  * @brief  : Util to send or dump gtpv2c messages
  * @param  : fd, interface indentifier
  * @param  : t_tx, buffer to store data for peer node
+ * @param  : context, UE context for lawful interception
  * @return : void
  */
 void
-timer_retry_send(int fd, peerData *t_tx)
+timer_retry_send(int fd, peerData *t_tx, ue_context *context)
 {
 	int bytes_tx;
 	struct sockaddr_in tx_sockaddr;
-	tx_sockaddr.sin_addr.s_addr = t_tx->dstIP;
+
+	if(fd == pfcp_fd)
+		tx_sockaddr.sin_addr.s_addr = ntohl(t_tx->dstIP);
+	else
+		tx_sockaddr.sin_addr.s_addr = t_tx->dstIP;
+
 	tx_sockaddr.sin_port = t_tx->dstPort;
+	tx_sockaddr.sin_family = AF_INET;
 	if (pcap_dumper) {
 		dump_pcap(t_tx->buf_len, t_tx->buf);
 	} else {
-		bytes_tx = sendto(fd, t_tx->buf, t_tx->buf_len, 0,
-			(struct sockaddr *)&tx_sockaddr, sizeof(struct sockaddr_in));
 
-		clLog(clSystemLog, eCLSeverityDebug, "NGIC- main.c::gtpv2c_send()""\n\tgtpv2c_if_fd= %d\n",fd);
+		bytes_tx = gtpv2c_send(fd,t_tx->buf,t_tx->buf_len,(struct sockaddr *)&tx_sockaddr,sizeof(struct sockaddr_in),SENT);
+
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"NGIC- main.c::gtpv2c_send()""\n\tgtpv2c_if_fd= %d\n", LOG_VALUE, fd);
+
+		if (NULL != context) {
+			uint8_t tx_buf[MAX_GTPV2C_UDP_LEN];
+			uint16_t payload_length;
+
+			payload_length = t_tx->buf_len;
+			memset(tx_buf, 0, MAX_GTPV2C_UDP_LEN);
+			memcpy(tx_buf, t_tx->buf, payload_length);
+
+			switch(t_tx->portId) {
+				case GX_IFACE:
+					break;
+				case S11_IFACE:
+					/* copy packet for user level packet copying or li */
+					if (context->dupl) {
+						process_pkt_for_li(
+								context, S11_INTFC_OUT, tx_buf, payload_length,
+								ntohl(pfcp_config.s11_ip.s_addr), tx_sockaddr.sin_addr.s_addr,
+								pfcp_config.s11_port, tx_sockaddr.sin_port);
+					}
+					break;
+				case S5S8_IFACE:
+					/* copy packet for user level packet copying or li */
+					if (context->dupl) {
+						process_pkt_for_li(
+								context, S5S8_C_INTFC_OUT, tx_buf, payload_length,
+								ntohl(pfcp_config.s5s8_ip.s_addr), tx_sockaddr.sin_addr.s_addr,
+								pfcp_config.s5s8_port, tx_sockaddr.sin_port);
+					}
+					break;
+				case PFCP_IFACE:
+					/* copy packet for user level packet copying or li */
+					if (context->dupl) {
+						process_pkt_for_li(
+								context, SX_INTFC_OUT, tx_buf, payload_length,
+								pfcp_config.pfcp_ip.s_addr, tx_sockaddr.sin_addr.s_addr,
+								pfcp_config.pfcp_port, tx_sockaddr.sin_port);
+					}
+					break;
+				default:
+					break;
+			}
+		}
 
 	if (bytes_tx != (int) t_tx->buf_len) {
-			clLog(clSystemLog, eCLSeverityCritical, "Transmitted Incomplete Timer Retry Message:"
-					"%u of %d tx bytes : %s\n",
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Transmitted Incomplete Timer Retry Message:"
+					"%u of %d tx bytes : %s\n", LOG_VALUE,
 					t_tx->buf_len, bytes_tx, strerror(errno));
 		}
 	}
@@ -253,31 +303,59 @@ timer_retry_send(int fd, peerData *t_tx)
  * @param  : gtpv2c_pyld_len, data length
  * @param  : dest_addr, destination address
  * @param  : dest_addr_len, destination address length
- * @return : Void
+ * @return : returns the transmitted bytes
  */
-void
+int
 gtpv2c_send(int gtpv2c_if_fd, uint8_t *gtpv2c_tx_buf,
 		uint16_t gtpv2c_pyld_len, struct sockaddr *dest_addr,
-		socklen_t dest_addr_len)
+		socklen_t dest_addr_len,Dir dir)
 {
+	CLIinterface it;
+	gtpv2c_header_t *gtpv2c_s11_tx = (gtpv2c_header_t *) gtpv2c_tx_buf;
 	int bytes_tx;
+	struct sockaddr_in *sin = (struct sockaddr_in *) dest_addr;
+	sin->sin_addr.s_addr = htonl(sin->sin_addr.s_addr);
+
+
 	if (pcap_dumper) {
 		dump_pcap(gtpv2c_pyld_len, gtpv2c_tx_buf);
 	} else {
 		bytes_tx = sendto(gtpv2c_if_fd, gtpv2c_tx_buf, gtpv2c_pyld_len, 0,
 			(struct sockaddr *) dest_addr, dest_addr_len);
 
-		clLog(clSystemLog, eCLSeverityDebug, "NGIC- main.c::gtpv2c_send()""\n\tgtpv2c_if_fd= %d\n", gtpv2c_if_fd);
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"NGIC- main.c::gtpv2c_send()"
+			"\n\tgtpv2c_if_fd= %d, payload_length= %d ,Direction= %d, tx bytes= %d\n",
+			LOG_VALUE, gtpv2c_if_fd, gtpv2c_pyld_len, dir, bytes_tx);
 
 	if (bytes_tx != (int) gtpv2c_pyld_len) {
-			clLog(clSystemLog, eCLSeverityCritical, "Transmitted Incomplete GTPv2c Message:"
-					"%u of %d tx bytes\n",
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Transmitted Incomplete GTPv2c Message:"
+					"%u of %d tx bytes\n", LOG_VALUE,
 					gtpv2c_pyld_len, bytes_tx);
-		}
 	}
+	}
+
+	if(gtpv2c_if_fd == s11_fd) {
+		it = S11;
+	}
+	else if(gtpv2c_if_fd == s5s8_fd) {
+		if(cli_node.s5s8_selection == NOT_PRESENT) {
+			cli_node.s5s8_selection = OSS_S5S8_SENDER;
+		}
+		it = S5S8;
+	}
+	else if (gtpv2c_if_fd == pfcp_fd) {
+		it = SX;
+	}
+	else
+		clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT"\nunknown file discriptor, "
+			"file discriptor = %d\n", LOG_VALUE, gtpv2c_if_fd);
+	update_cli_stats(sin->sin_addr.s_addr, gtpv2c_s11_tx->gtpc.message_type, dir,it);
+
+	sin->sin_addr.s_addr = ntohl(sin->sin_addr.s_addr);
+
+	return bytes_tx;
 }
 
-#ifdef USE_DNS_QUERY
 /**
  * @brief  : Set dns configurations parameters
  * @param  : void
@@ -286,35 +364,36 @@ gtpv2c_send(int gtpv2c_if_fd, uint8_t *gtpv2c_tx_buf,
 static void
 set_dns_config(void)
 {
-	set_dnscache_refresh_params(pfcp_config.dns_cache.concurrent,
-			pfcp_config.dns_cache.percent, pfcp_config.dns_cache.sec);
+	if (pfcp_config.use_dns){
+		set_dnscache_refresh_params(pfcp_config.dns_cache.concurrent,
+				pfcp_config.dns_cache.percent, pfcp_config.dns_cache.sec);
 
-	set_dns_retry_params(pfcp_config.dns_cache.timeoutms,
-			pfcp_config.dns_cache.tries);
+		set_dns_retry_params(pfcp_config.dns_cache.timeoutms,
+				pfcp_config.dns_cache.tries);
 
-	/* set OPS dns config */
-	for (uint32_t i = 0; i < pfcp_config.ops_dns.nameserver_cnt; i++)
-	{
-		set_nameserver_config(pfcp_config.ops_dns.nameserver_ip[i],
-				DNS_PORT, DNS_PORT, NS_OPS);
+		/* set OPS dns config */
+		for (uint32_t i = 0; i < pfcp_config.ops_dns.nameserver_cnt; i++)
+		{
+			set_nameserver_config(pfcp_config.ops_dns.nameserver_ip[i],
+					DNS_PORT, DNS_PORT, NS_OPS);
+		}
+
+		apply_nameserver_config(NS_OPS);
+		init_save_dns_queries(NS_OPS, pfcp_config.ops_dns.filename,
+				pfcp_config.ops_dns.freq_sec);
+		load_dns_queries(NS_OPS, pfcp_config.ops_dns.filename);
+
+		/* set APP dns config */
+		for (uint32_t i = 0; i < pfcp_config.app_dns.nameserver_cnt; i++)
+			set_nameserver_config(pfcp_config.app_dns.nameserver_ip[i],
+					DNS_PORT, DNS_PORT, NS_APP);
+
+		apply_nameserver_config(NS_APP);
+		init_save_dns_queries(NS_APP, pfcp_config.app_dns.filename,
+				pfcp_config.app_dns.freq_sec);
+		load_dns_queries(NS_APP, pfcp_config.app_dns.filename);
 	}
-
-	apply_nameserver_config(NS_OPS);
-	init_save_dns_queries(NS_OPS, pfcp_config.ops_dns.filename,
-			pfcp_config.ops_dns.freq_sec);
-	load_dns_queries(NS_OPS, pfcp_config.ops_dns.filename);
-
-	/* set APP dns config */
-	for (uint32_t i = 0; i < pfcp_config.app_dns.nameserver_cnt; i++)
-		set_nameserver_config(pfcp_config.app_dns.nameserver_ip[i],
-				DNS_PORT, DNS_PORT, NS_APP);
-
-	apply_nameserver_config(NS_APP);
-	init_save_dns_queries(NS_APP, pfcp_config.app_dns.filename,
-			pfcp_config.app_dns.freq_sec);
-	load_dns_queries(NS_APP, pfcp_config.app_dns.filename);
 }
-#endif /* USE_DNS_QUERY */
 
 void
 init_pfcp(void)
@@ -338,8 +417,8 @@ init_pfcp(void)
 	ret = bind(pfcp_fd, (struct sockaddr *) &pfcp_sockaddr,
 			sizeof(struct sockaddr_in));
 
-	clLog(sxlogger, eCLSeverityInfo,  "NGIC- main.c::init_pfcp()" "\n\tpfcp_fd = %d :: "
-			"\n\tpfcp_ip = %s : pfcp_port = %d\n",
+	clLog(clSystemLog, eCLSeverityInfo, LOG_FORMAT"NGIC- main.c::init_pfcp()" "\n\tpfcp_fd = %d :: "
+			"\n\tpfcp_ip = %s : pfcp_port = %d\n", LOG_VALUE,
 			pfcp_fd, inet_ntoa(pfcp_config.pfcp_ip),
 			ntohs(pfcp_port));
 	if (ret < 0) {
@@ -348,18 +427,16 @@ init_pfcp(void)
 				ntohs(pfcp_sockaddr.sin_port),
 				strerror(errno));
 	}
-
-#ifndef USE_DNS_QUERY
-	/* Initialize peer UPF inteface for sendto(.., dest_addr), If DNS is Disable */
-	upf_pfcp_port =  htons(pfcp_config.upf_pfcp_port);
-	bzero(upf_pfcp_sockaddr.sin_zero,
-			sizeof(upf_pfcp_sockaddr.sin_zero));
-	upf_pfcp_sockaddr.sin_family = AF_INET;
-	upf_pfcp_sockaddr.sin_port = upf_pfcp_port;
-	upf_pfcp_sockaddr.sin_addr = pfcp_config.upf_pfcp_ip;
-#endif  /* USE_DNS_QUERY */
+	if (pfcp_config.use_dns == 0){
+		/* Initialize peer UPF inteface for sendto(.., dest_addr), If DNS is Disable */
+		upf_pfcp_port =  htons(pfcp_config.upf_pfcp_port);
+		bzero(upf_pfcp_sockaddr.sin_zero,
+				sizeof(upf_pfcp_sockaddr.sin_zero));
+		upf_pfcp_sockaddr.sin_family = AF_INET;
+		upf_pfcp_sockaddr.sin_port = upf_pfcp_port;
+		upf_pfcp_sockaddr.sin_addr = pfcp_config.upf_pfcp_ip;
+	}
 }
-
 
 /**
  * @brief  : Initalizes S11 interface if in use
@@ -392,9 +469,9 @@ init_s11(void)
 	ret = bind(s11_fd, (struct sockaddr *) &s11_sockaddr,
 			    sizeof(struct sockaddr_in));
 
-	clLog(s11logger, eCLSeverityInfo, "NGIC- main.c::init_s11()"
+	clLog(clSystemLog, eCLSeverityInfo, LOG_FORMAT"NGIC- main.c::init_s11()"
 			"\n\ts11_fd= %d :: "
-			"\n\ts11_ip= %s : s11_port= %d\n",
+			"\n\ts11_ip= %s : s11_port= %d\n", LOG_VALUE,
 			s11_fd, inet_ntoa(pfcp_config.s11_ip), ntohs(s11_port));
 
 	if (ret < 0) {
@@ -436,9 +513,9 @@ init_s5s8(void)
 	ret = bind(s5s8_fd, (struct sockaddr *) &s5s8_sockaddr,
 			    sizeof(struct sockaddr_in));
 
-	clLog(s5s8logger, eCLSeverityInfo, "NGIC- main.c::init_s5s8_sgwc()"
+	clLog(clSystemLog, eCLSeverityInfo, LOG_FORMAT"NGIC- main.c::init_s5s8_sgwc()"
 			"\n\ts5s8_fd= %d :: "
-			"\n\ts5s8_ip= %s : s5s8_port= %d\n",
+			"\n\ts5s8_ip= %s : s5s8_port= %d\n", LOG_VALUE,
 			s5s8_fd, inet_ntoa(pfcp_config.s5s8_ip),
 			ntohs(s5s8_port));
 
@@ -456,23 +533,23 @@ initialize_tables_on_dp(void)
 #ifdef CP_DP_TABLE_CONFIG
 	struct dp_id dp_id = { .id = DPN_ID };
 
-	sprintf(dp_id.name, SDF_FILTER_TABLE);
+	snprintf(dp_id.name, MAX_LEN, SDF_FILTER_TABLE);
 	if (sdf_filter_table_create(dp_id, SDF_FILTER_TABLE_SIZE))
 		rte_panic("sdf_filter_table creation failed\n");
 
-	sprintf(dp_id.name, ADC_TABLE);
+	snprintf(dp_id.name, MAX_LEN, ADC_TABLE);
 	if (adc_table_create(dp_id, ADC_TABLE_SIZE))
 		rte_panic("adc_table creation failed\n");
 
-	sprintf(dp_id.name, PCC_TABLE);
+	snprintf(dp_id.name, MAX_LEN, PCC_TABLE);
 	if (pcc_table_create(dp_id, PCC_TABLE_SIZE))
 		rte_panic("pcc_table creation failed\n");
 
-	sprintf(dp_id.name, METER_PROFILE_SDF_TABLE);
+	snprintf(dp_id.name, MAX_LEN, METER_PROFILE_SDF_TABLE);
 	if (meter_profile_table_create(dp_id, METER_PROFILE_SDF_TABLE_SIZE))
 		rte_panic("meter_profile_sdf_table creation failed\n");
 
-	sprintf(dp_id.name, SESSION_TABLE);
+	snprintf(dp_id.name,MAX_LEN, SESSION_TABLE);
 
 	if (session_table_create(dp_id, LDB_ENTRIES_DEFAULT))
 		rte_panic("session_table creation failed\n");
@@ -488,9 +565,19 @@ init_dp_rule_tables(void)
 	initialize_tables_on_dp();
 #endif
 
+	clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Reading predefined rules from files.\n", LOG_VALUE);
 	init_packet_filters();
-	parse_adc_rules();
 
+	clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Reading predefined adc rules\n", LOG_VALUE);
+	parse_adc_rules();
+	clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Reading predefined adc rules completed\n", LOG_VALUE);
+
+	clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Read predefined rules and successfully stored in internal tables.\n",
+			LOG_VALUE);
 }
 /**
  * @brief  : Initializes Control Plane data structures, packet filters, and calls for the
@@ -502,7 +589,7 @@ init_cp(void)
 
 	init_pfcp();
 
-	switch (spgw_cfg) {
+	switch (pfcp_config.cp_type) {
 	case SGWC:
 		init_s11();
 	case PGWC:
@@ -510,14 +597,15 @@ init_cp(void)
 		break;
 	case SAEGWC:
 		init_s11();
+		init_s5s8();
 		break;
 	default:
 		rte_panic("main.c::init_cp()-"
-				"Unknown spgw_cfg= %u\n", spgw_cfg);
+				"Unknown CP_TYPE= %u\n", pfcp_config.cp_type);
 		break;
 	}
 
-	if (signal(SIGINT, sig_handler) == SIG_ERR)
+	if (signal(SIGINT, cp_sig_handler) == SIG_ERR)
 		rte_exit(EXIT_FAILURE, "Error:can't catch SIGINT\n");
 
 	create_ue_hash();
@@ -528,7 +616,62 @@ init_cp(void)
 
 	create_upf_by_ue_hash();
 
-#ifdef USE_DNS_QUERY
-	set_dns_config();
-#endif /* USE_DNS_QUERY */
+	create_li_info_hash();
+
+	if(pfcp_config.use_dns)
+		set_dns_config();
+}
+
+int
+init_redis(void)
+{
+	redis_config_t cfg = {0};
+	char redis_cert_path[PATH_MAX] = {0};
+	char redis_key_path[PATH_MAX] = {0};
+	char redis_ca_cert_path[PATH_MAX] = {0};
+	cfg.type = REDIS_TLS;
+
+	if(pfcp_config.redis_ip.s_addr == 0
+			|| pfcp_config.cp_redis_ip.s_addr == 0) {
+		clLog(clSystemLog, eCLSeverityCritical,"Redis"
+				"ip/cp redis ip missing,"
+				"Connection to redis failed\n");
+		return -1;
+	}
+
+	strncpy(redis_cert_path, pfcp_config.redis_cert_path, PATH_MAX);
+	strncat(redis_cert_path,"/redis.crt", PATH_MAX);
+	strncpy(redis_key_path, pfcp_config.redis_cert_path, PATH_MAX);
+	strncat(redis_key_path,"/redis.key", PATH_MAX);
+	strncpy(redis_ca_cert_path, pfcp_config.redis_cert_path, PATH_MAX);
+	strncat(redis_ca_cert_path,"/ca.crt", PATH_MAX);
+
+	strncpy(cfg.conf.tls.cert_path, redis_cert_path, PATH_MAX);
+	strncpy(cfg.conf.tls.key_path, redis_key_path, PATH_MAX);
+	strncpy(cfg.conf.tls.ca_cert_path, redis_ca_cert_path, PATH_MAX);
+
+	/*Store redis ip and cp redis ip*/
+	snprintf(cfg.conf.tls.host, IP_BUFF_SIZE, "%s",
+			inet_ntoa(*((struct in_addr *)&pfcp_config.redis_ip.s_addr)));
+	cfg.conf.tls.port = (int)pfcp_config.redis_port;
+	snprintf(cfg.cp_ip, IP_BUFF_SIZE, "%s",
+			inet_ntoa(*((struct in_addr *)&pfcp_config.cp_redis_ip.s_addr)));
+
+	struct timeval tm = {REDIS_CONN_TIMEOUT, 0};
+	cfg.conf.tls.timeout = tm;
+
+	ctx = redis_connect(&cfg);
+
+	if(ctx == NULL) {
+		clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Connection to redis server failed,"
+					"Unable to send CDR to redis server\n", LOG_VALUE);
+		return -1;
+	} else {
+		clLog(clSystemLog, eCLSeverityInfo,LOG_FORMAT"Redis Server"
+				"Connected Succesfully\n", LOG_VALUE);
+	}
+
+	return 0;
+
 }

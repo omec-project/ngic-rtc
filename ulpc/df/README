@@ -1,0 +1,8 @@
+# Configuration file
+	config/df.json
+
+# Run DF using following command
+	./run.sh
+
+# Configurations
+

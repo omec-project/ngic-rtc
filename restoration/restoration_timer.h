@@ -31,7 +31,7 @@
 #define S5S8_PGWC_PORT_ID 3
 
 #define OFFSET      2208988800ULL
-
+#define PFCP_MSG_LEN 4096
 /**
  * @brief  : Numeric value for true and false
  */
@@ -72,6 +72,7 @@ struct _gstimerinfo_t {
  * @brief  : Maintains peer node related information for control plane
  */
 typedef struct {
+	uint8_t cp_mode;
 	/** S11 || S5/S8 || Sx port id */
 	uint8_t portId;
 	/** In-activity Flag */
@@ -94,9 +95,10 @@ typedef struct {
 	/* Teid */
 	uint32_t teid;
 	/*ebi ID */
-	uint8_t ebi_index;
+	int ebi_index;
 	uint16_t buf_len;
-	uint8_t buf[1024];
+	uint8_t buf[PFCP_MSG_LEN];
+	uint64_t imsi;
 } peerData;
 
 #else
@@ -136,6 +138,9 @@ typedef struct {
 	/** Name String */
 	const char    *name;
 	//struct rte_mbuf *buf;
+	/*urr_info */
+	struct urr_info_t *urr;
+	uint64_t cp_seid;
 
 } peerData;
 
@@ -145,7 +150,34 @@ typedef struct {
 /*	extern uint32_t up_time;
 	uint32_t current_ntp_timestamp(void);
 */
-
+#ifdef DP_BUILD
+/**
+ * @brief  : Maintains data for peer node
+ */
+typedef struct {
+	/** src ipv4 address */
+	uint32_t srcIP;
+	/** dst ipv4 address */
+	uint32_t dstIP;
+	/** Recovery Time */
+	uint32_t rcv_time;
+	/** src ether address */
+	struct ether_addr src_eth_addr;
+	/** dst ether address */
+	struct ether_addr dst_eth_addr;
+	/** Periodic Timer */
+	gstimerinfo_t  pt;
+	/** Transmit Timer */
+	gstimerinfo_t  tt;
+	/** Name String */
+	const char    *name;
+	//struct rte_mbuf *buf;
+	/*urr_info */
+	struct urr_info_t *urr;
+	uint64_t cp_seid;
+	uint64_t up_seid;
+} peerEntry;
+#endif
 /**
  * @brief  : start the timer thread and wait for _timer_tid to be populated
  * @param  : No param

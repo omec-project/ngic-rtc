@@ -33,6 +33,7 @@ DPDK_DOWNLOAD="https://fast.dpdk.org/rel/dpdk-18.02.tar.gz"
 DPDK_DIR=$NGIC_DIR/$THIRD_PARTY_SW_PATH/dpdk
 LINUX_SGX_SDK_BRANCH_TAG="sgx_1.9"
 FREEDIAMETER_DIR=$NGIC_DIR/$THIRD_PARTY_SW_PATH/
+HIREDIS_DIR=$NGIC_DIR/$THIRD_PARTY_SW_PATH/
 CP_NUMA_NODE=0
 DP_NUMA_NODE=0
 
@@ -150,6 +151,11 @@ step_2()
 	if [ "$SERVICE" -ne 2 ] ; then
 		TEXT[INDEX_CNT]="Download FreeDiameter"
 		FUNC[INDEX_CNT]="download_freediameter"
+		((INDEX_CNT++))
+	fi
+	if [ "$SERVICE" -ne 2 ] ; then
+		TEXT[INDEX_CNT]="Download Hiredis"
+		FUNC[INDEX_CNT]="download_hiredis"
 		((INDEX_CNT++))
 	fi
 }
@@ -325,8 +331,8 @@ configure_services()
 				setup_dp_type
 				SERVICE=2
 				SERVICE_NAME="DP"
-				recom_memory=4096
-				memory=`cat config/dp_config.cfg  | grep "MEMORY=" | head -n 1 | cut -d '=' -f 2`
+				recom_memory=5120
+				memory=`cat dp/run.sh  | grep "MEMORY=" | head -n 1 | cut -d '=' -f 2`
 				setup_memory
 				setup_numa_node
 				setup_hugepages
@@ -356,7 +362,7 @@ setup_numa_node()
 	if [ `cat cp/run.sh  | grep "NUMA0_MEMORY=0" | wc -l` != 0 ]; then
 		CP_NUMA_NODE=1
 	fi
-	if [ `cat config/dp_config.cfg  | grep "NUMA0_MEMORY=0" | wc -l` != 0 ]; then
+	if [ `cat dp/run.sh  | grep "NUMA0_MEMORY=0" | wc -l` != 0 ]; then
 		DP_NUMA_NODE=1
 	fi
 }
@@ -375,7 +381,7 @@ setup_memory()
 
 						if [ $SERVICE == 2 ] || [ $SERVICE == 3 ] ; then
 							set_size DP
-							sed -i '/^MEMORY=/s/=.*/='$memory'/' config/dp_config.cfg
+							sed -i '/^MEMORY=/s/=.*/='$memory'/' dp/run.sh
 						fi
 
 						if [ $SERVICE == 3 ] ; then
@@ -408,7 +414,7 @@ set_size()
 
 setup_collocated_memory()
 {
-	dp_memory=`cat config/dp_config.cfg  | grep "MEMORY=" | head -n 1 | cut -d '=' -f 2`
+	dp_memory=`cat dp/run.sh  | grep "MEMORY=" | head -n 1 | cut -d '=' -f 2`
 	cp_memory=`cat cp/run.sh  | grep "MEMORY=" | head -n 1 | cut -d '=' -f 2`
 	memory=$(($cp_memory + $dp_memory))
 }
@@ -529,6 +535,24 @@ download_freediameter()
         popd
 
 }
+
+
+download_hiredis()
+{
+	echo "Download Highredis from git....."
+	if [ ! -d $HIREDIS_DIR ]; then
+	     mkdir $HIREDIS_DIR
+        fi
+        pushd $HIREDIS_DIR
+	git clone $HIREDIS
+	if [ $? -ne 0 ] ; then
+	                echo "Failed to clone hiredis, please check the errors."
+	                return
+	fi
+        popd
+
+}
+
 download_linux_sgx()
 {
 	echo "Download Linux SGX SDK....."
@@ -568,6 +592,35 @@ build_fd_lib()
 	popd
 	popd
 }
+
+build_hiredis()
+{
+	pushd $HIREDIS_DIR/hiredis
+	git checkout 8e0264cfd6889b73c241b60736fe96ba1322ee6e
+	make clean
+	make USE_SSL=1
+	if [ $? -ne 0 ] ; then
+		echo "Failed to build Hiredis, please check the errors."
+		return
+	fi
+	make install
+	if [ $? -ne 0 ] ; then
+		echo "Make install Failed in Hiredis, please check the errors."
+		return
+	fi
+
+	libhrso="/usr/local/lib/libhiredis.so"
+	libhra="/usr/local/lib/libhiredis.a"
+
+	if [ ! -e "$libhrso" ] && ! [ -e "$libhra" ]; then
+		echo "libhiredis.so and libhiredis.a does not exist at /usr/local/lib"
+		return
+	fi
+	export LD_LIBERY_PATH=$LD_LIBERY_PATH:/usr/local/lib
+	sudo ldconfig
+	popd
+}
+
 
 build_gxapp()
 {
@@ -610,7 +663,7 @@ step_3()
 install_oss_util()
 {
    pushd $NGIC_DIR/$OSS_UTIL_DIR
-   git clone $OSS_UTIL_GIT_LINK
+   git clone -b delivery_1.8 $OSS_UTIL_GIT_LINK
    pushd oss-util
    ./install.sh
    popd
@@ -631,6 +684,16 @@ build_ngic()
 	pushd $NGIC_DIR
 	source setenv.sh
 
+	echo ""
+	while true; do
+		read -p "Do you want to build Gateway source code in debug mode(-g -O0), Press (y/n) to continue?" yn
+		case $yn in
+			[Yy]* ) DEBUG='DEBUG=1' ;break;;
+			[Nn]* ) DEBUG='DEBUG=0' ;break;;
+			* ) "Please answer yes or no.";;
+		esac
+	done
+
 	echo "Building PFCP Libs ..."
 	build_pfcp_lib
 
@@ -640,7 +703,7 @@ build_ngic()
 		echo "Building Libs..."
 		make build-lib || { echo -e "\nNG-CORE: Make lib failed\n"; }
 		echo "Building DP..."
-		make build-dp || { echo -e "\nDP: Make failed\n"; }
+		make -j 10 build-dp $DEBUG || { echo -e "\nDP: Make failed\n"; }
 	fi
 	if [ $SERVICE == 1 ] || [ $SERVICE == 3 ] ; then
 		echo "Building libgtpv2c..."
@@ -656,9 +719,12 @@ build_ngic()
 		echo "Building FD and GxApp..."
 		build_fd_gxapp
 
+		echo "Building Hiredis"
+		build_hiredis
+
 		echo "Building CP..."
 		make clean-cp
-		make -j 10 build-cp || { echo -e "\nCP: Make failed\n"; }
+		make -j 10 build-cp $DEBUG || { echo -e "\nCP: Make failed\n"; }
 
 	fi
 	popd

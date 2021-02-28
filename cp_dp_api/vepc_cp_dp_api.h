@@ -43,6 +43,7 @@
  */
 #define MAX_ADC_RULES 16
 
+#define MAX_ADC_IDX_COUNT 16
 
 /**
  * Maximum number of SDF indices that can be referred in PCC rule.
@@ -52,7 +53,7 @@
  */
 #define MAX_SDF_IDX_COUNT 16
 #define MAX_SDF_STR_LEN 4096
-
+#define MAX_LI_HDR_SIZE 2048
 /**
  * Maximum buffer/name length
  */
@@ -81,19 +82,41 @@
  */
 #define MAX_RATING_GRP 6
 
+#define NUM_EBI_RESERVED  1
+
 /**
- * Get pdn from context and bearer id.
+ * Get ebi_index from bearer id
+ * Used MAX limit as 30 beacuse for dedicated bearer creation
+ * We use temp bearer_id INDEX which can be upto 30
+ * Normally it's upto 15
  */
-#define GET_PDN(x, i) (x->eps_bearers[i]->pdn)
+#define GET_EBI_INDEX(a)      ((a >= 1) && (a <= MAX_BEARERS*2)) ? (a - 1) : -1
+
+/**
+ * Get pdn from context and ebi_index.
+ * Used double of MAX_BEARERS limit, for dedicated bearer creation
+ * dedicated bearers are stored on temporary location initially untill
+ * bearer id is assinged to it by MME.
+ */
+#define GET_PDN(x, i)                                                   \
+(								                                        \
+	((x != NULL)                                                        \
+	&& (i >=0 && i < MAX_BEARERS*2) && (x->eps_bearers[i] != NULL)) ? x->eps_bearers[i]->pdn : NULL     \
+)
 /**
  * default bearer session.
  */
 #define DEFAULT_BEARER 5
 
 /**
+ * get dupl flag (apply action) status
+ */
+#define GET_DUP_STATUS(context) (context->dupl)
+
+/**
  * get UE session id
  */
-#define UE_SESS_ID(x) ((x & 0xffffffff) >> 4)
+#define UE_SESS_ID(x) ((x & 0xfffffff) >> 4)
 
 /**
  * get bearer id
@@ -103,7 +126,10 @@
  * set session id from the combination of
  * unique UE id and Bearer id
  */
-#define SESS_ID(ue_id, br_id) (((uint64_t)(ue_id) << 4) | (0xf & (br_id)))
+#define SESS_ID(ue_id, br_id) ({													\
+time_t epoch = time(NULL);															\
+( (uint64_t)(epoch) << 32 | (0xfffffff & ( ( (uint64_t) (ue_id) << 4) | (0xf & (br_id)) ))); \
+})
 
 /**
  * MAX DNS Sponsor ID name lenth
@@ -203,7 +229,9 @@ struct service_data_list {
  * @brief  : SDF Packet filter configuration structure.
  */
 struct pkt_filter {
-	uint32_t pcc_rule_id;				/* PCC rule id*/
+	uint8_t direction;
+	uint32_t rule_id;				/* PCC rule id*/
+	uint32_t precedence;
 	union {
 		char rule_str[MAX_LEN];		/* string of rule, please refer
 						 * cp/main.c for example
@@ -239,16 +267,19 @@ struct  redirect_info {
 	uint32_t info;
 };
 
+/*Allocation and Retention Priority*/
+struct arp_pdef {
+	uint8_t priority_level;
+	uint8_t pre_emption_capability;
+	uint8_t pre_emption_vulnerability;
+};
 /**
  * @brief  : QoS parameters structure for DP
  */
 struct qos_info {
-	uint16_t ul_mtr_profile_index; /* index 0 to skip */
-	uint16_t dl_mtr_profile_index; /* index 0 to skip */
-	uint16_t ul_gbr_profile_index; /* index 0 to skip */
-	uint16_t dl_gbr_profile_index; /* index 0 to skip */
-	uint8_t qci;    /*QoS Class Identifier*/
-	uint8_t arp;    /*Allocation and Retention Priority*/
+	uint16_t mtr_profile_index;  /* mtr profile index 0 */
+	uint8_t qci;                 /*QoS Class Identifier*/
+	struct arp_pdef arp;         /*Allocation and Retention Priority*/
 };
 
 /**
@@ -295,6 +326,24 @@ struct mtr_params {
 struct mtr_entry {
 	uint16_t mtr_profile_index;	/* Meter profile index*/
 	struct mtr_params mtr_param;	/* Meter params*/
+
+	/** Uplink Maximum Bit Rate in kilobits (1000bps) - for non-GBR
+	 * Bearers this field to be set to zero*/
+	uint64_t ul_mbr;
+	/** Downlink Maximum Bit Rate in kilobits (1000bps) - for non-GBR
+	 * Bearers this field to be set to zero*/
+	uint64_t dl_mbr;
+	/** Uplink Guaranteed Bit Rate in kilobits (1000bps) - for non-GBR
+	 * Bearers this field to be set to zero*/
+	uint64_t ul_gbr;
+	/** Downlink Guaranteed Bit Rate in kilobits (1000bps) - for non-GBR
+	 * Bearers this field to be set to zero*/
+	uint64_t dl_gbr;
+	/** APN Aggregate Max Bitrate (AMBR) for Uplink */
+	uint64_t ul_ambr;
+	/** APN Aggregate Max Bitrate (AMBR) for Downlink */
+	uint64_t dl_ambr;
+
 	uint8_t  metering_method;	/* Metering Methods
 								 * -fwd, srtcm, trtcm*/
 } __attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
@@ -332,33 +381,40 @@ struct dl_s1_info {
  * @brief  : Policy and Charging Control structure for DP
  */
 struct pcc_rules {
-	uint32_t rule_id;			/* Rule ID*/
-	char rule_name[MAX_LEN];		/* Rule Name*/
-	uint32_t rating_group;			/* Group rating*/
-	uint32_t service_id;			/* identifier for the service or the service component
-						 * the service data flow relates to.*/
-	uint8_t rule_status;			/* Rule Status*/
-	uint8_t  gate_status;			/* gate status indicates whether the service data flow,
-						 * detected by the service data flow filter(s),
-						 * may pass or shall be discarded*/
-	uint8_t  session_cont;			/* Total Session Count*/
-	uint8_t  report_level;			/* Level of report*/
-	uint32_t  monitoring_key;		/* key to identify monitor control instance that shall
-						 * be used for usage monitoring control of the service
-						 * data flows controlled*/
-	char sponsor_id[MAX_LEN];		/* to identify the 3rd party organization (the
-						 * sponsor) willing to pay for the operator's charge*/
-	struct  redirect_info redirect_info;	/* Redirect  info*/
-	uint32_t precedence;			/* Precedence*/
-	uint64_t drop_pkt_count;		/* Drop count*/
-	uint32_t adc_idx; //GCC_Security flag
+	uint8_t rule_status;                      /* Rule Status*/
+	uint8_t ul_gate_status;
+	uint8_t dl_gate_status;                   /* gate status indicates whether the service data flow,
+						                       * detected by the service data flow filter(s),
+						                       * may pass or shall be discarded*/
+	uint8_t session_cont;                     /* Total Session Count*/
+	uint8_t report_level;                     /* Level of report*/
+	uint8_t online;                           /* Online : 1*/
+	uint8_t offline;                          /* Offline : 0*/
+	uint8_t flow_status;                      /* Flow Status Enable = 2*/
+	uint32_t rule_id;                         /* Rule ID*/
+	char rule_name[MAX_LEN];                  /* Rule Name*/
+	uint32_t precedence;                      /* Precedence*/
+	uint32_t rating_group;                    /* Group rating*/
+	uint32_t service_id;                      /* identifier for the service or the service component
+						                       * the service data flow relates to.*/
+	uint32_t monitoring_key;                  /* key to identify monitor control instance that shall
+						                       * be used for usage monitoring control of the service
+						                       * data flows controlled*/
+	char sponsor_id[MAX_LEN];                 /* to identify the 3rd party organization (the
+						                       * sponsor) willing to pay for the operator's charge*/
+	struct redirect_info redirect_info;       /* Redirect  info*/
+	uint64_t drop_pkt_count;                  /* Drop count*/
+	struct qos_info qos;                      /* QoS Parameters*/
+	uint8_t charging_mode;                    /* online and offline charging*/
+	uint8_t metering_method;                  /* Metering Methods * -fwd, srtcm, trtcm*/
+	uint8_t mute_notify;                      /* Mute on/off*/
+	uint32_t adc_idx_cnt;
+	uint32_t adc_idx[MAX_ADC_IDX_COUNT]; //GCC_Security flag
 	uint32_t sdf_idx_cnt;
 	uint32_t sdf_idx[MAX_SDF_IDX_COUNT];
-	struct qos_info qos;			/* QoS Parameters*/
-	uint8_t  charging_mode;			/* online and offline charging*/
-	uint8_t  metering_method;		/* Metering Methods
-						 * -fwd, srtcm, trtcm*/
-	uint8_t  mute_notify;			/* Mute on/off*/
+#ifdef DP_BUILD
+	uint32_t qer_id;                           /*store the qer_id*/
+#endif
 } __attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
 
 /**
@@ -479,11 +535,29 @@ struct msg_ue_cdr {
 							 * write new logs into cdr log file.*/
 } __attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
 
+typedef struct li_header_t {
+
+	uint32_t packet_len;
+	uint8_t type_of_payload;
+	uint64_t id;
+	uint64_t imsi;
+	uint32_t src_ip;
+	uint16_t src_port;
+	uint32_t dst_ip;
+	uint16_t dst_port;
+	uint8_t operation_mode;
+	uint32_t seq_no;
+	uint32_t len;
+
+} li_header_t;
+
 #ifdef DP_BUILD
 /**
  * @brief  : SDF Packet filter configuration structure.
  */
 struct sdf_pkt_filter {
+	uint8_t direction;                  /* Rule Direction */
+	uint32_t rule_indx;                 /* SDF Rule Index*/
 	uint32_t precedence;				/* Precedence */
 	union {
 		char rule_str[MAX_LEN];		/* string of rule, please refer
@@ -532,7 +606,9 @@ build_endmarker_and_send(struct sess_info_endmark *edmk);
 
 #endif 	/* DP_BUILD */
 
-#define MAX_NB_DPN	8  /* Note: MAX_NB_DPN <= 8 */
+#define MAX_NB_DPN	64
+#define PRESENT 		1
+#define NOT_PRESENT		0
 
 /********************* SDF Pkt filter table ****************/
 /**
@@ -551,16 +627,6 @@ int
 sdf_filter_table_create(struct dp_id dp_id, uint32_t max_elements);
 
 /**
- * @brief  : Delete SDF filter table. For deleting this table,
- *           make sure dp_id match with the one used when table created.
- * @param  : dp_id
- *           table identifier.
- * @return : Returns 0 in case of success , -1 otherwise
- */
-int
-sdf_filter_table_delete(struct dp_id dp_id);
-
-/**
  * @brief  : Add SDF filter entry. This api allows to configure SDF filter.
  *           Each filters are 5 tuple based and should be configured with unique pcc_rule_id
  *           and precedence.
@@ -574,17 +640,6 @@ sdf_filter_table_delete(struct dp_id dp_id);
 int
 sdf_filter_entry_add(struct dp_id dp_id, struct pkt_filter pkt_filter_entry);
 
-/**
- * @brief  : Delete SDF filter entry. For deleting an entry,
- *            only pcc_rule_id is necessary. All other field can be left NULL.
- * @param  : dp_id
- *           table identifier.
- * @param  : pkt_filter_entry
- *           sdf packet filter entry structure
- * @return : Returns 0 in case of success , -1 otherwise
- */
-int
-sdf_filter_entry_delete(struct dp_id dp_id, struct pkt_filter pkt_filter_entry);
 
 /********************* ADC Rule Table ****************/
 /**
@@ -647,15 +702,6 @@ int adc_entry_delete(struct dp_id dp_id, struct adc_rules entry);
 int pcc_table_create(struct dp_id dp_id, uint32_t max_elements);
 
 /**
- * @brief  : Delete PCC table. For deleting this table,
- *           make sure dp_id match with the one used when table created.
- * @param  : dp_id
- *           table identifier.
- * @return : Returns 0 in case of success , -1 otherwise
- */
-int pcc_table_delete(struct dp_id dp_id);
-
-/**
  * @brief  : Add entry in Policy and Charging Control
  *           (PCC) table. Each entry should have unique PCC ruleid.
  *           The purpose of the PCC rule is to identify the service the Service
@@ -670,18 +716,6 @@ int pcc_table_delete(struct dp_id dp_id);
 int
 pcc_entry_add(struct dp_id dp_id, struct pcc_rules entry);
 
-/**
- * @brief  : Delete entry in PCC table. For deleting an entry,
- *           only PCC id is necessary. All other field can be left NULL.
- * @param  : dp_id
- *           table identifier.
- * @param  : entry
- *           element to be deleted in this table.
- * @return : Returns 0 in case of success , -1 otherwise
- */
-int
-pcc_entry_delete(struct dp_id dp_id, struct pcc_rules entry);
-
 /********************* Bearer Session ****************/
 /**
  * @brief  : Function to create Bearer Session table.
@@ -695,17 +729,6 @@ pcc_entry_delete(struct dp_id dp_id, struct pcc_rules entry);
  * @return : Returns 0 in case of success , -1 otherwise
  */
 int session_table_create(struct dp_id dp_id, uint32_t max_elements);
-
-/**
- * @brief  : Destroy Bearer Session table. For deleting this table,
- *            make sure dp_id match with the one used when table created.
- * @param  : dp_id
- *           table identifier.
- * @param  : max_element
- *           max number of elements in this table.
- * @return : Returns 0 in case of success , -1 otherwise
- */
-int session_table_delete(struct dp_id dp_id);
 
 /**
  * @brief  : Create UE Session.
@@ -784,16 +807,6 @@ int
 meter_profile_table_create(struct dp_id dp_id, uint32_t max_elements);
 
 /**
- * @brief  : Delete Meter profile table. For deleting this table,
- *            make sure dp_id match with the one used when table created.
- * @param  : dp_id
- *           table identifier.
- * @return : Returns 0 in case of success , -1 otherwise
- */
-int
-meter_profile_table_delete(struct dp_id dp_id);
-
-/**
  * @brief  : Add Meter profile entry. Each entry should be configured
  *           with unique id i.e. mtr_profile_index and with configurable mtr_params.
  *           This meter profile index can be used for PCC metering and APN metering.
@@ -810,33 +823,20 @@ int
 meter_profile_entry_add(struct dp_id dp_id, struct mtr_entry mtr_entry);
 
 /**
- * @brief  : Delete Meter profile entry. For deleting an entry,
- *            only meter id is necessary. All other field can be left NULL.
- * @param  : dp_id
- *           table identifier.
- * @param  : mtr_entry
- *           meter entry
+ * @brief  : Delete ADC filter entry.
+ * @param  : dp_id, identifier which is unique across DataPlanes.
+ * @param  : adc_filter_entry, element to be added in this table.
  * @return : Returns 0 in case of success , -1 otherwise
  */
 int
-meter_profile_entry_delete(struct dp_id dp_id, struct mtr_entry mtr_entry);
+dp_adc_entry_delete(struct dp_id dp_id, struct adc_rules *adc_filter_entry);
 
-/**
- * @brief  : Function to flush UE CDR records into file.
- *           The cdrs will be dumped on request without resetting
- *           counters in DP.
- *           cdr file is located at "/var/log/dpn/session_cdr.csv".
- * @param  : dp_id
- *           table identifier.
- * @param  : ue_cdr
- *           structre to flush UE CDR. This structure include
- *           session id of the bearer, cdr_type to get the type
- *           of records (cdr_type can be bearer, adc, flow,
- *           rating group or all) and action field to append or
- *           replace the logs. .
- * @return : Returns 0 in case of success , -1 otherwise
- */
 int
-ue_cdr_flush(struct dp_id dp_id, struct msg_ue_cdr ue_cdr);
+encode_li_header(li_header_t *header, uint8_t *buf);
+
+int8_t
+create_li_header(uint8_t *uiPayload, int *uiPayloadLen, uint8_t type,
+		uint64_t id, uint64_t uiImsi, uint32_t uiSrcIp, uint32_t uiDstIp,
+		uint16_t uiSrcPort, uint16_t uiDstPort, uint8_t uiOprMode);
 
 #endif /* _CP_DP_API_H_ */

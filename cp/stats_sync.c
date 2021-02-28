@@ -37,8 +37,8 @@ retrive_stats_entry(void)
 		ret = rte_hash_lookup_data(stats_hash, (void *)&key,
 				(void **)&stats);
 		if (ret < 0) {
-			clLog(clSystemLog, eCLSeverityCritical, "%s:rte_hash_lookup_data failed for"
-					"key %lu: %s (%d)\n", __func__,
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"rte_hash_lookup_data failed for"
+					"key %lu: %s (%d)\n", LOG_VALUE,
 					key, rte_strerror(abs(ret)), ret);
 			continue;
 		}
@@ -46,7 +46,7 @@ retrive_stats_entry(void)
 		export_stats_report(*stats);
 	}
 
-	clLog(clSystemLog, eCLSeverityCritical, "\nStatstics export in file completed.\n");
+	clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"\nStatstics export in file completed.\n", LOG_VALUE);
 	rte_hash_free(stats_hash);
 
 }
@@ -56,17 +56,6 @@ export_stats_report(struct sync_stats stats_info)
 {
 
 #if DEBUG_STATS
-#ifdef SDN_ODL_BUILD
-	fprintf(stats_file, "%"PRIu64", %"PRIu16", %"PRIu64
-						", %"PRIu64", %"PRIu64", %"PRIu64
-						", %"PRIu64", %"PRIu64"\n",
-						stats_cnt, stats_info.type,
-						stats_info.op_id, stats_info.session_id,
-						stats_info.req_init_time, stats_info.ack_rcv_time,
-						stats_info.resp_recv_time,
-						((stats_info.resp_recv_time) - (stats_info.req_init_time)));
-#else
-
 	fprintf(stats_file, "%"PRIu64", %"PRIu16", %"PRIu64
 						", %"PRIu64", %"PRIu64
 						", %"PRIu64", %"PRIu64"\n",
@@ -75,8 +64,6 @@ export_stats_report(struct sync_stats stats_info)
 						stats_info.req_init_time,
 						stats_info.resp_recv_time,
 						((stats_info.resp_recv_time) - (stats_info.req_init_time)));
-
-#endif  /* SDN_ODL_BUILD */
 #else
 
 	fprintf(stats_file, "%"PRIu64", %"PRIu64"\n",
@@ -114,7 +101,7 @@ stats_init(void)
 	snprintf(filename, PATH_MAX, "%sCP_Sync_Stats_%s"
 			CSV_EXTENSION, DEFAULT_STATS_PATH, timestamp);
 
-	clLog(clSystemLog, eCLSeverityCritical, "\nLogging Sync Statistics Records to %s\n", filename);
+	clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"\nLogging Sync Statistics Records to %s\n", LOG_VALUE, filename);
 
 	stats_file = fopen(filename, "w");
 	if (!stats_file)
@@ -123,20 +110,6 @@ stats_init(void)
 #if DEBUG_STATS
 	fprintf(stats_file, "#Session Type:\n#\t1:CREATE\n#\t2:UPDATE\n#\t3:DELETE\n");
 
-#ifdef SDN_ODL_BUILD
-	if (fprintf(stats_file, "#%s, %s, %s, %s, %s, %s, %s, %s\n",
-				"record",
-				"Session type",
-				"op_id",
-				"session_id",
-				"req_init_time(n/sec)",
-				"ack_rcv_time(n/sec)",
-				"resp_recv_time(n/sec)",
-				"req_resp_diff(m/sec)") < 0)
-		rte_panic("%s [%d] fprintf(stats_file header failed - %s "
-				"(%d)\n",
-				__FILE__, __LINE__, strerror(errno), errno);
-#else
 	if (fprintf(stats_file, "#%s, %s, %s, %s, %s, %s, %s\n",
 				"record",
 				"Session type",
@@ -148,8 +121,6 @@ stats_init(void)
 		rte_panic("%s [%d] fprintf(stats_file header failed - %s "
 				"(%d)\n",
 				__FILE__, __LINE__, strerror(errno), errno);
-
-#endif  /* SDN_ODL_BUILD */
 #else
 
 	if (fprintf(stats_file, "#%s, %s\n",
@@ -195,8 +166,8 @@ add_stats_entry(struct sync_stats *stats)
 	ret = rte_hash_add_key_data(stats_hash, (void *)&tmp->op_id,
 			(void *)tmp);
 	if (ret) {
-		clLog(clSystemLog, eCLSeverityCritical, "%s:rte_hash_add_key_data failed for"
-				" op_id %"PRIu64": %s (%u)\n", __func__,
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"rte_hash_add_key_data failed for"
+				" op_id %"PRIu64": %s (%u)\n", LOG_VALUE,
 				tmp->op_id, rte_strerror(abs(ret)), ret);
 	}
 }
@@ -211,8 +182,8 @@ update_stats_entry(uint64_t key, uint8_t type)
 	ret = rte_hash_lookup_data(stats_hash, (void *)&key,
 			(void **)&stats);
 	if (ret < 0) {
-		clLog(clSystemLog, eCLSeverityCritical, "%s:rte_hash_lookup_data failed for"
-				"key %"PRIu64": %s (%u)\n", __func__,
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"rte_hash_lookup_data failed for"
+				"key %"PRIu64": %s (%u)\n", LOG_VALUE,
 				key, rte_strerror(abs(ret)), ret);
 		return;
 	}

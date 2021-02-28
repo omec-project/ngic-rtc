@@ -12,12 +12,12 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 */
-
+#include <inttypes.h>
+#include <stdio.h>
+#include <stdint.h>
 #include "../include/gtp_ies_decoder.h"
 
 #include "../include/enc_dec_bits.h"
-
-#define IE_HEADER_SIZE sizeof(ie_header_t)
 
 
 /**
@@ -210,7 +210,7 @@ int decode_gtp_umts_key_and_quintuplets_ie(uint8_t *buf,
     total_decoded += decoded;
     value->nrsrna = decode_bits(buf, total_decoded, 1, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -230,7 +230,7 @@ int decode_gtp_channel_needed_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->channel_needed = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -250,7 +250,7 @@ int decode_gtp_rfsp_index_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->rfsp_index = decode_bits(buf, total_decoded, 16, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -286,7 +286,29 @@ int decode_gtp_guti_ie(uint8_t *buf,
     total_decoded += decoded;
     value->m_tmsi = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
+}
+
+
+void
+decode_imsi(uint8_t *buf, int len, uint64_t *imsi)
+{
+    char hex[16] = {0};
+    bool flag = false;
+
+    for(uint32_t i = 0; i < len; i++) {
+        if (i == len -1 && (((buf[i] & 0xF0)>>4) == 0x0F)) {
+            sprintf(hex + i*2 , "%02x", (buf[i] & 0x0F)<<4);
+            flag = true;
+        }
+        else
+            sprintf(hex + i*2 , "%02x",(((buf[i] & 0x0F)<<4) | ((buf[i] & 0xF0)>>4)));
+    }
+	sscanf(hex, "%lu", imsi);
+
+	if (flag)
+		*imsi /= 10;
+	return;
 }
 
 /**
@@ -307,9 +329,11 @@ int decode_gtp_imsi_ie(uint8_t *buf,
     // value->imsi_number_digits = decode_bits(buf, total_decoded, 64, &decoded);
     // total_decoded += decoded;
     /* TODO: Revisit this for change in yang */
-    memcpy(&value->imsi_number_digits, (uint8_t *)buf + total_decoded/CHAR_SIZE, value->header.len);
+    //memcpy(&value->imsi_number_digits, (uint8_t *)buf + total_decoded/CHAR_SIZE, value->header.len);
+    decode_imsi((uint8_t *)buf + total_decoded/CHAR_SIZE, value->header.len,
+                                                &value->imsi_number_digits);
     total_decoded += value->header.len * CHAR_SIZE;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -331,7 +355,7 @@ int decode_gtp_eps_bearer_id_ie(uint8_t *buf,
     total_decoded += decoded;
     value->ebi_ebi = decode_bits(buf, total_decoded, 4, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -351,7 +375,7 @@ int decode_gtp_emlpp_priority_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->emlpp_priority = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -371,7 +395,7 @@ int decode_gtp_prot_cfg_opts_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->pco = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-	return value->header.len + IE_HEADER_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -427,7 +451,7 @@ int decode_gtp_mdt_cfg_ie(uint8_t *buf,
     total_decoded += decoded;
     value->mdt_plmn_list = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -451,7 +475,7 @@ int decode_gtp_src_id_ie(uint8_t *buf,
     total_decoded += decoded;
     value->source_id = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -541,7 +565,7 @@ int decode_gtp_ran_nas_cause_ie(uint8_t *buf,
     total_decoded += decoded;
     value->cause_value = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -600,7 +624,7 @@ int decode_gtp_pdn_type_ie(uint8_t *buf,
     total_decoded += decoded;
     value->pdn_type_pdn_type = decode_bits(buf, total_decoded, 3, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -732,7 +756,7 @@ int decode_gtp_eps_secur_ctxt_and_quadruplets_ie(uint8_t *buf,
     total_decoded += decoded;
     value->ue_nr_secur_capblty = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -760,7 +784,7 @@ int decode_gtp_s103_pdn_data_fwdng_info_ie(uint8_t *buf,
     total_decoded += decoded;
     value->spare2 = decode_bits(buf, total_decoded, 4, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -777,10 +801,9 @@ int decode_gtp_fully_qual_domain_name_ie(uint8_t *buf,
 {
     uint16_t total_decoded = 0;
     total_decoded += decode_ie_header_t(buf, &(value->header), IE_HEADER_SIZE);
-    //uint16_t decoded = 0;
     memcpy(&value->fqdn, buf + (total_decoded/CHAR_SIZE), value->header.len);
     total_decoded +=  value->header.len * CHAR_SIZE;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -798,9 +821,14 @@ int decode_gtp_traffic_agg_desc_ie(uint8_t *buf,
     uint16_t total_decoded = 0;
     total_decoded += decode_ie_header_t(buf, &(value->header), IE_HEADER_SIZE);
     uint16_t decoded = 0;
-    value->traffic_agg_desc = decode_bits(buf, total_decoded, 8, &decoded);
-    total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+	value->traffic_agg_desc = decode_bits(buf, total_decoded, 8, &decoded);
+	total_decoded += decoded;
+	memcpy(&value->pkt_fltr_buf, buf+ (total_decoded/CHAR_SIZE), value->header.len);
+    total_decoded += value->header.len * CHAR_SIZE;
+	/*Subtract one because of TAD instance*/
+	total_decoded = total_decoded - 1;
+
+	return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -828,7 +856,7 @@ int decode_gtp_flow_qlty_of_svc_ie(uint8_t *buf,
     total_decoded += decoded;
     value->guarntd_bit_rate_dnlnk = decode_bits(buf, total_decoded, 40, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -862,7 +890,7 @@ int decode_gtp_fully_qual_tunn_endpt_idnt_ie(uint8_t *buf,
     	memcpy(&value->ipv6_address, buf + (total_decoded/CHAR_SIZE), IPV6_ADDRESS_LEN);
     	total_decoded +=  IPV6_ADDRESS_LEN * CHAR_SIZE;
     }
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -882,7 +910,7 @@ int decode_gtp_recovery_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->recovery = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -904,7 +932,7 @@ int decode_gtp_srvng_plmn_rate_ctl_ie(uint8_t *buf,
     total_decoded += decoded;
     value->dnlnk_rate_lmt = decode_bits(buf, total_decoded, 16, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -926,7 +954,7 @@ int decode_gtp_mbms_dist_ack_ie(uint8_t *buf,
     total_decoded += decoded;
     value->distr_ind = decode_bits(buf, total_decoded, 2, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -950,7 +978,7 @@ int decode_gtp_ue_time_zone_ie(uint8_t *buf,
     total_decoded += decoded;
     value->daylt_svng_time = decode_bits(buf, total_decoded, 2, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -976,7 +1004,7 @@ int decode_gtp_s1u_data_fwdng_ie(uint8_t *buf,
     total_decoded += decoded;
     value->sgw_s1u_teid = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -1046,7 +1074,7 @@ int decode_gtp_pres_rptng_area_act_ie(uint8_t *buf,
     total_decoded += decoded;
     value->extnded_macro_enb_ids = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -1070,7 +1098,7 @@ int decode_gtp_trstd_wlan_mode_indctn_ie(uint8_t *buf,
     total_decoded += decoded;
     value->scm = decode_bits(buf, total_decoded, 1, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -1090,7 +1118,7 @@ int decode_gtp_proc_trans_id_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->proc_trans_id = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -1114,7 +1142,7 @@ int decode_gtp_wlan_offldblty_indctn_ie(uint8_t *buf,
     total_decoded += decoded;
     value->utran_indctn = decode_bits(buf, total_decoded, 1, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -1134,7 +1162,7 @@ int decode_gtp_uli_timestamp_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->uli_ts_val = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -1162,7 +1190,7 @@ int decode_gtp_max_pckt_loss_rate_ie(uint8_t *buf,
     total_decoded += decoded;
     value->max_pckt_loss_rate_dl = decode_bits(buf, total_decoded, 16, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -1184,7 +1212,7 @@ int decode_gtp_cn_oper_sel_entity_ie(uint8_t *buf,
     total_decoded += decoded;
     value->sel_entity = decode_bits(buf, total_decoded, 2, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -1245,7 +1273,7 @@ int decode_gtp_alloc_reten_priority_ie(uint8_t *buf,
     total_decoded += decoded;
     value->pvi = decode_bits(buf, total_decoded, 1, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -1265,7 +1293,7 @@ int decode_gtp_apn_restriction_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->rstrct_type_val = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -1355,7 +1383,7 @@ int decode_gtp_ptmsi_signature_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->ptmsi_signature = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -1385,7 +1413,7 @@ int decode_gtp_paging_and_svc_info_ie(uint8_t *buf,
     total_decoded += decoded;
     value->paging_plcy_indctn_val = decode_bits(buf, total_decoded, 6, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -1402,10 +1430,9 @@ int decode_gtp_ovrld_ctl_info_ie(uint8_t *buf,
 {
     uint16_t total_decoded = 0;
     total_decoded += decode_ie_header_t(buf, &(value->header), IE_HEADER_SIZE);
-    //uint16_t decoded = 0;
     memcpy(&value->overload_control_information, buf + (total_decoded/CHAR_SIZE), OVERLOAD_CONTROL_INFORMATION_LEN);
     total_decoded +=  OVERLOAD_CONTROL_INFORMATION_LEN * CHAR_SIZE;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -1427,7 +1454,7 @@ int decode_gtp_ecgi_list_ie(uint8_t *buf,
     total_decoded += decoded;
     value->ecgi_list_of_m_ecgi_flds = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -1449,7 +1476,7 @@ int decode_gtp_agg_max_bit_rate_ie(uint8_t *buf,
     total_decoded += decoded;
     value->apn_ambr_dnlnk = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -1497,10 +1524,9 @@ int decode_gtp_acc_pt_name_ie(uint8_t *buf,
 {
     uint16_t total_decoded = 0;
     total_decoded += decode_ie_header_t(buf, &(value->header), IE_HEADER_SIZE);
-    //uint16_t decoded = 0;
     memcpy(&value->apn, buf + (total_decoded/CHAR_SIZE),  value->header.len);
     total_decoded +=   value->header.len * CHAR_SIZE;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -1660,7 +1686,7 @@ int decode_gtp_umts_key_quadruplets_and_quintuplets_ie(uint8_t *buf,
     total_decoded += decoded;
     value->voice_domain_pref_and_ues_usage_setting = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -1682,7 +1708,7 @@ int decode_gtp_cmplt_req_msg_ie(uint8_t *buf,
     total_decoded += decoded;
     value->cmplt_req_msg = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -1704,7 +1730,7 @@ int decode_gtp_epc_timer_ie(uint8_t *buf,
     total_decoded += decoded;
     value->timer_value = decode_bits(buf, total_decoded, 5, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -1728,7 +1754,7 @@ int decode_gtp_csg_id_ie(uint8_t *buf,
     total_decoded += decoded;
     value->csg_id_csg_id2 = decode_bits(buf, total_decoded, 24, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -1789,7 +1815,7 @@ int decode_gtp_packet_flow_id_ie(uint8_t *buf,
     total_decoded += decoded;
     value->packet_flow_id_packet_flow_id = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -1809,7 +1835,7 @@ int decode_gtp_tmgi_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->tmgi = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -1835,7 +1861,7 @@ int decode_gtp_mntrng_evnt_info_ie(uint8_t *buf,
     total_decoded += decoded;
     value->rem_nbr_of_rpts = decode_bits(buf, total_decoded, 16, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -1855,7 +1881,7 @@ int decode_gtp_rmt_ue_ip_info_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->rmt_ue_ip_info = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -1926,7 +1952,7 @@ int decode_gtp_bearer_qlty_of_svc_ie(uint8_t *buf,
     total_decoded += decoded;
     value->guarntd_bit_rate_dnlnk = decode_bits(buf, total_decoded, 40, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -1946,7 +1972,7 @@ int decode_gtp_mapped_ue_usage_type_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->mapped_ue_usage_type = decode_bits(buf, total_decoded, 16, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -1966,7 +1992,7 @@ int decode_gtp_svc_indctr_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->svc_indctr = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -2064,7 +2090,7 @@ int decode_gtp_umts_key_used_cipher_and_quintuplets_ie(uint8_t *buf,
     total_decoded += decoded;
     value->iov_updts_cntr = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -2107,7 +2133,7 @@ int decode_gtp_local_distgsd_name_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->ldn = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -2133,7 +2159,7 @@ int decode_gtp_csg_info_rptng_act_ie(uint8_t *buf,
     total_decoded += decoded;
     value->ucicsg = decode_bits(buf, total_decoded, 1, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -2163,15 +2189,15 @@ int decode_gtp_secdry_rat_usage_data_rpt_ie(uint8_t *buf,
     total_decoded += decoded;
     value->ebi = decode_bits(buf, total_decoded, 4, &decoded);
     total_decoded += decoded;
-    value->start_timestamp = decode_bits(buf, total_decoded, 8, &decoded);
+    value->start_timestamp = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    value->end_timestamp = decode_bits(buf, total_decoded, 8, &decoded);
+    value->end_timestamp = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    value->usage_data_dl = decode_bits(buf, total_decoded, 8, &decoded);
+    value->usage_data_dl = decode_bits(buf, total_decoded, 64, &decoded);
     total_decoded += decoded;
-    value->usage_data_ul = decode_bits(buf, total_decoded, 8, &decoded);
+    value->usage_data_ul = decode_bits(buf, total_decoded, 64, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -2191,7 +2217,7 @@ int decode_gtp_rat_type_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->rat_type = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -2258,7 +2284,7 @@ int decode_gtp_global_cn_id_ie(uint8_t *buf,
     total_decoded += decoded;
     value->cn = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -2278,7 +2304,7 @@ int decode_gtp_charging_id_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->chrgng_id_val = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -2300,7 +2326,7 @@ int decode_gtp_counter_ie(uint8_t *buf,
     total_decoded += decoded;
     value->counter_value = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -2330,7 +2356,7 @@ int decode_gtp_serving_network_ie(uint8_t *buf,
     total_decoded += decoded;
     value->mnc_digit_1 = decode_bits(buf, total_decoded, 4, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -2356,7 +2382,7 @@ int decode_gtp_node_identifier_ie(uint8_t *buf,
     total_decoded += decoded;
     value->node_realm = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -2435,7 +2461,7 @@ int decode_gtp_trc_info_ie(uint8_t *buf,
     total_decoded +=  LIST_OF_INTFCS_LEN * CHAR_SIZE;
     value->ip_addr_of_trc_coll_entity = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -2469,7 +2495,7 @@ int decode_gtp_mbms_ip_multcst_dist_ie(uint8_t *buf,
     total_decoded += decoded;
     value->mbms_hc_indctr = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -2493,7 +2519,7 @@ int decode_gtp_full_qual_cntnr_ie(uint8_t *buf,
     total_decoded += decoded;
     value->fcontainer_fld = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -2513,7 +2539,7 @@ int decode_gtp_mbms_data_xfer_abs_time_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->mbms_data_xfer_abs_time_val_prt = decode_bits(buf, total_decoded, 64, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -2630,7 +2656,7 @@ int decode_gtp_gsm_key_used_cipher_and_quintuplets_ie(uint8_t *buf,
     total_decoded += decoded;
     value->higher_bitrates_flg = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -2650,7 +2676,7 @@ int decode_gtp_twan_idnt_ts_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->twan_idnt_ts_val = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -2670,7 +2696,7 @@ int decode_gtp_tmsi_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->tmsi = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -2692,9 +2718,11 @@ int decode_gtp_pdn_addr_alloc_ie(uint8_t *buf,
     total_decoded += decoded;
     value->pdn_type = decode_bits(buf, total_decoded, 3, &decoded);
     total_decoded += decoded;
-    memcpy(&value->pdn_addr_and_pfx, buf + (total_decoded/CHAR_SIZE),  value->header.len - 1);
-    total_decoded +=  ( value->header.len - 1) * CHAR_SIZE;
-    return total_decoded/CHAR_SIZE;
+
+	value->pdn_addr_and_pfx = decode_bits(buf, total_decoded, 32, &decoded);
+	total_decoded += decoded;
+
+	return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -2750,7 +2778,7 @@ int decode_gtp_twan_identifier_ie(uint8_t *buf,
     total_decoded += decoded;
     value->circuit_id = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -2851,7 +2879,7 @@ int decode_gtp_user_loc_info_ie(uint8_t *buf,
     if (value->extnded_macro_enb_id) {
         total_decoded += decode_extnded_macro_enb_id_fld(buf + total_decoded, &value->extended_macro_enodeb_id2);
     }
-    return total_decoded;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -2871,7 +2899,7 @@ int decode_gtp_ptmsi_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->ptmsi = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -2891,7 +2919,7 @@ int decode_gtp_node_type_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->node_type = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -2923,6 +2951,8 @@ int decode_gtp_user_csg_info_ie(uint8_t *buf,
     total_decoded += decoded;
     value->spare2 = decode_bits(buf, total_decoded, 5, &decoded);
     total_decoded += decoded;
+    value->csg_id = decode_bits(buf, total_decoded, 3, &decoded);
+    total_decoded += decoded;
     value->csg_id2 = decode_bits(buf, total_decoded, 24, &decoded);
     total_decoded += decoded;
     value->access_mode = decode_bits(buf, total_decoded, 2, &decoded);
@@ -2933,7 +2963,7 @@ int decode_gtp_user_csg_info_ie(uint8_t *buf,
     total_decoded += decoded;
     value->cmi = decode_bits(buf, total_decoded, 1, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -2953,7 +2983,7 @@ int decode_gtp_integer_number_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->int_nbr_val = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -2973,7 +3003,7 @@ int decode_gtp_mbms_sess_dur_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->mbms_sess_dur = decode_bits(buf, total_decoded, 24, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -2990,13 +3020,12 @@ int decode_gtp_msisdn_ie(uint8_t *buf,
 {
     uint16_t total_decoded = 0;
     total_decoded += decode_ie_header_t(buf, &(value->header), IE_HEADER_SIZE);
-    //uint16_t decoded = 0;
     // value->msisdn_number_digits = decode_bits(buf, total_decoded, 64, &decoded);
     // total_decoded += decoded;
     memcpy(&value->msisdn_number_digits, (uint8_t *)buf + total_decoded/CHAR_SIZE, value->header.len);
     total_decoded += value->header.len * CHAR_SIZE;
 
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -3016,7 +3045,7 @@ int decode_gtp_metric_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->metric = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -3033,10 +3062,9 @@ int decode_gtp_bearer_context_ie(uint8_t *buf,
 {
     uint16_t total_decoded = 0;
     total_decoded += decode_ie_header_t(buf, &(value->header), IE_HEADER_SIZE);
-    //uint16_t decoded = 0;
     memcpy(&value->bearer_context, buf + (total_decoded/CHAR_SIZE), BEARER_CONTEXT_LEN);
     total_decoded +=  BEARER_CONTEXT_LEN * CHAR_SIZE;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -3070,7 +3098,7 @@ int decode_gtp_ciot_optim_supp_indctn_ie(uint8_t *buf,
     total_decoded += decoded;
     value->sgnipdn = decode_bits(buf, total_decoded, 1, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -3100,7 +3128,7 @@ int decode_gtp_pdu_numbers_ie(uint8_t *buf,
     total_decoded += decoded;
     value->rcv_npdu_nbr = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -3130,7 +3158,7 @@ int decode_gtp_rab_context_ie(uint8_t *buf,
     total_decoded += decoded;
     value->ul_pdcp_seqn_nbr = decode_bits(buf, total_decoded, 16, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -3154,7 +3182,7 @@ int decode_gtp_addtl_flgs_srvcc_ie(uint8_t *buf,
     total_decoded += decoded;
     value->ics = decode_bits(buf, total_decoded, 1, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -3238,7 +3266,7 @@ int decode_gtp_gsm_key_and_triplets_ie(uint8_t *buf,
     total_decoded += decoded;
     value->voice_domain_pref_and_ues_usage_setting = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -3260,7 +3288,7 @@ int decode_gtp_node_number_ie(uint8_t *buf,
     total_decoded += decoded;
     value->node_number = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -3277,10 +3305,9 @@ int decode_gtp_load_ctl_info_ie(uint8_t *buf,
 {
     uint16_t total_decoded = 0;
     total_decoded += decode_ie_header_t(buf, &(value->header), IE_HEADER_SIZE);
-    //uint16_t decoded = 0;
     memcpy(&value->load_control_information, buf + (total_decoded/CHAR_SIZE), LOAD_CONTROL_INFORMATION_LEN);
     total_decoded +=  LOAD_CONTROL_INFORMATION_LEN * CHAR_SIZE;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -3297,10 +3324,9 @@ int decode_gtp_rmt_ue_ctxt_ie(uint8_t *buf,
 {
     uint16_t total_decoded = 0;
     total_decoded += decode_ie_header_t(buf, &(value->header), IE_HEADER_SIZE);
-    //uint16_t decoded = 0;
     memcpy(&value->remote_ue_context, buf + (total_decoded/CHAR_SIZE), REMOTE_UE_CONTEXT_LEN);
     total_decoded +=  REMOTE_UE_CONTEXT_LEN * CHAR_SIZE;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -3324,7 +3350,7 @@ int decode_gtp_full_qual_cause_ie(uint8_t *buf,
     total_decoded += decoded;
     value->fcause_field = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -3344,7 +3370,7 @@ int decode_gtp_indication_ie(uint8_t *buf,
 	uint16_t decoded = 0;
 	uint8_t indic_len = value->header.len;
 
-	if(indic_len == INDICATION_OCT_5 || indic_len > INDICATION_OCT_5)
+	if(indic_len == INDICATION_LEN_1 || indic_len > INDICATION_LEN_1)
 	{
 		value->indication_daf = decode_bits(buf, total_decoded, 1, &decoded);
 		total_decoded += decoded;
@@ -3364,7 +3390,7 @@ int decode_gtp_indication_ie(uint8_t *buf,
 		total_decoded += decoded;
 	}
 
-	if(indic_len == INDICATION_OCT_6 || indic_len > INDICATION_OCT_6)
+	if(indic_len == INDICATION_LEN_2 || indic_len > INDICATION_LEN_2)
 	{
 		value->indication_sqci = decode_bits(buf, total_decoded, 1, &decoded);
 		total_decoded += decoded;
@@ -3384,7 +3410,7 @@ int decode_gtp_indication_ie(uint8_t *buf,
 		total_decoded += decoded;
 	}
 
-	if(indic_len == INDICATION_OCT_7 || indic_len > INDICATION_OCT_7)
+	if(indic_len == INDICATION_LEN_3 || indic_len > INDICATION_LEN_3)
 	{
 		value->indication_retloc = decode_bits(buf, total_decoded, 1, &decoded);
 		total_decoded += decoded;
@@ -3404,7 +3430,7 @@ int decode_gtp_indication_ie(uint8_t *buf,
 		total_decoded += decoded;
 	}
 
-	if(indic_len == INDICATION_OCT_8 || indic_len > INDICATION_OCT_8)
+	if(indic_len == INDICATION_LEN_4 || indic_len > INDICATION_LEN_4)
 	{
 		value->indication_cprai = decode_bits(buf, total_decoded, 1, &decoded);
 		total_decoded += decoded;
@@ -3424,7 +3450,7 @@ int decode_gtp_indication_ie(uint8_t *buf,
 		total_decoded += decoded;
 	}
 
-	if(indic_len == INDICATION_OCT_9 || indic_len > INDICATION_OCT_9)
+	if(indic_len == INDICATION_LEN_5 || indic_len > INDICATION_LEN_5)
 	{
 		value->indication_nsi = decode_bits(buf, total_decoded, 1, &decoded);
 		total_decoded += decoded;
@@ -3444,7 +3470,7 @@ int decode_gtp_indication_ie(uint8_t *buf,
 		total_decoded += decoded;
 	}
 
-	if(indic_len == INDICATION_OCT_10 || indic_len > INDICATION_OCT_10)
+	if(indic_len == INDICATION_LEN_6 || indic_len > INDICATION_LEN_6)
 	{
 		value->indication_roaai = decode_bits(buf, total_decoded, 1, &decoded);
 		total_decoded += decoded;
@@ -3464,7 +3490,7 @@ int decode_gtp_indication_ie(uint8_t *buf,
 		total_decoded += decoded;
 	}
 
-	if(indic_len == INDICATION_OCT_11)
+	if(indic_len == INDICATION_LEN_7)
 	{
 		value->indication_spare2 = decode_bits(buf, total_decoded, 1, &decoded);
 		total_decoded += decoded;
@@ -3484,7 +3510,7 @@ int decode_gtp_indication_ie(uint8_t *buf,
 		total_decoded += decoded;
 	}
 
-	return total_decoded/CHAR_SIZE;
+	return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -3506,7 +3532,7 @@ int decode_gtp_ipv4_cfg_parms_ie(uint8_t *buf,
     total_decoded += decoded;
     value->ipv4_dflt_rtr_addr = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -3538,7 +3564,7 @@ int decode_gtp_trace_reference_ie(uint8_t *buf,
     total_decoded += decoded;
     value->trace_id = decode_bits(buf, total_decoded, 24, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -3558,7 +3584,7 @@ int decode_gtp_node_features_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->sup_feat = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -3590,7 +3616,7 @@ int decode_gtp_remote_user_id_ie(uint8_t *buf,
     total_decoded += decoded;
     value->imei = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -3620,7 +3646,7 @@ int decode_gtp_fqcsid_ie(uint8_t *buf,
 		value->pdn_csid[itr] = decode_bits(buf, total_decoded, 16, &decoded);
 		total_decoded += decoded;
 	}
-    return total_decoded/CHAR_SIZE;
+	return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -3640,7 +3666,7 @@ int decode_gtp_port_number_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->port_number = decode_bits(buf, total_decoded, 16, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -3670,7 +3696,7 @@ int decode_gtp_addtl_mm_ctxt_srvcc_ie(uint8_t *buf,
     total_decoded += decoded;
     value->sup_codec_list = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -3690,7 +3716,7 @@ int decode_gtp_act_indctn_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->spare2 = decode_bits(buf, total_decoded, 5, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -3720,7 +3746,7 @@ int decode_gtp_plmn_id_ie(uint8_t *buf,
     total_decoded += decoded;
     value->mnc_digit_2 = decode_bits(buf, total_decoded, 4, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -3740,7 +3766,7 @@ int decode_gtp_mbms_flow_idnt_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->mbms_flow_id = decode_bits(buf, total_decoded, 16, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -3762,7 +3788,7 @@ int decode_gtp_hdr_comp_cfg_ie(uint8_t *buf,
     total_decoded += decoded;
     value->max_cid = decode_bits(buf, total_decoded, 16, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -3784,7 +3810,7 @@ int decode_gtp_sgnllng_priority_indctn_ie(uint8_t *buf,
     total_decoded += decoded;
     value->lapi = decode_bits(buf, total_decoded, 1, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -3820,7 +3846,7 @@ int decode_gtp_cause_ie(uint8_t *buf,
         value->spareinstance = decode_bits(buf, total_decoded, 8, &decoded);
         total_decoded += decoded;
     }
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -3840,7 +3866,7 @@ int decode_gtp_mbms_time_to_data_xfer_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->mbms_time_to_data_xfer_val_prt = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -3860,7 +3886,7 @@ int decode_gtp_addtl_prot_cfg_opts_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->apco = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-	return value->header.len + IE_HEADER_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -3882,7 +3908,7 @@ int decode_gtp_trgt_id_ie(uint8_t *buf,
     total_decoded += decoded;
     value->target_id = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -3906,7 +3932,7 @@ int decode_gtp_mbms_flags_ie(uint8_t *buf,
     total_decoded += decoded;
     value->msri = decode_bits(buf, total_decoded, 1, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -3926,7 +3952,7 @@ int decode_gtp_trans_idnt_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->trans_idnt = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -3991,7 +4017,7 @@ int decode_gtp_bearer_flags_ie(uint8_t *buf,
     total_decoded += decoded;
     value->ppc = decode_bits(buf, total_decoded, 1, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -4042,7 +4068,7 @@ int decode_gtp_msec_time_stmp_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->msec_time_stmp_val = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -4066,7 +4092,7 @@ int decode_gtp_chg_to_rpt_flgs_ie(uint8_t *buf,
     total_decoded += decoded;
     value->sncr = decode_bits(buf, total_decoded, 1, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -4083,10 +4109,9 @@ int decode_gtp_scef_pdn_conn_ie(uint8_t *buf,
 {
     uint16_t total_decoded = 0;
     total_decoded += decode_ie_header_t(buf, &(value->header), IE_HEADER_SIZE);
-    //uint16_t decoded = 0;
     memcpy(&value->scef_pdn_connection, buf + (total_decoded/CHAR_SIZE), SCEF_PDN_CONNECTION_LEN);
     total_decoded +=  SCEF_PDN_CONNECTION_LEN * CHAR_SIZE;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -4106,7 +4131,7 @@ int decode_gtp_chg_rptng_act_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->action = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -4126,7 +4151,7 @@ int decode_gtp_extnded_prot_cfg_opts_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->epco = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-	return value->header.len + IE_HEADER_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -4146,7 +4171,7 @@ int decode_gtp_delay_value_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->delay_value = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -4163,8 +4188,7 @@ int decode_gtp_pdn_connection_ie(uint8_t *buf,
 {
     uint16_t total_decoded = 0;
     total_decoded += decode_ie_header_t(buf, &(value->header), IE_HEADER_SIZE);
-    //uint16_t decoded = 0;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -4184,7 +4208,7 @@ int decode_gtp_detach_type_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->detach_type = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -4204,7 +4228,7 @@ int decode_gtp_mbms_svc_area_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->mbms_svc_area = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -4224,7 +4248,7 @@ int decode_gtp_chrgng_char_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->chrgng_char_val = decode_bits(buf, total_decoded, 16, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -4246,7 +4270,7 @@ int decode_gtp_henb_info_rptng_ie(uint8_t *buf,
     total_decoded += decoded;
     value->fti = decode_bits(buf, total_decoded, 1, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -4262,7 +4286,6 @@ int decode_mm_context(uint8_t *buf,
         mm_context_t *value)
 {
     uint16_t total_decoded = 0;
-    //uint16_t decoded = 0;
     return total_decoded;
 }
 
@@ -4287,7 +4310,7 @@ int decode_gtp_throttling_ie(uint8_t *buf,
     total_decoded += decoded;
     value->thrtlng_factor = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -4309,7 +4332,7 @@ int decode_gtp_csg_memb_indctn_ie(uint8_t *buf,
     total_decoded += decoded;
     value->csg_memb_indctn_cmi = decode_bits(buf, total_decoded, 1, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -4327,9 +4350,9 @@ int decode_gtp_ip_address_ie(uint8_t *buf,
     uint16_t total_decoded = 0;
     total_decoded += decode_ie_header_t(buf, &(value->header), IE_HEADER_SIZE);
     uint16_t decoded = 0;
-    value->ipv4_ipv6_addr = decode_bits(buf, total_decoded, 8, &decoded);
+    value->ipv4_ipv6_addr = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -4349,7 +4372,7 @@ int decode_gtp_src_rnc_pdcp_ctxt_info_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->rrc_container = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -4369,7 +4392,7 @@ int decode_gtp_hop_counter_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->hop_counter = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -4399,7 +4422,7 @@ int decode_gtp_pres_rptng_area_info_ie(uint8_t *buf,
     total_decoded += decoded;
     value->ipra = decode_bits(buf, total_decoded, 1, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -4419,7 +4442,7 @@ int decode_gtp_mbms_sess_idnt_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->mbms_sess_idnt = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -4443,7 +4466,7 @@ int decode_gtp_apn_and_rltv_cap_ie(uint8_t *buf,
     total_decoded += decoded;
     value->apn = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -4465,7 +4488,7 @@ int decode_gtp_selection_mode_ie(uint8_t *buf,
     total_decoded += decoded;
     value->selec_mode = decode_bits(buf, total_decoded, 2, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -4478,16 +4501,16 @@ int decode_gtp_selection_mode_ie(uint8_t *buf,
 *   number of decoded bytes.
 */
 int decode_gtp_up_func_sel_indctn_flgs_ie(uint8_t *buf,
-        gtp_up_func_sel_indctn_flgs_ie_t *value)
+		gtp_up_func_sel_indctn_flgs_ie_t *value)
 {
-    uint16_t total_decoded = 0;
-    total_decoded += decode_ie_header_t(buf, &(value->header), IE_HEADER_SIZE);
-    uint16_t decoded = 0;
-    value->spare2 = decode_bits(buf, total_decoded, 7, &decoded);
-    total_decoded += decoded;
-    value->dcnr = decode_bits(buf, total_decoded, 1, &decoded);
-    total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+	uint16_t total_decoded = 0;
+	total_decoded += decode_ie_header_t(buf, &(value->header), IE_HEADER_SIZE);
+	uint16_t decoded = 0;
+	value->spare2 = decode_bits(buf, total_decoded, 7, &decoded);
+	total_decoded += decoded;
+	value->dcnr = decode_bits(buf, total_decoded, 1, &decoded);
+	total_decoded += decoded;
+	return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -4507,7 +4530,7 @@ int decode_gtp_mbl_equip_idnty_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->mei = decode_bits(buf, total_decoded, 64, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -4529,7 +4552,7 @@ int decode_gtp_priv_ext_ie(uint8_t *buf,
     total_decoded += decoded;
     value->prop_val = decode_bits(buf, total_decoded, 8, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -4546,11 +4569,10 @@ int decode_gtp_eps_bearer_lvl_traffic_flow_tmpl_ie(uint8_t *buf,
 {
     uint16_t total_decoded = 0;
     total_decoded += decode_ie_header_t(buf, &(value->header), IE_HEADER_SIZE);
-    //uint16_t decoded = 0;
     /* value->eps_bearer_lvl_tft = decode_bits(buf, total_decoded, 8, &decoded); */
     memcpy(&value->eps_bearer_lvl_tft, buf + (total_decoded/CHAR_SIZE), value->header.len);
     total_decoded +=  value->header.len * CHAR_SIZE;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 
 /**
@@ -4570,6 +4592,6 @@ int decode_gtp_sequence_number_ie(uint8_t *buf,
     uint16_t decoded = 0;
     value->sequence_number = decode_bits(buf, total_decoded, 32, &decoded);
     total_decoded += decoded;
-    return total_decoded/CHAR_SIZE;
+    return value->header.len + IE_HEADER_SIZE;
 }
 

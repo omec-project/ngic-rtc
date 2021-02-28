@@ -15,14 +15,15 @@
  */
 
 #include <arpa/inet.h>
-
 #include <rte_ip.h>
 
+#include "gtpu.h"
 #include "util.h"
 #include "ipv4.h"
 #include "up_ether.h"
-#include "pipeline/epc_arp.h"
 #include "clogger.h"
+#include "pipeline/epc_arp.h"
+
 extern unsigned int fd_array[2];
 
 #ifndef STATIC_ARP
@@ -51,47 +52,18 @@ int construct_ether_hdr(struct rte_mbuf *m, uint8_t portid,
 		.ip = ipv4_hdr->dst_addr
 	};
 
-	if (app.spgw_cfg == SAEGWU) {
-		if (portid == app.s1u_port) {
-			if (app.s1u_gw_ip != 0 &&
-					(tmp_arp_key.ip & app.s1u_mask) != app.s1u_net)
-				tmp_arp_key.ip = app.s1u_gw_ip;
-		} else if(portid == app.sgi_port) {
-			if (app.sgi_gw_ip != 0 &&
-					(tmp_arp_key.ip & app.sgi_mask) != app.sgi_net)
-				tmp_arp_key.ip = app.sgi_gw_ip;
+	/* Retrieve Gateway Routing IP Address of the next hop */
+	if (portid == app.wb_port) {
+		if (app.wb_gw_ip != 0 &&
+				(tmp_arp_key.ip & app.wb_mask) != app.wb_net) {
+			/* UPLINK */
+			tmp_arp_key.ip = app.wb_gw_ip;
 		}
-	} else if (app.spgw_cfg == SGWU) {
-		if (portid == app.s1u_port) {
-			if (app.s1u_gw_ip != 0)
-				tmp_arp_key.ip = app.s1u_gw_ip;
-		} else if (portid == app.s5s8_sgwu_port) {
-			if (app.sgw_s5s8gw_ip != 0 &&
-					(tmp_arp_key.ip & app.sgw_s5s8gw_mask) != app.sgw_s5s8gw_net) {
-				tmp_arp_key.ip = app.sgw_s5s8gw_ip;
-			} else {
-				uint32_t s5s8_pgwu_addr =
-				(pdr[0]->far)->frwdng_parms.outer_hdr_creation.ipv4_address;
-				if (s5s8_pgwu_addr != 0)
-					tmp_arp_key.ip = htonl(s5s8_pgwu_addr);
-			}
-
-		}
-	} else if(app.spgw_cfg == PGWU) {
-		if (portid == app.sgi_port) {
-			if (app.sgi_gw_ip != 0)
-				tmp_arp_key.ip = app.sgi_gw_ip;
-		} else if (portid == app.s5s8_pgwu_port) {
-			if (app.pgw_s5s8gw_ip != 0 &&
-					(tmp_arp_key.ip & app.pgw_s5s8gw_mask) != app.pgw_s5s8gw_net) {
-				tmp_arp_key.ip = app.pgw_s5s8gw_ip;
-			} else {
-				uint32_t s5s8_sgwu_addr =
-					(pdr[0]->far)->frwdng_parms.outer_hdr_creation.ipv4_address;
-				if (s5s8_sgwu_addr != 0)
-					tmp_arp_key.ip = htonl(s5s8_sgwu_addr);
-			}
-
+	} else if (portid == app.eb_port) {
+		if (app.eb_gw_ip != 0 &&
+				(tmp_arp_key.ip & app.eb_mask) != app.eb_net) {
+			/* DOWNLINK */
+			tmp_arp_key.ip = app.eb_gw_ip;
 		}
 	}
 
@@ -100,24 +72,26 @@ int construct_ether_hdr(struct rte_mbuf *m, uint8_t portid,
 
 	struct arp_entry_data *ret_arp_data = NULL;
 	if (ARPICMP_DEBUG)
-		clLog(clSystemLog, eCLSeverityDebug,"%s::"
-				"\n\tretrieve_arp_entry for ip 0x%x\n",
-				__func__, tmp_arp_key.ip);
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"\n\tRetrieve_arp_entry for IP "IPV4_ADDR"\n",
+			LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ntohl(tmp_arp_key.ip)));
+
 	ret_arp_data = retrieve_arp_entry(tmp_arp_key, portid);
 
 	if (ret_arp_data == NULL) {
-		clLog(clSystemLog, eCLSeverityDebug, "%s::"
-				"\n\tretrieve_arp_entry failed for ip 0x%x\n",
-				__func__, tmp_arp_key.ip);
+		clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Retrieve_arp_entry failed for IP "IPV4_ADDR"\n",
+			LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ntohl(tmp_arp_key.ip)));
 		return -1;
 	}
 
 
-	if (ret_arp_data->status == INCOMPLETE)	{
+	if (ret_arp_data->status == INCOMPLETE) {
 
 #ifndef STATIC_ARP
-		clLog(clSystemLog, eCLSeverityInfo, "Sendto:: ret_arp_data->ip= %s\n",
-					inet_ntoa(*(struct in_addr *)&ret_arp_data->ip));
+		clLog(clSystemLog, eCLSeverityInfo,
+			LOG_FORMAT"Sendto ret arp data IP: "IPV4_ADDR"\n", LOG_VALUE,
+			IPV4_ADDR_HOST_FORMAT(ntohl(ret_arp_data->ip)));
 
 		/* setting sendto destination addr */
 		dest_addr[portid].sin_family = AF_INET;
@@ -127,26 +101,26 @@ int construct_ether_hdr(struct rte_mbuf *m, uint8_t portid,
 		char *data = (char *)((char *)(m)->buf_addr + (m)->data_off);
 		if ((sendto(fd_array[portid], data, m->data_len, 0, (struct sockaddr *)
 					&dest_addr[portid], sizeof(struct sockaddr_in))) < 0) {
-			perror("send failed");
+			perror("up_ether.c:construct_ether_hdr:103: ERROR: Failed to send packet on KNI TAB:");
 			return -1;
 		}
 #endif /* STATIC_ARP */
 
-		if (portid == app.sgi_port) {
+		if (portid == app.eb_port) {
 
 			if (arp_qunresolved_ulpkt(ret_arp_data, m, portid) == 0) {
-				clLog(clSystemLog, eCLSeverityDebug, "%s::arp_queue_unresolved_packet::"
-						"\n\treturn -1; arp_key.ip= 0x%X\n",
-						__func__, tmp_arp_key.ip);
+				clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"EB:Arp queue unresolved packet arp key IP: "IPV4_ADDR"\n",
+					LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ntohl(tmp_arp_key.ip)));
 				return -1;
 			}
 		}
-		if (portid == app.s1u_port) {
+		if (portid == app.wb_port) {
 
 			if (arp_qunresolved_dlpkt(ret_arp_data, m, portid) == 0) {
-				clLog(clSystemLog, eCLSeverityDebug, "%s::arp_queue_unresolved_packet::"
-						"\n\treturn -1; arp_key.ip= 0x%X\n",
-						__func__, tmp_arp_key.ip);
+				clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"WB:Arp queue unresolved packet arp key IP: "IPV4_ADDR"\n",
+					LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ntohl(tmp_arp_key.ip)));
 				return -1;
 			}
 		}
@@ -155,9 +129,9 @@ int construct_ether_hdr(struct rte_mbuf *m, uint8_t portid,
 	}
 
 	clLog(clSystemLog, eCLSeverityDebug,
-			"MAC found for ip %s"
+			"MAC found for ip "IPV4_ADDR""
 			", port %d - %02x:%02x:%02x:%02x:%02x:%02x\n",
-			inet_ntoa(*(struct in_addr *)&tmp_arp_key.ip), portid,
+			IPV4_ADDR_HOST_FORMAT(ntohl(tmp_arp_key.ip)), portid,
 					ret_arp_data->eth_addr.addr_bytes[0],
 					ret_arp_data->eth_addr.addr_bytes[1],
 					ret_arp_data->eth_addr.addr_bytes[2],
@@ -170,6 +144,18 @@ int construct_ether_hdr(struct rte_mbuf *m, uint8_t portid,
 
 #ifdef NGCORE_SHRINK
 #ifdef STATS
+	struct gtpu_hdr *gtpu_hdr = NULL;
+	gtpu_hdr = get_mtogtpu(m);
+	if ((gtpu_hdr != NULL) && (gtpu_hdr->msgtype == GTP_GEMR)) {
+		if(portid == SGI_PORT_ID) {
+			--epc_app.ul_params[S1U_PORT_ID].pkts_in;
+		} else if(portid == S1U_PORT_ID) {
+			--epc_app.dl_params[SGI_PORT_ID].pkts_in;
+		}
+
+		return 0;
+	}
+
 	if(portid == SGI_PORT_ID) {
 		++epc_app.ul_params[S1U_PORT_ID].pkts_out;
 	} else if(portid == S1U_PORT_ID) {

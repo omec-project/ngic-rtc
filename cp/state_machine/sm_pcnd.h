@@ -22,18 +22,18 @@
 #include "sm_struct.h"
 #include "pfcp_messages.h"
 #include "gtp_messages.h"
-#ifdef USE_DNS_QUERY
 #include "pfcp_set_ie.h"
-#endif /* USE_DNS_QUERY */
 
 /**
  * @brief  : Validate gtpv2c message
  * @param  : gtpv2c_rx, message data
  * @param  : bytes_rx, number of bytes in message
+ * @param  : iface, interface type
  * @return : Returns 0 in case of success , -1 otherwise
  */
 uint8_t
-gtpv2c_pcnd_check(gtpv2c_header_t *gtpv2c_rx, int bytes_rx);
+gtpv2c_pcnd_check(gtpv2c_header_t *gtpv2c_rx, int bytes_rx,
+		 struct sockaddr_in *peer_addr, uint8_t iface);
 
 /**
  * @brief  : Decode and validate gtpv2c message
@@ -43,27 +43,20 @@ gtpv2c_pcnd_check(gtpv2c_header_t *gtpv2c_rx, int bytes_rx);
  * @return : Returns 0 in case of success , -1 otherwise
  */
 uint8_t
-gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx);
-
-/**
- * @brief  : Decode and validate gtpv2c message received on s5s8 interface
- * @param  : gtpv2c_rx, message data
- * @param  : msg, structure to store decoded message
- * @param  : bytes_rx, number of bytes in message
- * @return : Returns 0 in case of success , -1 otherwise
- */
-uint8_t
-gtpc_s5s8_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx);
+gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
+		struct sockaddr_in *peer_addr, uint8_t uiIntFc);
 
 /**
  * @brief  : Decode and validate pfcp messages
  * @param  : pfcp_rx, message data
  * @param  : msg, structure to store decoded message
  * @param  : bytes_rx, number of bytes in message
+ * @param  : srcip, source ipaddress for lawful interception
  * @return : Returns 0 in case of success , -1 otherwise
  */
 uint8_t
-pfcp_pcnd_check(uint8_t *pfcp_rx, msg_info *msg, int bytes_rx);
+pfcp_pcnd_check(uint8_t *pfcp_rx, msg_info *msg, int bytes_rx,
+		struct sockaddr_in *peer_addr);
 
 /**
  * @brief  : Decode and validate gx messages
@@ -71,10 +64,9 @@ pfcp_pcnd_check(uint8_t *pfcp_rx, msg_info *msg, int bytes_rx);
  * @param  : msg, structure to store decoded message
  * @return : Returns 0 in case of success , -1 otherwise
  */
-uint8_t
+uint32_t
 gx_pcnd_check(gx_msg *gx_rx, msg_info *msg);
 
-#ifdef USE_DNS_QUERY
 /**
  * @brief  : Retrive upf entry from hash
  * @param  : ctxt, ue context
@@ -84,7 +76,6 @@ gx_pcnd_check(gx_msg *gx_rx, msg_info *msg);
  */
 int
 get_upf_ip(ue_context *ctxt, upfs_dnsres_t **_entry,
-		uint32_t **upf_ip);
+		uint32_t *upf_ip);
 
-#endif /* USE_DNS_QUERY */
 #endif

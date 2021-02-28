@@ -35,8 +35,8 @@ extern void hexDump(char *desc, void *address, int len);
 int gx_send_raa(void *data)
 {
 	int ret = FD_REASON_OK;
+	//uint32_t buflen;
 	struct msg *ans = NULL;
-	//uint32_t buflen ;
 #ifdef GX_DEBUG
 	printf("length is %d\n", *(uint32_t*)data );
 	hexDump("gx_raa", data, *(uint32_t*)data);
@@ -45,12 +45,10 @@ int gx_send_raa(void *data)
 	memset((void*)gx_raa, 0, sizeof(*gx_raa));
 
 	gx_raa_unpack((unsigned char *)data, gx_raa);
-	//buflen = gx_raa_calc_length (&gx_raa);
-	//printf("Buflen %d\n", buflen);
+	//gx_raa_calc_length (gx_raa);
 
 	//memcpy(&rqst_ptr, ((unsigned char *)data + buflen -1), sizeof(unsigned long));
 	memcpy(&ans, ((unsigned char *)data + *(uint32_t*)data), sizeof(ans));
-	printf("Address in RAA %p\n", ans);
 
 	//	ans = (struct msg*)rqst_ptr;
 
@@ -146,10 +144,6 @@ int gx_raa_cb
    enum disp_action * act
 )
 {
-   int ret = FD_REASON_OK;
-   struct msg *ans = *msg;
-   struct msg *qry = NULL;
-   GxRAA *raa = NULL;
 
    printf("===== RAA RECEIVED FOM PCEF======= \n");
 //#if 1
@@ -185,5 +179,5 @@ int gx_raa_cb
 //fini2:
 //   FDCHECK_MSG_FREE(*msg);
 //   *msg = NULL;
-//   return 0;
+   return 0;
 }
