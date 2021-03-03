@@ -6,8 +6,8 @@ Copyright(c) 2017 Intel Corporation
 ### :boom: New features have been released to the [e-utran-features](https://github.com/omec-project/ngic-rtc/tree/e-utran-features) branch include:
 
   * PFCP Support (Sxa,Sxb,Sxa/Sxb reference points)
-  * Expanded E-UTRAN procedure support
-    * Handover scenarios
+  * Expanded E-UTRAN procedure support including handover scenarios
+  * User Level Packet Copying feature captures session data
   * CSID implementation and UP recovery
   * UPF selection by DNS
   * Predefined Rules
