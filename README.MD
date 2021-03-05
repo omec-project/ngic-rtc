@@ -3,6 +3,23 @@ SPDX-License-Identifier: Apache-2.0
 Copyright(c) 2017 Intel Corporation
 -->
 
+### :boom: New features have been released to the [e-utran-features](https://github.com/omec-project/ngic-rtc/tree/e-utran-features) branch include:
+
+  * PFCP Support (Sxa,Sxb,Sxa/Sxb reference points)
+  * Expanded E-UTRAN procedure support including handover scenarios
+  * User Level Packet Copying feature captures session data
+  * CSID implementation and UP recovery
+  * UPF selection by DNS
+  * Predefined Rules
+  * UE sessions with multiple Bearer support.
+  * Charging by volume and time notification.
+  * Session level promotion/demotion due to handover
+
+### For more information take a look at the [e-utran-features](https://github.com/omec-project/ngic-rtc/tree/e-utran-features) branch and supporting documentation.
+  * [README.md](https://github.com/omec-project/ngic-rtc/blob/e-utran-features/README.MD)
+  * [User Guide rel. 1.8](https://github.com/omec-project/ngic-rtc/raw/e-utran-features/docs/Control_User_Plane_Gateway_User_Guide_1.8.docx)
+
+
 # Next Generation Infrastructure Core
 
 <!-- toc -->
@@ -17,7 +34,7 @@ Copyright(c) 2017 Intel Corporation
 
 ## Introduction
 
-NGIC-RTC is a Control User Plane Separated (CUPS) architecture 3GPP `TS23501`
+NGIC-RTC is a Control User Plane Separated (CUPS) architecture 3GPP `TS23401`
 based implementation of Evolved Packet Core (EPC) Service and Packet Gateway
 functions (SGW, PGW) in a run to complete design to maximize packet processing
 performance per compute core. NGIC-RTC allows runtime configurable
