@@ -406,7 +406,7 @@ void thrtle_timer_callback(gstimerinfo_t *ti, const void *data_t )
 				if(context->pdns[itr]->seid == traverse->sess_id){
 					memcpy(pfcp_pdr_id.pdr_id, traverse->pdr_id, sizeof(uint16_t));
 					pfcp_pdr_id.pdr_count = traverse->pdr_count;
-
+					pfcp_pdr_id.ddn_buffered_count = 0;
 					ret = ddn_by_session_id(traverse->sess_id, &pfcp_pdr_id);
 					if (ret) {
 						clLog(clSystemLog, eCLSeverityCritical,
@@ -547,41 +547,44 @@ void ddn_timer_callback(gstimerinfo_t *ti, const void *data_t )
 					thrtle_count *thrtl_cnt = NULL;
 					thrtl_cnt = get_throtle_count(&context->s11_mme_gtpc_ip, ADD_ENTRY);
 					if(thrtl_cnt != NULL){
+							if(thrtl_cnt->prev_ddn_eval != 0){
+								cp_thrtl_fact = (thrtl_cnt->prev_ddn_discard/thrtl_cnt->prev_ddn_eval) * 100;
+								if(cp_thrtl_fact >  thrtle_timer_data->throttle_factor){
+									pfcp_pdr_id->ddn_buffered_count = 0;
+									ret = ddn_by_session_id(context->pdns[i]->seid, pfcp_pdr_id);
+									if (ret) {
+										clLog(clSystemLog, eCLSeverityCritical,
+												LOG_FORMAT "Failed to process DDN request \n", LOG_VALUE);
+									}
+									thrtl_cnt->prev_ddn_eval = thrtl_cnt->prev_ddn_eval + 1;
+									context->pfcp_rept_resp_sent_flag = 1;
+								}else{
+									for(uint8_t i = 0; i < MAX_LIST_SIZE; i++){
+										pdr[i].rule_id = pfcp_pdr_id->pdr_id[i];
+									}
+									thrtl_cnt->prev_ddn_eval = thrtl_cnt->prev_ddn_eval + 1;
+									thrtl_cnt->prev_ddn_discard = thrtl_cnt->prev_ddn_discard + 1;
+									fill_sess_info_id(thrtl_cnt, context->pdns[i]->seid,
+											pfcp_pdr_id->pdr_count, pdr);
+									context->pfcp_rept_resp_sent_flag = 1;
+								}
 
-						if(thrtl_cnt->sent_count != 0){
-							cp_thrtl_fact = (thrtl_cnt->buffer_count/thrtl_cnt->sent_count) * 100;
-							if(cp_thrtl_fact >  thrtle_timer_data->throttle_factor){
+							} else {
+								pfcp_pdr_id->ddn_buffered_count = 0;
 								ret = ddn_by_session_id(context->pdns[i]->seid, pfcp_pdr_id);
 								if (ret) {
 									clLog(clSystemLog, eCLSeverityCritical,
 											LOG_FORMAT "Failed to process DDN request \n", LOG_VALUE);
 								}
-								thrtl_cnt->sent_count = thrtl_cnt->sent_count + 1;
-								context->pfcp_rept_resp_sent_flag = 1;
-							}else{
-								for(uint8_t i = 0; i < MAX_LIST_SIZE; i++){
-									pdr[i].rule_id = pfcp_pdr_id->pdr_id[i];
-								}
-								fill_sess_info_id(thrtl_cnt, context->pdns[i]->seid,
-										pfcp_pdr_id->pdr_count, pdr);
+								thrtl_cnt->prev_ddn_eval = thrtl_cnt->prev_ddn_eval + 1;
 								context->pfcp_rept_resp_sent_flag = 1;
 							}
-
-						} else {
-							ret = ddn_by_session_id(context->pdns[i]->seid, pfcp_pdr_id);
-							if (ret) {
-								clLog(clSystemLog, eCLSeverityCritical,
-										LOG_FORMAT "Failed to process DDN request \n", LOG_VALUE);
-							}
-								thrtl_cnt->sent_count = thrtl_cnt->sent_count + 1;
-								context->pfcp_rept_resp_sent_flag = 1;
-						}
-
 
 						delete_ddn_timer_entry(timer_by_teid_hash, teid, ddn_by_seid_hash);
 						return;
 					}
 				} else {
+					pfcp_pdr_id->ddn_buffered_count = 0;
 					ret = ddn_by_session_id(context->pdns[i]->seid, pfcp_pdr_id);
 					if (ret) {
 						clLog(clSystemLog, eCLSeverityCritical,
@@ -683,12 +686,20 @@ timer_callback(gstimerinfo_t *ti, const void *data_t )
 							CAUSE_SOURCE_SET_TO_0,
 							context->cp_mode != PGWC ? S11_IFACE : S5S8_IFACE);
 					if(context->piggyback == TRUE) {
-						msg.gtpc_msg.cb_rsp = resp->cb_rsp_attach;
 						msg.msg_type = GTP_CREATE_BEARER_RSP;
+						msg.gtpc_msg.cb_rsp.header.teid.has_teid.seq = resp->cb_rsp_attach.seq;
+						msg.gtpc_msg.cb_rsp.cause.cause_value =  resp->cb_rsp_attach.cause_value;
+						msg.gtpc_msg.cb_rsp.cause.header.len = PRESENT;
+
 						resp->bearer_count = resp->cb_rsp_attach.bearer_cnt;
 						for(int idx =0 ; idx < resp->bearer_count ; idx ++) {
-
-							resp->eps_bearer_ids[idx] = resp->cb_rsp_attach.bearer_contexts[idx].eps_bearer_id.ebi_ebi;
+							msg.gtpc_msg.cb_rsp.bearer_contexts[idx].eps_bearer_id.header.len = PRESENT;
+							msg.gtpc_msg.cb_rsp.bearer_contexts[idx].cause.header.len = PRESENT;
+							msg.gtpc_msg.cb_rsp.bearer_contexts[idx].cause.cause_value =
+								resp->cb_rsp_attach.bearer_cause_value[idx];
+							msg.gtpc_msg.cb_rsp.bearer_contexts[idx].eps_bearer_id.ebi_ebi =
+								resp->cb_rsp_attach.ebi_ebi[idx];
+							resp->eps_bearer_ids[idx] = resp->cb_rsp_attach.ebi_ebi[idx];
 						}
 						cbr_error_response(&msg, GTPV2C_CAUSE_REMOTE_PEER_NOT_RESPONDING,
 									CAUSE_SOURCE_SET_TO_0, S5S8_IFACE);
@@ -744,8 +755,11 @@ timer_callback(gstimerinfo_t *ti, const void *data_t )
 				} else if ((context->cp_mode == PGWC ||  context->cp_mode ==  SAEGWC )
 						&& ((resp->msg_type == GX_RAR_MSG) || (resp->state == CREATE_BER_REQ_SNT_STATE))) {
 
-					if (resp->msg_type == GX_RAR_MSG)
-						msg.gx_msg.rar = resp->gx_msg.rar;
+					if (resp->msg_type == GX_RAR_MSG){
+						msg.gx_msg.rar.session_id.len = strnlen(resp->gx_sess_id, GX_SESS_ID_LEN);
+						memcpy(msg.gx_msg.rar.session_id.val, resp->gx_sess_id,
+								msg.gx_msg.rar.session_id.len);
+					}
 
 					if (pdn->policy.num_charg_rule_install) {
 						cbr_error_response(&msg, GTPV2C_CAUSE_REMOTE_PEER_NOT_RESPONDING,
@@ -829,7 +843,14 @@ timer_callback(gstimerinfo_t *ti, const void *data_t )
 						context->cp_mode != PGWC ? S11_IFACE : S5S8_IFACE);
 
 				} else if(resp->state == DDN_REQ_SNT_STATE){
-						send_pfcp_sess_mod_req_for_ddn(pdn);
+					send_pfcp_sess_mod_req_for_ddn(pdn);
+
+					/* Remove session Entry from buffered ddn request hash */
+					pdr_ids *pfcp_pdr_id = delete_buff_ddn_req(pdn->seid);
+					if(pfcp_pdr_id != NULL) {
+						rte_free(pfcp_pdr_id);
+						pfcp_pdr_id = NULL;
+					}
 				} else{
 
 					/* Need to handle for other request */

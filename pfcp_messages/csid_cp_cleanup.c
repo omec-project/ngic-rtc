@@ -318,13 +318,13 @@ flush_pdr_entries(eps_bearer *bearer)
 		if (NULL == bearer->pdrs[itr])
 			continue;
 
-		if (del_pdr_entry((bearer->pdrs[itr])->rule_id)) {
+		if (del_pdr_entry((bearer->pdrs[itr])->rule_id, bearer->pdn->seid)) {
 			return -1;
 		}
 	}
 
 	for (uint8_t itr1 = 0; itr1 < bearer->qer_count; itr1++) {
-		if (del_qer_entry(bearer->qer_id[itr1].qer_id)) {
+		if (del_qer_entry(bearer->qer_id[itr1].qer_id,  bearer->pdn->seid)) {
 			return -1;
 		}
 	}
@@ -2544,6 +2544,7 @@ cleanup_csid_entry(uint64_t seid,
 					return GTPV2C_CAUSE_SYSTEM_FAILURE;
 				}
 
+
 				ret = cleanup_session_entries(csid, pdn);
 				if (ret) {
 					clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT
@@ -2555,27 +2556,31 @@ cleanup_csid_entry(uint64_t seid,
 
 				if (((pdn->context)->cp_mode == SGWC) || ((pdn->context)->cp_mode == SAEGWC)) {
 					del_peer_addr_csids_entry(&(pdn->context)->s11_sgw_gtpc_ip);
-					if ((pdn->context)->pgw_fqcsid != NULL) {
-						rte_free((pdn->context)->pgw_fqcsid);
-						(pdn->context)->pgw_fqcsid = NULL;
-					}
-				}
-				if ((pdn->context)->cp_mode == PGWC) {
+				} else if ((pdn->context)->cp_mode == PGWC) {
 					del_peer_addr_csids_entry(&pdn->s5s8_pgw_gtpc_ip);
 				}
 			} else {
 				/* Remove session csid from UE context */
 				cleanup_sess_csid_entry(pdn);
-				if (((pdn->context)->cp_mode == SGWC) || ((pdn->context)->cp_mode == SAEGWC)) {
-					if ((pdn->context)->pgw_fqcsid != NULL) {
-						rte_free((pdn->context)->pgw_fqcsid);
-						(pdn->context)->pgw_fqcsid = NULL;
-					}
-				}
 			}
 			/*Delete Session Link with Peer CSID */
 			del_session_csid_entry(pdn);
 
+			/* Free pgw_fqcsid if Node is PGWC and SAEGWC */
+			if (((pdn->context)->cp_mode == PGWC) || ((pdn->context)->cp_mode == SAEGWC)) {
+				if ((pdn->context)->pgw_fqcsid != NULL) {
+					rte_free((pdn->context)->pgw_fqcsid);
+					(pdn->context)->pgw_fqcsid = NULL;
+				}
+			}
+
+			/* Free sgw_fqcsid if Node is SGWC and SAEGWC */
+			if (((pdn->context)->cp_mode == SGWC) || ((pdn->context)->cp_mode == SAEGWC)) {
+				if ((pdn->context)->sgw_fqcsid != NULL) {
+					rte_free((pdn->context)->sgw_fqcsid);
+					(pdn->context)->sgw_fqcsid = NULL;
+				}
+			}
 		}
 		return 0;
 	}
@@ -3080,7 +3085,8 @@ send_pfcp_modification_req(ue_context *context, pdn_connection *pdn,
 		if(tmp->cp_seid != pdn->seid && tmp->cp_seid != 0) {
 			sess_csid *new_node = NULL;
 			/* Add new node into csid linked list */
-			new_node = add_sess_csid_data_node(tmp);
+			new_node = add_sess_csid_data_node(tmp,
+				pdn->sgw_csid.local_csid[pdn->sgw_csid.num_csid - 1]);
 			if(new_node == NULL ) {
 				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to "
 					"ADD new node into CSID linked list : %s\n", LOG_VALUE);
@@ -3093,6 +3099,7 @@ send_pfcp_modification_req(ue_context *context, pdn_connection *pdn,
 		} else {
 			tmp->cp_seid = pdn->seid;
 			tmp->up_seid = pdn->dp_seid;
+			tmp->next = NULL;
 		}
 		/* Fill the fqcsid into the session est request */
 		if (fill_fqcsid_sess_mod_req(&pfcp_sess_mod_req, pdn)) {

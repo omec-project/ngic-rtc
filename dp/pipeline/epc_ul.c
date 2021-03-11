@@ -42,10 +42,12 @@
 #include <rte_mbuf.h>
 #include <rte_hash_crc.h>
 #include <rte_port_ring.h>
+#include <rte_icmp.h>
 #include <rte_kni.h>
 #include <rte_arp.h>
 #include <unistd.h>
 
+#include "ipv6.h"
 #include "gtpu.h"
 #include "up_main.h"
 #include "pfcp_util.h"
@@ -150,48 +152,30 @@ static inline void epc_ul_set_port_id(struct rte_mbuf *m)
 		ipv4_packet = (eh->ether_type == htons(ETHER_TYPE_IPv4));
 
 		/* Check the heder checksum */
-		if (unlikely(
+		/*if (unlikely(
 			     (m->ol_flags & PKT_RX_IP_CKSUM_MASK) == PKT_RX_IP_CKSUM_BAD ||
 			     (m->ol_flags & PKT_RX_L4_CKSUM_MASK) == PKT_RX_L4_CKSUM_BAD)) {
 			//clLog(clSystemLog, eCLSeverityCritical, "UL Bad checksum: %lu\n", m->ol_flags);
 			//ipv4_packet = 0;
-		}
+		}*/
 
-		/* If IPv4 ICMP pkt for linux handling */
-		if (ipv4_hdr->next_proto_id == IPPROTO_ICMP)
-		{
-			clLog(clSystemLog, eCLSeverityDebug,
-				LOG_FORMAT"WB_IN:ipv4_hdr->ICMP:ipv4_hdr->next_proto_id= %u\n",
-				LOG_VALUE, ipv4_hdr->next_proto_id);
-			ul_arp_pkt = 1;
-			return;
-		}
 
 		ho_addr = ipv4_hdr->dst_addr;
-		/* Flag pkt destined to S1U_IP for linux handling */
-		if ((app.wb_ip == ho_addr) || (app.wb_li_ip == ho_addr))
+		/* If IPv4 ICMP pkt for linux handling
+		*  Flag pkt destined to S1U_IP for linux handling
+		*  Flag MCAST pkt for linux handling
+		*  Flag BCAST pkt for linux handling
+		*/
+		if ((ipv4_hdr->next_proto_id == IPPROTO_ICMP) ||
+			(app.wb_ip == ho_addr) || (app.wb_li_ip == ho_addr) ||
+			(IS_IPV4_MCAST(ho_addr)) ||
+			((app.wb_bcast_addr == ho_addr) || (app.wb_li_bcast_addr == ho_addr)))
 		{
 			clLog(clSystemLog, eCLSeverityDebug,
-				LOG_FORMAT"WB_IN:IPv4:Reject app.wb_ipv4 != ipv4_hdr->dst_addr= %s\n",
-				LOG_VALUE, inet_ntoa(*(struct in_addr *)&ho_addr));
-			ul_arp_pkt = 1;
-			return;
-		}
-		/* Flag MCAST pkt for linux handling */
-		if (IS_IPV4_MCAST(ho_addr))
-		{
-			clLog(clSystemLog, eCLSeverityDebug,
-				LOG_FORMAT"WB_IN:IPv4:IPV$_MCAST==ipv4_hdr->dst_addr= %s\n", LOG_VALUE,
+				LOG_FORMAT"WB_IN:ipv4_hdr->ICMP:ipv4_hdr->next_proto_id= %u\n"
+				"WB_IN:IPv4:Reject or MulticastIP or broadcast IP Pkt ipv4_hdr->dst_addr= %s\n",
+				LOG_VALUE, ipv4_hdr->next_proto_id,
 				inet_ntoa(*(struct in_addr *)&ho_addr));
-			ul_arp_pkt = 1;
-			return;
-		}
-		/* Flag BCAST pkt for linux handling */
-		if ((app.wb_bcast_addr == ho_addr) || (app.wb_li_bcast_addr == ho_addr))
-		{
-			clLog(clSystemLog, eCLSeverityDebug,
-				LOG_FORMAT"WB_IN:IPv4:app.wb_bcast_addr==ipv4_hdr->dst_addr= %s\n",
-				LOG_VALUE, inet_ntoa(*(struct in_addr *)&ho_addr));
 			ul_arp_pkt = 1;
 			return;
 		}
@@ -250,10 +234,9 @@ static inline void epc_ul_set_port_id(struct rte_mbuf *m)
 		if ((ipv6_hdr->proto == IPPROTO_ICMPV6) ||
 				(ipv6_hdr->proto != IPPROTO_UDP)) {
 			clLog(clSystemLog, eCLSeverityDebug,
-				LOG_FORMAT"WB_IN:ipv6->icmpv6:ipv6_hdr->proto= %u\n",
+				LOG_FORMAT"WB_IN:ipv6->icmpv6:ipv6_hdr->proto= %u\n"
+				"WB:ICMPv6: IPv6 Packets redirect to LINUX..\n",
 				LOG_VALUE, ipv6_hdr->proto);
-			clLog(clSystemLog, eCLSeverityDebug,
-					LOG_FORMAT"WB:ICMPv6: IPv6 Packets redirect to LINUX..\n", LOG_VALUE);
 
 			/* Redirect packets to LINUX and Master Core to fill the arp entry */
 			ul_arp_pkt = 1;
@@ -293,9 +276,8 @@ static inline void epc_ul_set_port_id(struct rte_mbuf *m)
 				/* TODO: Set activity flag if data receive from peer node */
 				check_activity(peer_addr);
 #endif /* USE_REST */
-
-				/* point to the payload of the IPv6 */
 				struct gtpu_hdr *gtpuhdr = get_mtogtpu_v6(m);
+				/* point to the payload of the IPv6 */
 				if ((gtpuhdr->msgtype == GTPU_ECHO_REQUEST && gtpuhdr->teid == 0) ||
 						gtpuhdr->msgtype == GTPU_ECHO_RESPONSE || 
 						gtpuhdr->msgtype == GTPU_ERROR_INDICATION) {
@@ -385,8 +367,8 @@ static epc_ul_handler epc_ul_worker_func[NUM_SPGW_PORTS];
 static inline int epc_ul_port_out_ah(struct rte_pipeline *p, struct rte_mbuf **pkts,
 		uint64_t pkts_mask, void *arg)
 {
+	pkts_mask = 0;
 	int worker_index = 0, ret = 0;
-	RTE_SET_USED(p);
 	int portno = (uintptr_t) arg;
 	if (ul_pkts_nbrst == ul_pkts_nbrst_prv)	{
 		return 0;
@@ -395,7 +377,7 @@ static inline int epc_ul_port_out_ah(struct rte_pipeline *p, struct rte_mbuf **p
 		epc_ul_handler f = epc_ul_worker_func[portno];
 		/* VS- NGCORE_SHRINK: worker_index-TBC */
 		if ( f != NULL) {
-			ret = f(p, pkts, ul_ndata_pkts, worker_index);
+			ret = f(p, pkts, ul_ndata_pkts, &pkts_mask, worker_index);
 		} else {
 			clLog(clSystemLog, eCLSeverityCritical,
 					LOG_FORMAT"Not Register WB pkts handler, Configured WB MAC was wrong\n",

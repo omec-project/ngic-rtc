@@ -508,8 +508,8 @@ msg_handler_gx( void )
 					return -1;
 			}
 		}
-		msg_len = gxmsg->msg_len;
-		bytes_rx = bytes_rx - msg_len;
+		msg_len += gxmsg->msg_len;
+		bytes_rx = bytes_rx - gxmsg->msg_len;
 	}
 
 	return 0;
@@ -558,4 +558,39 @@ start_cp_app(void )
 
 }
 
+void
+free_cca_msg_dynamically_alloc_memory(GxCCA *cca) {
 
+	if (cca->presence.charging_rule_install) {
+		for (uint8_t itr = 0; itr < cca->charging_rule_install.count; itr++) {
+			if (cca->charging_rule_install.list[itr].presence.charging_rule_definition) {
+				for (uint8_t itr1 = 0; itr1 < cca->charging_rule_install.list[itr].charging_rule_definition.count; itr1++) {
+					if (cca->charging_rule_install.list[itr].charging_rule_definition.list[itr1].presence.flow_information) {
+						free(cca->charging_rule_install.list[itr].charging_rule_definition.list[itr1].flow_information.list);
+						cca->charging_rule_install.list[itr].charging_rule_definition.list[itr1].flow_information.list = NULL;
+					}
+				}
+
+				free(cca->charging_rule_install.list[itr].charging_rule_definition.list);
+				cca->charging_rule_install.list[itr].charging_rule_definition.list = NULL;
+			}
+		}
+		free(cca->charging_rule_install.list);
+		cca->charging_rule_install.list = NULL;
+	}
+
+	if (cca->presence.event_trigger) {
+		free(cca->event_trigger.list);
+		cca->event_trigger.list = NULL;
+	}
+
+	if (cca->presence.qos_information) {
+		free(cca->qos_information.list);
+		cca->qos_information.list = NULL;
+	}
+
+	if (cca->presence.route_record) {
+		free(cca->route_record.list);
+		cca->route_record.list = NULL;
+	}
+}

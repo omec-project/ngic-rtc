@@ -111,13 +111,13 @@ void add_pdr_qer_for_rule(eps_bearer *bearer, bool prdef_rule)
 		}
 		memcpy(pdr_ctxt, bearer->pdrs[itr], sizeof(pdr_t));
 		pdr_ctxt->urr_id_count = 1;
-		pdr_ctxt->rule_id =  generate_pdr_id();
-		pdr_ctxt->urr.urr_id_value =  generate_urr_id();
+		pdr_ctxt->rule_id =  generate_pdr_id(&bearer->pdn->context->pdr_rule_id_offset);
+		pdr_ctxt->urr.urr_id_value =  generate_urr_id(&bearer->pdn->context->urr_rule_id_offset);
 		bearer->pdrs[bearer->pdr_count++] = pdr_ctxt;
 		pdr_ctxt->create_far = NOT_PRESENT;
 		pdr_ctxt->create_urr = PRESENT;
 
-		int ret = add_pdr_entry(pdr_ctxt->rule_id, pdr_ctxt);
+		int ret = add_pdr_entry(pdr_ctxt->rule_id, pdr_ctxt, bearer->pdn->seid);
 		if ( ret != 0) {
 			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Error while adding "
 				"PDR entry for Rule ID %d \n", LOG_VALUE, pdr_ctxt->rule_id);
@@ -129,7 +129,7 @@ void add_pdr_qer_for_rule(eps_bearer *bearer, bool prdef_rule)
 	if (bearer->pdn->context->cp_mode != SGWC){
 		if(!prdef_rule){
 			for(uint8_t itr = bearer->qer_count; itr < bearer->qer_count + NUMBER_OF_QER_PER_RULE; itr++){
-				bearer->qer_id[itr].qer_id = generate_qer_id();
+				bearer->qer_id[itr].qer_id = generate_qer_id(&bearer->pdn->context->qer_rule_id_offset);
 				fill_qer_entry(bearer->pdn, bearer, itr);
 			}
 			bearer->qer_count += NUMBER_OF_QER_PER_RULE;
@@ -195,13 +195,13 @@ fill_pfcp_gx_sess_mod_req( pfcp_sess_mod_req_t *pfcp_sess_mod_req,
 	{
 		for (int idx=0; idx <  pdn->policy.count; idx++)
 		{
-			if(pdn->policy.pcc_rule[idx].action == RULE_ACTION_ADD &&
-					action == RULE_ACTION_ADD)	{
+			if(pdn->policy.pcc_rule[idx]->action == RULE_ACTION_ADD &&
+					action == RULE_ACTION_ADD){
 
-				if(pdn->policy.pcc_rule[idx].predefined_rule){
-					bearer = get_bearer(pdn, &pdn->policy.pcc_rule[idx].pdef_rule.qos);
+				if(pdn->policy.pcc_rule[idx]->predefined_rule){
+					bearer = get_bearer(pdn, &pdn->policy.pcc_rule[idx]->urule.pdef_rule.qos);
 				}else{
-					bearer = get_bearer(pdn, &pdn->policy.pcc_rule[idx].dyn_rule.qos);
+					bearer = get_bearer(pdn, &pdn->policy.pcc_rule[idx]->urule.dyn_rule.qos);
 				}
 				if(bearer == NULL) {
 
@@ -233,16 +233,16 @@ fill_pfcp_gx_sess_mod_req( pfcp_sess_mod_req_t *pfcp_sess_mod_req,
 					pdn->context->eps_bearers[ebi_index] = bearer;
 					pdn->num_bearer++;
 
-					fill_dedicated_bearer_info(bearer, pdn->context, pdn, pdn->policy.pcc_rule[idx].predefined_rule);
+					fill_dedicated_bearer_info(bearer, pdn->context, pdn, pdn->policy.pcc_rule[idx]->predefined_rule);
 				}else{
-					add_pdr_qer_for_rule(bearer, pdn->policy.pcc_rule[idx].predefined_rule);
+					add_pdr_qer_for_rule(bearer, pdn->policy.pcc_rule[idx]->predefined_rule);
 				}
 
 				/*fill predefine rule*/
-				if(pdn->policy.pcc_rule[idx].predefined_rule){
+				if(pdn->policy.pcc_rule[idx]->predefined_rule){
 
-					memcpy(&(bearer->qos), &(pdn->policy.pcc_rule[idx].pdef_rule.qos), sizeof(bearer_qos_ie));
-					memcpy(&rule, &pdn->policy.pcc_rule[idx].pdef_rule, sizeof(dynamic_rule_t));
+					memcpy(&(bearer->qos), &(pdn->policy.pcc_rule[idx]->urule.pdef_rule.qos), sizeof(bearer_qos_ie));
+					memcpy(&rule, &pdn->policy.pcc_rule[idx]->urule.pdef_rule, sizeof(dynamic_rule_t));
 
 					bearer->prdef_rules[bearer->num_prdef_filters] =
 						rte_zmalloc_socket(NULL, sizeof(dynamic_rule_t),
@@ -256,12 +256,12 @@ fill_pfcp_gx_sess_mod_req( pfcp_sess_mod_req_t *pfcp_sess_mod_req,
 						return;
 					}
 					memcpy((bearer->prdef_rules[bearer->num_prdef_filters]),
-							&(pdn->policy.pcc_rule[idx].pdef_rule),
+							&(pdn->policy.pcc_rule[idx]->urule.pdef_rule),
 							sizeof(dynamic_rule_t));
 				} else {
 
-					memcpy(&(bearer->qos), &(pdn->policy.pcc_rule[idx].dyn_rule.qos), sizeof(bearer_qos_ie));
-					memcpy(&rule, &pdn->policy.pcc_rule[idx].dyn_rule, sizeof(dynamic_rule_t));
+					memcpy(&(bearer->qos), &(pdn->policy.pcc_rule[idx]->urule.dyn_rule.qos), sizeof(bearer_qos_ie));
+					memcpy(&rule, &pdn->policy.pcc_rule[idx]->urule.dyn_rule, sizeof(dynamic_rule_t));
 
 					bearer->dynamic_rules[bearer->num_dynamic_filters] =
 						rte_zmalloc_socket(NULL, sizeof(dynamic_rule_t),
@@ -277,7 +277,7 @@ fill_pfcp_gx_sess_mod_req( pfcp_sess_mod_req_t *pfcp_sess_mod_req,
 					}
 
 					memcpy( (bearer->dynamic_rules[bearer->num_dynamic_filters]),
-							&(pdn->policy.pcc_rule[idx].dyn_rule),
+							&(pdn->policy.pcc_rule[idx]->urule.dyn_rule),
 							sizeof(dynamic_rule_t));
 				}
 				fill_pfcp_entry(bearer, &rule);
@@ -292,23 +292,23 @@ fill_pfcp_gx_sess_mod_req( pfcp_sess_mod_req_t *pfcp_sess_mod_req,
 
 				fill_create_pfcp_info(pfcp_sess_mod_req, &rule, context, pdn->generate_cdr);
 
-				if(pdn->policy.pcc_rule[idx].predefined_rule)
+				if(pdn->policy.pcc_rule[idx]->predefined_rule)
 					bearer->num_prdef_filters++;
 				else
 					bearer->num_dynamic_filters++;
 
 			} else {
-				if(pdn->policy.pcc_rule[idx].action == RULE_ACTION_DELETE &&
+				if(pdn->policy.pcc_rule[idx]->action == RULE_ACTION_DELETE &&
 						action == RULE_ACTION_DELETE) {
 
 					rule_name_key_t rule_name = {0};
 					memset(rule_name.rule_name, '\0', sizeof(rule_name.rule_name));
 
-					if(pdn->policy.pcc_rule[idx].predefined_rule){
-						snprintf(rule_name.rule_name, RULE_NAME_LEN,"%s",pdn->policy.pcc_rule[idx].pdef_rule.rule_name);
+					if(pdn->policy.pcc_rule[idx]->predefined_rule){
+						snprintf(rule_name.rule_name, RULE_NAME_LEN,"%s",pdn->policy.pcc_rule[idx]->urule.pdef_rule.rule_name);
 					}else{
 						snprintf(rule_name.rule_name, RULE_NAME_LEN, "%s%d",
-								pdn->policy.pcc_rule[idx].dyn_rule.rule_name, pdn->call_id);
+								pdn->policy.pcc_rule[idx]->urule.dyn_rule.rule_name, pdn->call_id);
 					}
 					int8_t bearer_id = get_rule_name_entry(rule_name);
 					if (-1 == bearer_id) {
@@ -606,14 +606,14 @@ delete_pdr_qer_for_rule(eps_bearer *bearer, uint16_t pdr_id_value) {
 			}
 
 			remove_pdr_from_bearer(bearer, pdr_id_value);
-			if( del_pdr_entry(pdr_ctx->rule_id) != 0 ){
+			if( del_pdr_entry(pdr_ctx->rule_id,  bearer->pdn->seid) != 0 ){
 				clLog(clSystemLog, eCLSeverityDebug,
 					LOG_FORMAT"Error while deleting PDR entry for Rule id : %d\n",
 					LOG_VALUE, pdr_ctx->rule_id);
 			}
 			if (config.use_gx) {
 				remove_qer_from_bearer(bearer, pdr_ctx->qer.qer_id);
-				if(del_qer_entry(pdr_ctx->qer.qer_id) != 0 ){
+				if(del_qer_entry(pdr_ctx->qer.qer_id,  bearer->pdn->seid) != 0 ){
 					clLog(clSystemLog, eCLSeverityDebug,
 						LOG_FORMAT"Error while deleting QER entry for QER id : %d\n",
 						LOG_VALUE, pdr_ctx->qer.qer_id);
@@ -636,11 +636,11 @@ fill_update_bearer_sess_mod(pfcp_sess_mod_req_t *pfcp_sess_mod_req, eps_bearer *
 
 		for(int idx2 = 0; idx2 < bearer->pdr_count; idx2++){
 
-			if((pdn->policy.pcc_rule[idx].action == bearer->action) &&
-				(strncmp(pdn->policy.pcc_rule[idx].dyn_rule.rule_name,
+			if((pdn->policy.pcc_rule[idx]->action == bearer->action) &&
+				(strncmp(pdn->policy.pcc_rule[idx]->urule.dyn_rule.rule_name,
 					bearer->pdrs[idx2]->rule_name, RULE_NAME_LEN) == 0)){
 
-				if(pdn->policy.pcc_rule[idx].action == RULE_ACTION_MODIFY){
+				if(pdn->policy.pcc_rule[idx]->action == RULE_ACTION_MODIFY){
 
 
 					if(bearer->flow_desc_check == PRESENT && pdn->proc != HSS_INITIATED_SUB_QOS_MOD) {
@@ -649,7 +649,7 @@ fill_update_bearer_sess_mod(pfcp_sess_mod_req_t *pfcp_sess_mod_req, eps_bearer *
 						set_update_pdr(&(pfcp_sess_mod_req->update_pdr[index]),
 								bearer->pdrs[idx2], pdn->context->cp_mode );
 						fill_update_pdr_sdf_rule(pfcp_sess_mod_req->update_pdr,
-												&pdn->policy.pcc_rule[idx].dyn_rule, index);
+												&pdn->policy.pcc_rule[idx]->urule.dyn_rule, index);
 						pfcp_sess_mod_req->update_pdr_count++;
 
 					}
@@ -665,7 +665,7 @@ fill_update_bearer_sess_mod(pfcp_sess_mod_req_t *pfcp_sess_mod_req, eps_bearer *
 					    pfcp_sess_mod_req->update_qer_count++;
 					}
 
-				}else if(pdn->policy.pcc_rule[idx].action == RULE_ACTION_MODIFY_ADD_RULE){
+				}else if(pdn->policy.pcc_rule[idx]->action == RULE_ACTION_MODIFY_ADD_RULE){
 
 					/* A new rule to be added to Bearer already present */
 					int index = pfcp_sess_mod_req->create_pdr_count;
@@ -682,7 +682,7 @@ fill_update_bearer_sess_mod(pfcp_sess_mod_req_t *pfcp_sess_mod_req, eps_bearer *
 								bearer->pdrs[idx2], pdn->context->cp_mode);
 
 					fill_create_pdr_sdf_rules(pfcp_sess_mod_req->create_pdr,
-												&pdn->policy.pcc_rule[idx].dyn_rule,
+												&pdn->policy.pcc_rule[idx]->urule.dyn_rule,
 												index);
 					set_create_urr(&pfcp_sess_mod_req->create_urr[index],
 										bearer->pdrs[idx2]);
@@ -696,7 +696,7 @@ fill_update_bearer_sess_mod(pfcp_sess_mod_req_t *pfcp_sess_mod_req, eps_bearer *
 					rule_name_key_t rule_name = {0};
 					memset(rule_name.rule_name, '\0', sizeof(rule_name.rule_name));
 					snprintf(rule_name.rule_name, RULE_NAME_LEN,"%s%d",
-							pdn->policy.pcc_rule[idx].dyn_rule.rule_name, pdn->call_id);
+							pdn->policy.pcc_rule[idx]->urule.dyn_rule.rule_name, pdn->call_id);
 
 					bearer_id_t *id;
 					id = malloc(sizeof(bearer_id_t));
@@ -718,7 +718,7 @@ fill_update_bearer_sess_mod(pfcp_sess_mod_req_t *pfcp_sess_mod_req, eps_bearer *
 						return;
 					}
 
-				}else if(pdn->policy.pcc_rule[idx].action == RULE_ACTION_MODIFY_REMOVE_RULE){
+				}else if(pdn->policy.pcc_rule[idx]->action == RULE_ACTION_MODIFY_REMOVE_RULE){
 
 					/* A rule to be remove from Bearer already present */
 					int index = pfcp_sess_mod_req->remove_pdr_count;
@@ -957,12 +957,12 @@ sdf_pkt_filter_to_string(sdf_pkt_fltr *sdf_flow,
 
 	if(sdf_flow->v4){
 		snprintf(local_ip, sizeof(local_ip), "%s",
-				inet_ntoa(sdf_flow->local_ip_addr));
+				inet_ntoa(sdf_flow->ulocalip.local_ip_addr));
 		snprintf(remote_ip, sizeof(remote_ip), "%s",
-				inet_ntoa(sdf_flow->remote_ip_addr));
+				inet_ntoa(sdf_flow->uremoteip.remote_ip_addr));
 	}else if(sdf_flow->v6){
-		inet_ntop(AF_INET6, sdf_flow->local_ip6_addr.s6_addr, local_ip, IPV6_STR_LEN);
-		inet_ntop(AF_INET6, sdf_flow->remote_ip6_addr.s6_addr, remote_ip, IPV6_STR_LEN);
+		inet_ntop(AF_INET6, sdf_flow->ulocalip.local_ip6_addr.s6_addr, local_ip, IPV6_STR_LEN);
+		inet_ntop(AF_INET6, sdf_flow->uremoteip.remote_ip6_addr.s6_addr, remote_ip, IPV6_STR_LEN);
 		if(!sdf_flow->remote_ip_mask || sdf_flow->remote_ip_mask > DEFAULT_IPV6_MASK)
 			sdf_flow->remote_ip_mask = DEFAULT_IPV6_MASK;
 		if(!sdf_flow->local_ip_mask || sdf_flow->local_ip_mask > DEFAULT_IPV6_MASK)
@@ -1114,7 +1114,7 @@ fill_pdr_far_qer_using_bearer(pfcp_sess_mod_req_t *pfcp_sess_mod_req,
 		pfcp_sess_mod_req->create_qer_count = bearer->qer_count;
 		qer_t *qer_context = NULL;
 		for(int itr1 = 0; itr1 < pfcp_sess_mod_req->create_qer_count ; itr1++) {
-			qer_context = get_qer_entry(bearer->qer_id[itr1].qer_id);
+			qer_context = get_qer_entry(bearer->qer_id[itr1].qer_id, bearer->pdn->seid);
 			/* Assign the value from the PDR */
 			if(qer_context) {
 				set_create_qer(&(pfcp_sess_mod_req->create_qer[itr1]), qer_context);
@@ -1254,7 +1254,7 @@ fill_qer_entry(pdn_connection *pdn, eps_bearer *bearer, uint8_t itr)
 	qer_ctxt->max_bitrate.dl_mbr = bearer->qos.dl_mbr;
 	qer_ctxt->guaranteed_bitrate.ul_gbr = bearer->qos.ul_gbr;
 	qer_ctxt->guaranteed_bitrate.dl_gbr = bearer->qos.dl_gbr;
-	ret = add_qer_entry(qer_ctxt->qer_id,qer_ctxt);
+	ret = add_qer_entry(qer_ctxt->qer_id,qer_ctxt, pdn->seid);
 	if(ret != 0) {
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT" Error while adding "
 			"QER entry \n", LOG_VALUE);
@@ -1267,10 +1267,11 @@ fill_qer_entry(pdn_connection *pdn, eps_bearer *bearer, uint8_t itr)
 /**
  * @brief  : Add qer entry into hash
  * @param  : qer, data to be added
+ * @param  : seid, Session ID of UE
  * @return : Returns 0 on success, -1 otherwise
  */
 static int
-add_qer_into_hash(qer_t *qer)
+add_qer_into_hash(qer_t *qer, uint64_t seid)
 {
 	int ret = -1;
 	qer_t *qer_ctxt = NULL;
@@ -1290,7 +1291,7 @@ add_qer_into_hash(qer_t *qer)
 	qer_ctxt->guaranteed_bitrate.ul_gbr = qer->guaranteed_bitrate.ul_gbr;
 	qer_ctxt->guaranteed_bitrate.dl_gbr = qer-> guaranteed_bitrate.dl_gbr;
 
-	ret = add_qer_entry(qer_ctxt->qer_id, qer_ctxt);
+	ret = add_qer_entry(qer_ctxt->qer_id, qer_ctxt, seid);
 
 	if(ret != 0) {
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT" Error while adding "
@@ -1372,7 +1373,7 @@ int fill_pfcp_entry(eps_bearer *bearer, dynamic_rule_t *dyn_rule)
 
 			fill_pdr_sdf_qer(pdr_ctxt, dyn_rule);
 
-			ret = add_qer_into_hash(&pdr_ctxt->qer);
+			ret = add_qer_into_hash(&pdr_ctxt->qer, pdn->seid);
 
 			if(ret != 0) {
 				clLog(clSystemLog, eCLSeverityCritical, "[%s]:[%s]:[%d] Adding qer entry Error: %d \n", __file__,
@@ -1443,7 +1444,7 @@ fill_pdr_entry(ue_context *context, pdn_connection *pdn,
 
 	if (bearer->pdr_count) {
 		if (bearer->pdrs[itr] != NULL) {
-			pdr_ctxt = get_pdr_entry((bearer->pdrs[itr])->rule_id);
+			pdr_ctxt = get_pdr_entry((bearer->pdrs[itr])->rule_id, pdn->seid);
 		}
 	}
 	if (pdr_ctxt == NULL) {
@@ -1458,9 +1459,9 @@ fill_pdr_entry(ue_context *context, pdn_connection *pdn,
 			return NULL;
 		}
 		memset(pdr_ctxt, 0, sizeof(pdr_t));
-		pdr_ctxt->rule_id = generate_pdr_id();
-		pdr_ctxt->far.far_id_value = generate_far_id();
-		pdr_ctxt->urr.urr_id_value = generate_urr_id();
+		pdr_ctxt->rule_id = generate_pdr_id(&context->pdr_rule_id_offset);
+		pdr_ctxt->far.far_id_value = generate_far_id(&context->far_rule_id_offset);
+		pdr_ctxt->urr.urr_id_value = generate_urr_id(&context->urr_rule_id_offset);
 	} else {
 		/* Handover/Promotion scenario */
 		/* TODO */
@@ -1492,9 +1493,7 @@ fill_pdr_entry(ue_context *context, pdn_connection *pdn,
 	 * pdr_ctxt->pdi.ue_addr.ipv4_address = pdn->ipv4.s_addr;
 	 * }
 	 */
-	if(pdn->policy.pcc_rule[itr].predefined_rule){
 		pdr_ctxt->actvt_predef_rules_count += 1;
-	}else{
 		/*to be filled in fill_sdf_rule*/
 		pdr_ctxt->pdi.sdf_filter_cnt += 1;
 		if (context->cp_mode == PGWC || context->cp_mode == SAEGWC){
@@ -1504,19 +1503,18 @@ fill_pdr_entry(ue_context *context, pdn_connection *pdn,
 			pdr_ctxt->qer_id_count = 1;
 
 		}
-	}
 
 	if (pdn->pdn_type.ipv4) {
 
 		pdr_ctxt->pdi.ue_addr.v4 = 1;
-		pdr_ctxt->pdi.ue_addr.ipv4_address = pdn->ipv4.s_addr;
+		pdr_ctxt->pdi.ue_addr.ipv4_address = pdn->uipaddr.ipv4.s_addr;
 
 	}
 
 	if(pdn->pdn_type.ipv6) {
 
 		pdr_ctxt->pdi.ue_addr.v6 = 1;
-		memcpy(pdr_ctxt->pdi.ue_addr.ipv6_address, pdn->ipv6.s6_addr, IPV6_ADDRESS_LEN);
+		memcpy(pdr_ctxt->pdi.ue_addr.ipv6_address, pdn->uipaddr.ipv6.s6_addr, IPV6_ADDRESS_LEN);
 		pdr_ctxt->pdi.ue_addr.ipv6_pfx_dlgtn_bits = pdn->prefix_len;
 		pdr_ctxt->pdi.ue_addr.ipv6d = 1;
 
@@ -1580,14 +1578,15 @@ fill_pdr_entry(ue_context *context, pdn_connection *pdn,
 			pdr_ctxt->pdi.local_fteid.ipv4_address = 0;
 			if(context->indication_flag.oi != 0){
 
-			ret = set_node_address(&pdr_ctxt->far.outer_hdr_creation.ipv4_address,
+				if(bearer->s1u_enb_gtpu_ip.ip_type != NONE_PDN_TYPE) {
+					ret = set_node_address(&pdr_ctxt->far.outer_hdr_creation.ipv4_address,
 							pdr_ctxt->far.outer_hdr_creation.ipv6_address,
 							bearer->s1u_enb_gtpu_ip);
-			if (ret < 0) {
-				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
-					"IP address", LOG_VALUE);
-			}
-
+					if (ret < 0) {
+						clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+								"IP address", LOG_VALUE);
+					}
+				}
 				pdr_ctxt->far.outer_hdr_creation.teid =
 					bearer->s1u_enb_gtpu_teid;
 				pdr_ctxt->far.dst_intfc.interface_value =
@@ -1655,7 +1654,7 @@ fill_pdr_entry(ue_context *context, pdn_connection *pdn,
 	}
 
 	bearer->pdrs[itr] = pdr_ctxt;
-	ret = add_pdr_entry(bearer->pdrs[itr]->rule_id, bearer->pdrs[itr]);
+	ret = add_pdr_entry(bearer->pdrs[itr]->rule_id, bearer->pdrs[itr], pdn->seid);
 	if ( ret != 0) {
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Error while adding "
 			"pdr entry\n", LOG_VALUE);
@@ -1917,11 +1916,11 @@ fill_pfcp_sess_est_req( pfcp_sess_estab_req_t *pfcp_sess_est_req,
 		for (int idx=0; idx <  pdn->policy.num_charg_rule_install; idx++)
 		{
 			bearer = NULL;
-			if (pdn->policy.pcc_rule[idx].predefined_rule) {
-				default_bearer_qos = &pdn->policy.pcc_rule[idx].pdef_rule.qos;
+			if (pdn->policy.pcc_rule[idx]->predefined_rule) {
+				default_bearer_qos = &pdn->policy.pcc_rule[idx]->urule.pdef_rule.qos;
 
 			} else {
-				default_bearer_qos = &pdn->policy.pcc_rule[idx].dyn_rule.qos;
+				default_bearer_qos = &pdn->policy.pcc_rule[idx]->urule.dyn_rule.qos;
 			}
 			if(compare_default_bearer_qos(&pdn->policy.default_bearer_qos,
 						default_bearer_qos) == 0) {
@@ -1933,11 +1932,11 @@ fill_pfcp_sess_est_req( pfcp_sess_estab_req_t *pfcp_sess_est_req,
 					return;
 				}else {
 
-					if(!pdn->policy.pcc_rule[idx].predefined_rule){
+					if(!pdn->policy.pcc_rule[idx]->predefined_rule){
 						for(uint8_t itr=bearer->qer_count; itr < bearer->qer_count + NUMBER_OF_QER_PER_RULE;
 								itr++){
 
-							bearer->qer_id[itr].qer_id = generate_qer_id();
+							bearer->qer_id[itr].qer_id = generate_qer_id(&context->qer_rule_id_offset);
 							fill_qer_entry(pdn, bearer,itr);
 						}
 						bearer->qer_count += NUMBER_OF_QER_PER_RULE;
@@ -1979,21 +1978,21 @@ fill_pfcp_sess_est_req( pfcp_sess_estab_req_t *pfcp_sess_est_req,
 					pdn->context->eps_bearers[ebi_index] = bearer;
 					pdn->num_bearer++;
 					pdn->context->piggyback = TRUE;
-					fill_dedicated_bearer_info(bearer, pdn->context, pdn, pdn->policy.pcc_rule[idx].predefined_rule);
-					if(pdn->policy.pcc_rule[idx].predefined_rule == TRUE){
-						memcpy(&(bearer->qos), &(pdn->policy.pcc_rule[idx].pdef_rule.qos), sizeof(bearer_qos_ie));
-						memcpy(&rule, &pdn->policy.pcc_rule[idx].pdef_rule, sizeof(dynamic_rule_t));
+					fill_dedicated_bearer_info(bearer, pdn->context, pdn, pdn->policy.pcc_rule[idx]->predefined_rule);
+					if(pdn->policy.pcc_rule[idx]->predefined_rule == TRUE){
+						memcpy(&(bearer->qos), &(pdn->policy.pcc_rule[idx]->urule.pdef_rule.qos), sizeof(bearer_qos_ie));
+						memcpy(&rule, &pdn->policy.pcc_rule[idx]->urule.pdef_rule, sizeof(dynamic_rule_t));
 					}else{
-						memcpy(&(bearer->qos), &(pdn->policy.pcc_rule[idx].dyn_rule.qos), sizeof(bearer_qos_ie));
-						memcpy(&rule, &pdn->policy.pcc_rule[idx].dyn_rule, sizeof(dynamic_rule_t));
+						memcpy(&(bearer->qos), &(pdn->policy.pcc_rule[idx]->urule.dyn_rule.qos), sizeof(bearer_qos_ie));
+						memcpy(&rule, &pdn->policy.pcc_rule[idx]->urule.dyn_rule, sizeof(dynamic_rule_t));
 					}
 
 				}else{
-					add_pdr_qer_for_rule(bearer, pdn->policy.pcc_rule[idx].predefined_rule);
+					add_pdr_qer_for_rule(bearer, pdn->policy.pcc_rule[idx]->predefined_rule);
 				}
 			}
 
-			if(pdn->policy.pcc_rule[idx].predefined_rule) {
+			if(pdn->policy.pcc_rule[idx]->predefined_rule) {
 				bearer->prdef_rules[bearer->num_prdef_filters] =
 					rte_zmalloc_socket(NULL, sizeof(dynamic_rule_t),
 							RTE_CACHE_LINE_SIZE, rte_socket_id());
@@ -2006,13 +2005,13 @@ fill_pfcp_sess_est_req( pfcp_sess_estab_req_t *pfcp_sess_est_req,
 					return;
 				}
 				memcpy((bearer->prdef_rules[bearer->num_prdef_filters]),
-						&(pdn->policy.pcc_rule[idx].pdef_rule),
+						&(pdn->policy.pcc_rule[idx]->urule.pdef_rule),
 						sizeof(dynamic_rule_t));
 
 				for(int itr = 0; itr < NUMBER_OF_PDR_PER_RULE; itr++){
 
 					strncpy(bearer->pdrs[itr]->rule_name,
-							pdn->policy.pcc_rule[idx].pdef_rule.rule_name,
+							pdn->policy.pcc_rule[idx]->urule.pdef_rule.rule_name,
 							RULE_NAME_LEN);
 					bearer->prdef_rules[bearer->num_prdef_filters]->pdr[itr] = bearer->pdrs[itr];
 
@@ -2025,7 +2024,7 @@ fill_pfcp_sess_est_req( pfcp_sess_estab_req_t *pfcp_sess_est_req,
 				bearer->num_prdef_filters++;
 
 				if(pdn->context->piggyback == TRUE ) {
-					fill_pfcp_entry(bearer, &pdn->policy.pcc_rule[idx].pdef_rule);
+					fill_pfcp_entry(bearer, &pdn->policy.pcc_rule[idx]->urule.pdef_rule);
 				}
 
 			} else {
@@ -2043,13 +2042,13 @@ fill_pfcp_sess_est_req( pfcp_sess_estab_req_t *pfcp_sess_est_req,
 				}
 
 				memcpy( (bearer->dynamic_rules[bearer->num_dynamic_filters]),
-						&(pdn->policy.pcc_rule[idx].dyn_rule),
+						&(pdn->policy.pcc_rule[idx]->urule.dyn_rule),
 						sizeof(dynamic_rule_t));
 
 				for(int itr = 0; itr < NUMBER_OF_PDR_PER_RULE; itr++) {
 
 					strncpy(bearer->pdrs[itr]->rule_name,
-							pdn->policy.pcc_rule[idx].dyn_rule.rule_name,
+							pdn->policy.pcc_rule[idx]->urule.dyn_rule.rule_name,
 							RULE_NAME_LEN);
 					bearer->dynamic_rules[bearer->num_dynamic_filters]->pdr[itr] = bearer->pdrs[itr];
 
@@ -2063,7 +2062,7 @@ fill_pfcp_sess_est_req( pfcp_sess_estab_req_t *pfcp_sess_est_req,
 
 				bearer->num_dynamic_filters++;
 				if(pdn->context->piggyback == TRUE ) {
-					fill_pfcp_entry(bearer, &pdn->policy.pcc_rule[idx].dyn_rule);
+					fill_pfcp_entry(bearer, &pdn->policy.pcc_rule[idx]->urule.dyn_rule);
 				}
 
 			}
@@ -2289,7 +2288,7 @@ fill_pfcp_sess_est_req( pfcp_sess_estab_req_t *pfcp_sess_est_req,
 						}
 					}
 					if (bearer->num_dynamic_filters != 0 ){
-						qer_context = get_qer_entry(bearer->qer_id[idx].qer_id);
+						qer_context = get_qer_entry(bearer->qer_id[idx].qer_id, bearer->pdn->seid);
 						/* Assign the value from the PDR */
 						if(qer_context){
 							set_create_qer(&(pfcp_sess_est_req->create_qer[qer_idx]), qer_context);
@@ -2801,11 +2800,11 @@ fill_pdn_info(create_sess_req_t *csr, pdn_connection *pdn,
 			&& (context->indication_flag.daf == 0)
 			&& (csr->pgw_s5s8_addr_ctl_plane_or_pmip.teid_gre_key != 0)))) {
 		if (pdn->pdn_type.ipv4) {
-			pdn->ipv4.s_addr = csr->paa.pdn_addr_and_pfx;
+			pdn->uipaddr.ipv4.s_addr = csr->paa.pdn_addr_and_pfx;
 		}
 
 		if (pdn->pdn_type.ipv6) {
-			memcpy(pdn->ipv6.s6_addr, csr->paa.paa_ipv6, IPV6_ADDRESS_LEN);
+			memcpy(pdn->uipaddr.ipv6.s6_addr, csr->paa.paa_ipv6, IPV6_ADDRESS_LEN);
 		}
 
 		pdn->s5s8_pgw_gtpc_teid = csr->pgw_s5s8_addr_ctl_plane_or_pmip.teid_gre_key;
@@ -2935,7 +2934,7 @@ fill_dedicated_bearer_info(eps_bearer *bearer,
 				itr < bearer->qer_count + NUMBER_OF_QER_PER_RULE;
 				itr++){
 
-				bearer->qer_id[itr].qer_id = generate_qer_id();
+				bearer->qer_id[itr].qer_id = generate_qer_id(&context->qer_rule_id_offset);
 				fill_qer_entry(pdn, bearer,itr);
 			}
 			bearer->qer_count += NUMBER_OF_QER_PER_RULE;
@@ -3124,15 +3123,19 @@ fill_bearer_info(create_sess_req_t *csr, eps_bearer *bearer,
 
 		bearer->s5s8_pgw_gtpu_teid = csr->bearer_contexts_to_be_created[index].s5s8_u_pgw_fteid.teid_gre_key;
 
-		ret = fill_ip_addr(csr->bearer_contexts_to_be_created[index].s1u_enb_fteid.ipv4_address,
-			csr->bearer_contexts_to_be_created[index].s1u_enb_fteid.ipv6_address,
-			&bearer->s1u_enb_gtpu_ip);
-		if (ret < 0) {
-			clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
-				"IP address", LOG_VALUE);
-		}
+		if((((csr->bearer_contexts_to_be_created[index].s1u_enb_fteid.ipv4_address) != 0) ||
+				(!(*(csr->bearer_contexts_to_be_created[index].s1u_enb_fteid.ipv6_address))))&&
+				(csr->bearer_contexts_to_be_created[index].s1u_enb_fteid.teid_gre_key != 0)) {
+			ret = fill_ip_addr(csr->bearer_contexts_to_be_created[index].s1u_enb_fteid.ipv4_address,
+					csr->bearer_contexts_to_be_created[index].s1u_enb_fteid.ipv6_address,
+					&bearer->s1u_enb_gtpu_ip);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+						"IP address", LOG_VALUE);
+			}
 
-		bearer->s1u_enb_gtpu_teid = csr->bearer_contexts_to_be_created[index].s1u_enb_fteid.teid_gre_key;
+			bearer->s1u_enb_gtpu_teid = csr->bearer_contexts_to_be_created[index].s1u_enb_fteid.teid_gre_key;
+		}
 	}
 
 	/*SP: As per discussion Per bearer two pdrs and fars will be there*/
@@ -4987,7 +4990,16 @@ void
 fill_rule_and_qos_inform_in_pdn(pdn_connection *pdn)
 {
 	uint8_t idx = 0;
-	dynamic_rule_t *dynamic_rule = dynamic_rule = &pdn->policy.pcc_rule[0].dyn_rule;
+	pcc_rule_t *prule = rte_zmalloc_socket(NULL, sizeof(pcc_rule_t),
+		    RTE_CACHE_LINE_SIZE, rte_socket_id());
+
+	if(prule == NULL){
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to allocate"
+				"memory to pcc rule structure\n", LOG_VALUE);
+		return;
+	}
+	pdn->policy.pcc_rule[0] = prule;
+	dynamic_rule_t *dynamic_rule = dynamic_rule = &pdn->policy.pcc_rule[0]->urule.dyn_rule;
 	const char *local_ipv6_addr = "f000::0";
 	const char *remote_ipv6_addr = "f000::0";
 
@@ -5036,14 +5048,14 @@ fill_rule_and_qos_inform_in_pdn(pdn_connection *pdn)
 
 			dynamic_rule->flow_desc[idx].sdf_flw_desc.v4 = PRESENT;
 			dynamic_rule->flow_desc[idx].sdf_flw_desc.local_ip_mask = LOCAL_IP_MASK;
-			dynamic_rule->flow_desc[idx].sdf_flw_desc.local_ip_addr.s_addr = LOCAL_IP_ADDR;
+			dynamic_rule->flow_desc[idx].sdf_flw_desc.ulocalip.local_ip_addr.s_addr = LOCAL_IP_ADDR;
 			dynamic_rule->flow_desc[idx].sdf_flw_desc.remote_ip_mask = REMOTE_IP_MASK;
-			dynamic_rule->flow_desc[idx].sdf_flw_desc.remote_ip_addr.s_addr = REMOTE_IP_ADDR;
+			dynamic_rule->flow_desc[idx].sdf_flw_desc.uremoteip.remote_ip_addr.s_addr = REMOTE_IP_ADDR;
 		} else{
 			dynamic_rule->flow_desc[idx].sdf_flw_desc.v6 = PRESENT;
-			inet_pton(AF_INET6, local_ipv6_addr, &dynamic_rule->flow_desc[idx].sdf_flw_desc.local_ip6_addr);
+			inet_pton(AF_INET6, local_ipv6_addr, &dynamic_rule->flow_desc[idx].sdf_flw_desc.ulocalip.local_ip6_addr);
 			dynamic_rule->flow_desc[idx].sdf_flw_desc.local_ip_mask = LOCAL_IPV6_MASK;
-			inet_pton(AF_INET6, remote_ipv6_addr, &dynamic_rule->flow_desc[idx].sdf_flw_desc.remote_ip6_addr);
+			inet_pton(AF_INET6, remote_ipv6_addr, &dynamic_rule->flow_desc[idx].sdf_flw_desc.uremoteip.remote_ip6_addr);
 			dynamic_rule->flow_desc[idx].sdf_flw_desc.remote_ip_mask = REMOTE_IPV6_MASK;
 
 		}
@@ -5057,9 +5069,9 @@ fill_rule_and_qos_inform_in_pdn(pdn_connection *pdn)
 		dynamic_rule->flow_desc[idx].sdf_flw_desc.proto_id = PROTO_ID;
 		dynamic_rule->flow_desc[idx].sdf_flw_desc.direction = TFT_DIRECTION_BIDIRECTIONAL;
 		dynamic_rule->flow_desc[idx].sdf_flw_desc.v6 = PRESENT;
-		inet_pton(AF_INET6, local_ipv6_addr, &dynamic_rule->flow_desc[idx].sdf_flw_desc.local_ip6_addr);
+		inet_pton(AF_INET6, local_ipv6_addr, &dynamic_rule->flow_desc[idx].sdf_flw_desc.ulocalip.local_ip6_addr);
 		dynamic_rule->flow_desc[idx].sdf_flw_desc.local_ip_mask = LOCAL_IPV6_MASK;
-		inet_pton(AF_INET6, remote_ipv6_addr, &dynamic_rule->flow_desc[idx].sdf_flw_desc.remote_ip6_addr);
+		inet_pton(AF_INET6, remote_ipv6_addr, &dynamic_rule->flow_desc[idx].sdf_flw_desc.uremoteip.remote_ip6_addr);
 		dynamic_rule->flow_desc[idx].sdf_flw_desc.remote_ip_mask = REMOTE_IPV6_MASK;
 		/*increment as new flow added*/
 		dynamic_rule->num_flw_desc ++;
@@ -5170,7 +5182,6 @@ process_create_sess_req(create_sess_req_t *csr,
 
 		*_context = context;
 		context->indirect_tunnel_flag = 0;
-
 		if(csr->pres_rptng_area_info.header.len){
 			store_presc_reporting_area_info_to_ue_context(&csr->pres_rptng_area_info, context);
 		}
@@ -5242,9 +5253,9 @@ process_create_sess_req(create_sess_req_t *csr,
 
 			if (context->cp_mode != SGWC) {
 				if (pdn->pdn_type.ipv4)
-					pdn->ipv4.s_addr = ue_ip.s_addr;
+					pdn->uipaddr.ipv4.s_addr = ue_ip.s_addr;
 				if (pdn->pdn_type.ipv6)
-					memcpy(pdn->ipv6.s6_addr, ue_ipv6.s6_addr, IPV6_ADDRESS_LEN);
+					memcpy(pdn->uipaddr.ipv6.s6_addr, ue_ipv6.s6_addr, IPV6_ADDRESS_LEN);
 			}
 
 			if (fill_pdn_info(csr, pdn, context, bearer) != 0)
@@ -5728,13 +5739,16 @@ process_pfcp_sess_est_request(uint32_t teid, pdn_connection *pdn, upf_context_t 
 
 		/* Add entry for cp session id with link local csid */
 		sess_csid *tmp = NULL;
+		uint16_t local_csid = 0;
 		if ((context->cp_mode == SGWC) || (context->cp_mode == SAEGWC)) {
 			tmp = get_sess_csid_entry(
 					pdn->sgw_csid.local_csid[pdn->sgw_csid.num_csid - 1], ADD_NODE);
+			local_csid = pdn->sgw_csid.local_csid[pdn->sgw_csid.num_csid - 1];
 		} else {
 			/* PGWC */
 			tmp = get_sess_csid_entry(
 					pdn->pgw_csid.local_csid[pdn->pgw_csid.num_csid - 1], ADD_NODE);
+			local_csid = pdn->pgw_csid.local_csid[pdn->pgw_csid.num_csid - 1];
 		}
 
 		if (tmp == NULL) {
@@ -5748,7 +5762,7 @@ process_pfcp_sess_est_request(uint32_t teid, pdn_connection *pdn, upf_context_t 
 		if(tmp->cp_seid != pdn->seid && tmp->cp_seid != 0) {
 			sess_csid *new_node = NULL;
 			/* Add new node into csid linked list */
-			new_node = add_sess_csid_data_node(tmp);
+			new_node = add_sess_csid_data_node(tmp, local_csid);
 			if(new_node == NULL ) {
 				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to ADD new "
 						"node into CSID linked list : %s\n", LOG_VALUE);
@@ -5761,6 +5775,7 @@ process_pfcp_sess_est_request(uint32_t teid, pdn_connection *pdn, upf_context_t 
 		} else {
 			tmp->cp_seid = pdn->seid;
 			tmp->up_seid = pdn->dp_seid;
+			tmp->next = NULL;
 		}
 
 		if (pdn->flag_fqcsid_modified == TRUE) {
@@ -6403,7 +6418,8 @@ gtpc_recvd_sgw_fqcsid(gtp_fqcsid_ie_t *sgw_fqcsid,
 			if(tmp->cp_seid != pdn->seid && tmp->cp_seid != 0) {
 				sess_csid *new_node = NULL;
 				/* Add new node into csid linked list */
-				new_node = add_sess_csid_data_node(tmp);
+				new_node = add_sess_csid_data_node(tmp,
+					 pdn->pgw_csid.local_csid[pdn->pgw_csid.num_csid - 1]);
 				if(new_node == NULL ) {
 					clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to "
 							"ADD new node into CSID linked list : %s\n", LOG_VALUE);
@@ -6416,6 +6432,7 @@ gtpc_recvd_sgw_fqcsid(gtp_fqcsid_ie_t *sgw_fqcsid,
 			} else {
 				tmp->cp_seid = pdn->seid;
 				tmp->up_seid = pdn->dp_seid;
+				tmp->next = NULL;
 			}
 
 			/* Generate the New CSID */
@@ -7002,7 +7019,8 @@ int send_pfcp_sess_mod_req(pdn_connection *pdn, eps_bearer *bearer,
 			if(tmp->cp_seid != pdn->seid && tmp->cp_seid != 0) {
 				sess_csid *new_node = NULL;
 				/* Add new node into csid linked list */
-				new_node = add_sess_csid_data_node(tmp);
+				new_node = add_sess_csid_data_node(tmp,
+					pdn->sgw_csid.local_csid[pdn->sgw_csid.num_csid - 1]);
 				if(new_node == NULL ) {
 					clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to "
 							"ADD new node into CSID linked list : %s\n", LOG_VALUE);
@@ -7015,6 +7033,7 @@ int send_pfcp_sess_mod_req(pdn_connection *pdn, eps_bearer *bearer,
 			} else {
 				tmp->cp_seid = pdn->seid;
 				tmp->up_seid = pdn->dp_seid;
+				tmp->next = NULL;
 			}
 
 			/* Fill the fqcsid into the session est request */
@@ -7487,17 +7506,17 @@ update_ue_context(mod_bearer_req_t *mb_req, ue_context *context,
 	int ebi_index = 0;
 
 	if(context != NULL ) {
-		if(context->mbr_info.seq ==  mb_req->header.teid.has_teid.seq) {
-			if(context->mbr_info.status == MBR_IN_PROGRESS) {
+		if(context->req_status.seq ==  mb_req->header.teid.has_teid.seq) {
+			if(context->req_status.status == REQ_IN_PROGRESS) {
 				/* Discarding re-transmitted mbr */
 				return GTPC_RE_TRANSMITTED_REQ;
 			}else{
 				/* Restransmitted MBR but processing altready done for previous req */
-				context->mbr_info.status = MBR_IN_PROGRESS;
+				context->req_status.status = REQ_IN_PROGRESS;
 			}
 		}else{
-			context->mbr_info.seq = mb_req->header.teid.has_teid.seq;
-			context->mbr_info.status = MBR_IN_PROGRESS;
+			context->req_status.seq = mb_req->header.teid.has_teid.seq;
+			context->req_status.status = REQ_IN_PROGRESS;
 		}
 	}
 
@@ -7744,6 +7763,7 @@ int process_pfcp_sess_mod_req_for_saegwc_pgwc(mod_bearer_req_t *mb_req,
 	int ret = 0;
 	eps_bearer *bearer  = NULL;
 	pdn_connection *pdn =  NULL;
+	pdr_ids *pfcp_pdr_id = NULL;
 
 	if(mb_req->bearer_count != 0 ) {
 		ebi_index = GET_EBI_INDEX(mb_req->bearer_contexts_to_be_modified[0].eps_bearer_id.ebi_ebi);
@@ -7779,6 +7799,13 @@ int process_pfcp_sess_mod_req_for_saegwc_pgwc(mod_bearer_req_t *mb_req,
 	pdn = bearer->pdn;
 	pdn->proc = MODIFY_BEARER_PROCEDURE;
 	if(context->cp_mode == SAEGWC){
+
+		/* Remove session Entry from buffered ddn request hash */
+		pfcp_pdr_id = delete_buff_ddn_req(pdn->seid);
+		if(pfcp_pdr_id != NULL) {
+			rte_free(pfcp_pdr_id);
+			pfcp_pdr_id = NULL;
+		}
 		/* Delete the timer entry for UE LEVEL timer if already present */
 		delete_ddn_timer_entry(timer_by_teid_hash, mb_req->header.teid.has_teid.teid, ddn_by_seid_hash);
 
@@ -8175,6 +8202,8 @@ process_bearer_rsrc_cmd(bearer_rsrc_cmd_t *bearer_rsrc_cmd,
 	eps_bearer *bearer = NULL;
 	pdn_connection *pdn = NULL;
 	struct resp_info *resp = NULL;
+	struct teid_value_t *teid_value = NULL;
+	teid_key_t teid_key = {0};
 
 	/*store pti in context*/
 	if(context->proc_trans_id != bearer_rsrc_cmd->pti.proc_trans_id) {
@@ -8273,6 +8302,43 @@ process_bearer_rsrc_cmd(bearer_rsrc_cmd_t *bearer_rsrc_cmd,
 	resp->gtpc_msg.bearer_rsrc_cmd.header.teid.has_teid.seq = bearer_rsrc_cmd->header.teid.has_teid.seq;
 	resp->proc = pdn->proc;
 
+	/* Store sgw s5s8 teid based on msg seq number for Error handling
+	 * if response receive to bearer resourse cmd contain wrong
+	 * teid or zero teid.
+	 * */
+
+	if (pdn->context->cp_mode == SGWC) {
+		teid_value = rte_zmalloc_socket(NULL, sizeof(teid_value_t),
+				RTE_CACHE_LINE_SIZE, rte_socket_id());
+
+		if (teid_value == NULL) {
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to allocate "
+					"memory for teid value, Error : %s\n", LOG_VALUE,
+					rte_strerror(rte_errno));
+			return GTPV2C_CAUSE_SYSTEM_FAILURE;
+		}
+
+		/*Store TEID and msg_type*/
+		teid_value->teid = pdn->s5s8_sgw_gtpc_teid;
+		teid_value->msg_type = resp->msg_type;
+
+		snprintf(teid_key.teid_key, PROC_LEN, "%s%d", get_proc_string(resp->proc),
+				bearer_rsrc_cmd->header.teid.has_teid.seq);
+
+		clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"teid_key.teid_key : %s\n", LOG_VALUE,teid_key.teid_key);
+
+		/* Add the entry for sequence and teid value for error handling */
+		ret = add_seq_number_for_teid(teid_key, teid_value);
+		if(ret) {
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to add "
+					"Sequence number for TEID: %u\n", LOG_VALUE,
+					teid_value->teid);
+			rte_free(teid_value);
+			return GTPV2C_CAUSE_SYSTEM_FAILURE;
+		}
+	}
+
 	return 0;
 }
 
@@ -8299,6 +8365,7 @@ process_pfcp_sess_mod_request(mod_bearer_req_t *mb_req, ue_context *context)
 	eps_bearer *bearers[MAX_BEARERS] ={NULL};
 	pdn_connection *pdn =  NULL;
 	struct resp_info *resp = NULL;
+	pdr_ids *pfcp_pdr_id = NULL;
 	pfcp_sess_mod_req_t pfcp_sess_mod_req = {0};
 	pfcp_update_far_ie_t update_far[MAX_LIST_SIZE] = {0};
 
@@ -8348,6 +8415,12 @@ process_pfcp_sess_mod_request(mod_bearer_req_t *mb_req, ue_context *context)
 		pdn = bearer->pdn;
 		pdn->proc = MODIFY_BEARER_PROCEDURE;
 
+		/* Remove session Entry from buffered ddn request hash */
+		pfcp_pdr_id = delete_buff_ddn_req(pdn->seid);
+		if(pfcp_pdr_id != NULL) {
+			rte_free(pfcp_pdr_id);
+			pfcp_pdr_id = NULL;
+		}
 		/* Delete the timer entry for UE LEVEL timer if already present */
 		delete_ddn_timer_entry(timer_by_teid_hash, mb_req->header.teid.has_teid.teid, ddn_by_seid_hash);
 
@@ -8766,7 +8839,8 @@ process_pfcp_sess_mod_request(mod_bearer_req_t *mb_req, ue_context *context)
 			if(tmp->cp_seid != pdn->seid && tmp->cp_seid != 0) {
 				sess_csid *new_node = NULL;
 				/* Add new node into csid linked list */
-				new_node = add_sess_csid_data_node(tmp);
+				new_node = add_sess_csid_data_node(tmp,
+					 pdn->sgw_csid.local_csid[pdn->sgw_csid.num_csid - 1]);
 				if(new_node == NULL ) {
 					clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to "
 						"ADD new node into CSID linked list : %s\n", LOG_VALUE);
@@ -8779,6 +8853,7 @@ process_pfcp_sess_mod_request(mod_bearer_req_t *mb_req, ue_context *context)
 			} else {
 				tmp->cp_seid = pdn->seid;
 				tmp->up_seid = pdn->dp_seid;
+				tmp->next = NULL;
 			}
 			/* Fill the fqcsid into the session est request */
 			if (fill_fqcsid_sess_mod_req(&pfcp_sess_mod_req, pdn)) {
@@ -9564,19 +9639,21 @@ process_pfcp_sess_mod_resp_mbr_req(pfcp_sess_mod_rsp_t *pfcp_sess_mod_rsp,
 		gtpv2c_send(s11_fd, s11_fd_v6, tx_buf, payload_length,
 				s11_mme_sockaddr, ACC);
 
-		process_cp_li_msg(
-				pdn->seid, S11_INTFC_OUT, tx_buf, payload_length,
-				fill_ip_info(s11_mme_sockaddr.type,
+		if (PRESENT == context->dupl) {
+			process_cp_li_msg(
+					pdn->seid, S11_INTFC_OUT, tx_buf, payload_length,
+					fill_ip_info(s11_mme_sockaddr.type,
 						config.s11_ip.s_addr,
 						config.s11_ip_v6.s6_addr),
-				fill_ip_info(s11_mme_sockaddr.type,
+					fill_ip_info(s11_mme_sockaddr.type,
 						s11_mme_sockaddr.ipv4.sin_addr.s_addr,
 						s11_mme_sockaddr.ipv6.sin6_addr.s6_addr),
-				config.s11_port,
-				((s11_mme_sockaddr.type == IPTYPE_IPV4_LI) ?
-					ntohs(s11_mme_sockaddr.ipv4.sin_port) :
-					ntohs(s11_mme_sockaddr.ipv6.sin6_port)));
+					config.s11_port,
+					((s11_mme_sockaddr.type == IPTYPE_IPV4_LI) ?
+					 ntohs(s11_mme_sockaddr.ipv4.sin_port) :
+					 ntohs(s11_mme_sockaddr.ipv6.sin6_port)));
 
+		}
 
 		resp->state = CONNECTED_STATE;
 		pdn->state =  CONNECTED_STATE;
@@ -9655,7 +9732,7 @@ process_pfcp_sess_mod_resp_mbr_req(pfcp_sess_mod_rsp_t *pfcp_sess_mod_rsp,
 			cp_mode = context->cp_mode;
 			add_gtpv2c_if_timer_entry(
 					pdn->context->s11_sgw_gtpc_teid,
-					&s5s8_recv_sockaddr, tx_buf, payload_length,
+					&s5s8_recv_sockaddr, s5s8_tx_buf, payload_length,
 					ebi_index,
 					S5S8_IFACE, cp_mode);
 
@@ -10668,7 +10745,7 @@ del_rule_entries(pdn_connection *pdn, int ebi_index )
 	/*Delete all pdr, far, qer entry from table */
 	if (config.use_gx) {
 		for(uint8_t itr = 0; itr < pdn->eps_bearers[ebi_index]->qer_count; itr++) {
-			if( del_qer_entry(pdn->eps_bearers[ebi_index]->qer_id[itr].qer_id) != 0 ){
+			if( del_qer_entry(pdn->eps_bearers[ebi_index]->qer_id[itr].qer_id, pdn->seid) != 0 ){
 				clLog(clSystemLog, eCLSeverityCritical,
 					LOG_FORMAT"Failure in deleting QER entry for ebi_index : %d, "
 					"Error : %s \n", LOG_VALUE, ebi_index, strerror(ret));
@@ -10683,7 +10760,7 @@ del_rule_entries(pdn_connection *pdn, int ebi_index )
 				LOG_FORMAT"No PDR entry found for ebi_index : %d, "
 				"Error : %s \n", LOG_VALUE, ebi_index, strerror(ret));
 		} else {
-			if( del_pdr_entry(pdr_ctx->rule_id) != 0 ){
+			if( del_pdr_entry(pdr_ctx->rule_id,  pdn->seid) != 0 ){
 				clLog(clSystemLog, eCLSeverityCritical,
 					LOG_FORMAT"Failure in deleting PDR entry for ebi_index : %d, "
 					"Error : %s \n", LOG_VALUE, ebi_index, strerror(ret));
@@ -11579,6 +11656,8 @@ process_pfcp_sess_del_resp(uint64_t sess_id, gtpv2c_header_t *gtpv2c_tx,
 	del_sess_rsp_t del_resp = {0};
 	uint32_t sender_teid = 0;
 	int ret = 0;
+	pdr_ids *pfcp_pdr_id = NULL;
+
 	/* Lookup entry in hash table on the basis of session id*/
 	if (get_sess_entry(sess_id, &resp) != 0) {
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"NO response Entry "
@@ -11694,9 +11773,15 @@ process_pfcp_sess_del_resp(uint64_t sess_id, gtpv2c_header_t *gtpv2c_tx,
 	encode_del_sess_rsp(&del_resp, (uint8_t *)gtpv2c_tx);
 
 	/* Update status of dsr processing for ue */
-	context->dsr_info.seq = 0;
-	context->dsr_info.status = DSR_PROCESS_DONE;
+	context->req_status.seq = 0;
+	context->req_status.status = REQ_PROCESS_DONE;
 
+	/* Remove session Entry from buffered ddn request hash */
+	pfcp_pdr_id = delete_buff_ddn_req(pdn->seid);
+	if(pfcp_pdr_id != NULL) {
+		rte_free(pfcp_pdr_id);
+		pfcp_pdr_id = NULL;
+	}
 	/*delete only session entries */
 	delete_entry_from_sess_hash(sess_id, ddn_by_seid_hash);
 	delete_entry_from_sess_hash(sess_id, pfcp_rep_by_seid_hash);
@@ -12532,7 +12617,7 @@ provision_ack_ccr(pdn_connection *pdn, eps_bearer *bearer,
 	ccr_request.data.ccr.charging_rule_report.count = pdn->pro_ack_rule_array.rule_cnt;
 
 	ccr_request.data.ccr.charging_rule_report.list = rte_malloc_socket(NULL,
-			(sizeof(GxChargingRuleReportList)*(pdn->pro_ack_rule_array.rule_cnt)),
+			(sizeof(GxChargingRuleReport)*(pdn->pro_ack_rule_array.rule_cnt)),
 			RTE_CACHE_LINE_SIZE, rte_socket_id());
 
 	if(ccr_request.data.ccr.charging_rule_report.list == NULL) {
@@ -12606,7 +12691,7 @@ provision_ack_ccr(pdn_connection *pdn, eps_bearer *bearer,
 	}
 
 
-	char *temp = inet_ntoa(pdn->ipv4);
+	char *temp = inet_ntoa(pdn->uipaddr.ipv4);
 	memcpy(ccr_request.data.ccr.framed_ip_address.val, &temp, strnlen(temp,(GX_FRAMED_IP_ADDRESS_LEN + 1)));
 	ebi_index = GET_EBI_INDEX(bearer->eps_bearer_id);
 	if(ebi_index == -1) {
@@ -13291,7 +13376,8 @@ process_pfcp_mod_req_modify_access_req(mod_acc_bearers_req_t *mod_acc_req)
 			if(tmp->cp_seid != pdn->seid && tmp->cp_seid != 0) {
 				sess_csid *new_node = NULL;
 				/* Add new node into csid linked list */
-				new_node = add_sess_csid_data_node(tmp);
+				new_node = add_sess_csid_data_node(tmp,
+					pdn->sgw_csid.local_csid[pdn->sgw_csid.num_csid - 1]);
 				if(new_node == NULL ) {
 					clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to "
 							"ADD new node into CSID linked list : %s\n", LOG_VALUE);
@@ -13304,6 +13390,7 @@ process_pfcp_mod_req_modify_access_req(mod_acc_bearers_req_t *mod_acc_req)
 			} else {
 				tmp->cp_seid = pdn->seid;
 				tmp->up_seid = pdn->dp_seid;
+				tmp->next = NULL;
 			}
 			/* Fill the fqcsid into the session est request */
 			if (fill_fqcsid_sess_mod_req(&pfcp_sess_mod_req, pdn)) {
@@ -13598,4 +13685,36 @@ fill_packet_fltr_info_avp(gx_msg *ccr_request, tad_pkt_fltr_t *tad_pkt_fltr, uin
 	return 0;
 
 }
+#ifdef CP_BUILD
 
+int
+send_pfcp_del_sess_req(uint64_t sess_id, peer_addr_t *peer_addr) {
+	uint32_t seq = 1;
+	uint64_t up_sess_id = 0;
+	pfcp_sess_del_req_t pfcp_sess_del_req = {0};
+
+	seq = get_pfcp_sequence_number(PFCP_SESSION_DELETION_REQUEST, seq);
+	set_pfcp_seid_header((pfcp_header_t *) &(pfcp_sess_del_req.header),
+			PFCP_SESSION_DELETION_REQUEST, HAS_SEID, seq, 0);
+
+	/* Generate UP SEID from CP SEID */
+	up_sess_id = ((((sess_id >> 32) + 1) << 32)  | (sess_id & 0xfffffff) );
+
+	pfcp_sess_del_req.header.seid_seqno.has_seid.seid = up_sess_id;
+
+	uint8_t pfcp_msg[PFCP_MSG_LEN]={0};
+
+	int encoded = encode_pfcp_sess_del_req_t(&pfcp_sess_del_req, pfcp_msg);
+
+	/* Fill the target UPF ip address  */
+	memcpy(&upf_pfcp_sockaddr, peer_addr, sizeof(peer_addr_t));
+
+	if ( pfcp_send(pfcp_fd, pfcp_fd_v6, pfcp_msg, encoded, upf_pfcp_sockaddr,SENT) < 0 ){
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Error sending pfcp session "
+				"deletion request : %i\n", LOG_VALUE, errno);
+		return -1;
+	}
+
+	return 0;
+}
+#endif /* CP_BUILD */

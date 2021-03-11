@@ -433,11 +433,15 @@ set_create_bearer_request(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
 				memset(cb_req.bearer_contexts[idx].tft.eps_bearer_lvl_tft, 0, MAX_TFT_LEN);
 				memcpy(cb_req.bearer_contexts[idx].tft.eps_bearer_lvl_tft,
 											resp->eps_bearer_lvl_tft[idx], MAX_TFT_LEN);
+				if (resp->eps_bearer_lvl_tft[idx] != NULL) {
+					rte_free(resp->eps_bearer_lvl_tft[idx]);
+					resp->eps_bearer_lvl_tft[idx] = NULL;
+				}
 				set_ie_header(&cb_req.bearer_contexts[idx].tft.header,
 								GTP_IE_EPS_BEARER_LVL_TRAFFIC_FLOW_TMPL,
 								IE_INSTANCE_ZERO, resp->tft_header_len[idx]);
 				len = resp->tft_header_len[idx] + IE_HEADER_SIZE;
-					cb_req.bearer_contexts[idx].header.len += len;
+				cb_req.bearer_contexts[idx].header.len += len;
 			}
 			set_charging_id(&cb_req.bearer_contexts[idx].charging_id, IE_INSTANCE_ZERO, 1);
 			cb_req.bearer_contexts[idx].header.len += sizeof(gtp_charging_id_ie_t);
@@ -507,7 +511,7 @@ set_create_bearer_response(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
 	set_cause_accepted(&cb_resp.cause, IE_INSTANCE_ZERO);
 
 	if (TRUE == context->piggyback) {
-		cb_resp.cause.cause_value = resp->cb_rsp_attach.cause.cause_value;
+		cb_resp.cause.cause_value = resp->cb_rsp_attach.cause_value;
 	} else {
 		cb_resp.cause.cause_value = resp->gtpc_msg.cb_rsp.cause.cause_value;
 	}
@@ -545,7 +549,7 @@ set_create_bearer_response(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
 
 			if (TRUE == context->piggyback) {
 				cb_resp.bearer_contexts[idx].cause.cause_value =
-						resp->cb_rsp_attach.bearer_contexts[idx].cause.cause_value;
+						resp->cb_rsp_attach.bearer_cause_value[idx];
 			} else {
 				cb_resp.bearer_contexts[idx].cause.cause_value =
 						resp->gtpc_msg.cb_rsp.bearer_contexts[idx].cause.cause_value;
@@ -564,7 +568,7 @@ set_create_bearer_response(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
 			cb_resp.bearer_contexts[idx].header.len += len;
 
 			if (TRUE == context->piggyback) {
-				if((resp->cb_rsp_attach.bearer_contexts[idx].cause.cause_value
+				if((resp->cb_rsp_attach.bearer_cause_value[idx]
 							!= GTPV2C_CAUSE_REQUEST_ACCEPTED)) {
 					rte_free(bearer);
 				}

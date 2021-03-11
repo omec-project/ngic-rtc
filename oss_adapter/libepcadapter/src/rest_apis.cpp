@@ -167,6 +167,21 @@ RestStatFrequencyGet::process(const Pistache::Http::Request& request,
 	free(res);
 }
 
+RestPerfFlagGet::RestPerfFlagGet(ELogger &audit)
+: EManagementHandler(EManagementHandler::HttpMethod::httpGet,
+			GET_PERF_FLAG_URI, audit)
+{}
+
+void
+RestPerfFlagGet::process(const Pistache::Http::Request& request,
+				Pistache::Http::ResponseWriter &response)
+{
+	char *res = (char *)malloc(RSP_LEN);
+	m_cb(request.body().c_str(), &res);
+	response.send(Pistache::Http::Code::Ok, res);
+	free(res);
+}
+
 RestPeriodicTimerPost::RestPeriodicTimerPost(ELogger &audit)
 : EManagementHandler(EManagementHandler::HttpMethod::httpPost,
 			GET_PERIODIC_TIMER_URI, audit)
@@ -294,6 +309,21 @@ RestStatFrequencyPost::RestStatFrequencyPost(ELogger &audit)
 
 void
 RestStatFrequencyPost::process(const Pistache::Http::Request& request,
+				Pistache::Http::ResponseWriter &response)
+{
+	char *res = (char *)malloc(RSP_LEN);
+	m_cb(request.body().c_str(), &res);
+	response.send(Pistache::Http::Code::Ok, res);
+	free(res);
+}
+
+RestPerfFlagPost::RestPerfFlagPost(ELogger &audit)
+: EManagementHandler(EManagementHandler::HttpMethod::httpPost,
+			GET_PERF_FLAG_URI, audit)
+{}
+
+void
+RestPerfFlagPost::process(const Pistache::Http::Request& request,
 				Pistache::Http::ResponseWriter &response)
 {
 	char *res = (char *)malloc(RSP_LEN);

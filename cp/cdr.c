@@ -375,12 +375,12 @@ generate_cdr_info(cdr *fill_cdr)
 	/*UE IPv4*/
 	if ( pdn->pdn_type.ipv4 == PRESENT) {
 		snprintf(ue_ip_addr_ipv4, CDR_BUFF_SIZE, "%s",
-				inet_ntoa(*((struct in_addr *)&pdn->ipv4.s_addr)));
+				inet_ntoa(*((struct in_addr *)&pdn->uipaddr.ipv4.s_addr)));
 	}
 
 	/*UE IPv6*/
 	if (pdn->pdn_type.ipv6 == PRESENT)
-		inet_ntop(AF_INET6, pdn->ipv6.s6_addr, ue_ip_addr_ipv6, CDR_BUFF_SIZE);
+		inet_ntop(AF_INET6, pdn->uipaddr.ipv6.s6_addr, ue_ip_addr_ipv6, CDR_BUFF_SIZE);
 
 	/*Control plane Mgmnt Ip address*/
 	if (config.pfcp_ip_type == IP_TYPE_V4 ||

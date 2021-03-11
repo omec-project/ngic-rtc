@@ -71,6 +71,7 @@
 
 #define MAX_BEARERS                  (14)
 #define MAX_FILTERS_PER_UE           (16)
+#define MAX_RULES                    (32)
 
 #define MAX_NETCAP_LEN               (64)
 #define MAX_APN_LEN                  (64)
@@ -390,27 +391,34 @@ typedef struct sdf_pkt_fltr_t {
 	uint16_t local_port_high;
 	uint16_t remote_port_low;
 	uint16_t remote_port_high;
-	struct in_addr local_ip_addr;
-	struct in_addr remote_ip_addr;
-	struct in6_addr local_ip6_addr;
-	struct in6_addr remote_ip6_addr;
+	union {
+		struct in_addr local_ip_addr;
+		struct in6_addr local_ip6_addr;
+	}ulocalip;
+
+	union{
+		struct in_addr remote_ip_addr;
+		struct in6_addr remote_ip6_addr;
+	}uremoteip;
 } sdf_pkt_fltr;
 
 /**
  * @brief  : Maintains flow description data
  */
 typedef struct flow_description {
+	char sdf_flow_description[MAX_SDF_DESC_LEN];
 	uint8_t pckt_fltr_identifier;
+	uint16_t flow_desc_len;
 	int32_t flow_direction;
 	sdf_pkt_fltr sdf_flw_desc;
-	char sdf_flow_description[MAX_SDF_DESC_LEN];
-	uint16_t flow_desc_len;
 }flow_desc_t;
 
 /**
  * @brief  : Maintains information about dynamic rule
  */
 typedef struct dynamic_rule{
+	uint8_t num_flw_desc;
+	bool predefined_rule;
 	int32_t online;
 	int32_t offline;
 	int32_t flow_status;
@@ -421,10 +429,7 @@ typedef struct dynamic_rule{
 	uint32_t def_bearer_indication;
 	char rule_name[RULE_NAME_LEN];
 	char af_charging_id_string[256];
-	bool predefined_rule;
 	bearer_qos_ie qos;
-	/* Need to think on it */
-	uint8_t num_flw_desc;
 	flow_desc_t flow_desc[32];
 	pdr_t *pdr[NUMBER_OF_PDR_PER_RULE];
 }dynamic_rule_t;
@@ -442,13 +447,16 @@ enum rule_action_t {
 /**
  * @brief  : Maintains information about pcc rule
  */
-typedef struct pcc_rule{
+struct pcc_rule{
 	enum rule_action_t action;
 	bool predefined_rule;
-	dynamic_rule_t dyn_rule;
-	/* maintain the predefined rule info */
-	dynamic_rule_t pdef_rule;
-}pcc_rule_t;
+	union{
+		dynamic_rule_t dyn_rule;
+		/* maintain the predefined rule info */
+		dynamic_rule_t pdef_rule;
+	}urule;
+}__attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
+typedef struct pcc_rule pcc_rule_t;
 
 /**
  * @brief  : Currently policy from PCRF can be two thing
@@ -459,15 +467,16 @@ typedef struct pcc_rule{
  * These policy shoulbe be applied to the PDN or eps_bearer
  * data strutures only after sucess from access side
  */
-typedef struct policy{
+struct policy{
 	bool default_bearer_qos_valid;
 	uint8_t count;
 	uint8_t num_charg_rule_install;
 	uint8_t num_charg_rule_modify;
 	uint8_t num_charg_rule_delete;
 	bearer_qos_ie default_bearer_qos;
-	pcc_rule_t pcc_rule[32];
-}policy_t;
+	pcc_rule_t *pcc_rule[MAX_RULES];
+}__attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
+typedef struct policy policy_t;
 
 /**
  * @brief  : Maintains selection mode info
@@ -556,68 +565,20 @@ typedef struct imsi_id_hash {
 } imsi_id_hash_t;
 
 /**
- * @brief  : Status of mbr processing
+ * @brief  : Status of request processing
  */
-enum mbr_status_t {
-	MBR_PROCESS_DONE = 0,
-	MBR_IN_PROGRESS = 1
+enum request_status_t {
+	REQ_PROCESS_DONE = 0,
+	REQ_IN_PROGRESS = 1
 };
 
 /**
- * @brief  : Status of dsr processing
+ * @brief  : Maintains Status of current req in progress
  */
-enum dsr_status_t {
-	DSR_PROCESS_DONE = 0,
-	DSR_IN_PROGRESS = 1
-};
-
-/**
- * @brief  : Status of cbr processing
- */
-enum cbr_status_t {
-	CBR_PROCESS_DONE = 0,
-	CBR_IN_PROGRESS = 1
-};
-
-/**
- * @brief  : Maintains status of current MBR in progress
- */
-typedef struct mbr_req_info {
+typedef struct req_status_info_t {
 	uint32_t seq;
-	enum mbr_status_t status;
-}mbr_req_info_t;
-
-/**
- * @brief: Status of MABR processing
- */
-enum mabr_status_t {
-	MABR_PROCESS_DONE = 0,
-	MABR_IN_PROGRESS = 1
-};
-/**
- * @brief  : Maintains status of current Modify Acccess Bearer
- * Request in progress
- */
-typedef struct mabr_req_info {
-	uint32_t seq;
-	enum mabr_status_t status;
-}mabr_req_info_t;
-
-/**
- * @brief  : Maintains status of current DSR in progress
- */
-typedef struct dsr_req_info {
-	uint32_t seq;
-	enum dsr_status_t status;
-}dsr_req_info_t;
-
-/**
- * @brief  : Maintains status of current CBR in progress
- */
-typedef struct cbr_req_info {
-	uint32_t seq;
-	enum cbr_status_t status;
-} cbr_req_info_t;
+	enum request_status_t status;
+} req_status_info;
 
 /*
  * @brief : Used to store rule status received in CCA
@@ -637,76 +598,81 @@ typedef struct pro_ack_rule_array {
 /**
  * @brief  : Maintains ue related information
  */
-typedef struct ue_context_t {
+struct ue_context_t {
 	bool cp_mode_flag;
+	bool sgwu_changed;
+	bool ltem_rat_type_flag;
+	bool serving_nw_flag;
+	bool rat_type_flag;
+	bool second_rat_flag;
+	bool ue_time_zone_flag;
+	bool uci_flag;
+	bool mo_exception_flag;
+	bool mme_changed_flag;
+	bool change_report;
+	bool piggyback;
 	uint8_t cp_mode;
-	uint64_t imsi;
 	uint8_t imsi_len;
 	uint8_t unathenticated_imsi;
+	uint8_t msisdn_len;
+	uint8_t proc_trans_id;
+	uint8_t mbc_cleanup_status;
+	uint8_t uli_flag;
+	uint8_t is_sent_bearer_rsc_failure_indc;
+	uint8_t second_rat_count;
+	uint8_t change_report_action;
+	uint8_t bearer_count;
+	uint8_t pfcp_sess_count;
+	uint8_t selection_flag;
+	uint8_t up_selection_flag;
+	uint8_t promotion_flag;
+	uint8_t dcnr_flag;
+	uint8_t procedure;
+	uint8_t upd_pdn_set_ebi_index;
+	uint8_t num_pdns;
+	uint8_t dupl;
+	uint8_t li_data_cntr;
+	uint8_t indirect_tunnel_flag;                 /* indication for presence indirect tunnel */
+	uint8_t update_sgw_fteid;                     /* S1 HO Flag to forward MBR Req to PGWC */
+	uint8_t pfcp_rept_resp_sent_flag;             /* Flag to indicate report response already sent or not*/
+	uint8_t pra_flag;
+	uint16_t bearer_bitmap;
+	uint16_t teid_bitmap;
+	uint32_t ue_initiated_seq_no;
+	uint32_t sequence;
+	uint32_t s11_sgw_gtpc_teid;
+	uint32_t s11_mme_gtpc_teid;
+	uint64_t imsi;
 	uint64_t mei;
 	uint64_t msisdn;
-	uint8_t msisdn_len;
+	uint64_t event_trigger;
 
-	/* MBR sequence number and status for identifying
-	 * retransmitted MBR req.
+	/*PFCP paramteres Unique IDs Per UE */
+	uint8_t bar_rule_id_offset;
+	uint16_t pdr_rule_id_offset;
+	uint32_t far_rule_id_offset;
+	uint32_t urr_rule_id_offset;
+	uint32_t qer_rule_id_offset;
+
+	/* Req Status
+	 * retransmitted request identifying
 	 */
+	req_status_info req_status;
 
-	mbr_req_info_t mbr_info;
-	/*DSR sequence number and status for identifying
-	 * retransmitted DSR req.
-	 */
-	dsr_req_info_t dsr_info;
-
-	/*CBR sequence number and status for identifying
-	 * retransmitted CBR req.
-	 */
-	cbr_req_info_t cbr_info;
-
-	/* MABR sequence number and status for identifying
-	 * retransmitted MABR req.
-	 */
-	mabr_req_info_t mabr_info;
-
-	uint8_t proc_trans_id;
-	uint32_t ue_initiated_seq_no;
-	uint8_t mbc_cleanup_status;
 	ambr_ie mn_ambr;
-	bool sgwu_changed;
 
-	uint8_t uli_flag;
 	user_loc_info_t uli;
 	user_loc_info_t old_uli;
 
-	ue_tz old_ue_tz;
-	bool old_ue_tz_valid;
-
-	bool eci_changed;
-	bool ltem_rat_type_flag;
-	bool serving_nw_flag;
 	serving_nwrk_t serving_nw;
-	bool rat_type_flag;
 	rat_type_t rat_type;
-	rat_type_t old_rat_type;
-	bool old_rat_valid;
-
-	uint8_t is_sent_bearer_rsc_failure_indc;
 
 	secondary_rat_t second_rat[MAX_BEARERS];
-	bool second_rat_flag;
-	uint8_t second_rat_count;
-	uint8_t change_report_action;
-	bool change_report;
-	bool piggyback;
 
 	indication_flag_t indication_flag;
-	bool ue_time_zone_flag;
 	ue_tz tz;
-	bool uci_flag;
 	user_csg_i uci;
-	bool mo_exception_flag;
-	bool mme_changed_flag;
 	counter mo_exception_data_counter;
-	uint8_t bearer_count;
 
 #ifdef USE_CSID
 	/* Temp cyclic linking of the MME and SGW FQ-CSID */
@@ -716,24 +682,9 @@ typedef struct ue_context_t {
 	sess_fqcsid_t *up_fqcsid;
 #endif /* USE_CSID */
 
-	uint32_t sequence;
-	uint8_t pfcp_sess_count;
-	uint8_t selection_flag;
 	selection_mode select_mode;
-
-	uint8_t up_selection_flag;
-	uint8_t promotion_flag;
-	uint8_t dcnr_flag;
-
-	uint32_t s11_sgw_gtpc_teid;
 	node_address_t s11_sgw_gtpc_ip;
-
-	uint32_t s11_mme_gtpc_teid;
 	node_address_t s11_mme_gtpc_ip;
-
-	uint16_t bearer_bitmap;
-	uint16_t teid_bitmap;
-	uint8_t num_pdns;
 
 	struct pdn_connection_t *pdns[MAX_BEARERS];
 
@@ -743,39 +694,54 @@ typedef struct ue_context_t {
 	/* temporary bearer to be used during resource bearer cmd -
 	 * create/deletee bearer req - rsp */
 	struct eps_bearer_t *ded_bearer;
-	uint64_t event_trigger;
-	uint8_t procedure;
-	uint8_t upd_pdn_set_ebi_index;
 
 	/* User Level Packet Copying Configurations */
-	uint8_t dupl;
-	uint8_t li_data_cntr;
 	li_data_t li_data[MAX_LI_ENTRIES_PER_UE];
 
 	struct indirect_tunnel_t *indirect_tunnel;    /* maintains bearers and sessions for indirect tunnel */
-	uint8_t indirect_tunnel_flag;                 /* indication for presence indirect tunnel */
-
-	/* S1 HO Flag to forward MBR Req to PGWC */
-	uint8_t update_sgw_fteid;
-	/* Flag to indicate report response already sent or not*/
-	uint8_t pfcp_rept_resp_sent_flag;
-
-	uint8_t pra_flag;
-	presence_reproting_area_action_t pre_rptng_area_act;
+	presence_reproting_area_action_t *pre_rptng_area_act;
 	presence_reproting_area_info_t pre_rptng_area_info;
-} ue_context;
+} __attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
+
+typedef struct ue_context_t ue_context;
 
 /**
  * @brief  : Maintains pdn connection information
  */
-typedef struct pdn_connection_t {
+struct pdn_connection_t {
 	uint8_t proc;
 	uint8_t state;
 	uint8_t bearer_control_mode;
-	/* Call ID ref. to session id of CCR */
-	uint32_t call_id;
+	uint8_t prefix_len;
+	uint8_t enb_query_flag;
+	uint8_t generate_cdr;
+	uint8_t dns_query_domain;                 /* need to maintain DNS query Domain type */
+	uint8_t default_bearer_id;
+	uint8_t num_bearer;
+	uint8_t requested_pdn_type;
+	uint8_t is_default_dl_sugg_pkt_cnt_sent:1;  /* Need to send default DL Buffering Suggested
+												 Packet Count in first Report Response */
+	uint8_t fqdn[FQDN_LEN];
+	char gx_sess_id[GX_SESS_ID_LEN];
 
 	bool flag_fqcsid_modified;
+	bool old_sgw_addr_valid;
+
+	int16_t mapped_ue_usage_type;
+	uint32_t call_id;                         /* Call ID ref. to session id of CCR */
+	uint32_t apn_restriction;
+	uint32_t csr_sequence;                    /* CSR sequence number for identify CSR retransmission req. */
+	uint32_t s5s8_sgw_gtpc_teid;
+	uint32_t s5s8_pgw_gtpc_teid;
+
+	uint64_t seid;
+	uint64_t dp_seid;
+
+	unsigned long rqst_ptr;          /* need to maintain reqs ptr for RAA*/
+
+	apn *apn_in_use;
+	ambr_ie apn_ambr;
+
 #ifdef USE_CSID
 	fqcsid_t mme_csid;
 	fqcsid_t sgw_csid;
@@ -783,154 +749,77 @@ typedef struct pdn_connection_t {
 	fqcsid_t up_csid;
 #endif /* USE_CSID */
 
-
-	apn *apn_in_use;
-	ambr_ie apn_ambr;
-	uint32_t apn_restriction;
-
-	ambr_ie session_ambr;
-	ambr_ie session_gbr;
-
+	struct eps_bearer_t *eps_bearers[MAX_BEARERS*2]; /* index by ebi - 1 */
+	struct eps_bearer_t *packet_filter_map[MAX_FILTERS_PER_UE];
+	struct{
+		struct in_addr ipv4;
+		struct in6_addr ipv6;
+	}uipaddr;
 	node_address_t upf_ip;
-
-	uint64_t seid;
-	uint64_t dp_seid;
-
-	struct in_addr ipv4;
-	uint8_t prefix_len;
-	struct in6_addr ipv6;
-
-	/* Need to Discuss teid and IP should be part of UE context */
-	uint32_t s5s8_sgw_gtpc_teid;
 	node_address_t s5s8_sgw_gtpc_ip;
-
-	bool old_sgw_addr_valid;
-	node_address_t old_sgw_addr;
-
-	uint32_t s5s8_pgw_gtpc_teid;
 	node_address_t s5s8_pgw_gtpc_ip;
-
-	uint8_t ue_time_zone_flag;
-	ue_tz ue_tz;
-	ue_tz old_ue_tz;
-	bool old_ue_tz_valid;
-
-	uint8_t rat_type;
-	uint8_t old_ret_type;
-	bool old_rat_type_valid;
-
-	int16_t mapped_ue_usage_type;
-
-	uint8_t requested_pdn_type;
+	node_address_t old_sgw_addr;
 
 	pdn_type_ie pdn_type;
 	/* See  3GPP TS 32.298 5.1.2.2.7 for Charging Characteristics fields*/
 	charging_characteristics_ie charging_characteristics;
-
-	uint8_t default_bearer_id;
-	/* Need to think on it */
-	uint8_t num_bearer;
-
-	/* Create a cyclic linking to access the data structures of UE */
-	ue_context *context;
-
-	uint8_t fqdn[FQDN_LEN];
-	struct eps_bearer_t *eps_bearers[MAX_BEARERS*2]; /* index by ebi - 1 */
-
-	struct eps_bearer_t *packet_filter_map[MAX_FILTERS_PER_UE];
-
-	char gx_sess_id[GX_SESS_ID_LEN];
-
-	/*Structure used to store rule status for sending
-	 * provision ack */
 	pro_ack_rule_array_t pro_ack_rule_array;
 
-	/* need to maintain reqs ptr for RAA*/
-	unsigned long rqst_ptr;
-	policy_t policy;
-
-	/* timer entry data for stop timer session */
-	peerData *timer_entry;
-
-	/* CSR sequence number for identify CSR retransmission req. */
-	uint32_t csr_sequence;
-	/* need to maintain DNS query Domain type */
-	uint8_t dns_query_domain;
-
 	void *node_sel;
-	uint8_t enb_query_flag;
-	uint8_t generate_cdr;
+	policy_t policy;
+	bar_t bar;                      /* As per spec at most one bar per session */
+	peerData *timer_entry;          /* timer entry data for stop timer session */
+	ue_context *context;           /* Create a cyclic linking to access the
+									  data structures of UE */
+}__attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
 
-	uint8_t num_ddn_sent_count;    /*number of ddn request sent per session*/
-
-	/* As per spec at most one bar per session */
-	bar_t bar;
-
-	/* Need to send default DL Buffering Suggested Packet Count in first Report Response */
-	uint8_t is_default_dl_sugg_pkt_cnt_sent;
-
-} pdn_connection;
+typedef struct pdn_connection_t pdn_connection;
 
 /**
  * @brief  : Maintains eps bearer related information
  */
-typedef struct eps_bearer_t {
+struct eps_bearer_t {
 	uint8_t eps_bearer_id;
-	/* Packet Detection identifier/Rule_ID */
 	uint8_t pdr_count;
-	pdr_t *pdrs[NUMBER_OF_PDR_PER_BEARER];
-
-	/* As per discussion der will be only one qer per bearer */
 	uint8_t qer_count;
-	qer qer_id[NUMBER_OF_QER_PER_BEARER];
+	uint8_t num_packet_filters;
+	uint8_t num_dynamic_filters;
+	uint8_t num_prdef_filters;
+	uint8_t flow_desc_check:1;
+	uint8_t qos_bearer_check:1;
+	uint8_t arp_bearer_check:1;
 
-	bearer_qos_ie qos;
-
-	/* To store seq number of incoming req for bearer*/
-	uint32_t sequence;
-
-	/*VSD: Fill the ID in intial attach */
-	/* Generate ID while creating default bearer */
-	uint32_t charging_id;
-
-	/*seq no for each bearer used as CDR field*/
-	uint32_t cdr_seq_no;
-
-
-	node_address_t s1u_sgw_gtpu_ip;
+	uint32_t sequence;                     /* To store seq number of incoming req for bearer*/
+	uint32_t charging_id;                  /* Generate ID while creating default bearer */
+	uint32_t cdr_seq_no;                   /* Seq no for each bearer used as CDR field*/
 	uint32_t s1u_sgw_gtpu_teid;
-
-	node_address_t s5s8_sgw_gtpu_ip;
 	uint32_t s5s8_sgw_gtpu_teid;
-
-	node_address_t s5s8_pgw_gtpu_ip;
 	uint32_t s5s8_pgw_gtpu_teid;
-
-	node_address_t s1u_enb_gtpu_ip;
 	uint32_t s1u_enb_gtpu_teid;
-
-	node_address_t s11u_mme_gtpu_ip;
 	uint32_t s11u_mme_gtpu_teid;
-
-	node_address_t s11u_sgw_gtpu_ip;
 	uint32_t s11u_sgw_gtpu_teid;
 
+	int packet_filter_map[MAX_FILTERS_PER_UE];
+
+	node_address_t s1u_sgw_gtpu_ip;
+	node_address_t s5s8_sgw_gtpu_ip;
+	node_address_t s5s8_pgw_gtpu_ip;
+	node_address_t s1u_enb_gtpu_ip;
+	node_address_t s11u_mme_gtpu_ip;
+	node_address_t s11u_sgw_gtpu_ip;
+
+	pdr_t *pdrs[NUMBER_OF_PDR_PER_BEARER];         /* Packet Detection identifier/Rule_ID */
+	qer qer_id[NUMBER_OF_QER_PER_BEARER];
+	bearer_qos_ie qos;
+
+	dynamic_rule_t *dynamic_rules[MAX_RULE_PER_BEARER];
+	dynamic_rule_t *prdef_rules[MAX_RULE_PER_BEARER];    /* Predefined rule support */
+	enum rule_action_t action;
 	struct pdn_connection_t *pdn;
 
-	uint8_t num_packet_filters;
-	int packet_filter_map[MAX_FILTERS_PER_UE];
-	int flow_desc_check;
-	int qos_bearer_check;
-	int arp_bearer_check;
-	uint8_t num_dynamic_filters;
-	dynamic_rule_t *dynamic_rules[MAX_RULE_PER_BEARER];
+}__attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
 
-	/* Predefined rule support */
-	uint8_t num_prdef_filters;
-	dynamic_rule_t *prdef_rules[MAX_RULE_PER_BEARER];
-	enum rule_action_t action;
-
-} eps_bearer;
+typedef struct eps_bearer_t eps_bearer;
 
 /**
  * @brief : Stores data TEID and Msg_type as data for the use of error handling.
@@ -965,13 +854,14 @@ struct indirect_tunnel_t {
 typedef struct pdr_ids_t{
 	uint8_t pdr_count;              /* pdr id count*/
 	uint16_t pdr_id[MAX_LIST_SIZE]; /* rule ids array*/
+	uint8_t ddn_buffered_count;     /* number ddn buffered*/
 }pdr_ids;
 
 /*@brief: maintains pdr array for ddn requests */
 typedef struct sess_info_t{
-	uint64_t sess_id;                   /*session id*/
 	uint8_t pdr_count;                 /* pdr id  count */
 	uint16_t pdr_id[MAX_LIST_SIZE];   /* rule ids array*/
+	uint64_t sess_id;                   /*session id*/
 	struct sess_info_t *next;
 }sess_info;
 

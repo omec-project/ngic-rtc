@@ -34,7 +34,18 @@
  *           NULL otherwise
  */
 sess_csid *
-add_sess_csid_data_node(sess_csid *head);
+add_sess_csid_data_node(sess_csid *head, uint16_t local_csid);
+
+/**
+ * @brief  : Function to add a node in sess_csid Linked List.
+ * @param  : head, linked list head pointer
+ * @retrun : Returns
+ *           head  in case of success
+ *           NULL otherwise
+ */
+sess_csid *
+add_peer_csid_sess_data_node(sess_csid *head, peer_csid_key_t *key);
+
 
 /**
  * @brief  : Function to add a node in sess_csid Linked List.

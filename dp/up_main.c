@@ -129,6 +129,7 @@ init_cli_framework(void) {
 	set_gw_type(OSS_USER_PLANE);
 	cli_node.upsecs = &cli_node.cli_config.oss_reset_time;
 	cli_init(&cli_node, &cli_node.cli_config.cnt_peer);
+	cli_node.cli_config.perf_flag = app.perf_flag;
 
 	cli_node.cli_config.gw_adapter_callback_list.update_periodic_timer = &post_periodic_timer;
 	cli_node.cli_config.gw_adapter_callback_list.update_transmit_timer = &post_transmit_timer;
@@ -139,6 +140,8 @@ init_cli_framework(void) {
 	cli_node.cli_config.gw_adapter_callback_list.get_generate_pcap = &get_pcap_status;
 	cli_node.cli_config.gw_adapter_callback_list.update_pcap_status = &post_pcap_status;
 	cli_node.cli_config.gw_adapter_callback_list.get_dp_config = &fill_dp_configuration;
+	cli_node.cli_config.gw_adapter_callback_list.get_perf_flag = &get_perf_flag;
+	cli_node.cli_config.gw_adapter_callback_list.update_perf_flag = &update_perf_flag;
 
 	/* Init rest framework */
 	init_rest_framework(app.cli_rest_ip_buff, app.cli_rest_port);

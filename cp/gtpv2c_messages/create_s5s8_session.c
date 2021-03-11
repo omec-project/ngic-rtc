@@ -307,17 +307,17 @@ process_create_bearer_request(create_bearer_req_t *cbr)
 	}
 
 	if(context != NULL ) {
-		if(context->cbr_info.seq ==  cbr->header.teid.has_teid.seq) {
-			if(context->cbr_info.status == CBR_IN_PROGRESS) {
+		if(context->req_status.seq ==  cbr->header.teid.has_teid.seq) {
+			if(context->req_status.status == REQ_IN_PROGRESS) {
 				/* Discarding re-transmitted cbr */
 				return GTPC_RE_TRANSMITTED_REQ;
 			}else{
 				/* Restransmitted CBR but processing already done for previous req */
-				context->cbr_info.status = CBR_IN_PROGRESS;
+				context->req_status.status = REQ_IN_PROGRESS;
 			}
 		} else {
-			context->cbr_info.seq = cbr->header.teid.has_teid.seq;
-			context->cbr_info.status = CBR_IN_PROGRESS;
+			context->req_status.seq = cbr->header.teid.has_teid.seq;
+			context->req_status.status = REQ_IN_PROGRESS;
 		}
 	}
 
@@ -431,7 +431,8 @@ process_create_bearer_request(create_bearer_req_t *cbr)
 		bearer->s5s8_pgw_gtpu_teid = cbr->bearer_contexts[idx].s58_u_pgw_fteid.teid_gre_key;
 
 		if(cbr->bearer_contexts[idx].tft.header.len){
-			memset(resp->eps_bearer_lvl_tft[idx], 0, MAX_TFT_LEN);
+			resp->eps_bearer_lvl_tft[idx] =
+				rte_zmalloc("Bearer_lvl_tft", MAX_TFT_LEN, RTE_CACHE_LINE_SIZE);
 			memcpy(resp->eps_bearer_lvl_tft[idx],
 				cbr->bearer_contexts[idx].tft.eps_bearer_lvl_tft, MAX_TFT_LEN);
 			resp->tft_header_len[idx] = cbr->bearer_contexts[idx].tft.header.len;
@@ -747,7 +748,7 @@ process_cs_resp_cb_request(create_bearer_req_t *cbr)
 			|| resp->gtpc_msg.cs_rsp.paa.pdn_type == PDN_IP_TYPE_IPV4V6) {
 
 		pdn->pdn_type.ipv6 = PRESENT;
-		memcpy(pdn->ipv6.s6_addr, resp->gtpc_msg.cs_rsp.paa.paa_ipv6, IPV6_ADDRESS_LEN);
+		memcpy(pdn->uipaddr.ipv6.s6_addr, resp->gtpc_msg.cs_rsp.paa.paa_ipv6, IPV6_ADDRESS_LEN);
 		pdn->prefix_len = resp->gtpc_msg.cs_rsp.paa.ipv6_prefix_len;
 	}
 
@@ -755,7 +756,7 @@ process_cs_resp_cb_request(create_bearer_req_t *cbr)
 			|| resp->gtpc_msg.cs_rsp.paa.pdn_type == PDN_IP_TYPE_IPV4V6) {
 
 		pdn->pdn_type.ipv4 = PRESENT;
-		pdn->ipv4.s_addr = resp->gtpc_msg.cs_rsp.paa.pdn_addr_and_pfx;
+		pdn->uipaddr.ipv4.s_addr = resp->gtpc_msg.cs_rsp.paa.pdn_addr_and_pfx;
 	}
 
 	ret = fill_ip_addr(resp->gtpc_msg.cs_rsp.pgw_s5s8_s2as2b_fteid_pmip_based_intfc_or_gtp_based_ctl_plane_intfc.ipv4_address,
@@ -928,7 +929,8 @@ process_cs_resp_cb_request(create_bearer_req_t *cbr)
 
 		dedicated_bearer->s5s8_pgw_gtpu_teid = cbr->bearer_contexts[idx].s58_u_pgw_fteid.teid_gre_key;
 
-		memset(resp->eps_bearer_lvl_tft[idx], 0, MAX_TFT_LEN);
+		resp->eps_bearer_lvl_tft[idx] =
+			rte_zmalloc("Bearer_lvl_tft", MAX_TFT_LEN, RTE_CACHE_LINE_SIZE);
 		memcpy(resp->eps_bearer_lvl_tft[idx],
 			cbr->bearer_contexts[idx].tft.eps_bearer_lvl_tft, MAX_TFT_LEN);
 		resp->tft_header_len[idx] = cbr->bearer_contexts[idx].tft.header.len;
@@ -1034,17 +1036,17 @@ process_mb_request_cb_response(mod_bearer_req_t *mbr, create_bearer_rsp_t *cb_rs
 	cp_stats.modify_bearer++;
 
 	if ((NULL != context) && (mbr->header.teid.has_teid.seq)) {
-		if(context->mbr_info.seq ==  mbr->header.teid.has_teid.seq) {
-			if(context->mbr_info.status == MBR_IN_PROGRESS) {
+		if(context->req_status.seq ==  mbr->header.teid.has_teid.seq) {
+			if(context->req_status.status == REQ_IN_PROGRESS) {
 				/* Discarding re-transmitted mbr */
 				return GTPC_RE_TRANSMITTED_REQ;
 			}else{
 				/* Restransmitted MBR but processing altready done for previous req */
-				context->mbr_info.status = MBR_IN_PROGRESS;
+				context->req_status.status = REQ_IN_PROGRESS;
 			}
 		}else{
-			context->mbr_info.seq = mbr->header.teid.has_teid.seq;
-			context->mbr_info.status = MBR_IN_PROGRESS;
+			context->req_status.seq = mbr->header.teid.has_teid.seq;
+			context->req_status.status = REQ_IN_PROGRESS;
 		}
 	}
 	uint8_t remove_cnt = 0;
@@ -1342,7 +1344,8 @@ process_mb_request_cb_response(mod_bearer_req_t *mbr, create_bearer_rsp_t *cb_rs
 			if(tmp->cp_seid != pdn->seid && tmp->cp_seid != 0) {
 				sess_csid *new_node = NULL;
 				/* Add new node into csid linked list */
-				new_node = add_sess_csid_data_node(tmp);
+				new_node = add_sess_csid_data_node(tmp,
+					 pdn->sgw_csid.local_csid[pdn->sgw_csid.num_csid - 1]);
 				if(new_node == NULL ) {
 					clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to "
 						"ADD new node into CSID linked list : %s\n", LOG_VALUE);

@@ -334,18 +334,15 @@ process_pfcp_msg(uint8_t *buf_rx, peer_addr_t *peer_addr, bool is_ipv6)
 	/* TO maintain the peer node info and add entry in connection table  */
 	node_address_t peer_info = {0};
 
-	tmp_sess = malloc(sizeof(pfcp_session_t));
-
-	memset(tmp_sess, 0, sizeof(pfcp_session_t));
 	/* TODO: Move this rx */
-	if ((bytes_rx = udp_recv(pfcp_rx, 2048, peer_addr, is_ipv6)) < 0) {
+	if ((bytes_rx = udp_recv(pfcp_rx, 4096, peer_addr, is_ipv6)) < 0) {
 		perror("msgrecv");
 		return -1;
 	}
 
 	int encoded = 0;
 	int decoded = 0;
-	uint8_t pfcp_msg[2048]= {0};
+	uint8_t pfcp_msg[4096]= {0};
 	node_address_t node_value = {0};
 
 	uint8_t cli_cause = 0;
@@ -400,7 +397,7 @@ process_pfcp_msg(uint8_t *buf_rx, peer_addr_t *peer_addr, bool is_ipv6)
 		case PFCP_ASSOCIATION_SETUP_REQUEST:
 			{
 				pfcp_assn_setup_req_t pfcp_ass_setup_req = {0};
-				pfcp_assn_setup_rsp_t pfcp_ass_setup_resp = {0} ;
+				pfcp_assn_setup_rsp_t pfcp_ass_setup_resp = {0};
 
 				/* TODO: Error Handling */
 				decoded = decode_pfcp_assn_setup_req_t(buf_rx, &pfcp_ass_setup_req);
@@ -419,14 +416,6 @@ process_pfcp_msg(uint8_t *buf_rx, peer_addr_t *peer_addr, bool is_ipv6)
 
 				if (cause_id == REQUESTACCEPTED)
 				{
-					//Adding NODE ID into nodeid hash in DP
-					uint64_t *data = rte_zmalloc_socket(NULL, sizeof(uint8_t),
-							RTE_CACHE_LINE_SIZE, rte_socket_id());
-					if (data == NULL)
-						clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to allocate "
-							"memory for node id hash, Error : %s\n", LOG_VALUE,
-							rte_strerror(rte_errno));
-
 					ret = fill_ip_addr(pfcp_ass_setup_req.node_id.node_id_value_ipv4_address,
 						pfcp_ass_setup_req.node_id.node_id_value_ipv6_address,
 						&pfcp_ass_setup_req_node);
@@ -455,13 +444,13 @@ process_pfcp_msg(uint8_t *buf_rx, peer_addr_t *peer_addr, bool is_ipv6)
 					if (ret < 0) {
 						clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
 							"IP address", LOG_VALUE);
-					}					
+					}
 				} else if (pfcp_ass_setup_req.node_id.node_id_type == NODE_ID_TYPE_TYPE_IPV6ADDRESS) {
 					ret = fill_ip_addr(0, dp_comm_ipv6.s6_addr, &pfcp_ass_setup_resp_node);
 					if (ret < 0) {
 						clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
 							"IP address", LOG_VALUE);
-					}					
+					}
 				}
 
 				fill_pfcp_association_setup_resp(&pfcp_ass_setup_resp, cause_id,
@@ -522,34 +511,33 @@ process_pfcp_msg(uint8_t *buf_rx, peer_addr_t *peer_addr, bool is_ipv6)
 			}
 		case PFCP_SESSION_ESTABLISHMENT_REQUEST:
 			{
-				pfcp_sess_estab_req_t *pfcp_session_request = malloc(sizeof(pfcp_sess_estab_req_t));
-				memset(pfcp_session_request, 0, sizeof(pfcp_sess_estab_req_t));
+				pfcp_sess_estab_req_t pfcp_session_request = {0};
 				pfcp_sess_estab_rsp_t pfcp_session_response = {0};
 
-				decoded = decode_pfcp_sess_estab_req_t(buf_rx, pfcp_session_request);
+				decoded = decode_pfcp_sess_estab_req_t(buf_rx, &pfcp_session_request);
 				clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"DECOED bytes in sesson "
 					"is %d\n", LOG_VALUE, decoded);
 
-				if (process_up_session_estab_req(pfcp_session_request,
+				if (process_up_session_estab_req(&pfcp_session_request,
 							&pfcp_session_response, peer_addr)) {
 					return -1;
 				}
 
 				uint8_t cause_id = 0;
 				int offend_id = 0 ;
-				cause_check_sess_estab(pfcp_session_request, &cause_id, &offend_id);
+				cause_check_sess_estab(&pfcp_session_request, &cause_id, &offend_id);
 
 				cli_cause = cause_id;
 
 				/*Filling Node ID for F-SEID*/
-				if (pfcp_session_request->node_id.node_id_type == NODE_ID_TYPE_TYPE_IPV4ADDRESS) {
+				if (pfcp_session_request.node_id.node_id_type == NODE_ID_TYPE_TYPE_IPV4ADDRESS) {
 					uint8_t temp[IPV6_ADDRESS_LEN] = {0};
 					ret = fill_ip_addr(dp_comm_ip.s_addr, temp, &node_value);
 					if (ret < 0) {
 						clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
 							"IP address", LOG_VALUE);
 					}
-				} else if (pfcp_session_request->node_id.node_id_type == NODE_ID_TYPE_TYPE_IPV6ADDRESS) {
+				} else if (pfcp_session_request.node_id.node_id_type == NODE_ID_TYPE_TYPE_IPV6ADDRESS) {
 
 					ret = fill_ip_addr(0, dp_comm_ipv6.s6_addr, &node_value);
 					if (ret < 0) {
@@ -559,10 +547,10 @@ process_pfcp_msg(uint8_t *buf_rx, peer_addr_t *peer_addr, bool is_ipv6)
 				}
 
 				fill_pfcp_session_est_resp(&pfcp_session_response, cause_id,
-						offend_id, node_value, pfcp_session_request);
+						offend_id, node_value, &pfcp_session_request);
 
 				pfcp_session_response.header.seid_seqno.has_seid.seq_no =
-					pfcp_session_request->header.seid_seqno.has_seid.seq_no;
+					pfcp_session_request.header.seid_seqno.has_seid.seq_no;
 
 				memcpy(&(pfcp_session_response.up_fseid.ipv4_address),
 						&(dp_comm_ip.s_addr), IPV4_SIZE);
@@ -574,14 +562,13 @@ process_pfcp_msg(uint8_t *buf_rx, peer_addr_t *peer_addr, bool is_ipv6)
 				encoded = encode_pfcp_sess_estab_rsp_t(&pfcp_session_response, pfcp_msg);
 				pfcp_header_t *pfcp_hdr = (pfcp_header_t *) pfcp_msg;
 				pfcp_hdr->seid_seqno.has_seid.seid =
-						bswap_64(pfcp_session_request->cp_fseid.seid);
+						bswap_64(pfcp_session_request.cp_fseid.seid);
 
 				sess = get_sess_info_entry(pfcp_session_response.up_fseid.seid, SESS_MODIFY);
-				if (sess != NULL ) {
-					memcpy(tmp_sess, sess, sizeof(pfcp_session_t));
-				}
-				if (pfcp_session_request != NULL) {
-					free(pfcp_session_request);
+				if ((sess != NULL) && (sess->li_sx_config_cnt > 0)) {
+					tmp_sess = calloc(1,sizeof(pfcp_session_t));
+					if (tmp_sess != NULL)
+						memcpy(tmp_sess, sess, sizeof(pfcp_session_t));
 				}
 				break;
 			}
@@ -599,12 +586,16 @@ process_pfcp_msg(uint8_t *buf_rx, peer_addr_t *peer_addr, bool is_ipv6)
 					"sesson modification is %d\n",LOG_VALUE, decoded);
 
 				sess = get_sess_info_entry(pfcp_session_mod_req.header.seid_seqno.has_seid.seid, SESS_MODIFY);
-				if (sess != NULL ) {
-					memcpy(tmp_sess, sess, sizeof(pfcp_session_t));
-				} else {
+				if(sess == NULL) {
 					cause_id = SESSIONCONTEXTNOTFOUND;
 				}
-				
+
+				if ((sess != NULL) && (sess->li_sx_config_cnt > 0)) {
+					tmp_sess = calloc(1,sizeof(pfcp_session_t));
+					if (tmp_sess != NULL)
+						memcpy(tmp_sess, sess, sizeof(pfcp_session_t));
+				}
+
 				cli_cause = cause_id;
 
 				fill_pfcp_session_modify_resp(&pfcp_sess_mod_res,
@@ -642,30 +633,32 @@ process_pfcp_msg(uint8_t *buf_rx, peer_addr_t *peer_addr, bool is_ipv6)
 				int offend_id = 0;
 				uint8_t cause_id = 0;
 				uint64_t cp_seid = 0;
-
-				pfcp_sess_del_req_t *pfcp_session_del_req =
-						malloc(sizeof(pfcp_sess_del_req_t));
-
 				pfcp_sess_del_rsp_t  pfcp_sess_del_res = {0};
-				decoded = decode_pfcp_sess_del_req_t(buf_rx, pfcp_session_del_req);
+				pfcp_sess_del_req_t pfcp_session_del_req = {0};
+
+				decoded = decode_pfcp_sess_del_req_t(buf_rx, &pfcp_session_del_req);
 				clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"DECODE bytes in sesson deletion is %d\n\n",
 					LOG_VALUE, decoded);
 
-				sess = get_sess_info_entry(pfcp_session_del_req->header.seid_seqno.has_seid.seid, SESS_MODIFY);
-				if (sess != NULL) {
-					memcpy(tmp_sess, sess, sizeof(pfcp_session_t));
-				} else {
+				sess = get_sess_info_entry(pfcp_session_del_req.header.seid_seqno.has_seid.seid, SESS_MODIFY);
+				if (sess == NULL)  {
 					cause_id = SESSIONCONTEXTNOTFOUND;
 				}
 
-				if (process_up_session_deletion_req(pfcp_session_del_req,
+				if ((sess != NULL) && (sess->li_sx_config_cnt > 0)) {
+					tmp_sess = calloc(1,sizeof(pfcp_session_t));
+					if (tmp_sess != NULL)
+						memcpy(tmp_sess, sess, sizeof(pfcp_session_t));
+				}
+
+				if (process_up_session_deletion_req(&pfcp_session_del_req,
 						&pfcp_sess_del_res)) {
 					clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Failure in "
 						"process_up_session_deletion_req function\n",LOG_VALUE);
 					return -1;
 				}
 
-				cause_check_delete_session(pfcp_session_del_req, &cause_id, &offend_id);
+				cause_check_delete_session(&pfcp_session_del_req, &cause_id, &offend_id);
 
 				cp_seid = pfcp_sess_del_res.header.seid_seqno.has_seid.seid;
 
@@ -676,7 +669,7 @@ process_pfcp_msg(uint8_t *buf_rx, peer_addr_t *peer_addr, bool is_ipv6)
 				pfcp_sess_del_res.header.seid_seqno.has_seid.seid = cp_seid;
 
 				pfcp_sess_del_res.header.seid_seqno.has_seid.seq_no =
-					pfcp_session_del_req->header.seid_seqno.has_seid.seq_no;
+					pfcp_session_del_req.header.seid_seqno.has_seid.seq_no;
 
 				encoded = encode_pfcp_sess_del_rsp_t(&pfcp_sess_del_res,  pfcp_msg);
 				pfcp_header_t *pfcp_hdr = (pfcp_header_t *) pfcp_msg;
@@ -684,9 +677,6 @@ process_pfcp_msg(uint8_t *buf_rx, peer_addr_t *peer_addr, bool is_ipv6)
 				clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"sending response "
 					"of sess [%d] from dp\n", LOG_VALUE, pfcp_hdr->message_type);
 
-				if (pfcp_session_del_req != NULL) {
-					free(pfcp_session_del_req);
-				}
 				break;
 
 			}
@@ -714,8 +704,10 @@ process_pfcp_msg(uint8_t *buf_rx, peer_addr_t *peer_addr, bool is_ipv6)
 				}
 
 				sess = get_sess_info_entry(pfcp_sess_rep_resp.header.seid_seqno.has_seid.seid, SESS_MODIFY);
-				if (sess != NULL) {
-					memcpy(tmp_sess, sess, sizeof(pfcp_session_t));
+				if ((sess != NULL) && (sess->li_sx_config_cnt > 0)) {
+					tmp_sess = calloc(1,sizeof(pfcp_session_t));
+					if (tmp_sess != NULL)
+						memcpy(tmp_sess, sess, sizeof(pfcp_session_t));
 				}
 
 				remove_cdr_entry(pfcp_sess_rep_resp.header.seid_seqno.has_seid.seq_no,

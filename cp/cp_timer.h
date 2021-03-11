@@ -27,6 +27,7 @@ extern struct rte_hash *dl_timer_by_teid_hash;
 extern struct rte_hash *pfcp_rep_by_seid_hash;
 extern struct rte_hash *thrtl_timer_by_nodeip_hash;
 extern struct rte_hash *thrtl_ddn_count_hash;
+extern struct rte_hash *buffered_ddn_req_hash;
 
 #define ZERO   0
 #define ONE    1
@@ -62,9 +63,9 @@ typedef struct throttling_timer_t {
 
 /*brief : struct counters for throttling*/
 typedef struct throttling_count_t{
-	float  sent_count;         /* number of ddn send count*/
-	float  buffer_count;       /* number of ddn buffered count*/
-	sess_info *sess_ptr;       /* head pointer to sess_info list*/
+	float  prev_ddn_eval;         /* number of previous evaluated ddn*/
+	float  prev_ddn_discard;      /* number of previous discarded ddn*/
+	sess_info *sess_ptr;          /* head pointer to sess_info list*/
 }thrtle_count;
 
 

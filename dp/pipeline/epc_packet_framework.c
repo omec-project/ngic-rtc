@@ -51,6 +51,7 @@
 struct rte_ring *epc_mct_spns_dns_rx;
 struct rte_ring *li_dl_ring;
 struct rte_ring *li_ul_ring;
+struct rte_ring *cdr_pfcp_rpt_req;
 extern int clSystemLog;
 /**
  * @brief  : Maintains epc parameters
@@ -172,22 +173,29 @@ static void epc_init_rings(void)
 
 	/* Creating UL and DL rings for LI*/
 	li_dl_ring = rte_ring_create("LI_DL_RING",
+			DL_PKTS_RING_SIZE,
+			rte_socket_id(),
+			RING_F_SP_ENQ | RING_F_SC_DEQ);
+	if (li_dl_ring == NULL)
+		rte_panic("Cannot create LI DL ring \n");
+
+	li_ul_ring = rte_ring_create("LI_UL_RING",
+			UL_PKTS_RING_SIZE,
+			rte_socket_id(),
+			RING_F_SP_ENQ | RING_F_SC_DEQ);
+	if (li_ul_ring == NULL)
+		rte_panic("Cannot create LI UL ring \n");
+
+	/* Creating rings for CDR Report Request*/
+	cdr_pfcp_rpt_req = rte_ring_create("CDR_RPT_REQ_RING",
 								DL_PKTS_RING_SIZE,
 								rte_socket_id(),
 								RING_F_SP_ENQ
 								|
 								RING_F_SC_DEQ);
-	if (li_dl_ring == NULL)
-		rte_panic("Cannot create LI DL ring \n");
 
-	li_ul_ring = rte_ring_create("LI_UL_RING",
-								UL_PKTS_RING_SIZE,
-								rte_socket_id(),
-								RING_F_SP_ENQ
-								|
-								RING_F_SC_DEQ);
-	if (li_ul_ring == NULL)
-		rte_panic("Cannot create LI UL ring \n");
+	if (cdr_pfcp_rpt_req == NULL)
+		rte_panic("Cannot create DR_RPT_REQ_RING \n");
 
 
 }

@@ -277,6 +277,7 @@ enqueue_dl_pkts(pdr_info_t **pdrs, pfcp_session_datat_t **sess_info,
 			}
 
 			si->dl_ring = ring;
+
 			if (si->sess_state == IDLE) {
 				if ((pdr->far)->actions.nocp) {
 					rc = send_ddn_request(pdr);
@@ -296,11 +297,19 @@ enqueue_dl_pkts(pdr_info_t **pdrs, pfcp_session_datat_t **sess_info,
 
 		if (((pdr->far)->actions.nocp) || ((pdr->far)->actions.buff) || ((pdr->far)->actions.forw)) {
 
-			if (rte_ring_enqueue(ring, (void *)pkts[i]) == -ENOBUFS) {
+			if (rte_ring_enqueue(si->dl_ring, (void *)pkts[i]) == -ENOBUFS) {
 
 				rte_pktmbuf_free(pkts[i]);
 				rte_ring_free(si->dl_ring);
+				if(rte_ring_sc_dequeue(dl_ring_container, (void *)&si->dl_ring) == -ENOENT) {
+					clLog(clSystemLog, eCLSeverityCritical,
+						LOG_FORMAT"Ring not found\n",LOG_VALUE);
+				} else{
+					clLog(clSystemLog, eCLSeverityDebug,
+						LOG_FORMAT"Dequeued Ring \n",LOG_VALUE);
+				}
 				si->dl_ring = NULL;
+				pkts[i] = NULL;
 				si->sess_state = IDLE;
 
 				clLog(clSystemLog, eCLSeverityCritical,

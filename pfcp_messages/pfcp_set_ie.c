@@ -1639,7 +1639,7 @@ add_data_to_heartbeat_hash_table(node_address_t *key, uint32_t *recov_time)
 	if (ret < 0) {
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT" Failed to add data in "
 			"heartbeat recovery hash\n", LOG_VALUE, strerror(ret));
-		free(temp);
+		rte_free(temp);
 		return 1;
 	}
 	return 0;

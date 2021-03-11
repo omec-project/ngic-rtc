@@ -301,9 +301,7 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 		update_peer_status(&peer_addr, FALSE);
 		delete_cli_peer(&peer_addr);
 
-		/* VS: Flush eNB sessions */
 		if ((md->portId == S1U_PORT_ID) || (md->portId == SGI_PORT_ID)) {
-			/* flush_eNB_session(md); */
 			del_entry_from_hash(&md->dstIP);
 #ifdef USE_CSID
 			if (md->portId == S1U_PORT_ID) {
@@ -499,111 +497,6 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 	}
 }
 
-
-void
-dp_flush_session(node_address_t ip_addr, uint64_t sess_id)
-{
-	int ret = 0;
-	peerData *conn_data = NULL;
-
-	(ip_addr.ip_type == IPV6_TYPE) ?
-		clLog(clSystemLog, eCLSeverityDebug,
-				LOG_FORMAT"Flush sess entry from connection table of ipv6:"IPv6_FMT", sess_id: %lu\n",
-				LOG_VALUE, IPv6_PRINT(IPv6_CAST(ip_addr.ipv6_addr)), sess_id):
-		clLog(clSystemLog, eCLSeverityDebug,
-				LOG_FORMAT"Flush sess entry from connection table of ipv4:%s, sess_id: %lu\n",
-				LOG_VALUE, inet_ntoa(*(struct in_addr *)&ip_addr.ipv4_addr), sess_id);
-
-	/* VS: */
-	ret = rte_hash_lookup_data(conn_hash_handle,
-				&ip_addr, (void **)&conn_data);
-
-	if ( ret < 0) {
-		(ip_addr.ip_type == IPV6_TYPE) ?
-			clLog(clSystemLog, eCLSeverityDebug,
-					LOG_FORMAT"Entry not found for NODE IPv6:"IPv6_FMT"\n",
-					LOG_VALUE, IPv6_PRINT(IPv6_CAST(ip_addr.ipv6_addr))):
-			clLog(clSystemLog, eCLSeverityDebug,
-					LOG_FORMAT"Entry not found for NODE :%s\n",
-					LOG_VALUE, inet_ntoa(*(struct in_addr *)&ip_addr.ipv4_addr));
-		return;
-
-	} else {
-		/* VS: Delete sess id from connection table */
-		for(uint32_t cnt = 0; cnt < conn_data->sess_cnt; cnt++) {
-			if (sess_id == conn_data->sess_id[cnt]) {
-				for(uint32_t pos = cnt; pos < (conn_data->sess_cnt - 1); pos++ )
-					conn_data->sess_id[pos] = conn_data->sess_id[pos + 1];
-
-				conn_data->sess_cnt--;
-				clLog(clSystemLog, eCLSeverityDebug,
-					LOG_FORMAT"Session Deleted from connection table sid: %lu\n",
-					LOG_VALUE, sess_id);
-			}
-		}
-	}
-
-	if (conn_data->sess_cnt == 0) {
-		/* Stop Timer for specific eNB */
-		stopTimer( &conn_data->tt );
-		stopTimer( &conn_data->pt );
-
-		deinitTimer( &conn_data->tt );
-		deinitTimer( &conn_data->pt );
-
-		del_entry_from_hash(&ip_addr);
-		rte_free(conn_data);
-		conn_data = NULL;
-
-		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Current Active Conn Cnt:%u\n", LOG_VALUE, conn_cnt);
-		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Flushed the Timer Entry..!!\n", LOG_VALUE);
-	}
-
-}
-
-void
-flush_eNB_session(peerData *data_t)
-{
-
-	/* VS: Flush DP session table */
-	for(uint32_t cnt = 0; cnt < data_t->sess_cnt; cnt++) {
-		struct session_info sess_info = {0};
-		struct dp_id dp = {0};
-
-		RTE_SET_USED(dp);
-		sess_info.sess_id = data_t->sess_id[cnt];
-
-		clLog(clSystemLog, eCLSeverityDebug,
-			LOG_FORMAT"Sess ID's :%lu\n", LOG_VALUE, sess_info.sess_id);
-
-	}
-
-	/* VS: delete entry from connection hash table */
-	del_entry_from_hash(&data_t->dstIP);
-	rte_free(data_t);
-	data_t = NULL;
-
-}
-
-/**
- * @brief  : Check if session exist or not
- * @param  : sess_id, session id
- * @param  : conn_data, peer node information
- * @return : Returns 0 in case of success , -1 otherwise
- */
-static int
-check_sess_id_present(uint64_t sess_id, peerData *conn_data)
-{
-	int sess_exist = 0;
-	for(uint32_t cnt = 0; cnt < conn_data->sess_cnt; cnt++) {
-		if (sess_id == conn_data->sess_id[cnt]) {
-			sess_exist = PRESENT;
-			break;
-		}
-	}
-	return sess_exist;
-}
-
 uint8_t add_node_conn_entry(node_address_t dstIp, uint64_t sess_id, uint8_t portId)
 {
 	int ret = 0;
@@ -740,11 +633,6 @@ uint8_t add_node_conn_entry(node_address_t dstIp, uint64_t sess_id, uint8_t port
 		conn_data->dstIP = dstIp;
 		conn_data->itr = app.transmit_cnt;
 		conn_data->itr_cnt = 0;
-		conn_data->sess_cnt = 0;
-		conn_data->sess_id[conn_data->sess_cnt] = sess_id;
-
-		if ( sess_id > 0)
-			conn_data->sess_cnt++;
 
 		/* Fill the info for CLI and ARP Key */
 		if (dstIp.ip_type == IPV6_TYPE) {
@@ -818,7 +706,6 @@ uint8_t add_node_conn_entry(node_address_t dstIp, uint64_t sess_id, uint8_t port
 		conn_cnt++;
 
 	} else {
-		/* VS: eNB entry already exit in conn table */
 		(dstIp.ip_type == IPV6_TYPE)?
 			clLog(clSystemLog, eCLSeverityDebug,
 					LOG_FORMAT"Conn entry already exit in conn table for IPv6:"IPv6_FMT"\n",
@@ -826,16 +713,6 @@ uint8_t add_node_conn_entry(node_address_t dstIp, uint64_t sess_id, uint8_t port
 			clLog(clSystemLog, eCLSeverityDebug,
 					LOG_FORMAT"Conn entry already exit in conn table for IPv4:%s\n", LOG_VALUE,
 					inet_ntoa(*((struct in_addr *)&dstIp)));
-
-		if (sess_id) {
-			if(!check_sess_id_present(sess_id, conn_data)) {
-				conn_data->sess_id[conn_data->sess_cnt] = sess_id;
-				conn_data->sess_cnt++;
-			}
-		} else {
-			conn_data->sess_id[conn_data->sess_cnt] = sess_id;
-			conn_data->sess_cnt++;
-		}
 	}
 
 	clLog(clSystemLog, eCLSeverityDebug,

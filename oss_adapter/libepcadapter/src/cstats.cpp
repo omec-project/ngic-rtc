@@ -145,6 +145,13 @@ int get_request_timeout_value(char **response, int request_timeout_value)
 	return REST_SUCESSS;
 }
 
+int get_perf_flag_json_resp(char **response, int perf_flag)
+{
+	std::string res = "{\"perf_flag\": " + std::to_string(perf_flag) + "}";
+	*response = strdup(res.c_str());
+	return REST_SUCESSS;
+}
+
 int csGetInterval(char **response)
 {
 	std::string res = "{\"statfreq\": " + std::to_string(CStats::singleton().getInterval()) + "}";
@@ -314,6 +321,16 @@ int get_periodic_timer_value_in_seconds(const char *json, char **response)
 	return periodic_timer_value;
 }
 
+int get_perf_flag_value_in_int(const char *json, char **response)
+{
+
+	statsrapidjson::Document doc;
+	doc.Parse(json);
+
+	unsigned long perf_flag_value = doc["perf_flag"].GetUint64();
+	return perf_flag_value;
+}
+
 int get_transmit_timer_value_in_seconds(const char *json, char **response)
 {
 
@@ -393,6 +410,34 @@ int  resp_cmd_not_supported(uint8_t gw_type, char **response)
 	*response = strdup(temp);
 	return REST_FAIL;
 }
+
+int  invalid_value_error_response(const char *json, char **response)
+{
+	statsrapidjson::Document doc;
+	doc.Parse(json);
+	if (doc.HasParseError()) {
+		if (response)
+			*response = strdup("{\"result\": \"ERROR\"}");
+		return REST_FAIL;
+	} else {
+		*response =
+		strdup("{\"Invalid value\": \"Please enter the value according to config files\"}");
+		return REST_FAIL;
+	}
+}
+
+int  check_valid_json(const char *json, char **response)
+{
+	statsrapidjson::Document doc;
+	doc.Parse(json);
+	if (doc.HasParseError()) {
+		if (response)
+			*response = strdup("{\"Result\": \"ERROR, Failures in post json parsing\"}");
+		return REST_FAIL;
+	}
+	return REST_SUCESSS;
+}
+
 
 int csGetLive(char **response)
 {
@@ -478,6 +523,7 @@ int get_cp_configuration(char **response, cp_configuration_t *cp_config_ptr)
 	} else {
 		document.AddMember("USE GX", statsrapidjson::StringRef("Not Applicable On SGWC"), allocator);
 	}
+	document.AddMember("Perf Flag", cp_config_ptr->perf_flag, allocator);
 	document.AddMember("Generate SGW CDR", cp_config_ptr->generate_sgw_cdr, allocator);
 	if(cp_config_ptr->generate_sgw_cdr == SGW_CHARGING_CHARACTERISTICS) {
 		document.AddMember("SGW Charging Characteristics", cp_config_ptr->sgw_cc, allocator);
@@ -630,6 +676,7 @@ int get_dp_configuration(char **response, dp_configuration_t *dp_config_ptr)
 	document.AddMember("Restoration Parameters", restoration, allocator);
 
 	document.AddMember("Generate Pcap", dp_config_ptr->generate_pcap, allocator);
+	document.AddMember("Perf Flag", dp_config_ptr->perf_flag, allocator);
 	document.AddMember("CLI REST IP", statsrapidjson::Value(dp_config_ptr->cli_rest_ip_buff,
 		allocator).Move(), allocator);
 	document.AddMember("CLI REST PORT", dp_config_ptr->cli_rest_port, allocator);

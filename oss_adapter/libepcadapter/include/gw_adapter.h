@@ -34,6 +34,8 @@ extern "C" {
 #define MAX_LI_ENTRIES				 (255)
 #define FALSE                        (0)
 #define TRUE                         (1)
+#define PERF_ON						 (1)
+#define PERF_OFF					 (0)
 #define __file__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define LOG_FORMAT "%s:%s:%d:"
 #define LOG_VALUE __file__, __func__, __LINE__
@@ -318,6 +320,15 @@ int get_rto(const char *request_body, char **response_body);
 
 /* Function */
 /**
+ * @brief  : get perf flag
+ * @param  : request_body, http request body
+ * @param  : response_body, http response body
+ * @return : Returns status code
+ */
+int get_pf(const char *request_body, char **response_body);
+
+/* Function */
+/**
  * @brief  : get generate pcap status
  * @param  : request_body, http request body
  * @param  : response_body, http response body
@@ -435,12 +446,21 @@ int reset_cli_stats(const char *request_body, char **response_body);
 
 /* Function */
 /**gateway
- * @brief  : posgatewayt stat frequency
- * @param  : reqgatewayuest_body, http request body
+ * @brief  : post stat frequency
+ * @param  : request_body, http request body
  * @param  : response_body, http response body
  * @return : Returns status code
  */
 int post_stat_frequency(const char *request_body, char **response_body);
+
+/* Function */
+/**gateway
+ * @brief  : post perf flag value
+ * @param  : request_body, http request body
+ * @param  : response_body, http response body
+ * @return : Returns status code
+ */
+int post_pf(const char *request_body, char **response_body);
 
 /* Function */
 /**

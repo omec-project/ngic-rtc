@@ -515,6 +515,8 @@ pfcp_pcnd_check(uint8_t *pfcp_rx, msg_info *msg, int bytes_rx, peer_addr_t *peer
 					clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"No Session entry found "
 						"for seid: %lu", LOG_VALUE,
 						msg->pfcp_msg.pfcp_sess_rep_req.header.seid_seqno.has_seid.seid);
+					send_pfcp_del_sess_req(msg->pfcp_msg.pfcp_sess_rep_req.header.seid_seqno.has_seid.seid,
+						 peer_addr);
 				return -1;
 			}
 

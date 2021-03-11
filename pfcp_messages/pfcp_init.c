@@ -24,26 +24,24 @@
 #include "gw_adapter.h"
 
 /*VS:TODO: Need to revist this for hash size */
-#define PFCP_CNTXT_HASH_SIZE (1 << 15)
+#define PFCP_CNTXT_HASH_SIZE (1 << 16)
 
 #define TIMESTAMP_LEN 14
 #define NUM_OF_TABLES 4
 #define NUM_INIT_TABLES 3
 
-#define MAX_HASH_SIZE (1 << 15)
+#define MAX_HASH_SIZE (1 << 16)
 #define MAX_SEQ_ENTRIES_HASH_SIZE (1 << 10)
 #define MAX_PDN_HASH_SIZE (1 << 12)
 
+/* Entries = (No. of UE's * 2) */
+#define UN_16_BIT_HASH_SIZE (1 << 17)
+
 const uint8_t bar_base_rule_id = 0x00;
-static uint8_t bar_rule_id_offset;
 const uint16_t pdr_base_rule_id = 0x0000;
-static uint16_t pdr_rule_id_offset;
 const uint32_t far_base_rule_id = 0x00000000;
 const uint32_t urr_base_rule_id = 0x00000000;
-static uint32_t far_rule_id_offset;
-static uint32_t urr_rule_id_offset;
 const uint32_t qer_base_rule_id = 0x00000000;
-static uint32_t qer_rule_id_offset;
 /* VS: Need to decide the base value of call id */
 /* const uint32_t call_id_base_value = 0xFFFFFFFF; */
 const uint32_t call_id_base_value = 0x00000000;
@@ -320,7 +318,7 @@ del_rule_name_entry(const rule_name_key_t rule_key)
 
 	/* Check Rule Name entry is present or Not */
 	ret = rte_hash_lookup_data(rule_name_bearer_id_map_hash,
-					&rule_key, (void **)bearer);
+					&rule_key, (void **) &bearer);
 	if (ret >= 0) {
 		/* Rule Name Entry is present. Delete Rule Name Entry */
 		ret = rte_hash_del_key(rule_name_bearer_id_map_hash, &rule_key);
@@ -356,19 +354,22 @@ del_rule_name_entry(const rule_name_key_t rule_key)
  *
  */
 uint8_t
-add_pdr_entry(uint16_t rule_id, pdr_t *cntxt)
+add_pdr_entry(uint16_t rule_id, pdr_t *cntxt, uint64_t cp_seid)
 {
 	int ret = 0;
 	pdr_t *tmp = NULL;
+	rule_key_t hash_key = {0};
+	hash_key.id = (uint32_t)rule_id;
+	hash_key.cp_seid = cp_seid;
 
 	/* Lookup for PDR entry. */
 	ret = rte_hash_lookup_data(pdr_entry_hash,
-				&rule_id, (void **)&tmp);
+				&hash_key, (void **)&tmp);
 
 	if ( ret < 0) {
 		/* PDR Entry not present. Add PDR Entry */
 		ret = rte_hash_add_key_data(pdr_entry_hash,
-						&rule_id, cntxt);
+						&hash_key, cntxt);
 		if (ret) {
 			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to add entry for PDR_ID = %u"
 				"\n\tError= %s\n", LOG_VALUE, rule_id, rte_strerror(abs(ret)));
@@ -391,13 +392,16 @@ add_pdr_entry(uint16_t rule_id, pdr_t *cntxt)
  * return pdr_t cntxt or NULL
  *
  */
-pdr_t *get_pdr_entry(uint16_t rule_id)
+pdr_t *get_pdr_entry(uint16_t rule_id, uint64_t cp_seid)
 {
 	int ret = 0;
 	pdr_t *cntxt = NULL;
+	rule_key_t hash_key = {0};
+	hash_key.id = (uint32_t)rule_id;
+	hash_key.cp_seid = cp_seid;
 
 	ret = rte_hash_lookup_data(pdr_entry_hash,
-				&rule_id, (void **)&cntxt);
+				&hash_key, (void **)&cntxt);
 
 	if ( ret < 0) {
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Entry not found for PDR_ID:%u...\n",
@@ -458,17 +462,20 @@ update_pdr_teid(eps_bearer *bearer, uint32_t teid, node_address_t addr, uint8_t 
  *
  */
 uint8_t
-del_pdr_entry(uint16_t rule_id)
+del_pdr_entry(uint16_t rule_id, uint64_t cp_seid)
 {
 	int ret = 0;
 	pdr_t *cntxt = NULL;
+	rule_key_t hash_key = {0};
+	hash_key.id = (uint32_t)rule_id;
+	hash_key.cp_seid = cp_seid;
 
 	/* Check PDR entry is present or Not */
 	ret = rte_hash_lookup_data(pdr_entry_hash,
-					&rule_id, (void **)cntxt);
+					&hash_key, (void **)&cntxt);
 	if (ret >= 0) {
 		/* PDR Entry is present. Delete PDR Entry */
-		ret = rte_hash_del_key(pdr_entry_hash, &rule_id);
+		ret = rte_hash_del_key(pdr_entry_hash, &hash_key);
 
 	} else {
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Entry not found "
@@ -497,19 +504,22 @@ del_pdr_entry(uint16_t rule_id)
  *
  */
 uint8_t
-add_qer_entry(uint32_t qer_id, qer_t *cntxt)
+add_qer_entry(uint32_t qer_id, qer_t *cntxt, uint64_t cp_seid)
 {
 	int ret = 0;
 	qer_t *tmp = NULL;
+	rule_key_t hash_key = {0};
+	hash_key.id = (uint32_t)qer_id;
+	hash_key.cp_seid = cp_seid;
 
 	/* Lookup for QER entry. */
 	ret = rte_hash_lookup_data(qer_entry_hash,
-				&qer_id, (void **)&tmp);
+				&hash_key, (void **)&tmp);
 
 	if ( ret < 0) {
 		/* QER Entry not present. Add QER Entry in table */
 		ret = rte_hash_add_key_data(qer_entry_hash,
-						&qer_id, cntxt);
+						&hash_key, cntxt);
 		if (ret) {
 			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to add QER entry for QER_ID = %u"
 				"\n\tError= %s\n", LOG_VALUE, qer_id, rte_strerror(abs(ret)));
@@ -531,14 +541,17 @@ add_qer_entry(uint32_t qer_id, qer_t *cntxt)
  * return qer_t cntxt or NULL
  *
  */
-qer_t *get_qer_entry(uint32_t qer_id)
+qer_t *get_qer_entry(uint32_t qer_id, uint64_t cp_seid)
 {
 	int ret = 0;
 	qer_t *cntxt = NULL;
+	rule_key_t hash_key = {0};
+	hash_key.id = qer_id;
+	hash_key.cp_seid = cp_seid;
 
 	/* Retireve QER entry */
 	ret = rte_hash_lookup_data(qer_entry_hash,
-				&qer_id, (void **)&cntxt);
+				&hash_key, (void **)&cntxt);
 
 	if ( ret < 0) {
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Entry not found for QER_ID:%u "
@@ -560,17 +573,20 @@ qer_t *get_qer_entry(uint32_t qer_id)
  *
  */
 uint8_t
-del_qer_entry(uint32_t qer_id)
+del_qer_entry(uint32_t qer_id, uint64_t cp_seid)
 {
 	int ret = 0;
 	qer_t *cntxt = NULL;
+	rule_key_t hash_key = {0};
+	hash_key.id = qer_id;
+	hash_key.cp_seid = cp_seid;
 
 	/* Check QER entry is present or Not */
 	ret = rte_hash_lookup_data(qer_entry_hash,
-					&qer_id, (void **)cntxt);
+					&hash_key, (void **)&cntxt);
 	if (ret >= 0) {
 		/* QER Entry is present. Delete Session Entry */
-		ret = rte_hash_del_key(qer_entry_hash, &qer_id);
+		ret = rte_hash_del_key(qer_entry_hash, &hash_key);
 
 		if ( ret < 0) {
 			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Entry not found "
@@ -594,11 +610,11 @@ del_qer_entry(uint32_t qer_id)
  * Generate the BAR ID
  */
 uint8_t
-generate_bar_id(void)
+generate_bar_id(uint8_t *bar_rule_id_offset)
 {
 	uint8_t id = 0;
 
-	id = bar_base_rule_id + (++bar_rule_id_offset);
+	id = bar_base_rule_id + (++(*bar_rule_id_offset));
 
 	return id;
 }
@@ -607,11 +623,11 @@ generate_bar_id(void)
  * Generate the PDR ID
  */
 uint16_t
-generate_pdr_id(void)
+generate_pdr_id(uint16_t *pdr_rule_id_offset)
 {
 	uint16_t id = 0;
 
-	id = pdr_base_rule_id + (++pdr_rule_id_offset);
+	id = pdr_base_rule_id + (++(*pdr_rule_id_offset));
 
 	return id;
 }
@@ -620,24 +636,24 @@ generate_pdr_id(void)
  * Generate the FAR ID
  */
 uint32_t
-generate_far_id(void)
+generate_far_id(uint32_t *far_rule_id_offset)
 {
 	uint32_t id = 0;
 
-	id = far_base_rule_id + (++far_rule_id_offset);
+	id = far_base_rule_id + (++(*far_rule_id_offset));
 
 	return id;
 }
 
 /**
- * NK:Generate the URR ID
+ * Generate the URR ID
  */
 uint32_t
-generate_urr_id(void)
+generate_urr_id(uint32_t *urr_rule_id_offset)
 {
 	uint32_t id = 0;
 
-	id = urr_base_rule_id + (++urr_rule_id_offset);
+	id = urr_base_rule_id + (++(*urr_rule_id_offset));
 
 	return id;
 }
@@ -646,11 +662,11 @@ generate_urr_id(void)
  * Generate the QER ID
  */
 uint32_t
-generate_qer_id(void)
+generate_qer_id(uint32_t *qer_rule_id_offset)
 {
 	uint32_t id = 0;
 
-	id = qer_base_rule_id + (++qer_rule_id_offset);
+	id = qer_base_rule_id + (++(*qer_rule_id_offset));
 
 	return id;
 }
@@ -824,22 +840,15 @@ init_hash_tables(void)
 	struct rte_hash_parameters
 		pfcp_hash_params[NUM_OF_TABLES] = {
 		{	.name = "PDR_ENTRY_HASH",
-			.entries = MAX_HASH_SIZE,
-			.key_len = sizeof(uint16_t),
+			.entries = UN_16_BIT_HASH_SIZE,
+			.key_len = sizeof(rule_key_t),
 			.hash_func = rte_hash_crc,
 			.hash_func_init_val = 0,
 			.socket_id = rte_socket_id()
 		},
 		{	.name = "QER_ENTRY_HASH",
-			.entries = MAX_HASH_SIZE,
-			.key_len = sizeof(uint32_t),
-			.hash_func = rte_hash_crc,
-			.hash_func_init_val = 0,
-			.socket_id = rte_socket_id()
-		},
-		{	.name = "URR_ENTRY_HASH",
-			.entries = MAX_HASH_SIZE,
-			.key_len = sizeof(uint32_t),
+			.entries = UN_16_BIT_HASH_SIZE,
+			.key_len = sizeof(rule_key_t),
 			.hash_func = rte_hash_crc,
 			.hash_func_init_val = 0,
 			.socket_id = rte_socket_id()
@@ -868,14 +877,7 @@ init_hash_tables(void)
 		    rte_strerror(rte_errno), rte_errno);
 	}
 
-	urr_entry_hash = rte_hash_create(&pfcp_hash_params[2]);
-	if (!urr_entry_hash) {
-		rte_panic("%s: hash create failed: %s (%u)\n",
-				pfcp_hash_params[2].name,
-		    rte_strerror(rte_errno), rte_errno);
-	}
-
-	pdn_conn_hash = rte_hash_create(&pfcp_hash_params[3]);
+	pdn_conn_hash = rte_hash_create(&pfcp_hash_params[2]);
 	if (!pdn_conn_hash) {
 		rte_panic("%s: hash create failed: %s (%u)\n",
 				pfcp_hash_params[3].name,
@@ -903,7 +905,7 @@ init_pfcp_tables(void)
 			.socket_id = rte_socket_id()
 		},
 		{	.name = "RULE_NAME_BEARER_ID_HASH",
-			.entries = MAX_PDN_HASH_SIZE,
+			.entries = UN_16_BIT_HASH_SIZE,
 			.key_len = sizeof(rule_name_key_t),
 			.hash_func = rte_hash_crc,
 			.hash_func_init_val = 0,
@@ -917,13 +919,6 @@ init_pfcp_tables(void)
 			.socket_id = rte_socket_id()
 		}
 	};
-
-	pfcp_cntxt_hash = rte_hash_create(&pfcp_hash_params[0]);
-	if (!pfcp_cntxt_hash) {
-		rte_panic("%s: hash create failed: %s (%u)\n",
-				pfcp_hash_params[0].name,
-		    rte_strerror(rte_errno), rte_errno);
-	}
 
 	rule_name_bearer_id_map_hash = rte_hash_create(&pfcp_hash_params[1]);
 	if (!rule_name_bearer_id_map_hash) {

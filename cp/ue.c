@@ -35,6 +35,7 @@ struct rte_hash *dl_timer_by_teid_hash;
 struct rte_hash *pfcp_rep_by_seid_hash;
 struct rte_hash *thrtl_timer_by_nodeip_hash;
 struct rte_hash *thrtl_ddn_count_hash;
+struct rte_hash *buffered_ddn_req_hash;
 
 apn apn_list[MAX_NB_DPN];
 int total_apn_cnt;
@@ -94,7 +95,7 @@ create_ue_hash(void)
 	}
 
 	rte_hash_params.name = "ddn_request_by_session_id_hash";
-	rte_hash_params.key_len = sizeof(uint32_t);
+	rte_hash_params.key_len = sizeof(uint64_t);
 	ddn_by_seid_hash = rte_hash_create(&rte_hash_params);
 	if (!ddn_by_seid_hash) {
 		rte_panic("%s hash create failed: %s (%u)\n.",
@@ -112,7 +113,7 @@ create_ue_hash(void)
 	}
 
 	rte_hash_params.name = "pfcp_rep_by_session_id_hash";
-	rte_hash_params.key_len = sizeof(uint32_t);
+	rte_hash_params.key_len = sizeof(uint64_t);
 	pfcp_rep_by_seid_hash = rte_hash_create(&rte_hash_params);
 	if (!pfcp_rep_by_seid_hash) {
 		rte_panic("%s hash create failed: %s (%u)\n.",
@@ -133,6 +134,15 @@ create_ue_hash(void)
 	rte_hash_params.key_len = sizeof(uint64_t);
 	thrtl_ddn_count_hash = rte_hash_create(&rte_hash_params);
 	if (!thrtl_ddn_count_hash) {
+		rte_panic("%s hash create failed: %s (%u)\n.",
+				rte_hash_params.name,
+				rte_strerror(rte_errno), rte_errno);
+	}
+
+	rte_hash_params.name = "buffered_ddn_req_hash";
+	rte_hash_params.key_len = sizeof(uint64_t);
+	buffered_ddn_req_hash = rte_hash_create(&rte_hash_params);
+	if (!buffered_ddn_req_hash) {
 		rte_panic("%s hash create failed: %s (%u)\n.",
 				rte_hash_params.name,
 				rte_strerror(rte_errno), rte_errno);

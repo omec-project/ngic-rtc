@@ -456,7 +456,6 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 				piggyback = TRUE;
 				if(get_sess_entry(pdn->seid, &resp) == 0)
 					memcpy(&resp->gtpc_msg.cs_rsp, &msg->gtpc_msg.cs_rsp, sizeof(create_sess_rsp_t));
-			
 				if ((context != NULL) && (PRESENT == context->dupl)) {
 					li_piggyback_buf = (uint8_t *)gtpv2c_rx;
 				}
@@ -483,6 +482,8 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 
 	case GTP_CREATE_BEARER_REQ:{
 
+			teid_key_t teid_key = {0};
+
 			if((ret = decode_create_bearer_req((uint8_t *) gtpv2c_rx,
 							&msg->gtpc_msg.cb_req) == 0))
 					return -1;
@@ -502,6 +503,12 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 			/*Delete timer entry for bearer resource command*/
 			if (context->ue_initiated_seq_no == msg->gtpc_msg.cb_req.header.teid.has_teid.seq) {
 				delete_timer_entry(gtpv2c_rx->teid.has_teid.teid);
+
+				snprintf(teid_key.teid_key, PROC_LEN, "%s%d", "UE_REQ_BER_RSRC_MOD_PROC",
+						msg->gtpc_msg.cb_req.header.teid.has_teid.seq);
+
+				/* Delete the TEID entry for  bearer resource cmd */
+				delete_teid_entry_for_seq(teid_key);
 			}
 
 			if (ebi_index == -1) {
@@ -1082,10 +1089,24 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 				pdn->proc = ATTACH_DEDICATED_PROC;
 
 				context->piggyback = TRUE;
-				if(get_sess_entry(pdn->seid, &resp) == 0)
+				if(get_sess_entry(pdn->seid, &resp) == 0) {
 					memcpy(&resp->gtpc_msg.cb_rsp, &msg->gtpc_msg.cb_rsp, sizeof(create_bearer_rsp_t));
 					/*storing for error scenarios*/
-					memcpy(&resp->cb_rsp_attach, &msg->gtpc_msg.cb_rsp, sizeof(create_bearer_rsp_t));
+					if (msg->gtpc_msg.cb_rsp.header.gtpc.teid_flag) {
+						resp->cb_rsp_attach.seq = msg->gtpc_msg.cb_rsp.header.teid.has_teid.seq;
+					} else {
+						resp->cb_rsp_attach.seq = msg->gtpc_msg.cb_rsp.header.teid.no_teid.seq;
+					}
+
+					resp->cb_rsp_attach.cause_value = msg->gtpc_msg.cb_rsp.cause.cause_value;
+					resp->cb_rsp_attach.bearer_cnt = msg->gtpc_msg.cb_rsp.bearer_cnt;
+					for (uint8_t itr = 0; itr < msg->gtpc_msg.cb_rsp.bearer_cnt; itr++) {
+						resp->cb_rsp_attach.bearer_cause_value[itr] =
+							msg->gtpc_msg.cb_rsp.bearer_contexts[itr].cause.cause_value;
+						resp->cb_rsp_attach.ebi_ebi[itr] =
+							msg->gtpc_msg.cb_rsp.bearer_contexts[itr].eps_bearer_id.ebi_ebi;
+					}
+				}
 				memcpy(&msg->cb_rsp, &msg->gtpc_msg.cb_rsp, sizeof(create_bearer_rsp_t));
 
 				if ((context != NULL) && (PRESENT == context->dupl)) {
@@ -1247,6 +1268,8 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 	}
 	case GTP_DELETE_BEARER_REQ:{
 
+			teid_key_t teid_key = {0};
+
 			if((ret = decode_del_bearer_req((uint8_t *) gtpv2c_rx,
 							&msg->gtpc_msg.db_req) == 0)) {
 				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failure "
@@ -1267,6 +1290,12 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 			/*Delete timer entry for bearer resource command*/
 			if (context->ue_initiated_seq_no == msg->gtpc_msg.db_req.header.teid.has_teid.seq) {
 				delete_timer_entry(gtpv2c_rx->teid.has_teid.teid);
+
+				snprintf(teid_key.teid_key, PROC_LEN, "%s%d", "UE_REQ_BER_RSRC_MOD_PROC",
+						msg->gtpc_msg.db_req.header.teid.has_teid.seq);
+
+				/* Delete the TEID entry for  bearer resource cmd */
+				delete_teid_entry_for_seq(teid_key);
 			}
 
 			if (msg->gtpc_msg.db_req.lbi.header.len) {
@@ -1287,6 +1316,15 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 							S5S8_IFACE);
 					return -1;
 				}
+			}
+
+			if(context->eps_bearers[ebi_index] == NULL ||
+				context->eps_bearers[ebi_index]->pdn == NULL){
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Context not found for UE\n",
+												     LOG_VALUE);
+				delete_bearer_error_response(msg, GTPV2C_CAUSE_CONTEXT_NOT_FOUND,
+								CAUSE_SOURCE_SET_TO_0, S5S8_IFACE);
+				return -1;
 			}
 
 			uint8_t proc = context->eps_bearers[ebi_index]->pdn->proc;
@@ -1470,6 +1508,10 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 		}
 
 	case GTP_BEARER_RESOURCE_FAILURE_IND:{
+
+			teid_key_t teid_key = {0};
+			uint32_t teid = 0;
+
 			if((ret = decode_bearer_rsrc_fail_indctn((uint8_t *) gtpv2c_rx,
 							&msg->gtpc_msg.ber_rsrc_fail_ind) == 0)) {
 				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failure "
@@ -1478,10 +1520,54 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 				return -1;
 			}
 
-				send_bearer_resource_failure_indication(msg,
-							msg->gtpc_msg.ber_rsrc_fail_ind.cause.cause_value,
-							CAUSE_SOURCE_SET_TO_0, S11_IFACE);
-						return -1;
+			msg->proc = get_procedure(msg);
+
+			snprintf(teid_key.teid_key, PROC_LEN, "%s%d", get_proc_string(msg->proc),
+					msg->gtpc_msg.ber_rsrc_fail_ind.header.teid.has_teid.seq);
+
+			teid = msg->gtpc_msg.ber_rsrc_fail_ind.header.teid.has_teid.teid;
+
+			/*Note : we have to delete timer entry based on sgw s5s8 teid
+			 *     : for that we should have correct sgw s5s8 teid
+			 *     : this code handle case of wrong teid or zero teid receive
+			 *     : in msg*/
+
+			/*If we didn't get context based on sgw s5s8 teid, then get correct teid from hash table */
+			if(get_ue_context_by_sgw_s5s8_teid(msg->gtpc_msg.ber_rsrc_fail_ind.header.teid.has_teid.teid,
+						&context) != 0) {
+				clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Failed to get"
+						" UE context for teid: %d\n", LOG_VALUE, gtpv2c_rx->teid.has_teid.teid);
+
+				struct teid_value_t *teid_value = NULL;
+
+				teid_value = get_teid_for_seq_number(teid_key);
+				if (teid_value == NULL) {
+					/* TODO: Add the appropriate handling */
+					clLog(clSystemLog, eCLSeverityCritical,
+							LOG_FORMAT"Failed to get TEID value for Sequence "
+							"Number key: %s \n", LOG_VALUE,
+							teid_key.teid_key);
+					return -1;
+				}
+
+				teid = teid_value->teid;
+
+				/* Copy local stored TEID in the msg header */
+				msg->gtpc_msg.ber_rsrc_fail_ind.header.teid.has_teid.teid = teid_value->teid;
+
+			}
+
+
+		/* Delete the timer entry for Bearer rsrc cmd */
+		delete_timer_entry(teid);
+
+		/* Delete the TEID entry for Bearer rsrc cmd */
+		delete_teid_entry_for_seq(teid_key);
+
+		send_bearer_resource_failure_indication(msg,
+						msg->gtpc_msg.ber_rsrc_fail_ind.cause.cause_value,
+						CAUSE_SOURCE_SET_TO_0, S11_IFACE);
+					return -1;
 			break;
 		}
 
@@ -1558,6 +1644,8 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 
 	case GTP_UPDATE_BEARER_REQ:{
 
+		teid_key_t teid_key = {0};
+
 		if((ret = decode_upd_bearer_req((uint8_t *) gtpv2c_rx,
 						&msg->gtpc_msg.ub_req) == 0))
 			return -1;
@@ -1576,6 +1664,12 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 		/*Delete timer entry for bearer resource command and Modify Bearer Command*/
 		if (context->ue_initiated_seq_no == msg->gtpc_msg.ub_req.header.teid.has_teid.seq) {
 			delete_timer_entry(gtpv2c_rx->teid.has_teid.teid);
+
+			snprintf(teid_key.teid_key, PROC_LEN, "%s%d", "UE_REQ_BER_RSRC_MOD_PROC",
+					msg->gtpc_msg.ub_req.header.teid.has_teid.seq);
+
+			/* Delete the TEID entry for  bearer resource cmd */
+			delete_teid_entry_for_seq(teid_key);
 		}
 
 		/*Which ebi to be selected as multiple bearer in request*/

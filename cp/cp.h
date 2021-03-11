@@ -499,6 +499,7 @@ typedef struct pfcp_config_t {
 	char cli_rest_ip_buff[IPV6_STR_LEN];
 
 	uint8_t use_gx;        /*enable or disable gx interface*/
+	uint8_t perf_flag;     /*enable or disable perf flag*/
 
 	uint8_t ip_allocation_mode;  /*static or dynamic mode for IP allocation*/
 	uint8_t ip_type_supported;   /*static or dynamic mode for IP allocation*/
@@ -845,6 +846,15 @@ remove_csid_from_cntx(sess_fqcsid_t *cntx_fqcsid, fqcsid_t *csid_t);
  */
 void
 fill_pdn_fqcsid_info(fqcsid_t *pdn_fqcsid, sess_fqcsid_t *cntx_fqcsid);
+
+/**
+ * @brief  : Function to Delete Temporery and Permanent CSID entry.
+ * @param  : pdn_connection, pdn connection info
+ * @param  : eps_bearer, bearer info
+ * @return : 0: Success, -1: otherwise
+ */
+int
+delete_peer_node_info(pdn_connection *pdn, eps_bearer *bearer);
 #endif /* USE_CSID */
 
 /* SAEGWC --> PGWC demotion scenario, Cleanup the SGW related data structures */
@@ -938,6 +948,13 @@ int8_t	post_transmit_timer(const int transmit_timer_value);
 int8_t	post_transmit_count(const int transmit_count);
 
 /**
+ * @brief  : update perf flag
+ * @param  : perf_flag, Int
+ * @return : Returns status code
+ */
+int8_t	update_perf_flag(const int perf_flag);
+
+/**
  * @brief  : get request timeout
  * @param  : void
  * @return : Returns request timeout
@@ -971,6 +988,13 @@ int	get_transmit_timer(void);
  * @return : Returns transmit count value
  */
 int	get_transmit_count(void);
+
+/**
+ * @brief  : get perf flag value
+ * @param  : void
+ * @return : Returns perf flag value
+ */
+uint8_t	get_perf_flag(void);
 
 #endif
 

@@ -183,27 +183,29 @@ association_setup_handler(void *data, void *unused_param)
 		return -1;
 	}
 
-	if (PGWC == context->cp_mode) {
-		process_msg_for_li(context, S5S8_C_INTFC_IN, msg,
-				fill_ip_info(s5s8_recv_sockaddr.type,
+	if (PRESENT == context->dupl) {
+		if (PGWC == context->cp_mode) {
+			process_msg_for_li(context, S5S8_C_INTFC_IN, msg,
+					fill_ip_info(s5s8_recv_sockaddr.type,
 						pdn->s5s8_sgw_gtpc_ip.ipv4_addr,
 						pdn->s5s8_sgw_gtpc_ip.ipv6_addr),
-				fill_ip_info(s5s8_recv_sockaddr.type,
+					fill_ip_info(s5s8_recv_sockaddr.type,
 						config.s5s8_ip.s_addr,
 						config.s5s8_ip_v6.s6_addr),
-				pdn->s5s8_sgw_gtpc_teid, config.s5s8_port);
-	} else {
-		process_msg_for_li(context, S11_INTFC_IN, msg,
-				fill_ip_info(s11_mme_sockaddr.type,
+					pdn->s5s8_sgw_gtpc_teid, config.s5s8_port);
+		} else {
+			process_msg_for_li(context, S11_INTFC_IN, msg,
+					fill_ip_info(s11_mme_sockaddr.type,
 						context->s11_mme_gtpc_ip.ipv4_addr,
 						context->s11_mme_gtpc_ip.ipv6_addr),
-				fill_ip_info(s11_mme_sockaddr.type,
+					fill_ip_info(s11_mme_sockaddr.type,
 						config.s11_ip.s_addr,
 						config.s11_ip_v6.s6_addr),
-				((s11_mme_sockaddr.type == IPTYPE_IPV4_LI) ?
-					ntohs(s11_mme_sockaddr.ipv4.sin_port) :
-					ntohs(s11_mme_sockaddr.ipv6.sin6_port)),
-				config.s11_port);
+					((s11_mme_sockaddr.type == IPTYPE_IPV4_LI) ?
+					 ntohs(s11_mme_sockaddr.ipv4.sin_port) :
+					 ntohs(s11_mme_sockaddr.ipv6.sin6_port)),
+					config.s11_port);
+		}
 	}
 
 	if (pdn->upf_ip.ip_type == 0) {
@@ -388,37 +390,40 @@ process_sess_est_resp_handler(void *data, void *unused_param)
 				ebi_index, S5S8_IFACE, cp_mode);
 		}
 
-		process_cp_li_msg(
-				msg->pfcp_msg.pfcp_sess_est_resp.header.seid_seqno.has_seid.seid,
-				S5S8_C_INTFC_OUT, tx_buf, payload_length,
-				fill_ip_info(s5s8_recv_sockaddr.type,
+		if (PRESENT == context->dupl) {
+			process_cp_li_msg(
+					msg->pfcp_msg.pfcp_sess_est_resp.header.seid_seqno.has_seid.seid,
+					S5S8_C_INTFC_OUT, tx_buf, payload_length,
+					fill_ip_info(s5s8_recv_sockaddr.type,
 						config.s5s8_ip.s_addr,
 						config.s5s8_ip_v6.s6_addr),
-				fill_ip_info(s5s8_recv_sockaddr.type,
+					fill_ip_info(s5s8_recv_sockaddr.type,
 						s5s8_recv_sockaddr.ipv4.sin_addr.s_addr,
 						s5s8_recv_sockaddr.ipv6.sin6_addr.s6_addr),
-				config.s5s8_port,
-				((s5s8_recv_sockaddr.type == IPTYPE_IPV4_LI) ?
-					ntohs(s5s8_recv_sockaddr.ipv4.sin_port) :
-					ntohs(s5s8_recv_sockaddr.ipv6.sin6_port)));
+					config.s5s8_port,
+					((s5s8_recv_sockaddr.type == IPTYPE_IPV4_LI) ?
+					 ntohs(s5s8_recv_sockaddr.ipv4.sin_port) :
+					 ntohs(s5s8_recv_sockaddr.ipv6.sin6_port)));
+		}
 	} else {
 		/* Send response on s11 interface */
 		gtpv2c_send(s11_fd, s11_fd_v6, tx_buf, payload_length,
 				s11_mme_sockaddr, ACC);
-
-		process_cp_li_msg(
-				msg->pfcp_msg.pfcp_sess_est_resp.header.seid_seqno.has_seid.seid,
-				S11_INTFC_OUT, tx_buf, payload_length,
-				fill_ip_info(s11_mme_sockaddr.type,
+		if (PRESENT == context->dupl) {
+			process_cp_li_msg(
+					msg->pfcp_msg.pfcp_sess_est_resp.header.seid_seqno.has_seid.seid,
+					S11_INTFC_OUT, tx_buf, payload_length,
+					fill_ip_info(s11_mme_sockaddr.type,
 						config.s11_ip.s_addr,
 						config.s11_ip_v6.s6_addr),
-				fill_ip_info(s11_mme_sockaddr.type,
+					fill_ip_info(s11_mme_sockaddr.type,
 						s11_mme_sockaddr.ipv4.sin_addr.s_addr,
 						s11_mme_sockaddr.ipv6.sin6_addr.s6_addr),
-				config.s11_port,
-				((s11_mme_sockaddr.type == IPTYPE_IPV4_LI) ?
-					ntohs(s11_mme_sockaddr.ipv4.sin_port) :
-					ntohs(s11_mme_sockaddr.ipv6.sin6_port)));
+					config.s11_port,
+					((s11_mme_sockaddr.type == IPTYPE_IPV4_LI) ?
+					 ntohs(s11_mme_sockaddr.ipv4.sin_port) :
+					 ntohs(s11_mme_sockaddr.ipv6.sin6_port)));
+		}
 	}
 	RTE_SET_USED(unused_param);
 	return 0;
@@ -698,21 +703,22 @@ process_sess_mod_resp_handler(void *data, void *unused_param)
 
 		gtpv2c_send(s11_fd, s11_fd_v6, tx_buf, payload_length,
 				s11_mme_sockaddr, ACC);
-
-		process_cp_li_msg(
-				msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid,
-				S11_INTFC_OUT, tx_buf, payload_length,
-				fill_ip_info(s11_mme_sockaddr.type,
-					config.s11_ip.s_addr,
-					config.s11_ip_v6.s6_addr),
-				fill_ip_info(s11_mme_sockaddr.type,
-					s11_mme_sockaddr.ipv4.sin_addr.s_addr,
-					s11_mme_sockaddr.ipv6.sin6_addr.s6_addr),
-				config.s11_port,
-				((s11_mme_sockaddr.type == IPTYPE_IPV4_LI) ?
-					ntohs(s11_mme_sockaddr.ipv4.sin_port) :
-					ntohs(s11_mme_sockaddr.ipv6.sin6_port)));
-
+	
+		if (PRESENT == context->dupl) {
+			process_cp_li_msg(
+					msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid,
+					S11_INTFC_OUT, tx_buf, payload_length,
+					fill_ip_info(s11_mme_sockaddr.type,
+						config.s11_ip.s_addr,
+						config.s11_ip_v6.s6_addr),
+					fill_ip_info(s11_mme_sockaddr.type,
+						s11_mme_sockaddr.ipv4.sin_addr.s_addr,
+						s11_mme_sockaddr.ipv6.sin6_addr.s6_addr),
+					config.s11_port,
+					((s11_mme_sockaddr.type == IPTYPE_IPV4_LI) ?
+					 ntohs(s11_mme_sockaddr.ipv4.sin_port) :
+					 ntohs(s11_mme_sockaddr.ipv6.sin6_port)));
+		}
 	} else {
 
 		ret = set_dest_address(bearer->pdn->s5s8_sgw_gtpc_ip, &s5s8_recv_sockaddr);
@@ -935,17 +941,17 @@ process_ds_req_handler(void *data, void *unused_param)
 	}
 
 	if(context != NULL ) {
-		if(context->dsr_info.seq ==  msg->gtpc_msg.dsr.header.teid.has_teid.seq) {
-			if(context->dsr_info.status == DSR_IN_PROGRESS) {
+		if(context->req_status.seq ==  msg->gtpc_msg.dsr.header.teid.has_teid.seq) {
+			if(context->req_status.status == REQ_IN_PROGRESS) {
 				/* Discarding re-transmitted dsr */
 				return GTPC_RE_TRANSMITTED_REQ;
 			}else{
 				/* Restransmitted DSR but processing already done for previous req */
-				context->dsr_info.status = DSR_IN_PROGRESS;
+				context->req_status.status = REQ_IN_PROGRESS;
 			}
 		} else {
-			context->dsr_info.seq = msg->gtpc_msg.dsr.header.teid.has_teid.seq;
-			context->dsr_info.status = DSR_IN_PROGRESS;
+			context->req_status.seq = msg->gtpc_msg.dsr.header.teid.has_teid.seq;
+			context->req_status.status = REQ_IN_PROGRESS;
 		}
 	}
 
@@ -1329,6 +1335,8 @@ cca_t_msg_handler(void *data, void *unused_param)
 {
 	msg_info *msg = (msg_info *)data;
 	gx_context_t *gx_context = NULL;
+	int ret = 0;
+	uint32_t call_id = 0;
 
 	RTE_SET_USED(unused_param);
 
@@ -1351,6 +1359,27 @@ cca_t_msg_handler(void *data, void *unused_param)
 		rte_free(gx_context);
 		gx_context = NULL;
 	}
+
+	/* Extract the call id from session id */
+	ret = retrieve_call_id((char *)msg->gx_msg.cca.session_id.val, &call_id);
+	if (ret < 0) {
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"No Call Id "
+				"found for session id:%s\n", LOG_VALUE,
+				msg->gx_msg.cca.session_id.val);
+		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+	}
+
+	/* Delete PDN Conn Entry */
+	ret = rte_hash_del_key(pdn_conn_hash, &call_id);
+
+	if ( ret < 0) {
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Entry not found "
+				"for CALL_ID :%u while deleting PDN connection entry\n", LOG_VALUE, call_id);
+		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+	}
+
+	free_cca_msg_dynamically_alloc_memory(&msg->gx_msg.cca);
+
 	return 0;
 }
 
@@ -1565,6 +1594,7 @@ cca_msg_handler(void *data, void *unused_param)
 			return 0;
 		}
 
+		free_cca_msg_dynamically_alloc_memory(&msg->gx_msg.cca);
 	}
 
 	if (pdn->upf_ip.ip_type == 0) {
@@ -2129,19 +2159,21 @@ process_mod_resp_delete_handler(void *data, void *unused_param)
 			&s5s8_recv_sockaddr, tx_buf, payload_length, ebi_index, S5S8_IFACE,
 			cp_mode);
 
-		process_cp_li_msg(
-				msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid,
-				S5S8_C_INTFC_OUT, tx_buf, payload_length,
-				fill_ip_info(s5s8_recv_sockaddr.type,
+		if (PRESENT == context->dupl) {
+			process_cp_li_msg(
+					msg->pfcp_msg.pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid,
+					S5S8_C_INTFC_OUT, tx_buf, payload_length,
+					fill_ip_info(s5s8_recv_sockaddr.type,
 						config.s5s8_ip.s_addr,
 						config.s5s8_ip_v6.s6_addr),
-				fill_ip_info(s5s8_recv_sockaddr.type,
+					fill_ip_info(s5s8_recv_sockaddr.type,
 						s5s8_recv_sockaddr.ipv4.sin_addr.s_addr,
 						s5s8_recv_sockaddr.ipv6.sin6_addr.s6_addr),
-				config.s5s8_port,
-				((s5s8_recv_sockaddr.type == IPTYPE_IPV4_LI) ?
-					ntohs(s5s8_recv_sockaddr.ipv4.sin_port) :
-					ntohs(s5s8_recv_sockaddr.ipv6.sin6_port)));
+					config.s5s8_port,
+					((s5s8_recv_sockaddr.type == IPTYPE_IPV4_LI) ?
+					 ntohs(s5s8_recv_sockaddr.ipv4.sin_port) :
+					 ntohs(s5s8_recv_sockaddr.ipv6.sin6_port)));
+		}
 	} else {
 		/*Code should not reach here since this handler is only for SGWC*/
 		return -1;
@@ -3419,11 +3451,11 @@ int process_pfcp_sess_mod_resp_ubr_handler(void *data, void *unused_param)
 				for(int idx2 = 0; idx2 < bearer->pdr_count; idx2++) {
 
 
-					if((pdn->policy.pcc_rule[idx].action == bearer->action) &&
-							(strncmp(pdn->policy.pcc_rule[idx].dyn_rule.rule_name,
+					if((pdn->policy.pcc_rule[idx]->action == bearer->action) &&
+							(strncmp(pdn->policy.pcc_rule[idx]->urule.dyn_rule.rule_name,
 									bearer->pdrs[idx2]->rule_name, RULE_NAME_LEN) == 0)) {
 
-						if(pdn->policy.pcc_rule[idx].action == RULE_ACTION_MODIFY_REMOVE_RULE) {
+						if(pdn->policy.pcc_rule[idx]->action == RULE_ACTION_MODIFY_REMOVE_RULE) {
 
 							int ret = delete_pdr_qer_for_rule(bearer, bearer->pdrs[idx2]->rule_id);
 							if(ret == 0) {
@@ -3877,8 +3909,7 @@ process_pfcp_sess_del_resp_context_replacement_handler(void *data, void *unused_
 		return -1;
 	}
 
-	if (SGWC == context->cp_mode) {
-
+	if (SGWC == context->cp_mode && pdn->context != NULL) {
 
 		if (pdn->upf_ip.ip_type == 0) {
 
@@ -4065,17 +4096,17 @@ int process_modify_access_bearer_handler(void *data, void *unused_param)
 
 	context->procedure  = MODIFY_ACCESS_BEARER_PROC;
 	/* CHECK FOR Retranmission of Message */
-	if(context->mabr_info.seq ==  msg->gtpc_msg.mod_acc_req.header.teid.has_teid.seq) {
-		if(context->mabr_info.status == MABR_IN_PROGRESS) {
+	if(context->req_status.seq ==  msg->gtpc_msg.mod_acc_req.header.teid.has_teid.seq) {
+		if(context->req_status.status == REQ_IN_PROGRESS) {
 			/* Discarding re-transmitted mbr */
 			return GTPC_RE_TRANSMITTED_REQ;
 		}else{
 			/* Restransmitted MABR but processing altready done for previous req */
-			context->mabr_info.status = MABR_IN_PROGRESS;
+			context->req_status.status = REQ_IN_PROGRESS;
 		}
 	}else{
-		context->mabr_info.seq = msg->gtpc_msg.mod_acc_req.header.teid.has_teid.seq;
-		context->mabr_info.status = MABR_IN_PROGRESS;
+		context->req_status.seq = msg->gtpc_msg.mod_acc_req.header.teid.has_teid.seq;
+		context->req_status.status = REQ_IN_PROGRESS;
 	}
 
 	ret = process_pfcp_mod_req_modify_access_req(&msg->gtpc_msg.mod_acc_req);

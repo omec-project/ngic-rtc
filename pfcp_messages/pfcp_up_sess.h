@@ -131,21 +131,23 @@ fill_pfcp_session_modify_resp(pfcp_sess_mod_rsp_t *pfcp_sess_modify_resp,
  * @brief  : Fill usage report for pfcp session modification response
  * @param  : usage_report, usage report to be fill
  * @param  : urr, urr strcute for which we are genrating usage report.
+ * @param  : cp_seid , session id of cp
  * @return : Returns 0 for Success and -1 for failure
  */
 int8_t
 fill_sess_mod_usage_report(pfcp_usage_rpt_sess_mod_rsp_ie_t *usage_report,
-															urr_info_t *urr);
+															urr_info_t *urr, uint64_t cp_seid);
 
 /**
  * @brief  : Fill usage report for pfcp session deletion response
  * @param  : usage_report, usage report to be fill
  * @param  : urr, urr strcute for which we are genrating usage report.
+ * @param  : cp_seid, cp session id
  * @return : Returns 0 for Success and -1 for failure
  */
 int8_t
 fill_sess_del_usage_report(pfcp_usage_rpt_sess_del_rsp_ie_t *usage_report,
-															urr_info_t *urr);
+															urr_info_t *urr, uint64_t cp_seid);
 
 /**
  * @brief  : Fill usage report for pfcp session report request
@@ -295,16 +297,11 @@ remove_cdr_entry(uint32_t seq_no, uint64_t up_seid);
 /*
  * @brief  : dump CDR from usage report in
  *           pfcp-sess-rpt-req message
- * @param  : usage_report, usage report in pfcp-sess-rpt-req msg
- * @param  : up_seid, user plane session id
- * @param  : trig, cause for record close
- * @param  : seq_no, seq_no in msg used as a key to store CDR
  * @return : 0 on success,else -1
  */
 int
-store_cdr_into_file_pfcp_sess_rpt_req(pfcp_usage_rpt_sess_rpt_req_ie_t *usage_report,
-													uint64_t  up_seid, uint32_t trig,
-																	uint32_t seq_no);
+store_cdr_into_file_pfcp_sess_rpt_req();
+
 /*
  * @brief  : generate & store CDR from usage report
  *           when restoration begins

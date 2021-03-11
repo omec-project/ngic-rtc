@@ -737,6 +737,12 @@ parse_up_config_param(struct app_params *app)
 			app->generate_pcap = (uint8_t)atoi(global_entries[inx].value);
 
 			fprintf(stderr, "DP: GENERATE_PCAP: %u\n", app->generate_pcap);
+		} else if(strncmp("PERF_FLAG", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
+			app->perf_flag = (uint8_t)atoi(global_entries[inx].value);
+			if (app->perf_flag != PERF_ON && app->perf_flag != PERF_OFF)
+				rte_panic("Use 0 or 1 for perf flag DISABLE/ENABLE ");
+
+			fprintf(stderr, "DP: PERF_FLAG: %u\n", app->perf_flag);
 		} else if (strncmp("CLI_REST_IP" , global_entries[inx].name,
 					ENTRY_NAME_SIZE) == 0) {
 
@@ -757,6 +763,7 @@ parse_up_config_param(struct app_params *app)
 			}
 			fprintf(stdout, "CP: CP_REST_IP : %s\n",
 					app->cli_rest_ip_buff);
+			freeaddrinfo(ip_type);
 		} else if(strncmp("CLI_REST_PORT", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
 			app->cli_rest_port = (uint16_t)atoi(global_entries[inx].value);
 			fprintf(stdout, "CP: CLI_REST_PORT : %d\n",

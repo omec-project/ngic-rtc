@@ -19,8 +19,9 @@
 extern int clSystemLog;
 
 sess_csid *
-add_sess_csid_data_node(sess_csid *head) {
+add_sess_csid_data_node(sess_csid *head, uint16_t local_csid) {
 
+	int ret = 0;
 	sess_csid *new_node =NULL;
 
 	/* Check linked list is empty or not */
@@ -42,6 +43,57 @@ add_sess_csid_data_node(sess_csid *head) {
 				LOG_VALUE);
 		return NULL;
 	}
+	/* Update CSID Entry in table */
+	ret = rte_hash_add_key_data(seids_by_csid_hash,
+			&local_csid, new_node);
+	if (ret) {
+		clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Failed to add Session IDs entry for CSID = %u"
+				"\n\tError= %s\n",
+				LOG_VALUE, local_csid,
+				rte_strerror(abs(ret)));
+		return NULL;
+	}
+
+	return new_node;
+}
+
+sess_csid *
+add_peer_csid_sess_data_node(sess_csid *head, peer_csid_key_t *key) {
+
+	int ret = 0;
+	sess_csid *new_node =NULL;
+
+	/* Check linked list is empty or not */
+	if(head == NULL )
+		return NULL;
+
+	/* Allocate memory for new node */
+	new_node = rte_malloc_socket(NULL, sizeof(sess_csid),
+				RTE_CACHE_LINE_SIZE, rte_socket_id());
+	if(new_node == NULL ) {
+		clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Failed to allocate memory for session data info\n", LOG_VALUE);
+		return NULL;
+	}
+
+	/* Add new node into linked list */
+	if(insert_sess_csid_data_node(head, new_node) < 0){
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to add node entry in LL\n",
+				LOG_VALUE);
+		return NULL;
+	}
+	/* Update CSID Entry in table */
+	ret = rte_hash_add_key_data(seids_by_csid_hash,
+			key, new_node);
+	if (ret) {
+		clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Failed to add Session IDs entry for CSID"
+				"\n\tError= %s\n",
+				LOG_VALUE,
+				rte_strerror(abs(ret)));
+		return NULL;
+	}
 
 	return new_node;
 }
@@ -51,7 +103,6 @@ int8_t
 insert_sess_csid_data_node(sess_csid *head, sess_csid *new_node)
 {
 
-	sess_csid *tmp =  NULL;
 
 	if(new_node == NULL)
 		return -1;
@@ -60,14 +111,9 @@ insert_sess_csid_data_node(sess_csid *head, sess_csid *new_node)
 	/* Check linked list is empty or not */
 	if (head == NULL) {
 		head = new_node;
+		head->next = NULL;
 	} else {
-		tmp = head;
-
-		/* Traverse the linked list until tmp is the last node */
-		while(tmp->next != NULL) {
-			tmp = tmp->next;
-		}
-		tmp->next = new_node;
+		new_node->next = head;
 	}
 	return 0;
 }

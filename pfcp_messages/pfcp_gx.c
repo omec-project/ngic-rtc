@@ -217,7 +217,7 @@ fill_sdf_strctr(char *str, sdf_pkt_fltr *pkt_filter)
 						return -1;
 					}
 					if(strstr(ip_fld[0], ":") != NULL){
-						if(inet_pton(AF_INET6, (const char *) ip_fld[0], (void *)(&pkt_filter->local_ip6_addr)) < 0){
+						if(inet_pton(AF_INET6, (const char *) ip_fld[0], (void *)(&pkt_filter->ulocalip.local_ip6_addr)) < 0){
 							clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"AVP:conv of src ip fails \n",
 								LOG_VALUE);
 							return -1;
@@ -225,7 +225,7 @@ fill_sdf_strctr(char *str, sdf_pkt_fltr *pkt_filter)
 						pkt_filter->local_ip_mask = atoi(ip_fld[1]);
 						pkt_filter->v6 = PRESENT;
 					}else if(strstr(ip_fld[0], ".") != NULL){
-						if(inet_pton(AF_INET, (const char *) ip_fld[0], (void *)(&pkt_filter->local_ip_addr)) < 0){
+						if(inet_pton(AF_INET, (const char *) ip_fld[0], (void *)(&pkt_filter->ulocalip.local_ip_addr)) < 0){
 							clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"AVP:conv of src ip fails \n",
 								LOG_VALUE);
 							return -1;
@@ -235,14 +235,14 @@ fill_sdf_strctr(char *str, sdf_pkt_fltr *pkt_filter)
 					}
 				} else {
 					if(strstr(str_fld[indx], ":") != NULL){
-						if(inet_pton(AF_INET6, (const char *) str_fld[indx], (void *)(&pkt_filter->local_ip6_addr)) < 0){
+						if(inet_pton(AF_INET6, (const char *) str_fld[indx], (void *)(&pkt_filter->ulocalip.local_ip6_addr)) < 0){
 							clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT "AVP:conv of src ip fails \n",
 								LOG_VALUE);
 							return -1;
 						}
 						pkt_filter->v6 = PRESENT;
 					}else if(strstr(str_fld[indx], ".") != NULL){
-						if(inet_pton(AF_INET, (const char *) str_fld[indx], (void *)(&pkt_filter->local_ip_addr)) < 0){
+						if(inet_pton(AF_INET, (const char *) str_fld[indx], (void *)(&pkt_filter->ulocalip.local_ip_addr)) < 0){
 							clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT "AVP:conv of src ip fails \n",
 								LOG_VALUE);
 							return -1;
@@ -288,7 +288,7 @@ fill_sdf_strctr(char *str, sdf_pkt_fltr *pkt_filter)
 						return -1;
 					}
 					if(strstr(ip_fld[0], ":") != NULL){
-						if(inet_pton(AF_INET6, (const char *) ip_fld[0], (void *)(&pkt_filter->remote_ip6_addr)) < 0){
+						if(inet_pton(AF_INET6, (const char *) ip_fld[0], (void *)(&pkt_filter->uremoteip.remote_ip6_addr)) < 0){
 							clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"AVP:conv of dst ip fails \n",
 								LOG_VALUE);
 							return -1;
@@ -296,7 +296,7 @@ fill_sdf_strctr(char *str, sdf_pkt_fltr *pkt_filter)
 						pkt_filter->remote_ip_mask = atoi(ip_fld[1]);
 						pkt_filter->v6 = PRESENT;
 					}else if(strstr(ip_fld[0], ".") != NULL){
-						if(inet_pton(AF_INET, (const char *) ip_fld[0], (void *)(&pkt_filter->remote_ip_addr)) < 0){
+						if(inet_pton(AF_INET, (const char *) ip_fld[0], (void *)(&pkt_filter->uremoteip.remote_ip_addr)) < 0){
 							clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"AVP:conv of dst ip fails \n",
 								LOG_VALUE);
 							return -1;
@@ -306,14 +306,14 @@ fill_sdf_strctr(char *str, sdf_pkt_fltr *pkt_filter)
 					}
 				} else{
 					if(strstr(str_fld[indx], ":") != NULL){
-						if(inet_pton(AF_INET6, (const char *) str_fld[indx], (void *)(&pkt_filter->remote_ip6_addr)) < 0){
+						if(inet_pton(AF_INET6, (const char *) str_fld[indx], (void *)(&pkt_filter->uremoteip.remote_ip6_addr)) < 0){
 							clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"AVP:conv of dst ip \n",
 								LOG_VALUE);
 							return -1;
 						}
 						pkt_filter->v6 = PRESENT;
 					}else if(strstr(str_fld[indx], ".") != NULL) {
-						if(inet_pton(AF_INET, (const char *) str_fld[indx], (void *)(&pkt_filter->remote_ip_addr)) < 0){
+						if(inet_pton(AF_INET, (const char *) str_fld[indx], (void *)(&pkt_filter->uremoteip.remote_ip_addr)) < 0){
 							clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"AVP:conv of dst ip \n",
 								LOG_VALUE);
 							return -1;
@@ -439,12 +439,12 @@ fill_predefined_rule_in_bearer(pdn_connection *pdn, dynamic_rule_t *pdef_rule,
 
 			if(tmp_sdf->v4){
 				pdef_rule->flow_desc[idx].sdf_flw_desc.v4 = PRESENT;
-				pdef_rule->flow_desc[idx].sdf_flw_desc.local_ip_addr = tmp_sdf->local_ip_addr;
-				pdef_rule->flow_desc[idx].sdf_flw_desc.remote_ip_addr = tmp_sdf->remote_ip_addr;
+				pdef_rule->flow_desc[idx].sdf_flw_desc.ulocalip.local_ip_addr = tmp_sdf->local_ip_addr;
+				pdef_rule->flow_desc[idx].sdf_flw_desc.uremoteip.remote_ip_addr = tmp_sdf->remote_ip_addr;
 			} else {
 				pdef_rule->flow_desc[idx].sdf_flw_desc.v6 = PRESENT;
-				pdef_rule->flow_desc[idx].sdf_flw_desc.local_ip6_addr = tmp_sdf->local_ip6_addr;
-				pdef_rule->flow_desc[idx].sdf_flw_desc.remote_ip6_addr = tmp_sdf->remote_ip6_addr;
+				pdef_rule->flow_desc[idx].sdf_flw_desc.ulocalip.local_ip6_addr = tmp_sdf->local_ip6_addr;
+				pdef_rule->flow_desc[idx].sdf_flw_desc.uremoteip.remote_ip6_addr = tmp_sdf->remote_ip6_addr;
 
 			}
 			pdef_rule->flow_desc[idx].sdf_flw_desc.action = pcc->rule_status;
@@ -643,10 +643,7 @@ store_event_trigger(pdn_connection *pdn, GxEventTriggerList *event_trigger)
 {
 	if(event_trigger != NULL) {
 		for(uint8_t i = 0; i < event_trigger->count; i++) {
-			int32_t val =  *event_trigger->list;
-
-			/*Jumping the list to the next GxEventTriggerList*/
-			event_trigger->list++;
+			int32_t val =  event_trigger->list[i];
 			//pdn->context->event_trigger = val;
 			//set_event_trigger_bit(pdn->context)
 			SET_EVENT(pdn->context->event_trigger, val);
@@ -880,11 +877,24 @@ store_dynamic_rules_in_policy(pdn_connection *pdn,
 						memset(rule_name.rule_name, '\0', sizeof(rule_name.rule_name));
 						snprintf(rule_name.rule_name, RULE_NAME_LEN,"%s%d",
 								rule_definition->charging_rule_name.val, pdn->call_id);
-						memset(&pdn->policy.pcc_rule[pdn->policy.count], 0, sizeof(pcc_rule_t));
-						fill_charging_rule_definition(&(pdn->policy.pcc_rule[pdn->policy.count].dyn_rule), rule_definition);
-						pdn->policy.pcc_rule[pdn->policy.count].predefined_rule = FALSE;
+
+						if(pdn->policy.pcc_rule[pdn->policy.count] == NULL) {
+							pdn->policy.pcc_rule[pdn->policy.count] =
+								rte_zmalloc_socket(NULL, sizeof(pcc_rule_t),
+									RTE_CACHE_LINE_SIZE, rte_socket_id());
+						}
+
+						if(pdn->policy.pcc_rule[pdn->policy.count] == NULL) {
+							clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to allocate"
+									"memory to pcc rule structure\n", LOG_VALUE);
+							return GTPV2C_CAUSE_NO_MEMORY_AVAILABLE;
+						}
+
+						fill_charging_rule_definition(&(pdn->policy.pcc_rule[pdn->policy.count]->urule.dyn_rule),
+														rule_definition);
+						pdn->policy.pcc_rule[pdn->policy.count]->predefined_rule = FALSE;
 						/* Extract Bearer on basis of QCI and ARP value */
-						bearer = get_bearer(pdn, &pdn->policy.pcc_rule[pdn->policy.count].dyn_rule.qos);
+						bearer = get_bearer(pdn, &pdn->policy.pcc_rule[pdn->policy.count]->urule.dyn_rule.qos);
 						bearer_index = get_rule_name_entry(rule_name);
 						if(bearer == NULL || bearer->num_dynamic_filters == 0) {
 
@@ -892,7 +902,7 @@ store_dynamic_rules_in_policy(pdn_connection *pdn,
 									(bearer != NULL && bearer->num_dynamic_filters == 0) ||
 									(pdn->eps_bearers[bearer_index] == NULL)){
 
-								pdn->policy.pcc_rule[pdn->policy.count].action = RULE_ACTION_ADD;
+								pdn->policy.pcc_rule[pdn->policy.count]->action = RULE_ACTION_ADD;
 								pdn->policy.count++;
 								pdn->policy.num_charg_rule_install++;
 
@@ -905,15 +915,26 @@ store_dynamic_rules_in_policy(pdn_connection *pdn,
 									/* Remove the rule from older bearer and create new bearer */
 
 									/* Create a new bearer */
-									pdn->policy.pcc_rule[pdn->policy.count].action = RULE_ACTION_ADD;
+									pdn->policy.pcc_rule[pdn->policy.count]->action = RULE_ACTION_ADD;
 									pdn->policy.count++;
 									pdn->policy.num_charg_rule_install++;
 
+									if(pdn->policy.pcc_rule[pdn->policy.count] == NULL){
+										pdn->policy.pcc_rule[pdn->policy.count] =
+											rte_zmalloc_socket(NULL, sizeof(pcc_rule_t),
+												RTE_CACHE_LINE_SIZE, rte_socket_id());
+									}
+
+									if(pdn->policy.pcc_rule[pdn->policy.count] == NULL){
+										clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to allocate"
+												"memory to pcc rule structure\n", LOG_VALUE);
+										return GTPV2C_CAUSE_NO_MEMORY_AVAILABLE;
+									}
 									/* Remove rule from older bearer */
-									memset(&pdn->policy.pcc_rule[pdn->policy.count], 0, sizeof(pcc_rule_t));
-									fill_charging_rule_definition(&(pdn->policy.pcc_rule[pdn->policy.count].dyn_rule),
+									fill_charging_rule_definition(
+											&(pdn->policy.pcc_rule[pdn->policy.count]->urule.dyn_rule),
 											rule_definition);
-									pdn->policy.pcc_rule[pdn->policy.count].action =
+									pdn->policy.pcc_rule[pdn->policy.count]->action =
 										RULE_ACTION_MODIFY_REMOVE_RULE;
 									bearer->action = RULE_ACTION_MODIFY_REMOVE_RULE;
 									/* As Removing rule so both TFT and QoS should modify*/
@@ -924,15 +945,16 @@ store_dynamic_rules_in_policy(pdn_connection *pdn,
 								}else{
 
 									update_bearer_rule(bearer,
-											&(pdn->policy.pcc_rule[pdn->policy.count].dyn_rule),
+											&(pdn->policy.pcc_rule[pdn->policy.count]->urule.dyn_rule),
 											RULE_ACTION_MODIFY);
 
 									if(pdn->proc == HSS_INITIATED_SUB_QOS_MOD && bearer->arp_bearer_check == PRESENT) {
 										/*Change arp values for all bearers*/
-										change_arp_for_ded_bearer(pdn, &(pdn->policy.pcc_rule[pdn->policy.count].dyn_rule.qos));
+										change_arp_for_ded_bearer(pdn,
+												&(pdn->policy.pcc_rule[pdn->policy.count]->urule.dyn_rule.qos));
 									}
 
-									pdn->policy.pcc_rule[pdn->policy.count].action = RULE_ACTION_MODIFY;
+									pdn->policy.pcc_rule[pdn->policy.count]->action = RULE_ACTION_MODIFY;
 									bearer->action = RULE_ACTION_MODIFY;
 									pdn->policy.count++;
 									pdn->policy.num_charg_rule_modify++;
@@ -946,12 +968,13 @@ store_dynamic_rules_in_policy(pdn_connection *pdn,
 							 * Else recevied one new rule to add into the bearer
 							 * */
 							if(bearer->eps_bearer_id == (bearer_index + NUM_EBI_RESERVED)){
-								ret = update_bearer_rule(bearer, &(pdn->policy.pcc_rule[pdn->policy.count].dyn_rule),
+								ret = update_bearer_rule(bearer,
+										&(pdn->policy.pcc_rule[pdn->policy.count]->urule.dyn_rule),
 										RULE_ACTION_MODIFY);
 								if(ret)
 									return ret;
 
-								pdn->policy.pcc_rule[pdn->policy.count].action = RULE_ACTION_MODIFY;
+								pdn->policy.pcc_rule[pdn->policy.count]->action = RULE_ACTION_MODIFY;
 								bearer->action = RULE_ACTION_MODIFY;
 								pdn->policy.count++;
 								pdn->policy.num_charg_rule_modify++;
@@ -959,12 +982,13 @@ store_dynamic_rules_in_policy(pdn_connection *pdn,
 
 								if(bearer_index == -1) {
 									/* The rule is not with us*/
-									 ret = update_bearer_rule(bearer, &(pdn->policy.pcc_rule[pdn->policy.count].dyn_rule),
+									ret = update_bearer_rule(bearer,
+											&(pdn->policy.pcc_rule[pdn->policy.count]->urule.dyn_rule),
 											RULE_ACTION_ADD);
-									 if(ret)
+									if(ret)
 										 return ret;
 
-									pdn->policy.pcc_rule[pdn->policy.count].action = RULE_ACTION_MODIFY_ADD_RULE;
+									pdn->policy.pcc_rule[pdn->policy.count]->action = RULE_ACTION_MODIFY_ADD_RULE;
 									bearer->action = RULE_ACTION_MODIFY_ADD_RULE;
 									pdn->policy.count++;
 									pdn->policy.num_charg_rule_modify++;
@@ -973,7 +997,7 @@ store_dynamic_rules_in_policy(pdn_connection *pdn,
 
 									/* Removing that rule from the older bearer*/
 									if(pdn->eps_bearers[bearer_index]->num_dynamic_filters > 1){
-										pdn->policy.pcc_rule[pdn->policy.count].action =
+										pdn->policy.pcc_rule[pdn->policy.count]->action =
 											RULE_ACTION_MODIFY_REMOVE_RULE;
 										pdn->eps_bearers[bearer_index]->action = RULE_ACTION_MODIFY_REMOVE_RULE;
 
@@ -984,20 +1008,22 @@ store_dynamic_rules_in_policy(pdn_connection *pdn,
 										pdn->policy.num_charg_rule_modify++;
 									}else {
 
-										pdn->policy.pcc_rule[pdn->policy.count].action = RULE_ACTION_DELETE;
+										pdn->policy.pcc_rule[pdn->policy.count]->action = RULE_ACTION_DELETE;
 										pdn->eps_bearers[bearer_index]->action = RULE_ACTION_DELETE;
 										pdn->policy.count++;
 										pdn->policy.num_charg_rule_delete++;
 									}
 
 									/* Adding that rule to new bearer */
-									fill_charging_rule_definition(&(pdn->policy.pcc_rule[pdn->policy.count].dyn_rule),
+									fill_charging_rule_definition(
+											&(pdn->policy.pcc_rule[pdn->policy.count]->urule.dyn_rule),
 											rule_definition);
 
-									update_bearer_rule(bearer, &(pdn->policy.pcc_rule[pdn->policy.count].dyn_rule),
+									update_bearer_rule(bearer,
+											&(pdn->policy.pcc_rule[pdn->policy.count]->urule.dyn_rule),
 											RULE_ACTION_ADD);
 
-									pdn->policy.pcc_rule[pdn->policy.count].action = RULE_ACTION_MODIFY_ADD_RULE;
+									pdn->policy.pcc_rule[pdn->policy.count]->action = RULE_ACTION_MODIFY_ADD_RULE;
 									bearer->action = RULE_ACTION_MODIFY_ADD_RULE;
 									pdn->policy.count++;
 									pdn->policy.num_charg_rule_modify++;
@@ -1027,9 +1053,21 @@ store_dynamic_rules_in_policy(pdn_connection *pdn,
 							LOG_FORMAT"PCRF Send Predefined Charging rule name: %s\n",
 							LOG_VALUE, rule_name.rule_name);
 
-					pdn->policy.pcc_rule[pdn->policy.count].predefined_rule = TRUE;
+					if(pdn->policy.pcc_rule[pdn->policy.count] == NULL){
+						pdn->policy.pcc_rule[pdn->policy.count] =
+							rte_zmalloc_socket(NULL, sizeof(pcc_rule_t),
+								RTE_CACHE_LINE_SIZE, rte_socket_id());
+					}
+
+					if(pdn->policy.pcc_rule[pdn->policy.count] == NULL){
+						clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to allocate"
+								"memory to pcc rule structure\n", LOG_VALUE);
+						return GTPV2C_CAUSE_NO_MEMORY_AVAILABLE;
+					}
+
+					pdn->policy.pcc_rule[pdn->policy.count]->predefined_rule = TRUE;
 					ret = fill_predefined_rule_in_bearer(pdn,
-							&(pdn->policy.pcc_rule[pdn->policy.count].pdef_rule), &rule_name);
+							&(pdn->policy.pcc_rule[pdn->policy.count]->urule.pdef_rule), &rule_name);
 					if(ret){
 						clLog(clSystemLog, eCLSeverityDebug,
 								LOG_FORMAT"Failed to fill_predefined_rule_in_bearer for rule name: %s\n",
@@ -1038,9 +1076,9 @@ store_dynamic_rules_in_policy(pdn_connection *pdn,
 					}
 
 					/* Extract Bearer on basis of QCI and ARP value */
-					bearer = get_bearer(pdn, &pdn->policy.pcc_rule[pdn->policy.count].pdef_rule.qos);
+					bearer = get_bearer(pdn, &pdn->policy.pcc_rule[pdn->policy.count]->urule.pdef_rule.qos);
 					if(bearer == NULL || bearer->num_prdef_filters == 0) {
-						pdn->policy.pcc_rule[pdn->policy.count].action = RULE_ACTION_ADD;
+						pdn->policy.pcc_rule[pdn->policy.count]->action = RULE_ACTION_ADD;
 						pdn->policy.count++;
 						pdn->policy.num_charg_rule_install++;
 					} else {
@@ -1056,7 +1094,8 @@ store_dynamic_rules_in_policy(pdn_connection *pdn,
 									LOG_VALUE);
 							return GTPV2C_CAUSE_SYSTEM_FAILURE;
 						}else{
-							ret = update_prdef_bearer_rule(bearer, &(pdn->policy.pcc_rule[pdn->policy.count].pdef_rule),
+							ret = update_prdef_bearer_rule(bearer,
+									&(pdn->policy.pcc_rule[pdn->policy.count]->urule.pdef_rule),
 									RULE_ACTION_ADD);
 							if(ret)
 								return ret;
@@ -1079,7 +1118,7 @@ store_dynamic_rules_in_policy(pdn_connection *pdn,
 								return GTPV2C_CAUSE_SYSTEM_FAILURE;
 							}
 						}
-						pdn->policy.pcc_rule[pdn->policy.count].action = RULE_ACTION_MODIFY;
+						pdn->policy.pcc_rule[pdn->policy.count]->action = RULE_ACTION_MODIFY;
 						bearer->action = RULE_ACTION_MODIFY;
 						pdn->policy.count++;
 						pdn->policy.num_charg_rule_modify++;
@@ -1109,11 +1148,22 @@ store_dynamic_rules_in_policy(pdn_connection *pdn,
 				strncpy(rule_temp, (char *)charging_rule_remove->list[idx1].charging_rule_name.list[0].val,
 						charging_rule_remove->list[idx1].charging_rule_name.list[0].len);
 
-				if(pdn->policy.pcc_rule[pdn->policy.count].predefined_rule){
-					rule = &pdn->policy.pcc_rule[pdn->policy.count].pdef_rule;
+				if(pdn->policy.pcc_rule[pdn->policy.count] == NULL){
+					pdn->policy.pcc_rule[pdn->policy.count] =
+						rte_zmalloc_socket(NULL, sizeof(pcc_rule_t),
+							RTE_CACHE_LINE_SIZE, rte_socket_id());
+
+					if(pdn->policy.pcc_rule[pdn->policy.count] == NULL){
+						clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to allocate"
+								"memory to pcc rule structure\n", LOG_VALUE);
+						return GTPV2C_CAUSE_NO_MEMORY_AVAILABLE;
+					}
+				}
+				if(pdn->policy.pcc_rule[pdn->policy.count]->predefined_rule){
+					rule = &pdn->policy.pcc_rule[pdn->policy.count]->urule.pdef_rule;
 					snprintf(rule_name.rule_name, RULE_NAME_LEN,"%s", rule_temp);
 				}else{
-					rule = &pdn->policy.pcc_rule[pdn->policy.count].dyn_rule;
+					rule = &pdn->policy.pcc_rule[pdn->policy.count]->urule.dyn_rule;
 					snprintf(rule_name.rule_name, RULE_NAME_LEN,"%s%d",rule_temp, pdn->call_id);
 				}
 
@@ -1129,13 +1179,13 @@ store_dynamic_rules_in_policy(pdn_connection *pdn,
 				{
 					bearer = pdn->eps_bearers[bearer_identifer];
 
-					if(pdn->policy.pcc_rule[pdn->policy.count].predefined_rule)
+					if(pdn->policy.pcc_rule[pdn->policy.count]->predefined_rule)
 						num_rule_filters = bearer->num_prdef_filters;
 					else
 						num_rule_filters = bearer->num_dynamic_filters;
 
 					if(num_rule_filters > 1){
-						pdn->policy.pcc_rule[pdn->policy.count].action =
+						pdn->policy.pcc_rule[pdn->policy.count]->action =
 											RULE_ACTION_MODIFY_REMOVE_RULE;
 						bearer->action = RULE_ACTION_MODIFY_REMOVE_RULE;
 						/* As Removing rule so both TFT and QoS should modify*/
@@ -1143,7 +1193,7 @@ store_dynamic_rules_in_policy(pdn_connection *pdn,
 						bearer->qos_bearer_check = PRESENT;
 						pdn->policy.num_charg_rule_modify++;
 					} else {
-						pdn->policy.pcc_rule[pdn->policy.count].action = RULE_ACTION_DELETE;
+						pdn->policy.pcc_rule[pdn->policy.count]->action = RULE_ACTION_DELETE;
 						bearer->action = RULE_ACTION_DELETE;
 						pdn->policy.num_charg_rule_delete++;
 					}
@@ -1285,8 +1335,7 @@ add_default_rule(uint8_t default_flow_status,
 	uint8_t sdf_rule_len = 0;
 	dynamic_rule_t *dynamic_rule = NULL;
 
-	dynamic_rule = &(pdn->policy.pcc_rule[pdn->policy.count].dyn_rule);
-	pdn->policy.count++;
+	dynamic_rule = &(pdn->policy.pcc_rule[pdn->policy.count]->urule.dyn_rule);
 	if(pdn->pdn_type.ipv4 == 1 && pdn->pdn_type.ipv6 == 1){
 		dynamic_rule->num_flw_desc = DEFAULT_NUM_SDF_RULE_v4_v6;
 	} else {
@@ -1364,23 +1413,23 @@ check_for_rules_on_default_bearer(pdn_connection *pdn)
 
 	for (idx = 0; idx < pdn->policy.num_charg_rule_install; idx++)
 	{
-		if (!pdn->policy.pcc_rule[idx].predefined_rule) {
+		if (!pdn->policy.pcc_rule[idx]->predefined_rule) {
 			if ((BIND_TO_DEFAULT_BEARER ==
-						pdn->policy.pcc_rule[idx].dyn_rule.def_bearer_indication) ||
+						pdn->policy.pcc_rule[idx]->urule.dyn_rule.def_bearer_indication) ||
 					(compare_default_bearer_qos(&pdn->policy.default_bearer_qos,
-												&pdn->policy.pcc_rule[idx].dyn_rule.qos) == 0))
+												&pdn->policy.pcc_rule[idx]->urule.dyn_rule.qos) == 0))
 			{
 				store_rule_qos_in_bearer(pdn,
-							&pdn->policy.pcc_rule[idx].dyn_rule.qos);
-				return (add_ebi_rule_name_entry(pdn->policy.pcc_rule[idx].dyn_rule.rule_name,
+							&pdn->policy.pcc_rule[idx]->urule.dyn_rule.qos);
+				return (add_ebi_rule_name_entry(pdn->policy.pcc_rule[idx]->urule.dyn_rule.rule_name,
 							pdn->call_id, pdn->default_bearer_id, FALSE));
 
 			}
 		} else {
 			if ((compare_default_bearer_qos(&pdn->policy.default_bearer_qos,
-								&pdn->policy.pcc_rule[idx].pdef_rule.qos) == 0))
+								&pdn->policy.pcc_rule[idx]->urule.pdef_rule.qos) == 0))
 			{
-				return (add_ebi_rule_name_entry(pdn->policy.pcc_rule[idx].pdef_rule.rule_name,
+				return (add_ebi_rule_name_entry(pdn->policy.pcc_rule[idx]->urule.pdef_rule.rule_name,
 							pdn->call_id, pdn->default_bearer_id, TRUE));
 			}
 		}
@@ -1388,16 +1437,19 @@ check_for_rules_on_default_bearer(pdn_connection *pdn)
 	/* set the default rule */
 	if (config.add_default_rule) {
 
+               pdn->policy.pcc_rule[pdn->policy.count] =
+                       rte_zmalloc_socket(NULL, sizeof(pcc_rule_t),
+                               RTE_CACHE_LINE_SIZE, rte_socket_id());
 		/* set default rule name */
-		memset(pdn->policy.pcc_rule[pdn->policy.count].dyn_rule.rule_name,
-				'\0', sizeof(pdn->policy.pcc_rule[pdn->policy.count].dyn_rule.rule_name));
-		strncpy(pdn->policy.pcc_rule[pdn->policy.count].dyn_rule.rule_name,
+		memset(pdn->policy.pcc_rule[pdn->policy.count]->urule.dyn_rule.rule_name,
+				'\0', sizeof(pdn->policy.pcc_rule[pdn->policy.count]->urule.dyn_rule.rule_name));
+		strncpy(pdn->policy.pcc_rule[pdn->policy.count]->urule.dyn_rule.rule_name,
 				DEFAULT_RULE_NAME, RULE_NAME_LEN);
 
 		set_ue_requested_bearer_qos(pdn,
-				&(pdn->policy.pcc_rule[pdn->policy.count].dyn_rule));
+				&(pdn->policy.pcc_rule[pdn->policy.count]->urule.dyn_rule));
 		add_ebi_rule_name_entry(
-				pdn->policy.pcc_rule[pdn->policy.count].dyn_rule.rule_name,
+				pdn->policy.pcc_rule[pdn->policy.count]->urule.dyn_rule.rule_name,
 				pdn->call_id, pdn->default_bearer_id, FALSE);
 		switch(config.add_default_rule) {
 			case ADD_RULE_TO_ALLOW :
@@ -1410,8 +1462,10 @@ check_for_rules_on_default_bearer(pdn_connection *pdn)
 				break;
 
 		}
-		pdn->policy.pcc_rule[pdn->policy.count].action = RULE_ACTION_ADD;
-		pdn->policy.count++;
+		if(pdn->policy.pcc_rule[pdn->policy.count] != NULL){
+			pdn->policy.pcc_rule[pdn->policy.count]->action = RULE_ACTION_ADD;
+			pdn->policy.count++;
+		}
 		pdn->policy.num_charg_rule_install++;
 		return 0;
 	}
@@ -1495,11 +1549,21 @@ void store_presence_reporting_area_info(pdn_connection *pdn_cntxt,
 		return;
 	}
 	context->pra_flag = TRUE;
-	context->pre_rptng_area_act.pres_rptng_area_idnt =
+	if(context->pre_rptng_area_act == NULL){
+		context->pre_rptng_area_act = rte_zmalloc_socket(NULL, sizeof(presence_reproting_area_action_t),
+				RTE_CACHE_LINE_SIZE, rte_socket_id());
+
+		if(context->pre_rptng_area_act == NULL) {
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to allocate "
+					"Memory for presence repoting area action\n", LOG_VALUE);
+			return;
+		}
+	}
+	context->pre_rptng_area_act->pres_rptng_area_idnt =
 							*(uint32_t *)pres_rprtng_area_info->presence_reporting_area_identifier.val;
-	context->pre_rptng_area_act.action = pres_rprtng_area_info->presence_reporting_area_status;
+	context->pre_rptng_area_act->action = pres_rprtng_area_info->presence_reporting_area_status;
 	decode_presence_area_action_from_cca(pres_rprtng_area_info->presence_reporting_area_elements_list.val,
-																			&context->pre_rptng_area_act);
+																			context->pre_rptng_area_act);
 	return;
 
 }
@@ -1581,11 +1645,11 @@ parse_gx_cca_msg(GxCCA *cca, pdn_connection **_pdn)
 		if(pdn_cntxt->policy.count > 1 ||
 			((pdn_cntxt->policy.count == 1 ) &&
 			((compare_default_bearer_qos(&pdn_cntxt->policy.default_bearer_qos,
-				&pdn_cntxt->policy.pcc_rule[pdn_cntxt->policy.count - 1].pdef_rule.qos) != 0
-			  && pdn_cntxt->policy.pcc_rule[pdn_cntxt->policy.count - 1].pdef_rule.qos.qci != 0) ||
+				&pdn_cntxt->policy.pcc_rule[pdn_cntxt->policy.count - 1]->urule.pdef_rule.qos) != 0
+			  && pdn_cntxt->policy.pcc_rule[pdn_cntxt->policy.count - 1]->urule.pdef_rule.qos.qci != 0) ||
 			(compare_default_bearer_qos(&pdn_cntxt->policy.default_bearer_qos,
-				&pdn_cntxt->policy.pcc_rule[pdn_cntxt->policy.count - 1].dyn_rule.qos) != 0
-			 && pdn_cntxt->policy.pcc_rule[pdn_cntxt->policy.count - 1].dyn_rule.qos.qci != 0)))) {
+				&pdn_cntxt->policy.pcc_rule[pdn_cntxt->policy.count - 1]->urule.dyn_rule.qos) != 0
+			 && pdn_cntxt->policy.pcc_rule[pdn_cntxt->policy.count - 1]->urule.dyn_rule.qos.qci != 0)))) {
 
 			ret = store_rule_status_for_pro_ack(&pdn_cntxt->policy,
 					&pdn_cntxt->pro_ack_rule_array);
@@ -1992,27 +2056,27 @@ gx_update_bearer_req(pdn_connection *pdn){
 
 	for (int32_t idx = 0; idx < pdn->policy.count ; idx++)
 	{
-		if (pdn->policy.pcc_rule[idx].action == RULE_ACTION_MODIFY ||
-			pdn->policy.pcc_rule[idx].action == RULE_ACTION_MODIFY_ADD_RULE ||
-			pdn->policy.pcc_rule[idx].action == RULE_ACTION_MODIFY_REMOVE_RULE ) {
+		if (pdn->policy.pcc_rule[idx]->action == RULE_ACTION_MODIFY ||
+			pdn->policy.pcc_rule[idx]->action == RULE_ACTION_MODIFY_ADD_RULE ||
+			pdn->policy.pcc_rule[idx]->action == RULE_ACTION_MODIFY_REMOVE_RULE ) {
 
 			uint8_t tft_op_code = 0;
 
-			if(pdn->policy.pcc_rule[idx].action == RULE_ACTION_MODIFY){
+			if(pdn->policy.pcc_rule[idx]->action == RULE_ACTION_MODIFY){
 				tft_op_code = TFT_REPLACE_FILTER_EXISTING;
-			}else if(pdn->policy.pcc_rule[idx].action == RULE_ACTION_MODIFY_ADD_RULE){
+			}else if(pdn->policy.pcc_rule[idx]->action == RULE_ACTION_MODIFY_ADD_RULE){
 				tft_op_code = TFT_ADD_FILTER_EXISTING;
-			}else if(pdn->policy.pcc_rule[idx].action == RULE_ACTION_MODIFY_REMOVE_RULE){
+			}else if(pdn->policy.pcc_rule[idx]->action == RULE_ACTION_MODIFY_REMOVE_RULE){
 				tft_op_code = TFT_REMOVE_FILTER_EXISTING;
 			}
 
-			if(pdn->policy.pcc_rule[idx].action != RULE_ACTION_MODIFY_REMOVE_RULE){
-				bearer = get_bearer(pdn, &pdn->policy.pcc_rule[idx].dyn_rule.qos);
+			if(pdn->policy.pcc_rule[idx]->action != RULE_ACTION_MODIFY_REMOVE_RULE){
+				bearer = get_bearer(pdn, &pdn->policy.pcc_rule[idx]->urule.dyn_rule.qos);
 			} else {
 				rule_name_key_t rule_name = {0};
 				memset(rule_name.rule_name, '\0', sizeof(rule_name.rule_name));
 				snprintf(rule_name.rule_name, RULE_NAME_LEN, "%s%d",
-						pdn->policy.pcc_rule[idx].dyn_rule.rule_name, pdn->call_id);
+						pdn->policy.pcc_rule[idx]->urule.dyn_rule.rule_name, pdn->call_id);
 				int8_t bearer_id = get_rule_name_entry(rule_name);
 				bearer = context->eps_bearers[bearer_id];
 			}
@@ -2029,7 +2093,7 @@ gx_update_bearer_req(pdn_connection *pdn){
 						" Qos not Updated,Not Expected \n", LOG_VALUE);
 				return DIAMETER_INVALID_AVP_VALUE;
 			}
-			if(bearer->action == pdn->policy.pcc_rule[idx].action){
+			if(bearer->action == pdn->policy.pcc_rule[idx]->action){
 
 				set_ie_header(&ubr_req.bearer_contexts[ubr_req.bearer_context_count].header,
 													GTP_IE_BEARER_CONTEXT, IE_INSTANCE_ZERO, 0);
@@ -2040,12 +2104,12 @@ gx_update_bearer_req(pdn_connection *pdn){
 											IE_INSTANCE_ZERO,
 											tft_op_code,
 											bearer,
-											pdn->policy.pcc_rule[idx].dyn_rule.rule_name);
+											pdn->policy.pcc_rule[idx]->urule.dyn_rule.rule_name);
 					ubr_req.bearer_contexts[ubr_req.bearer_context_count].header.len += len;
 
 				}
-				if(pdn->policy.pcc_rule[idx].action == RULE_ACTION_MODIFY_REMOVE_RULE)
-					delete_bearer_rule(bearer, pdn->policy.pcc_rule[idx].dyn_rule.rule_name);
+				if(pdn->policy.pcc_rule[idx]->action == RULE_ACTION_MODIFY_REMOVE_RULE)
+					delete_bearer_rule(bearer, pdn->policy.pcc_rule[idx]->urule.dyn_rule.rule_name);
 				if(bearer->qos_bearer_check == PRESENT) {
 
 					set_bearer_qos(&ubr_req.bearer_contexts[idx].bearer_lvl_qos,
@@ -2250,8 +2314,8 @@ parse_gx_rar_msg(GxRAR *rar, pdn_connection *pdn_cntxt)
 	}
 
 	reset_resp_info_structure(resp);
-
-	resp->gx_msg.rar = *rar;
+	/* Copy gx session id for RAR error respose */
+	memcpy(resp->gx_sess_id, rar->session_id.val, rar->session_id.len);
 
 	if(rar->presence.default_eps_bearer_qos)
 	{
@@ -2293,16 +2357,16 @@ get_charging_rule_remove_bearer_info(pdn_connection *pdn,
 	int8_t bearer_id;
 
 	for (int idx = 0; idx < pdn->policy.count; idx++) {
-		if(RULE_ACTION_DELETE == pdn->policy.pcc_rule[idx].action)
+		if(RULE_ACTION_DELETE == pdn->policy.pcc_rule[idx]->action)
 		{
 			rule_name_key_t rule_name = {0};
 
-			if(pdn->policy.pcc_rule[idx].predefined_rule){
+			if(pdn->policy.pcc_rule[idx]->predefined_rule){
 				snprintf(rule_name.rule_name, RULE_NAME_LEN,"%s",
-						pdn->policy.pcc_rule[idx].pdef_rule.rule_name);
+						pdn->policy.pcc_rule[idx]->urule.pdef_rule.rule_name);
 			}else{
 				snprintf(rule_name.rule_name, RULE_NAME_LEN,"%s%d",
-					pdn->policy.pcc_rule[idx].dyn_rule.rule_name, pdn->call_id);
+					pdn->policy.pcc_rule[idx]->urule.dyn_rule.rule_name, pdn->call_id);
 			}
 			bearer_id = get_rule_name_entry(rule_name);
 			if (-1 == bearer_id) {
@@ -2332,7 +2396,7 @@ get_charging_rule_remove_bearer_info(pdn_connection *pdn,
 	return;
 }
 
-int
+uint8_t
 compare_flow_description(dynamic_rule_t *old_dyn_rule, dynamic_rule_t *new_dyn_rule) {
 
 	bool match_pkt_fltr = FALSE;
@@ -2381,11 +2445,11 @@ compare_flow_description(dynamic_rule_t *old_dyn_rule, dynamic_rule_t *new_dyn_r
 						(old_dyn_rule->flow_desc[old_pkt_cnt].sdf_flw_desc.remote_port_high !=
 						 new_dyn_rule->flow_desc[new_pkt_cnt].sdf_flw_desc.remote_port_high) ||
 
-						(old_dyn_rule->flow_desc[old_pkt_cnt].sdf_flw_desc.local_ip_addr.s_addr !=
-						 new_dyn_rule->flow_desc[new_pkt_cnt].sdf_flw_desc.local_ip_addr.s_addr) ||
+						(old_dyn_rule->flow_desc[old_pkt_cnt].sdf_flw_desc.ulocalip.local_ip_addr.s_addr !=
+						 new_dyn_rule->flow_desc[new_pkt_cnt].sdf_flw_desc.ulocalip.local_ip_addr.s_addr) ||
 
-						(old_dyn_rule->flow_desc[old_pkt_cnt].sdf_flw_desc.remote_ip_addr.s_addr !=
-						 new_dyn_rule->flow_desc[new_pkt_cnt].sdf_flw_desc.remote_ip_addr.s_addr)) {
+						(old_dyn_rule->flow_desc[old_pkt_cnt].sdf_flw_desc.uremoteip.remote_ip_addr.s_addr !=
+						 new_dyn_rule->flow_desc[new_pkt_cnt].sdf_flw_desc.uremoteip.remote_ip_addr.s_addr)) {
 
 							 if(new_pkt_cnt == (new_dyn_rule->num_flw_desc -1)
 									 && match_pkt_fltr != TRUE ) {
@@ -2401,7 +2465,7 @@ compare_flow_description(dynamic_rule_t *old_dyn_rule, dynamic_rule_t *new_dyn_r
 		return 0;
 }
 
-int
+uint8_t
 compare_bearer_qos(dynamic_rule_t *old_dyn_rule, dynamic_rule_t *new_dyn_rule) {
 
 	if( (old_dyn_rule->qos.qci != new_dyn_rule->qos.qci) ||
@@ -2438,17 +2502,17 @@ store_rule_status_for_pro_ack(policy_t *policy,
 	}
 
 	for (int cnt=0; cnt < policy->count; cnt++) {
-		if(policy->pcc_rule[cnt].predefined_rule){
+		if(policy->pcc_rule[cnt]->predefined_rule){
 			strncpy(pro_ack_rule_array->rule[cnt].rule_name,
-					policy->pcc_rule[cnt].pdef_rule.rule_name,
-					strlen(policy->pcc_rule[cnt].pdef_rule.rule_name));
+					policy->pcc_rule[cnt]->urule.pdef_rule.rule_name,
+					strlen(policy->pcc_rule[cnt]->urule.pdef_rule.rule_name));
 		}else{
 			strncpy(pro_ack_rule_array->rule[cnt].rule_name,
-					policy->pcc_rule[cnt].dyn_rule.rule_name,
-					strlen(policy->pcc_rule[cnt].dyn_rule.rule_name));
+					policy->pcc_rule[cnt]->urule.dyn_rule.rule_name,
+					strlen(policy->pcc_rule[cnt]->urule.dyn_rule.rule_name));
 		}
-		if(policy->pcc_rule[cnt].action != RULE_ACTION_MODIFY_REMOVE_RULE
-				&& policy->pcc_rule[cnt].action != RULE_ACTION_DELETE) {
+		if(policy->pcc_rule[cnt]->action != RULE_ACTION_MODIFY_REMOVE_RULE
+				&& policy->pcc_rule[cnt]->action != RULE_ACTION_DELETE) {
 			pro_ack_rule_array->rule[cnt].rule_status = ACTIVE;
 		} else {
 			pro_ack_rule_array->rule[cnt].rule_status = INACTIVE;
@@ -2459,7 +2523,7 @@ store_rule_status_for_pro_ack(policy_t *policy,
 	return 0;
 }
 
-int
+uint8_t
 compare_bearer_arp(dynamic_rule_t *old_dyn_rule, dynamic_rule_t *new_dyn_rule) {
 
 	if((old_dyn_rule->qos.arp.preemption_vulnerability != new_dyn_rule->qos.arp.preemption_vulnerability) ||

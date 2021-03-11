@@ -70,6 +70,7 @@ cfg_data cfg_parms_list[] = {
 	{   "IP_TYPE_SUPPORTED", NULL, &is_valid_integer      },
 	{   "IP_TYPE_PRIORITY", NULL, &is_valid_integer       },
 	{   "USE_GX", NULL, &is_valid_integer                 },
+	{   "PERF_FLAG", NULL, &is_valid_integer              },
 	{   "name", NULL, &is_valid_string                    },
 	{   "usage_type", NULL, &is_valid_integer             },
 	{   "network_capability", NULL, &is_valid_string      },
@@ -166,6 +167,8 @@ int is_valid_ipv4v6(char *key, char *value) {
 	if(getaddrinfo(value, NULL, NULL, &ip_type)) {
 		return VALUE_FORMAT_NOT_CORRECT;
 	}
+
+	freeaddrinfo(ip_type);
 
 	RTE_SET_USED(key);
 	return 0;
@@ -402,4 +405,5 @@ void read_cfg_file(const char *path) {
 			exit(0);
 		}
 	}
+	fclose(fp);
 }

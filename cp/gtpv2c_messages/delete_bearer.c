@@ -165,7 +165,7 @@ process_delete_bearer_response(gtpv2c_header_t *gtpv2c_rx)
 		memset(&si, 0, sizeof(si));
 
 		si.ue_addr.u.ipv4_addr =
-		     delete_bearer_rsp.pdn->ipv4.s_addr;
+		     delete_bearer_rsp.pdn->uipaddr.ipv4.s_addr;
 		si.sess_id =
 			SESS_ID(delete_bearer_rsp.context->s11_sgw_gtpc_teid,
 				delete_bearer_rsp.ded_bearer->eps_bearer_id);

@@ -153,7 +153,7 @@ del_sess_entry(uint64_t sess_id)
 
 	/* Check Session Entry is present or Not */
 	ret = rte_hash_lookup_data(sm_hash,
-			&sess_id, (void **)resp);
+			&sess_id, (void **)&resp);
 
 	if ( ret < 0) {
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Entry not found for "
@@ -845,6 +845,11 @@ get_procedure(msg_info *msg)
 		}
 
 		case GTP_BEARER_RESOURCE_CMD : {
+			proc = UE_REQ_BER_RSRC_MOD_PROC;
+			break;
+		}
+
+		case GTP_BEARER_RESOURCE_FAILURE_IND : {
 			proc = UE_REQ_BER_RSRC_MOD_PROC;
 			break;
 		}

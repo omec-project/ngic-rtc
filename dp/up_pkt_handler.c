@@ -55,6 +55,7 @@ extern pcap_dumper_t *pcap_dumper_west;
 extern udp_sock_t my_sock;
 extern struct rte_ring *li_dl_ring;
 extern struct rte_ring *li_ul_ring;
+extern struct rte_ring *cdr_pfcp_rpt_req;
 extern int clSystemLog;
 extern uint8_t dp_comm_ip_type;
 uint8_t cp_comm_ip_type;
@@ -186,19 +187,14 @@ notification_handler(struct rte_mbuf **pkts,
 			} else {
 				/* Get downlink session info */
 				dl_sess_info_get((struct rte_mbuf **)pkts, ret, &pkts_mask,
-						&sess_data[0], &pkts_queue_mask, &snd_err_pkts_mask);
+						&sess_data[0], &pkts_queue_mask, &snd_err_pkts_mask,
+						NULL, NULL);
 			}
 
 			if (pkts_queue_mask != 0)
 			    clLog(clSystemLog, eCLSeverityCritical,
 					LOG_FORMAT"Something is wrong, the session still doesnt hv "
 			        "enb teid\n", LOG_VALUE);
-
-			/* Send the Error indication to peer node */
-			if (snd_err_pkts_mask && error_indication_snd) {
-				/* Ref: Pkts gets buffer, because session was exits before so no need to send this pkt */
-				//enqueue_pkts_snd_err_ind(pkts, n, app.eb_port, &snd_err_pkts_mask);
-			}
 
 			if(find_teid_key) {
 				clLog(clSystemLog, eCLSeverityDebug,
@@ -385,7 +381,7 @@ generate_cdr(cdr_t *dp_cdr, uint64_t up_seid, char *trigg_buff,
 
 	sess = get_sess_info_entry(up_seid, SESS_MODIFY);
 	if(sess == NULL) {
-		clLog(clSystemLog, eCLSeverityCritical,
+		clLog(clSystemLog, eCLSeverityDebug,
 				LOG_FORMAT"Failed to Retrieve Session Info\n\n", LOG_VALUE);
 		return -1;
 	}
@@ -508,15 +504,52 @@ generate_cdr(cdr_t *dp_cdr, uint64_t up_seid, char *trigg_buff,
 	return 0;
 }
 
+/*
+ * @brief  : enqueue pfcp-sess-rpt-req message and other info
+ *	     to generate CDR file in DP
+ * @param  : usage_report, usage report in pfcp-sess-rpt-req msg
+ * @param  : up_seid, user plane session id
+ * @param  : seq_no, seq_no in msg used as a key to store CDR
+ * @return : 0 on success,else -1
+ */
+static void
+enqueue_pfcp_rpt_req(pfcp_usage_rpt_sess_rpt_req_ie_t *usage_report,
+								uint64_t  up_seid,	uint32_t seq_no){
+
+	cdr_rpt_req_t *cdr_data = NULL;
+	cdr_data = rte_malloc(NULL, sizeof(cdr_rpt_req_t), 0);
+
+	cdr_data->usage_report = rte_malloc(NULL, sizeof(pfcp_usage_rpt_sess_rpt_req_ie_t), 0);
+
+
+
+	memcpy(cdr_data->usage_report, usage_report,
+			sizeof(pfcp_usage_rpt_sess_rpt_req_ie_t));
+	cdr_data->up_seid = up_seid;
+	cdr_data->seq_no = seq_no;
+
+	if (rte_ring_enqueue(cdr_pfcp_rpt_req,
+			(void *)cdr_data) == -ENOBUFS) {
+
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"::Can't queue UL LI pkt- ring"
+			" full...", LOG_VALUE);
+	}
+
+}
+
 int
-store_cdr_into_file_pfcp_sess_rpt_req(pfcp_usage_rpt_sess_rpt_req_ie_t *usage_report,
-										uint64_t  up_seid, uint32_t trig,
-													uint32_t seq_no) {
+store_cdr_into_file_pfcp_sess_rpt_req() {
 
 	FILE *file = NULL;
 	char CDR_BUFF[CDR_BUFF_SIZE] = {0};
 	char TRIGG_BUFF[CDR_BUFF_SIZE] = {0};
 	cdr_t dp_cdr = {0};
+	uint32_t cdr_cnt = 0;
+	pfcp_usage_rpt_sess_rpt_req_ie_t *usage_report = NULL;
+	uint64_t  up_seid = 0;
+	uint32_t seq_no = 0;
+
 
 	file = fopen(CDR_FILE_PATH, "r");
 	if(file == NULL) {
@@ -532,6 +565,15 @@ store_cdr_into_file_pfcp_sess_rpt_req(pfcp_usage_rpt_sess_rpt_req_ie_t *usage_re
 	}
 	fclose(file);
 
+	uint32_t cdr_data_cnt = rte_ring_count(cdr_pfcp_rpt_req);
+	cdr_rpt_req_t *cdr_data[cdr_data_cnt];
+	if(cdr_data_cnt){
+		cdr_cnt = rte_ring_dequeue_bulk(cdr_pfcp_rpt_req,
+					(void**)cdr_data, cdr_data_cnt, NULL);
+	} else {
+		return 0;
+	}
+
 	file = fopen(CDR_FILE_PATH, "a");
 	if(file == NULL) {
 		clLog(clSystemLog, eCLSeverityCritical,
@@ -539,21 +581,32 @@ store_cdr_into_file_pfcp_sess_rpt_req(pfcp_usage_rpt_sess_rpt_req_ie_t *usage_re
 		return -1;
 	}
 
-	dp_cdr.uplink_volume = usage_report->vol_meas.uplink_volume;
-	dp_cdr.downlink_volume = usage_report->vol_meas.downlink_volume;
-	dp_cdr.total_volume = usage_report->vol_meas.total_volume;
+	for(uint32_t i =0; i < cdr_cnt; i++){
 
-	dp_cdr.duration_value = usage_report->dur_meas.duration_value;
+		usage_report = cdr_data[i]->usage_report;
+		seq_no       = cdr_data[i]->seq_no;
+		up_seid      = cdr_data[i]->up_seid;
 
-	dp_cdr.start_time = usage_report->start_time.start_time;
-	dp_cdr.end_time = usage_report->end_time.end_time;
-	dp_cdr.time_of_frst_pckt = usage_report->time_of_frst_pckt.time_of_frst_pckt;
-	dp_cdr.time_of_lst_pckt = usage_report->time_of_lst_pckt.time_of_lst_pckt;
-	cdr_cause_code(&usage_report->usage_rpt_trig, TRIGG_BUFF);
+		if(usage_report != NULL){
+			dp_cdr.uplink_volume = usage_report->vol_meas.uplink_volume;
+			dp_cdr.downlink_volume = usage_report->vol_meas.downlink_volume;
+			dp_cdr.total_volume = usage_report->vol_meas.total_volume;
 
-	generate_cdr(&dp_cdr, up_seid, TRIGG_BUFF, seq_no, 0, 0, CDR_BUFF);
+			dp_cdr.duration_value = usage_report->dur_meas.duration_value;
 
-	fputs(CDR_BUFF, file);
+			dp_cdr.start_time = usage_report->start_time.start_time;
+			dp_cdr.end_time = usage_report->end_time.end_time;
+			dp_cdr.time_of_frst_pckt = usage_report->time_of_frst_pckt.time_of_frst_pckt;
+			dp_cdr.time_of_lst_pckt = usage_report->time_of_lst_pckt.time_of_lst_pckt;
+			cdr_cause_code(&usage_report->usage_rpt_trig, TRIGG_BUFF);
+		}
+
+		generate_cdr(&dp_cdr, up_seid, TRIGG_BUFF, seq_no, 0, 0, CDR_BUFF);
+
+		fputs(CDR_BUFF, file);
+		rte_free(cdr_data[i]->usage_report);
+		rte_free(cdr_data[i]);
+	}
 
 	fclose(file);
 
@@ -643,8 +696,8 @@ int send_usage_report_req(urr_info_t *urr, uint64_t cp_seid, uint64_t up_seid, u
 			&pfcp_sess_rep_req.usage_report[pfcp_sess_rep_req.usage_report_count],
 			urr, trig);
 
-	store_cdr_into_file_pfcp_sess_rpt_req(&pfcp_sess_rep_req.usage_report[pfcp_sess_rep_req.usage_report_count++],
-							up_seid, trig, seq);
+	enqueue_pfcp_rpt_req(&pfcp_sess_rep_req.usage_report[pfcp_sess_rep_req.usage_report_count++],
+							up_seid, seq);
 
 	/* Encode the PFCP Session Report Request */
 	encoded = encode_pfcp_sess_rpt_req_t(&pfcp_sess_rep_req, pfcp_msg);
@@ -763,10 +816,10 @@ int update_usage(struct rte_mbuf **pkts, uint32_t n, uint64_t *pkts_mask,
 									|| pdr[i]->urr->rept_trigg == VOL_BASED) &&
 								(pdr[i]->urr->dwnlnk_data >= pdr[i]->urr->vol_thes_dwnlnk)) {
 							clLog(clSystemLog, eCLSeverityDebug,
-								LOG_FORMAT"Downlink Volume threshol reached\n", LOG_VALUE);
+									LOG_FORMAT"Downlink Volume threshol reached\n", LOG_VALUE);
 							/* Send Session Usage Report for Downlink*/
 							send_usage_report_req(pdr[i]->urr, pdr[i]->session->cp_seid,
-								pdr[i]->session->up_seid,VOL_BASED);
+									pdr[i]->session->up_seid,VOL_BASED);
 							/* Reset the DL data */
 							pdr[i]->urr->dwnlnk_data = 0;
 						}
@@ -782,10 +835,10 @@ int update_usage(struct rte_mbuf **pkts, uint32_t n, uint64_t *pkts_mask,
 									pdr[i]->urr->rept_trigg == VOL_BASED) &&
 								(pdr[i]->urr->uplnk_data >= pdr[i]->urr->vol_thes_uplnk)) {
 							clLog(clSystemLog, eCLSeverityDebug,
-								LOG_FORMAT"Ulink Volume threshol reached\n", LOG_VALUE);
+									LOG_FORMAT"Ulink Volume threshol reached\n", LOG_VALUE);
 							/* Send Session Usage Report for Uplink*/
 							send_usage_report_req(pdr[i]->urr, pdr[i]->session->cp_seid,
-								pdr[i]->session->up_seid, VOL_BASED);
+									pdr[i]->session->up_seid, VOL_BASED);
 							/* Reset the UL data */
 							pdr[i]->urr->uplnk_data = 0;
 						}
@@ -1287,7 +1340,7 @@ enqueue_li_pkts(uint32_t n, struct rte_mbuf **pkts, pdr_info_t **pdr,
 	uint8_t docopy = NOT_PRESENT;
 
 	for(i = 0; i < n; i++) {
-		if(pkts[i] != NULL && pdr[i] != NULL &&
+		if(pkts[i] != NULL && pdr[i] != NULL && pdr[i]->far &&
 				pdr[i]->far->li_config_cnt > 0) {
 
 			far_info_t *far = pdr[i]->far;
@@ -1528,7 +1581,7 @@ filter_ul_traffic(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
 
 int
 wb_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
-		int wk_index)
+		uint64_t *pkts_mask, int wk_index)
 {
 	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"In WB_Pkt_Handler\n", LOG_VALUE);
 	uint64_t fwd_pkts_mask = 0;
@@ -1541,30 +1594,15 @@ wb_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
 	pdr_info_t *pdr_li[MAX_BURST_SZ] = {NULL};
 	pfcp_session_datat_t *sess_data[MAX_BURST_SZ] = {NULL};
 
-	uint64_t pkts_mask;
-	pkts_mask = (~0LLU) >> (64 - n);
+	*pkts_mask = (~0LLU) >> (64 - n);
 
 	/* Get the Session Data Information */
-	ul_sess_info_get(pkts, n, &pkts_mask, &snd_err_pkts_mask, &sess_data[0]);
+	ul_sess_info_get(pkts, n, pkts_mask, &snd_err_pkts_mask, &fwd_pkts_mask,
+											&decap_pkts_mask, &sess_data[0]);
 
 	/* Burst pkt handling */
 	/* Filter the Forward pkts and decasulation pkts */
 	if (sess_data[0] != NULL) {
-		for (uint32_t inx = 0; inx < n; inx++) {
-			if (ISSET_BIT(pkts_mask, inx)) {
-				if (sess_data[inx] != NULL) {
-					/* SGWU: Outer Header Removal based on the configured in PDR */
-					if (sess_data[inx]->hdr_rvl == NOT_SET_OUT_HDR_RVL_CRT) {
-						/* Set the Foward Pkt Mask */
-						SET_BIT(fwd_pkts_mask, inx);
-					} else if ((sess_data[inx]->hdr_rvl == GTPU_UDP_IPv4) ||
-							sess_data[inx]->hdr_rvl == GTPU_UDP_IPv6) {
-						/* Set the Decasulation Pkt Mask */
-						SET_BIT(decap_pkts_mask, inx);
-					}
-				}
-			}
-		}
 
 		if (fwd_pkts_mask) {
 			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"WB: FWD Recvd pkts\n", LOG_VALUE);
@@ -1580,7 +1618,7 @@ wb_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
 			enqueue_li_pkts(n, pkts, pdr_li, WEST_INTFC, UPLINK_DIRECTION, &fwd_pkts_mask, FWD_MASK);
 
 			/* Update nexthop L3 header*/
-			update_nexts5s8_info(pkts, n, &pkts_mask, &fwd_pkts_mask, &loopback_pkts_mask,
+			update_nexts5s8_info(pkts, n, pkts_mask, &fwd_pkts_mask, &loopback_pkts_mask,
 					&sess_data[0], &pdr[0]);
 
 			/* Fill the L2 Frame of the loopback pkts */
@@ -1599,7 +1637,7 @@ wb_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
 			get_pdr_from_sess_data(n, &sess_data[0], &pdr_li[0], &decap_pkts_mask, NULL);
 
 			/* Filter the Router Solicitations pkts from the pipeline */
-			filter_router_solicitations_pkts(pkts, n, &pkts_mask, &pkts_queue_rs_mask,
+			filter_router_solicitations_pkts(pkts, n, pkts_mask, &pkts_queue_rs_mask,
 					&decap_pkts_mask);
 
 			/* Send Session Usage Report */
@@ -1609,10 +1647,10 @@ wb_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
 			enqueue_li_pkts(n, pkts, pdr_li, WEST_INTFC, UPLINK_DIRECTION, &decap_pkts_mask, DECAP_MASK);
 
 			/* Decap GTPU and update meta data*/
-			gtpu_decap(pkts, n, &pkts_mask, &decap_pkts_mask);
+			gtpu_decap(pkts, n, pkts_mask, &decap_pkts_mask);
 
 			/*Apply sdf filters on uplink traffic*/
-			filter_ul_traffic(p, pkts, n, wk_index, &pkts_mask, &decap_pkts_mask,
+			filter_ul_traffic(p, pkts, n, wk_index, pkts_mask, &decap_pkts_mask,
 					&pdr[0], &sess_data[0]);
 
 			/* Enqueue Router Solicitation packets */
@@ -1624,10 +1662,10 @@ wb_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
 		/* If Outer Header Removal Not Set in the PDR, that means forward packets */
 		/* Set next hop IP to S5/S8/ DL port*/
 		/* Update nexthop L2 header*/
-		update_nexthop_info(pkts, n, &pkts_mask, app.eb_port, &pdr[0], NOT_PRESENT);
+		update_nexthop_info(pkts, n, pkts_mask, app.eb_port, &pdr[0], NOT_PRESENT);
 
 		/* up pcap dumper */
-		up_core_pcap_dumper(pcap_dumper_west, pkts, n, &pkts_mask);
+		up_core_pcap_dumper(pcap_dumper_west, pkts, n, pkts_mask);
 	}
 
 	if (decap_pkts_mask) {
@@ -1646,7 +1684,7 @@ wb_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
 	}
 
 	/* Intimate the packets to be dropped*/
-	rte_pipeline_ah_packet_drop(p, ~pkts_mask);
+	rte_pipeline_ah_packet_drop(p, ~(*pkts_mask));
 	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Out WB_Pkt_Handler\n", LOG_VALUE);
 
 	return 0;
@@ -1694,10 +1732,9 @@ filter_dl_traffic(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
  */
 int
 eb_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
-		int wk_index)
+		uint64_t *pkts_mask, int wk_index)
 {
 	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"In EB_Pkt_Handler\n", LOG_VALUE);
-	uint64_t pkts_mask = 0;
 	uint64_t pkts_queue_mask = 0;
 	uint64_t fwd_pkts_mask = 0;
 	uint64_t encap_pkts_mask = 0;
@@ -1705,33 +1742,15 @@ eb_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
 	pdr_info_t *pdr[MAX_BURST_SZ] = {NULL};
 	pfcp_session_datat_t *sess_data[MAX_BURST_SZ] = {NULL};
 
-	pkts_mask = (~0LLU) >> (64 - n);
+	*pkts_mask = (~0LLU) >> (64 - n);
 
 	/* Get the Session Data Information */
-	dl_sess_info_get(pkts, n, &pkts_mask, &sess_data[0], &pkts_queue_mask, &snd_err_pkts_mask);
+	dl_sess_info_get(pkts, n, pkts_mask, &sess_data[0], &pkts_queue_mask,
+			&snd_err_pkts_mask, &fwd_pkts_mask, &encap_pkts_mask);
 
 	/* Burst pkt handling */
 	/* Filter the Forward pkts and decasulation pkts */
 	if (sess_data[0] != NULL) {
-		for (uint32_t inx = 0; inx < n; inx++) {
-			if ((ISSET_BIT(pkts_mask, inx)) || (ISSET_BIT(pkts_queue_mask, inx))) {
-				if (sess_data[inx] != NULL) {
-					/* SGWU: Outer Header Creation based on the configured in PDR */
-					if ((sess_data[inx]->hdr_rvl == NOT_SET_OUT_HDR_RVL_CRT)
-							&& (!(sess_data[inx]->ue_ip_addr || sess_data[inx]->ipv6))) {
-						/* Set the Foward Pkt Mask */
-						SET_BIT(fwd_pkts_mask, inx);
-					} else if (((sess_data[inx]->hdr_crt == GTPU_UDP_IPv4) ||
-								(sess_data[inx]->hdr_crt == GTPU_UDP_IPv6) ||
-								(sess_data[inx]->hdr_crt == NOT_SET_OUT_HDR_RVL_CRT))
-							&& (sess_data[inx]->hdr_rvl == NOT_SET_OUT_HDR_RVL_CRT)
-							&& ((sess_data[inx]->ue_ip_addr) || sess_data[inx]->ipv6)) {
-						/* Set the Decasulation Pkt Mask */
-						SET_BIT(encap_pkts_mask, inx);
-					}
-				}
-			}
-		}
 
 		if (fwd_pkts_mask) {
 			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"EB: FWD Recvd pkts\n", LOG_VALUE);
@@ -1744,20 +1763,20 @@ eb_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
 			enqueue_li_pkts(n, pkts, pdr, EAST_INTFC, DOWNLINK_DIRECTION, &fwd_pkts_mask, FWD_MASK);
 
 			/* Update nexthop L3 header*/
-			update_enb_info(pkts, n, &pkts_mask, &fwd_pkts_mask, &sess_data[0], &pdr[0]);
+			update_enb_info(pkts, n, pkts_mask, &fwd_pkts_mask, &sess_data[0], &pdr[0]);
 		}
 
 		if (encap_pkts_mask) {
 			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"EB: ENCAP Recvd pkts\n", LOG_VALUE);
 			/* PGWU/SAEGWU: Filter Downlink traffic. Apply sdf*/
-			filter_dl_traffic(p, pkts, n, wk_index, &pkts_mask, &encap_pkts_mask,
+			filter_dl_traffic(p, pkts, n, wk_index, pkts_mask, &encap_pkts_mask,
 					&sess_data[0], &pdr[0]);
 
 			/* enqueue east interface downlink pkts for user level packet copying */
 			enqueue_li_pkts(n, pkts, pdr, EAST_INTFC, DOWNLINK_DIRECTION, &encap_pkts_mask, ENCAP_MASK);
 
 			/* Encap GTPU header*/
-			gtpu_encap(&pdr[0], &sess_data[0], pkts, n, &pkts_mask, &encap_pkts_mask,
+			gtpu_encap(&pdr[0], &sess_data[0], pkts, n, pkts_mask, &encap_pkts_mask,
 					&pkts_queue_mask);
 		}
 
@@ -1770,13 +1789,13 @@ eb_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
 
 		/* Next port is UL for SPGW*/
 		/* Update nexthop L2 header*/
-		update_nexthop_info(pkts, n, &pkts_mask, app.wb_port, &pdr[0], NOT_PRESENT);
+		update_nexthop_info(pkts, n, pkts_mask, app.wb_port, &pdr[0], NOT_PRESENT);
 
 		/* Send Session Usage Report */
-		update_usage(pkts, n, &pkts_mask, pdr, DOWNLINK);
+		update_usage(pkts, n, pkts_mask, pdr, DOWNLINK);
 
 		/* up pcap dumper */
-		up_core_pcap_dumper(pcap_dumper_east, pkts, n, &pkts_mask);
+		up_core_pcap_dumper(pcap_dumper_east, pkts, n, pkts_mask);
 
 	}
 
@@ -1796,7 +1815,7 @@ eb_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
 	}
 
 	/* Intimate the packets to be dropped*/
-	rte_pipeline_ah_packet_drop(p, ~pkts_mask);
+	rte_pipeline_ah_packet_drop(p, ~(*pkts_mask));
 	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Out EB_Pkt_Handler\n", LOG_VALUE);
 	return 0;
 }

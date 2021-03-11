@@ -60,56 +60,98 @@ ddn_by_session_id(uint64_t session_id, pdr_ids *pfcp_pdr_id )
 	gtpv2c_header_t *gtpv2c_tx = (gtpv2c_header_t *) tx_buf;
 	uint32_t sgw_s11_gtpc_teid = UE_SESS_ID(session_id);
 	ue_context *context = NULL;
+	pdr_ids *pfcp_pdr = NULL;
 	uint32_t sequence = 0;
 	int ebi = 0;
 	int ebi_index = 0;
+	int ret = 0;
 
 	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"sgw_s11_gtpc_teid:%u\n",
 			LOG_VALUE, sgw_s11_gtpc_teid);
 
-	int ret = rte_hash_lookup_data(ue_context_by_fteid_hash,
-			(const void *) &sgw_s11_gtpc_teid,
-			(void **) &context);
+	ret = rte_hash_lookup_data(buffered_ddn_req_hash,
+				(const void *) &session_id,
+				(void **) &pfcp_pdr);
 
-	if (ret < 0 || !context)
-		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+	if(ret < 0){
+		ret = rte_hash_lookup_data(ue_context_by_fteid_hash,
+				(const void *) &sgw_s11_gtpc_teid,
+				(void **) &context);
 
-	sequence = generate_seq_number();
+		if (ret < 0 || !context)
+			return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+
+		sequence = generate_seq_number();
 
 
-	ret = create_downlink_data_notification(context,
-			UE_BEAR_ID(session_id),
-			sequence,
-			gtpv2c_tx, pfcp_pdr_id);
+		ret = create_downlink_data_notification(context,
+				UE_BEAR_ID(session_id),
+				sequence,
+				gtpv2c_tx, pfcp_pdr_id);
 
-	if (ret)
-		return ret;
+		if (ret)
+			return ret;
 
-	ret = set_dest_address(context->s11_mme_gtpc_ip, &s11_mme_sockaddr);
-	if (ret < 0) {
-		clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
-			"IP address", LOG_VALUE);
+		ret = set_dest_address(context->s11_mme_gtpc_ip, &s11_mme_sockaddr);
+		if (ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+		}
+
+		uint16_t payload_length = ntohs(gtpv2c_tx->gtpc.message_len)
+									+ sizeof(gtpv2c_tx->gtpc);
+
+		gtpv2c_send(s11_fd, s11_fd_v6, tx_buf, payload_length,
+				s11_mme_sockaddr, SENT);
+
+		ebi = UE_BEAR_ID(session_id);
+		ebi_index = GET_EBI_INDEX(ebi);
+
+		if (ebi_index == -1) {
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Invalid EBI Index\n", LOG_VALUE);
+			return GTPV2C_CAUSE_SYSTEM_FAILURE;
+		}
+
+		add_gtpv2c_if_timer_entry(sgw_s11_gtpc_teid, &s11_mme_sockaddr, tx_buf,
+				payload_length, ebi_index, S11_IFACE,
+				context->cp_mode);
+
+		++cp_stats.ddn;
+
+		/* Allocate memory*/
+
+		pfcp_pdr = rte_zmalloc_socket(NULL, sizeof(thrtle_count),
+				RTE_CACHE_LINE_SIZE, rte_socket_id());
+
+		if(pfcp_pdr  == NULL ) {
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to allocate "
+					"Memory for pfcp_pdr_id structure, Error: %s \n", LOG_VALUE,
+					rte_strerror(rte_errno));
+
+			return -1;
+		}
+
+		if(pfcp_pdr_id != NULL) {
+			memcpy(pfcp_pdr, pfcp_pdr_id, sizeof(pdr_ids));
+
+		if(pfcp_pdr_id->ddn_buffered_count == 0)
+			pfcp_pdr->ddn_buffered_count = 0;
+		}
+		/*Add session ids and pdr ids into buffered ddn request hash */
+		ret = rte_hash_add_key_data(buffered_ddn_req_hash,
+				(const void *)&session_id, pfcp_pdr);
+
+		if(ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT
+					"Unable to add entry in buffered ddn request hash\n",
+					LOG_VALUE);
+			rte_free(pfcp_pdr);
+			pfcp_pdr = NULL;
+			return -1;
+		}
+	} else {
+		pfcp_pdr->ddn_buffered_count += 1;
 	}
-
-	uint16_t payload_length = ntohs(gtpv2c_tx->gtpc.message_len)
-			+ sizeof(gtpv2c_tx->gtpc);
-
-	gtpv2c_send(s11_fd, s11_fd_v6, tx_buf, payload_length,
-			s11_mme_sockaddr, SENT);
-
-	ebi = UE_BEAR_ID(session_id);
-	ebi_index = GET_EBI_INDEX(ebi);
-
-	if (ebi_index == -1) {
-		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Invalid EBI Index\n", LOG_VALUE);
-		return GTPV2C_CAUSE_SYSTEM_FAILURE;
-	}
-
-	add_gtpv2c_if_timer_entry(sgw_s11_gtpc_teid, &s11_mme_sockaddr, tx_buf,
-			payload_length, ebi_index, S11_IFACE,
-			context->cp_mode);
-
-	++cp_stats.ddn;
 	return 0;
 }
 
@@ -209,6 +251,30 @@ fill_send_pfcp_sess_report_resp(ue_context *context, uint8_t sequence,
 
 }
 
+pdr_ids *
+delete_buff_ddn_req(uint64_t sess_id)
+{
+	int ret = 0;
+	pdr_ids *pfcp_pdr_id = NULL;
+	ret = rte_hash_lookup_data(buffered_ddn_req_hash,
+				(const void *) &sess_id,
+				(void **) &pfcp_pdr_id);
+
+	if(ret >= 0){
+		ret = rte_hash_del_key(buffered_ddn_req_hash, (const void *)&sess_id);
+		if(ret < 0){
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to delete Entry"
+					"from buffered ddn request hash\n", LOG_VALUE);
+			return pfcp_pdr_id;
+		}
+	}else{
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"No session entry buffered"
+			    "\n", LOG_VALUE);
+		return NULL;
+	}
+	return pfcp_pdr_id;
+}
+
 int
 process_ddn_ack(dnlnk_data_notif_ack_t *ddn_ack)
 {
@@ -219,6 +285,7 @@ process_ddn_ack(dnlnk_data_notif_ack_t *ddn_ack)
 	struct resp_info *resp = NULL;
 	pdn_connection *pdn = NULL;
 	ue_context *context = NULL;
+	pdr_ids *pfcp_pdr_id = NULL;
 
 	if (get_ue_context(ddn_ack->header.teid.has_teid.teid, &context) != 0){
 
@@ -237,6 +304,17 @@ process_ddn_ack(dnlnk_data_notif_ack_t *ddn_ack)
 	if (ebi_index == -1) {
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Invalid EBI ID\n", LOG_VALUE);
 		return -1;
+	}
+
+	/* Remove session Entry from buffered ddn request hash */
+	pfcp_pdr_id = delete_buff_ddn_req(pdn->seid);
+	if(pfcp_pdr_id != NULL) {
+			if(pfcp_pdr_id->ddn_buffered_count > 0) {
+				pfcp_pdr_id->ddn_buffered_count -= 1;
+				ddn_by_session_id(pdn->seid, pfcp_pdr_id);
+			}
+		rte_free(pfcp_pdr_id);
+		pfcp_pdr_id = NULL;
 	}
 
 	if (get_sess_entry(pdn->seid, &resp) != 0) {
@@ -358,6 +436,7 @@ send_pfcp_sess_mod_with_drop(ue_context *context)
 
 	pdn_connection *pdn = NULL;
 	eps_bearer *bearer = NULL;
+	pdr_ids *pfcp_pdr_id = NULL;
 	uint32_t seq = 0;
 	int ret = 0;
 	pfcp_sess_mod_req_t pfcp_sess_mod_req = {0};
@@ -438,6 +517,12 @@ send_pfcp_sess_mod_with_drop(ue_context *context)
 				"IP address", LOG_VALUE);
 		}
 
+	}
+	/* Remove session Entry from buffered ddn request hash */
+	pfcp_pdr_id = delete_buff_ddn_req(pdn->seid);
+	if(pfcp_pdr_id != NULL) {
+		rte_free(pfcp_pdr_id);
+		pfcp_pdr_id = NULL;
 	}
 	set_fseid(&(pfcp_sess_mod_req.cp_fseid), pdn->seid, node_value);
 

@@ -218,4 +218,12 @@ bin_to_str(unsigned char *b_val, char *s_val, int b_len, int s_len);
 void
 encode_imsi_to_bin(uint64_t imsi, int imsi_len, uint8_t *bin_imsi);
 
+/**
+ * @brief  : free dynamically allocated memory of cca msg.
+ * @param  : cca, Structure to store cca msg.
+ * @return : Returns nothing
+ */
+void
+free_cca_msg_dynamically_alloc_memory(GxCCA *cca);
+
 #endif /* CP_APP_H_ */

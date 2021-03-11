@@ -114,8 +114,8 @@ set_modify_access_bearer_response(gtpv2c_header_t *gtpv2c_tx,
 	}
 
 	/* Update status of mbr processing for ue*/
-	context->mabr_info.seq = 0;
-	context->mabr_info.status = MABR_PROCESS_DONE;
+	context->req_status.seq = 0;
+	context->req_status.status = REQ_PROCESS_DONE;
 
 	encode_mod_acc_bearers_rsp(&mb_resp, (uint8_t *)gtpv2c_tx);
 

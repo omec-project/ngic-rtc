@@ -204,16 +204,6 @@ RTE_ACL_RULE_DEF(acl4_rule, RTE_DIM(ipv4_defs));
 RTE_ACL_RULE_DEF(acl6_rule, RTE_DIM(ipv6_defs));
 
 /**
- * @brief  : Maintains acl configuration
- */
-struct acl_config {
-	struct rte_acl_ctx *acx_ipv4;
-	struct rte_acl_ctx *acx_ipv6;
-	uint8_t acx_ipv4_built;
-	uint8_t acx_ipv6_built;
-};
-
-/**
  * @brief  : Maintains acl parameters
  */
 struct acl_search {
@@ -225,6 +215,17 @@ struct acl_search {
     struct rte_mbuf *m_ipv6[MAX_BURST_SZ];
     uint32_t res_ipv6[MAX_BURST_SZ];
     int num_ipv6;
+};
+
+/**
+ * @brief  : Maintains acl configuration
+ */
+struct acl_config {
+	struct rte_acl_ctx *acx_ipv4;
+	struct rte_acl_ctx *acx_ipv6;
+	uint8_t acx_ipv4_built;
+	uint8_t acx_ipv6_built;
+	struct acl_search acl_search;
 };
 
 
@@ -257,7 +258,6 @@ struct acl_rules_table {
 
 struct acl_config acl_config[MAX_ACL_TABLES];
 struct acl_rules_table acl_rules_table[MAX_ACL_TABLES];
-struct acl_search acl_search = {0};
 
 
 /*******************************************************[START]**********************************************************/
@@ -1544,10 +1544,9 @@ static uint32_t *acl_lookup(struct rte_mbuf **m, uint32_t indx,
 		struct acl_config *acl_config,
 		struct acl_search *acl_search)
 {
-	/* Reset the acl_search struct */
-	memset(acl_search, 0, sizeof(struct acl_search));
 	struct rte_acl_ctx *context = NULL;
 	context = acl_config->acx_ipv4;
+
 	if(context == NULL){
 		context = acl_config->acx_ipv6;
 		if(context == NULL){
@@ -1590,7 +1589,7 @@ static uint32_t *acl_lookup(struct rte_mbuf **m, uint32_t indx,
 uint32_t *sdf_lookup(struct rte_mbuf **m, int nb_rx, uint32_t indx)
 {
 	RTE_SET_USED(nb_rx);
-	return acl_lookup(m, indx, &acl_config[indx], &acl_search);
+	return acl_lookup(m, indx, &acl_config[indx], &acl_config[indx].acl_search);
 }
 
 /* Function to add the default entry into the acl table */

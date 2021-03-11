@@ -182,11 +182,25 @@ def set_transmit_timer(ctx,transmit_timer):
     res = requests.post(url, json={"transmit_timer": transmit_timer}, headers=HEADER)
     click.echo(json.dumps(res.json()))
 
+@click.command()
+@click.pass_context
+@click.option('--perf_flag', '-pf', required=True, type=int, help='set perf flag')
+def set_perf_flag(ctx,perf_flag):
+    url = ctx.obj['C3PO_URL'] + "/perf_flag"
+    res = requests.post(url, json={"perf_flag": perf_flag}, headers=HEADER)
+    click.echo(json.dumps(res.json()))
 
 @click.command()
 @click.pass_context
 def describe_periodic_timer(ctx):
     url = ctx.obj['C3PO_URL'] + "/periodic_timer"
+    r = requests.get(url, headers=HEADER)
+    click.echo(json.dumps(r.json()))
+
+@click.command()
+@click.pass_context
+def describe_perf_flag(ctx):
+    url = ctx.obj['C3PO_URL'] + "/perf_flag"
     r = requests.get(url, headers=HEADER)
     click.echo(json.dumps(r.json()))
 
@@ -247,6 +261,8 @@ config.add_command(set_transmit_timer)
 config.add_command(describe_periodic_timer)
 config.add_command(set_periodic_timer)
 config.add_command(describe_config_live)
+config.add_command(describe_perf_flag)
+config.add_command(set_perf_flag)
 
 logger.add_command(describe_loggers)
 logger.add_command(set_logger_level)

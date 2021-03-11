@@ -428,7 +428,7 @@ assoication_setup_request(pdn_connection *pdn, ue_context *context, int ebi_inde
 		if (ret < 0) {
 			clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
 				"IP address", LOG_VALUE);
-		}		
+		}
 
 	}
 
@@ -759,9 +759,10 @@ process_pfcp_ass_resp(msg_info *msg, peer_addr_t *peer_addr)
 			fill_response(pdn->seid, key);
 
 			rte_free(upf_context->pending_csr_teid[i]);
-			upf_context->csr_cnt--;
 
 		}
+			
+		upf_context->csr_cnt = 0;
 	} else {
 
 		if(get_sender_teid_context(upf_context->sender_teid, &context) != 0) {
@@ -930,7 +931,6 @@ fill_sess_info_pdr(uint16_t *pfcp_pdr_id, uint8_t *pdr_count, uint8_t num_pdr, p
 
 void fill_sess_info_id(thrtle_count *thrtl_cnt, uint64_t sess_id, uint8_t pdr_count, pfcp_pdr_id_ie_t *pdr)
 {
-	thrtl_cnt->buffer_count = thrtl_cnt->buffer_count + 1;
 	sess_info *sess_info_id = search_into_sess_info_list(thrtl_cnt->sess_ptr, sess_id);
 	if(sess_info_id == NULL){
 
@@ -989,8 +989,8 @@ get_throtle_count(node_address_t *nodeip, uint8_t is_mod)
 			return NULL;
 		}
 		/* Initiailize buffer count to one as avoid infinity value*/
-		thrtl_cnt->buffer_count = 1;
-		thrtl_cnt->sent_count = 0;
+		thrtl_cnt->prev_ddn_discard = 0;
+		thrtl_cnt->prev_ddn_eval = 0;
 		thrtl_cnt->sess_ptr = NULL;
 
 		ret = rte_hash_add_key_data(thrtl_ddn_count_hash,
@@ -1167,17 +1167,18 @@ process_pfcp_report_req(pfcp_sess_rpt_req_t *pfcp_sess_rep_req)
 									(pdn->eps_bearers[j]->pdrs[itr_pdr]->rule_id ==
 									 pfcp_sess_rep_req->dnlnk_data_rpt.pdr_id[i].rule_id)){
 
-								if(pdn->eps_bearers[j]->qos.arp.priority_level <
+								if(pdn->eps_bearers[j]->qos.arp.priority_level >
 										config.low_lvl_arp_priority){
 
 									/* Calculate the throttling factor*/
-									if(thrtl_cnt->sent_count != 0){
-										cp_thrtl_fact = (thrtl_cnt->buffer_count/thrtl_cnt->sent_count) * 100;
+									if(thrtl_cnt->prev_ddn_eval != 0){
+										cp_thrtl_fact = (thrtl_cnt->prev_ddn_discard/thrtl_cnt->prev_ddn_eval) * 100;
 
 										if(cp_thrtl_fact > thrtle_timer_data->throttle_factor){
 											pdr_ids ids;
 											ids.pdr_count = ONE;
 											ids.pdr_id[ZERO] = pfcp_sess_rep_req->dnlnk_data_rpt.pdr_id[i].rule_id;
+											ids.ddn_buffered_count = 0;
 											/*Send DDN request*/
 											ret = ddn_by_session_id(sess_id, &ids);
 
@@ -1188,10 +1189,12 @@ process_pfcp_report_req(pfcp_sess_rpt_req_t *pfcp_sess_rep_req)
 												return -1;
 											}
 											context->pfcp_rept_resp_sent_flag = 0;
-											thrtl_cnt->sent_count = thrtl_cnt->sent_count + 1;
+											thrtl_cnt->prev_ddn_eval = thrtl_cnt->prev_ddn_eval + 1;
 										}else{
 											pfcp_pdr_id_ie_t  pdr = {0};
 											pdr.rule_id = pfcp_sess_rep_req->dnlnk_data_rpt.pdr_id[i].rule_id;
+											thrtl_cnt->prev_ddn_eval = thrtl_cnt->prev_ddn_eval + 1;
+											thrtl_cnt->prev_ddn_discard = thrtl_cnt->prev_ddn_discard + 1;
 											fill_sess_info_id(thrtl_cnt, sess_id, ONE, &pdr);
 
 											context->pfcp_rept_resp_sent_flag = 1;
@@ -1201,6 +1204,7 @@ process_pfcp_report_req(pfcp_sess_rpt_req_t *pfcp_sess_rep_req)
 										pdr_ids ids;
 										ids.pdr_count = ONE;
 										ids.pdr_id[ZERO] = pfcp_sess_rep_req->dnlnk_data_rpt.pdr_id[i].rule_id;
+										ids.ddn_buffered_count = 0;
 										/*Send DDN request*/
 										ret = ddn_by_session_id(sess_id, &ids);
 
@@ -1209,12 +1213,22 @@ process_pfcp_report_req(pfcp_sess_rpt_req_t *pfcp_sess_rep_req)
 													LOG_FORMAT "Failed to process DDN request \n", LOG_VALUE);
 											return -1;
 										}
-										thrtl_cnt->sent_count = thrtl_cnt->sent_count + 1;
+										thrtl_cnt->prev_ddn_eval = thrtl_cnt->prev_ddn_eval + 1;
 										context->pfcp_rept_resp_sent_flag = 0;
 									}
 								} else {
-									context->pfcp_rept_resp_sent_flag = 1;
-									fill_send_pfcp_sess_report_resp(context, sequence, pdn, NOT_PRESENT, TRUE);
+									pdr_ids ids;
+									ids.pdr_count = ONE;
+									ids.pdr_id[ZERO] = pfcp_sess_rep_req->dnlnk_data_rpt.pdr_id[i].rule_id;
+									ids.ddn_buffered_count = 0;
+									ret = ddn_by_session_id(sess_id, &ids);
+
+									if (ret) {
+										clLog(clSystemLog, eCLSeverityCritical,
+												LOG_FORMAT "Failed to process DDN request \n", LOG_VALUE);
+										return -1;
+									}
+									context->pfcp_rept_resp_sent_flag = 0;
 								}
 							}
 						}

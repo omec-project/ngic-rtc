@@ -141,50 +141,29 @@ static inline void epc_dl_set_port_id(struct rte_mbuf *m)
 
 		ipv4_packet = (eh->ether_type == htons(ETHER_TYPE_IPv4));
 
-		if (unlikely(
+		/*if (unlikely(
 			     (m->ol_flags & PKT_RX_IP_CKSUM_MASK)
 				 == PKT_RX_IP_CKSUM_BAD ||
 			     (m->ol_flags & PKT_RX_L4_CKSUM_MASK)
 				 == PKT_RX_L4_CKSUM_BAD)) {
 			//clLog(clSystemLog, eCLSeverityCritical, "DL Bad checksum: %lu\n", m->ol_flags);
 			//ipv4_packet = 0;
-		}
+		}*/
 
-		/* Ipv4 ICMP pkt for linux handling */
-		if (ipv4_hdr->next_proto_id == IPPROTO_ICMP)
-		{
-			clLog(clSystemLog, eCLSeverityDebug,
-				LOG_FORMAT"EB_IN:ICMP==ipv4_hdr->next_proto_id= %u \n",
-				LOG_VALUE, ipv4_hdr->next_proto_id);
-			dl_arp_pkt = 1;
-			return;
-		}
 
 		ho_addr = (ipv4_hdr->dst_addr);
-		/* Flag pkt destined to SGI_IP for linux handling */
-		if ((app.eb_ip == ho_addr) || (app.eb_li_ip == ho_addr))
+		if ((ipv4_hdr->next_proto_id == IPPROTO_ICMP) ||    /* Ipv4 ICMP pkt for linux handling */
+			(app.eb_ip == ho_addr) ||						/* pkt destined to SGI_IP for linux handling */
+			 (app.eb_li_ip == ho_addr) ||  					/* pkt destined to SGI_IP for linux handling */
+			(IS_IPV4_MCAST(ntohl(ho_addr))) ||				/* MCAST pkt for linux handling */
+			(app.eb_bcast_addr == ho_addr) || 				/* Flag BCAST pkt for linux handling */
+			(app.eb_li_bcast_addr == ho_addr))				/* Flag BCAST pkt for linux handling */
+
 		{
 			clLog(clSystemLog, eCLSeverityDebug,
-				LOG_FORMAT"EB_IN:app.eb_ip==ipv4_hdr->dst_addr= %s\n",
-				LOG_VALUE, inet_ntoa(*(struct in_addr *)&ho_addr));
-			dl_arp_pkt = 1;
-			return;
-		}
-		/* Flag MCAST pkt for linux handling */
-		if (IS_IPV4_MCAST(ntohl(ho_addr)))
-		{
-			clLog(clSystemLog, eCLSeverityDebug,
-				LOG_FORMAT"EB_IN:IPV$_MCAST ==ipv4_hdr->dst_addr= %s\n",
-				LOG_VALUE, inet_ntoa(*(struct in_addr *)&ho_addr));
-			dl_arp_pkt = 1;
-			return;
-		}
-		/* Flag BCAST pkt for linux handling */
-		if ((app.eb_bcast_addr == ho_addr) || (app.eb_li_bcast_addr == ho_addr))
-		{
-			clLog(clSystemLog, eCLSeverityDebug,
-				LOG_FORMAT"EB_IN:app.eb_bcast_addr == ipv4_hdr->dst_addr= %s\n",
-				LOG_VALUE, inet_ntoa(*(struct in_addr *)&ho_addr));
+				LOG_FORMAT"EB_IN:ipv4_hdr->next_proto_id= %u \n"
+				"ipv4_hdr->dst_addr(app.eb_ip/IPV4_MCAST/app.eb_bcast_addr)= %s\n",
+				LOG_VALUE, ipv4_hdr->next_proto_id, inet_ntoa(*(struct in_addr *)&ho_addr));
 			dl_arp_pkt = 1;
 			return;
 		}
@@ -233,10 +212,9 @@ static inline void epc_dl_set_port_id(struct rte_mbuf *m)
 		if ((ipv6_hdr->proto == IPPROTO_ICMPV6) ||
 				(ipv6_hdr->proto != IPPROTO_UDP)) {
 			clLog(clSystemLog, eCLSeverityDebug,
-				LOG_FORMAT"EB_IN:ipv6->icmpv6:ipv6_hdr->proto= %u\n",
+				LOG_FORMAT"EB_IN:ipv6->icmpv6:ipv6_hdr->proto= %u\n"
+				"EB:ICMPv6: IPv6 Packets redirect to LINUX..\n",
 				LOG_VALUE, ipv6_hdr->proto);
-			clLog(clSystemLog, eCLSeverityDebug,
-					LOG_FORMAT"EB:ICMPv6: IPv6 Packets redirect to LINUX..\n", LOG_VALUE);
 
 			/* Redirect packets to LINUX and Master Core to fill the arp entry */
 			dl_arp_pkt = 1;
@@ -263,10 +241,10 @@ static inline void epc_dl_set_port_id(struct rte_mbuf *m)
 								memcmp(&(app.eb_li_ipv6), &ho_addr, sizeof(ho_addr))) {
 						clLog(clSystemLog, eCLSeverityDebug,
 								LOG_FORMAT"EB_IN:ipv6_hdr->proto= %u: Not for local intf IPv6 dst addr Packet,"
-								"redirect to LINUX..\n", LOG_VALUE, ipv6_hdr->proto);
-						clLog(clSystemLog, eCLSeverityDebug,
-								LOG_FORMAT"EB_IN: Expected IPv6 Addr:"IPv6_FMT" or "IPv6_FMT", Received IPv6 Addr:"IPv6_FMT"\n",
-								LOG_VALUE, IPv6_PRINT(app.eb_ipv6), IPv6_PRINT(app.eb_li_ipv6), IPv6_PRINT(ho_addr));
+								"redirect to LINUX..\n"
+								"EB_IN: Expected IPv6 Addr:"IPv6_FMT" or "IPv6_FMT", Received IPv6 Addr:"IPv6_FMT"\n",
+								LOG_VALUE, ipv6_hdr->proto,
+								IPv6_PRINT(app.eb_ipv6), IPv6_PRINT(app.eb_li_ipv6), IPv6_PRINT(ho_addr));
 
 						/* Redirect packets to LINUX and Master Core to fill the arp entry */
 						dl_arp_pkt = 1;
@@ -279,7 +257,6 @@ static inline void epc_dl_set_port_id(struct rte_mbuf *m)
 					memcpy(peer_addr.ipv6_addr,
 						ipv6_hdr->src_addr, IPV6_ADDR_LEN);
 					check_activity(peer_addr);
-
 					struct gtpu_hdr *gtpuhdr = get_mtogtpu_v6(m);
 					if (gtpuhdr->msgtype == GTPU_ECHO_REQUEST ||
 							gtpuhdr->msgtype == GTPU_ECHO_RESPONSE ||
@@ -366,6 +343,7 @@ static epc_dl_handler epc_dl_worker_func[NUM_SPGW_PORTS];
 static inline int epc_dl_port_out_ah(struct rte_pipeline *p, struct rte_mbuf **pkts,
 		uint64_t pkts_mask, void *arg)
 {
+	pkts_mask = 0;
 	int worker_index = 0;
 	RTE_SET_USED(p);
 	int portno = (uintptr_t) arg;
@@ -377,7 +355,7 @@ static inline int epc_dl_port_out_ah(struct rte_pipeline *p, struct rte_mbuf **p
 		/* VS- NGCORE_SHRINK: worker_index:TBC */
 		/* cmntd return f(p, pkts, dl_ndata_pkts, worker_index); */
 		if(f != NULL){
-			f(p, pkts, dl_ndata_pkts, worker_index);
+			 f(p, pkts, dl_ndata_pkts, &pkts_mask, worker_index);
 		} else {
 			clLog(clSystemLog, eCLSeverityCritical,
 					LOG_FORMAT"Not Register EB pkts handler, Configured EB MAC was wrong\n",
@@ -603,16 +581,13 @@ void epc_dl(void *args)
 		struct rte_mbuf *pkts[count];
 		uint32_t rx_cnt = rte_ring_dequeue_bulk(notify_ring,
 				(void**)pkts, count, NULL);
-		int ret = notification_handler(pkts, rx_cnt);
-		if (ret < 0) {
-			clLog(clSystemLog, eCLSeverityCritical,
-				LOG_FORMAT"ERROR: Notification handler failed\n", LOG_VALUE);
-		}
+		if (rx_cnt) {
+			int ret = notification_handler(pkts, rx_cnt);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,
+					LOG_FORMAT"ERROR: Notification handler failed\n", LOG_VALUE);
+			}
 
-		/* Free allocated Mbufs */
-		for (uint16_t inx = 0; inx < rx_cnt; inx++) {
-			if (pkts[inx])
-				rte_pktmbuf_free(pkts[inx]);
 		}
 		count -= rx_cnt;
 	}

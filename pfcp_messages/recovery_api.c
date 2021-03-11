@@ -246,7 +246,7 @@ static int
 fill_create_far(pfcp_create_far_ie_t *create_far, pdr_t *pdr, eps_bearer *bearer)
 {
 	/* Filling create FAR */
-	int far_hdr_len = 0, ret = 0;
+	int far_hdr_len = 0;
 	/* -> FAR ID */
 	pfcp_set_ie_header(&(create_far->far_id.header), PFCP_IE_FAR_ID,
 			(sizeof(pfcp_far_id_ie_t) - sizeof(pfcp_ie_header_t)));
@@ -292,15 +292,30 @@ fill_create_far(pfcp_create_far_ie_t *create_far, pdr_t *pdr, eps_bearer *bearer
 			if (bearer->s1u_enb_gtpu_ip.ip_type == IPV4_TYPE) {
 				create_far->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc.gtpu_udp_ipv4 = PRESENT;
 				len += sizeof(create_far->frwdng_parms.outer_hdr_creation.ipv4_address);
+				create_far->frwdng_parms.outer_hdr_creation.ipv4_address = bearer->s1u_enb_gtpu_ip.ipv4_addr;
 			} else if (bearer->s1u_enb_gtpu_ip.ip_type == IPV6_TYPE) {
 				create_far->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc.gtpu_udp_ipv6 = PRESENT;
 				len += sizeof(create_far->frwdng_parms.outer_hdr_creation.ipv6_address);
-			}
-
-			ret = set_node_address(&create_far->frwdng_parms.outer_hdr_creation.ipv4_address,
-					create_far->frwdng_parms.outer_hdr_creation.ipv6_address,
-					bearer->s1u_enb_gtpu_ip);
-			if (ret < 0) {
+				memcpy(create_far->frwdng_parms.outer_hdr_creation.ipv6_address,
+					bearer->s1u_enb_gtpu_ip.ipv6_addr, IPV6_ADDRESS_LEN);
+			} else if ((bearer->s1u_enb_gtpu_ip.ip_type == PDN_TYPE_IPV4_IPV6)
+					&& (bearer->s1u_sgw_gtpu_ip.ip_type == PDN_TYPE_IPV4_IPV6)) {
+				create_far->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc.gtpu_udp_ipv6 = PRESENT;
+				len += sizeof(create_far->frwdng_parms.outer_hdr_creation.ipv6_address);
+				memcpy(create_far->frwdng_parms.outer_hdr_creation.ipv6_address,
+					bearer->s1u_enb_gtpu_ip.ipv6_addr, IPV6_ADDRESS_LEN);
+			} else if ((bearer->s1u_sgw_gtpu_ip.ip_type == IPV4_TYPE)
+					&& (create_far->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc.gtpu_udp_ipv4 == 0)) {
+				create_far->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc.gtpu_udp_ipv4 = PRESENT;
+				len += sizeof(create_far->frwdng_parms.outer_hdr_creation.ipv4_address);
+				create_far->frwdng_parms.outer_hdr_creation.ipv4_address = bearer->s1u_enb_gtpu_ip.ipv4_addr;
+			} else if ((bearer->s1u_sgw_gtpu_ip.ip_type == IPV6_TYPE)
+                                        && (create_far->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc.gtpu_udp_ipv6 == 0)) {
+				create_far->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc.gtpu_udp_ipv6 = PRESENT;
+				len += sizeof(create_far->frwdng_parms.outer_hdr_creation.ipv6_address);
+				memcpy(create_far->frwdng_parms.outer_hdr_creation.ipv6_address,
+					bearer->s1u_enb_gtpu_ip.ipv6_addr, IPV6_ADDRESS_LEN);
+			} else {
 				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
 					"IP address", LOG_VALUE);
 			}
@@ -315,19 +330,35 @@ fill_create_far(pfcp_create_far_ie_t *create_far, pdr_t *pdr, eps_bearer *bearer
 			if (bearer->s5s8_pgw_gtpu_ip.ip_type == IPV4_TYPE) {
 				create_far->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc.gtpu_udp_ipv4 = PRESENT;
 				len += sizeof(create_far->frwdng_parms.outer_hdr_creation.ipv4_address);
+				create_far->frwdng_parms.outer_hdr_creation.ipv4_address = bearer->s5s8_pgw_gtpu_ip.ipv4_addr;
 			} else if (bearer->s5s8_pgw_gtpu_ip.ip_type == IPV6_TYPE) {
 				create_far->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc.gtpu_udp_ipv6 = PRESENT;
 				len += sizeof(create_far->frwdng_parms.outer_hdr_creation.ipv6_address);
-			}
-
-			create_far->frwdng_parms.outer_hdr_creation.teid = bearer->s5s8_pgw_gtpu_teid;
-			ret = set_node_address(&create_far->frwdng_parms.outer_hdr_creation.ipv4_address,
-					create_far->frwdng_parms.outer_hdr_creation.ipv6_address,
-					bearer->s5s8_pgw_gtpu_ip);
-			if (ret < 0) {
+				memcpy(create_far->frwdng_parms.outer_hdr_creation.ipv6_address,
+					bearer->s5s8_pgw_gtpu_ip.ipv6_addr, IPV6_ADDRESS_LEN);
+			} else if ((bearer->s5s8_pgw_gtpu_ip.ip_type == PDN_TYPE_IPV4_IPV6)
+					&& (bearer->s5s8_sgw_gtpu_ip.ip_type == PDN_TYPE_IPV4_IPV6)) {
+				create_far->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc.gtpu_udp_ipv6 = PRESENT;
+				len += sizeof(create_far->frwdng_parms.outer_hdr_creation.ipv6_address);
+				memcpy(create_far->frwdng_parms.outer_hdr_creation.ipv6_address,
+					bearer->s5s8_pgw_gtpu_ip.ipv6_addr, IPV6_ADDRESS_LEN);
+			} else if ((bearer->s5s8_sgw_gtpu_ip.ip_type == IPV4_TYPE)
+				     && (create_far->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc.gtpu_udp_ipv4 == 0)) {
+				create_far->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc.gtpu_udp_ipv4 = PRESENT;
+				len += sizeof(create_far->frwdng_parms.outer_hdr_creation.ipv4_address);
+				create_far->frwdng_parms.outer_hdr_creation.ipv4_address = bearer->s5s8_pgw_gtpu_ip.ipv4_addr;
+			} else if ((bearer->s5s8_sgw_gtpu_ip.ip_type == IPV6_TYPE)
+                                     && (create_far->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc.gtpu_udp_ipv6 == 0)) {
+				create_far->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc.gtpu_udp_ipv6 = PRESENT;
+				len += sizeof(create_far->frwdng_parms.outer_hdr_creation.ipv6_address);
+				memcpy(create_far->frwdng_parms.outer_hdr_creation.ipv6_address,
+					bearer->s5s8_pgw_gtpu_ip.ipv6_addr, IPV6_ADDRESS_LEN);
+			}else {
 				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
 					"IP address", LOG_VALUE);
 			}
+
+			create_far->frwdng_parms.outer_hdr_creation.teid = bearer->s5s8_pgw_gtpu_teid;
 		}
 
 		/* PGWC --> access --> SGW S5S8 */
@@ -337,19 +368,35 @@ fill_create_far(pfcp_create_far_ie_t *create_far, pdr_t *pdr, eps_bearer *bearer
 			if (bearer->s5s8_sgw_gtpu_ip.ip_type == IPV4_TYPE) {
 				create_far->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc.gtpu_udp_ipv4 = PRESENT;
 				len += sizeof(create_far->frwdng_parms.outer_hdr_creation.ipv4_address);
+				create_far->frwdng_parms.outer_hdr_creation.ipv4_address = bearer->s5s8_sgw_gtpu_ip.ipv4_addr;
 			} else if (bearer->s5s8_sgw_gtpu_ip.ip_type == IPV6_TYPE) {
 				create_far->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc.gtpu_udp_ipv6 = PRESENT;
 				len += sizeof(create_far->frwdng_parms.outer_hdr_creation.ipv6_address);
-			}
-
-			create_far->frwdng_parms.outer_hdr_creation.teid = bearer->s5s8_sgw_gtpu_teid;
-			ret = set_node_address(&create_far->frwdng_parms.outer_hdr_creation.ipv4_address,
-					create_far->frwdng_parms.outer_hdr_creation.ipv6_address,
-					bearer->s5s8_sgw_gtpu_ip);
-			if (ret < 0) {
+				memcpy(create_far->frwdng_parms.outer_hdr_creation.ipv6_address,
+					bearer->s5s8_sgw_gtpu_ip.ipv6_addr, IPV6_ADDRESS_LEN);
+			} else if ((bearer->s5s8_sgw_gtpu_ip.ip_type == PDN_TYPE_IPV4_IPV6)
+					&& (bearer->s5s8_pgw_gtpu_ip.ip_type == PDN_TYPE_IPV4_IPV6)) {
+				create_far->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc.gtpu_udp_ipv6 = PRESENT;
+				len += sizeof(create_far->frwdng_parms.outer_hdr_creation.ipv6_address);
+				memcpy(create_far->frwdng_parms.outer_hdr_creation.ipv6_address,
+					bearer->s5s8_sgw_gtpu_ip.ipv6_addr, IPV6_ADDRESS_LEN);
+			} else if ((bearer->s5s8_pgw_gtpu_ip.ip_type == IPV4_TYPE)
+				     && (create_far->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc.gtpu_udp_ipv4 == 0)) {
+				create_far->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc.gtpu_udp_ipv4 = PRESENT;
+				len += sizeof(create_far->frwdng_parms.outer_hdr_creation.ipv4_address);
+				create_far->frwdng_parms.outer_hdr_creation.ipv4_address = bearer->s5s8_sgw_gtpu_ip.ipv4_addr;
+			} else if ((bearer->s5s8_pgw_gtpu_ip.ip_type == IPV6_TYPE)
+                                     && (create_far->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc.gtpu_udp_ipv6 == 0)) {
+				create_far->frwdng_parms.outer_hdr_creation.outer_hdr_creation_desc.gtpu_udp_ipv6 = PRESENT;
+				len += sizeof(create_far->frwdng_parms.outer_hdr_creation.ipv6_address);
+				memcpy(create_far->frwdng_parms.outer_hdr_creation.ipv6_address,
+					bearer->s5s8_sgw_gtpu_ip.ipv6_addr, IPV6_ADDRESS_LEN);
+			} else {
 				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
 					"IP address", LOG_VALUE);
 			}
+
+			create_far->frwdng_parms.outer_hdr_creation.teid = bearer->s5s8_sgw_gtpu_teid;
 		}
 		create_far->frwdng_parms.outer_hdr_creation.header.len = len;
 		frw_hdr_len += len + sizeof(pfcp_ie_header_t);
@@ -411,7 +458,7 @@ fill_create_qer(pfcp_sess_estab_req_t *pfcp_sess_est_req, eps_bearer *bearer)
 
 		/* get_qer_entry */
 		qer_t *qer_context = NULL;
-		qer_context = get_qer_entry(create_qer->qer_id.qer_id_value);
+		qer_context = get_qer_entry(create_qer->qer_id.qer_id_value, bearer->pdn->seid);
 		if (qer_context  != NULL) {
 			/* MAX Bit Rate */
 			pfcp_set_ie_header(&(create_qer->maximum_bitrate.header), PFCP_IE_MBR,
@@ -638,7 +685,7 @@ process_pfcp_sess_est_req(pdn_connection *pdn, node_address_t *node_addr)
 				for(int sdf_itr1 = 0;
 						sdf_itr1 < bearer->pdrs[itr2]->pdi.sdf_filter_cnt; sdf_itr1++) {
 					enum flow_status f_status =
-						pdn->policy.pcc_rule[sdf_itr1].dyn_rule.flow_status;
+						pdn->policy.pcc_rule[sdf_itr1]->urule.dyn_rule.flow_status;
 
 					fill_create_pdr_sdf_rules(pfcp_sess_est_req.create_pdr,
 							bearer->dynamic_rules[sdf_itr1], pdr_idx);

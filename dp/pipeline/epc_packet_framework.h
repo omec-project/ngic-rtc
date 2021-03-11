@@ -62,8 +62,11 @@ extern uint64_t num_dns_processed;
 #define DL_RING_CONTAINER_SIZE (2048 * 2)
 #define DL_PKT_POOL_SIZE (1024 * 32)
 #define DL_PKT_POOL_CACHE_SIZE 32
-#define DL_PKTS_RING_SIZE 1024
-#define UL_PKTS_RING_SIZE 1024
+#define DL_PKTS_BUF_RING_SIZE 1024
+
+/* TODO: Define the appropriate ring size based on the PPS value, Temp Set to 65K approx */
+#define DL_PKTS_RING_SIZE (1 << 16)
+#define UL_PKTS_RING_SIZE (1 << 16)
 
 /* Borrowed from dpdk ip_frag_internal.c */
 #define PRIME_VALUE	0xeaad8405
@@ -180,7 +183,7 @@ struct epc_ul_params {
 	uint32_t pkts_err_out;
 } __rte_cache_aligned;
 typedef int (*epc_ul_handler) (struct rte_pipeline*, struct rte_mbuf **pkts,
-		uint32_t n, int wk_index);
+		uint32_t n, uint64_t *pkts_mask, int wk_index);
 
 /** DL pipeline parameters - Per input port */
 uint32_t dl_arp_pkt;
@@ -238,7 +241,7 @@ struct epc_dl_params {
 	uint32_t pkts_err_out;
 } __rte_cache_aligned;
 typedef int (*epc_dl_handler) (struct rte_pipeline*, struct rte_mbuf **pkts,
-		uint32_t n, int wk_index);
+		uint32_t n, uint64_t *pkts_mask, int wk_index);
 
 /* defines max number of pipelines per core */
 #define EPC_PIPELINE_MAX	4

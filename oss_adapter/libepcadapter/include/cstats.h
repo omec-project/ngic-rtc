@@ -133,6 +133,14 @@ int get_periodic_timer_value(char **response, int periodic_timer_value);
 int get_request_timeout_value(char **response, int request_timeout);
 /* Function */
 /**
+ * @brief: get perf flag json resp
+ * @param: response
+ * @param: perf flag value
+ * @return: sucess code
+ */
+int get_perf_flag_json_resp(char **response, int perf_flag);
+/* Function */
+/**
  * @brief: get request tries value
  * @param: json value
  * @param: response
@@ -165,6 +173,14 @@ int get_request_timeout_value_in_milliseconds(const char *json, char **response)
 int get_transmit_timer_value_in_seconds(const char *json, char **response);
 /* Function */
 /**
+ * @brief: get  perf flag value
+ * @param: json value
+ * @param: response
+ * @return: perf flag value in 0 or 1
+ */
+int get_perf_flag_value_in_int(const char *json, char **response);
+/* Function */
+/**
  * @brief: get  periodic value
  * @param: json value
  * @param: response
@@ -187,6 +203,22 @@ void construct_json(const char *param,const char *value, char *buf);
  * @return: return error code
  */
 int resp_cmd_not_supported(uint8_t gw_type, char **response);
+/* Function */
+/**
+ * @brief: return error response if post invalid value
+ * @param: json
+ * @param: response
+ * @return: return error code
+ */
+int invalid_value_error_response(const char *json, char **response);
+/* Function */
+/**
+ * @brief: return error response if post invalid json string
+ * @param: json
+ * @param: response
+ * @return: return rest code
+ */
+int check_valid_json(const char *json, char **response);
 /* Function */
 /**
  * @brief: get pcap generation status.

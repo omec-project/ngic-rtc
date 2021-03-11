@@ -524,14 +524,14 @@ process_sgwc_s5s8_create_sess_rsp(create_sess_rsp_t *cs_rsp)
 
 		if (cs_rsp->paa.pdn_type == PDN_IP_TYPE_IPV6 || cs_rsp->paa.pdn_type == PDN_IP_TYPE_IPV4V6) {
 			pdn->pdn_type.ipv6 = PRESENT;
-			memcpy(pdn->ipv6.s6_addr, cs_rsp->paa.paa_ipv6, IPV6_ADDRESS_LEN);
+			memcpy(pdn->uipaddr.ipv6.s6_addr, cs_rsp->paa.paa_ipv6, IPV6_ADDRESS_LEN);
 			pdn->prefix_len = cs_rsp->paa.ipv6_prefix_len;
 		}
 
 		if (cs_rsp->paa.pdn_type == PDN_IP_TYPE_IPV4 || cs_rsp->paa.pdn_type == PDN_IP_TYPE_IPV4V6) {
 
 			pdn->pdn_type.ipv4 = PRESENT;
-			pdn->ipv4.s_addr = cs_rsp->paa.pdn_addr_and_pfx;
+			pdn->uipaddr.ipv4.s_addr = cs_rsp->paa.pdn_addr_and_pfx;
 		}
 
 		pdn->apn_restriction = cs_rsp->apn_restriction.rstrct_type_val;
@@ -704,7 +704,7 @@ process_sgwc_s5s8_create_sess_rsp(create_sess_rsp_t *cs_rsp)
 	if(pfcp_sess_mod_req.create_pdr_count){
 		for(int itr = 0; itr < pfcp_sess_mod_req.create_pdr_count; itr++) {
 			pfcp_sess_mod_req.create_pdr[itr].pdi.ue_ip_address.ipv4_address =
-				(pdn->ipv4.s_addr);
+				(pdn->uipaddr.ipv4.s_addr);
 			pfcp_sess_mod_req.create_pdr[itr].pdi.src_intfc.interface_value =
 				SOURCE_INTERFACE_VALUE_ACCESS;
 		}
@@ -767,8 +767,8 @@ process_create_bearer_response(create_bearer_rsp_t *cb_rsp)
 		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 	}
 
-	context->cbr_info.seq = 0;
-	context->cbr_info.status = CBR_PROCESS_DONE;
+	context->req_status.seq = 0;
+	context->req_status.status = REQ_PROCESS_DONE;
 
 	if (!cb_rsp->cause.header.len) {
 		clLog(clSystemLog,eCLSeverityCritical,LOG_FORMAT"Mandatory IE not found "
@@ -1784,6 +1784,7 @@ delete_rule_in_bearer(eps_bearer *bearer)
 			rte_free(bearer->prdef_rules[itr]);
 			bearer->prdef_rules[itr] = NULL;
 		}
+
 	}
 	return 0;
 }
@@ -1817,6 +1818,14 @@ delete_sess_context(ue_context **_context, pdn_connection *pdn) {
 	/* Deleting session entry */
 	del_sess_entry(pdn->seid);
 
+
+	/* Delete pdn policy allocations*/
+	for(uint8_t itr = 0; itr < MAX_RULES; itr++){
+		if(pdn->policy.pcc_rule[itr] != NULL){
+				rte_free( pdn->policy.pcc_rule[itr]);
+				pdn->policy.pcc_rule[itr] = NULL;
+		}
+	}
 	/* If EBI is Default EBI then delete all bearer and rule associate with PDN */
 	for (uint8_t itr1 = 0; itr1 < MAX_BEARERS; ++itr1) {
 		if (pdn->eps_bearers[itr1] == NULL)
@@ -1863,6 +1872,7 @@ delete_sess_context(ue_context **_context, pdn_connection *pdn) {
 		cleanup_csid_entry(pdn->seid, &pdn->pgw_csid, pdn);
 	}
 #endif /* USE_CSID */
+
 	if (pdn != NULL) {
 
 		rte_free(pdn);
@@ -1897,6 +1907,10 @@ delete_sess_context(ue_context **_context, pdn_connection *pdn) {
 		}
 
 		if (context != NULL) {
+			if(context->pre_rptng_area_act != NULL){
+				rte_free(context->pre_rptng_area_act);
+				context->pre_rptng_area_act = NULL;
+			}
 			rte_free(*_context);
 			*_context = NULL;
 		}
@@ -2421,64 +2435,73 @@ store_presc_reporting_area_act_to_ue_context(gtp_pres_rptng_area_act_ie_t *ie,
 															ue_context *context){
 
 	context->pra_flag = TRUE;
-	context->pre_rptng_area_act.pres_rptng_area_idnt = 	ie->pres_rptng_area_idnt;
-	context->pre_rptng_area_act.action = ie->action;
+	if(context->pre_rptng_area_act == NULL) {
+		context->pre_rptng_area_act = rte_zmalloc_socket(NULL, sizeof(presence_reproting_area_action_t),
+				RTE_CACHE_LINE_SIZE, rte_socket_id());
 
-	context->pre_rptng_area_act.number_of_tai = ie->number_of_tai;
-	context->pre_rptng_area_act.number_of_rai = ie->number_of_rai;
-	context->pre_rptng_area_act.nbr_of_macro_enb = ie->nbr_of_macro_enb;
-	context->pre_rptng_area_act.nbr_of_home_enb = ie->nbr_of_home_enb;
-	context->pre_rptng_area_act.number_of_ecgi = ie->number_of_ecgi;
-	context->pre_rptng_area_act.number_of_sai = ie->number_of_sai;
-	context->pre_rptng_area_act.number_of_cgi = ie->number_of_cgi;
+		if(context->pre_rptng_area_act == NULL) {
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to allocate "
+					"Memory for presence repoting area action\n", LOG_VALUE);
+			return;
 
-    uint32_t size = 0;
-    if(ie->number_of_tai){
+		}
+	}
+	context->pre_rptng_area_act->pres_rptng_area_idnt = ie->pres_rptng_area_idnt;
+	context->pre_rptng_area_act->action = ie->action;
+
+	context->pre_rptng_area_act->number_of_tai = ie->number_of_tai;
+	context->pre_rptng_area_act->number_of_rai = ie->number_of_rai;
+	context->pre_rptng_area_act->nbr_of_macro_enb = ie->nbr_of_macro_enb;
+	context->pre_rptng_area_act->nbr_of_home_enb = ie->nbr_of_home_enb;
+	context->pre_rptng_area_act->number_of_ecgi = ie->number_of_ecgi;
+	context->pre_rptng_area_act->number_of_sai = ie->number_of_sai;
+	context->pre_rptng_area_act->number_of_cgi = ie->number_of_cgi;
+
+	uint32_t size = 0;
+	if(ie->number_of_tai){
 		size = ie->number_of_tai * sizeof(tai_field_t);
-		memcpy(&context->pre_rptng_area_act.tais, &ie->tais, size);
-    }
+		memcpy(&context->pre_rptng_area_act->tais, &ie->tais, size);
+	}
 
-    if(ie->number_of_rai){
+	if(ie->number_of_rai){
 		size = ie->number_of_rai * sizeof(rai_field_t);
-		memcpy(&context->pre_rptng_area_act.rais, &ie->rais, size);
-    }
+		memcpy(&context->pre_rptng_area_act->rais, &ie->rais, size);
+	}
 
-    if(ie->nbr_of_macro_enb){
+	if(ie->nbr_of_macro_enb){
 		size = ie->nbr_of_macro_enb * sizeof(macro_enb_id_fld_t);
-		memcpy(&context->pre_rptng_area_act.macro_enodeb_ids, &ie->macro_enb_ids,
-    													size);
-    }
+		memcpy(&context->pre_rptng_area_act->macro_enodeb_ids, &ie->macro_enb_ids, size);
+	}
 
-    if(ie->nbr_of_home_enb){
+	if(ie->nbr_of_home_enb){
 		size = ie->nbr_of_home_enb * sizeof(home_enb_id_fld_t);
-		memcpy(&context->pre_rptng_area_act.home_enb_ids, &ie->home_enb_ids,
-    											size);
-    }
+		memcpy(&context->pre_rptng_area_act->home_enb_ids, &ie->home_enb_ids, size);
+	}
 
-    if(ie->number_of_ecgi){
+	if(ie->number_of_ecgi){
 		size = ie->number_of_ecgi * sizeof(ecgi_field_t);
-		memcpy(&context->pre_rptng_area_act.ecgis, &ie->ecgis, size);
-    }
+		memcpy(&context->pre_rptng_area_act->ecgis, &ie->ecgis, size);
+	}
 
-    if(ie->number_of_cgi){
+	if(ie->number_of_cgi){
 		size = ie->number_of_cgi * sizeof(cgi_field_t);
-		memcpy(&context->pre_rptng_area_act.cgis, &ie->cgis, size);
-    }
+		memcpy(&context->pre_rptng_area_act->cgis, &ie->cgis, size);
+	}
 
-    if(ie->number_of_sai){
+	if(ie->number_of_sai){
 		size = ie->number_of_sai * sizeof(sai_field_t);
-		memcpy(&context->pre_rptng_area_act.sais, &ie->sais, size);
-    }
+		memcpy(&context->pre_rptng_area_act->sais, &ie->sais, size);
+	}
 
-     context->pre_rptng_area_act.nbr_of_extnded_macro_enb = ie->nbr_of_extnded_macro_enb;
+	context->pre_rptng_area_act->nbr_of_extnded_macro_enb = ie->nbr_of_extnded_macro_enb;
 
-     if(ie->nbr_of_extnded_macro_enb){
+	if(ie->nbr_of_extnded_macro_enb){
 		size = ie->nbr_of_extnded_macro_enb * sizeof(extnded_macro_enb_id_fld_t);
-		memcpy(&context->pre_rptng_area_act.extended_macro_enodeb_ids,
-									&ie->extnded_macro_enb_ids,	size);
-    }
+		memcpy(&context->pre_rptng_area_act->extended_macro_enodeb_ids,
+				&ie->extnded_macro_enb_ids, size);
+	}
 
-    return;
+	return;
 }
 
 void

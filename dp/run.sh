@@ -47,6 +47,9 @@ ARGS="-l $CORELIST -n 4 --socket-mem $NUMA0_MEMORY,$NUMA1_MEMORY	\
 
 echo $ARGS | sed -e $'s/--/\\\n\\t--/g'
 
+#set pending signals limit
+ulimit -i unlimited
+
 USAGE=$"Usage: run.sh [ debug | log ]
 	debug:	executes $APP under gdb
 	log:	executes $APP with logging enabled to date named file under

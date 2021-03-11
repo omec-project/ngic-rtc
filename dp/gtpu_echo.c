@@ -270,7 +270,7 @@ void send_error_indication_pkt(struct rte_mbuf *gtpu_pkt, uint8_t port_id)
 	} else if (ether->ether_type == rte_cpu_to_be_16(ETHER_TYPE_IPv6)) {
 		ip_type = IPV6_TYPE;
 	} else {
-		clLog(clSystemLog, eCLSeverityCritical,
+		clLog(clSystemLog, eCLSeverityDebug,
 				LOG_FORMAT"Failed to send error indication pkt, IP Address type not set \n", LOG_VALUE);
 		return;
 	}

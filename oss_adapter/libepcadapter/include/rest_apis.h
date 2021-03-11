@@ -12,6 +12,7 @@
 #define GET_STAT_LOGGING_URI "/statlogging"
 #define GET_PCAP_STATUS_URI "/generate_pcap"
 #define GET_STAT_ALL_URI "/statliveall"
+#define GET_PERF_FLAG_URI "/perf_flag"
 #define GET_RESET_STATS_URI "/reset_stats"
 #define GET_STAT_FREQUENCY_URI "/statfreq"
 #define GET_CONFIG_LIVE_URI "/configlive"
@@ -209,6 +210,23 @@ class RestStatFrequencyGet : public EManagementHandler
 
 };
 
+class RestPerfFlagGet : public EManagementHandler
+{
+	private:
+		CRestCallback m_cb;
+	public:
+		RestPerfFlagGet(ELogger &audit);
+
+		void registerHandler();
+
+		virtual Void process(const Pistache::Http::Request& request,
+					Pistache::Http::ResponseWriter &response);
+
+		void registerCallback(CRestCallback cb) { m_cb = cb;};
+		virtual ~RestPerfFlagGet() {}
+
+};
+
 class RestPeriodicTimerPost : public EManagementHandler
 {
 	private:
@@ -359,6 +377,23 @@ class RestStatFrequencyPost : public EManagementHandler
 
 		void registerCallback(CRestCallback cb) { m_cb = cb;};
 		virtual ~RestStatFrequencyPost() {}
+
+};
+
+class RestPerfFlagPost : public EManagementHandler
+{
+	private:
+		CRestCallback m_cb;
+	public:
+		RestPerfFlagPost(ELogger &audit);
+
+		void registerHandler();
+
+		virtual Void process(const Pistache::Http::Request& request,
+					Pistache::Http::ResponseWriter &response);
+
+		void registerCallback(CRestCallback cb) { m_cb = cb;};
+		virtual ~RestPerfFlagPost() {}
 
 };
 

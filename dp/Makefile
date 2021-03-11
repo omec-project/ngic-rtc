@@ -186,6 +186,9 @@ CFLAGS += -DSTATS
 # Un-comment below line to enable DDN(Downlink data notification) statstics
 #CFLAGS += -DDEBUG_DDN
 
+# Un-comment below line to enable Router Solicitation and Advertisement statstics
+#CFLAGS += -DDEBUG_RS_MSG
+
 # ASR- Un-comment below line to enable GTPU HEADER Sequence Number option.
 #CFLAGS += -DGTPU_HDR_SEQNB
 

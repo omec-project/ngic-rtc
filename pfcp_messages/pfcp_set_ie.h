@@ -168,7 +168,6 @@ typedef struct upf_context_t {
 
 	uint8_t cp_mode;
 	uint32_t	csr_cnt;
-	uint32_t	*pending_csr[BUFFERED_ENTRIES_DEFAULT];
 	uint32_t	*pending_csr_teid[BUFFERED_ENTRIES_DEFAULT];
 	char	fqdn[MAX_HOSTNAME_LENGTH];
 

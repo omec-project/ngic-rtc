@@ -163,7 +163,7 @@ link_dp_sess_with_peer_csid(fqcsid_t *peer_csid, pfcp_session_t *sess, uint8_t i
 	if(tmp->up_seid != sess->up_seid && tmp->up_seid != 0) {
 		sess_csid *new_node = NULL;
 		/* Add new node into csid linked list */
-		new_node = add_sess_csid_data_node(tmp);
+		new_node = add_peer_csid_sess_data_node(tmp, &key);
 		if(new_node == NULL ) {
 			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to ADD new "
 					"node into peer CSID linked list : %s\n", LOG_VALUE);
@@ -176,6 +176,7 @@ link_dp_sess_with_peer_csid(fqcsid_t *peer_csid, pfcp_session_t *sess, uint8_t i
 	} else {
 		tmp->cp_seid = sess->cp_seid;
 		tmp->up_seid = sess->up_seid;
+		tmp->next = NULL;
 	}
 
 	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Link Session "
@@ -608,6 +609,157 @@ fill_peer_node_info(pdn_connection *pdn,
 	return 0;
 }
 
+int
+delete_peer_node_info(pdn_connection *pdn,
+				eps_bearer *bearer)
+{
+	int ret = 0;
+	uint8_t num_csid = 0;
+	csid_key peer_info = {0};
+
+	/* MME FQ-CSID */
+	if ((pdn->context)->cp_mode != PGWC) {
+		if (((pdn->context)->mme_fqcsid)->num_csid) {
+			num_csid = ((pdn->context)->mme_fqcsid)->num_csid;
+			fill_node_addr_info(&peer_info.mme_ip,
+					&((pdn->context)->mme_fqcsid)->node_addr[num_csid - 1]);
+		} else {
+			/* IF MME not support partial failure */
+			fill_node_addr_info(&peer_info.mme_ip,
+						&(pdn->context)->s11_mme_gtpc_ip);
+		}
+		(peer_info.mme_ip.ip_type == IPV6_TYPE) ?
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Peer Node MME IPv6 Address: "IPv6_FMT"\n",
+					LOG_VALUE, IPv6_PRINT(IPv6_CAST(peer_info.mme_ip.ipv6_addr))):
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Peer Node MME IPv4 Address: "IPV4_ADDR"\n",
+					LOG_VALUE, IPV4_ADDR_HOST_FORMAT(peer_info.mme_ip.ipv4_addr));
+	}
+
+	/* SGW FQ-CSID */
+	if (((pdn->context)->sgw_fqcsid)->num_csid) {
+		num_csid = ((pdn->context)->sgw_fqcsid)->num_csid;
+		fill_node_addr_info(&peer_info.sgwc_ip,
+				&((pdn->context)->sgw_fqcsid)->node_addr[num_csid - 1]);
+	} else {
+		/* IF SGWC not support partial failure */
+		if (((pdn->context)->cp_mode == SGWC)
+					|| ((pdn->context)->cp_mode == SAEGWC)) {
+			fill_node_addr_info(&peer_info.sgwc_ip,
+					&(pdn->context)->s11_sgw_gtpc_ip);
+		} else {
+			fill_node_addr_info(&peer_info.sgwc_ip,
+					&pdn->s5s8_sgw_gtpc_ip);
+		}
+	}
+
+	(peer_info.sgwc_ip.ip_type == IPV6_TYPE) ?
+		clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"Peer Node SGWC/SAEGWC IPv6 Address: "IPv6_FMT"\n",
+				LOG_VALUE, IPv6_PRINT(IPv6_CAST(peer_info.sgwc_ip.ipv6_addr))):
+		clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"Peer Node SGWC/SAEGWC IPv4 Address: "IPV4_ADDR"\n",
+				LOG_VALUE, IPV4_ADDR_HOST_FORMAT(peer_info.sgwc_ip.ipv4_addr));
+
+	if ((pdn->context)->cp_mode != PGWC) {
+		/* Fill the enodeb IP */
+		if(pdn->context->indication_flag.s11tf){
+			fill_node_addr_info(&peer_info.enodeb_ip,
+					&bearer->s11u_mme_gtpu_ip);
+		}else{
+			fill_node_addr_info(&peer_info.enodeb_ip,
+					&bearer->s1u_enb_gtpu_ip);
+		}
+		(peer_info.enodeb_ip.ip_type == IPV6_TYPE) ?
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Peer Node enodeb IPv6 Address: "IPv6_FMT"\n",
+					LOG_VALUE, IPv6_PRINT(IPv6_CAST(peer_info.enodeb_ip.ipv6_addr))):
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Peer Node enodeb IPv4 Address: "IPV4_ADDR"\n",
+					LOG_VALUE, IPV4_ADDR_HOST_FORMAT(peer_info.enodeb_ip.ipv4_addr));
+	}
+
+	/* SGW and PGW peer node info */
+	fill_node_addr_info(&peer_info.pgwc_ip, &pdn->s5s8_pgw_gtpc_ip);
+	(peer_info.pgwc_ip.ip_type == IPV6_TYPE) ?
+		clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"Peer Node PGWC IPv6 Address: "IPv6_FMT"\n",
+				LOG_VALUE, IPv6_PRINT(IPv6_CAST(peer_info.pgwc_ip.ipv6_addr))):
+		clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"Peer Node PGWC IPv4 Address: "IPV4_ADDR"\n",
+				LOG_VALUE, IPV4_ADDR_HOST_FORMAT(peer_info.pgwc_ip.ipv4_addr));
+
+	/* SGWU and PGWU peer node info */
+	if (((pdn->context)->cp_mode == SAEGWC) || ((pdn->context)->cp_mode == SGWC)) {
+		fill_node_addr_info(&peer_info.sgwu_ip, &pdn->upf_ip);
+		(peer_info.sgwu_ip.ip_type == IPV6_TYPE) ?
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Peer Node SGWU/SAEGWU IPv6 Address: "IPv6_FMT"\n",
+					LOG_VALUE, IPv6_PRINT(IPv6_CAST(peer_info.sgwu_ip.ipv6_addr))):
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Peer Node SGWU/SAEGWU IPv4 Address: "IPV4_ADDR"\n",
+					LOG_VALUE, IPV4_ADDR_HOST_FORMAT(peer_info.sgwu_ip.ipv4_addr));
+	} else if ((pdn->context)->cp_mode == PGWC) {
+		/*TODO: Need to think on it*/
+		fill_node_addr_info(&peer_info.pgwu_ip, &pdn->upf_ip);
+		(peer_info.pgwu_ip.ip_type == IPV6_TYPE) ?
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Peer Node PGWU IPv6 Address: "IPv6_FMT"\n",
+					LOG_VALUE, IPv6_PRINT(IPv6_CAST(peer_info.pgwu_ip.ipv6_addr))):
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Peer Node PGWU IPv4 Address: "IPV4_ADDR"\n",
+					LOG_VALUE, IPV4_ADDR_HOST_FORMAT(peer_info.pgwu_ip.ipv4_addr));
+	}
+
+	/* PGWU s5s8 node address */
+	if (((pdn->context)->cp_mode == SGWC)
+				&& (is_present(&bearer->s5s8_pgw_gtpu_ip))) {
+
+		fill_node_addr_info(&peer_info.pgwu_ip,
+					&bearer->s5s8_pgw_gtpu_ip);
+
+		(peer_info.pgwu_ip.ip_type == IPV6_TYPE) ?
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Peer Node PGWU IPv6 Address: "IPv6_FMT"\n",
+					LOG_VALUE, IPv6_PRINT(IPv6_CAST(peer_info.pgwu_ip.ipv6_addr))):
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Peer Node PGWU IPv4 Address: "IPV4_ADDR"\n",
+					LOG_VALUE, IPV4_ADDR_HOST_FORMAT(peer_info.pgwu_ip.ipv4_addr));
+	} else if ((((pdn->context)->cp_mode == PGWC)
+					&& (is_present(&bearer->s5s8_sgw_gtpu_ip)))) {
+		/* SGWU s5s8 node address */
+		fill_node_addr_info(&peer_info.sgwu_ip,
+					&bearer->s5s8_sgw_gtpu_ip);
+
+		(peer_info.sgwu_ip.ip_type == IPV6_TYPE) ?
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Peer Node SGWU/SAEGWU IPv6 Address: "IPv6_FMT"\n",
+					LOG_VALUE, IPv6_PRINT(IPv6_CAST(peer_info.sgwu_ip.ipv6_addr))):
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Peer Node SGWU/SAEGWU IPv4 Address: "IPV4_ADDR"\n",
+					LOG_VALUE, IPV4_ADDR_HOST_FORMAT(peer_info.sgwu_ip.ipv4_addr));
+	}
+
+	/* Delete Permanent CSID of node */
+	ret = del_csid_entry(&peer_info);
+
+	/* Delete Temporary CSID of node */
+	if ((pdn->context)->cp_mode != PGWC) {
+		/*Set Enb ip to zero */
+		memset(&peer_info.enodeb_ip, 0, sizeof(node_address_t));
+		if ((pdn->context)->cp_mode == SGWC) {
+			/*Set PGWU ip to zero */
+			memset(&peer_info.pgwu_ip, 0, sizeof(node_address_t));
+		}
+
+		ret = del_csid_entry(&peer_info);
+	}
+
+
+	return ret;
+}
+
 void
 fill_pdn_fqcsid_info(fqcsid_t *pdn_fqcsid, sess_fqcsid_t *cntx_fqcsid) {
 
@@ -683,7 +835,14 @@ fill_fqcsid_sess_mod_req(pfcp_sess_mod_req_t *pfcp_sess_mod_req, pdn_connection 
 		set_fq_csid_t(&pfcp_sess_mod_req->sgw_c_fqcsid, &pdn->sgw_csid);
 
 		/* set PGWC FQ-CSID */
-		set_fq_csid_t(&pfcp_sess_mod_req->pgw_c_fqcsid, &pdn->pgw_csid);
+		/* Note: In case of S1 handover pgw fqcsid is not generated,
+		 * as new sgw doesn't know the pgw fqcsid
+		 * so we don't want zero value to be set in
+		 * fqcsid in pfcp mod request. That's why the
+		 * below condition is checked*/
+
+		if(pdn->context->update_sgw_fteid == FALSE)
+			set_fq_csid_t(&pfcp_sess_mod_req->pgw_c_fqcsid, &pdn->pgw_csid);
 	}
 
 	return 0;
@@ -758,7 +917,7 @@ link_sess_with_peer_csid(fqcsid_t *peer_csid, pdn_connection *pdn, uint8_t iface
 	if(tmp->cp_seid != pdn->seid && tmp->cp_seid != 0) {
 		sess_csid *new_node = NULL;
 		/* Add new node into csid linked list */
-		new_node = add_sess_csid_data_node(tmp);
+		new_node = add_peer_csid_sess_data_node(tmp, &key);
 		if(new_node == NULL ) {
 			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to ADD new "
 					"node into peer CSID linked list : %s\n", LOG_VALUE);
@@ -771,6 +930,7 @@ link_sess_with_peer_csid(fqcsid_t *peer_csid, pdn_connection *pdn, uint8_t iface
 	} else {
 		tmp->cp_seid = pdn->seid;
 		tmp->up_seid = pdn->dp_seid;
+		tmp->next = NULL;
 	}
 
 	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Link Session "
@@ -1350,6 +1510,14 @@ update_peer_node_csid(pfcp_sess_mod_rsp_t *pfcp_sess_mod_rsp, pdn_connection *pd
 
 			/* Remove old up csid and node address */
 			remove_csid_from_cntx(context->up_fqcsid, &up_old_csid);
+
+			/* Delete old up csid link with local csid entry */
+			if (up_old_csid.num_csid) {
+				csid_key_t key = {0};
+				key.local_csid = up_old_csid.local_csid[num_csid];
+				memcpy(&key.node_addr, &up_old_csid.node_addr, sizeof(node_address_t));
+				del_peer_csid_entry(&key, SX_PORT_ID);
+			}
 
 			fill_pdn_fqcsid_info(&pdn->up_csid, context->up_fqcsid);
 

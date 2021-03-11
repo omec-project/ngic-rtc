@@ -308,7 +308,7 @@ set_paa(gtp_pdn_addr_alloc_ie_t *paa, enum ie_instance instance,
 		size += sizeof(struct in_addr);
 
 		paa->pdn_type = PDN_IP_TYPE_IPV4;
-		paa->pdn_addr_and_pfx = pdn->ipv4.s_addr;
+		paa->pdn_addr_and_pfx = pdn->uipaddr.ipv4.s_addr;
 
 	}
 
@@ -318,7 +318,7 @@ set_paa(gtp_pdn_addr_alloc_ie_t *paa, enum ie_instance instance,
 
 		paa->pdn_type = PDN_IP_TYPE_IPV6;
 		paa->ipv6_prefix_len = pdn->prefix_len;
-		memcpy(paa->paa_ipv6, pdn->ipv6.s6_addr, IPV6_ADDRESS_LEN);
+		memcpy(paa->paa_ipv6, pdn->uipaddr.ipv6.s6_addr, IPV6_ADDRESS_LEN);
 	}
 
 	if (pdn->pdn_type.ipv4 && pdn->pdn_type.ipv6)
@@ -525,13 +525,13 @@ set_bearer_tft(gtp_eps_bearer_lvl_traffic_flow_tmpl_ie_t *tft,
 
 					tft->eps_bearer_lvl_tft[i++] = TFT_IPV4_SRC_ADDR_TYPE;
 					tft->eps_bearer_lvl_tft[i++] =
-						rule->flow_desc[flow_cnt].sdf_flw_desc.local_ip_addr.s_addr & 0xff;
+						rule->flow_desc[flow_cnt].sdf_flw_desc.ulocalip.local_ip_addr.s_addr & 0xff;
 					tft->eps_bearer_lvl_tft[i++] =
-						(rule->flow_desc[flow_cnt].sdf_flw_desc.local_ip_addr.s_addr >> 8) & 0xff;
+						(rule->flow_desc[flow_cnt].sdf_flw_desc.ulocalip.local_ip_addr.s_addr >> 8) & 0xff;
 					tft->eps_bearer_lvl_tft[i++] =
-						(rule->flow_desc[flow_cnt].sdf_flw_desc.local_ip_addr.s_addr >> 16) & 0xff;
+						(rule->flow_desc[flow_cnt].sdf_flw_desc.ulocalip.local_ip_addr.s_addr >> 16) & 0xff;
 					tft->eps_bearer_lvl_tft[i++] =
-						(rule->flow_desc[flow_cnt].sdf_flw_desc.local_ip_addr.s_addr >> 24) & 0xff;
+						(rule->flow_desc[flow_cnt].sdf_flw_desc.ulocalip.local_ip_addr.s_addr >> 24) & 0xff;
 					length += 5;
 
 					mask = 0xffffffff << (32 - rule->flow_desc[flow_cnt].sdf_flw_desc.local_ip_mask);
@@ -545,7 +545,7 @@ set_bearer_tft(gtp_eps_bearer_lvl_traffic_flow_tmpl_ie_t *tft,
 					tft->eps_bearer_lvl_tft[i++] = TFT_IPV6_SRC_ADDR_PREFIX_LEN_TYPE;
 
 					for (int cnt = 0; cnt < IPV6_ADDRESS_LEN; cnt++) {
-						tft->eps_bearer_lvl_tft[i++] = rule->flow_desc[flow_cnt].sdf_flw_desc.local_ip6_addr.s6_addr[cnt];
+						tft->eps_bearer_lvl_tft[i++] = rule->flow_desc[flow_cnt].sdf_flw_desc.ulocalip.local_ip6_addr.s6_addr[cnt];
 					}
 
 					length += IPV6_ADDRESS_LEN + 1;
@@ -564,13 +564,13 @@ set_bearer_tft(gtp_eps_bearer_lvl_traffic_flow_tmpl_ie_t *tft,
 
 					tft->eps_bearer_lvl_tft[i++] = TFT_IPV4_REMOTE_ADDR_TYPE;
 					tft->eps_bearer_lvl_tft[i++] =
-						rule->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_addr.s_addr & 0xff;
+						rule->flow_desc[flow_cnt].sdf_flw_desc.uremoteip.remote_ip_addr.s_addr & 0xff;
 					tft->eps_bearer_lvl_tft[i++] =
-						(rule->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_addr.s_addr >> 8) & 0xff;
+						(rule->flow_desc[flow_cnt].sdf_flw_desc.uremoteip.remote_ip_addr.s_addr >> 8) & 0xff;
 					tft->eps_bearer_lvl_tft[i++] =
-						(rule->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_addr.s_addr >> 16) & 0xff;
+						(rule->flow_desc[flow_cnt].sdf_flw_desc.uremoteip.remote_ip_addr.s_addr >> 16) & 0xff;
 					tft->eps_bearer_lvl_tft[i++] =
-						(rule->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_addr.s_addr >> 24) & 0xff;
+						(rule->flow_desc[flow_cnt].sdf_flw_desc.uremoteip.remote_ip_addr.s_addr >> 24) & 0xff;
 					length += 5;
 
 					mask = 0xffffffff << (32 - rule->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_mask);
@@ -584,7 +584,7 @@ set_bearer_tft(gtp_eps_bearer_lvl_traffic_flow_tmpl_ie_t *tft,
 					tft->eps_bearer_lvl_tft[i++] = TFT_IPV6_REMOTE_ADDR_PREFIX_LEN_TYPE;
 
 					for (int cnt = 0; cnt < IPV6_ADDRESS_LEN; cnt++) {
-						tft->eps_bearer_lvl_tft[i++] = rule->flow_desc[flow_cnt].sdf_flw_desc.remote_ip6_addr.s6_addr[cnt];
+						tft->eps_bearer_lvl_tft[i++] = rule->flow_desc[flow_cnt].sdf_flw_desc.uremoteip.remote_ip6_addr.s6_addr[cnt];
 					}
 
 					length += IPV6_ADDRESS_LEN + 1;
@@ -617,13 +617,13 @@ set_bearer_tft(gtp_eps_bearer_lvl_traffic_flow_tmpl_ie_t *tft,
 
 					tft->eps_bearer_lvl_tft[i++] = TFT_IPV4_SRC_ADDR_TYPE;
 					tft->eps_bearer_lvl_tft[i++] =
-						rule->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_addr.s_addr & 0xff;
+						rule->flow_desc[flow_cnt].sdf_flw_desc.uremoteip.remote_ip_addr.s_addr & 0xff;
 					tft->eps_bearer_lvl_tft[i++] =
-						(rule->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_addr.s_addr >> 8) & 0xff;
+						(rule->flow_desc[flow_cnt].sdf_flw_desc.uremoteip.remote_ip_addr.s_addr >> 8) & 0xff;
 					tft->eps_bearer_lvl_tft[i++] =
-						(rule->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_addr.s_addr >> 16) & 0xff;
+						(rule->flow_desc[flow_cnt].sdf_flw_desc.uremoteip.remote_ip_addr.s_addr >> 16) & 0xff;
 					tft->eps_bearer_lvl_tft[i++] =
-						(rule->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_addr.s_addr >> 24) & 0xff;
+						(rule->flow_desc[flow_cnt].sdf_flw_desc.uremoteip.remote_ip_addr.s_addr >> 24) & 0xff;
 					length += 5;
 
 					mask = 0xffffffff << (32 - rule->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_mask);
@@ -638,7 +638,7 @@ set_bearer_tft(gtp_eps_bearer_lvl_traffic_flow_tmpl_ie_t *tft,
 					tft->eps_bearer_lvl_tft[i++] = TFT_IPV6_SRC_ADDR_PREFIX_LEN_TYPE;
 
 					for (int cnt = 0; cnt < IPV6_ADDRESS_LEN; cnt++) {
-						tft->eps_bearer_lvl_tft[i++] = rule->flow_desc[flow_cnt].sdf_flw_desc.remote_ip6_addr.s6_addr[cnt];
+						tft->eps_bearer_lvl_tft[i++] = rule->flow_desc[flow_cnt].sdf_flw_desc.uremoteip.remote_ip6_addr.s6_addr[cnt];
 					}
 
 					length += IPV6_ADDRESS_LEN + 1;
@@ -656,13 +656,13 @@ set_bearer_tft(gtp_eps_bearer_lvl_traffic_flow_tmpl_ie_t *tft,
 
 					tft->eps_bearer_lvl_tft[i++] = TFT_IPV4_REMOTE_ADDR_TYPE;
 					tft->eps_bearer_lvl_tft[i++] =
-						rule->flow_desc[flow_cnt].sdf_flw_desc.local_ip_addr.s_addr & 0xff;
+						rule->flow_desc[flow_cnt].sdf_flw_desc.ulocalip.local_ip_addr.s_addr & 0xff;
 					tft->eps_bearer_lvl_tft[i++] =
-						(rule->flow_desc[flow_cnt].sdf_flw_desc.local_ip_addr.s_addr >> 8) & 0xff;
+						(rule->flow_desc[flow_cnt].sdf_flw_desc.ulocalip.local_ip_addr.s_addr >> 8) & 0xff;
 					tft->eps_bearer_lvl_tft[i++] =
-						(rule->flow_desc[flow_cnt].sdf_flw_desc.local_ip_addr.s_addr >> 16) & 0xff;
+						(rule->flow_desc[flow_cnt].sdf_flw_desc.ulocalip.local_ip_addr.s_addr >> 16) & 0xff;
 					tft->eps_bearer_lvl_tft[i++] =
-						(rule->flow_desc[flow_cnt].sdf_flw_desc.local_ip_addr.s_addr >> 24) & 0xff;
+						(rule->flow_desc[flow_cnt].sdf_flw_desc.ulocalip.local_ip_addr.s_addr >> 24) & 0xff;
 					length += 5;
 
 					mask = 0xffffffff << (32 - rule->flow_desc[flow_cnt].sdf_flw_desc.local_ip_mask);
@@ -677,7 +677,7 @@ set_bearer_tft(gtp_eps_bearer_lvl_traffic_flow_tmpl_ie_t *tft,
 					tft->eps_bearer_lvl_tft[i++] = TFT_IPV6_REMOTE_ADDR_PREFIX_LEN_TYPE;
 
 					for (int cnt = 0; cnt < IPV6_ADDRESS_LEN; cnt++) {
-						tft->eps_bearer_lvl_tft[i++] = rule->flow_desc[flow_cnt].sdf_flw_desc.local_ip6_addr.s6_addr[cnt];
+						tft->eps_bearer_lvl_tft[i++] = rule->flow_desc[flow_cnt].sdf_flw_desc.ulocalip.local_ip6_addr.s6_addr[cnt];
 					}
 
 					length += IPV6_ADDRESS_LEN + 1;
@@ -1157,76 +1157,76 @@ void
 set_presence_reporting_area_action_ie(gtp_pres_rptng_area_act_ie_t *ie, ue_context *context){
 
 	uint8_t size = 0;
-	ie->action = context->pre_rptng_area_act.action;
+	ie->action = context->pre_rptng_area_act->action;
 	size += sizeof(uint8_t);
-	ie->pres_rptng_area_idnt = context->pre_rptng_area_act.pres_rptng_area_idnt;
+	ie->pres_rptng_area_idnt = context->pre_rptng_area_act->pres_rptng_area_idnt;
 	size += 3*sizeof(uint8_t);
-	ie->number_of_tai = context->pre_rptng_area_act.number_of_tai;
-	ie->number_of_rai = context->pre_rptng_area_act.number_of_rai;
+	ie->number_of_tai = context->pre_rptng_area_act->number_of_tai;
+	ie->number_of_rai = context->pre_rptng_area_act->number_of_rai;
 	size += sizeof(uint8_t);
-	ie->nbr_of_macro_enb = context->pre_rptng_area_act.nbr_of_macro_enb;
+	ie->nbr_of_macro_enb = context->pre_rptng_area_act->nbr_of_macro_enb;
 	size += sizeof(uint8_t);
-	ie->nbr_of_home_enb = context->pre_rptng_area_act.nbr_of_home_enb;
+	ie->nbr_of_home_enb = context->pre_rptng_area_act->nbr_of_home_enb;
 	size += sizeof(uint8_t);
-	ie->number_of_ecgi = context->pre_rptng_area_act.number_of_ecgi;
+	ie->number_of_ecgi = context->pre_rptng_area_act->number_of_ecgi;
 	size += sizeof(uint8_t);
-	ie->number_of_sai = context->pre_rptng_area_act.number_of_sai;
+	ie->number_of_sai = context->pre_rptng_area_act->number_of_sai;
 	size += sizeof(uint8_t);
-	ie->number_of_cgi = context->pre_rptng_area_act.number_of_cgi;
+	ie->number_of_cgi = context->pre_rptng_area_act->number_of_cgi;
 	size += sizeof(uint8_t);
-	ie->nbr_of_extnded_macro_enb = context->pre_rptng_area_act.nbr_of_extnded_macro_enb;
+	ie->nbr_of_extnded_macro_enb = context->pre_rptng_area_act->nbr_of_extnded_macro_enb;
 	size += sizeof(uint8_t);
 
 	uint32_t cpy_size = 0;
 
 	if(ie->number_of_tai){
 		cpy_size = ie->number_of_tai * sizeof(tai_field_t);
-		memcpy(&ie->tais, &context->pre_rptng_area_act.tais, cpy_size);
+		memcpy(&ie->tais, &context->pre_rptng_area_act->tais, cpy_size);
 		size += sizeof(tai_field_t);
 	}
 
 	if(ie->number_of_rai){
 		cpy_size = ie->number_of_rai * sizeof(rai_field_t);
-		memcpy(&ie->rais, &context->pre_rptng_area_act.rais, cpy_size);
+		memcpy(&ie->rais, &context->pre_rptng_area_act->rais, cpy_size);
 		size += sizeof(rai_field_t);
 	}
 
 	if(ie->nbr_of_macro_enb){
 		cpy_size = ie->nbr_of_macro_enb * sizeof(macro_enb_id_fld_t);
-		memcpy(&ie->macro_enb_ids, &context->pre_rptng_area_act.macro_enodeb_ids,
+		memcpy(&ie->macro_enb_ids, &context->pre_rptng_area_act->macro_enodeb_ids,
 																		cpy_size);
 		size += sizeof(macro_enb_id_fld_t);
 	}
 
 	if(ie->nbr_of_home_enb){
 		cpy_size = ie->nbr_of_home_enb * sizeof(home_enb_id_fld_t);
-		memcpy(&ie->home_enb_ids, &context->pre_rptng_area_act.home_enb_ids,
+		memcpy(&ie->home_enb_ids, &context->pre_rptng_area_act->home_enb_ids,
 																	cpy_size);
 		size += sizeof(home_enb_id_fld_t);
 	}
 
 	if(ie->number_of_ecgi){
 		cpy_size = ie->number_of_ecgi * sizeof(ecgi_field_t);
-		memcpy(&ie->ecgis, &context->pre_rptng_area_act.ecgis, cpy_size);
+		memcpy(&ie->ecgis, &context->pre_rptng_area_act->ecgis, cpy_size);
 		size += sizeof(ecgi_field_t);
 	}
 
 	if(ie->number_of_sai){
 		cpy_size = ie->number_of_sai * sizeof(sai_field_t);
-		memcpy(&ie->sais, &context->pre_rptng_area_act.sais, cpy_size);
+		memcpy(&ie->sais, &context->pre_rptng_area_act->sais, cpy_size);
 		size += sizeof(sai_field_t);
 	}
 
 	if(ie->number_of_cgi){
 		cpy_size = ie->number_of_cgi * sizeof(cgi_field_t);
-		memcpy(&ie->cgis, &context->pre_rptng_area_act.cgis, cpy_size);
+		memcpy(&ie->cgis, &context->pre_rptng_area_act->cgis, cpy_size);
 		size += sizeof(cgi_field_t);
 	}
 
 	if(ie->nbr_of_extnded_macro_enb){
 		cpy_size = ie->nbr_of_extnded_macro_enb * sizeof(extnded_macro_enb_id_fld_t);
 		memcpy(&ie->extnded_macro_enb_ids,
-			&context->pre_rptng_area_act.extended_macro_enodeb_ids,
+			&context->pre_rptng_area_act->extended_macro_enodeb_ids,
 															cpy_size);
 		size += sizeof(extnded_macro_enb_id_fld_t);
 

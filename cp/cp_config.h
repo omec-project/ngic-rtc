@@ -62,6 +62,7 @@
 #define IP_TYPE_SUPPORTED       "IP_TYPE_SUPPORTED"
 #define IP_TYPE_PRIORITY        "IP_TYPE_PRIORITY"
 #define USE_GX                  "USE_GX"
+#define PERF_FLAG               "PERF_FLAG"
 #define SUGGESTED_PKT_COUNT		"SUGGESTED_PKT_COUNT"
 #define LOW_LVL_ARP_PRIORITY	"LOW_LEVEL_ARP_PRIORITY"
 
@@ -117,6 +118,12 @@
 #define IP_BUFF_SIZE             16
 #define REQUEST_TIMEOUT_DEFAULT_VALUE 3000
 #define REQUEST_TRIES_DEFAULT_VALUE   2
+
+/*Default URR paramters*/
+#define DEFAULT_VOL_THRESHOLD 1048576
+#define DEFAULT_TIME_THRESHOLD 120
+#define DEFAULT_TRIGGER_TYPE 2
+
 #define GX_FILE_PATH "gx_app/gx.conf"
 #define CONNECT_TO "ConnectTo"
 uint8_t recovery_flag;

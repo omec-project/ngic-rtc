@@ -436,7 +436,7 @@ gtpv2c_send(int gtpv2c_if_fd_v4, int gtpv2c_if_fd_v6, uint8_t *gtpv2c_tx_buf,
 				return 0;
 			}
 
-			bytes_tx = sendto(gtpv2c_if_fd_v4, gtpv2c_tx_buf, gtpv2c_pyld_len, 0,
+			bytes_tx = sendto(gtpv2c_if_fd_v4, gtpv2c_tx_buf, gtpv2c_pyld_len, MSG_DONTWAIT,
 			(struct sockaddr *) &dest_addr.ipv4, sizeof(dest_addr.ipv4));
 
 			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"NGIC- main.c::gtpv2c_send()"
@@ -454,7 +454,7 @@ gtpv2c_send(int gtpv2c_if_fd_v4, int gtpv2c_if_fd_v6, uint8_t *gtpv2c_tx_buf,
 				return 0;
 			}
 
-			bytes_tx = sendto(gtpv2c_if_fd_v6, gtpv2c_tx_buf, gtpv2c_pyld_len, 0,
+			bytes_tx = sendto(gtpv2c_if_fd_v6, gtpv2c_tx_buf, gtpv2c_pyld_len, MSG_DONTWAIT,
 			(struct sockaddr *) &dest_addr.ipv6, sizeof(dest_addr.ipv6));
 
 			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"NGIC- main.c::gtpv2c_send()"
@@ -789,9 +789,6 @@ init_cp(void)
 				"Unknown CP_TYPE= %u\n", config.cp_type);
 		break;
 	}
-
-	if (signal(SIGINT, cp_sig_handler) == SIG_ERR)
-		rte_exit(EXIT_FAILURE, "Error:can't catch SIGINT\n");
 
 	create_ue_hash();
 

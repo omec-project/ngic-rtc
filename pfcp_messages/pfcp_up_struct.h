@@ -386,6 +386,7 @@ struct peer_ip_addr{
  */
 typedef struct {
 	struct peer_ip_addr cp_ip_addr;
+	uint64_t cp_seid;
 	uint32_t id;
 }rule_key;
 
@@ -458,104 +459,120 @@ del_sess_by_ueip_entry(ue_ip_t ue_ip);
  * @param  : PDR ID, key
  * @param  : pdr_info_t *head, head pointer
  * @param  : cp_ip, peer node address
+ * @param  : cp_seid, CP session ID of UE
  * @return : pdr_info_t pdr or NULL
  */
 pdr_info_t *
-get_pdr_info_entry(uint16_t rule_id,  pdr_info_t **head, uint16_t is_add, peer_addr_t cp_ip);
+get_pdr_info_entry(uint16_t rule_id,  pdr_info_t **head, uint16_t is_add,
+								peer_addr_t cp_ip, uint64_t cp_seid);
 
 /**
  * @brief  : Delete PDR entry from PDR hash table.
  * @param  : PDR ID, key
  * @param  : peer_ip, ip address and type of peer node
  * @param  : cp_ip, peer node address
+ * @param  : cp_seid, CP session ID of UE
  * @return : 0 or 1.
  */
 int8_t
-del_pdr_info_entry(uint16_t rule_id, peer_addr_t cp_ip);
+del_pdr_info_entry(uint16_t rule_id, peer_addr_t cp_ip, uint64_t cp_seid);
 
 /**
  * @brief  : Add FAR entry in FAR hash table.
  * @param  : FAR_ID, key
  * @param  : far_info_t far
  * @param  : cp_ip, peer node address
+ * @param  : cp_seid, CP session ID of UE
  * @return : 0 or 1.
  */
 int8_t
-add_far_info_entry(uint16_t far_id, far_info_t **far, peer_addr_t cp_ip);
+add_far_info_entry(uint16_t far_id, far_info_t **far,
+						peer_addr_t cp_ip, uint64_t cp_seid);
 
 /**
  * @brief  : Get FAR entry from FAR hash table.
  * @param  : FAR ID, key
  * @param  : cp_ip, peer node address
+ * @param  : cp_seid, CP session ID of UE
  * @return : far_info_t pdr or NULL
  */
 far_info_t *
-get_far_info_entry(uint16_t far_id, peer_addr_t cp_ip);
+get_far_info_entry(uint16_t far_id, peer_addr_t cp_ip, uint64_t cp_seid);
 
 /**
  * @brief  : Delete FAR entry from FAR hash table.
  * @param  : FAR ID, key.
  * @param  : cp_ip, peer node address
+ * @param  : cp_seid, CP session ID of UE
  * @return : 0 or 1.
  */
 int8_t
-del_far_info_entry(uint16_t far_id, peer_addr_t cp_ip);
+del_far_info_entry(uint16_t far_id, peer_addr_t cp_ip, uint64_t cp_seid);
 
 /**
  * @brief  : Add QER entry in QER hash table.
  * @param  : qer_id, key
  * @param  : qer_info_t context
  * @param  : cp_ip, peer node address
+ * @param  : cp_seid, CP session ID of UE
  * @return : 0 or 1.
  */
 int8_t
-add_qer_info_entry(uint32_t qer_id, qer_info_t **cntxt, peer_addr_t cp_ip);
+add_qer_info_entry(uint32_t qer_id, qer_info_t **cntxt,
+					peer_addr_t cp_ip, uint64_t cp_seid);
 
 /**
  * @brief  : Get QER entry from QER hash table.
  * @param  : QER ID, key.
  * @param  : cp_ip, peer node address
+ * @param  : cp_seid, CP session ID of UE
  * @return : qer_info_t cntxt or NULL
  */
 qer_info_t *
-get_qer_info_entry(uint32_t qer_id, qer_info_t **head, peer_addr_t cp_ip);
+get_qer_info_entry(uint32_t qer_id, qer_info_t **head,
+					peer_addr_t cp_ip, uint64_t cp_seid);
 
 /**
  * @brief  : Delete QER entry from QER hash table.
  * @param  : QER ID, key
  * @param  : cp_ip, peer node address
+ * @param  : cp_seid, CP session ID of UE
  * @return : 0 or 1.
  */
 int8_t
-del_qer_info_entry(uint32_t qer_id, peer_addr_t cp_ip);
+del_qer_info_entry(uint32_t qer_id, peer_addr_t cp_ip, uint64_t cp_seid);
 
 /**
  * @brief  : Add URR entry in URR hash table.
  * @param  : urr_id, key
  * @param  : urr_info_t context
  * @param  : cp_ip, peer node address
+ * @param  : cp_seid, CP session ID of UE
  * @return : 0 or 1.
  */
 int8_t
-add_urr_info_entry(uint32_t urr_id, urr_info_t **cntxt, peer_addr_t cp_ip);
+add_urr_info_entry(uint32_t urr_id, urr_info_t **cntxt,
+					peer_addr_t cp_ip, uint64_t cp_seid);
 
 /**
  * @brief  : Get URR entry from urr hash table.
  * @param  : URR ID, key
  * @param  : cp_ip, peer node address
+ * @param  : cp_seid, CP session ID of UE
  * @return : urr_info_t cntxt or NULL
  */
 urr_info_t *
-get_urr_info_entry(uint32_t urr_id, peer_addr_t cp_ip);
+get_urr_info_entry(uint32_t urr_id, peer_addr_t cp_ip, uint64_t cp_seid);
 
 /**
  * @brief  : Delete URR entry from URR hash table.
  * @param  : URR ID, key
  * @param  : cp_ip, ip address and type of peer node
+ * @param  : cp_seid, CP session ID of UE
  * @return : 0 or 1.
  */
 int8_t
-del_urr_info_entry(uint32_t urr_id, peer_addr_t cp_ip);
+del_urr_info_entry(uint32_t urr_id, peer_addr_t cp_ip, uint64_t cp_seid);
 
 /**
  * @brief  : Initializes the pfcp context hash table used to account for

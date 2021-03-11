@@ -280,6 +280,8 @@ void process_dnsreq_async(void *node_obj, dns_cb_userdata_t *user_data)
 	nodesel_t *nsel = static_cast<nodesel_t *>(node_obj);
 	EPCDNS::NodeSelector *sel = static_cast<EPCDNS::NodeSelector *>(nsel->node_obj);
 	sel->process((void *)user_data, NodeSelector_callback);
+
+	delete(nsel);
 }
 
 void get_dns_query_res(void *node_obj, dns_query_result_t *result,

@@ -63,6 +63,7 @@ int8_t init_log_module(const char *filename)
 
 void clLog(const int logid, enum CLoggerSeverity sev, const char *fmt, ...)
 {
+	if(cli_node.cli_config.perf_flag && eCLSeverityCritical != sev) return;
 	char szBuff[2048] = {0};
 	va_list args;
 	va_start(args, fmt);
@@ -100,6 +101,8 @@ int8_t init_rest_framework(char *cli_rest_ip, uint16_t port)
 	} else {
 		strncpy(ip_format, cli_rest_ip, IP_ADDR_V4_LEN);
 	}
+
+	freeaddrinfo(ip_type);
 
 	Pistache::Address addr(ip_format, port);
 
@@ -149,6 +152,10 @@ int8_t init_rest_framework(char *cli_rest_ip, uint16_t port)
 	pSFGet->registerCallback(get_stat_frequency);
 	pRestHandle->registerHandler(*pSFGet);
 
+	RestPerfFlagGet *pPFGet = new RestPerfFlagGet(ELogger::log(STANDARD_LOGID));
+	pPFGet->registerCallback(get_pf);
+	pRestHandle->registerHandler(*pPFGet);
+
 	RestPeriodicTimerPost *pPTPost = new RestPeriodicTimerPost(ELogger::log(STANDARD_LOGID));
 	pPTPost->registerCallback(post_pt);
 	pRestHandle->registerHandler(*pPTPost);
@@ -185,6 +192,10 @@ int8_t init_rest_framework(char *cli_rest_ip, uint16_t port)
 	RestStatFrequencyPost *pSFPost = new RestStatFrequencyPost(ELogger::log(STANDARD_LOGID));
 	pSFPost->registerCallback(post_stat_frequency);
 	pRestHandle->registerHandler(*pSFPost);
+
+	RestPerfFlagPost *pPFPost = new RestPerfFlagPost(ELogger::log(STANDARD_LOGID));
+	pPFPost->registerCallback(post_pf);
+	pRestHandle->registerHandler(*pPFPost);
 
 	RestUEDetailsPost *pAddUEPost = new RestUEDetailsPost(ELogger::log(STANDARD_LOGID));
 	pAddUEPost->registerCallback(add_ue_entry_details);
@@ -896,6 +907,57 @@ int get_pt(const char *request_body, char **response_body)
 	cli_node.cli_config.periodic_timer_value = (*cli_node.cli_config.gw_adapter_callback_list.get_periodic_timer)();
 
 	return get_periodic_timer_value(response_body, cli_node.cli_config.periodic_timer_value);
+}
+
+int post_pf(const char *request_body, char **response_body)
+{
+	clLog(STANDARD_LOGID, eCLSeverityInfo,
+		LOG_FORMAT"post_performance_flag() body=[%s]", LOG_VALUE, request_body);
+
+	int rest_code = check_valid_json(request_body, response_body);
+
+	if(rest_code == REST_FAIL)
+	{
+		return rest_code;
+	}
+
+	uint8_t pf_value = get_perf_flag_value_in_int(request_body, response_body);
+
+	if ((pf_value != PERF_ON) && (pf_value != PERF_OFF)) {
+		return invalid_value_error_response(request_body, response_body);
+	}
+
+	const char *param = "PERF_FLAG";
+	char path[PATH_LEN] = {0};
+	char value[ENTRY_VALUE_SIZE] = {0};
+	char temp[JSON_RESP_SIZE] = {0};
+	if (get_gw_type() == OSS_CONTROL_PLANE)
+		strncpy(path, CP_PATH, PATH_LEN);
+	else if (get_gw_type() == OSS_USER_PLANE)
+		strncpy(path, DP_PATH, PATH_LEN);
+
+	cli_node.cli_config.perf_flag =
+		get_perf_flag_value_in_int(request_body, response_body);
+	(*cli_node.cli_config.gw_adapter_callback_list.update_perf_flag)(cli_node.cli_config.perf_flag);
+	snprintf(value, ENTRY_VALUE_SIZE, "%d", cli_node.cli_config.perf_flag);
+
+	change_config_file(path, param, value);
+	construct_json(param,value,temp);
+	*response_body=strdup((const char *)temp);
+
+	return REST_SUCESSS;
+
+}
+
+int get_pf(const char *request_body, char **response_body)
+{
+	clLog(STANDARD_LOGID, eCLSeverityInfo,
+		LOG_FORMAT"get_perf_flag() body=[%s]", LOG_VALUE, request_body);
+
+	cli_node.cli_config.perf_flag =
+		(*cli_node.cli_config.gw_adapter_callback_list.get_perf_flag)();
+
+	return get_perf_flag_json_resp(response_body, cli_node.cli_config.perf_flag);
 }
 
 int post_stat_logging(const char *request_body, char **response_body)

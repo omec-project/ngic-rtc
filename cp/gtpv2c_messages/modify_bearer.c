@@ -161,8 +161,8 @@ set_modify_bearer_response(gtpv2c_header_t *gtpv2c_tx,
 		context->pra_flag = 0;
 	}
 	/* Update status of mbr processing for ue*/
-	context->mbr_info.seq = 0;
-	context->mbr_info.status = MBR_PROCESS_DONE;
+	context->req_status.seq = 0;
+	context->req_status.status = REQ_PROCESS_DONE;
 
 	return (encode_mod_bearer_rsp(&mb_resp, (uint8_t *)gtpv2c_tx));
 	//return ntohs(gtpv2c_tx->gtpc.message_len);
@@ -253,8 +253,8 @@ set_modify_bearer_response_handover(gtpv2c_header_t *gtpv2c_tx,
 	}
 
 	/* Update status of mbr processing for ue*/
-	context->mbr_info.seq = 0;
-	context->mbr_info.status = MBR_PROCESS_DONE;
+	context->req_status.seq = 0;
+	context->req_status.status = REQ_PROCESS_DONE;
 
 	encode_mod_bearer_rsp(&mb_resp, (uint8_t *)gtpv2c_tx);
 }

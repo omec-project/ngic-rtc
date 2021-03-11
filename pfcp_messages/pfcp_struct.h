@@ -261,7 +261,7 @@ typedef struct gate_status_info_t {
 /**
  * @brief  : Maintains mbr info
  */
-typedef struct mbr_info_t {
+typedef struct req_status_t {
 	uint64_t ul_mbr;
 	uint64_t dl_mbr;
 } mbr_t;
@@ -445,6 +445,8 @@ typedef struct pdr_cp_info_t {
 	uint8_t urr_id_count;						/* Number of URR */
 	uint8_t qer_id_count;						/* Number of QER */
 	uint8_t actvt_predef_rules_count;			/* Number of predefine rules */
+	uint8_t create_far;
+	uint8_t create_urr;
 	uint16_t rule_id;							/* PDR ID*/
 	uint32_t prcdnc_val;						/* Precedence Value*/
 	uint64_t session_id;						/* Session ID */
@@ -457,9 +459,6 @@ typedef struct pdr_cp_info_t {
 	qer qer_id[MAX_LIST_SIZE];					/* Collection of QER IDs */
 	actvt_predef_rules rules[MAX_LIST_SIZE];	/* Collection of active predefined rules */
 	char rule_name[RULE_NAME_LEN];			/* Rule name for which the PDR is created */
-	uint8_t create_far;
-	uint8_t create_urr;
-
 }pdr_t;
 
 

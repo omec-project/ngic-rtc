@@ -197,8 +197,8 @@
 /**
  * pcap filenames.
  */
-#define UPLINK_PCAP_FILE   "logs/wstbnd"
-#define DOWNLINK_PCAP_FILE "logs/estbnd"
+#define UPLINK_PCAP_FILE   "logs/estbnd"
+#define DOWNLINK_PCAP_FILE "logs/wstbnd"
 
 #define PCAP_EXTENTION  ".pcap"
 
@@ -316,22 +316,6 @@ add_node_conn_entry(node_address_t dstIp, uint64_t sess_id, uint8_t portId);
 
 #endif /* CP_BUILD */
 
-/**
- * @brief  : Flush enodeB session
- * @param  : data_t, peer node connection information
- * @return : Returns nothing
- */
-void
-flush_eNB_session(peerData *data_t);
-
-/**
- * @brief  : Flush dp session
- * @param  : ip_addr, ip address
- * @param  : sess_id, session id
- * @return : Returns nothing
- */
-void
-dp_flush_session(node_address_t ip_addr, uint64_t sess_id);
 #endif  /* USE_REST */
 
 /**
@@ -440,6 +424,8 @@ struct app_params {
 	/* Enable DP PCAPS Generation */
 	/* Start: 1, Restart: 2, Default: 0 Stop*/
 	uint8_t generate_pcap;
+	/* Off: 0, On: 1*/
+	uint8_t perf_flag;
 	/* Numa Socket
 	 * Default: 0:disable, 1:enable */
 	uint8_t numa_on;
@@ -625,6 +611,13 @@ typedef struct li_data_ring
 } li_data_t;
 #pragma pack(pop)
 
+#pragma pack(push, 1)
+typedef struct cdr_rpt_req {
+	pfcp_usage_rpt_sess_rpt_req_ie_t *usage_report;
+	uint64_t  up_seid;
+	uint32_t seq_no;
+} cdr_rpt_req_t;
+#pragma pack(pop)
 
 /** CDR actions, N_A should never be accounted for */
 enum pkt_action_t {CHARGED, DROPPED, N_A};
@@ -723,23 +716,25 @@ gtpu_encap(pdr_info_t **pdrs, pfcp_session_datat_t **sess_info, struct rte_mbuf 
  * @param  : p, pointer to pipeline.
  * @param  : pkts, pointer to pkts.
  * @param  : n, number of pkts.
+ * @param  : pkts_mask, bit mask to process the pkts, reset bit to free the pkt.
  * @param  : wk_index,
  * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 wb_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
-		int wk_index);
+		uint64_t *pkts_mask, int wk_index);
 /**
  * @brief  : Function to handle incoming pkts on east bound interface.
  * @param  : p, pointer to pipeline.
  * @param  : pkts, pointer to pkts.
  * @param  : n, number of pkts.
+ * @param  : pkts_mask, bit mask to process the pkts, reset bit to free the pkt.
  * @param  : wk_index,
  * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 eb_pkt_handler(struct rte_pipeline *p, struct rte_mbuf **pkts, uint32_t n,
-		int wk_index);
+		uint64_t *pkts_mask, int wk_index);
 
 /**
  * @brief  : Function to handle notifications from CP which needs updates to
@@ -795,12 +790,16 @@ update_nexthop_info(struct rte_mbuf **pkts, uint32_t n,
  * @param  : n, number of pkts.
  * @param  : pkts_mask, bit mask to process the pkts, reset bit to free the pkt.
  * @param  : snd_err_pkts_mask, bit mask to send the error indication.
+ * @param  : fwd_pkts_mask, bit mask to forward that packet.
+ * @param  : decap_pkts_mask, bit mask to decap that packet.
  * @param  : sess_info, session information returned after hash lookup.
  * @return : Returns nothing
  */
 void
 ul_sess_info_get(struct rte_mbuf **pkts, uint32_t n,
-		uint64_t *pkts_mask, uint64_t *snd_err_pkts_mask, pfcp_session_datat_t **sess_info);
+		uint64_t *pkts_mask, uint64_t *snd_err_pkts_mask,
+		uint64_t *fwd_pkts_mask, uint64_t *decap_pkts_mask,
+		pfcp_session_datat_t **sess_info);
 /**
  * @brief  : Get the DL session info from table lookup.
  * @param  : pkts, pointer to mbuf of incoming packets.
@@ -814,7 +813,8 @@ ul_sess_info_get(struct rte_mbuf **pkts, uint32_t n,
 void
 dl_sess_info_get(struct rte_mbuf **pkts, uint32_t n,
 		uint64_t *pkts_mask, pfcp_session_datat_t **si,
-		uint64_t *pkts_queue_mask, uint64_t *snd_err_pkts_mask);
+		uint64_t *pkts_queue_mask, uint64_t *snd_err_pkts_mask,
+		uint64_t *fwd_pkts_mask, uint64_t *encap_pkts_mask);
 
 /**
  * @brief  : Gate the incoming pkts based on PCC entry info.
@@ -1255,6 +1255,13 @@ int8_t post_pcap_status(const int pcap_status);
 int get_periodic_timer(void);
 
 /**
+ * @brief  : update perf flag
+ * @param  : perf_flag, Int
+ * @return : Returns status code
+ */
+int8_t	update_perf_flag(const int perf_flag);
+
+/**
  * @brief  : get transmit timer value
  * @param  : void
  * @return : Returns transmit timer value
@@ -1274,6 +1281,13 @@ int get_transmit_count(void);
  * @return : Returns pcap status value
  */
 int8_t get_pcap_status(void);
+
+/**
+ * @brief  : get perf flag value
+ * @param  : void
+ * @return : Returns perf flag value
+ */
+uint8_t	get_perf_flag(void);
 
 /**
  * @brief  : check IPv6 address is NULL or not

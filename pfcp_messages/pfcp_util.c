@@ -54,6 +54,118 @@ extern int clSystemLog;
 #ifdef CP_BUILD
 extern pfcp_config_t config;
 
+/**
+ * @brief  : free canonical result list
+ * @param  : result , result list
+ * @param  : res_count , total entries in result
+ * @return : Returns nothing
+ */
+static void
+free_canonical_result_list(canonical_result_t *result, uint8_t res_count) {
+	clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Free DNS canonical result list :: SART \n", LOG_VALUE);
+	clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"DNS result count: %d \n", LOG_VALUE,
+			res_count);
+	for (uint8_t itr = 0; itr < res_count; itr++) {
+
+		if (result[itr].host1_info.ipv4_hosts != NULL) {
+			for (uint8_t itr1 = 0; itr1 < result[itr].host1_info.ipv4host_count; itr1++) {
+				if (result[itr].host1_info.ipv4_hosts[itr1] != NULL) {
+					free(result[itr].host1_info.ipv4_hosts[itr1]);
+					result[itr].host1_info.ipv4_hosts[itr1] = NULL;
+				}
+			}
+			free(result[itr].host1_info.ipv4_hosts);
+			result[itr].host1_info.ipv4_hosts = NULL;
+		}
+
+		if (result[itr].host1_info.ipv6_hosts != NULL) {
+			for (uint8_t itr2 = 0; itr2 < result[itr].host1_info.ipv6host_count; itr2++) {
+				if (result[itr].host1_info.ipv6_hosts[itr2] != NULL) {
+					free(result[itr].host1_info.ipv6_hosts[itr2]);
+					result[itr].host1_info.ipv6_hosts[itr2] = NULL;
+				}
+			}
+			free(result[itr].host1_info.ipv6_hosts);
+			result[itr].host1_info.ipv6_hosts = NULL;
+		}
+
+		if (result[itr].host2_info.ipv4_hosts != NULL) {
+			for (uint8_t itr3 = 0; itr3 < result[itr].host2_info.ipv4host_count; itr3++) {
+				if (result[itr].host2_info.ipv4_hosts[itr3] != NULL) {
+					free(result[itr].host2_info.ipv4_hosts[itr3]);
+					result[itr].host2_info.ipv4_hosts[itr3] = NULL;
+				}
+			}
+			free(result[itr].host2_info.ipv4_hosts);
+			result[itr].host2_info.ipv4_hosts = NULL;
+		}
+
+		if (result[itr].host2_info.ipv6_hosts != NULL) {
+			for (uint8_t itr4 = 0; itr4 < result[itr].host2_info.ipv6host_count; itr4++) {
+				if (result[itr].host2_info.ipv6_hosts[itr4] != NULL) {
+					free(result[itr].host2_info.ipv6_hosts[itr4]);
+					result[itr].host2_info.ipv6_hosts[itr4] = NULL;
+				}
+			}
+			free(result[itr].host2_info.ipv6_hosts);
+			result[itr].host2_info.ipv6_hosts = NULL;
+		}
+	}
+
+	clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Free DNS canonical result list :: END \n", LOG_VALUE);
+
+}
+
+/**
+ * @brief  : free DNS result list
+ * @param  : result , result list
+ * @param  : res_count , total entries in result
+ * @return : Returns nothing
+ */
+static void
+free_dns_result_list(dns_query_result_t *res, uint8_t res_count) {
+
+	clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Free DNS result list :: SART \n", LOG_VALUE);
+	clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"DNS result count: %d \n", LOG_VALUE,
+			res_count);
+	for (uint8_t itr = 0; itr < res_count; itr++) {
+		clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"IPV4 DNS result count: %d \n", LOG_VALUE,
+				res[itr].ipv4host_count);
+
+		if (res[itr].ipv4_hosts != NULL) {
+			for (uint8_t itr1 = 0; itr1 < res[itr].ipv4host_count; itr1++) {
+				if (res[itr].ipv4_hosts[itr1] != NULL) {
+					free(res[itr].ipv4_hosts[itr1]);
+					res[itr].ipv4_hosts[itr1] = NULL;
+				}
+			}
+			free(res[itr].ipv4_hosts);
+			res[itr].ipv4_hosts = NULL;
+		}
+
+		clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"IPV6 DNS result count: %d \n", LOG_VALUE,
+				res[itr].ipv6host_count);
+		if (res[itr].ipv6_hosts != NULL) {
+			for (uint8_t itr2 = 0; itr2 < res[itr].ipv6host_count; itr2++) {
+				if (res[itr].ipv6_hosts[itr2] != NULL) {
+					free(res[itr].ipv6_hosts[itr2]);
+					res[itr].ipv6_hosts[itr2] = NULL;
+				}
+			}
+			free(res[itr].ipv6_hosts);
+			res[itr].ipv6_hosts = NULL;
+		}
+	}
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Free DNS result list :: END \n", LOG_VALUE);
+}
+
 static void
 add_dns_result_v6(dns_query_result_t *res, upfs_dnsres_t *upf_list,
 					uint8_t i, uint8_t *upf_v6_cnt)
@@ -248,6 +360,7 @@ add_canonical_result_upflist_entry(canonical_result_t *res,
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to allocate "
 			"memory for UPF list, Error : %s\n", LOG_VALUE,
 			rte_strerror(rte_errno));
+		free_canonical_result_list(res, res_count);
 		return -1;
 	}
 
@@ -284,6 +397,8 @@ add_canonical_result_upflist_entry(canonical_result_t *res,
 
 	upflist_by_ue_hash_entry_add(imsi_val, imsi_len, upf_list);
 
+	free_canonical_result_list(res, res_count);
+
 	return upf_list->upf_count;
 }
 
@@ -315,6 +430,7 @@ add_dns_result_upflist_entry(dns_query_result_t *res,
 			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to allocate "
 				"memory for UPF list, Error : %s\n", LOG_VALUE,
 				rte_strerror(rte_errno));
+			free_dns_result_list(res, res_count);
 			return -1;
 		}
 	}
@@ -551,9 +667,10 @@ set_dns_resp_status(pdn_connection *pdn, void *node_sel)
 	}
 }
 
+
 int dns_callback(void *node_sel, void *data, void *user_data)
 {
-	uint16_t res_count = 0;
+	uint16_t res_count = 0,canonical_res_count = 0;
 	int ret = 0;
 	pdn_connection *pdn = NULL;
 	ue_context *ctxt = NULL;
@@ -623,8 +740,8 @@ int dns_callback(void *node_sel, void *data, void *user_data)
 				&& ((pdn->dns_query_domain & APN_BASE_QUERY) == APN_BASE_QUERY)) {
 
 			canonical_result_t result[QUERY_RESULT_COUNT] = {0};
-			res_count = get_colocated_candlist(pdn->node_sel, node_sel, result);
-			if (res_count == 0) {
+			canonical_res_count = get_colocated_candlist(pdn->node_sel, node_sel, result);
+			if (canonical_res_count == 0) {
 				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT
 						"Could not get collocated candidate list. \n", LOG_VALUE);
 				deinit_node_selector(node_sel);
@@ -632,7 +749,7 @@ int dns_callback(void *node_sel, void *data, void *user_data)
 				send_error_resp(pdn, GTPV2C_CAUSE_REQUEST_REJECTED);
 				return 0;
 			}
-			ret = add_canonical_result_upflist_entry(result, res_count,
+			ret = add_canonical_result_upflist_entry(result, canonical_res_count,
 					&ctxt->imsi, sizeof(ctxt->imsi));
 			if (ret <= 0) {
 				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT
@@ -650,6 +767,10 @@ int dns_callback(void *node_sel, void *data, void *user_data)
 			/* Reset eNB query flag, if eNB query resp received */
 			if(pdn->enb_query_flag == ENODEB_BASE_QUERY) {
 				pdn->enb_query_flag &= (1 << ENODEB_BASE_QUERY);
+			}
+
+			if (res_count != 0) {
+				free_dns_result_list(res_list, res_count);
 			}
 			return 0;
 		}
@@ -676,6 +797,10 @@ int dns_callback(void *node_sel, void *data, void *user_data)
 				LOG_FORMAT"Failed to extract UPF IP\n", LOG_VALUE);
 			send_error_resp(pdn, ret);
 		}
+	}
+
+	if (res_count != 0) {
+		free_dns_result_list(res_list, res_count);
 	}
 	pdn->dns_query_domain = NO_DNS_QUERY;
 	deinit_node_selector(node_sel);

@@ -332,6 +332,7 @@ typedef struct {
 	uint16_t sgw_cc;
 	uint8_t ip_byte_order_changed;
 	uint8_t use_gx;
+	uint8_t perf_flag;
 	uint8_t is_gx_interface;
 	char dadmf_local_addr[IPV6_STR_LEN];
 	uint16_t dl_buf_suggested_pkt_cnt;
@@ -369,6 +370,7 @@ typedef struct {
 	int teidri_val;
 	int teidri_timeout;
 	uint8_t generate_pcap;
+	uint8_t perf_flag;
 	struct in_addr dp_comm_ip;
 	struct in6_addr dp_comm_ipv6;
 	uint8_t pfcp_ipv6_prefix_len;
@@ -449,11 +451,13 @@ typedef struct gw_adapter_callback_register {
 	int8_t (*update_transmit_timer)(const int);
 	int8_t (*update_transmit_count)(const int);
 	int8_t (*update_pcap_status)(const int);
+	int8_t (*update_perf_flag)(const int);
 	int (*get_request_tries)(void);
 	int (*get_request_timeout)(void);
 	int (*get_periodic_timer)(void);
 	int (*get_transmit_timer)(void);
 	int (*get_transmit_count)(void);
+	uint8_t (*get_perf_flag)(void);
 	int8_t (*get_cp_config)(cp_configuration_t*);
 	int8_t (*get_dp_config)(dp_configuration_t*);
 	int8_t (*get_generate_pcap)(void);
@@ -476,6 +480,7 @@ typedef struct cli_config_t {
 	int cnt_peer;
 	int nbr_of_peer;
 	uint64_t oss_reset_time;
+	uint8_t perf_flag;
 	cp_configuration_t cp_configuration;
 	dp_configuration_t dp_configuration;
 	gw_adapter_callback_register gw_adapter_callback_list;

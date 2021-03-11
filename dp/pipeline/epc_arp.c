@@ -3697,10 +3697,11 @@ static void *handle_kni_process(__rte_unused void *arg)
 	return NULL; //GCC_Security flag
 }
 
-void process_li_data(){
-
+void process_li_data()
+{
 	int ret = 0;
 	struct ip_addr dummy = {0};
+
 	uint32_t li_ul_cnt = rte_ring_count(li_ul_ring);
 	if(li_ul_cnt){
 		li_data_t *li_data[li_ul_cnt];
@@ -3727,13 +3728,14 @@ void process_li_data(){
 			ret = send_li_data_pkt(ddf3_fd, li_data[i]->pkts, size);
 			if (ret < 0) {
 				clLog(clSystemLog, eCLSeverityDebug,
-					LOG_FORMAT"Failed to send UPLINK"
-					" data on TCP sock with error %d\n", LOG_VALUE, ret);
+						LOG_FORMAT"Failed to send UPLINK"
+						" data on TCP sock with error %d\n", LOG_VALUE, ret);
 			}
 			rte_free(li_data[i]->pkts);
 			rte_free(li_data[i]);
 		}
 	}
+
 	uint32_t li_dl_cnt = rte_ring_count(li_dl_ring);
 	if(li_dl_cnt){
 		li_data_t *li_data[li_dl_cnt];
@@ -3759,15 +3761,14 @@ void process_li_data(){
 			ret = send_li_data_pkt(ddf3_fd, li_data[i]->pkts, size);
 			if (ret < 0) {
 				clLog(clSystemLog, eCLSeverityDebug,
-					LOG_FORMAT"Failed to send DOWNLINK"
-					" data on TCP sock with error %d\n", LOG_VALUE, ret);
+						LOG_FORMAT"Failed to send DOWNLINK"
+						" data on TCP sock with error %d\n", LOG_VALUE, ret);
 			}
 
 			rte_free(li_data[i]->pkts);
 			rte_free(li_data[i]);
 		}
 	}
-
 	return;
 }
 
@@ -3786,4 +3787,5 @@ void epc_arp(__rte_unused void *arg)
 #endif
 #endif
 	process_li_data();
+	store_cdr_into_file_pfcp_sess_rpt_req();
 }

@@ -795,6 +795,7 @@ int8_t fill_cp_configuration(cp_configuration_t *cp_configuration)
 	strncpy(cp_configuration->ddf2_local_ip, config.ddf2_local_ip, IPV6_STR_LEN);
 	strncpy(cp_configuration->dadmf_local_addr, config.dadmf_local_addr, IPV6_STR_LEN);
 	cp_configuration->use_gx = config.use_gx;
+	cp_configuration->perf_flag = config.perf_flag;
 	cp_configuration->generate_sgw_cdr = config.generate_sgw_cdr;
 	cp_configuration->sgw_cc = config.sgw_cc;
 
@@ -889,6 +890,11 @@ int8_t	post_transmit_count(const int transmit_count) {
 	return 0;
 }
 
+int8_t	update_perf_flag(const int perf_flag) {
+	config.perf_flag = perf_flag;
+	return 0;
+}
+
 int	get_request_timeout(void) {
 	return config.request_timeout;
 }
@@ -907,4 +913,8 @@ int	get_transmit_timer(void) {
 
 int	get_transmit_count(void) {
 	return config.transmit_cnt;
+}
+
+uint8_t get_perf_flag(void) {
+	return config.perf_flag;
 }

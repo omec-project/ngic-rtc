@@ -24,6 +24,7 @@
 #include <rte_ether.h>
 #include <rte_rwlock.h>
 #include "../cp_dp_api/tcp_client.h"
+#include "pfcp_up_sess.h"
 
 /**
  * seconds between ARP request retransmission.

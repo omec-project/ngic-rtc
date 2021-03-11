@@ -497,6 +497,7 @@ gtpu_encap(pdr_info_t **pdrs, pfcp_session_datat_t **sess_data, struct rte_mbuf 
 void
 ul_sess_info_get(struct rte_mbuf **pkts, uint32_t n,
 		uint64_t *pkts_mask, uint64_t *snd_err_pkts_mask,
+		uint64_t *fwd_pkts_mask, uint64_t *decap_pkts_mask,
 		pfcp_session_datat_t **sess_data)
 {
 	uint32_t j = 0;
@@ -516,6 +517,15 @@ ul_sess_info_get(struct rte_mbuf **pkts, uint32_t n,
 		struct ether_hdr *ether = NULL;
 		struct udp_hdr *udp_hdr = NULL;
 		struct gtpu_hdr *gtpu_hdr = NULL;
+
+		/* Reject malformed packet */
+		if (pkts[j]->data_len == 0) {
+			RESET_BIT(*pkts_mask, j);
+#ifdef STATS
+			--epc_app.ul_params[S1U_PORT_ID].pkts_in;
+#endif /* STATS */
+			continue;
+		}
 
 		/* Get the ether header info */
 		ether = (struct ether_hdr *)rte_pktmbuf_mtod(pkts[j], uint8_t *);
@@ -617,15 +627,17 @@ ul_sess_info_get(struct rte_mbuf **pkts, uint32_t n,
 			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"SESSION INFO:"
 				"TEID:%u, Session State:%u\n",
 				LOG_VALUE, key[j].teid, (sess_data[j])->sess_state);
-		//TODO:Handle condition properly
-//			if (app.spgw_cfg == SGWU) {
-//				if (sess_data[j]->action == ACTION_DROP) {
-//#ifdef STATS
-//					--epc_app.ul_params[S1U_PORT_ID].pkts_in;
-//#endif /* STATS */
-//					RESET_BIT(*pkts_mask, j);
-//					continue;
-//			}
+			if (sess_data[j] != NULL && ISSET_BIT(*pkts_mask, j)) {
+					/* SGWU: Outer Header Removal based on the configured in PDR */
+				if (sess_data[j]->hdr_rvl == NOT_SET_OUT_HDR_RVL_CRT) {
+					/* Set the Foward Pkt Mask */
+					SET_BIT(*fwd_pkts_mask, j);
+				} else if ((sess_data[j]->hdr_rvl == GTPU_UDP_IPv4) ||
+						sess_data[j]->hdr_rvl == GTPU_UDP_IPv6) {
+					/* Set the Decasulation Pkt Mask */
+					SET_BIT(*decap_pkts_mask, j);
+				}
+			}
 		}
 	}
 }
@@ -634,7 +646,8 @@ ul_sess_info_get(struct rte_mbuf **pkts, uint32_t n,
 void
 dl_sess_info_get(struct rte_mbuf **pkts, uint32_t n,
 		uint64_t *pkts_mask, pfcp_session_datat_t **si,
-		uint64_t *pkts_queue_mask, uint64_t *snd_err_pkts_mask)
+		uint64_t *pkts_queue_mask, uint64_t *snd_err_pkts_mask,
+		uint64_t *fwd_pkts_mask, uint64_t *encap_pkts_mask)
 {
 	uint32_t j = 0, ul_count = 0, dl_count = 0;
 	void *key_ptr[MAX_BURST_SZ] = {NULL};
@@ -643,10 +656,10 @@ dl_sess_info_get(struct rte_mbuf **pkts, uint32_t n,
 	uint64_t hit_mask = 0;
 	struct dl_bm_key key[MAX_BURST_SZ] = {0};
 	struct ul_bm_key key_t[MAX_BURST_SZ] = {0};
-        int ul_index[MAX_BURST_SZ] = {0};
-        int dl_index[MAX_BURST_SZ] = {0};
-        pfcp_session_datat_t *ul_sess_data[MAX_BURST_SZ] = {NULL};
-        pfcp_session_datat_t *dl_sess_data[MAX_BURST_SZ] = {NULL};
+    int ul_index[MAX_BURST_SZ] = {0};
+    int dl_index[MAX_BURST_SZ] = {0};
+    pfcp_session_datat_t *ul_sess_data[MAX_BURST_SZ] = {NULL};
+    pfcp_session_datat_t *dl_sess_data[MAX_BURST_SZ] = {NULL};
 
 
 	/* TODO: downlink hash is created based on values pushed from CP.
@@ -658,6 +671,15 @@ dl_sess_info_get(struct rte_mbuf **pkts, uint32_t n,
 		struct ether_hdr *ether = NULL;
 		struct udp_hdr *udp_hdr = NULL;
 		struct gtpu_hdr *gtpu_hdr = NULL;
+
+		/* Reject malformed packet */
+		if (pkts[j]->data_len == 0) {
+			RESET_BIT(*pkts_mask, j);
+#ifdef STATS
+			--epc_app.dl_params[SGI_PORT_ID].pkts_in;
+#endif /* STATS */
+			continue;
+		}
 
 		/* Get the ether header info */
 		ether = (struct ether_hdr *)rte_pktmbuf_mtod(pkts[j], uint8_t *);
@@ -831,7 +853,24 @@ dl_sess_info_get(struct rte_mbuf **pkts, uint32_t n,
 							LOG_FORMAT"Enqueue Pkts Set the Pkt Mask:%u\n",
 							LOG_VALUE, pkts_queue_mask);
 				}
-
+				if ((fwd_pkts_mask != NULL && encap_pkts_mask != NULL) &&
+					((ISSET_BIT(*pkts_mask, ul_index[j])) || (ISSET_BIT(*pkts_queue_mask, ul_index[j])))) {
+					if (ul_sess_data[j] != NULL) {
+						/* SGWU: Outer Header Creation based on the configured in PDR */
+						if ((ul_sess_data[j]->hdr_rvl == NOT_SET_OUT_HDR_RVL_CRT)
+								&& (!(ul_sess_data[j]->ue_ip_addr || ul_sess_data[j]->ipv6))) {
+							/* Set the Foward Pkt Mask */
+							SET_BIT(*fwd_pkts_mask, ul_index[j]);
+						} else if (((ul_sess_data[j]->hdr_crt == GTPU_UDP_IPv4) ||
+									(ul_sess_data[j]->hdr_crt == GTPU_UDP_IPv6) ||
+									(ul_sess_data[j]->hdr_crt == NOT_SET_OUT_HDR_RVL_CRT))
+								&& (ul_sess_data[j]->hdr_rvl == NOT_SET_OUT_HDR_RVL_CRT)
+								&& ((ul_sess_data[j]->ue_ip_addr) || ul_sess_data[j]->ipv6)) {
+							/* Set the Decasulation Pkt Mask */
+							SET_BIT(*encap_pkts_mask, ul_index[j]);
+						}
+					}
+				}
 			}
 		}
 	}
@@ -859,6 +898,25 @@ dl_sess_info_get(struct rte_mbuf **pkts, uint32_t n,
 					IPV4_ADDR_HOST_FORMAT((dl_sess_data[j])->ue_ip_addr),
 					IPv6_PRINT(IPv6_CAST((dl_sess_data[j])->ue_ipv6_addr)),
 					(dl_sess_data[j])->acl_table_indx, (dl_sess_data[j])->sess_state);
+
+				if ((fwd_pkts_mask != NULL && encap_pkts_mask != NULL) &&
+					((ISSET_BIT(*pkts_mask, dl_index[j])) || (ISSET_BIT(*pkts_queue_mask, dl_index[j])))) {
+					if (dl_sess_data[j] != NULL) {
+						/* SGWU: Outer Header Creation based on the configured in PDR */
+						if ((dl_sess_data[j]->hdr_rvl == NOT_SET_OUT_HDR_RVL_CRT)
+								&& (!(dl_sess_data[j]->ue_ip_addr || dl_sess_data[j]->ipv6))) {
+							/* Set the Foward Pkt Mask */
+							SET_BIT(*fwd_pkts_mask, dl_index[j]);
+						} else if (((dl_sess_data[j]->hdr_crt == GTPU_UDP_IPv4) ||
+									(dl_sess_data[j]->hdr_crt == GTPU_UDP_IPv6) ||
+									(dl_sess_data[j]->hdr_crt == NOT_SET_OUT_HDR_RVL_CRT))
+								&& (dl_sess_data[j]->hdr_rvl == NOT_SET_OUT_HDR_RVL_CRT)
+								&& ((dl_sess_data[j]->ue_ip_addr) || dl_sess_data[j]->ipv6)) {
+							/* Set the Decasulation Pkt Mask */
+							SET_BIT(*encap_pkts_mask, dl_index[j]);
+						}
+					}
+				}
 			}
 		}
 	}
@@ -994,9 +1052,11 @@ update_nexthop_info(struct rte_mbuf **pkts, uint32_t n,
 {
 	uint32_t i;
 	for (i = 0; i < n; i++) {
-		if (ISSET_BIT(*pkts_mask, i)) {
+		if ((ISSET_BIT(*pkts_mask, i)) && (pdr[i] != NULL)) {
 			if (construct_ether_hdr(pkts[i], portid, &pdr[i], loopback_flag) < 0)
 				RESET_BIT(*pkts_mask, i);
+		} else {
+			RESET_BIT(*pkts_mask, i);
 		}
 		/* TODO: Set checksum offload.*/
 	}
@@ -1610,6 +1670,7 @@ int8_t fill_dp_configuration(dp_configuration_t  *dp_configuration)
 	dp_configuration->gtpu_seqnb_out = app.gtpu_seqnb_out;
 	dp_configuration->gtpu_seqnb_in = app.gtpu_seqnb_in;
 
+	dp_configuration->perf_flag = app.perf_flag;
 	dp_configuration->numa_on = app.numa_on;
 	dp_configuration->teidri_val = app.teidri_val;
 	dp_configuration->teidri_timeout = app.teidri_timeout;
@@ -1652,6 +1713,11 @@ int8_t post_transmit_timer(const int transmit_timer_value) {
 
 int8_t post_transmit_count(const int transmit_count) {
 	app.transmit_cnt = transmit_count;
+	return 0;
+}
+
+int8_t update_perf_flag(const int perf_flag) {
+	app.perf_flag = perf_flag;
 	return 0;
 }
 
@@ -1707,4 +1773,8 @@ int get_transmit_count(void) {
 
 int8_t get_pcap_status(void) {
 	return app.generate_pcap;
+}
+
+uint8_t get_perf_flag(void) {
+	return app.perf_flag;
 }

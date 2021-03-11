@@ -121,10 +121,6 @@ typedef struct {
 	uint8_t itr_cnt;
 	/** GTP-U response Counter */
 	uint32_t rstCnt;
-	/** Session Counter */
-	uint32_t sess_cnt;
-	/** Set of Session IDs */
-	uint64_t sess_id[3200];
 	/** src ipv4 address */
 	node_address_t srcIP;
 	/** dst ipv4 address */

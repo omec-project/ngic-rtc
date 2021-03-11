@@ -1056,5 +1056,20 @@ set_address(node_address_t *node_value, node_address_t *node);
 int
 set_dest_address(node_address_t src_addr, peer_addr_t *dst_addr);
 
+/* @brief  : Send pfcp del session req. if pfcp sess report req failed
+ * @param  : sess_id, session ID.
+ * @param  : peer_addr, destibnation addres.
+ * @return : returns -1 if IP is not stored, otherwise 0
+ * */
+int
+send_pfcp_del_sess_req(uint64_t sess_id, peer_addr_t *peer_addr);
+
+/* @brief  : delete the buffered ddn request from hash
+ * @param  : sess_id, session id
+ * @return : returns pdr_ids pointer on success, oterwise NULL
+ * */
+pdr_ids *
+delete_buff_ddn_req(uint64_t sess_id);
+
 #endif /* CP_BUILD */
 #endif /* PFCP_SESSION_H */

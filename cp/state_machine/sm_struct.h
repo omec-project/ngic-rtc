@@ -37,7 +37,6 @@ extern char event_name[EVNT_NAME_LEN];
 extern struct rte_hash *li_info_by_id_hash;
 extern struct rte_hash *li_id_by_imsi_hash;
 
-
 enum source_interface {
 	GX_IFACE = 1,
 	S11_IFACE = 2,
@@ -158,6 +157,17 @@ typedef struct msg_info{
 }msg_info;
 
 /**
+ * @brief  : Structure for Store the create Bearer Response only for attach with dedicated flow.
+ */
+struct cb_rsp_info {
+	uint8_t cause_value;
+	uint8_t bearer_cnt;
+	uint8_t bearer_cause_value[MAX_BEARERS];
+	uint8_t ebi_ebi[MAX_BEARERS];
+	uint32_t seq ;
+}__attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
+
+/**
  * @brief  : Structure for handling CS/MB/DS request synchoronusly.
  */
 struct resp_info {
@@ -167,6 +177,9 @@ struct resp_info {
 	uint8_t cp_mode;
 	uint8_t pfcp_seq;
 
+	/*attach with dedicated flow*/
+	uint8_t cbr_seq;
+
 	/* Default Bearer Id */
 	uint8_t linked_eps_bearer_id;
 	uint8_t eps_bearer_id;
@@ -174,14 +187,16 @@ struct resp_info {
 	uint8_t bearer_count;
 	uint8_t eps_bearer_ids[MAX_BEARERS];
 
+	/* Store the GX session ID for error scenario */
+	char gx_sess_id[GX_SESS_ID_LEN];
+
 	uint32_t s5s8_sgw_gtpc_teid;
 	uint32_t teid;
-	uint8_t eps_bearer_lvl_tft[MAX_BEARERS][MAX_TFT_LEN];
+	uint8_t *eps_bearer_lvl_tft[MAX_BEARERS];
 	uint8_t tft_header_len[MAX_BEARERS];
-	/*attach with dedicated flow*/
-	uint8_t cbr_seq;
+
 	/*Store the create Bearer Response only for attach with dedicated flow*/
-	create_bearer_rsp_t cb_rsp_attach;
+	struct cb_rsp_info cb_rsp_attach;
 
 	union gtpc_msg {
 		create_sess_req_t csr;
@@ -204,11 +219,6 @@ struct resp_info {
 		mod_acc_bearers_req_t mod_acc_req;
 		mod_acc_bearers_rsp_t mod_acc_resp;
 	}gtpc_msg;
-
-	union gx_msg_t {
-		GxCCA cca;
-		GxRAR rar;
-	}gx_msg;
 
 }__attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
 

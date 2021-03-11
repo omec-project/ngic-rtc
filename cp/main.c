@@ -193,8 +193,30 @@ control_plane(void)
 static void
 sig_handler(int signo)
 {
-	RTE_SET_USED(signo);
-	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"signal_handler \n");
+	clLog(clSystemLog, eCLSeverityDebug, "signal received \n");
+	if ((signo == SIGINT) || (signo == SIGTERM)) {
+
+		/*Close connection to redis server*/
+		if ( ctx != NULL)
+			redis_disconnect(ctx);
+
+		if ((config.use_gx) && gx_app_sock_read > 0)
+			close_ipc_channel(gx_app_sock_read);
+
+		deinit_ddf();
+
+#ifdef SYNC_STATS
+		retrive_stats_entry();
+		close_stats();
+#endif /* SYNC_STATS */
+
+#ifdef USE_REST
+		gst_deinit();
+#endif /* USE_REST */
+
+		close(route_sock);
+		rte_exit(EXIT_SUCCESS, "received SIGINT\n");
+	}
 }
 
 /**
@@ -253,49 +275,25 @@ init_cp_params(void) {
 #endif
 }
 
-void cp_sig_handler(int signo)
-{
-	if (signo == SIGINT) {
-
-		/*Close connection to redis server*/
-		if ( ctx != NULL)
-			redis_disconnect(ctx);
-
-		if ((config.use_gx) && gx_app_sock_read > 0)
-			close_ipc_channel(gx_app_sock_read);
-
-		deinit_ddf();
-
-#ifdef SYNC_STATS
-		retrive_stats_entry();
-		close_stats();
-#endif /* SYNC_STATS */
-
-#ifdef USE_REST
-		gst_deinit();
-#endif /* USE_REST */
-
-		close(route_sock);
-		rte_exit(EXIT_SUCCESS, "received SIGINT\n");
-	}
-}
-
 static void
 init_cli_framework(void) {
 	set_gw_type(OSS_CONTROL_PLANE);
 	cli_node.upsecs = &cli_node.cli_config.oss_reset_time;
 	cli_init(&cli_node, &cli_node.cli_config.cnt_peer);
+	cli_node.cli_config.perf_flag = config.perf_flag;
 
 	cli_node.cli_config.gw_adapter_callback_list.update_request_tries = &post_request_tries;
 	cli_node.cli_config.gw_adapter_callback_list.update_request_timeout = &post_request_timeout;
 	cli_node.cli_config.gw_adapter_callback_list.update_periodic_timer = &post_periodic_timer;
 	cli_node.cli_config.gw_adapter_callback_list.update_transmit_timer = &post_transmit_timer;
 	cli_node.cli_config.gw_adapter_callback_list.update_transmit_count = &post_transmit_count;
+	cli_node.cli_config.gw_adapter_callback_list.update_perf_flag = &update_perf_flag;
 	cli_node.cli_config.gw_adapter_callback_list.get_request_tries = &get_request_tries;
 	cli_node.cli_config.gw_adapter_callback_list.get_request_timeout = &get_request_timeout;
 	cli_node.cli_config.gw_adapter_callback_list.get_periodic_timer = &get_periodic_timer;
 	cli_node.cli_config.gw_adapter_callback_list.get_transmit_timer = &get_transmit_timer;
 	cli_node.cli_config.gw_adapter_callback_list.get_transmit_count = get_transmit_count;
+	cli_node.cli_config.gw_adapter_callback_list.get_perf_flag = &get_perf_flag;
 	cli_node.cli_config.gw_adapter_callback_list.get_cp_config = &fill_cp_configuration;
 	cli_node.cli_config.gw_adapter_callback_list.add_ue_entry = &fillup_li_df_hash;
 	cli_node.cli_config.gw_adapter_callback_list.update_ue_entry = &fillup_li_df_hash;
@@ -394,7 +392,6 @@ main(int argc, char **argv)
 
 	/* TODO: Need to Re-arrange the hash initialize */
 	create_heartbeat_hash_table();
-	create_associated_upf_hash();
 
 	/* Make a connection between control-plane and gx_app */
 	if((config.use_gx) && config.cp_type != SGWC) {
