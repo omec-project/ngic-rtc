@@ -2500,6 +2500,28 @@ del_peer_addr_node_entry(pdn_connection *pdn) {
 	}
 }
 
+void del_local_csid(node_address_t *node_addr, fqcsid_t *fqcsid) {
+
+	fqcsid_t *tmp = NULL;
+	tmp = get_peer_addr_csids_entry(node_addr, REMOVE_NODE);
+	if (tmp != NULL) {
+		for (uint8_t itr = 0; itr < tmp->num_csid; itr++) {
+			if (tmp->local_csid[itr] ==
+					fqcsid->local_csid[(fqcsid->num_csid - 1)]) {
+				for(uint8_t pos = itr; pos < (tmp->num_csid - 1); pos++ ) {
+					tmp->local_csid[pos] = tmp->local_csid[pos + 1];
+				}
+				if (tmp->num_csid != 0)
+					tmp->num_csid--;
+			}
+		}
+
+		if (tmp->num_csid == 0) {
+			del_peer_addr_csids_entry(node_addr);
+		}
+	}
+}
+
 int
 cleanup_csid_entry(uint64_t seid,
 		fqcsid_t *fqcsid, pdn_connection *pdn) {
@@ -2555,9 +2577,9 @@ cleanup_csid_entry(uint64_t seid,
 				del_peer_addr_node_entry(pdn);
 
 				if (((pdn->context)->cp_mode == SGWC) || ((pdn->context)->cp_mode == SAEGWC)) {
-					del_peer_addr_csids_entry(&(pdn->context)->s11_sgw_gtpc_ip);
+					del_local_csid(&(pdn->context)->s11_sgw_gtpc_ip, fqcsid);
 				} else if ((pdn->context)->cp_mode == PGWC) {
-					del_peer_addr_csids_entry(&pdn->s5s8_pgw_gtpc_ip);
+					del_local_csid(&pdn->s5s8_pgw_gtpc_ip, fqcsid);
 				}
 			} else {
 				/* Remove session csid from UE context */

@@ -6373,6 +6373,7 @@ gtpc_recvd_sgw_fqcsid(gtp_fqcsid_ie_t *sgw_fqcsid,
 						}
 						/* Delete CSID from the context */
 						remove_csid_from_cntx(context->pgw_fqcsid, &pgw_tmp_csid_t);
+						del_local_csid(&(pdn->s5s8_pgw_gtpc_ip), &pgw_tmp_csid_t);
 
 					} else {
 						/* Remove the session link from old CSID */
@@ -6974,7 +6975,7 @@ int send_pfcp_sess_mod_req(pdn_connection *pdn, eps_bearer *bearer,
 						}
 						/* Delete CSID from the context */
 						remove_csid_from_cntx(context->sgw_fqcsid, &tmp_csid_t);
-
+						del_local_csid(&(context->s11_sgw_gtpc_ip),  &tmp_csid_t);
 					} else {
 						/* Remove the session link from old CSID */
 						sess_csid *tmp1 = NULL;
@@ -8796,6 +8797,7 @@ process_pfcp_sess_mod_request(mod_bearer_req_t *mb_req, ue_context *context)
 						}
 						/* Delete CSID from the context */
 						remove_csid_from_cntx(context->sgw_fqcsid, &tmp_csid_t);
+						del_local_csid(&(context->s11_sgw_gtpc_ip), &tmp_csid_t);
 
 					} else {
 						sess_csid *tmp1 = NULL;

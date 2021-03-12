@@ -99,8 +99,8 @@ recv_msg_handler( int sock )
 				printf( "Unknown message received from CP app - %d\n",
 						req->msg_type);
 		}
-		msg_len = req->msg_len;
-		bytes_recv = bytes_recv - msg_len;
+		msg_len += req->msg_len;
+		bytes_recv = bytes_recv - req->msg_len;
 	}
 	return 0;
 }

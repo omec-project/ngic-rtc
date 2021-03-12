@@ -441,9 +441,13 @@ del_peer_addr_csids_entry(node_address_t *node_addr)
 	ret = rte_hash_lookup_data(hash,
 					node_addr, (void **)&tmp);
 	if ( ret < 0) {
-		clLog(clSystemLog, eCLSeverityCritical,
-				LOG_FORMAT"Entry not found for Node Addr:"IPV4_ADDR"\n",
-				LOG_VALUE, IPV4_ADDR_HOST_FORMAT(node_addr->ipv4_addr));
+		(node_addr->ip_type == IPV6_TYPE) ?
+			clLog(clSystemLog, eCLSeverityCritical,
+					LOG_FORMAT"Entry not found for Node Addr:"IPv6_FMT"\n",
+					LOG_VALUE, IPv6_PRINT(IPv6_CAST(node_addr->ipv6_addr))) :
+			clLog(clSystemLog, eCLSeverityCritical,
+					LOG_FORMAT"Entry not found for Node Addr:"IPV4_ADDR"\n",
+					LOG_VALUE, IPV4_ADDR_HOST_FORMAT(node_addr->ipv4_addr));
 		return -1;
 	}
 	/* Local CSID Entry is present. Delete local csid Entry */

@@ -855,6 +855,15 @@ fill_pdn_fqcsid_info(fqcsid_t *pdn_fqcsid, sess_fqcsid_t *cntx_fqcsid);
  */
 int
 delete_peer_node_info(pdn_connection *pdn, eps_bearer *bearer);
+
+/**
+ * @brief  : Remove the local CSID in hash table.
+ * @param  : node_addr, node_addr for lookup entry in hash table
+ * @param  : fqcsid, Remove local CSID.
+ * @return : Returns nothing
+ */
+void
+del_local_csid(node_address_t *node_addr, fqcsid_t *fqcsid);
 #endif /* USE_CSID */
 
 /* SAEGWC --> PGWC demotion scenario, Cleanup the SGW related data structures */

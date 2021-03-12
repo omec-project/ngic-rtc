@@ -322,6 +322,32 @@ link_gtpc_peer_csids(fqcsid_t *peer_fqcsid, fqcsid_t *local_fqcsid,
 	return 0;
 }
 
+/**
+ * @brief  : Update the local CSID in hash table.
+ * @param  : node_addr, node_addr for lookup entry in hash table
+ * @param  : fqcsid, Update local CSID
+ * @return : Returns nothing
+ */
+static void add_local_csid(node_address_t *node_addr, sess_fqcsid_t *fqcsid){
+	fqcsid_t *tmp = NULL;
+	tmp = get_peer_addr_csids_entry(node_addr, UPDATE_NODE);
+	if (tmp != NULL) {
+		for(uint8_t itr = 0; itr < fqcsid->num_csid; itr++) {
+			uint8_t match = 0;
+			for (uint8_t itr1 = 0; itr1 < tmp->num_csid; itr1++) {
+				if (tmp->local_csid[itr1] == fqcsid->local_csid[itr]) {
+					match = 1;
+					break;
+				}
+			}
+
+			if (!match) {
+				tmp->local_csid[tmp->num_csid++] = fqcsid->local_csid[itr];
+			}
+		}
+	}
+}
+
 int
 fill_peer_node_info(pdn_connection *pdn,
 				eps_bearer *bearer)
@@ -501,6 +527,7 @@ fill_peer_node_info(pdn_connection *pdn,
 		((pdn->context)->sgw_fqcsid)->local_csid[num_csid] = local_csid;
 		((pdn->context)->sgw_fqcsid)->num_csid++;
 		pdn->flag_fqcsid_modified = TRUE;
+		add_local_csid(&((pdn->context)->s11_sgw_gtpc_ip), ((pdn->context)->sgw_fqcsid));
 
 		num_csid = 0;
 		pdn->sgw_csid.local_csid[num_csid] = local_csid;
@@ -551,6 +578,7 @@ fill_peer_node_info(pdn_connection *pdn,
 		((pdn->context)->pgw_fqcsid)->local_csid[num_csid] = local_csid;
 		((pdn->context)->pgw_fqcsid)->num_csid++;
 		pdn->flag_fqcsid_modified = TRUE;
+		add_local_csid(&(pdn->s5s8_pgw_gtpc_ip), ((pdn->context)->pgw_fqcsid));
 
 		num_csid = 0;
 		pdn->pgw_csid.local_csid[num_csid] = local_csid;
