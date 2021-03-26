@@ -18,17 +18,7 @@ def c3pocli(ctx, c3po_url):
 
 @click.group()
 @click.pass_context
-def admin(ctx):
-    pass
-
-@click.group()
-@click.pass_context
 def stats(ctx):
-    pass
-
-@click.group()
-@click.pass_context
-def logger(ctx):
     pass
 
 @click.group()
@@ -76,13 +66,6 @@ def describe_stats_all(ctx):
 
 @click.command()
 @click.pass_context
-def describe_loggers(ctx):
-    url = ctx.obj['C3PO_URL'] + "/logger"
-    r = requests.get(url, headers=HEADER)
-    click.echo(r.json())
-
-@click.command()
-@click.pass_context
 def describe_stats_logging(ctx):
     url = ctx.obj['C3PO_URL'] + "/statlogging"
     r = requests.get(url, headers=HEADER)
@@ -94,23 +77,6 @@ def describe_stats_logging(ctx):
 def set_stats_logging(ctx, name):
     url = ctx.obj['C3PO_URL'] + "/statlogging"
     r = requests.post(url, json={"statlog": name }, headers=HEADER)
-    click.echo(r.json())
-
-@click.command()
-@click.pass_context
-@click.option('--name', '-n', required=True, help='Logger name')
-@click.option('--level', '-l', required=True, type=int, help='Logger level')
-def set_logger_level(ctx, name, level):
-    url = ctx.obj['C3PO_URL'] + "/logger"
-    r = requests.post(url, json={"name": name, "level": level}, headers=HEADER)
-    click.echo(json.dumps(r.json()))
-
-
-@click.command()
-@click.pass_context
-def describe_oss_options(ctx):
-    url = ctx.obj['C3PO_URL'] + "/ossoptions"
-    r = requests.get(url, headers=HEADER)
     click.echo(r.json())
 
 @click.command()
@@ -234,13 +200,9 @@ def set_pcap_generation(ctx, generate_pcap):
     res = requests.post(url, json={"generate_pcap": generate_pcap}, headers=HEADER)
     click.echo(json.dumps(res.json()))
 
-c3pocli.add_command(admin)
 c3pocli.add_command(stats)
-c3pocli.add_command(logger)
 c3pocli.add_command(config)
 c3pocli.add_command(pcap)
-
-admin.add_command(describe_oss_options)
 
 stats.add_command(describe_stats_frequency)
 stats.add_command(set_stats_frequency)
@@ -263,9 +225,6 @@ config.add_command(set_periodic_timer)
 config.add_command(describe_config_live)
 config.add_command(describe_perf_flag)
 config.add_command(set_perf_flag)
-
-logger.add_command(describe_loggers)
-logger.add_command(set_logger_level)
 
 pcap.add_command(describe_pcap_generation_status)
 pcap.add_command(set_pcap_generation)

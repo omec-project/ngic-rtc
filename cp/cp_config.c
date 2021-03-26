@@ -645,8 +645,7 @@ config_cp_ip_port(pfcp_config_t *config)
 	{
 
 		num_apn_entries =
-			rte_cfgfile_section_num_entries(file, APN_ENTRIES);
-
+			rte_cfgfile_section_num_entries_by_index(file, apn_name, i);
 		if (num_apn_entries > 0) {
 			/* Allocate the memory. */
 			apn_entries = rte_malloc_socket(NULL,
@@ -828,54 +827,56 @@ config_cp_ip_port(pfcp_config_t *config)
 
 	if (num_app_entries > 0) {
 		app_entries = rte_malloc_socket(NULL,
-						sizeof(struct rte_cfgfile_entry)
-							*num_app_entries,
-							RTE_CACHE_LINE_SIZE,
-							rte_socket_id());
+				sizeof(struct rte_cfgfile_entry)
+				*num_app_entries,
+				RTE_CACHE_LINE_SIZE,
+				rte_socket_id());
+		if (app_entries == NULL)
+			rte_panic("Error configuring"
+					"APP entry of %s\n", STATIC_CP_FILE);
 	}
 
-	if (app_entries == NULL)
-		rte_panic("Error configuring"
-				"APP entry of %s\n", STATIC_CP_FILE);
 
-	rte_cfgfile_section_entries(file, APP_ENTRIES,
-					app_entries,
-					num_app_entries);
+	if (app_entries != NULL) {
+		rte_cfgfile_section_entries(file, APP_ENTRIES,
+				app_entries,
+				num_app_entries);
 
-	for (i = 0; i < num_app_entries; ++i) {
-		fprintf(stderr, "CP: [%s] = %s\n",
-				app_entries[i].name,
-				app_entries[i].value);
+		for (i = 0; i < num_app_entries; ++i) {
+			fprintf(stderr, "CP: [%s] = %s\n",
+					app_entries[i].name,
+					app_entries[i].value);
 
-		if (strncmp(FREQ_SEC, app_entries[i].name,
+			if (strncmp(FREQ_SEC, app_entries[i].name,
 						ENTRY_NAME_SIZE) == 0)
-			config->app_dns.freq_sec =
+				config->app_dns.freq_sec =
 					(uint8_t)atoi(app_entries[i].value);
 
-		if (strncmp(FILENAME, app_entries[i].name,
+			if (strncmp(FILENAME, app_entries[i].name,
 						ENTRY_NAME_SIZE) == 0)
-			strncpy(config->app_dns.filename,
-					app_entries[i].value,
-					sizeof(config->app_dns.filename));
+				strncpy(config->app_dns.filename,
+						app_entries[i].value,
+						sizeof(config->app_dns.filename));
 
-		if (strncmp(NAMESERVER, app_entries[i].name,
+			if (strncmp(NAMESERVER, app_entries[i].name,
 						ENTRY_NAME_SIZE) == 0) {
-			strncpy(config->app_dns.nameserver_ip[app_nameserver_ip_idx],
-					app_entries[i].value,
-					sizeof(config->app_dns.nameserver_ip[app_nameserver_ip_idx]));
-					int8_t ip_type = get_ip_address_type(app_entries[i].value);
-					/* comparing the ip type of nameserver with source address ip type of CP */
-					if (!(ip_type & config->cp_dns_ip_type)) {
-						fprintf(stderr, "CP: CP_DNS_IP and app nameserver IP type should be equal ");
-							rte_panic();
-					}
-			app_nameserver_ip_idx++;
+				strncpy(config->app_dns.nameserver_ip[app_nameserver_ip_idx],
+						app_entries[i].value,
+						sizeof(config->app_dns.nameserver_ip[app_nameserver_ip_idx]));
+				int8_t ip_type = get_ip_address_type(app_entries[i].value);
+				/* comparing the ip type of nameserver with source address ip type of CP */
+				if (!(ip_type & config->cp_dns_ip_type)) {
+					fprintf(stderr, "CP: CP_DNS_IP and app nameserver IP type should be equal ");
+					rte_panic();
+				}
+				app_nameserver_ip_idx++;
+			}
 		}
+
+		config->app_dns.nameserver_cnt = app_nameserver_ip_idx;
+
+		rte_free(app_entries);
 	}
-
-	config->app_dns.nameserver_cnt = app_nameserver_ip_idx;
-
-	rte_free(app_entries);
 
 	/* Read ops values from cfg seaction. */
 	num_ops_entries =
@@ -883,54 +884,55 @@ config_cp_ip_port(pfcp_config_t *config)
 
 	if (num_ops_entries > 0) {
 		ops_entries = rte_malloc_socket(NULL,
-						sizeof(struct rte_cfgfile_entry)
-							*num_ops_entries,
-							RTE_CACHE_LINE_SIZE,
-							rte_socket_id());
+				sizeof(struct rte_cfgfile_entry)
+				*num_ops_entries,
+				RTE_CACHE_LINE_SIZE,
+				rte_socket_id());
+		if (ops_entries == NULL)
+			rte_panic("Error configuring"
+					"OPS entry of %s\n", STATIC_CP_FILE);
 	}
 
-	if (ops_entries == NULL)
-		rte_panic("Error configuring"
-				"OPS entry of %s\n", STATIC_CP_FILE);
+	if (ops_entries != NULL) {
+		rte_cfgfile_section_entries(file, OPS_ENTRIES,
+				ops_entries,
+				num_ops_entries);
 
-	rte_cfgfile_section_entries(file, OPS_ENTRIES,
-					ops_entries,
-					num_ops_entries);
+		for (i = 0; i < num_ops_entries; ++i) {
+			fprintf(stderr, "CP: [%s] = %s\n",
+					ops_entries[i].name,
+					ops_entries[i].value);
 
-	for (i = 0; i < num_ops_entries; ++i) {
-		fprintf(stderr, "CP: [%s] = %s\n",
-				ops_entries[i].name,
-				ops_entries[i].value);
-
-		if (strncmp(FREQ_SEC, ops_entries[i].name,
+			if (strncmp(FREQ_SEC, ops_entries[i].name,
 						ENTRY_NAME_SIZE) == 0)
-			config->ops_dns.freq_sec =
+				config->ops_dns.freq_sec =
 					(uint8_t)atoi(ops_entries[i].value);
 
-		if (strncmp(FILENAME, ops_entries[i].name,
+			if (strncmp(FILENAME, ops_entries[i].name,
 						ENTRY_NAME_SIZE) == 0)
-			strncpy(config->ops_dns.filename,
-					ops_entries[i].value,
-					strnlen(ops_entries[i].value,CFG_VALUE_LEN));
+				strncpy(config->ops_dns.filename,
+						ops_entries[i].value,
+						strnlen(ops_entries[i].value,CFG_VALUE_LEN));
 
-		if (strncmp(NAMESERVER, ops_entries[i].name,
+			if (strncmp(NAMESERVER, ops_entries[i].name,
 						ENTRY_NAME_SIZE) == 0) {
-			strncpy(config->ops_dns.nameserver_ip[ops_nameserver_ip_idx],
-					ops_entries[i].value,
-					strnlen(ops_entries[i].value,CFG_VALUE_LEN));
-					int8_t ip_type = get_ip_address_type(app_entries[i].value);
-					/* comparing the ip type of nameserver with source address ip type of CP */
-					if (!(ip_type & config->cp_dns_ip_type)) {
-						fprintf(stderr, "CP: CP_DNS_IP and ops nameserver IP type should be equal ");
-							rte_panic();
-					}
-			ops_nameserver_ip_idx++;
+				strncpy(config->ops_dns.nameserver_ip[ops_nameserver_ip_idx],
+						ops_entries[i].value,
+						strnlen(ops_entries[i].value,CFG_VALUE_LEN));
+				int8_t ip_type = get_ip_address_type(ops_entries[i].value);
+				/* comparing the ip type of nameserver with source address ip type of CP */
+				if (!(ip_type & config->cp_dns_ip_type)) {
+					fprintf(stderr, "CP: CP_DNS_IP and ops nameserver IP type should be equal ");
+					rte_panic();
+				}
+				ops_nameserver_ip_idx++;
+			}
 		}
+
+		config->ops_dns.nameserver_cnt = ops_nameserver_ip_idx;
+
+		rte_free(ops_entries);
 	}
-
-	config->ops_dns.nameserver_cnt = ops_nameserver_ip_idx;
-
-	rte_free(ops_entries);
 
 	/* Read IP_POOL_CONFIG seaction */
 	num_ip_pool_entries = rte_cfgfile_section_num_entries
