@@ -2157,7 +2157,7 @@ fill_pfcp_sess_est_req( pfcp_sess_estab_req_t *pfcp_sess_est_req,
 						bearer->pdrs[idx]->far.actions.nocp = PRESENT;
 						bearer->pdrs[idx]->far.actions.forw = NOT_PRESENT;
 
-						if(bearer->s1u_enb_gtpu_ip.ipv4_addr != 0){
+						if(bearer->s1u_enb_gtpu_ip.ipv4_addr != 0 || *(bearer->s1u_enb_gtpu_ip.ipv6_addr)){
 							pfcp_sess_est_req->create_far[pdr_idx].apply_action.buff = NOT_PRESENT;
 							pfcp_sess_est_req->create_far[pdr_idx].apply_action.forw = PRESENT;
 							bearer->pdrs[idx]->far.actions.forw = PRESENT;
@@ -2174,18 +2174,12 @@ fill_pfcp_sess_est_req( pfcp_sess_estab_req_t *pfcp_sess_est_req,
 
 				/* SGW Relocation*/
 				if(pdn->context->indication_flag.oi != 0 ) {
-
 					if(pdr_idx%2)
 					{
-
 						/*NOTE: BELOW condition is introduced as there can be a scenario where enb fteid may
 						 * not come in CSR Req for SGW Reloc. e.g TAU with SGW  Reloc with Data Forwarding
 						 */
-
-						int len = 0;
-						len = strlen((const char *)bearer->s1u_enb_gtpu_ip.ipv6_addr);
-
-						if((bearer->s1u_enb_gtpu_ip.ipv4_addr != 0) || (len != 0)) {
+						if((bearer->s1u_enb_gtpu_ip.ipv4_addr != 0) || *(bearer->s1u_enb_gtpu_ip.ipv6_addr)) {
 
 							len += set_forwarding_param(&(pfcp_sess_est_req->create_far[pdr_idx].frwdng_parms),
 									bearer->s1u_enb_gtpu_ip,
@@ -2194,7 +2188,6 @@ fill_pfcp_sess_est_req( pfcp_sess_estab_req_t *pfcp_sess_est_req,
 							pfcp_sess_est_req->create_far[pdr_idx].header.len += len;
 
 						} else {
-
 							pfcp_sess_est_req->create_far[pdr_idx].apply_action.nocp = PRESENT;
 							pfcp_sess_est_req->create_far[pdr_idx].apply_action.buff = PRESENT;
 							pfcp_sess_est_req->create_far[pdr_idx].apply_action.forw = NOT_PRESENT;
@@ -3124,7 +3117,7 @@ fill_bearer_info(create_sess_req_t *csr, eps_bearer *bearer,
 		bearer->s5s8_pgw_gtpu_teid = csr->bearer_contexts_to_be_created[index].s5s8_u_pgw_fteid.teid_gre_key;
 
 		if((((csr->bearer_contexts_to_be_created[index].s1u_enb_fteid.ipv4_address) != 0) ||
-				(!(*(csr->bearer_contexts_to_be_created[index].s1u_enb_fteid.ipv6_address))))&&
+				(*(csr->bearer_contexts_to_be_created[index].s1u_enb_fteid.ipv6_address))) &&
 				(csr->bearer_contexts_to_be_created[index].s1u_enb_fteid.teid_gre_key != 0)) {
 			ret = fill_ip_addr(csr->bearer_contexts_to_be_created[index].s1u_enb_fteid.ipv4_address,
 					csr->bearer_contexts_to_be_created[index].s1u_enb_fteid.ipv6_address,
@@ -3133,7 +3126,6 @@ fill_bearer_info(create_sess_req_t *csr, eps_bearer *bearer,
 				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
 						"IP address", LOG_VALUE);
 			}
-
 			bearer->s1u_enb_gtpu_teid = csr->bearer_contexts_to_be_created[index].s1u_enb_fteid.teid_gre_key;
 		}
 	}

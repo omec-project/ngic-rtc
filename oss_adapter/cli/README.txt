@@ -33,7 +33,8 @@ This will create a global entry point, making the c3pocli command available.
 To avoid interfering with the global python installation, c3pocli can be 
 installed within a python virtual environment.
 
-    # apt-get install python-virtualenv
+    # apt-get install python3-pip
+    # apt-get install python3-virtualenv
     # virtualenv -p python3.5 venv
     # source venv/bin/activate
     # pip install -r requirements.txt
@@ -191,6 +192,7 @@ Displays the information of pcap generation flag.
   c3pocli http://127.0.0.1:12997 pcap set-pcap-generation -g stop
   c3pocli http://127.0.0.1:12997 pcap set-pcap-generation -g restart
 Modifies the pcap generation framework mode value.
+It also update the configuration file value.
 
 - c3pocli http://127.0.0.1:12997 config describe-config-live
 Displays the cp.cfg and dp.cfg configuration values in json format.
@@ -216,6 +218,7 @@ To get the transmit timer current value.
 - c3pocli http://127.0.0.1:12997 config set-perf-flag -pf 1
   c3pocli http://127.0.0.1:12997 config set-perf-flag -pf 0
 It is used for on/off to performance flag.
+It also update the configuration file value.
 
 - c3pocli http://127.0.0.1:12997 config set-periodic-timer -p 60
 It modify the Periodic Timer value when user run the post command and update config file.

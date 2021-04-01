@@ -1006,7 +1006,8 @@ decode_check_csr(gtpv2c_header_t *gtpv2c_rx,
 		}
 		struct in6_addr temp = {0};
 		if ((csr->pgw_s5s8_addr_ctl_plane_or_pmip.ipv4_address != 0
-				|| csr->pgw_s5s8_addr_ctl_plane_or_pmip.ipv6_address != 0)
+				|| memcmp(csr->pgw_s5s8_addr_ctl_plane_or_pmip.ipv6_address,
+							temp.s6_addr, IPV6_ADDRESS_LEN))
 				&& (config.s5s8_ip.s_addr != 0
 					|| *config.s5s8_ip_v6.s6_addr)) {
 			/* Selection Criteria for Combined GW, SAEGWC */

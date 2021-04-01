@@ -988,6 +988,8 @@ int post_generate_pcap_cmd(const char *request_body, char **response_body)
 
 	uint8_t pcap_status = 0;
 	const char *param = "PCAP_GENERATION";
+	const char *config_param = "GENERATE_PCAP";
+	char config_value[ENTRY_VALUE_SIZE] = {0};
 	char path[PATH_LEN] = {0};
 	char value[ENTRY_VALUE_SIZE] = {0};
 	char temp[JSON_RESP_SIZE] = {0};
@@ -1012,7 +1014,9 @@ int post_generate_pcap_cmd(const char *request_body, char **response_body)
 	snprintf(value, ENTRY_VALUE_SIZE, "%s", ((pcap_status) ? ((pcap_status == PCAP_GEN_ON) ?
 				"START" : ((pcap_status == PCAP_GEN_RESTART) ? "RESTART" :
 				"INVALID CMD" )) : "STOP"));
-
+	cli_node.cli_config.generate_pcap_status = pcap_status;
+	snprintf(config_value, ENTRY_VALUE_SIZE, "%d", cli_node.cli_config.generate_pcap_status);
+	change_config_file(path, config_param, config_value);
 	construct_json(param,value,temp);
 	*response_body=strdup((const char *)temp);
 

@@ -735,7 +735,8 @@ parse_up_config_param(struct app_params *app)
 			fprintf(stderr, "DP: DDF3_LOCAL_IP: %s\n", app->ddf3_local_ip);
 		} else if(strncmp("GENERATE_PCAP", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
 			app->generate_pcap = (uint8_t)atoi(global_entries[inx].value);
-
+			if (app->generate_pcap != PCAP_GEN_OFF && app->generate_pcap != PCAP_GEN_ON)
+				rte_panic("Use 0 or 1 for pcap generation STOP/START\n");
 			fprintf(stderr, "DP: GENERATE_PCAP: %u\n", app->generate_pcap);
 		} else if(strncmp("PERF_FLAG", global_entries[inx].name, ENTRY_NAME_SIZE) == 0) {
 			app->perf_flag = (uint8_t)atoi(global_entries[inx].value);
