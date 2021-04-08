@@ -199,6 +199,12 @@ fill_gtpc_del_set_pdn_conn_req(del_pdn_conn_set_req_t *del_pdn_conn_req, fqcsid_
 			memcmp(&cp_ip->ipv4_addr, &config.s5s8_ip.s_addr, IPV4_SIZE) :
 			memcmp(&cp_ip->ipv6_addr, &config.s5s8_ip_v6.s6_addr, IPV6_SIZE));
 
+	if (cnd != 0) {
+		 cnd = ((cp_ip->ip_type == PDN_TYPE_IPV4) ?
+                        memcmp(&cp_ip->ipv4_addr, &config.s11_ip.s_addr, IPV4_SIZE) :
+                        memcmp(&cp_ip->ipv6_addr, &config.s11_ip_v6.s6_addr, IPV6_SIZE));
+	}
+
 	/* Set the SGW FQ-CSID */
 	if ((is_present(cp_ip) == 0) || (cnd != 0)) {
 		if (local_csids->num_csid) {
@@ -1484,6 +1490,7 @@ send_delete_pdn_con_set_req(fqcsid_t *csids, uint8_t iface)
 				}
 
 			} else {
+
 				if (is_present(&pdn->sgw_csid.node_addr)) {
 					if ((match_node_addr(num_sgw_node_addr, &pdn->s5s8_sgw_gtpc_ip,
 									sgw_node_addrs)) == 0)
@@ -1517,6 +1524,14 @@ send_delete_pdn_con_set_req(fqcsid_t *csids, uint8_t iface)
 						|| (pgw_node_addrs[tmp_cnt].ip_type == IPV4_GLOBAL_UNICAST))?
 			memcmp(&pgw_node_addrs[tmp_cnt].ipv4_addr, &config.s5s8_ip.s_addr, IPV4_SIZE) :
 			memcmp(&pgw_node_addrs[tmp_cnt].ipv6_addr, &config.s5s8_ip_v6.s6_addr, IPV6_SIZE));
+
+	if (cnd != 0) {
+		cnd = (((pgw_node_addrs[tmp_cnt].ip_type == PDN_TYPE_IPV4)
+                                                || (pgw_node_addrs[tmp_cnt].ip_type == IPV4_GLOBAL_UNICAST))?
+                        memcmp(&pgw_node_addrs[tmp_cnt].ipv4_addr, &config.s11_ip.s_addr, IPV4_SIZE) :
+                        memcmp(&pgw_node_addrs[tmp_cnt].ipv6_addr, &config.s11_ip_v6.s6_addr, IPV6_SIZE));
+	}
+
 	/* PGWC */
 	if ((num_pgw_node_addr != 0) && (cnd == 0)) {
 		if (iface != S5S8_PGWC_PORT_ID) {
