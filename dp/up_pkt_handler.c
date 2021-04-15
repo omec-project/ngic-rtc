@@ -25,7 +25,7 @@
 #include <unistd.h>
 #include <locale.h>
 #include <rte_icmp.h>
-
+#include <rte_ip.h>
 #include "gtpu.h"
 #include "util.h"
 #include "ipv6.h"
@@ -48,7 +48,13 @@
 uint64_t s1u_non_gtp_pkts_mask;
 #endif
 
-#define IPV4_PKT_VER				0x45
+#define IPV4_PKT_VER			0x45
+#define SEQ_NO_SIZE			2
+#define PDU_NO_SIZE 			1
+#define SEQ_NO_BIT 			2
+#define PDU_NO_BIT 			1
+#define EXTENSION_HDR_BIT		4
+#define NO_MORE_EXTENSION_HEADERS	0
 
 extern pcap_dumper_t *pcap_dumper_east;
 extern pcap_dumper_t *pcap_dumper_west;
@@ -733,6 +739,71 @@ int send_usage_report_req(urr_info_t *urr, uint64_t cp_seid, uint64_t up_seid, u
 	return 0;
 }
 
+static inline void
+adjust_ipv6_pktlen(struct rte_mbuf *m, const struct ipv6_hdr *iph,
+													uint32_t l2_len)
+{
+	uint32_t plen, trim;
+	plen = rte_be_to_cpu_16(iph->payload_len) + sizeof(*iph) + l2_len;
+	if (plen < m->pkt_len) {
+		trim = m->pkt_len - plen;
+		rte_pktmbuf_trim(m, trim);
+	}
+}
+
+static inline int
+ipv6_get_next_ext(const uint8_t *p, int proto, size_t *ext_len)
+{
+	int next_proto;
+
+	switch (proto) {
+		case IPPROTO_AH:
+			next_proto = *p++;
+			*ext_len = (*p + 2) * sizeof(uint32_t);
+			break;
+
+		case IPPROTO_HOPOPTS:
+		case IPPROTO_ROUTING:
+		case IPPROTO_DSTOPTS:
+			next_proto = *p++;
+			*ext_len = (*p + 1) * sizeof(uint64_t);
+		break;
+
+		case IPPROTO_FRAGMENT:
+			next_proto = *p;
+			*ext_len = RTE_IPV6_FRAG_HDR_SIZE;
+			break;
+
+		default:
+			return -EINVAL;
+	}
+
+	return next_proto;
+}
+static
+int getIPv6_header_len(struct rte_mbuf m){
+
+	struct rte_mbuf *pkt = &m;
+	const struct ipv6_hdr *iph6;
+	int next_proto;
+	size_t l3len, ext_len;
+	uint8_t *p;
+	/* get protocol type */
+	iph6 = (const struct ipv6_hdr *)rte_pktmbuf_adj(pkt,
+		ETHER_HDR_LEN);
+	adjust_ipv6_pktlen(pkt, iph6, 0);
+	next_proto = iph6->proto;
+
+	/* determine l3 header size up to ESP extension */
+	l3len = sizeof(struct ipv6_hdr);
+	p = rte_pktmbuf_mtod(pkt, uint8_t *);
+	while (next_proto != IPPROTO_ESP && l3len < pkt->data_len &&
+			(next_proto = ipv6_get_next_ext(p + l3len,
+					next_proto, &ext_len)) >= 0){
+		l3len += ext_len;
+	}
+	return l3len;
+}
 
 /**
  * @brief  : Returns payload length (user data len) from packet
@@ -762,20 +833,44 @@ int calculate_user_data_len(struct rte_mbuf *pkts) {
 	if ( ( data[0] & VERSION_FLAG_CHECK ) == IPv4_VERSION) {
 		len += IPv4_HDR_SIZE;
 	} else {
-		len += IPv6_HDR_SIZE;
+		len += getIPv6_header_len(*pkts);
 	}
 
 	len += UDP_HDR_SIZE;
-	len += GTP_HDR_SIZE;
+
 	data = rte_pktmbuf_mtod_offset(pkts, uint8_t *, len);
+	uint8_t gtpu_flags = *data;
 
-	if ( ( data[0] & VERSION_FLAG_CHECK ) == IPv4_VERSION) {
-		len += IPv4_HDR_SIZE;
-	} else {
-		len += IPv6_HDR_SIZE;
+	len += GTP_HDR_SIZE;
+
+	/* N-PDU number */
+	if (gtpu_flags & PDU_NO_BIT) {
+		len += PDU_NO_SIZE;
 	}
 
-	len += UDP_HDR_SIZE;
+	/* Seq. No. */
+	if (gtpu_flags & SEQ_NO_BIT) {
+		len += SEQ_NO_SIZE;
+	}
+
+	/* Next Extension header */
+	if (gtpu_flags & EXTENSION_HDR_BIT) {
+		while (1) {
+			data = rte_pktmbuf_mtod_offset(pkts, uint8_t *, len);
+			uint8_t ext_hdr_len = *data;
+			uint8_t *next_extension_header = NULL;
+			next_extension_header = data + (ext_hdr_len - 1);
+
+			if( NO_MORE_EXTENSION_HEADERS == (*next_extension_header) ) {
+				len += ext_hdr_len;
+				break;
+			} else {
+				len += ext_hdr_len;
+			}
+		}
+	}
+
+	len -= ETH_HDR_SIZE;
 
 	clLog(clSystemLog, eCLSeverityDebug,
 			LOG_FORMAT"user data len : %lu\n",

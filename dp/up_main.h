@@ -278,6 +278,16 @@ struct ip_type {
 
 typedef struct ip_type ip_type_t;
 
+struct rte_ipv6_fragment_ext {
+	uint8_t next_header;
+	uint8_t reserved;
+	rte_be16_t frag_data;
+	rte_be32_t id;
+} __rte_packed;
+
+ /* IPv6 fragment extension header size */
+#define RTE_IPV6_FRAG_HDR_SIZE  sizeof(struct rte_ipv6_fragment_ext)
+
 /**
  * @brief  : Initialize restoration thread
  * @param  : No param
