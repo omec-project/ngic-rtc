@@ -16,7 +16,7 @@ build:
     before_script:
         - echo -e "*************************************\n\tNGIC Build Started\n*************************************"
     script:
-        - echo $CI_PROJECT_DIR
+        #- echo $CI_PROJECT_DIR
         - ssh-keyscan $GIT_IP >> ~/.ssh/known_hosts
         - mkdir -p $CI_PROJECT_DIR/third_party && cd $CI_PROJECT_DIR/third_party && git clone $FDM_GIT_URL -b $FDM_BRANCH && git clone $LIB_GTPV2C_REPO && cd libgtpv2c && git checkout $LIB_GTPV2C_COMMIT_ID
         - sudo chown gitlab-runner:gitlab-runner -R $CI_PROJECT_DIR/third_party
