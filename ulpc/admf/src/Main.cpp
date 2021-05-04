@@ -35,12 +35,7 @@ legacy_admf_intfc_config_t *legacy_config = new legacy_admf_intfc_config_t;
 int
 ReadConfigurations(EGetOpt &opt)
 {
-<<<<<<< HEAD
-	inet_aton((opt.get("/AdmfApplication/DAdmfIp", EMPTY_STRING)), 
-				&config.dadmfIp);
-=======
 	config.dadmfIp = opt.get("/AdmfApplication/DAdmfIp", EMPTY_STRING); 
->>>>>>> tmo/delivery_1.9_hotfix
 
 	config.dadmfPort = (opt.get("/AdmfApplication/DAdmfPort", ZERO));
 
@@ -48,30 +43,17 @@ ReadConfigurations(EGetOpt &opt)
 
 	config.admfPort = admfPort;
 
-<<<<<<< HEAD
-	inet_aton((opt.get("/AdmfApplication/LegacyInterfaceIp", EMPTY_STRING)), 
-				&config.legacyInterfaceIp);
-
-	inet_aton((opt.get("/AdmfApplication/AdmfIp", EMPTY_STRING)),
-				&(legacy_config->admfIp));
-=======
 	config.legacyInterfaceIp = opt.get("/AdmfApplication/LegacyInterfaceIp", EMPTY_STRING);
 
 	legacy_config->admfIp = opt.get("/AdmfApplication/AdmfIp", EMPTY_STRING);
 	config.admfIp = opt.get("/AdmfApplication/AdmfIp", EMPTY_STRING);
->>>>>>> tmo/delivery_1.9_hotfix
 
 	legacy_config->admfPort = admfPort;
 
 	legacy_config->legacyAdmfPort = (opt.get("/AdmfApplication/LegacyAdmfPort",
 				ZERO));
 
-<<<<<<< HEAD
-	inet_aton((opt.get("/AdmfApplication/LegacyAdmfIp", EMPTY_STRING)),
-				&(legacy_config->legacyAdmfIp));
-=======
 	legacy_config->legacyAdmfIp = opt.get("/AdmfApplication/LegacyAdmfIp", EMPTY_STRING),
->>>>>>> tmo/delivery_1.9_hotfix
 
 	legacy_config->legacyAdmfIntfcPort =
 				(opt.get("/AdmfApplication/LegacyAdmfIntfcPort", ZERO));
