@@ -1,6 +1,6 @@
 
 /*
- * Copyright (c) 2020 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,13 +16,14 @@
  */
 
 #include "cp.h"
-#include "clogger.h"
+#include "gw_adapter.h"
 #include "pfcp_util.h"
 #include "pfcp_set_ie.h"
 #include "packet_filters.h"
 #include "vepc_cp_dp_api.h"
 #include "predef_rule_init.h"
 #include "pfcp_messages_encoder.h"
+#include "pfcp_session.h"
 
 /* Maximum Rule counts */
 #define MAX_RULE_CNT 16
@@ -33,9 +34,10 @@ const char *TFT_direction_str[] = {
 		[TFT_DIRECTION_BIDIRECTIONAL] = "BIDIRECTIONAL " };
 
 extern int pfcp_fd;
-extern pfcp_config_t pfcp_config;
-extern struct sockaddr_in upf_pfcp_sockaddr;
-
+extern int pfcp_fd_v6;
+extern pfcp_config_t config;
+extern peer_addr_t upf_pfcp_sockaddr;
+extern int clSystemLog;
 /* Validate the index already not in the list*/
 static int8_t
 check_exsting_indx_val(uint32_t indx, uint32_t num_cnt, uint32_t *rules_arr)
@@ -51,39 +53,68 @@ check_exsting_indx_val(uint32_t indx, uint32_t num_cnt, uint32_t *rules_arr)
 static struct pkt_filter *
 build_sdf_rules(uint16_t index, pkt_fltr *sdf_filter)
 {
-	char local_ip[INET_ADDRSTRLEN];
-	char remote_ip[INET_ADDRSTRLEN];
+	char local_ip[IPV6_STR_LEN];
+	char remote_ip[IPV6_STR_LEN];
 
-	snprintf(local_ip, sizeof(local_ip), "%s",
-	    inet_ntoa(sdf_filter->local_ip_addr));
-	snprintf(remote_ip, sizeof(remote_ip), "%s",
-	    inet_ntoa(sdf_filter->remote_ip_addr));
-
+	if(PRESENT == sdf_filter->v4){
+		snprintf(local_ip, sizeof(local_ip), "%s",
+				inet_ntoa(sdf_filter->local_ip_addr));
+		snprintf(remote_ip, sizeof(remote_ip), "%s",
+				inet_ntoa(sdf_filter->remote_ip_addr));
+	} else {
+		inet_ntop(AF_INET6, sdf_filter->local_ip6_addr.s6_addr, local_ip, IPV6_STR_LEN);
+		inet_ntop(AF_INET6, sdf_filter->remote_ip6_addr.s6_addr, remote_ip, IPV6_STR_LEN);
+	}
 	struct pkt_filter pktf = {
 			.rule_id = index
 	};
 	pktf.direction = sdf_filter->direction;
 
 	/* CP always send the SDF rule in Downlink Format */
-	if ((sdf_filter->direction == TFT_DIRECTION_DOWNLINK_ONLY)
-			|| (sdf_filter->direction == TFT_DIRECTION_UPLINK_ONLY)
-			|| (sdf_filter->direction == TFT_DIRECTION_BIDIRECTIONAL)) {
-		/* Downlink Format */
-		snprintf(pktf.u.rule_str, MAX_LEN, "%s/%"PRIu8" %s/%"PRIu8
-			" %"PRIu16" : %"PRIu16" %"PRIu16" : %"PRIu16
-			" 0x%"PRIx8"/0x%"PRIx8"\n",
-			local_ip, sdf_filter->local_ip_mask, remote_ip,
-			sdf_filter->remote_ip_mask,
-			ntohs(sdf_filter->local_port_low),
-			ntohs(sdf_filter->local_port_high),
-			ntohs(sdf_filter->remote_port_low),
-			ntohs(sdf_filter->remote_port_high),
-			sdf_filter->proto, sdf_filter->proto_mask);
-	}else{
-		clLog(clSystemLog, eCLSeverityDebug,LOG_FORMAT "SDF flow direction not present\n", LOG_VALUE);
+	if(sdf_filter->v4){
+		if ((sdf_filter->direction == TFT_DIRECTION_DOWNLINK_ONLY)
+				|| (sdf_filter->direction == TFT_DIRECTION_UPLINK_ONLY)
+				|| (sdf_filter->direction == TFT_DIRECTION_BIDIRECTIONAL)) {
+			/* Downlink Format */
+			snprintf(pktf.u.rule_str, MAX_LEN, "%s/%"PRIu8" %s/%"PRIu8
+					" %"PRIu16" : %"PRIu16" %"PRIu16" : %"PRIu16
+					" 0x%"PRIx8"/0x%"PRIx8"\n",
+					local_ip, sdf_filter->local_ip_mask, remote_ip,
+					sdf_filter->remote_ip_mask,
+					ntohs(sdf_filter->local_port_low),
+					ntohs(sdf_filter->local_port_high),
+					ntohs(sdf_filter->remote_port_low),
+					ntohs(sdf_filter->remote_port_high),
+					sdf_filter->proto, sdf_filter->proto_mask);
+		}else{
+			clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT "SDF flow direction not present for ipv4\n", 
+			LOG_VALUE);
+			return NULL;
+		}
+
+	}else if(sdf_filter->v6){
+		if ((sdf_filter->direction == TFT_DIRECTION_DOWNLINK_ONLY)
+				|| (sdf_filter->direction == TFT_DIRECTION_UPLINK_ONLY)
+				|| (sdf_filter->direction == TFT_DIRECTION_BIDIRECTIONAL)) {
+			/* Downlink Format */
+			snprintf(pktf.u.rule_str, MAX_LEN, "%s/%"PRIu8" %s/%"PRIu8
+					" 0x%"PRIx8"/0x%"PRIx8"\n",
+					local_ip, sdf_filter->local_ip_mask, remote_ip,
+					sdf_filter->remote_ip_mask,
+					sdf_filter->proto, sdf_filter->proto_mask);
+		}else{
+			clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT "SDF flow direction not present for ipv6\n", 
+			LOG_VALUE);
+			return NULL;
+		}
+	} else {
+		clLog(clSystemLog, eCLSeverityDebug,
+		LOG_FORMAT "SDF flow direction not present\n", 
+		LOG_VALUE);
 		return NULL;
 	}
-
 	clLog(clSystemLog, eCLSeverityDebug,LOG_FORMAT "Installing %s pkt_filter #%"PRIu16" : %s",
 	    LOG_VALUE,TFT_direction_str[sdf_filter->direction], index,
 		pktf.u.rule_str);
@@ -104,46 +135,54 @@ build_sdf_rules(uint16_t index, pkt_fltr *sdf_filter)
 
 /* Send the Rules on user-plane */
 static int8_t
-dump_rule_on_up(uint32_t upf_ip, struct msgbuf *msg_payload)
+dump_rule_on_up(node_address_t upf_ip, struct msgbuf *msg_payload)
 {
+	int ret = 0;
 	/* Fill the PFD MGMT Request and send to UP */
-	pfcp_pfd_mgmt_req_t pfd_mgmt_req;
+	pfcp_pfd_mgmt_req_t *pfd_mgmt_req = NULL;
+
 	/* Initilized the obj with 0*/
-	memset(&pfd_mgmt_req, 0, sizeof(pfcp_pfd_mgmt_req_t));
+	pfd_mgmt_req = malloc(sizeof(pfcp_pfd_mgmt_req_t));
+	memset(pfd_mgmt_req, 0, sizeof(pfcp_pfd_mgmt_req_t));
 
 	/* Fill the rule in pfd content custom ie as rule string */
-	set_pfd_contents(&pfd_mgmt_req.app_ids_pfds[0].pfd_context[0].pfd_contents[0],
+	set_pfd_contents(&pfd_mgmt_req->app_ids_pfds[0].pfd_context[0].pfd_contents[0],
 			msg_payload);
 
 	/*Fill/Set the pfd request header */
-	fill_pfcp_pfd_mgmt_req(&pfd_mgmt_req, 0);
+	fill_pfcp_pfd_mgmt_req(pfd_mgmt_req, 0);
 
 	/* Encode the PFD MGMT Request */
 	uint8_t pfd_msg[PFCP_MSG_LEN] = {0};
-	uint16_t pfd_msg_len = encode_pfcp_pfd_mgmt_req_t(&pfd_mgmt_req, pfd_msg);
-
-	pfcp_header_t *header = (pfcp_header_t *) pfd_msg;
-	header->message_len = htons(pfd_msg_len - PFCP_IE_HDR_SIZE);
+	uint16_t pfd_msg_len = encode_pfcp_pfd_mgmt_req_t(pfd_mgmt_req, pfd_msg);
 
 	/* Set the destination UPF IP Adress */
-	upf_pfcp_sockaddr.sin_addr.s_addr = upf_ip;
+
+	ret = set_dest_address(upf_ip, &upf_pfcp_sockaddr);
+	if (ret < 0) {
+		clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+			"IP address", LOG_VALUE);
+	}
 
 	/* Send the PFD MGMT Request to UPF */
-	if (pfcp_send(pfcp_fd, (char *)pfd_msg, pfd_msg_len, &upf_pfcp_sockaddr, SENT) < 0 ){
+
+	if (pfcp_send(pfcp_fd, pfcp_fd_v6, pfd_msg, pfd_msg_len,
+								upf_pfcp_sockaddr, SENT) < 0) {
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Error: pfcp_send(): %i\n",
 				LOG_VALUE, errno);
-		free(pfd_mgmt_req.app_ids_pfds[0].pfd_context[0].pfd_contents[0].cstm_pfd_cntnt);
+		free(pfd_mgmt_req);
 		return -1;
 	}
+	free(pfd_mgmt_req);
 	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"pfcp_send() sent rule to UP\n",
 			LOG_VALUE);
-	free(pfd_mgmt_req.app_ids_pfds[0].pfd_context[0].pfd_contents[0].cstm_pfd_cntnt);
+
 	return 0;
 }
 
 /* Send the predefined rules SDF, MTR, ADC, and PCC on UP.*/
 int8_t
-dump_predefined_rules_on_up(uint32_t upf_ip)
+dump_predefined_rules_on_up(node_address_t upf_ip)
 {
 	int ret = 0;
 	uint32_t mtr_rule_cnt = 0;
@@ -155,11 +194,11 @@ dump_predefined_rules_on_up(uint32_t upf_ip)
 
 	clLog(clSystemLog, eCLSeverityInfo,
 			LOG_FORMAT"Started UP_Addr:"IPV4_ADDR"\n",
-			LOG_VALUE, IPV4_ADDR_HOST_FORMAT(upf_ip));
+			LOG_VALUE, IPV4_ADDR_HOST_FORMAT(upf_ip.ipv4_addr));
 
 	/* Get PCC rule name entry from centralized location to dump rules on UP*/
 	rules_struct *rule = NULL;
-	rule = get_map_rule_entry(pfcp_config.pfcp_ip.s_addr, GET_RULE);
+	rule = get_map_rule_entry(config.pfcp_ip.s_addr, GET_RULE);
 	if (rule != NULL) {
 		rules_struct *current = NULL;
 		current = rule;
@@ -211,7 +250,7 @@ dump_predefined_rules_on_up(uint32_t upf_ip)
 
 			clLog(clSystemLog, eCLSeverityDebug,
 					LOG_FORMAT"Sent the PCC rule '%s' on the UP:"IPV4_ADDR"\n",
-					LOG_VALUE, pcc->rule_name, IPV4_ADDR_HOST_FORMAT(upf_ip));
+					LOG_VALUE, pcc->rule_name, IPV4_ADDR_HOST_FORMAT(upf_ip.ipv4_addr));
 
 			/* Get Attached SDF Rule Index */
 			if (pcc->sdf_idx_cnt) {
@@ -284,7 +323,7 @@ dump_predefined_rules_on_up(uint32_t upf_ip)
 			}
 			clLog(clSystemLog, eCLSeverityDebug,
 					LOG_FORMAT"Sent the MTR rule Index '%u' on the UP:"IPV4_ADDR"\n",
-					LOG_VALUE, mtr_rule_indx[idx], IPV4_ADDR_HOST_FORMAT(upf_ip));
+					LOG_VALUE, mtr_rule_indx[idx], IPV4_ADDR_HOST_FORMAT(upf_ip.ipv4_addr));
 		}
 
 		/* Retrive the ADC rule based on the ADC Index */
@@ -316,7 +355,7 @@ dump_predefined_rules_on_up(uint32_t upf_ip)
 			}
 			clLog(clSystemLog, eCLSeverityDebug,
 					LOG_FORMAT"Sent the ADC rule Index '%u' on the UP:"IPV4_ADDR"\n",
-					LOG_VALUE, adc_rule_indx[idx1], IPV4_ADDR_HOST_FORMAT(upf_ip));
+					LOG_VALUE, adc_rule_indx[idx1], IPV4_ADDR_HOST_FORMAT(upf_ip.ipv4_addr));
 		}
 
 		/* Retrive the SDF rule based on the SDF Index */
@@ -367,7 +406,7 @@ dump_predefined_rules_on_up(uint32_t upf_ip)
 			rte_free(sdf_rule);
 			clLog(clSystemLog, eCLSeverityDebug,
 					LOG_FORMAT"Sent the SDF rule Index '%u' on the UP:"IPV4_ADDR"\n",
-					LOG_VALUE, sdf_rule_indx[idx2], IPV4_ADDR_HOST_FORMAT(upf_ip));
+					LOG_VALUE, sdf_rule_indx[idx2], IPV4_ADDR_HOST_FORMAT(upf_ip.ipv4_addr));
 		}
 	} else {
 		clLog(clSystemLog, eCLSeverityCritical,
@@ -378,7 +417,7 @@ dump_predefined_rules_on_up(uint32_t upf_ip)
 
 	clLog(clSystemLog, eCLSeverityInfo,
 			LOG_FORMAT"END UP_Addr:"IPV4_ADDR"\n",
-			LOG_VALUE, IPV4_ADDR_HOST_FORMAT(upf_ip));
+			LOG_VALUE, IPV4_ADDR_HOST_FORMAT(upf_ip.ipv4_addr));
 
 	return 0;
 }

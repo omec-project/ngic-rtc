@@ -4,8 +4,6 @@
 
 source ./git_url.cfg
 THIRD_PARTY_SW_PATH="third_party"
-OSS_UTIL_DIR="oss-util"
-C3PO_OSS_DIR="oss_adapter/c3po_oss"
 
 SERVICES="$1"
 SUDO=''
@@ -26,11 +24,13 @@ install_pkg_deps() {
 		libpcap0.8-dev \
 		libssl-dev \
 		libzmq3-dev \
-        libjson0-dev \
-	    libc6-dev \
-	    libcurl4-openssl-dev \
+    libjson0-dev \
+	  libc6-dev \
+	  libcurl4-openssl-dev \
 		libc6 \
-        g++ cmake ragel libboost-all-dev \
+    g++ cmake ragel libboost-all-dev \
+		automake libgcrypt-dev flex bison gnutls-dev \
+		libidn11-dev libtool libsctp-dev \
 		wget
 
 
@@ -89,7 +89,7 @@ download_hyperscan()
 download_freediameter()
 {
         cd $CUR_DIR
-        [ -d $DEPS_DIR/freediameter ] && echo "FreeDiameter already exists at $DEPS_DIR/freediameter" && return
+        [ -d $DEPS_DIR/freeDiameter ] && echo "FreeDiameter already exists at $DEPS_DIR/freeDiameter" && return
         echo "Download FreeDiameter from sprint-repos....."
         if [ ! -d $THIRD_PARTY_SW_PATH ]; then
              mkdir $THIRD_PARTY_SW_PATH
@@ -120,7 +120,7 @@ download_hiredis()
 
 build_fd_lib()
 {
-	pushd $CUR_DIR/$THIRD_PARTY_SW_PATH/freediameter
+	pushd $CUR_DIR/$THIRD_PARTY_SW_PATH/freeDiameter
 	if [ ! -e "build" ]; then
 		mkdir build
 	fi
@@ -148,25 +148,6 @@ build_gxapp()
 	popd
 }
 
-build_pfcp_lib()
-{
-        echo "Building libpfcp..."
-        pushd $CUR_DIR/libpfcp
-        make clean
-        make || { echo -e "\nLibPfcp: Make lib failed\n"; }
-        popd
-}
-
-build_libgtpcv2c(){
-
-        echo "Building libgtpv2c..."
-        pushd $CUR_DIR/libgtpv2c
-        make clean
-        make || { echo -e "\nlibgtpv2c: Make failed\n"; }
-        popd
-
-}
-
 build_fd_gxapp()
 {
 	echo "Building FreeDiameter ..."
@@ -179,7 +160,7 @@ build_fd_gxapp()
 build_hiredis()
 {
 	pushd $CUR_DIR/$THIRD_PARTY_SW_PATH/hiredis
-	git checkout 8e0264cfd6889b73c241b60736fe96ba1322ee6e
+	git checkout $HIREDIS_COMMIT_ID
 	make clean
 	make USE_SSL=1
 	if [ $? -ne 0 ] ; then
@@ -203,53 +184,75 @@ build_hiredis()
 	popd
 }
 
-install_oss_util()
+install_epc_tools()
 {
-        T_DIR=$CUR_DIR/$C3PO_OSS_DIR
-        cd $T_DIR
-
-        OSS_DIR=$CUR_DIR/$C3PO_OSS_DIR/$OSS_UTIL_DIR
-
-        echo "Checking OSS-UTIL-DIR $OSS_DIR"
-
-        if [ ! -d $OSS_DIR ]; then
-       	     echo "Cloning OSS-UTIL repo ...$OSS_UTIL_GIT_LINK"
-             git clone $OSS_UTIL_GIT_LINK
-#      	     mv oss_util_gslab oss-util
-        fi
-
-        cp $CUR_DIR/oss-util.sh $OSS_DIR/
-
-	pushd $OSS_DIR
-	./oss-util.sh | tee /var/log/oss-util.log
+	mkdir -p third_party
+	pushd $CUR_DIR/third_party
+	if [ ! -d "$CUR_DIR/third_party/epctools/" ]; then
+		git clone $EPC_TOOLS_GIT_LINK epctools
+	fi
+	pushd epctools
+	git checkout $EPC_TOOLS_COMMIT_ID
+	./configure
+	make; make install
 	popd
+	popd
+	pushd oss_adapter/libepcadapter
+	make
+	popd
+}
 
-
+install_pfcp_and_gtpv2_library()
+{
+	pushd $CUR_DIR/third_party
+	if [ ! -d "$CUR_DIR/third_party/libpfcp/" ]; then
+		git clone $LIBPFCP_GIT_LINK libpfcp
+	fi
+	pushd libpfcp/
+	git checkout $LIBPFCP_COMMIT_ID
+	make clean
+	make
+	popd
+	popd
+	if [[ $SERVICES != "DP" ]] && [[ $SERVICES != "dp" ]]; then
+		if [ ! -d "$CUR_DIR/third_party/libgtpv2c/" ]; then
+			pushd $CUR_DIR/third_party
+			git clone $LIBGTPV2_GIT_LINK libgtpv2c
+			pushd libgtpv2c/
+			git checkout $LIBGTPV2_COMMIT_ID
+		else
+			pushd $CUR_DIR/third_party
+			pushd libgtpv2c/
+			git checkout $LIBGTPV2_COMMIT_ID
+		fi
+			make clean
+			make
+			popd
+			popd
+	fi
 }
 
 install_build_deps() {
        install_pkg_deps
        install_dpdk
+	   install_pfcp_and_gtpv2_library
        if [[ $SERVICES == "CP" ]] || [[ $SERVICES == "cp" ]]; then
-	     install_oss_util
+	     install_epc_tools
 	     download_freediameter
-         build_libgtpcv2c
          build_fd_gxapp
          download_hiredis
          build_hiredis
        elif [[ $SERVICES == "DP" ]] || [[ $SERVICES == "dp" ]]; then
-	     install_oss_util
+	     install_epc_tools
          download_hyperscan
        else
          download_hyperscan
          download_freediameter
-         install_oss_util
-         build_libgtpcv2c
+         install_epc_tools
          build_fd_gxapp
 	     download_hiredis
          build_hiredis
        fi
-       build_pfcp_lib
 }
 
 

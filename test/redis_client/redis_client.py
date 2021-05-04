@@ -18,7 +18,10 @@ import csv
 
 # Macros
 CONNECTED_CP_KEY_NAME = "connected_cp"
-NUM_CDR_PARAM = 55
+NUM_CDR_PARAM = 68
+REDIS_CERT_PATH = '../../config/redis_cert/redis.crt'
+REDIS_KEY_PATH = '../../config/redis_cert/redis.key'
+REDIS_CA_CERT_PATH = '../../config/redis_cert/ca.crt'
 CSV_FIELD_NAME = [
                     "cdr_seq_num",
                     "record_type",
@@ -59,36 +62,60 @@ CSV_FIELD_NAME = [
                     "data_end_time",
                     "mcc",
                     "mnc",
-                    "UE_IP",
-                    "CP_IP",
-                    "DP_IP",
-                    "S11_SGW_IP",
-                    "S11_MME_IP",
-                    "S5S8C_SGW_IP",
-                    "S5S8C_PGW_IP",
-                    "S1U_SGW_IP",
-                    "S1U_ENB_IP",
-                    "S5S8U_SGW_IP",
-                    "S5S8U_PGW_IP",
+                    "UE_IPv4",
+                    "UE_IPv6",
+                    "CP_IPv4",
+                    "CP_IPv6",
+                    "DP_IPv4",
+                    "DP_IPv6",
+                    "S11_SGW_IPv4",
+                    "S11_SGW_IPv6",
+                    "S11_MME_IPv4",
+                    "S11_MME_IPv6",
+                    "S5S8C_SGW_IPv4",
+                    "S5S8C_SGW_IPv6",
+                    "S5S8C_PGW_IPv4",
+                    "S5S8C_PGW_IPv6",
+                    "S1U_SGW_IPv4",
+                    "S1U_SGW_IPv6",
+                    "S1U_ENB_IPv4",
+                    "S1U_ENB_IPv6",
+                    "S5S8U_SGW_IPv4",
+                    "S5S8U_SGW_IPv6",
+                    "S5S8U_PGW_IPv4",
+                    "S5S8U_PGW_IPv6",
                     "data_vol_uplink",
                     "data_vol_downlink",
                     "total_volume",
                     "duration_measurement",
-                    "pdn_type"
+                    "pdn_type",
+                    "MO_timestamp_value",
+                    "MO_counter_value"
                 ]
 
 
 class RedisDB:
 
     def __init__(self, host, port):
-        # Establish a connection with Redis Server
-        self._redis = redis.StrictRedis(host=host, port=port, db=0)
+        try:
+            # Establish a connection with Redis Server
+            self._redis = redis.StrictRedis(host=host,
+                                            port=port,
+                                            ssl=True,
+                                            ssl_keyfile=REDIS_KEY_PATH,
+                                            ssl_certfile=REDIS_CERT_PATH,
+                                            ssl_cert_reqs='required',
+                                            ssl_ca_certs=REDIS_CA_CERT_PATH,
+                                            db=0)
+        except Exception as ex:
+            print 'Error:', ex
+            exit('Failed to connect, terminating.')
         if self._redis:
             print("\nConnection Established with the Redis Server... : %s\n" % host)
 
     @staticmethod
     def get_current_time():
-        ret = datetime.datetime.now(pytz.timezone('Asia/Kolkata'))
+        ret = time.strftime("%Y %m %d_%H:%M:%S", time.localtime())
         return str(ret).split(".")[0].replace(" ", '_')
 
     def get_connected_cp(self):

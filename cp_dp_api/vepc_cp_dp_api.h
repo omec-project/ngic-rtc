@@ -23,8 +23,10 @@
  * prototypes to describe CP DP APIs.
  */
 #include <time.h>
-#include "pfcp_ies.h"
 #include <rte_ether.h>
+
+#include "pfcp_ies.h"
+#include "pfcp_struct.h"
 /**
  * IPv6 address length
  */
@@ -46,6 +48,11 @@
 #define MAX_ADC_IDX_COUNT 16
 
 /**
+ * Maximum BAR per session.
+ */
+#define MAX_BAR_PER_SESSION 255
+
+/**
  * Maximum number of SDF indices that can be referred in PCC rule.
  * Max length of the sdf rules string that will be recieved as part of add
  * pcc entry from FPC. String is list of SDF indices.
@@ -64,7 +71,7 @@
  * Recommended local table size to remain within L2 cache: 64000 entries.
  * See README for detailed calculations.
  */
-#define LDB_ENTRIES_DEFAULT (1024 * 1024 * 4)
+#define LDB_ENTRIES_DEFAULT (1024 * 512)
 
 #define DEFAULT_DN_NUM 512
 
@@ -112,6 +119,12 @@
  * get dupl flag (apply action) status
  */
 #define GET_DUP_STATUS(context) (context->dupl)
+
+/**
+ * ip type for lawful interception
+ */
+#define IPTYPE_IPV4_LI				1
+#define IPTYPE_IPV6_LI				2
 
 /**
  * get UE session id
@@ -541,9 +554,13 @@ typedef struct li_header_t {
 	uint8_t type_of_payload;
 	uint64_t id;
 	uint64_t imsi;
-	uint32_t src_ip;
+	uint8_t src_ip_type;
+	uint32_t src_ipv4;
+	uint8_t src_ipv6[IPV6_ADDRESS_LEN];
 	uint16_t src_port;
-	uint32_t dst_ip;
+	uint8_t dst_ip_type;
+	uint32_t dst_ipv4;
+	uint8_t dst_ipv6[IPV6_ADDRESS_LEN];
 	uint16_t dst_port;
 	uint8_t operation_mode;
 	uint32_t seq_no;
@@ -559,6 +576,7 @@ struct sdf_pkt_filter {
 	uint8_t direction;                  /* Rule Direction */
 	uint32_t rule_indx;                 /* SDF Rule Index*/
 	uint32_t precedence;				/* Precedence */
+	uint8_t rule_ip_type;				/* Rule for which IP tpye(v4 or v6) */
 	union {
 		char rule_str[MAX_LEN];		/* string of rule, please refer
 						 * cp/main.c for example
@@ -588,10 +606,10 @@ struct downlink_data_notification_ack_t {
  */
 struct sess_info_endmark {
 	uint32_t teid;
-	uint32_t dst_ip;
-	uint32_t src_ip;
 	uint8_t dst_port;
 	uint8_t src_port;
+	node_address_t dst_ip;
+	node_address_t src_ip;
 	struct ether_addr source_MAC;
 	struct ether_addr destination_MAC;
 }__attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
@@ -836,7 +854,10 @@ encode_li_header(li_header_t *header, uint8_t *buf);
 
 int8_t
 create_li_header(uint8_t *uiPayload, int *uiPayloadLen, uint8_t type,
-		uint64_t id, uint64_t uiImsi, uint32_t uiSrcIp, uint32_t uiDstIp,
+		uint64_t id, uint64_t uiImsi, struct ip_addr srcIp, struct ip_addr dstIp,
 		uint16_t uiSrcPort, uint16_t uiDstPort, uint8_t uiOprMode);
+
+struct ip_addr
+fill_ip_info(uint8_t ip_type, uint32_t ipv4, uint8_t *ipv6);
 
 #endif /* _CP_DP_API_H_ */

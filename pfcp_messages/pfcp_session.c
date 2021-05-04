@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,10 +45,12 @@
 #include "debug_str.h"
 
 extern int s5s8_fd;
+extern int s5s8_fd_v6;
 extern socklen_t s5s8_sockaddr_len;
+extern socklen_t s11_mme_sockaddr_ipv6_len;
+extern peer_addr_t s5s8_recv_sockaddr;
 extern socklen_t s11_mme_sockaddr_len;
-extern struct sockaddr_in s5s8_recv_sockaddr;
-
+extern int clSystemLog;
 #endif /* CP_BUILD */
 
 #ifdef DP_BUILD
@@ -55,19 +58,22 @@ extern struct in_addr dp_comm_ip;
 #endif /* DP_BUILD */
 
 #ifdef CP_BUILD
-pfcp_config_t pfcp_config;
+pfcp_config_t config;
 
 #ifdef USE_CSID
 extern int s5s8_fd;
+extern int s5s8_fd_v6;
 extern socklen_t s5s8_sockaddr_len;
+extern socklen_t s5s8_sockaddr_ipv6_len;
 #endif /* USE_CSID */
 
 extern int gx_app_sock;
+extern int gx_app_sock_v6;
 
 #define size sizeof(pfcp_sess_mod_req_t)
 /* Header Size of set_upd_forwarding_param ie */
-#define UPD_PARAM_HEADER_SIZE 4
 extern int pfcp_fd;
+extern int pfcp_fd_v6;
 
 /* len of flags*/
 #define FLAG_LEN 2
@@ -82,66 +88,6 @@ fill_pfcp_sess_del_req( pfcp_sess_del_req_t *pfcp_sess_del_req, uint8_t cp_mode)
 	seq = get_pfcp_sequence_number(PFCP_SESSION_DELETION_REQUEST, seq);
 	set_pfcp_seid_header((pfcp_header_t *) &(pfcp_sess_del_req->header),
 		PFCP_SESSION_DELETION_REQUEST, HAS_SEID, seq, cp_mode);
-
-}
-
-void
-fill_pfcp_sess_set_del_req( pfcp_sess_set_del_req_t *pfcp_sess_set_del_req)
-{
-
-	uint32_t seq = 1;
-	char sgwc_addr[INET_ADDRSTRLEN] = {0};
-	char pgwc_addr[INET_ADDRSTRLEN] = {0};
-	char mme_addr[INET_ADDRSTRLEN]  = {0};
-	char sgwu_addr[INET_ADDRSTRLEN] = {0};
-	char pgwu_addr[INET_ADDRSTRLEN] = {0};
-	uint32_t node_value = 0;
-
-	/*Added hardcoded value to remove compile error.Right now,we are using
-	function. Will remove hard value  */
-	const char* pAddr = "192.168.0.10";
-	const char* twan_addr = "192.16.0.1";
-	const char* epdg_addr = "192.16.0.2";
-	unsigned long sgwc_value = 0;
-
-	memset(pfcp_sess_set_del_req, 0, sizeof(pfcp_sess_set_del_req_t));
-
-	seq = get_pfcp_sequence_number(PFCP_SESSION_SET_DELETION_REQUEST, seq);
-	set_pfcp_seid_header((pfcp_header_t *) &(pfcp_sess_set_del_req->header),
-			PFCP_SESSION_SET_DELETION_REQUEST, HAS_SEID, seq, NO_CP_MODE_REQUIRED);
-
-	node_value = inet_addr(pAddr);
-	set_node_id(&(pfcp_sess_set_del_req->node_id), node_value);
-
-	inet_ntop(AF_INET, &(pfcp_config.pfcp_ip), sgwc_addr, INET_ADDRSTRLEN);
-	sgwc_value = inet_addr(sgwc_addr);
-	set_fq_csid( &(pfcp_sess_set_del_req->sgw_c_fqcsid), sgwc_value);
-
-	inet_ntop(AF_INET, &(pfcp_config.pfcp_ip), pgwc_addr, INET_ADDRSTRLEN);
-	unsigned long pgwc_value = inet_addr(pgwc_addr);
-	set_fq_csid( &(pfcp_sess_set_del_req->pgw_c_fqcsid), pgwc_value);
-
-	inet_ntop(AF_INET, &(pfcp_config.pfcp_ip), sgwu_addr, INET_ADDRSTRLEN);
-	unsigned long sgwu_value = inet_addr(sgwu_addr);
-	set_fq_csid( &(pfcp_sess_set_del_req->up_fqcsid), sgwu_value);
-
-	inet_ntop(AF_INET, &(pfcp_config.pfcp_ip), pgwu_addr, INET_ADDRSTRLEN);
-	unsigned long pgwu_value = inet_addr(pgwu_addr);
-	set_fq_csid( &(pfcp_sess_set_del_req->up_fqcsid), pgwu_value);
-
-	// set of twan fqcsid
-	//TODO : IP addres for twan is hardcoded
-	uint32_t twan_value = inet_addr(twan_addr);
-	set_fq_csid( &(pfcp_sess_set_del_req->twan_fqcsid), twan_value);
-
-	// set of epdg fqcsid
-	//TODO : IP addres for epdgg is hardcoded
-	uint32_t epdg_value = inet_addr(epdg_addr);
-	set_fq_csid( &(pfcp_sess_set_del_req->epdg_fqcsid), epdg_value);
-
-	inet_ntop(AF_INET, &(pfcp_config.s11_mme_ip), mme_addr, INET_ADDRSTRLEN);
-	unsigned long mme_value = inet_addr(mme_addr);
-	set_fq_csid( &(pfcp_sess_set_del_req->mme_fqcsid), mme_value);
 
 }
 
@@ -165,13 +111,13 @@ void add_pdr_qer_for_rule(eps_bearer *bearer, bool prdef_rule)
 		}
 		memcpy(pdr_ctxt, bearer->pdrs[itr], sizeof(pdr_t));
 		pdr_ctxt->urr_id_count = 1;
-		pdr_ctxt->rule_id =  generate_pdr_id();
-		pdr_ctxt->urr.urr_id_value =  generate_urr_id();
+		pdr_ctxt->rule_id =  generate_pdr_id(&bearer->pdn->context->pdr_rule_id_offset);
+		pdr_ctxt->urr.urr_id_value =  generate_urr_id(&bearer->pdn->context->urr_rule_id_offset);
 		bearer->pdrs[bearer->pdr_count++] = pdr_ctxt;
 		pdr_ctxt->create_far = NOT_PRESENT;
 		pdr_ctxt->create_urr = PRESENT;
 
-		int ret = add_pdr_entry(pdr_ctxt->rule_id, pdr_ctxt);
+		int ret = add_pdr_entry(pdr_ctxt->rule_id, pdr_ctxt, bearer->pdn->seid);
 		if ( ret != 0) {
 			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Error while adding "
 				"PDR entry for Rule ID %d \n", LOG_VALUE, pdr_ctxt->rule_id);
@@ -183,7 +129,7 @@ void add_pdr_qer_for_rule(eps_bearer *bearer, bool prdef_rule)
 	if (bearer->pdn->context->cp_mode != SGWC){
 		if(!prdef_rule){
 			for(uint8_t itr = bearer->qer_count; itr < bearer->qer_count + NUMBER_OF_QER_PER_RULE; itr++){
-				bearer->qer_id[itr].qer_id = generate_qer_id();
+				bearer->qer_id[itr].qer_id = generate_qer_id(&bearer->pdn->context->qer_rule_id_offset);
 				fill_qer_entry(bearer->pdn, bearer, itr);
 			}
 			bearer->qer_count += NUMBER_OF_QER_PER_RULE;
@@ -209,12 +155,11 @@ fill_pfcp_gx_sess_mod_req( pfcp_sess_mod_req_t *pfcp_sess_mod_req,
 	ue_context *context = NULL;
 	int tmp_bearer_idx = 0;
 	dynamic_rule_t rule = {0};
-	//uint8_t itr = 0 ;
+	node_address_t node_value = {0};
 
-	if ((ret = upf_context_entry_lookup(pdn->upf_ipv4.s_addr,
-			&upf_ctx)) < 0) {
-		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT "Error while extracting "
-			"upf context: %d \n", LOG_VALUE, ret);
+	if ((ret = upf_context_entry_lookup(pdn->upf_ip, &upf_ctx)) < 0) {
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT "Error while "
+			"extracting upf context: %d \n", LOG_VALUE, ret);
 		return;
 	}
 
@@ -226,10 +171,22 @@ fill_pfcp_gx_sess_mod_req( pfcp_sess_mod_req_t *pfcp_sess_mod_req,
 
 	pfcp_sess_mod_req->header.seid_seqno.has_seid.seid = pdn->dp_seid;
 
-	//TODO modify this hard code to generic
-	char pAddr[INET_ADDRSTRLEN];
-	inet_ntop(AF_INET, &(pfcp_config.pfcp_ip), pAddr, INET_ADDRSTRLEN);
-	unsigned long node_value = inet_addr(pAddr);
+	/*Filling Node ID for F-SEID*/
+	if (pdn->upf_ip.ip_type == PDN_IP_TYPE_IPV4) {
+		uint8_t temp[IPV6_ADDRESS_LEN] = {0};
+		ret = fill_ip_addr(config.pfcp_ip.s_addr, temp, &node_value);
+		if (ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+				"IP address", LOG_VALUE);
+		}
+	} else if (pdn->upf_ip.ip_type == PDN_IP_TYPE_IPV6) {
+
+		ret = fill_ip_addr(0, config.pfcp_ip_v6.s6_addr, &node_value);
+		if (ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+				"IP address", LOG_VALUE);
+		}
+	}
 
 	set_fseid(&(pfcp_sess_mod_req->cp_fseid), pdn->seid, node_value);
 
@@ -238,13 +195,13 @@ fill_pfcp_gx_sess_mod_req( pfcp_sess_mod_req_t *pfcp_sess_mod_req,
 	{
 		for (int idx=0; idx <  pdn->policy.count; idx++)
 		{
-			if(pdn->policy.pcc_rule[idx].action == RULE_ACTION_ADD &&
-					action == RULE_ACTION_ADD)	{
+			if(pdn->policy.pcc_rule[idx]->action == RULE_ACTION_ADD &&
+					action == RULE_ACTION_ADD){
 
-				if(pdn->policy.pcc_rule[idx].predefined_rule){
-					bearer = get_bearer(pdn, &pdn->policy.pcc_rule[idx].pdef_rule.qos);
+				if(pdn->policy.pcc_rule[idx]->predefined_rule){
+					bearer = get_bearer(pdn, &pdn->policy.pcc_rule[idx]->urule.pdef_rule.qos);
 				}else{
-					bearer = get_bearer(pdn, &pdn->policy.pcc_rule[idx].dyn_rule.qos);
+					bearer = get_bearer(pdn, &pdn->policy.pcc_rule[idx]->urule.dyn_rule.qos);
 				}
 				if(bearer == NULL) {
 
@@ -276,16 +233,16 @@ fill_pfcp_gx_sess_mod_req( pfcp_sess_mod_req_t *pfcp_sess_mod_req,
 					pdn->context->eps_bearers[ebi_index] = bearer;
 					pdn->num_bearer++;
 
-					fill_dedicated_bearer_info(bearer, pdn->context, pdn, pdn->policy.pcc_rule[idx].predefined_rule);
+					fill_dedicated_bearer_info(bearer, pdn->context, pdn, pdn->policy.pcc_rule[idx]->predefined_rule);
 				}else{
-					add_pdr_qer_for_rule(bearer, pdn->policy.pcc_rule[idx].predefined_rule);
+					add_pdr_qer_for_rule(bearer, pdn->policy.pcc_rule[idx]->predefined_rule);
 				}
 
 				/*fill predefine rule*/
-				if(pdn->policy.pcc_rule[idx].predefined_rule){
+				if(pdn->policy.pcc_rule[idx]->predefined_rule){
 
-					memcpy(&(bearer->qos), &(pdn->policy.pcc_rule[idx].pdef_rule.qos), sizeof(bearer_qos_ie));
-					memcpy(&rule, &pdn->policy.pcc_rule[idx].pdef_rule, sizeof(dynamic_rule_t));
+					memcpy(&(bearer->qos), &(pdn->policy.pcc_rule[idx]->urule.pdef_rule.qos), sizeof(bearer_qos_ie));
+					memcpy(&rule, &pdn->policy.pcc_rule[idx]->urule.pdef_rule, sizeof(dynamic_rule_t));
 
 					bearer->prdef_rules[bearer->num_prdef_filters] =
 						rte_zmalloc_socket(NULL, sizeof(dynamic_rule_t),
@@ -299,12 +256,12 @@ fill_pfcp_gx_sess_mod_req( pfcp_sess_mod_req_t *pfcp_sess_mod_req,
 						return;
 					}
 					memcpy((bearer->prdef_rules[bearer->num_prdef_filters]),
-							&(pdn->policy.pcc_rule[idx].pdef_rule),
+							&(pdn->policy.pcc_rule[idx]->urule.pdef_rule),
 							sizeof(dynamic_rule_t));
 				} else {
 
-					memcpy(&(bearer->qos), &(pdn->policy.pcc_rule[idx].dyn_rule.qos), sizeof(bearer_qos_ie));
-					memcpy(&rule, &pdn->policy.pcc_rule[idx].dyn_rule, sizeof(dynamic_rule_t));
+					memcpy(&(bearer->qos), &(pdn->policy.pcc_rule[idx]->urule.dyn_rule.qos), sizeof(bearer_qos_ie));
+					memcpy(&rule, &pdn->policy.pcc_rule[idx]->urule.dyn_rule, sizeof(dynamic_rule_t));
 
 					bearer->dynamic_rules[bearer->num_dynamic_filters] =
 						rte_zmalloc_socket(NULL, sizeof(dynamic_rule_t),
@@ -320,7 +277,7 @@ fill_pfcp_gx_sess_mod_req( pfcp_sess_mod_req_t *pfcp_sess_mod_req,
 					}
 
 					memcpy( (bearer->dynamic_rules[bearer->num_dynamic_filters]),
-							&(pdn->policy.pcc_rule[idx].dyn_rule),
+							&(pdn->policy.pcc_rule[idx]->urule.dyn_rule),
 							sizeof(dynamic_rule_t));
 				}
 				fill_pfcp_entry(bearer, &rule);
@@ -335,23 +292,23 @@ fill_pfcp_gx_sess_mod_req( pfcp_sess_mod_req_t *pfcp_sess_mod_req,
 
 				fill_create_pfcp_info(pfcp_sess_mod_req, &rule, context, pdn->generate_cdr);
 
-				if(pdn->policy.pcc_rule[idx].predefined_rule)
+				if(pdn->policy.pcc_rule[idx]->predefined_rule)
 					bearer->num_prdef_filters++;
 				else
 					bearer->num_dynamic_filters++;
 
 			} else {
-				if(pdn->policy.pcc_rule[idx].action == RULE_ACTION_DELETE &&
+				if(pdn->policy.pcc_rule[idx]->action == RULE_ACTION_DELETE &&
 						action == RULE_ACTION_DELETE) {
 
 					rule_name_key_t rule_name = {0};
 					memset(rule_name.rule_name, '\0', sizeof(rule_name.rule_name));
 
-					if(pdn->policy.pcc_rule[idx].predefined_rule){
-						snprintf(rule_name.rule_name, RULE_NAME_LEN,"%s",pdn->policy.pcc_rule[idx].pdef_rule.rule_name);
+					if(pdn->policy.pcc_rule[idx]->predefined_rule){
+						snprintf(rule_name.rule_name, RULE_NAME_LEN,"%s",pdn->policy.pcc_rule[idx]->urule.pdef_rule.rule_name);
 					}else{
 						snprintf(rule_name.rule_name, RULE_NAME_LEN, "%s%d",
-								pdn->policy.pcc_rule[idx].dyn_rule.rule_name, pdn->call_id);
+								pdn->policy.pcc_rule[idx]->urule.dyn_rule.rule_name, pdn->call_id);
 					}
 					int8_t bearer_id = get_rule_name_entry(rule_name);
 					if (-1 == bearer_id) {
@@ -532,6 +489,8 @@ fill_remove_pfcp_info(pfcp_sess_mod_req_t *pfcp_sess_mod_req, eps_bearer *bearer
 		 * all other supported action*/
 		bearer->pdrs[i]->far.actions.forw = 0;
 		bearer->pdrs[i]->far.actions.dupl = 0;
+		bearer->pdrs[i]->far.actions.buff = 0;
+		bearer->pdrs[i]->far.actions.nocp = 0;
 		bearer->pdrs[i]->far.actions.drop = PRESENT;
 		set_update_far(far, &bearer->pdrs[i]->far);
 
@@ -647,14 +606,14 @@ delete_pdr_qer_for_rule(eps_bearer *bearer, uint16_t pdr_id_value) {
 			}
 
 			remove_pdr_from_bearer(bearer, pdr_id_value);
-			if( del_pdr_entry(pdr_ctx->rule_id) != 0 ){
+			if( del_pdr_entry(pdr_ctx->rule_id,  bearer->pdn->seid) != 0 ){
 				clLog(clSystemLog, eCLSeverityDebug,
 					LOG_FORMAT"Error while deleting PDR entry for Rule id : %d\n",
 					LOG_VALUE, pdr_ctx->rule_id);
 			}
-			if (pfcp_config.use_gx) {
+			if (config.use_gx) {
 				remove_qer_from_bearer(bearer, pdr_ctx->qer.qer_id);
-				if(del_qer_entry(pdr_ctx->qer.qer_id) != 0 ){
+				if(del_qer_entry(pdr_ctx->qer.qer_id,  bearer->pdn->seid) != 0 ){
 					clLog(clSystemLog, eCLSeverityDebug,
 						LOG_FORMAT"Error while deleting QER entry for QER id : %d\n",
 						LOG_VALUE, pdr_ctx->qer.qer_id);
@@ -677,20 +636,20 @@ fill_update_bearer_sess_mod(pfcp_sess_mod_req_t *pfcp_sess_mod_req, eps_bearer *
 
 		for(int idx2 = 0; idx2 < bearer->pdr_count; idx2++){
 
-			if((pdn->policy.pcc_rule[idx].action == bearer->action) &&
-				(strncmp(pdn->policy.pcc_rule[idx].dyn_rule.rule_name,
+			if((pdn->policy.pcc_rule[idx]->action == bearer->action) &&
+				(strncmp(pdn->policy.pcc_rule[idx]->urule.dyn_rule.rule_name,
 					bearer->pdrs[idx2]->rule_name, RULE_NAME_LEN) == 0)){
 
-				if(pdn->policy.pcc_rule[idx].action == RULE_ACTION_MODIFY){
+				if(pdn->policy.pcc_rule[idx]->action == RULE_ACTION_MODIFY){
 
 
-					if(bearer->flow_desc_check == PRESENT) {
+					if(bearer->flow_desc_check == PRESENT && pdn->proc != HSS_INITIATED_SUB_QOS_MOD) {
 
 						int index = pfcp_sess_mod_req->update_pdr_count;
 						set_update_pdr(&(pfcp_sess_mod_req->update_pdr[index]),
 								bearer->pdrs[idx2], pdn->context->cp_mode );
 						fill_update_pdr_sdf_rule(pfcp_sess_mod_req->update_pdr,
-												&pdn->policy.pcc_rule[idx].dyn_rule, index);
+												&pdn->policy.pcc_rule[idx]->urule.dyn_rule, index);
 						pfcp_sess_mod_req->update_pdr_count++;
 
 					}
@@ -698,13 +657,15 @@ fill_update_bearer_sess_mod(pfcp_sess_mod_req_t *pfcp_sess_mod_req, eps_bearer *
 					if(bearer->qos_bearer_check == PRESENT) {
 
 						int index2 = pfcp_sess_mod_req->update_qer_count;
-			            set_update_qer(&(pfcp_sess_mod_req->update_qer[index2]),
+
+						bearer->pdrs[idx2]->qer.qer_id = bearer->qer_id[idx2].qer_id;
+						set_update_qer(&(pfcp_sess_mod_req->update_qer[index2]),
 														&bearer->pdrs[idx2]->qer);
 
 					    pfcp_sess_mod_req->update_qer_count++;
 					}
 
-				}else if(pdn->policy.pcc_rule[idx].action == RULE_ACTION_MODIFY_ADD_RULE){
+				}else if(pdn->policy.pcc_rule[idx]->action == RULE_ACTION_MODIFY_ADD_RULE){
 
 					/* A new rule to be added to Bearer already present */
 					int index = pfcp_sess_mod_req->create_pdr_count;
@@ -721,18 +682,21 @@ fill_update_bearer_sess_mod(pfcp_sess_mod_req_t *pfcp_sess_mod_req, eps_bearer *
 								bearer->pdrs[idx2], pdn->context->cp_mode);
 
 					fill_create_pdr_sdf_rules(pfcp_sess_mod_req->create_pdr,
-												&pdn->policy.pcc_rule[idx].dyn_rule,
+												&pdn->policy.pcc_rule[idx]->urule.dyn_rule,
 												index);
+					set_create_urr(&pfcp_sess_mod_req->create_urr[index],
+										bearer->pdrs[idx2]);
 					set_create_qer(&pfcp_sess_mod_req->create_qer[index2],
 										&(bearer->pdrs[idx2]->qer));
 					pfcp_sess_mod_req->create_pdr_count++;
+					pfcp_sess_mod_req->create_urr_count++;
 					pfcp_sess_mod_req->create_qer_count++;
 
 					/* ADDING the rule in rule_bearer_id hash */
 					rule_name_key_t rule_name = {0};
 					memset(rule_name.rule_name, '\0', sizeof(rule_name.rule_name));
 					snprintf(rule_name.rule_name, RULE_NAME_LEN,"%s%d",
-							pdn->policy.pcc_rule[idx].dyn_rule.rule_name, pdn->call_id);
+							pdn->policy.pcc_rule[idx]->urule.dyn_rule.rule_name, pdn->call_id);
 
 					bearer_id_t *id;
 					id = malloc(sizeof(bearer_id_t));
@@ -754,7 +718,7 @@ fill_update_bearer_sess_mod(pfcp_sess_mod_req_t *pfcp_sess_mod_req, eps_bearer *
 						return;
 					}
 
-				}else if(pdn->policy.pcc_rule[idx].action == RULE_ACTION_MODIFY_REMOVE_RULE){
+				}else if(pdn->policy.pcc_rule[idx]->action == RULE_ACTION_MODIFY_REMOVE_RULE){
 
 					/* A rule to be remove from Bearer already present */
 					int index = pfcp_sess_mod_req->remove_pdr_count;
@@ -769,6 +733,7 @@ fill_update_bearer_sess_mod(pfcp_sess_mod_req_t *pfcp_sess_mod_req, eps_bearer *
 	/* Reset these variable as for current rule all the action is taken*/
 	bearer->flow_desc_check = NOT_PRESENT;
 	bearer->qos_bearer_check = NOT_PRESENT;
+	bearer->arp_bearer_check = NOT_PRESENT;
 	return;
 }
 
@@ -781,8 +746,9 @@ fill_pfcp_sess_mod_req( pfcp_sess_mod_req_t *pfcp_sess_mod_req,
 	uint32_t seq = 0;
 	upf_context_t *upf_ctx = NULL;
 	int ret = 0;
+	node_address_t node_value = {0};
 
-	if ((ret = upf_context_entry_lookup(pdn->upf_ipv4.s_addr, &upf_ctx)) < 0) {
+	if ((ret = upf_context_entry_lookup(pdn->upf_ip, &upf_ctx)) < 0) {
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT "Error while extracting "
 			"upf context: %d \n", LOG_VALUE, ret);
 		return;
@@ -799,10 +765,22 @@ fill_pfcp_sess_mod_req( pfcp_sess_mod_req_t *pfcp_sess_mod_req,
 
 	pfcp_sess_mod_req->header.seid_seqno.has_seid.seid = pdn->dp_seid;
 
-	/* TODO modify this hard code to generic */
-	char pAddr[INET_ADDRSTRLEN];
-	inet_ntop(AF_INET, &(pfcp_config.pfcp_ip), pAddr, INET_ADDRSTRLEN);
-	unsigned long node_value = inet_addr(pAddr);
+	/*Filling Node ID for F-SEID*/
+	if (pdn->upf_ip.ip_type == PDN_IP_TYPE_IPV4) {
+		uint8_t temp[IPV6_ADDRESS_LEN] = {0};
+		ret = fill_ip_addr(config.pfcp_ip.s_addr, temp, &node_value);
+		if (ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+				"IP address", LOG_VALUE);
+		}
+	} else if (pdn->upf_ip.ip_type == PDN_IP_TYPE_IPV6) {
+
+		ret = fill_ip_addr(0, config.pfcp_ip_v6.s6_addr, &node_value);
+		if (ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+				"IP address", LOG_VALUE);
+		}
+	}
 
 	set_fseid(&(pfcp_sess_mod_req->cp_fseid), pdn->seid, node_value);
 
@@ -846,7 +824,7 @@ fill_pfcp_sess_mod_req( pfcp_sess_mod_req_t *pfcp_sess_mod_req,
 						if(pfcp_sess_mod_req->create_far[itr].bar_id.header.len) {
 							/* TODO: Pass bar_id from pfcp_session_mod_req->create_far[i].bar_id.bar_id_value
 							   to set bar_id*/
-							creating_bar(&(pfcp_sess_mod_req->create_bar));
+							//creating_bar(&(pfcp_sess_mod_req->create_bar));
 						}
 
 					}
@@ -857,10 +835,29 @@ fill_pfcp_sess_mod_req( pfcp_sess_mod_req_t *pfcp_sess_mod_req,
 					pfcp_sess_mod_req->create_pdr[itr].pdi.local_fteid.teid =
 						bearer[iCnt]->pdrs[pdr_idx]->pdi.local_fteid.teid ;
 					/* TODO: Revisit this for change in yang */
-					pfcp_sess_mod_req->create_pdr[itr].pdi.ue_ip_address.ipv4_address =
-						bearer[iCnt]->pdrs[pdr_idx]->pdi.ue_addr.ipv4_address;
-					pfcp_sess_mod_req->create_pdr[itr].pdi.local_fteid.ipv4_address =
-						bearer[iCnt]->pdrs[pdr_idx]->pdi.local_fteid.ipv4_address;
+
+					if (bearer[iCnt]->pdrs[pdr_idx]->pdi.ue_addr.v4) {
+						pfcp_sess_mod_req->create_pdr[itr].pdi.ue_ip_address.ipv4_address =
+							bearer[iCnt]->pdrs[pdr_idx]->pdi.ue_addr.ipv4_address;
+					}
+
+					if (bearer[iCnt]->pdrs[pdr_idx]->pdi.ue_addr.v6) {
+						memcpy(pfcp_sess_mod_req->create_pdr[itr].pdi.ue_ip_address.ipv6_address,
+							bearer[iCnt]->pdrs[pdr_idx]->pdi.ue_addr.ipv6_address,
+							IPV6_ADDRESS_LEN);
+					}
+
+					if (bearer[iCnt]->pdrs[pdr_idx]->pdi.local_fteid.v6) {
+						pfcp_sess_mod_req->create_pdr[itr].pdi.local_fteid.ipv4_address =
+							bearer[iCnt]->pdrs[pdr_idx]->pdi.local_fteid.ipv4_address;
+					}
+
+					if (bearer[iCnt]->pdrs[pdr_idx]->pdi.local_fteid.v6) {
+						memcpy(pfcp_sess_mod_req->create_pdr[itr].pdi.local_fteid.ipv6_address,
+							bearer[iCnt]->pdrs[pdr_idx]->pdi.local_fteid.ipv6_address,
+							IPV6_ADDRESS_LEN);
+					}
+
 					pfcp_sess_mod_req->create_pdr[itr].pdi.src_intfc.interface_value =
 						bearer[iCnt]->pdrs[pdr_idx]->pdi.src_intfc.interface_value;
 				}
@@ -871,22 +868,42 @@ fill_pfcp_sess_mod_req( pfcp_sess_mod_req_t *pfcp_sess_mod_req,
 		/*Adding FAR IE*/
 		for(uint8_t itr1 = 0; itr1 < pfcp_sess_mod_req->update_far_count ; itr1++) {
 
+			node_address_t update_far_node = {0};
+
 			set_update_far(&(pfcp_sess_mod_req->update_far[itr1]), NULL);
+
+			ret = fill_ip_addr(update_far[itr1].upd_frwdng_parms.outer_hdr_creation.ipv4_address,
+				update_far[itr1].upd_frwdng_parms.outer_hdr_creation.ipv6_address,
+				&update_far_node);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+			}
 			pfcp_sess_mod_req->update_far[itr1].far_id.far_id_value =
 				update_far[itr1].far_id.far_id_value;
+
+			/*Reset Far action and updated accroding update far action */
+			for (uint8_t itr2 = 0; itr2 < bearer[itr1]->pdr_count; itr2++) {
+				if (bearer[itr1]->pdrs[itr2]->far.dst_intfc.interface_value ==
+						update_far[itr1].upd_frwdng_parms.dst_intfc.interface_value) {
+					memset(&bearer[itr1]->pdrs[itr2]->far.actions, 0, sizeof(apply_action));
+					bearer[itr1]->pdrs[itr2]->far.actions.forw = PRESENT;
+				}
+			}
+
 			pfcp_sess_mod_req->update_far[itr1].apply_action.forw = PRESENT;
 			pfcp_sess_mod_req->update_far[itr1].apply_action.dupl = GET_DUP_STATUS(pdn->context);
 			if (pfcp_sess_mod_req->update_far[itr1].apply_action.forw == PRESENT) {
 				uint16_t len = 0;
-				len += set_upd_forwarding_param(&(pfcp_sess_mod_req->update_far[itr1].upd_frwdng_parms));
+				len += set_upd_forwarding_param(&(pfcp_sess_mod_req->update_far[itr1].upd_frwdng_parms),
+						update_far_node);
 				/* Currently take as hardcoded value */
 				len += UPD_PARAM_HEADER_SIZE;
 				pfcp_sess_mod_req->update_far[itr1].header.len += len;
 			}
 			pfcp_sess_mod_req->update_far[itr1].upd_frwdng_parms.outer_hdr_creation.teid =
 				update_far[itr1].upd_frwdng_parms.outer_hdr_creation.teid;
-			pfcp_sess_mod_req->update_far[itr1].upd_frwdng_parms.outer_hdr_creation.ipv4_address =
-				(update_far[itr1].upd_frwdng_parms.outer_hdr_creation.ipv4_address);
+
 			pfcp_sess_mod_req->update_far[itr1].upd_frwdng_parms.dst_intfc.interface_value =
 				update_far[itr1].upd_frwdng_parms.dst_intfc.interface_value;
 
@@ -899,6 +916,17 @@ fill_pfcp_sess_mod_req( pfcp_sess_mod_req_t *pfcp_sess_mod_req,
 
 			}
 
+#if 0
+			/* send remove bar if apply action is not set to buff and if barid is present in bearer */
+			if ((PRESENT == bearer[iCnt]->bar.bar_id) &&
+					(NOT_PRESENT == pfcp_sess_mod_req->update_far[itr1].apply_action.buff)) {
+
+				bearer[iCnt]->bar.bar_id = NOT_PRESENT;
+				bearer[iCnt]->bar.suggstd_buf_pckts_cnt.pckt_cnt_val = NOT_PRESENT;
+
+				set_remove_bar(&(pfcp_sess_mod_req->remove_bar[itr1]), bearer[iCnt]->bar.bar_id);
+			}
+#endif
 		}
 
 	}/*end of for loop*/
@@ -918,45 +946,66 @@ fill_pfcp_sess_mod_req( pfcp_sess_mod_req_t *pfcp_sess_mod_req,
 		set_query_urr_refernce(&(pfcp_sess_mod_req->query_urr_ref));
 	}
 
-	if (upf_ctx->up_supp_features & UP_TRACE)
-		set_trace_info(&(pfcp_sess_mod_req->trc_info));
-
 }
 
 void
 sdf_pkt_filter_to_string(sdf_pkt_fltr *sdf_flow,
 		char *sdf_str , uint8_t direction)
 {
-	char local_ip[INET_ADDRSTRLEN];
-	char remote_ip[INET_ADDRSTRLEN];
+	char local_ip[IPV6_STR_LEN];
+	char remote_ip[IPV6_STR_LEN];
 
-	snprintf(local_ip, sizeof(local_ip), "%s",
-			inet_ntoa(sdf_flow->local_ip_addr));
-	snprintf(remote_ip, sizeof(remote_ip), "%s",
-			inet_ntoa(sdf_flow->remote_ip_addr));
-
-	if (direction == TFT_DIRECTION_DOWNLINK_ONLY) {
-		snprintf(sdf_str, MAX_LEN, "%s/%"PRIu8" %s/%"PRIu8" %"
-				PRIu16" : %"PRIu16" %"PRIu16" : %"PRIu16
-				" 0x%"PRIx8"/0x%"PRIx8"",
-				local_ip, sdf_flow->local_ip_mask, remote_ip,
-				sdf_flow->remote_ip_mask,
-				(sdf_flow->local_port_low),
-				(sdf_flow->local_port_high),
-				(sdf_flow->remote_port_low),
-				(sdf_flow->remote_port_high),
-				sdf_flow->proto_id, sdf_flow->proto_mask);
-	} else if (direction == TFT_DIRECTION_UPLINK_ONLY) {
-		snprintf(sdf_str, MAX_LEN, "%s/%"PRIu8" %s/%"PRIu8" %"
-				PRIu16" : %"PRIu16" %"PRIu16" : %"PRIu16
-				" 0x%"PRIx8"/0x%"PRIx8"",
-				local_ip, sdf_flow->local_ip_mask, remote_ip,
-				sdf_flow->remote_ip_mask,
-				(sdf_flow->local_port_low),
-				(sdf_flow->local_port_high),
-				(sdf_flow->remote_port_low),
-				(sdf_flow->remote_port_high),
-				sdf_flow->proto_id, sdf_flow->proto_mask);
+	if(sdf_flow->v4){
+		snprintf(local_ip, sizeof(local_ip), "%s",
+				inet_ntoa(sdf_flow->ulocalip.local_ip_addr));
+		snprintf(remote_ip, sizeof(remote_ip), "%s",
+				inet_ntoa(sdf_flow->uremoteip.remote_ip_addr));
+	}else if(sdf_flow->v6){
+		inet_ntop(AF_INET6, sdf_flow->ulocalip.local_ip6_addr.s6_addr, local_ip, IPV6_STR_LEN);
+		inet_ntop(AF_INET6, sdf_flow->uremoteip.remote_ip6_addr.s6_addr, remote_ip, IPV6_STR_LEN);
+		if(!sdf_flow->remote_ip_mask || sdf_flow->remote_ip_mask > DEFAULT_IPV6_MASK)
+			sdf_flow->remote_ip_mask = DEFAULT_IPV6_MASK;
+		if(!sdf_flow->local_ip_mask || sdf_flow->local_ip_mask > DEFAULT_IPV6_MASK)
+			sdf_flow->local_ip_mask = DEFAULT_IPV6_MASK;
+	}
+	if(sdf_flow->v4){
+		if (direction == TFT_DIRECTION_DOWNLINK_ONLY) {
+			snprintf(sdf_str, MAX_LEN, "%s/%"PRIu8" %s/%"PRIu8" %"
+					PRIu16" : %"PRIu16" %"PRIu16" : %"PRIu16
+					" 0x%"PRIx8"/0x%"PRIx8"",
+					local_ip, sdf_flow->local_ip_mask, remote_ip,
+					sdf_flow->remote_ip_mask,
+					(sdf_flow->local_port_low),
+					(sdf_flow->local_port_high),
+					(sdf_flow->remote_port_low),
+					(sdf_flow->remote_port_high),
+					sdf_flow->proto_id, sdf_flow->proto_mask);
+		} else if (direction == TFT_DIRECTION_UPLINK_ONLY) {
+			snprintf(sdf_str, MAX_LEN, "%s/%"PRIu8" %s/%"PRIu8" %"
+					PRIu16" : %"PRIu16" %"PRIu16" : %"PRIu16
+					" 0x%"PRIx8"/0x%"PRIx8"",
+					local_ip, sdf_flow->local_ip_mask, remote_ip,
+					sdf_flow->remote_ip_mask,
+					(sdf_flow->local_port_low),
+					(sdf_flow->local_port_high),
+					(sdf_flow->remote_port_low),
+					(sdf_flow->remote_port_high),
+					sdf_flow->proto_id, sdf_flow->proto_mask);
+		}
+	} else if(sdf_flow->v6){
+		if (direction == TFT_DIRECTION_DOWNLINK_ONLY) {
+			snprintf(sdf_str, MAX_LEN, "%s/%"PRIu8" %s/%"PRIu8""
+					" 0x%"PRIx8"/0x%"PRIx8"",
+					local_ip, sdf_flow->local_ip_mask,
+					remote_ip, sdf_flow->remote_ip_mask,
+					sdf_flow->proto_id, sdf_flow->proto_mask);
+		} else if (direction == TFT_DIRECTION_UPLINK_ONLY) {
+			snprintf(sdf_str, MAX_LEN, "%s/%"PRIu8" %s/%"PRIu8""
+					" 0x%"PRIx8"/0x%"PRIx8"",
+					local_ip, sdf_flow->local_ip_mask,
+					remote_ip, sdf_flow->remote_ip_mask,
+					sdf_flow->proto_id, sdf_flow->proto_mask);
+		}
 	}
 }
 
@@ -968,7 +1017,7 @@ fill_pdr_far_qer_using_bearer(pfcp_sess_mod_req_t *pfcp_sess_mod_req,
 	int itr2 = create_pdr_counter;
 	for(int i = 0; i < NUMBER_OF_PDR_PER_RULE; i++) {
 
-		if ((pfcp_config.use_gx) &&
+		if ((config.use_gx) &&
 			(context->cp_mode == PGWC || context->cp_mode == SAEGWC)){
 			pfcp_sess_mod_req->create_pdr[itr2].qer_id_count = 1;
 		}
@@ -1030,11 +1079,21 @@ fill_pdr_far_qer_using_bearer(pfcp_sess_mod_req_t *pfcp_sess_mod_req,
 				(DESTINATION_INTERFACE_VALUE_CORE ==
 				 bearer->pdrs[itr]->far.dst_intfc.interface_value) &&
 				(bearer->s5s8_pgw_gtpu_teid != 0) &&
-				(bearer->s5s8_pgw_gtpu_ipv4.s_addr != 0)) {
+				(bearer->s5s8_pgw_gtpu_ip.ipv4_addr != 0
+				|| *bearer->s5s8_pgw_gtpu_ip.ipv6_addr != 0)) {
+
+				node_address_t node_value = {0};
+				ret = fill_ip_addr(bearer->pdrs[itr]->far.outer_hdr_creation.ipv4_address,
+					bearer->pdrs[itr]->far.outer_hdr_creation.ipv6_address,
+					&node_value);
+				if (ret < 0) {
+					clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+						"IP address", LOG_VALUE);
+				}
 
 				uint16_t len = 0;
 				len += set_forwarding_param(&(pfcp_sess_mod_req->create_far[itr2].frwdng_parms),
-											bearer->pdrs[itr]->far.outer_hdr_creation.ipv4_address,
+											node_value,
 											bearer->pdrs[itr]->far.outer_hdr_creation.teid,
 											bearer->pdrs[itr]->far.dst_intfc.interface_value);
 				pfcp_sess_mod_req->create_far[itr2].header.len += len;
@@ -1050,12 +1109,12 @@ fill_pdr_far_qer_using_bearer(pfcp_sess_mod_req_t *pfcp_sess_mod_req,
 		itr2++;
 	} /*for loop*/
 
-	if ((pfcp_config.use_gx) &&
+	if ((config.use_gx) &&
 		(context->cp_mode == PGWC || context->cp_mode == SAEGWC)) {
 		pfcp_sess_mod_req->create_qer_count = bearer->qer_count;
 		qer_t *qer_context = NULL;
 		for(int itr1 = 0; itr1 < pfcp_sess_mod_req->create_qer_count ; itr1++) {
-			qer_context = get_qer_entry(bearer->qer_id[itr1].qer_id);
+			qer_context = get_qer_entry(bearer->qer_id[itr1].qer_id, bearer->pdn->seid);
 			/* Assign the value from the PDR */
 			if(qer_context) {
 				set_create_qer(&(pfcp_sess_mod_req->create_qer[itr1]), qer_context);
@@ -1195,7 +1254,7 @@ fill_qer_entry(pdn_connection *pdn, eps_bearer *bearer, uint8_t itr)
 	qer_ctxt->max_bitrate.dl_mbr = bearer->qos.dl_mbr;
 	qer_ctxt->guaranteed_bitrate.ul_gbr = bearer->qos.ul_gbr;
 	qer_ctxt->guaranteed_bitrate.dl_gbr = bearer->qos.dl_gbr;
-	ret = add_qer_entry(qer_ctxt->qer_id,qer_ctxt);
+	ret = add_qer_entry(qer_ctxt->qer_id,qer_ctxt, pdn->seid);
 	if(ret != 0) {
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT" Error while adding "
 			"QER entry \n", LOG_VALUE);
@@ -1208,10 +1267,11 @@ fill_qer_entry(pdn_connection *pdn, eps_bearer *bearer, uint8_t itr)
 /**
  * @brief  : Add qer entry into hash
  * @param  : qer, data to be added
+ * @param  : seid, Session ID of UE
  * @return : Returns 0 on success, -1 otherwise
  */
 static int
-add_qer_into_hash(qer_t *qer)
+add_qer_into_hash(qer_t *qer, uint64_t seid)
 {
 	int ret = -1;
 	qer_t *qer_ctxt = NULL;
@@ -1231,7 +1291,7 @@ add_qer_into_hash(qer_t *qer)
 	qer_ctxt->guaranteed_bitrate.ul_gbr = qer->guaranteed_bitrate.ul_gbr;
 	qer_ctxt->guaranteed_bitrate.dl_gbr = qer-> guaranteed_bitrate.dl_gbr;
 
-	ret = add_qer_entry(qer_ctxt->qer_id, qer_ctxt);
+	ret = add_qer_entry(qer_ctxt->qer_id, qer_ctxt, seid);
 
 	if(ret != 0) {
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT" Error while adding "
@@ -1313,7 +1373,7 @@ int fill_pfcp_entry(eps_bearer *bearer, dynamic_rule_t *dyn_rule)
 
 			fill_pdr_sdf_qer(pdr_ctxt, dyn_rule);
 
-			ret = add_qer_into_hash(&pdr_ctxt->qer);
+			ret = add_qer_into_hash(&pdr_ctxt->qer, pdn->seid);
 
 			if(ret != 0) {
 				clLog(clSystemLog, eCLSeverityCritical, "[%s]:[%s]:[%d] Adding qer entry Error: %d \n", __file__,
@@ -1365,7 +1425,7 @@ fill_pdr_entry(ue_context *context, pdn_connection *pdn,
 	char mcc[MCC_MNC_LEN] = {0};
 	char nwinst[PFCP_NTWK_INST_LEN] = {0};
 	pdr_t *pdr_ctxt = NULL;
-	int ret;
+	int ret = 0;
 
 	if (context->serving_nw.mnc_digit_3 == 15) {
 		snprintf(mnc, MCC_MNC_LEN,"0%u%u", context->serving_nw.mnc_digit_1,
@@ -1384,7 +1444,7 @@ fill_pdr_entry(ue_context *context, pdn_connection *pdn,
 
 	if (bearer->pdr_count) {
 		if (bearer->pdrs[itr] != NULL) {
-			pdr_ctxt = get_pdr_entry((bearer->pdrs[itr])->rule_id);
+			pdr_ctxt = get_pdr_entry((bearer->pdrs[itr])->rule_id, pdn->seid);
 		}
 	}
 	if (pdr_ctxt == NULL) {
@@ -1399,15 +1459,15 @@ fill_pdr_entry(ue_context *context, pdn_connection *pdn,
 			return NULL;
 		}
 		memset(pdr_ctxt, 0, sizeof(pdr_t));
-		pdr_ctxt->rule_id =  generate_pdr_id();
-		pdr_ctxt->far.far_id_value = generate_far_id();
-		pdr_ctxt->urr.urr_id_value = generate_urr_id();
+		pdr_ctxt->rule_id = generate_pdr_id(&context->pdr_rule_id_offset);
+		pdr_ctxt->far.far_id_value = generate_far_id(&context->far_rule_id_offset);
+		pdr_ctxt->urr.urr_id_value = generate_urr_id(&context->urr_rule_id_offset);
 	} else {
 		/* Handover/Promotion scenario */
 		/* TODO */
 		tmp_pdr_rule_id = pdr_ctxt->rule_id;
 		tmp_far_id = pdr_ctxt->far.far_id_value;
-		tmp_urr_id = pdr_ctxt->far.far_id_value;
+		tmp_urr_id = pdr_ctxt->urr.urr_id_value;
 		/* Flush exisiting PDR Info */
 		memset(pdr_ctxt, 0, sizeof(pdr_t));
 		pdr_ctxt->rule_id = tmp_pdr_rule_id;
@@ -1433,9 +1493,7 @@ fill_pdr_entry(ue_context *context, pdn_connection *pdn,
 	 * pdr_ctxt->pdi.ue_addr.ipv4_address = pdn->ipv4.s_addr;
 	 * }
 	 */
-	if(pdn->policy.pcc_rule[itr].predefined_rule){
 		pdr_ctxt->actvt_predef_rules_count += 1;
-	}else{
 		/*to be filled in fill_sdf_rule*/
 		pdr_ctxt->pdi.sdf_filter_cnt += 1;
 		if (context->cp_mode == PGWC || context->cp_mode == SAEGWC){
@@ -1445,9 +1503,22 @@ fill_pdr_entry(ue_context *context, pdn_connection *pdn,
 			pdr_ctxt->qer_id_count = 1;
 
 		}
+
+	if (pdn->pdn_type.ipv4) {
+
+		pdr_ctxt->pdi.ue_addr.v4 = 1;
+		pdr_ctxt->pdi.ue_addr.ipv4_address = pdn->uipaddr.ipv4.s_addr;
+
 	}
 
-	pdr_ctxt->pdi.ue_addr.ipv4_address = pdn->ipv4.s_addr;
+	if(pdn->pdn_type.ipv6) {
+
+		pdr_ctxt->pdi.ue_addr.v6 = 1;
+		memcpy(pdr_ctxt->pdi.ue_addr.ipv6_address, pdn->uipaddr.ipv6.s6_addr, IPV6_ADDRESS_LEN);
+		pdr_ctxt->pdi.ue_addr.ipv6_pfx_dlgtn_bits = pdn->prefix_len;
+		pdr_ctxt->pdi.ue_addr.ipv6d = 1;
+
+	}
 
 	if (iface == SOURCE_INTERFACE_VALUE_ACCESS) {
 
@@ -1455,7 +1526,7 @@ fill_pdr_entry(ue_context *context, pdn_connection *pdn,
 		pdr_ctxt->pdi.local_fteid.ipv4_address = 0;
 
 		if ((SGWC == context->cp_mode) &&
-				(bearer->s5s8_pgw_gtpu_ipv4.s_addr != 0) &&
+				(bearer->s5s8_pgw_gtpu_ip.ipv4_addr != 0 || *bearer->s5s8_pgw_gtpu_ip.ipv6_addr != 0) &&
 				(bearer->s5s8_pgw_gtpu_teid != 0)) {
 			/*Just need to Forward the packets that's why disabling
 			 * all other supported action*/
@@ -1464,8 +1535,15 @@ fill_pdr_entry(ue_context *context, pdn_connection *pdn,
 			pdr_ctxt->far.actions.drop = 0;
 			pdr_ctxt->far.dst_intfc.interface_value =
 				DESTINATION_INTERFACE_VALUE_CORE;
-			pdr_ctxt->far.outer_hdr_creation.ipv4_address =
-				bearer->s5s8_pgw_gtpu_ipv4.s_addr;
+
+			ret = set_node_address(&pdr_ctxt->far.outer_hdr_creation.ipv4_address,
+								pdr_ctxt->far.outer_hdr_creation.ipv6_address,
+								bearer->s5s8_pgw_gtpu_ip);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+			}
+
 			pdr_ctxt->far.outer_hdr_creation.teid =
 				bearer->s5s8_pgw_gtpu_teid;
 		} else {
@@ -1479,8 +1557,15 @@ fill_pdr_entry(ue_context *context, pdn_connection *pdn,
 			pdr_ctxt->far.dst_intfc.interface_value =
 				DESTINATION_INTERFACE_VALUE_CORE;
 		} else if ((context->cp_mode == SGWC) && (context->indication_flag.oi != 0)){
-			pdr_ctxt->far.outer_hdr_creation.ipv4_address =
-				bearer->s5s8_pgw_gtpu_ipv4.s_addr;
+
+			ret = set_node_address(&pdr_ctxt->far.outer_hdr_creation.ipv4_address,
+							pdr_ctxt->far.outer_hdr_creation.ipv6_address,
+							bearer->s5s8_pgw_gtpu_ip);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+			}
+
 			pdr_ctxt->far.outer_hdr_creation.teid =
 				bearer->s5s8_pgw_gtpu_teid;
 			pdr_ctxt->far.dst_intfc.interface_value =
@@ -1492,8 +1577,16 @@ fill_pdr_entry(ue_context *context, pdn_connection *pdn,
 			pdr_ctxt->pdi.local_fteid.teid = (bearer->s5s8_sgw_gtpu_teid);
 			pdr_ctxt->pdi.local_fteid.ipv4_address = 0;
 			if(context->indication_flag.oi != 0){
-				pdr_ctxt->far.outer_hdr_creation.ipv4_address =
-					bearer->s1u_enb_gtpu_ipv4.s_addr;
+
+				if(bearer->s1u_enb_gtpu_ip.ip_type != NONE_PDN_TYPE) {
+					ret = set_node_address(&pdr_ctxt->far.outer_hdr_creation.ipv4_address,
+							pdr_ctxt->far.outer_hdr_creation.ipv6_address,
+							bearer->s1u_enb_gtpu_ip);
+					if (ret < 0) {
+						clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+								"IP address", LOG_VALUE);
+					}
+				}
 				pdr_ctxt->far.outer_hdr_creation.teid =
 					bearer->s1u_enb_gtpu_teid;
 				pdr_ctxt->far.dst_intfc.interface_value =
@@ -1506,9 +1599,17 @@ fill_pdr_entry(ue_context *context, pdn_connection *pdn,
 			pdr_ctxt->far.actions.forw = 0;
 			pdr_ctxt->far.actions.dupl = 0;
 			pdr_ctxt->far.actions.drop = 0;
-			if(context->cp_mode == PGWC){
-				pdr_ctxt->far.outer_hdr_creation.ipv4_address =
-					bearer->s5s8_sgw_gtpu_ipv4.s_addr;
+			if (context->cp_mode == PGWC)  {
+
+			ret = set_node_address(&pdr_ctxt->far.outer_hdr_creation.ipv4_address,
+							pdr_ctxt->far.outer_hdr_creation.ipv6_address,
+							bearer->s5s8_sgw_gtpu_ip);
+
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+			}
+
 				pdr_ctxt->far.outer_hdr_creation.teid =
 					bearer->s5s8_sgw_gtpu_teid;
 				pdr_ctxt->far.dst_intfc.interface_value =
@@ -1553,7 +1654,7 @@ fill_pdr_entry(ue_context *context, pdn_connection *pdn,
 	}
 
 	bearer->pdrs[itr] = pdr_ctxt;
-	ret = add_pdr_entry(bearer->pdrs[itr]->rule_id, bearer->pdrs[itr]);
+	ret = add_pdr_entry(bearer->pdrs[itr]->rule_id, bearer->pdrs[itr], pdn->seid);
 	if ( ret != 0) {
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Error while adding "
 			"pdr entry\n", LOG_VALUE);
@@ -1696,25 +1797,82 @@ fill_upd_dup_param(pfcp_upd_dupng_parms_ie_t *dup_params, uint8_t li_policy[],
 	return len;
 }
 
+/**
+ * @brief  : sets the sdf filters for dynamic rule in create_pdr
+ * @param  : pfcp_sess_est_req, pointer of pfcp_sess_estab_req_t struture
+ * @param  : bearer, pointer of eps_bearer structure
+ * @param  : pdr_idx, iterator
+ * @return : Returns nothing
+ */
+static void
+set_sdf_rules_create_pdr(pfcp_sess_estab_req_t
+		*pfcp_sess_est_req, eps_bearer *bearer, uint8_t *pdr_idx)
+{
+
+	for(uint8_t itr = 0; itr < bearer->num_dynamic_filters; itr++){
+		enum flow_status f_status = bearer->dynamic_rules[itr]->flow_status;
+
+		fill_create_pdr_sdf_rules(pfcp_sess_est_req->create_pdr,
+								bearer->dynamic_rules[itr], *pdr_idx);
+		fill_gate_status(pfcp_sess_est_req, *pdr_idx, f_status);
+		(*pdr_idx)++;
+
+		fill_create_pdr_sdf_rules(pfcp_sess_est_req->create_pdr,
+								bearer->dynamic_rules[itr], *pdr_idx);
+		fill_gate_status(pfcp_sess_est_req, *pdr_idx, f_status);
+		(*pdr_idx)++;
+	}
+}
+
+/**
+ * @brief  : sets the active predefined rule for prdefined rule in create_pdr
+ * @param  : create_pdr, pointer of pfcp_create_pdr_ie_t struture
+ * @param  : bearer, pointer of eps_bearer structure
+ * @param  : pdr_idx, iterator
+ * @return : Returns nothing
+ */
+static void
+set_pdef_rules_create_pdr(pfcp_create_pdr_ie_t *create_pdr,
+		eps_bearer *bearer, uint8_t *pdr_idx)
+{
+	for(uint8_t itr = 0; itr < bearer->num_prdef_filters; itr++){
+		fill_predef_rules_pdr(create_pdr,
+								bearer->prdef_rules[itr], *pdr_idx, 0);
+		(*pdr_idx)++;
+		fill_predef_rules_pdr(create_pdr,
+								bearer->prdef_rules[itr], *pdr_idx, 0);
+		(*pdr_idx)++;
+
+	}
+}
+
 void
 fill_pfcp_sess_est_req( pfcp_sess_estab_req_t *pfcp_sess_est_req,
-		pdn_connection *pdn, uint32_t seq, struct ue_context_t *context)
+		pdn_connection *pdn, uint32_t seq, struct ue_context_t *context,
+		struct resp_info *resp)
 {
 	/*TODO :generate seid value and store this in array
 	  to send response from cp/dp , first check seid is there in array or not if yes then
 	  fill that seid in response and if not then seid =0 */
 
 	int ret = 0;
+	int tmp_bearer_idx = 0;
 	uint8_t pdr_idx =0;
 	uint8_t bearer_id = 0;
+	uint8_t bar_id = PRESENT;
 	eps_bearer *bearer = NULL;
 	upf_context_t *upf_ctx = NULL;
 	qer_t *qer_context = NULL;
 	bearer_qos_ie *default_bearer_qos = NULL;
+	node_address_t node_value = {0};
+	dynamic_rule_t rule = {0};
+	int max_bearer_count  = MAX_BEARERS;
 
-	if ((ret = upf_context_entry_lookup(pdn->upf_ipv4.s_addr, &upf_ctx)) < 0) {
+	RTE_SET_USED(bearer_id);
+
+	if ((ret = upf_context_entry_lookup(pdn->upf_ip, &upf_ctx)) < 0) {
 		clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT"Error while extracting "
-			"upf context UPF ip : %u \n", LOG_VALUE, pdn->upf_ipv4.s_addr);
+			"upf context UPF ip : %u \n", LOG_VALUE, pdn->upf_ip.ipv4_addr);
 		return;
 	}
 
@@ -1725,10 +1883,22 @@ fill_pfcp_sess_est_req( pfcp_sess_estab_req_t *pfcp_sess_est_req,
 
 	pfcp_sess_est_req->header.seid_seqno.has_seid.seid = pdn->dp_seid;
 
-	char pAddr[INET_ADDRSTRLEN] ;
-	inet_ntop(AF_INET, &(pfcp_config.pfcp_ip), pAddr, INET_ADDRSTRLEN);
+	/*Filling Node ID for F-SEID*/
+	if (pdn->upf_ip.ip_type == PDN_IP_TYPE_IPV4) {
+		uint8_t temp[IPV6_ADDRESS_LEN] = {0};
+		ret = fill_ip_addr(config.pfcp_ip.s_addr, temp, &node_value);
+		if (ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+				"IP address", LOG_VALUE);
+		}
+	} else if (pdn->upf_ip.ip_type == PDN_IP_TYPE_IPV6) {
 
-	unsigned long node_value = inet_addr(pAddr);
+		ret = fill_ip_addr(0, config.pfcp_ip_v6.s6_addr, &node_value);
+		if (ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+				"IP address", LOG_VALUE);
+		}
+	}
 
 	set_node_id(&(pfcp_sess_est_req->node_id), node_value);
 
@@ -1746,11 +1916,11 @@ fill_pfcp_sess_est_req( pfcp_sess_estab_req_t *pfcp_sess_est_req,
 		for (int idx=0; idx <  pdn->policy.num_charg_rule_install; idx++)
 		{
 			bearer = NULL;
-			if (pdn->policy.pcc_rule[idx].predefined_rule) {
-				default_bearer_qos = &pdn->policy.pcc_rule[idx].pdef_rule.qos;
+			if (pdn->policy.pcc_rule[idx]->predefined_rule) {
+				default_bearer_qos = &pdn->policy.pcc_rule[idx]->urule.pdef_rule.qos;
 
 			} else {
-				default_bearer_qos = &pdn->policy.pcc_rule[idx].dyn_rule.qos;
+				default_bearer_qos = &pdn->policy.pcc_rule[idx]->urule.dyn_rule.qos;
 			}
 			if(compare_default_bearer_qos(&pdn->policy.default_bearer_qos,
 						default_bearer_qos) == 0) {
@@ -1760,8 +1930,26 @@ fill_pfcp_sess_est_req( pfcp_sess_estab_req_t *pfcp_sess_est_req,
 					clLog(clSystemLog, eCLSeverityCritical,
 							LOG_FORMAT"bearer object is NULL\n", LOG_VALUE);
 					return;
+				}else {
+
+					if(!pdn->policy.pcc_rule[idx]->predefined_rule){
+						for(uint8_t itr=bearer->qer_count; itr < bearer->qer_count + NUMBER_OF_QER_PER_RULE;
+								itr++){
+
+							bearer->qer_id[itr].qer_id = generate_qer_id(&context->qer_rule_id_offset);
+							fill_qer_entry(pdn, bearer,itr);
+						}
+						bearer->qer_count += NUMBER_OF_QER_PER_RULE;
+
+						/* TODO: Added handling for QER Approprietly */
+						for(uint8_t itr1 = 0; itr1 < bearer->pdr_count; itr1++){
+							bearer->pdrs[itr1]->qer_id[0].qer_id = bearer->qer_id[itr1].qer_id;
+						}
+
+					}
 				}
 			} else {
+
 				/* dedicated bearer */
 				bearer = get_bearer(pdn, default_bearer_qos);
 				if(bearer == NULL) {
@@ -1774,19 +1962,37 @@ fill_pfcp_sess_est_req( pfcp_sess_estab_req_t *pfcp_sess_est_req,
 							LOG_VALUE, rte_strerror(rte_errno));
 						return;
 					}
-					bearer->pdn = pdn;
-					bearer_id = get_new_bearer_id(pdn);
-					pdn->eps_bearers[bearer_id] = bearer;
-					pdn->context->eps_bearers[bearer_id] = bearer;
-					pdn->num_bearer++;
-					fill_dedicated_bearer_info(bearer, pdn->context, pdn, pdn->policy.pcc_rule[idx].predefined_rule);
-					memcpy(&(bearer->qos),
-							default_bearer_qos,
-							sizeof(bearer_qos_ie));
-				}
 
+					tmp_bearer_idx = resp->bearer_count + MAX_BEARERS + 1;
+					max_bearer_count = tmp_bearer_idx;
+					resp->eps_bearer_ids[resp->bearer_count++] = tmp_bearer_idx;
+					int ebi_index = GET_EBI_INDEX(tmp_bearer_idx);
+					if (ebi_index == -1) {
+						clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Invalid EBI ID\n", LOG_VALUE);
+						return;
+					}
+					bzero(bearer,  sizeof(eps_bearer));
+					bearer->pdn = pdn;
+					bearer->eps_bearer_id = tmp_bearer_idx;
+					pdn->eps_bearers[ebi_index] = bearer;
+					pdn->context->eps_bearers[ebi_index] = bearer;
+					pdn->num_bearer++;
+					pdn->context->piggyback = TRUE;
+					fill_dedicated_bearer_info(bearer, pdn->context, pdn, pdn->policy.pcc_rule[idx]->predefined_rule);
+					if(pdn->policy.pcc_rule[idx]->predefined_rule == TRUE){
+						memcpy(&(bearer->qos), &(pdn->policy.pcc_rule[idx]->urule.pdef_rule.qos), sizeof(bearer_qos_ie));
+						memcpy(&rule, &pdn->policy.pcc_rule[idx]->urule.pdef_rule, sizeof(dynamic_rule_t));
+					}else{
+						memcpy(&(bearer->qos), &(pdn->policy.pcc_rule[idx]->urule.dyn_rule.qos), sizeof(bearer_qos_ie));
+						memcpy(&rule, &pdn->policy.pcc_rule[idx]->urule.dyn_rule, sizeof(dynamic_rule_t));
+					}
+
+				}else{
+					add_pdr_qer_for_rule(bearer, pdn->policy.pcc_rule[idx]->predefined_rule);
+				}
 			}
-			if(pdn->policy.pcc_rule[idx].predefined_rule){
+
+			if(pdn->policy.pcc_rule[idx]->predefined_rule) {
 				bearer->prdef_rules[bearer->num_prdef_filters] =
 					rte_zmalloc_socket(NULL, sizeof(dynamic_rule_t),
 							RTE_CACHE_LINE_SIZE, rte_socket_id());
@@ -1799,17 +2005,34 @@ fill_pfcp_sess_est_req( pfcp_sess_estab_req_t *pfcp_sess_est_req,
 					return;
 				}
 				memcpy((bearer->prdef_rules[bearer->num_prdef_filters]),
-						&(pdn->policy.pcc_rule[idx].pdef_rule),
+						&(pdn->policy.pcc_rule[idx]->urule.pdef_rule),
 						sizeof(dynamic_rule_t));
 
 				for(int itr = 0; itr < NUMBER_OF_PDR_PER_RULE; itr++){
+
+					strncpy(bearer->pdrs[itr]->rule_name,
+							pdn->policy.pcc_rule[idx]->urule.pdef_rule.rule_name,
+							RULE_NAME_LEN);
 					bearer->prdef_rules[bearer->num_prdef_filters]->pdr[itr] = bearer->pdrs[itr];
+
+					/* TODO: Consider dynamic rule is 1 only */
+					enum flow_status f_status =
+						bearer->prdef_rules[bearer->num_prdef_filters]->flow_status;
+
+					fill_gate_status(pfcp_sess_est_req, itr + 1, f_status);
 				}
 				bearer->num_prdef_filters++;
 
+				if(pdn->context->piggyback == TRUE ) {
+					fill_pfcp_entry(bearer, &pdn->policy.pcc_rule[idx]->urule.pdef_rule);
+				}
+
 			} else {
-				bearer->dynamic_rules[bearer->num_dynamic_filters] = rte_zmalloc_socket(NULL, sizeof(dynamic_rule_t),
-						RTE_CACHE_LINE_SIZE, rte_socket_id());
+
+				bearer->dynamic_rules[bearer->num_dynamic_filters] =
+					rte_zmalloc_socket(NULL, sizeof(dynamic_rule_t), RTE_CACHE_LINE_SIZE,
+							rte_socket_id());
+
 				if (bearer->dynamic_rules[bearer->num_dynamic_filters] == NULL)
 				{
 					clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failure to "
@@ -1817,19 +2040,33 @@ fill_pfcp_sess_est_req( pfcp_sess_estab_req_t *pfcp_sess_est_req,
 							rte_strerror(rte_errno));
 					return;
 				}
+
 				memcpy( (bearer->dynamic_rules[bearer->num_dynamic_filters]),
-						&(pdn->policy.pcc_rule[idx].dyn_rule),
+						&(pdn->policy.pcc_rule[idx]->urule.dyn_rule),
 						sizeof(dynamic_rule_t));
 
-				for(int itr = 0; itr < NUMBER_OF_PDR_PER_RULE; itr++){
-					strncpy(bearer->pdrs[itr]->rule_name,pdn->policy.pcc_rule[idx].dyn_rule.rule_name, RULE_NAME_LEN);
+				for(int itr = 0; itr < NUMBER_OF_PDR_PER_RULE; itr++) {
+
+					strncpy(bearer->pdrs[itr]->rule_name,
+							pdn->policy.pcc_rule[idx]->urule.dyn_rule.rule_name,
+							RULE_NAME_LEN);
 					bearer->dynamic_rules[bearer->num_dynamic_filters]->pdr[itr] = bearer->pdrs[itr];
+
+					/* TODO: Consider dynamic rule is 1 only */
 					enum flow_status f_status =
-						bearer->dynamic_rules[bearer->num_dynamic_filters]->flow_status; // consider dynamic rule is 1 only /*TODO*/
+						bearer->dynamic_rules[bearer->num_dynamic_filters]->flow_status;
+
 					fill_gate_status(pfcp_sess_est_req, itr + 1, f_status);
+
 				}
+
 				bearer->num_dynamic_filters++;
+				if(pdn->context->piggyback == TRUE ) {
+					fill_pfcp_entry(bearer, &pdn->policy.pcc_rule[idx]->urule.dyn_rule);
+				}
+
 			}
+
 
 		}
 	} else {
@@ -1845,8 +2082,10 @@ fill_pfcp_sess_est_req( pfcp_sess_estab_req_t *pfcp_sess_est_req,
 		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Not applicable for li\n",
 				LOG_VALUE);
 	}
-	uint8_t itr = 0;
-	for(uint8_t i = 0; i < MAX_BEARERS; i++) {
+
+	uint8_t qer_idx = 0;
+	uint8_t pdr_itr = 0;
+	for(uint8_t i = 0; i < max_bearer_count; i++) {
 
 		bearer = pdn->eps_bearers[i];
 		if(bearer != NULL)
@@ -1854,7 +2093,7 @@ fill_pfcp_sess_est_req( pfcp_sess_estab_req_t *pfcp_sess_est_req,
 			for(uint8_t idx = 0; idx < bearer->pdr_count; idx++)
 			{
 				for (uint8_t idx1 = 0; idx1 < bearer->num_dynamic_filters; idx1++) {
-					if (!(pdn->policy.pcc_rule[itr].predefined_rule)) {
+					if (bearer->num_prdef_filters == 0 ){
 						if (context->cp_mode == PGWC || context->cp_mode == SAEGWC){
 							pfcp_sess_est_req->create_pdr[pdr_idx].qer_id_count = 1;
 						}
@@ -1863,6 +2102,8 @@ fill_pfcp_sess_est_req( pfcp_sess_estab_req_t *pfcp_sess_est_req,
 
 				/*Just need to Forward the packets that's why disabling
 				 * all other supported action*/
+				if(bearer->pdrs[idx] == NULL)
+					continue;
 				bearer->pdrs[idx]->far.actions.forw = PRESENT;
 				bearer->pdrs[idx]->far.actions.dupl = 0;
 				bearer->pdrs[idx]->far.actions.drop = 0;
@@ -1873,40 +2114,104 @@ fill_pfcp_sess_est_req( pfcp_sess_estab_req_t *pfcp_sess_est_req,
 				}
 				set_create_pdr(&(pfcp_sess_est_req->create_pdr[pdr_idx]), bearer->pdrs[idx], context->cp_mode);
 				pfcp_sess_est_req->create_far_count++;
-				set_create_far(&(pfcp_sess_est_req->create_far[pdr_idx]), &bearer->pdrs[idx]->far);
+				 set_create_far(&(pfcp_sess_est_req->create_far[pdr_idx]), &bearer->pdrs[idx]->far);
+				uint8_t len  = 0;
 
 				if (( SGWC == context->cp_mode ) &&
 						(context->indication_flag.oi == 0)) {
 
 					if (SOURCE_INTERFACE_VALUE_ACCESS ==
 							bearer->pdrs[idx]->pdi.src_intfc.interface_value) {
-						pfcp_sess_est_req->create_far[pdr_idx].apply_action.buff = PRESENT;
-						pfcp_sess_est_req->create_far[pdr_idx].apply_action.forw = NOT_PRESENT;
+
+						if((bearer->s5s8_pgw_gtpu_ip.ipv4_addr != 0 || *bearer->s5s8_pgw_gtpu_ip.ipv6_addr)
+								&& bearer->s5s8_pgw_gtpu_teid != 0) {
+							pfcp_sess_est_req->create_far[pdr_idx].apply_action.forw = PRESENT;
+							bearer->pdrs[idx]->far.actions.forw = PRESENT;
+							len += set_forwarding_param(&(pfcp_sess_est_req->create_far[pdr_idx].frwdng_parms),
+									bearer->s5s8_pgw_gtpu_ip,
+									bearer->s5s8_pgw_gtpu_teid,
+									DESTINATION_INTERFACE_VALUE_CORE);
+							pfcp_sess_est_req->create_far[pdr_idx].header.len += len;
+						} else {
+							if(bearer->s1u_enb_gtpu_ip.ipv4_addr != 0 || *(bearer->s1u_enb_gtpu_ip.ipv6_addr)){
+								pfcp_sess_est_req->create_far[pdr_idx].apply_action.forw = PRESENT;
+								bearer->pdrs[idx]->far.actions.forw = PRESENT;
+								len += set_forwarding_param(&(pfcp_sess_est_req->create_far[pdr_idx].frwdng_parms),
+										bearer->s1u_enb_gtpu_ip,
+										bearer->s1u_enb_gtpu_teid,
+										DESTINATION_INTERFACE_VALUE_ACCESS);
+								pfcp_sess_est_req->create_far[pdr_idx].header.len += len;
+							} else {
+								pfcp_sess_est_req->create_far[pdr_idx].apply_action.buff = PRESENT;
+								pfcp_sess_est_req->create_far[pdr_idx].apply_action.forw = NOT_PRESENT;
+								bearer->pdrs[idx]->far.actions.buff = PRESENT;
+								bearer->pdrs[idx]->far.actions.forw = NOT_PRESENT;
+							}
+						}
 
 					} else {
 						pfcp_sess_est_req->create_far[pdr_idx].apply_action.nocp = PRESENT;
 						pfcp_sess_est_req->create_far[pdr_idx].apply_action.buff = PRESENT;
 						pfcp_sess_est_req->create_far[pdr_idx].apply_action.forw = NOT_PRESENT;
+						bearer->pdrs[idx]->far.actions.buff = PRESENT;
+						bearer->pdrs[idx]->far.actions.nocp = PRESENT;
+						bearer->pdrs[idx]->far.actions.forw = NOT_PRESENT;
+
+						if(bearer->s1u_enb_gtpu_ip.ipv4_addr != 0 || *(bearer->s1u_enb_gtpu_ip.ipv6_addr)){
+							pfcp_sess_est_req->create_far[pdr_idx].apply_action.buff = NOT_PRESENT;
+							pfcp_sess_est_req->create_far[pdr_idx].apply_action.forw = PRESENT;
+							bearer->pdrs[idx]->far.actions.forw = PRESENT;
+							bearer->pdrs[idx]->far.actions.buff = NOT_PRESENT;
+							len += set_forwarding_param(&(pfcp_sess_est_req->create_far[pdr_idx].frwdng_parms),
+									bearer->s1u_enb_gtpu_ip,
+									bearer->s1u_enb_gtpu_teid,
+									DESTINATION_INTERFACE_VALUE_ACCESS);
+							pfcp_sess_est_req->create_far[pdr_idx].header.len += len;
+						}
+
 					}
 				}
 
 				/* SGW Relocation*/
-				if(pdn->context->indication_flag.oi != 0) {
-					uint8_t len  = 0;
+				if(pdn->context->indication_flag.oi != 0 ) {
 					if(pdr_idx%2)
 					{
-						len += set_forwarding_param(&(pfcp_sess_est_req->create_far[pdr_idx].frwdng_parms),
-																		bearer->s1u_enb_gtpu_ipv4.s_addr,
-																		bearer->s1u_enb_gtpu_teid,
-																		DESTINATION_INTERFACE_VALUE_ACCESS);
-						pfcp_sess_est_req->create_far[pdr_idx].header.len += len;
+						/*NOTE: BELOW condition is introduced as there can be a scenario where enb fteid may
+						 * not come in CSR Req for SGW Reloc. e.g TAU with SGW  Reloc with Data Forwarding
+						 */
+						if((bearer->s1u_enb_gtpu_ip.ipv4_addr != 0) || *(bearer->s1u_enb_gtpu_ip.ipv6_addr)) {
+
+							len += set_forwarding_param(&(pfcp_sess_est_req->create_far[pdr_idx].frwdng_parms),
+									bearer->s1u_enb_gtpu_ip,
+									bearer->s1u_enb_gtpu_teid,
+									DESTINATION_INTERFACE_VALUE_ACCESS);
+							pfcp_sess_est_req->create_far[pdr_idx].header.len += len;
+
+						} else {
+							pfcp_sess_est_req->create_far[pdr_idx].apply_action.nocp = PRESENT;
+							pfcp_sess_est_req->create_far[pdr_idx].apply_action.buff = PRESENT;
+							pfcp_sess_est_req->create_far[pdr_idx].apply_action.forw = NOT_PRESENT;
+							bearer->pdrs[idx]->far.actions.nocp = PRESENT;
+							bearer->pdrs[idx]->far.actions.buff = PRESENT;
+							bearer->pdrs[idx]->far.actions.forw = NOT_PRESENT;
+						}
 
 					} else {
 						pfcp_sess_est_req->create_far[pdr_idx].apply_action.forw = PRESENT;
-						len += set_forwarding_param(&(pfcp_sess_est_req->create_far[pdr_idx].frwdng_parms),
-																		bearer->s5s8_pgw_gtpu_ipv4.s_addr,
-																		bearer->s5s8_pgw_gtpu_teid,
-																		DESTINATION_INTERFACE_VALUE_CORE);
+						bearer->pdrs[idx]->far.actions.forw = PRESENT;
+						if(context->indirect_tunnel_flag == 0 ) {
+							len += set_forwarding_param(&(pfcp_sess_est_req->create_far[pdr_idx].frwdng_parms),
+									bearer->s5s8_pgw_gtpu_ip,
+									bearer->s5s8_pgw_gtpu_teid,
+									DESTINATION_INTERFACE_VALUE_CORE);
+						} else {
+
+							len += set_forwarding_param(&(pfcp_sess_est_req->create_far[pdr_idx].frwdng_parms),
+									bearer->s1u_enb_gtpu_ip,
+									bearer->s1u_enb_gtpu_teid,
+									DESTINATION_INTERFACE_VALUE_ACCESS);
+						}
+
 						pfcp_sess_est_req->create_far[pdr_idx].header.len += len;
 					}
 				}
@@ -1938,72 +2243,91 @@ fill_pfcp_sess_est_req( pfcp_sess_estab_req_t *pfcp_sess_est_req,
 							pfcp_sess_est_req->create_far[pdr_idx].header.len += len;
 						} else {
 							if (context->cp_mode == PGWC) {
+
+								node_address_t node_value = {0};
+								if ((bearer->s5s8_pgw_gtpu_ip.ip_type == PDN_TYPE_IPV6
+										|| bearer->s5s8_pgw_gtpu_ip.ip_type == PDN_TYPE_IPV4_IPV6)
+									&& (*bearer->pdrs[idx]->far.outer_hdr_creation.ipv6_address)) {
+
+									node_value.ip_type = PDN_TYPE_IPV6;
+									memcpy(node_value.ipv6_addr,
+											bearer->pdrs[idx]->far.outer_hdr_creation.ipv6_address,
+											IPV6_ADDRESS_LEN);
+
+								} else if (bearer->s5s8_pgw_gtpu_ip.ip_type == PDN_TYPE_IPV4
+										&& (bearer->pdrs[idx]->far.outer_hdr_creation.ipv4_address != 0)) {
+
+									node_value.ip_type |= PDN_TYPE_IPV4;
+									node_value.ipv4_addr = bearer->pdrs[idx]->far.outer_hdr_creation.ipv4_address;
+								} else {
+									clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+										"IP address in Create FAR", LOG_VALUE);
+								}
+
 								len += set_forwarding_param(&(pfcp_sess_est_req->create_far[pdr_idx].frwdng_parms),
-										bearer->pdrs[idx]->far.outer_hdr_creation.ipv4_address,
+										node_value,
 										bearer->pdrs[idx]->far.outer_hdr_creation.teid,
 										bearer->pdrs[idx]->far.dst_intfc.interface_value);
 							} else {
 								pfcp_sess_est_req->create_far[pdr_idx].apply_action.nocp = PRESENT;
 								pfcp_sess_est_req->create_far[pdr_idx].apply_action.buff = PRESENT;
 								pfcp_sess_est_req->create_far[pdr_idx].apply_action.forw = NOT_PRESENT;
-
+								bearer->pdrs[idx]->far.actions.nocp = PRESENT;
+								bearer->pdrs[idx]->far.actions.buff = PRESENT;
+								bearer->pdrs[idx]->far.actions.forw = NOT_PRESENT;
 							}
 
 							pfcp_sess_est_req->create_far[pdr_idx].header.len += len;
 						}
 					}
-					if(!pdn->policy.pcc_rule[itr].predefined_rule){
-						qer_context = get_qer_entry(bearer->qer_id[idx].qer_id);
+					if (bearer->num_dynamic_filters != 0 ){
+						qer_context = get_qer_entry(bearer->qer_id[idx].qer_id, bearer->pdn->seid);
 						/* Assign the value from the PDR */
 						if(qer_context){
-							set_create_qer(&(pfcp_sess_est_req->create_qer[pdr_idx]), qer_context);
+							set_create_qer(&(pfcp_sess_est_req->create_qer[qer_idx]), qer_context);
+							qer_idx++;
 						}
 					}
+				}
+
+				if ((PRESENT == pfcp_sess_est_req->create_far[pdr_idx].apply_action.buff) &&
+						(PGWC != context->cp_mode)) {
+
+					/* fillup bar information in bearer */
+					bearer->pdrs[idx]->far.bar_id_value = bar_id;
+
+					uint16_t len = 0;
+					len = set_bar_id(&(pfcp_sess_est_req->create_far[pdr_idx].bar_id), bar_id);
+					pfcp_sess_est_req->create_far[pdr_idx].header.len += len;
 				}
 
 				pdr_idx++;
 			}
 
-			if(!(pdn->policy.pcc_rule[itr].predefined_rule)){
+			if (bearer->num_dynamic_filters != 0){
 				pfcp_sess_est_req->create_qer_count += bearer->qer_count;
 			}
+			if (bearer->dynamic_rules != NULL ){
+
+				set_sdf_rules_create_pdr(pfcp_sess_est_req, bearer, &pdr_itr);
+			}
+			if(bearer->prdef_rules != NULL ){
+				set_pdef_rules_create_pdr(pfcp_sess_est_req->create_pdr, bearer, &pdr_itr);
+			}
+
 		}
 	}
 
-	pdr_idx = 0;
-	for(int itr1 = 0; itr1 <  pdn->policy.num_charg_rule_install; itr1++) {
-		if (pdn->policy.pcc_rule[itr1].predefined_rule) {
-			/*
-			 * call fill_create_pdr_activate_predef_rules twice because one rule create 2 PDRs
-			 */
-			fill_predef_rules_pdr(
-					pfcp_sess_est_req->create_pdr, &pdn->policy.pcc_rule[itr1].pdef_rule, pdr_idx, 0);
-			pdr_idx++;
+	/* send create bar ie */
+	if ((PGWC != context->cp_mode) && (pdn != NULL)) {
 
-			fill_predef_rules_pdr(
-					pfcp_sess_est_req->create_pdr, &pdn->policy.pcc_rule[itr1].pdef_rule, pdr_idx, 0);
-			pdr_idx++;
-		} else {
-			/*
-			 * call fill_sdf_rules twice because one rule create 2 PDRs
-			 */
-			enum flow_status f_status = pdn->policy.pcc_rule[itr1].dyn_rule.flow_status;
-
-			fill_create_pdr_sdf_rules(pfcp_sess_est_req->create_pdr, &pdn->policy.pcc_rule[itr1].dyn_rule, pdr_idx);
-			fill_gate_status(pfcp_sess_est_req, pdr_idx, f_status);
-			pdr_idx++;
-
-			fill_create_pdr_sdf_rules(pfcp_sess_est_req->create_pdr, &pdn->policy.pcc_rule[itr1].dyn_rule, pdr_idx);
-			fill_gate_status(pfcp_sess_est_req, pdr_idx, f_status);
-			pdr_idx++;
-		}
+		pdn->bar.bar_id = bar_id;
+		set_create_bar(&(pfcp_sess_est_req->create_bar), &pdn->bar);
+		bar_id++;
 	}
 
 	/* Set the pdn connection type */
 	set_pdn_type(&(pfcp_sess_est_req->pdn_type), &(pdn->pdn_type));
-
-	if (upf_ctx->up_supp_features & UP_TRACE)
-		set_trace_info(&(pfcp_sess_est_req->trc_info));
 
 }
 
@@ -2017,6 +2341,7 @@ static int
 fill_uli_info(gtp_user_loc_info_ie_t *uli, ue_context *context)
 {
 	if (uli->lai) {
+		context->uli_flag |= 1 << 5;
 		context->uli.lai = uli->lai;
 		context->uli.lai2.lai_mcc_digit_2 = uli->lai2.lai_mcc_digit_2;
 		context->uli.lai2.lai_mcc_digit_1 = uli->lai2.lai_mcc_digit_1;
@@ -2028,6 +2353,7 @@ fill_uli_info(gtp_user_loc_info_ie_t *uli, ue_context *context)
 	}
 
 	if (uli->tai) {
+		context->uli_flag |= 1;
 		context->uli.tai = uli->tai;
 		context->uli.tai2.tai_mcc_digit_2 = uli->tai2.tai_mcc_digit_2;
 		context->uli.tai2.tai_mcc_digit_1 = uli->tai2.tai_mcc_digit_1;
@@ -2039,6 +2365,7 @@ fill_uli_info(gtp_user_loc_info_ie_t *uli, ue_context *context)
 	}
 
 	if (uli->rai) {
+		context->uli_flag |= 1 << 3;
 		context->uli.rai = uli->rai;
 		context->uli.rai2.ria_mcc_digit_2 = uli->rai2.ria_mcc_digit_2;
 		context->uli.rai2.ria_mcc_digit_1 = uli->rai2.ria_mcc_digit_1;
@@ -2051,6 +2378,7 @@ fill_uli_info(gtp_user_loc_info_ie_t *uli, ue_context *context)
 	}
 
 	if (uli->sai) {
+		context->uli_flag |= 1 << 2;
 		context->uli.sai = uli->sai;
 		context->uli.sai2.sai_mcc_digit_2 = uli->sai2.sai_mcc_digit_2;
 		context->uli.sai2.sai_mcc_digit_1 = uli->sai2.sai_mcc_digit_1;
@@ -2063,6 +2391,7 @@ fill_uli_info(gtp_user_loc_info_ie_t *uli, ue_context *context)
 	}
 
 	if (uli->cgi) {
+		context->uli_flag |= 1 << 1;
 		context->uli.cgi = uli->cgi;
 		context->uli.cgi2.cgi_mcc_digit_2 = uli->cgi2.cgi_mcc_digit_2;
 		context->uli.cgi2.cgi_mcc_digit_1 = uli->cgi2.cgi_mcc_digit_1;
@@ -2075,6 +2404,7 @@ fill_uli_info(gtp_user_loc_info_ie_t *uli, ue_context *context)
 	}
 
 	if (uli->ecgi) {
+		context->uli_flag |= 1 << 4;
 		context->uli.ecgi = uli->ecgi;
 		context->uli.ecgi2.ecgi_mcc_digit_2 = uli->ecgi2.ecgi_mcc_digit_2;
 		context->uli.ecgi2.ecgi_mcc_digit_1 = uli->ecgi2.ecgi_mcc_digit_1;
@@ -2134,15 +2464,11 @@ fill_uli_info(gtp_user_loc_info_ie_t *uli, ue_context *context)
 	return 0;
 }
 
-/**
- * @brief  : Fill ue context info from incoming data in create sess request
- * @param  : csr holds data in csr
- * @param  : context , pointer to ue context structure
- * @return : Returns 0 in case of success , -1 otherwise
- */
+
 int
 fill_context_info(create_sess_req_t *csr, ue_context *context, pdn_connection *pdn)
 {
+	int ret = 0;
 	if (csr->mei.header.len)
 		memcpy(&context->mei, &csr->mei.mei, csr->mei.header.len);
 
@@ -2150,9 +2476,36 @@ fill_context_info(create_sess_req_t *csr, ue_context *context, pdn_connection *p
 
 	if ((context->cp_mode == SGWC) || (context->cp_mode == SAEGWC)) {
 
-		context->s11_sgw_gtpc_ipv4.s_addr = pfcp_config.s11_ip.s_addr;
-		context->s11_mme_gtpc_ipv4.s_addr = csr->sender_fteid_ctl_plane.ipv4_address;
-		s11_mme_sockaddr.sin_addr.s_addr = csr->sender_fteid_ctl_plane.ipv4_address;
+		/* Storing s11_mme_gtpc_ip on the basis of IP type in CSReq
+		 * Storing s11_sgw_gtpc_ip on the basis of IP type of s11_mme_gtpc_ip in CSReq */
+		if (csr->sender_fteid_ctl_plane.v4) {
+
+			context->s11_mme_gtpc_ip.ipv4_addr = csr->sender_fteid_ctl_plane.ipv4_address;
+			context->s11_mme_gtpc_ip.ip_type = PDN_TYPE_IPV4;
+
+			context->s11_sgw_gtpc_ip.ipv4_addr = config.s11_ip.s_addr;
+			context->s11_sgw_gtpc_ip.ip_type = PDN_TYPE_IPV4;
+
+		} else if (csr->sender_fteid_ctl_plane.v6) {
+
+			memcpy(context->s11_mme_gtpc_ip.ipv6_addr,
+					csr->sender_fteid_ctl_plane.ipv6_address,
+					IPV6_ADDRESS_LEN);
+			context->s11_mme_gtpc_ip.ip_type = PDN_TYPE_IPV6;
+
+			memcpy(context->s11_sgw_gtpc_ip.ipv6_addr,
+					config.s11_ip_v6.s6_addr,
+					IPV6_ADDRESS_LEN);
+			context->s11_sgw_gtpc_ip.ip_type = PDN_TYPE_IPV6;
+
+		}
+
+
+		ret = set_dest_address(context->s11_mme_gtpc_ip, &s11_mme_sockaddr);
+		if (ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+				"IP address", LOG_VALUE);
+		}
 
 		if(csr->indctn_flgs.header.len != 0) {
 			context->indication_flag.oi = csr->indctn_flgs.indication_oi;
@@ -2163,11 +2516,20 @@ fill_context_info(create_sess_req_t *csr, ue_context *context, pdn_connection *p
 			context->indication_flag.cprai = csr->indctn_flgs.indication_cprai;
 			context->indication_flag.clii = csr->indctn_flgs.indication_clii;
 			context->indication_flag.dfi = csr->indctn_flgs.indication_dfi;
-			if (context->indication_flag.oi)
+			context->indication_flag.ltempi = csr->indctn_flgs.indication_ltempi;
+			context->indication_flag.pt = csr->indctn_flgs.indication_pt;
+
+			if (csr->indctn_flgs.indication_ltempi != 0)
+				context->ltem_rat_type_flag = TRUE;
+
+			if (context->indication_flag.oi == 1)
 				context->procedure = SGW_RELOCATION_PROC;
 		}
-
 	}
+
+	/*Storing Dual Address Bearer Flag for IPv6 IP assignment*/
+	if(csr->indctn_flgs.header.len != 0)
+		context->indication_flag.daf = csr->indctn_flgs.indication_daf;
 
 	/* It's senders TEID
 	 * MME TEID for MME -> SGW
@@ -2176,16 +2538,19 @@ fill_context_info(create_sess_req_t *csr, ue_context *context, pdn_connection *p
 	context->s11_mme_gtpc_teid = csr->sender_fteid_ctl_plane.teid_gre_key;
 
 	/* Stored the serving network information in UE context */
-	context->serving_nw.mnc_digit_1 = csr->serving_network.mnc_digit_1;
-	context->serving_nw.mnc_digit_2 = csr->serving_network.mnc_digit_2;
-	context->serving_nw.mnc_digit_3 = csr->serving_network.mnc_digit_3;
-	context->serving_nw.mcc_digit_1 = csr->serving_network.mcc_digit_1;
-	context->serving_nw.mcc_digit_2 = csr->serving_network.mcc_digit_2;
-	context->serving_nw.mcc_digit_3 = csr->serving_network.mcc_digit_3;
+	if(csr->serving_network.header.len != 0) {
+		context->serving_nw_flag = TRUE;
+		context->serving_nw.mnc_digit_1 = csr->serving_network.mnc_digit_1;
+		context->serving_nw.mnc_digit_2 = csr->serving_network.mnc_digit_2;
+		context->serving_nw.mnc_digit_3 = csr->serving_network.mnc_digit_3;
+		context->serving_nw.mcc_digit_1 = csr->serving_network.mcc_digit_1;
+		context->serving_nw.mcc_digit_2 = csr->serving_network.mcc_digit_2;
+		context->serving_nw.mcc_digit_3 = csr->serving_network.mcc_digit_3;
+	}
 
 	if (csr->uci.header.len != 0) {
 
-		context->uci_flag = true;
+		context->uci_flag = TRUE;
 		context->uci.mnc_digit_1 = csr->uci.mnc_digit_1;
 		context->uci.mnc_digit_2 = csr->uci.mnc_digit_2;
 		context->uci.mnc_digit_3 = csr->uci.mnc_digit_3;
@@ -2201,19 +2566,24 @@ fill_context_info(create_sess_req_t *csr, ue_context *context, pdn_connection *p
 	}
 
 	if (csr->ue_time_zone.header.len != 0) {
-		context->ue_time_zone_flag = true;
+		context->ue_time_zone_flag = TRUE;
 		context->tz.tz = csr->ue_time_zone.time_zone;
 		context->tz.dst = csr->ue_time_zone.daylt_svng_time;
 	}
 
-	if( csr->mo_exception_data_cntr.header.len != 0) {
-		context->mo_exception_data_counter.timestamp_value =  csr->mo_exception_data_cntr.timestamp_value;
-		context->mo_exception_data_counter.counter_value = csr->mo_exception_data_cntr.counter_value;
+	if (csr->mo_exception_data_cntr.header.len != 0) {
+		context->mo_exception_flag = TRUE;
+		context->mo_exception_data_counter.timestamp_value =
+			csr->mo_exception_data_cntr.timestamp_value;
+		context->mo_exception_data_counter.counter_value =
+			csr->mo_exception_data_cntr.counter_value;
 		context->mo_exception_flag = true;
 	}
 
 	/* Stored the RAT TYPE information in UE context */
+
 	if (csr->rat_type.header.len != 0) {
+		context->rat_type_flag = TRUE;
 		context->rat_type.rat_type = csr->rat_type.rat_type;
 		context->rat_type.len = csr->rat_type.header.len;
 	}
@@ -2239,12 +2609,68 @@ fill_context_info(create_sess_req_t *csr, ue_context *context, pdn_connection *p
 	return 0;
 }
 
-/**
- * @brief  : Fill pdn info from data in incoming csr
- * @param  : csr holds data in csr
- * @param  : pdn , pointer to pdn connction structure
- * @return : Returns 0 in case of success , -1 otherwise
- */
+static int
+fill_pdn_type(pdn_connection *pdn, create_sess_req_t *csr, uint8_t cp_type){
+
+	if(cp_type != SGWC) {
+		if (csr->pdn_type.pdn_type_pdn_type == PDN_TYPE_IPV4 &&
+			((config.ip_type_supported == IP_V4) ||
+			(config.ip_type_supported == IPV4V6_DUAL) ||
+			(config.ip_type_supported == IPV4V6_PRIORITY))) {
+			pdn->pdn_type.ipv4 = 1;
+		} else if (csr->pdn_type.pdn_type_pdn_type == PDN_TYPE_IPV6 &&
+					((config.ip_type_supported == IP_V6) ||
+					(config.ip_type_supported == IPV4V6_DUAL) ||
+					(config.ip_type_supported == IPV4V6_PRIORITY))) {
+			pdn->pdn_type.ipv6 = 1;
+		} else if (csr->pdn_type.pdn_type_pdn_type == PDN_TYPE_IPV4_IPV6) {
+				/*Add condition for DAF == 1 flag*/
+			if(config.ip_type_supported == IP_V4) {
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"IPV6 "
+					"type is not supported by Gateway so only allocating IPV4 \n", LOG_VALUE);
+						pdn->pdn_type.ipv4 = 1;
+
+			} else if(config.ip_type_supported == IP_V6) {
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"IPV4 "
+					"type is not supported by Gateway so only allocating IPV6 \n", LOG_VALUE);
+						pdn->pdn_type.ipv6 = 1;
+
+			} else if (config.ip_type_supported == IPV4V6_PRIORITY
+							|| (config.ip_type_supported == IPV4V6_DUAL
+								&& !(csr->indctn_flgs.indication_daf)) ) {
+
+				if(config.ip_type_priority == IP_V4_PRIORITY) {
+					pdn->pdn_type.ipv4 = 1;
+				} else if(config.ip_type_priority == IP_V6_PRIORITY) {
+					pdn->pdn_type.ipv6 = 1;
+				}
+			} else if (config.ip_type_supported == IPV4V6_DUAL
+						&& csr->indctn_flgs.indication_daf) {
+
+					pdn->pdn_type.ipv4 = 1;
+					pdn->pdn_type.ipv6 = 1;
+			}
+		} else {
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Requested "
+							"PDN type is not supported by Gateway \n", LOG_VALUE);
+			return GTPV2C_CAUSE_PREFERRED_PDN_TYPE_UNSUPPORTED;
+		}
+	} else {
+		if (csr->pdn_type.pdn_type_pdn_type == PDN_TYPE_IPV4) {
+			pdn->pdn_type.ipv4 = 1;
+		} else if (csr->pdn_type.pdn_type_pdn_type == PDN_TYPE_IPV6) {
+			pdn->pdn_type.ipv6 = 1;
+		} else if (csr->pdn_type.pdn_type_pdn_type == PDN_TYPE_IPV4_IPV6) {
+			pdn->pdn_type.ipv4 = 1;
+			pdn->pdn_type.ipv6 = 1;
+		}
+
+	}
+
+	return 0;
+
+}
+
 int
 fill_pdn_info(create_sess_req_t *csr, pdn_connection *pdn,
 		ue_context *context, eps_bearer *bearer)
@@ -2253,15 +2679,6 @@ fill_pdn_info(create_sess_req_t *csr, pdn_connection *pdn,
 	pdn->apn_ambr.ambr_downlink = csr->apn_ambr.apn_ambr_dnlnk;
 	pdn->apn_ambr.ambr_uplink = csr->apn_ambr.apn_ambr_uplnk;
 	pdn->apn_restriction = csr->max_apn_rstrct.rstrct_type_val;
-
-	if (csr->pdn_type.pdn_type_pdn_type == PDN_TYPE_IPV4)
-		pdn->pdn_type.ipv4 = 1;
-	else if (csr->pdn_type.pdn_type_pdn_type == PDN_TYPE_IPV6)
-		pdn->pdn_type.ipv6 = 1;
-	else if (csr->pdn_type.pdn_type_pdn_type == PDN_TYPE_IPV4_IPV6) {
-		pdn->pdn_type.ipv4 = 1;
-		pdn->pdn_type.ipv6 = 1;
-	}
 
 	if (csr->chrgng_char.header.len)
 		memcpy(&pdn->charging_characteristics,
@@ -2272,14 +2689,52 @@ fill_pdn_info(create_sess_req_t *csr, pdn_connection *pdn,
 		if (!pdn->s5s8_sgw_gtpc_teid) {
 			pdn->s5s8_sgw_gtpc_teid = get_s5s8_sgw_gtpc_teid();
 		}
-		pdn->s5s8_sgw_gtpc_ipv4 = pfcp_config.s5s8_ip;
+
+		/*On the basis of requested PGW IP type storing s5s8_sgw_gtpc_ip */
+		if (csr->pgw_s5s8_addr_ctl_plane_or_pmip.v4) {
+			pdn->s5s8_sgw_gtpc_ip.ipv4_addr = config.s5s8_ip.s_addr;
+			pdn->s5s8_sgw_gtpc_ip.ip_type = PDN_TYPE_IPV4;
+
+		} else if (csr->pgw_s5s8_addr_ctl_plane_or_pmip.v6) {
+
+			memcpy(pdn->s5s8_sgw_gtpc_ip.ipv6_addr,
+					config.s5s8_ip_v6.s6_addr,
+					IPV6_ADDRESS_LEN);
+			pdn->s5s8_sgw_gtpc_ip.ip_type = PDN_TYPE_IPV6;
+
+		}
 
 		if(context->cp_mode == SGWC) {
-			pdn->s5s8_pgw_gtpc_ipv4.s_addr =
-				csr->pgw_s5s8_addr_ctl_plane_or_pmip.ipv4_address;
+
+			if (csr->pgw_s5s8_addr_ctl_plane_or_pmip.v4) {
+				pdn->s5s8_pgw_gtpc_ip.ipv4_addr = csr->pgw_s5s8_addr_ctl_plane_or_pmip.ipv4_address;
+				pdn->s5s8_pgw_gtpc_ip.ip_type = PDN_TYPE_IPV4;
+
+			} else if (csr->pgw_s5s8_addr_ctl_plane_or_pmip.v6) {
+
+				memcpy(pdn->s5s8_pgw_gtpc_ip.ipv6_addr,
+						csr->pgw_s5s8_addr_ctl_plane_or_pmip.ipv6_address,
+						IPV6_ADDRESS_LEN);
+				pdn->s5s8_pgw_gtpc_ip.ip_type = PDN_TYPE_IPV6;
+
+			}
 
 		} else {
-			pdn->s5s8_pgw_gtpc_ipv4 = pfcp_config.s5s8_ip;
+
+			if (csr->pgw_s5s8_addr_ctl_plane_or_pmip.v4) {
+				/*Set only V4 address as */
+				pdn->s5s8_pgw_gtpc_ip.ipv4_addr = config.s5s8_ip.s_addr;
+				pdn->s5s8_pgw_gtpc_ip.ip_type = PDN_TYPE_IPV4;
+
+			} else if (csr->pgw_s5s8_addr_ctl_plane_or_pmip.v6) {
+
+				memcpy(pdn->s5s8_pgw_gtpc_ip.ipv6_addr,
+						config.s5s8_ip_v6.s6_addr,
+						IPV6_ADDRESS_LEN);
+				pdn->s5s8_pgw_gtpc_ip.ip_type = PDN_TYPE_IPV6;
+
+			}
+
 			/* Allocate the TEID in case of promotion and demotion case */
 			/* s11_sgw_gtpc_teid = s5s8_pgw_gtpc_teid */
 			pdn->s5s8_pgw_gtpc_teid = context->s11_sgw_gtpc_teid;
@@ -2287,8 +2742,32 @@ fill_pdn_info(create_sess_req_t *csr, pdn_connection *pdn,
 		}
 
 	} else if (context->cp_mode == PGWC) {
-		pdn->s5s8_pgw_gtpc_ipv4 = pfcp_config.s5s8_ip;
-		pdn->s5s8_sgw_gtpc_ipv4.s_addr = csr->sender_fteid_ctl_plane.ipv4_address;
+
+		if (csr->sender_fteid_ctl_plane.v4) {
+			pdn->s5s8_pgw_gtpc_ip.ipv4_addr = config.s5s8_ip.s_addr;
+			pdn->s5s8_pgw_gtpc_ip.ip_type = PDN_TYPE_IPV4;
+
+		} else if (csr->sender_fteid_ctl_plane.v6) {
+
+			memcpy(pdn->s5s8_pgw_gtpc_ip.ipv6_addr,
+					config.s5s8_ip_v6.s6_addr,
+					IPV6_ADDRESS_LEN);
+			pdn->s5s8_pgw_gtpc_ip.ip_type = PDN_TYPE_IPV6;
+
+		}
+
+		if (csr->sender_fteid_ctl_plane.v4) {
+			pdn->s5s8_sgw_gtpc_ip.ipv4_addr = csr->sender_fteid_ctl_plane.ipv4_address;
+			pdn->s5s8_sgw_gtpc_ip.ip_type = PDN_TYPE_IPV4;
+
+		} else if (csr->sender_fteid_ctl_plane.v6) {
+
+			memcpy(pdn->s5s8_sgw_gtpc_ip.ipv6_addr,
+					csr->sender_fteid_ctl_plane.ipv6_address,
+					IPV6_ADDRESS_LEN);
+			pdn->s5s8_sgw_gtpc_ip.ip_type = PDN_TYPE_IPV6;
+
+		}
 
 		/* Note: s5s8_pgw_gtpc_teid generated from
 		 * s5s8_pgw_gtpc_base_teid and incremented
@@ -2308,8 +2787,19 @@ fill_pdn_info(create_sess_req_t *csr, pdn_connection *pdn,
 
 	}
 
-	if (csr->indctn_flgs.header.len != 0 && context->indication_flag.oi) {
-		memcpy(&(pdn->ipv4.s_addr) ,&(csr->paa.pdn_addr_and_pfx), IPV4_SIZE);
+	if (csr->indctn_flgs.header.len != 0
+		&& ((context->indication_flag.oi == 1) ||
+			((context->indication_flag.oi == 0)
+			&& (context->indication_flag.daf == 0)
+			&& (csr->pgw_s5s8_addr_ctl_plane_or_pmip.teid_gre_key != 0)))) {
+		if (pdn->pdn_type.ipv4) {
+			pdn->uipaddr.ipv4.s_addr = csr->paa.pdn_addr_and_pfx;
+		}
+
+		if (pdn->pdn_type.ipv6) {
+			memcpy(pdn->uipaddr.ipv6.s6_addr, csr->paa.paa_ipv6, IPV6_ADDRESS_LEN);
+		}
+
 		pdn->s5s8_pgw_gtpc_teid = csr->pgw_s5s8_addr_ctl_plane_or_pmip.teid_gre_key;
 	}
 
@@ -2321,12 +2811,26 @@ fill_pdn_info(create_sess_req_t *csr, pdn_connection *pdn,
 	pdn->context = context;
 
 	if (context->cp_mode == SGWC) {
-		s5s8_recv_sockaddr.sin_addr.s_addr =
+
+		if(csr->pgw_s5s8_addr_ctl_plane_or_pmip.v6) {
+
+			memcpy(s5s8_recv_sockaddr.ipv6.sin6_addr.s6_addr,
+					csr->pgw_s5s8_addr_ctl_plane_or_pmip.ipv6_address,
+					IPV6_ADDRESS_LEN);
+
+			s5s8_recv_sockaddr.type = PDN_TYPE_IPV6;
+
+		} else if(csr->pgw_s5s8_addr_ctl_plane_or_pmip.v4){
+
+			s5s8_recv_sockaddr.ipv4.sin_addr.s_addr =
 				csr->pgw_s5s8_addr_ctl_plane_or_pmip.ipv4_address;
 
+			s5s8_recv_sockaddr.type = PDN_TYPE_IPV4;
+		}
+
 		/* Check for wheather to Generate CDR or NOT */
-		if(pfcp_config.generate_sgw_cdr == SGW_CC_CHECK){
-			if(pfcp_config.sgw_cc == csr->chrgng_char.chrgng_char_val){
+		if(config.generate_sgw_cdr == SGW_CC_CHECK){
+			if(config.sgw_cc == csr->chrgng_char.chrgng_char_val){
 				pdn->generate_cdr = PRESENT;
 			}else{
 				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT" %s CC value Missmatched\n",
@@ -2335,13 +2839,16 @@ fill_pdn_info(create_sess_req_t *csr, pdn_connection *pdn,
 			}
 
 		}else{
-			pdn->generate_cdr = pfcp_config.generate_sgw_cdr;
+			pdn->generate_cdr = config.generate_sgw_cdr;
 		}
 	}else {
 
 		/* Check for wheather to Generate CDR or NOT */
-		pdn->generate_cdr = pfcp_config.generate_cdr;
+		pdn->generate_cdr = config.generate_cdr;
 	}
+
+	/*Store Requested PDN type*/
+	pdn->requested_pdn_type = csr->pdn_type.pdn_type_pdn_type;
 
 	/* Stored the mapped ue usage type information in PDN */
 	if (csr->mapped_ue_usage_type.header.len != 0) {
@@ -2371,10 +2878,15 @@ check_interface_type(uint8_t iface, uint8_t  cp_type){
 				return DESTINATION_INTERFACE_VALUE_CORE;
 			}
 			break;
+		case GTPV2C_IFTYPE_S11_MME_GTPU:
+			if (cp_type != PGWC){
+				return DESTINATION_INTERFACE_VALUE_ACCESS;
+			}
+			break;
 		case GTPV2C_IFTYPE_S1U_SGW_GTPU:
+		case GTPV2C_IFTYPE_S11U_SGW_GTPU:
 		case GTPV2C_IFTYPE_S11_MME_GTPC:
 		case GTPV2C_IFTYPE_S11S4_SGW_GTPC:
-		case GTPV2C_IFTYPE_S11U_SGW_GTPU:
 		case GTPV2C_IFTYPE_S5S8_SGW_GTPC:
 		case GTPV2C_IFTYPE_S5S8_PGW_GTPC:
 		case GTPV2C_IFTYPE_S5S8_SGW_PIMPv6:
@@ -2400,16 +2912,22 @@ fill_dedicated_bearer_info(eps_bearer *bearer,
 		return -1;
 	}
 
-	bearer->s5s8_sgw_gtpu_ipv4.s_addr = context->eps_bearers[ebi_index]->s5s8_sgw_gtpu_ipv4.s_addr;
+	ret = set_address(&bearer->s5s8_sgw_gtpu_ip,
+		&context->eps_bearers[ebi_index]->s5s8_sgw_gtpu_ip);
+	if (ret < 0) {
+		clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+			"IP address", LOG_VALUE);
+	}
+
 #ifdef CP_BUILD
-	if(!prdef_rule && (pfcp_config.use_gx)){
+	if(!prdef_rule && (config.use_gx)){
 		/* TODO: Revisit this for change in yang*/
 		if (context->cp_mode != SGWC){
 			for(uint8_t itr = bearer->qer_count;
 				itr < bearer->qer_count + NUMBER_OF_QER_PER_RULE;
 				itr++){
 
-				bearer->qer_id[itr].qer_id = generate_qer_id();
+				bearer->qer_id[itr].qer_id = generate_qer_id(&context->qer_rule_id_offset);
 				fill_qer_entry(pdn, bearer,itr);
 			}
 			bearer->qer_count += NUMBER_OF_QER_PER_RULE;
@@ -2442,56 +2960,83 @@ fill_dedicated_bearer_info(eps_bearer *bearer,
 		}
 	}
 	bearer->pdr_count += NUMBER_OF_PDR_PER_RULE;
-
 	bearer->pdn = pdn;
 
 	ret = rte_hash_lookup_data(upf_context_by_ip_hash,
-			(const void*) &(pdn->upf_ipv4.s_addr),
+			(const void*) &(pdn->upf_ip),
 			(void **) &(upf_ctx));
 	if (ret < 0) {
-		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"NO ENTRY FOUND IN UPF "
-			"HASH [%u]\n", LOG_VALUE, (pdn->upf_ipv4.s_addr));
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"NO ENTRY FOUND IN UPF "
+			"HASH, IP Type : %s with IPv4 : "IPV4_ADDR"\t and IPv6 : "IPv6_FMT"",
+			LOG_VALUE, ip_type_str(pdn->upf_ip.ip_type),
+			IPV4_ADDR_HOST_FORMAT(pdn->upf_ip.ipv4_addr),
+			PRINT_IPV6_ADDR(pdn->upf_ip.ipv6_addr));
 		return GTPV2C_CAUSE_INVALID_PEER;
 	}
 
 	if (context->cp_mode == SGWC) {
-		bearer->s5s8_sgw_gtpu_ipv4.s_addr = upf_ctx->s5s8_sgwu_ip;
-		bearer->s1u_sgw_gtpu_ipv4.s_addr = upf_ctx->s1u_ip;
 
-		bearer->s1u_sgw_gtpu_teid = get_s1u_sgw_gtpu_teid(bearer->pdn->upf_ipv4.s_addr,
-												context->cp_mode, &upf_teid_info_head);
+		ret = set_address(&bearer->s5s8_sgw_gtpu_ip, &upf_ctx->s5s8_sgwu_ip);
+		if (ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+				"IP address", LOG_VALUE);
+		}
+
+		ret = set_address(&bearer->s1u_sgw_gtpu_ip, &upf_ctx->s1u_ip);
+		if (ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+				"IP address", LOG_VALUE);
+		}
+
+		bearer->s1u_sgw_gtpu_teid = get_s1u_sgw_gtpu_teid(bearer->pdn->upf_ip,
+										context->cp_mode, &upf_teid_info_head);
+
 		update_pdr_teid(bearer, bearer->s1u_sgw_gtpu_teid, upf_ctx->s1u_ip,
 												SOURCE_INTERFACE_VALUE_ACCESS);
 
-		bearer->s5s8_sgw_gtpu_teid = get_s5s8_sgw_gtpu_teid(bearer->pdn->upf_ipv4.s_addr,
-												context->cp_mode, &upf_teid_info_head);
+		bearer->s5s8_sgw_gtpu_teid = get_s5s8_sgw_gtpu_teid(bearer->pdn->upf_ip,
+										context->cp_mode, &upf_teid_info_head);
 		update_pdr_teid(bearer, bearer->s5s8_sgw_gtpu_teid, upf_ctx->s5s8_sgwu_ip,
 												SOURCE_INTERFACE_VALUE_CORE);
 
 	}else if (context->cp_mode == SAEGWC) {
-		bearer->s1u_sgw_gtpu_ipv4.s_addr = upf_ctx->s1u_ip;
 
-		bearer->s1u_sgw_gtpu_teid = get_s1u_sgw_gtpu_teid(bearer->pdn->upf_ipv4.s_addr,
-							context->cp_mode, &upf_teid_info_head);
+		ret = set_address(&bearer->s1u_sgw_gtpu_ip, &upf_ctx->s1u_ip);
+		if (ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+				"IP address", LOG_VALUE);
+		}
+
+		bearer->s1u_sgw_gtpu_teid = get_s1u_sgw_gtpu_teid(bearer->pdn->upf_ip,
+									context->cp_mode, &upf_teid_info_head);
+
 		update_pdr_teid(bearer, bearer->s1u_sgw_gtpu_teid, upf_ctx->s1u_ip,
 					SOURCE_INTERFACE_VALUE_ACCESS);
 
 		/* Suppport the promotion and demotion */
-		bearer->s5s8_pgw_gtpu_ipv4.s_addr = upf_ctx->s5s8_pgwu_ip;
+		ret = set_address(&bearer->s5s8_pgw_gtpu_ip, &upf_ctx->s5s8_pgwu_ip);
+		if (ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+				"IP address", LOG_VALUE);
+		}
+
 		bearer->s5s8_pgw_gtpu_teid =  bearer->s1u_sgw_gtpu_teid;
 
 	} else {
 
-		bearer->s5s8_pgw_gtpu_ipv4.s_addr = upf_ctx->s5s8_pgwu_ip;
-
-		bearer->s5s8_pgw_gtpu_teid = get_s5s8_pgw_gtpu_teid(bearer->pdn->upf_ipv4.s_addr,
-											context->cp_mode, &upf_teid_info_head);
+		ret = set_address(&bearer->s5s8_pgw_gtpu_ip, &upf_ctx->s5s8_pgwu_ip);
+		if (ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+				"IP address", LOG_VALUE);
+		}
+		bearer->s5s8_pgw_gtpu_teid = get_s5s8_pgw_gtpu_teid(bearer->pdn->upf_ip,
+										context->cp_mode, &upf_teid_info_head);
 		update_pdr_teid(bearer, bearer->s5s8_pgw_gtpu_teid, upf_ctx->s5s8_pgwu_ip,
 											SOURCE_INTERFACE_VALUE_ACCESS);
 	}
 
 	/* TODO: Added handling for QER Approprietly */
-	if(!prdef_rule && (pfcp_config.use_gx)){
+	if(!prdef_rule && (config.use_gx)){
 		if (context->cp_mode != SGWC){
 			for(uint8_t itr = 0; itr < bearer->pdr_count; itr++){
 				bearer->pdrs[itr]->qer_id[0].qer_id = bearer->qer_id[itr].qer_id;
@@ -2517,7 +3062,7 @@ static int
 fill_bearer_info(create_sess_req_t *csr, eps_bearer *bearer,
 		ue_context *context, pdn_connection *pdn, int index )
 {
-
+	int ret = 0;
 	/* Need to re-vist this ARP[Allocation/Retention priority] handling portion */
 	bearer->qos.arp.priority_level =
 		csr->bearer_contexts_to_be_created[index].bearer_lvl_qos.pl;
@@ -2546,15 +3091,43 @@ fill_bearer_info(create_sess_req_t *csr, eps_bearer *bearer,
 	bearer->s5s8_sgw_gtpu_teid = 0;
 
 	if (context->cp_mode == PGWC){
-		bearer->s5s8_sgw_gtpu_ipv4.s_addr = csr->bearer_contexts_to_be_created[index].s5s8_u_sgw_fteid.ipv4_address;
 		bearer->s5s8_sgw_gtpu_teid = csr->bearer_contexts_to_be_created[index].s5s8_u_sgw_fteid.teid_gre_key;
+
+		ret = fill_ip_addr(csr->bearer_contexts_to_be_created[index].s5s8_u_sgw_fteid.ipv4_address,
+			csr->bearer_contexts_to_be_created[index].s5s8_u_sgw_fteid.ipv6_address,
+			&bearer->s5s8_sgw_gtpu_ip);
+		if (ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+				"IP address", LOG_VALUE);
+		}
 	}
 
-	if (csr->indctn_flgs.header.len != 0 && context->indication_flag.oi) {
-		bearer->s5s8_pgw_gtpu_ipv4.s_addr = csr->bearer_contexts_to_be_created[index].s5s8_u_pgw_fteid.ipv4_address;
+	if (csr->indctn_flgs.header.len != 0 && ((context->indication_flag.oi) ||
+				(context->indication_flag.oi == 0 && context->indication_flag.daf == 0
+				&& (csr->pgw_s5s8_addr_ctl_plane_or_pmip.teid_gre_key != 0)))) {
+
+		ret = fill_ip_addr(csr->bearer_contexts_to_be_created[index].s5s8_u_pgw_fteid.ipv4_address,
+			csr->bearer_contexts_to_be_created[index].s5s8_u_pgw_fteid.ipv6_address,
+			&bearer->s5s8_pgw_gtpu_ip);
+		if (ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+				"IP address", LOG_VALUE);
+		}
+
 		bearer->s5s8_pgw_gtpu_teid = csr->bearer_contexts_to_be_created[index].s5s8_u_pgw_fteid.teid_gre_key;
-		bearer->s1u_enb_gtpu_teid = csr->bearer_contexts_to_be_created[index].s1u_enb_fteid.teid_gre_key;
-		bearer->s1u_enb_gtpu_ipv4.s_addr = csr->bearer_contexts_to_be_created[index].s1u_enb_fteid.ipv4_address;
+
+		if((((csr->bearer_contexts_to_be_created[index].s1u_enb_fteid.ipv4_address) != 0) ||
+				(*(csr->bearer_contexts_to_be_created[index].s1u_enb_fteid.ipv6_address))) &&
+				(csr->bearer_contexts_to_be_created[index].s1u_enb_fteid.teid_gre_key != 0)) {
+			ret = fill_ip_addr(csr->bearer_contexts_to_be_created[index].s1u_enb_fteid.ipv4_address,
+					csr->bearer_contexts_to_be_created[index].s1u_enb_fteid.ipv6_address,
+					&bearer->s1u_enb_gtpu_ip);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+						"IP address", LOG_VALUE);
+			}
+			bearer->s1u_enb_gtpu_teid = csr->bearer_contexts_to_be_created[index].s1u_enb_fteid.teid_gre_key;
+		}
 	}
 
 	/*SP: As per discussion Per bearer two pdrs and fars will be there*/
@@ -2689,11 +3262,7 @@ gen_ccr_request(ue_context *context, int ebi_index , create_sess_req_t *csr)
 		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 	}
 
-	struct sockaddr_in saddr_in;
-	saddr_in.sin_family = AF_INET;
-	inet_aton(CLI_GX_IP, &(saddr_in.sin_addr));
-	update_cli_stats(saddr_in.sin_addr.s_addr, OSS_CCR_INITIAL, SENT, GX);
-
+	update_cli_stats((peer_address_t *) &config.gx_ip, OSS_CCR_INITIAL, SENT, GX);
 
 	/* Update UE State */
 	pdn->state = CCR_SNT_STATE;
@@ -2742,13 +3311,8 @@ gen_ccr_request(ue_context *context, int ebi_index , create_sess_req_t *csr)
 			msg_len + GX_HEADER_LEN);
 
 	rte_free(buffer);
-	if (ccr_request.data.ccr.subscription_id.list != NULL) {
-		free(ccr_request.data.ccr.subscription_id.list);
-		ccr_request.data.ccr.subscription_id.list = NULL;
-		clLog(clSystemLog, eCLSeverityDebug,LOG_FORMAT
-			"subscription id list is successfully free\n",
-			LOG_VALUE);
-	}
+	free_dynamically_alloc_memory(&ccr_request);
+
 	RTE_SET_USED(csr);
 	return 0;
 }
@@ -2904,17 +3468,13 @@ store_rule_report_index(uint8_t rule_index,
 	return ;
 }
 
-/* @brief  : Free dynamically allocated memory in ccr request
- * @param  : ccr_request, ptr to ccr msg structure in which
- *         : memory is allocated.
- * @return : nothing.
- */
-static void
+void
 free_dynamically_alloc_memory(gx_msg *ccr_request) {
 
 	if(ccr_request->data.ccr.presence.subscription_id == PRESENT) {
 
-		free(&ccr_request->data.ccr.subscription_id.list[0]);
+		rte_free(&ccr_request->data.ccr.subscription_id.list[0]);
+		ccr_request->data.ccr.subscription_id.list = NULL;
 		clLog(clSystemLog, eCLSeverityDebug,
 				LOG_FORMAT"Subscription id cleanup succesfully\n", LOG_VALUE);
 	}
@@ -2926,6 +3486,7 @@ free_dynamically_alloc_memory(gx_msg *ccr_request) {
 				LOG_VALUE, ccr_request->data.ccr.packet_filter_information.count);
 
 		rte_free(&ccr_request->data.ccr.packet_filter_information.list[0]);
+		ccr_request->data.ccr.packet_filter_information.list = NULL;
 		clLog(clSystemLog, eCLSeverityDebug,
 				"Free packet filter information : \n", LOG_VALUE);
 	}
@@ -2941,14 +3502,29 @@ free_dynamically_alloc_memory(gx_msg *ccr_request) {
 			if(ccr_request->data.ccr.charging_rule_report.list[cnt].presence.charging_rule_name == PRESENT) {
 				for(int iCnt = 0; iCnt < ccr_request->data.ccr.charging_rule_report.list[cnt].charging_rule_name.count; iCnt++) {
 					rte_free(&ccr_request->data.ccr.charging_rule_report.list[cnt].charging_rule_name.list[iCnt]);
-
 				}
 			}
 
 		}
 		rte_free(&ccr_request->data.ccr.charging_rule_report.list[0]);
+		ccr_request->data.ccr.charging_rule_report.list = NULL;
 		clLog(clSystemLog, eCLSeverityDebug,
 				LOG_FORMAT"Free Charging rule report : \n", LOG_VALUE);
+	}
+
+	if(ccr_request->data.ccr.presence.presence_reporting_area_information == PRESENT){
+		rte_free(&ccr_request->data.ccr.presence_reporting_area_information.list[0]);
+		ccr_request->data.ccr.presence_reporting_area_information.list = NULL;
+		clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"PRA leanup succesfully\n", LOG_VALUE);
+	}
+
+	if(ccr_request->data.ccr.event_trigger.list != NULL){
+		rte_free(ccr_request->data.ccr.event_trigger.list);
+		ccr_request->data.ccr.event_trigger.list = NULL;
+		clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"Free Event trigger done : \n", LOG_VALUE);
+
 	}
 
 	clLog(clSystemLog, eCLSeverityDebug,
@@ -3208,15 +3784,9 @@ fill_create_new_tft_avp(gx_msg *ccr_request, bearer_rsrc_cmd_t *bearer_rsrc_cmd)
 		return GTPV2C_CAUSE_SYSTEM_FAILURE;
 	}
 
-	struct in_addr src_ip_addr;
-	struct in_addr dst_ip_addr;
 	uint8_t pkt_indx = 0;
 
 	for( idx = 0; idx < pkt_flt_cnt; idx++ ) {
-
-		char dest_addr_buff[ADDR_BUF_SIZE]= {0};
-		char src_addr_buff[ADDR_BUF_SIZE]= {0};
-		char pkt_buff[PCKT_BUF_SIZE] = {0};
 
 		ccr_request->data.ccr.packet_filter_information.list[idx].presence.packet_filter_content = PRESENT;
 		ccr_request->data.ccr.packet_filter_information.list[idx].presence.packet_filter_identifier = PRESENT;
@@ -3224,29 +3794,11 @@ fill_create_new_tft_avp(gx_msg *ccr_request, bearer_rsrc_cmd_t *bearer_rsrc_cmd)
 		ccr_request->data.ccr.packet_filter_information.list[idx].presence.precedence = PRESENT;
 
 		tad_pkt_fltr_t tad_pkt_fltr = {0};
-		fill_gx_packet_filter_info(&bearer_rsrc_cmd->tad.pkt_fltr_buf[pkt_indx], &tad_pkt_fltr);
+		parse_tad_packet_filter(&bearer_rsrc_cmd->tad.pkt_fltr_buf[pkt_indx], &tad_pkt_fltr);
+
 
 		pkt_indx = (bearer_rsrc_cmd->tad.pkt_fltr_buf[pkt_indx + PKT_FLTR_LEN_INDEX]) + PKT_FLTR_CONTENT_INDEX;
-
-		memcpy(ccr_request->data.ccr.packet_filter_information.list[idx].packet_filter_identifier.val,
-				&tad_pkt_fltr.pckt_fltr_id,1);
-		ccr_request->data.ccr.packet_filter_information.list[idx].packet_filter_identifier.len = 1;
-		ccr_request->data.ccr.packet_filter_information.list[idx].flow_direction = tad_pkt_fltr.pckt_fltr_dir;
-		memcpy(&ccr_request->data.ccr.packet_filter_information.list[idx].precedence,
-				&tad_pkt_fltr.precedence,1);
-
-		src_ip_addr.s_addr = tad_pkt_fltr.local_ip_addr;
-		dst_ip_addr.s_addr = tad_pkt_fltr.remote_ip_addr;
-		snprintf(src_addr_buff,ADDR_BUF_SIZE,"%s",inet_ntoa(src_ip_addr));
-		snprintf(dest_addr_buff,ADDR_BUF_SIZE,"%s",inet_ntoa(dst_ip_addr));
-
-		snprintf(pkt_buff,PCKT_BUF_SIZE,"%s %s/%d %u-%u to %s/%d %u-%u ","permit out ip from",
-				inet_ntoa(src_ip_addr),tad_pkt_fltr.local_ip_mask,tad_pkt_fltr.local_port_low,
-				tad_pkt_fltr.local_port_high,dest_addr_buff,tad_pkt_fltr.remote_ip_mask,
-				tad_pkt_fltr.remote_port_low,tad_pkt_fltr.remote_port_high);
-		memcpy(ccr_request->data.ccr.packet_filter_information.list[idx].packet_filter_content.val,
-				pkt_buff,strlen(pkt_buff));
-		ccr_request->data.ccr.packet_filter_information.list[idx].packet_filter_content.len = strlen(pkt_buff);
+		fill_packet_fltr_info_avp(ccr_request, &tad_pkt_fltr, idx);
 
 	}
 
@@ -3283,7 +3835,7 @@ fill_replace_filter_existing_tft_avp(gx_msg *ccr_request,
 	 */
 	for (int cnt = 0; cnt < pkt_flt_cnt; cnt++) {
 		tad_pkt_fltr_t tad_pkt_fltr = {0};
-		fill_gx_packet_filter_info(&bearer_rsrc_cmd->tad.pkt_fltr_buf[pkt_indx], &tad_pkt_fltr);
+		parse_tad_packet_filter(&bearer_rsrc_cmd->tad.pkt_fltr_buf[pkt_indx], &tad_pkt_fltr);
 		pkt_indx = (bearer_rsrc_cmd->tad.pkt_fltr_buf[pkt_indx + PKT_FLTR_LEN_INDEX]) + PKT_FLTR_CONTENT_INDEX;
 		rule_index = check_pckt_fltr_id_in_rule(tad_pkt_fltr.pckt_fltr_id, bearer);
 
@@ -3350,14 +3902,9 @@ fill_replace_filter_existing_tft_avp(gx_msg *ccr_request,
 		return GTPV2C_CAUSE_SYSTEM_FAILURE;
 	}
 
-	struct in_addr src_ip_addr;
-	struct in_addr dst_ip_addr;
 	pkt_indx = 0;
-	for( idx = 0; idx < pkt_flt_cnt; idx++ ) {
 
-		char dest_addr_buff[ADDR_BUF_SIZE]= {0};
-		char src_addr_buff[ADDR_BUF_SIZE]= {0};
-		char pkt_buff[PCKT_BUF_SIZE] = {0};
+	for( idx = 0; idx < pkt_flt_cnt; idx++ ) {
 
 		ccr_request->data.ccr.packet_filter_information.list[idx].presence.packet_filter_content = PRESENT;
 		ccr_request->data.ccr.packet_filter_information.list[idx].presence.packet_filter_identifier = PRESENT;
@@ -3365,30 +3912,10 @@ fill_replace_filter_existing_tft_avp(gx_msg *ccr_request,
 		ccr_request->data.ccr.packet_filter_information.list[idx].presence.precedence = PRESENT;
 
 		tad_pkt_fltr_t tad_pkt_fltr = {0};
-		fill_gx_packet_filter_info(&bearer_rsrc_cmd->tad.pkt_fltr_buf[pkt_indx], &tad_pkt_fltr);
+		parse_tad_packet_filter(&bearer_rsrc_cmd->tad.pkt_fltr_buf[pkt_indx], &tad_pkt_fltr);
 
 		pkt_indx = (bearer_rsrc_cmd->tad.pkt_fltr_buf[pkt_indx + PKT_FLTR_LEN_INDEX]) + PKT_FLTR_CONTENT_INDEX;
-
-		memcpy(ccr_request->data.ccr.packet_filter_information.list[idx].packet_filter_identifier.val,
-				&tad_pkt_fltr.pckt_fltr_id,1);
-		ccr_request->data.ccr.packet_filter_information.list[idx].packet_filter_identifier.len = 1;
-		ccr_request->data.ccr.packet_filter_information.list[idx].flow_direction = tad_pkt_fltr.pckt_fltr_dir;
-		memcpy(&ccr_request->data.ccr.packet_filter_information.list[idx].precedence,
-				&tad_pkt_fltr.precedence,1);
-
-		src_ip_addr.s_addr = tad_pkt_fltr.local_ip_addr;
-		dst_ip_addr.s_addr = tad_pkt_fltr.remote_ip_addr;
-		snprintf(src_addr_buff,ADDR_BUF_SIZE,"%s",inet_ntoa(src_ip_addr));
-		snprintf(dest_addr_buff,ADDR_BUF_SIZE,"%s",inet_ntoa(dst_ip_addr));
-
-		snprintf(pkt_buff,PCKT_BUF_SIZE,"%s %s/%d %u-%u to %s/%d %u-%u ","permit out ip from",
-				inet_ntoa(src_ip_addr),tad_pkt_fltr.local_ip_mask,tad_pkt_fltr.local_port_low,
-				tad_pkt_fltr.local_port_high,dest_addr_buff,tad_pkt_fltr.remote_ip_mask,
-				tad_pkt_fltr.remote_port_low,tad_pkt_fltr.remote_port_high);
-		memcpy(ccr_request->data.ccr.packet_filter_information.list[idx].packet_filter_content.val,
-				pkt_buff,strlen(pkt_buff));
-		ccr_request->data.ccr.packet_filter_information.list[idx].packet_filter_content.len = strlen(pkt_buff);
-
+		fill_packet_fltr_info_avp(ccr_request, &tad_pkt_fltr, idx);
 	}
 
 	/*If qos is requested to modify*/
@@ -3508,8 +4035,6 @@ fill_add_filter_existing_tft_avp(gx_msg *ccr_request,
 		return GTPV2C_CAUSE_SYSTEM_FAILURE;
 	}
 
-	struct in_addr src_ip_addr;
-	struct in_addr dst_ip_addr;
 	uint8_t pkt_indx = 0;
 	uint16_t total_decoded = 1;
 
@@ -3517,40 +4042,17 @@ fill_add_filter_existing_tft_avp(gx_msg *ccr_request,
 
 		for( idx = 0; idx < pkt_flt_cnt; idx++ ) {
 
-			char dest_addr_buff[ADDR_BUF_SIZE]= {0};
-			char src_addr_buff[ADDR_BUF_SIZE]= {0};
-			char pkt_buff[PCKT_BUF_SIZE] = {0};
-
 			ccr_request->data.ccr.packet_filter_information.list[idx].presence.packet_filter_content = PRESENT;
 			ccr_request->data.ccr.packet_filter_information.list[idx].presence.packet_filter_identifier = PRESENT;
 			ccr_request->data.ccr.packet_filter_information.list[idx].presence.flow_direction = PRESENT;
 			ccr_request->data.ccr.packet_filter_information.list[idx].presence.precedence = PRESENT;
 
 			tad_pkt_fltr_t tad_pkt_fltr = {0};
-			fill_gx_packet_filter_info(&bearer_rsrc_cmd->tad.pkt_fltr_buf[pkt_indx], &tad_pkt_fltr);
+			parse_tad_packet_filter(&bearer_rsrc_cmd->tad.pkt_fltr_buf[pkt_indx], &tad_pkt_fltr);
+			fill_packet_fltr_info_avp(ccr_request, &tad_pkt_fltr, idx);
 
 			pkt_indx += (bearer_rsrc_cmd->tad.pkt_fltr_buf[pkt_indx + PKT_FLTR_LEN_INDEX]) + PKT_FLTR_CONTENT_INDEX;
 			total_decoded += pkt_indx;
-
-			memcpy(ccr_request->data.ccr.packet_filter_information.list[idx].packet_filter_identifier.val,
-					&tad_pkt_fltr.pckt_fltr_id,1);
-			ccr_request->data.ccr.packet_filter_information.list[idx].packet_filter_identifier.len = 1;
-			ccr_request->data.ccr.packet_filter_information.list[idx].flow_direction = tad_pkt_fltr.pckt_fltr_dir;
-			memcpy(&ccr_request->data.ccr.packet_filter_information.list[idx].precedence,
-					&tad_pkt_fltr.precedence,1);
-
-			src_ip_addr.s_addr = tad_pkt_fltr.local_ip_addr;
-			dst_ip_addr.s_addr = tad_pkt_fltr.remote_ip_addr;
-			snprintf(src_addr_buff,ADDR_BUF_SIZE,"%s",inet_ntoa(src_ip_addr));
-			snprintf(dest_addr_buff,ADDR_BUF_SIZE,"%s",inet_ntoa(dst_ip_addr));
-
-			snprintf(pkt_buff,PCKT_BUF_SIZE,"%s %s/%d %u-%u to %s/%d %u-%u ","permit out ip from",
-					inet_ntoa(src_ip_addr),tad_pkt_fltr.local_ip_mask,tad_pkt_fltr.local_port_low,
-					tad_pkt_fltr.local_port_high,dest_addr_buff,tad_pkt_fltr.remote_ip_mask,
-					tad_pkt_fltr.remote_port_low,tad_pkt_fltr.remote_port_high);
-			memcpy(ccr_request->data.ccr.packet_filter_information.list[idx].packet_filter_content.val,
-					pkt_buff,strlen(pkt_buff));
-			ccr_request->data.ccr.packet_filter_information.list[idx].packet_filter_content.len = strlen(pkt_buff);
 
 		}
 
@@ -3823,7 +4325,7 @@ fill_gx_packet_filter_id(uint8_t *pkt_fltr_buf, delete_pkt_filter *pkt_id) {
 
 
 int
-fill_gx_packet_filter_info(uint8_t pkt_fltr_buf[], tad_pkt_fltr_t *tad_pkt_fltr) {
+parse_tad_packet_filter(uint8_t pkt_fltr_buf[], tad_pkt_fltr_t *tad_pkt_fltr) {
 
 	int index = 0;
 	int itr = 0 ;
@@ -3842,6 +4344,11 @@ fill_gx_packet_filter_info(uint8_t pkt_fltr_buf[], tad_pkt_fltr_t *tad_pkt_fltr)
 			continue;
 		}
 
+		if(index == 2) {
+			/*Packet filter length*/
+			continue;
+		}
+
 		if (pkt_fltr_buf[index] == TFT_IPV4_SRC_ADDR_TYPE) {
 			memcpy(&tad_pkt_fltr->local_ip_addr,&pkt_fltr_buf[index+1],PKT_FLTR_COMP_TYPE_ID_LEN);
 			index = index + PKT_FLTR_COMP_TYPE_ID_LEN + 1;
@@ -3850,6 +4357,23 @@ fill_gx_packet_filter_info(uint8_t pkt_fltr_buf[], tad_pkt_fltr_t *tad_pkt_fltr)
 					tad_pkt_fltr->local_ip_mask += IP_MASK;
 			}
 			index = index + NEXT_PKT_FLTR_COMP_INDEX;
+			tad_pkt_fltr->v4 = TRUE;
+			continue;
+		}
+
+		if (pkt_fltr_buf[index] == TFT_IPV6_SRC_ADDR_PREFIX_LEN_TYPE) {
+			memcpy(&tad_pkt_fltr->local_ip6_addr, &pkt_fltr_buf[index+1], IPV6_ADDRESS_LEN);
+			index = index + IPV6_ADDRESS_LEN + 1;
+			tad_pkt_fltr->local_ip_mask = pkt_fltr_buf[index];
+			tad_pkt_fltr->v6 = TRUE;
+			continue;
+		}
+
+		if (pkt_fltr_buf[index] == TFT_IPV6_REMOTE_ADDR_PREFIX_LEN_TYPE) {
+			memcpy(&tad_pkt_fltr->remote_ip6_addr,&pkt_fltr_buf[index+1],IPV6_ADDRESS_LEN);
+			index = index + IPV6_ADDRESS_LEN + 1;
+			tad_pkt_fltr->remote_ip_mask = pkt_fltr_buf[index];
+			tad_pkt_fltr->v6 = TRUE;
 			continue;
 		}
 
@@ -3861,6 +4385,7 @@ fill_gx_packet_filter_info(uint8_t pkt_fltr_buf[], tad_pkt_fltr_t *tad_pkt_fltr)
 					tad_pkt_fltr->remote_ip_mask += IP_MASK;
 			}
 			index = index + NEXT_PKT_FLTR_COMP_INDEX;
+			tad_pkt_fltr->v4 = TRUE;
 			continue;
 		}
 
@@ -3915,13 +4440,13 @@ fill_gx_packet_filter_info(uint8_t pkt_fltr_buf[], tad_pkt_fltr_t *tad_pkt_fltr)
  * @brief  : Generate ccru request
  * @param  : pdn, pdn connection data
  * @param  : bearer, bearer information
- * @param  : flag_check
  * @param  : bearer resource command
+ * @param  : Modify Bearer command
  * @return : Returns 0 on success, -1 otherwise
  */
 int
 gen_ccru_request(ue_context *context, eps_bearer *bearer,
-		bearer_rsrc_cmd_t *bearer_rsrc_cmd)
+		bearer_rsrc_cmd_t *bearer_rsrc_cmd, mod_bearer_cmd_t *mod_bearer_cmd)
 {
 	/*
 	 * TODO:
@@ -4051,7 +4576,7 @@ gen_ccru_request(ue_context *context, eps_bearer *bearer,
 	ccr_request.data.ccr.presence.event_trigger = PRESENT ;
 	ccr_request.data.ccr.event_trigger.count = 0 ;
 
-	if(bearer_resource_mod_flow_flag == 1 ) {
+	if(bearer_resource_mod_flow_flag == 1 || mod_bearer_cmd != NULL ) {
 		evnt_tigger_list[ccr_request.data.ccr.event_trigger.count++] = RESOURCE_MODIFICATION_REQUEST;
 	}
 
@@ -4165,8 +4690,9 @@ gen_ccru_request(ue_context *context, eps_bearer *bearer,
 	}
 
 	context->ue_time_zone_flag =  FALSE;
-	ccr_request.data.ccr.event_trigger.list = (int32_t *)malloc(ccr_request.data.ccr.
-												event_trigger.count * sizeof(int32_t));
+	ccr_request.data.ccr.event_trigger.list = (int32_t *) rte_malloc_socket(NULL,
+									(ccr_request.data.ccr.event_trigger.count * sizeof(int32_t)),
+                                                            RTE_CACHE_LINE_SIZE, rte_socket_id());
 
 	for(uint8_t count = 0; count < ccr_request.data.ccr.event_trigger.count; count++ ) {
 		*(ccr_request.data.ccr.event_trigger.list + count) = evnt_tigger_list[count];
@@ -4187,11 +4713,7 @@ gen_ccru_request(ue_context *context, eps_bearer *bearer,
 		return -1;
 	}
 
-	struct sockaddr_in saddr_in;
-	saddr_in.sin_family = AF_INET;
-	inet_aton(CLI_GX_IP, &(saddr_in.sin_addr));
-	update_cli_stats(saddr_in.sin_addr.s_addr, OSS_CCR_UPDATE, SENT, GX);
-
+	update_cli_stats((peer_address_t *) &config.gx_ip, OSS_CCR_UPDATE, SENT, GX);
 
 	/* Update UE State */
 	pdn->state = CCRU_SNT_STATE;
@@ -4231,8 +4753,6 @@ gen_ccru_request(ue_context *context, eps_bearer *bearer,
 	send_to_ipc_channel(gx_app_sock, buffer,
 			msg_len + GX_HEADER_LEN);
 	rte_free(buffer);
-	if(ccr_request.data.ccr.event_trigger.list != NULL)
-		free(ccr_request.data.ccr.event_trigger.list);
 	free_dynamically_alloc_memory(&ccr_request);
 
 	return 0;
@@ -4303,7 +4823,7 @@ ccru_req_for_bear_termination(pdn_connection *pdn, eps_bearer *bearer)
 	ccr_request.data.ccr.presence.charging_rule_report = PRESENT;
 	ccr_request.data.ccr.charging_rule_report.count = 1;
 	ccr_request.data.ccr.charging_rule_report.list = rte_malloc_socket(NULL,
-			(sizeof(GxChargingRuleReportList)*1),
+			((sizeof(GxChargingRuleReport))*1),
 			RTE_CACHE_LINE_SIZE, rte_socket_id());
 	if (ccr_request.data.ccr.charging_rule_report.list == NULL) {
 		clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT
@@ -4314,7 +4834,7 @@ ccru_req_for_bear_termination(pdn_connection *pdn, eps_bearer *bearer)
 
 	ccr_request.data.ccr.charging_rule_report.list[idx].presence.charging_rule_name = PRESENT;
 	ccr_request.data.ccr.charging_rule_report.list[idx].charging_rule_name.list = rte_malloc_socket(NULL,
-			(sizeof(GxChargingRuleNameOctetString)*1),
+			((sizeof(GxChargingRuleNameOctetString))*1),
 			RTE_CACHE_LINE_SIZE, rte_socket_id());
 
 	if (ccr_request.data.ccr.charging_rule_report.list[idx]
@@ -4326,21 +4846,40 @@ ccru_req_for_bear_termination(pdn_connection *pdn, eps_bearer *bearer)
 	}
 
 	ccr_request.data.ccr.charging_rule_report.list[idx].charging_rule_name.count = 1;
-	ccr_request.data.ccr.charging_rule_report.list[idx].charging_rule_name.list[idx].len = strnlen(bearer->dynamic_rules[idx]->rule_name,RULE_NAME_LEN);
 
-	for(uint16_t i = 0 ; i<strnlen(bearer->dynamic_rules[idx]->rule_name,RULE_NAME_LEN); i++){
-		ccr_request.data.ccr.charging_rule_report.list[idx].charging_rule_name.list[idx].val[i] =
-			bearer->dynamic_rules[idx]->rule_name[i];
+	int8_t itr1 = 0;
+	int8_t itr2 = 0;
+	int8_t num_filters = bearer->num_dynamic_filters + bearer->num_prdef_filters;
+
+	for(uint8_t cnt = 0; cnt < num_filters; cnt++){
+		if(itr1 < bearer->num_dynamic_filters){
+			ccr_request.data.ccr.charging_rule_report.list[idx].charging_rule_name.list[cnt].len =
+				strnlen(bearer->dynamic_rules[itr1]->rule_name, RULE_NAME_LEN);
+
+			for(uint16_t i = 0 ; i<strnlen(bearer->dynamic_rules[itr1]->rule_name, RULE_NAME_LEN); i++){
+				ccr_request.data.ccr.charging_rule_report.list[idx].charging_rule_name.list[cnt].val[i] =
+					bearer->dynamic_rules[itr1]->rule_name[i];
+			}
+			itr1++;
+		} else {
+			if(itr2 < bearer->num_prdef_filters){
+				ccr_request.data.ccr.charging_rule_report.list[idx].charging_rule_name.list[cnt].len =
+					strnlen(bearer->prdef_rules[itr2]->rule_name, RULE_NAME_LEN);
+
+				for(uint16_t i = 0 ; i<strnlen(bearer->prdef_rules[itr2]->rule_name, RULE_NAME_LEN); i++){
+					ccr_request.data.ccr.charging_rule_report.list[idx].charging_rule_name.list[cnt].val[i] =
+						bearer->prdef_rules[itr2]->rule_name[i];
+				}
+				itr2++;
+			}
+		}
 	}
-
 	ccr_request.data.ccr.charging_rule_report.list[idx].presence.pcc_rule_status = PRESENT;
 	ccr_request.data.ccr.charging_rule_report.list[idx].pcc_rule_status = INACTIVE;
 
 	ccr_request.data.ccr.charging_rule_report.list[idx].presence.rule_failure_code = PRESENT;
 	ccr_request.data.ccr.charging_rule_report.list[idx].rule_failure_code = NO_BEARER_BOUND;
 
-	char *temp = inet_ntoa(pdn->ipv4);
-	memcpy(ccr_request.data.ccr.framed_ip_address.val, &temp, strnlen(temp,(GX_FRAMED_IP_ADDRESS_LEN + 1)));
 
 	int ebi_index = GET_EBI_INDEX(bearer->eps_bearer_id);
 	if (ebi_index == -1) {
@@ -4356,11 +4895,7 @@ ccru_req_for_bear_termination(pdn_connection *pdn, eps_bearer *bearer)
 		return -1;
 	}
 
-	struct sockaddr_in saddr_in;
-	saddr_in.sin_family = AF_INET;
-	inet_aton(CLI_GX_IP, &(saddr_in.sin_addr));
-	update_cli_stats(saddr_in.sin_addr.s_addr, OSS_CCR_UPDATE, SENT, GX);
-
+	update_cli_stats((peer_address_t *) &config.gx_ip, OSS_CCR_UPDATE, SENT, GX);
 
 	/* Update UE State */
 	pdn->state = CCRU_SNT_STATE;
@@ -4400,33 +4935,9 @@ ccru_req_for_bear_termination(pdn_connection *pdn, eps_bearer *bearer)
 			msg_len + GX_HEADER_LEN);
 	rte_free(buffer);
 
-	if(ccr_request.data.ccr.charging_rule_report.list[idx]
-			.charging_rule_name.list != NULL) {
-		rte_free(ccr_request.data.ccr.charging_rule_report.list[idx]
-				.charging_rule_name.list);
-		ccr_request.data.ccr.charging_rule_report.list[idx]
-			.charging_rule_name.list = NULL;
-		clLog(clSystemLog, eCLSeverityDebug,LOG_FORMAT
-			"charging rule name list memory is successfully free\n",
-			LOG_VALUE);
-	}
+	free_dynamically_alloc_memory(&ccr_request);
 
-	if (ccr_request.data.ccr.charging_rule_report.list != NULL) {
-		rte_free(ccr_request.data.ccr.charging_rule_report.list);
-		ccr_request.data.ccr.charging_rule_report.list = NULL;
-		clLog(clSystemLog, eCLSeverityDebug,LOG_FORMAT
-			"charging rule report list memory is successfully free\n",
-			LOG_VALUE);
-	}
-
-	if (ccr_request.data.ccr.subscription_id.list != NULL) {
-		free(ccr_request.data.ccr.subscription_id.list);
-		ccr_request.data.ccr.subscription_id.list = NULL;
-		clLog(clSystemLog, eCLSeverityDebug,LOG_FORMAT
-				"subscription id list is successfully free\n", LOG_VALUE);
-	}
-
-	store_rule_status_for_del_bearer_cmd(&pro_ack_rule_array, bearer);
+	store_rule_status_for_del_bearer_cmd(&pdn->pro_ack_rule_array, bearer);
 
 	return 0;
 }
@@ -4437,14 +4948,32 @@ store_rule_status_for_del_bearer_cmd(pro_ack_rule_array_t *pro_ack_rule_array,
 	if(bearer == NULL) {
 		return -1;
 	}
-	for(int cnt=0; cnt< bearer->num_dynamic_filters; cnt++) {
-		if( bearer->dynamic_rules[cnt] != NULL) {
-			strncpy(pro_ack_rule_array->rule[cnt].rule_name,
-					bearer->dynamic_rules[cnt]->rule_name,
-					strlen(bearer->dynamic_rules[cnt]->rule_name));
-			pro_ack_rule_array->rule[cnt].rule_status = INACTIVE;
-			pro_ack_rule_array->rule_cnt++;
+	uint8_t num_filters = bearer->num_prdef_filters + bearer->num_dynamic_filters;
+	uint8_t itr1 = 0;
+	uint8_t itr2 = 0;
+	for(int cnt = 0; cnt < num_filters; cnt++) {
+		if(itr1 < bearer->num_dynamic_filters) {
+			if( bearer->dynamic_rules[cnt] != NULL) {
+
+				strncpy(pro_ack_rule_array->rule[cnt].rule_name,
+						bearer->dynamic_rules[itr1]->rule_name,
+						strnlen(bearer->dynamic_rules[itr1]->rule_name, RULE_NAME_LEN));
+				itr1++;
+			}
+		} else {
+			if(itr2 < bearer->num_prdef_filters) {
+				if( bearer->prdef_rules[cnt] != NULL) {
+
+					strncpy(pro_ack_rule_array->rule[cnt].rule_name,
+							bearer->prdef_rules[itr2]->rule_name,
+							strnlen(bearer->prdef_rules[itr2]->rule_name, RULE_NAME_LEN));
+					itr2++;
+				}
+			}
+
 		}
+		pro_ack_rule_array->rule[cnt].rule_status = INACTIVE;
+		pro_ack_rule_array->rule_cnt++;
 	}
 	return 0;
 }
@@ -4452,7 +4981,20 @@ store_rule_status_for_del_bearer_cmd(pro_ack_rule_array_t *pro_ack_rule_array,
 void
 fill_rule_and_qos_inform_in_pdn(pdn_connection *pdn)
 {
-	dynamic_rule_t *dynamic_rule = dynamic_rule = &pdn->policy.pcc_rule[0].dyn_rule;
+	uint8_t idx = 0;
+	pcc_rule_t *prule = rte_zmalloc_socket(NULL, sizeof(pcc_rule_t),
+		    RTE_CACHE_LINE_SIZE, rte_socket_id());
+
+	if(prule == NULL){
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to allocate"
+				"memory to pcc rule structure\n", LOG_VALUE);
+		return;
+	}
+	pdn->policy.pcc_rule[0] = prule;
+	dynamic_rule_t *dynamic_rule = dynamic_rule = &pdn->policy.pcc_rule[0]->urule.dyn_rule;
+	const char *local_ipv6_addr = "f000::0";
+	const char *remote_ipv6_addr = "f000::0";
+
 	int ebi_index = GET_EBI_INDEX(pdn->default_bearer_id);
 	if (ebi_index == -1) {
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Invalid EBI ID\n", LOG_VALUE);
@@ -4486,18 +5028,45 @@ fill_rule_and_qos_inform_in_pdn(pdn_connection *pdn)
 	dynamic_rule->rating_group = RATING_GROUP;
 	dynamic_rule->num_flw_desc = GX_FLOW_COUNT;
 
-	for(uint8_t idx = 0; idx < GX_FLOW_COUNT; idx++) {
+	for(idx = 0; idx < GX_FLOW_COUNT; idx++) {
 		dynamic_rule->flow_desc[idx].flow_direction = BIDIRECTIONAL;
 		dynamic_rule->flow_desc[idx].sdf_flw_desc.proto_id = PROTO_ID;
-		dynamic_rule->flow_desc[idx].sdf_flw_desc.local_ip_mask = LOCAL_IP_MASK;
-		dynamic_rule->flow_desc[idx].sdf_flw_desc.local_ip_addr.s_addr = LOCAL_IP_ADDR;
 		dynamic_rule->flow_desc[idx].sdf_flw_desc.local_port_low = PORT_LOW;
 		dynamic_rule->flow_desc[idx].sdf_flw_desc.local_port_high = PORT_HIGH;
-		dynamic_rule->flow_desc[idx].sdf_flw_desc.remote_ip_mask = REMOTE_IP_MASK;
-		dynamic_rule->flow_desc[idx].sdf_flw_desc.remote_ip_addr.s_addr = REMOTE_IP_ADDR;
 		dynamic_rule->flow_desc[idx].sdf_flw_desc.remote_port_low = PORT_LOW;
 		dynamic_rule->flow_desc[idx].sdf_flw_desc.remote_port_high = PORT_HIGH;
 		dynamic_rule->flow_desc[idx].sdf_flw_desc.direction = TFT_DIRECTION_BIDIRECTIONAL;
+		if(pdn->pdn_type.ipv4 == 1){
+
+			dynamic_rule->flow_desc[idx].sdf_flw_desc.v4 = PRESENT;
+			dynamic_rule->flow_desc[idx].sdf_flw_desc.local_ip_mask = LOCAL_IP_MASK;
+			dynamic_rule->flow_desc[idx].sdf_flw_desc.ulocalip.local_ip_addr.s_addr = LOCAL_IP_ADDR;
+			dynamic_rule->flow_desc[idx].sdf_flw_desc.remote_ip_mask = REMOTE_IP_MASK;
+			dynamic_rule->flow_desc[idx].sdf_flw_desc.uremoteip.remote_ip_addr.s_addr = REMOTE_IP_ADDR;
+		} else{
+			dynamic_rule->flow_desc[idx].sdf_flw_desc.v6 = PRESENT;
+			inet_pton(AF_INET6, local_ipv6_addr, &dynamic_rule->flow_desc[idx].sdf_flw_desc.ulocalip.local_ip6_addr);
+			dynamic_rule->flow_desc[idx].sdf_flw_desc.local_ip_mask = LOCAL_IPV6_MASK;
+			inet_pton(AF_INET6, remote_ipv6_addr, &dynamic_rule->flow_desc[idx].sdf_flw_desc.uremoteip.remote_ip6_addr);
+			dynamic_rule->flow_desc[idx].sdf_flw_desc.remote_ip_mask = REMOTE_IPV6_MASK;
+
+		}
+
+	}
+	/* For dual connectivity as v4 infomation
+	 * is already filled so just fill flow information of v6
+	 * */
+	if(pdn->pdn_type.ipv4 == 1 && pdn->pdn_type.ipv6 == 1){
+		dynamic_rule->flow_desc[idx].flow_direction = BIDIRECTIONAL;
+		dynamic_rule->flow_desc[idx].sdf_flw_desc.proto_id = PROTO_ID;
+		dynamic_rule->flow_desc[idx].sdf_flw_desc.direction = TFT_DIRECTION_BIDIRECTIONAL;
+		dynamic_rule->flow_desc[idx].sdf_flw_desc.v6 = PRESENT;
+		inet_pton(AF_INET6, local_ipv6_addr, &dynamic_rule->flow_desc[idx].sdf_flw_desc.ulocalip.local_ip6_addr);
+		dynamic_rule->flow_desc[idx].sdf_flw_desc.local_ip_mask = LOCAL_IPV6_MASK;
+		inet_pton(AF_INET6, remote_ipv6_addr, &dynamic_rule->flow_desc[idx].sdf_flw_desc.uremoteip.remote_ip6_addr);
+		dynamic_rule->flow_desc[idx].sdf_flw_desc.remote_ip_mask = REMOTE_IPV6_MASK;
+		/*increment as new flow added*/
+		dynamic_rule->num_flw_desc ++;
 	}
 
 	dynamic_rule->qos.qci = QCI_VALUE;
@@ -4513,11 +5082,12 @@ fill_rule_and_qos_inform_in_pdn(pdn_connection *pdn)
 
 int
 process_create_sess_req(create_sess_req_t *csr,
-		ue_context **_context, struct in_addr *upf_ipv4,
+		ue_context **_context, node_address_t upf_ip,
 		uint8_t cp_type)
 {
 	int ret = 0;
 	struct in_addr ue_ip = {0};
+	struct in6_addr ue_ipv6 = {0};
 	ue_context *context = NULL;
 	eps_bearer *bearer = NULL;
 	pdn_connection *pdn = NULL;
@@ -4591,14 +5161,8 @@ process_create_sess_req(create_sess_req_t *csr,
 		ebi_index = GET_EBI_INDEX(csr->bearer_contexts_to_be_created[i].eps_bearer_id.ebi_ebi);
 		if (ebi_index == -1) {
 			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Invalid EBI ID\n",
-				LOG_VALUE);
+					LOG_VALUE);
 			return GTPV2C_CAUSE_SYSTEM_FAILURE;
-		}
-
-		if (cp_type != SGWC) {
-			ret = acquire_ip(&ue_ip);
-			if (ret)
-				return ret;
 		}
 
 		/* set s11_sgw_gtpc_teid= key->ue_context_by_fteid_hash */
@@ -4609,6 +5173,10 @@ process_create_sess_req(create_sess_req_t *csr,
 			return ret;
 
 		*_context = context;
+		context->indirect_tunnel_flag = 0;
+		if(csr->pres_rptng_area_info.header.len){
+			store_presc_reporting_area_info_to_ue_context(&csr->pres_rptng_area_info, context);
+		}
 
 		if (cp_type != 0) {
 			context->cp_mode = cp_type;
@@ -4620,8 +5188,45 @@ process_create_sess_req(create_sess_req_t *csr,
 		pdn = GET_PDN(context, ebi_index);
 		if (pdn == NULL){
 			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to "
-				"get pdn for ebi_index %d \n", LOG_VALUE, ebi_index);
+					"get pdn for ebi_index %d \n", LOG_VALUE, ebi_index);
 			return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+		}
+
+		ret = fill_pdn_type(pdn, csr, cp_type);
+		if(ret){
+			return ret;
+		}
+
+		/* IP allocation to UE */
+		if (cp_type != SGWC) {
+
+			if(pdn->pdn_type.ipv4 == 1){
+				if (!config.ip_allocation_mode) {
+					ret = acquire_ip(apn_requested->ip_pool_ip,
+							apn_requested->ip_pool_mask, &ue_ip);
+					if (ret)
+						return ret;
+				} else {
+					clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Dymanic IP "
+							"allocation mode is not supported for now\n", LOG_VALUE);
+					return GTPV2C_CAUSE_SYSTEM_FAILURE;
+				}
+			}
+
+			if(pdn->pdn_type.ipv6 == 1){
+				if (!config.ip_allocation_mode) {
+					ret = acquire_ipv6(apn_requested->ipv6_network_id,
+							(apn_requested->ipv6_prefix_len/sizeof(uint64_t)),
+							&ue_ipv6);
+					pdn->prefix_len = apn_requested->ipv6_prefix_len;
+					if (ret)
+						return ret;
+				} else {
+					clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Dymanic IP "
+							"allocation mode is not supported for now\n", LOG_VALUE);
+					return GTPV2C_CAUSE_SYSTEM_FAILURE;
+				}
+			}
 		}
 
 		bearer = context->eps_bearers[ebi_index];
@@ -4636,11 +5241,14 @@ process_create_sess_req(create_sess_req_t *csr,
 				return -1;
 
 			pdn->proc = get_csr_proc(csr);
+			context->procedure = pdn->proc;
 
-			/* Store upf ipv4 in pdn structure */
-			pdn->upf_ipv4 = *upf_ipv4;
-			if (context->cp_mode != SGWC)
-				pdn->ipv4.s_addr = ntohl(ue_ip.s_addr);
+			if (context->cp_mode != SGWC) {
+				if (pdn->pdn_type.ipv4)
+					pdn->uipaddr.ipv4.s_addr = ue_ip.s_addr;
+				if (pdn->pdn_type.ipv6)
+					memcpy(pdn->uipaddr.ipv6.s6_addr, ue_ipv6.s6_addr, IPV6_ADDRESS_LEN);
+			}
 
 			if (fill_pdn_info(csr, pdn, context, bearer) != 0)
 				return -1;
@@ -4675,13 +5283,20 @@ process_create_sess_req(create_sess_req_t *csr,
 
 	} /*for loop*/
 
+	/*Handling in case context is not created*/
+	if(context == NULL) {
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Context not found "
+				"while processing Create Session Request \n", LOG_VALUE);
+		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+	}
+
 	if ((context->cp_mode == PGWC) || (context->cp_mode == SAEGWC)) {
 
-		if (pfcp_config.use_gx) {
+		if (config.use_gx) {
 			ebi_index = GET_EBI_INDEX(pdn->default_bearer_id);
 			if (ebi_index == -1) {
 				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Invalid EBI ID\n",
-					LOG_VALUE);
+						LOG_VALUE);
 				return GTPV2C_CAUSE_SYSTEM_FAILURE;
 			}
 			if ((ret = gen_ccr_request(context, ebi_index, csr)) != 0) {
@@ -4700,12 +5315,15 @@ process_create_sess_req(create_sess_req_t *csr,
 
 	/* Allocate the memory for each session */
 	if (context != NULL) {
-		context->mme_fqcsid = rte_zmalloc_socket(NULL, sizeof(fqcsid_t),
-				RTE_CACHE_LINE_SIZE, rte_socket_id());
-		context->sgw_fqcsid = rte_zmalloc_socket(NULL, sizeof(fqcsid_t),
-				RTE_CACHE_LINE_SIZE, rte_socket_id());
-		context->pgw_fqcsid = rte_zmalloc_socket(NULL, sizeof(fqcsid_t),
-				RTE_CACHE_LINE_SIZE, rte_socket_id());
+		if (context->mme_fqcsid == NULL)
+			context->mme_fqcsid = rte_zmalloc_socket(NULL, sizeof(sess_fqcsid_t),
+					RTE_CACHE_LINE_SIZE, rte_socket_id());
+		if (context->sgw_fqcsid == NULL)
+			context->sgw_fqcsid = rte_zmalloc_socket(NULL, sizeof(sess_fqcsid_t),
+					RTE_CACHE_LINE_SIZE, rte_socket_id());
+		if (context->pgw_fqcsid == NULL)
+			context->pgw_fqcsid = rte_zmalloc_socket(NULL, sizeof(sess_fqcsid_t),
+					RTE_CACHE_LINE_SIZE, rte_socket_id());
 
 		if ((context->mme_fqcsid == NULL) || (context->sgw_fqcsid == NULL)
 				|| (context->pgw_fqcsid == NULL)) {
@@ -4721,17 +5339,24 @@ process_create_sess_req(create_sess_req_t *csr,
 
 	/* MME FQ-CSID */
 	if (csr->mme_fqcsid.header.len) {
-		/* Remove Exsiting MME CSID linked with session */
-		if ((context->mme_fqcsid)->num_csid) {
-			memset(context->mme_fqcsid, 0, sizeof(fqcsid_t));
+		if (context->cp_mode != PGWC) {
+			/* need to revisite here for s11 mme addr and log */
+			ret = add_peer_addr_entry_for_fqcsid_ie_node_addr(
+					&context->s11_mme_gtpc_ip, &csr->mme_fqcsid,
+					S11_SGW_PORT_ID);
+			if (ret)
+				return ret;
 		}
+		/* Adding MME csid for the existing session */
 		ret = add_fqcsid_entry(&csr->mme_fqcsid, context->mme_fqcsid);
 		if(ret)
 			return ret;
 
+		fill_pdn_fqcsid_info(&pdn->mme_csid, context->mme_fqcsid);
+
 	} else {
 		/* Stored the MME CSID by MME Node address */
-		tmp = get_peer_addr_csids_entry(context->s11_mme_gtpc_ipv4.s_addr,
+		tmp = get_peer_addr_csids_entry(&context->s11_mme_gtpc_ip,
 				ADD_NODE);
 		if (tmp == NULL) {
 			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to "
@@ -4739,24 +5364,31 @@ process_create_sess_req(create_sess_req_t *csr,
 					strerror(errno));
 			return GTPV2C_CAUSE_SYSTEM_FAILURE;
 		}
-		tmp->node_addr = context->s11_mme_gtpc_ipv4.s_addr;
-		(context->mme_fqcsid)->node_addr = context->s11_mme_gtpc_ipv4.s_addr;
+
+		memcpy(&(tmp->node_addr),
+				&(context->s11_mme_gtpc_ip), sizeof(node_address_t));
+		memcpy(&((context->mme_fqcsid)->node_addr[(context->mme_fqcsid)->num_csid]),
+				&(context->s11_mme_gtpc_ip), sizeof(node_address_t));
 	}
 
 	/* SGW FQ-CSID -- PGWC */
 	if (csr->sgw_fqcsid.header.len) {
-		/* Remove Exsiting SGW CSID linked with session */
-		if ((context->sgw_fqcsid)->num_csid) {
-			memset(context->sgw_fqcsid, 0, sizeof(fqcsid_t));
-		}
+		ret = add_peer_addr_entry_for_fqcsid_ie_node_addr(
+				&pdn->s5s8_sgw_gtpc_ip, &csr->sgw_fqcsid,
+				S5S8_PGWC_PORT_ID);
+		if (ret)
+			return ret;
+
 		/* Stored the SGW CSID by SGW Node address */
 		ret = add_fqcsid_entry(&csr->sgw_fqcsid, context->sgw_fqcsid);
 		if(ret)
 			return ret;
 
+		fill_pdn_fqcsid_info(&pdn->sgw_csid, context->sgw_fqcsid);
+
 	} else {
 		if ((context->cp_mode == SGWC) || (context->cp_mode == SAEGWC)) {
-			tmp = get_peer_addr_csids_entry(context->s11_sgw_gtpc_ipv4.s_addr,
+			tmp = get_peer_addr_csids_entry(&context->s11_sgw_gtpc_ip,
 					ADD_NODE);
 			if (tmp == NULL) {
 				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed "
@@ -4764,14 +5396,17 @@ process_create_sess_req(create_sess_req_t *csr,
 						strerror(errno));
 				return GTPV2C_CAUSE_SYSTEM_FAILURE;
 			}
-			tmp->node_addr = context->s11_sgw_gtpc_ipv4.s_addr;
-			(context->sgw_fqcsid)->node_addr = context->s11_sgw_gtpc_ipv4.s_addr;
+
+			memcpy(&(tmp->node_addr),
+					&(context->s11_sgw_gtpc_ip), sizeof(node_address_t));
+			memcpy(&((context->sgw_fqcsid)->node_addr[(context->sgw_fqcsid)->num_csid]),
+					&(context->s11_sgw_gtpc_ip), sizeof(node_address_t));
 		}
 	}
 
 	/* PGW FQ-CSID */
 	if (context->cp_mode == PGWC) {
-		tmp = get_peer_addr_csids_entry(pdn->s5s8_pgw_gtpc_ipv4.s_addr,
+		tmp = get_peer_addr_csids_entry(&pdn->s5s8_pgw_gtpc_ip,
 				ADD_NODE);
 		if (tmp == NULL) {
 			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to "
@@ -4779,8 +5414,11 @@ process_create_sess_req(create_sess_req_t *csr,
 					strerror(errno));
 			return GTPV2C_CAUSE_SYSTEM_FAILURE;
 		}
-		tmp->node_addr = pdn->s5s8_pgw_gtpc_ipv4.s_addr;
-		(context->pgw_fqcsid)->node_addr = pdn->s5s8_pgw_gtpc_ipv4.s_addr;
+
+		memcpy(&(tmp->node_addr),
+				&(pdn->s5s8_pgw_gtpc_ip), sizeof(node_address_t));
+		memcpy(&((context->pgw_fqcsid)->node_addr[(context->pgw_fqcsid)->num_csid]),
+				&(pdn->s5s8_pgw_gtpc_ip), sizeof(node_address_t));
 	}
 #endif /* USE_CSID */
 
@@ -4788,6 +5426,7 @@ process_create_sess_req(create_sess_req_t *csr,
 
 	context->bearer_count = csr->bearer_count;
 	pdn->context = context;
+	RTE_SET_USED(upf_ip);
 	return 0;
 }
 
@@ -4799,7 +5438,8 @@ process_pfcp_sess_est_request(uint32_t teid, pdn_connection *pdn, upf_context_t 
 	struct resp_info *resp = NULL;
 	ue_context *context = pdn->context;
 	pfcp_sess_estab_req_t pfcp_sess_est_req = {0};
-	int ebi_index = GET_EBI_INDEX(pdn->default_bearer_id);
+
+	int ebi_index = GET_EBI_INDEX(pdn->default_bearer_id), ret = 0;
 	if (ebi_index == -1) {
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Invalid EBI ID\n", LOG_VALUE);
 		return GTPV2C_CAUSE_SYSTEM_FAILURE;
@@ -4807,11 +5447,17 @@ process_pfcp_sess_est_request(uint32_t teid, pdn_connection *pdn, upf_context_t 
 
 	if(context == NULL) {
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Context not found "
-			"while processing PFCP Session Establishment Request \n", LOG_VALUE);
+				"while processing PFCP Session Establishment Request \n", LOG_VALUE);
 		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 	}
 
 	sequence = get_pfcp_sequence_number(PFCP_SESSION_ESTABLISHMENT_REQUEST, sequence);
+
+	if(context->indirect_tunnel_flag != 0) {
+
+		pdn = pdn->context->indirect_tunnel->pdn;
+		pdn->proc = CREATE_INDIRECT_TUNNEL_PROC;
+	}
 
 	for(uint8_t i= 0; i< MAX_BEARERS; i++) {
 
@@ -4819,217 +5465,336 @@ process_pfcp_sess_est_request(uint32_t teid, pdn_connection *pdn, upf_context_t 
 		if(bearer == NULL)
 			continue;
 
+		/* Validate Bearer is linked with PDN or not */
+		if (bearer->pdn == NULL)
+			bearer->pdn = pdn;
+
+		/* Update upf ip if not updated in bearer */
+		if ((bearer->pdn)->upf_ip.ip_type == NOT_PRESENT)
+			(bearer->pdn)->upf_ip = pdn->upf_ip;
+
 		if (context->cp_mode == SGWC) {
-			/*Generating TEID for S1U interface*/
-			bearer->s1u_sgw_gtpu_teid = get_s1u_sgw_gtpu_teid(bearer->pdn->upf_ipv4.s_addr,
+			/* Generating TEID for S1U interface */
+			if(context->indirect_tunnel_flag != 0){
+			//context->indirect_tunnel->pdn->eps_bearers[i]->pdr_count = 0;
+			for(uint8_t itr = context->indirect_tunnel->pdn->eps_bearers[i]->pdr_count;
+					itr < (context->indirect_tunnel->pdn->eps_bearers[i]->pdr_count + NUMBER_OF_PDR_PER_RULE);
+					itr++){
+
+				if(itr%2 == 0) {
+					fill_pdr_entry(context, context->indirect_tunnel->pdn,
+							context->indirect_tunnel->pdn->eps_bearers[i], SOURCE_INTERFACE_VALUE_ACCESS, itr);
+				} else if ((itr%2 != 0) &&
+						((upf_ctx->s5s8_li_sgwu_ip.ipv4_addr != 0)
+						 || *(upf_ctx->s5s8_li_sgwu_ip.ipv6_addr))){
+					fill_pdr_entry(context, context->indirect_tunnel->pdn,
+							context->indirect_tunnel->pdn->eps_bearers[i], SOURCE_INTERFACE_VALUE_CORE, itr);
+				}
+			}
+
+			context->indirect_tunnel->pdn->eps_bearers[i]->pdr_count += NUMBER_OF_PDR_PER_RULE;
+		}
+
+				bearer->s1u_sgw_gtpu_teid = get_s1u_sgw_gtpu_teid(bearer->pdn->upf_ip,
 												context->cp_mode, &upf_teid_info_head);
-			update_pdr_teid(bearer, bearer->s1u_sgw_gtpu_teid,
-							upf_ctx->s1u_ip, SOURCE_INTERFACE_VALUE_ACCESS);
+				update_pdr_teid(bearer, bearer->s1u_sgw_gtpu_teid,
+						upf_ctx->s1u_ip, SOURCE_INTERFACE_VALUE_ACCESS);
 
 			/* Generating TEID for SGW S5S8 interface */
-			bearer->s5s8_sgw_gtpu_teid = get_s5s8_sgw_gtpu_teid(bearer->pdn->upf_ipv4.s_addr,
-													context->cp_mode, &upf_teid_info_head);
-			update_pdr_teid(bearer, bearer->s5s8_sgw_gtpu_teid,
-							upf_ctx->s5s8_sgwu_ip, SOURCE_INTERFACE_VALUE_CORE);
 
-			bearer->s5s8_sgw_gtpu_ipv4.s_addr = upf_ctx->s5s8_sgwu_ip;
-			bearer->s1u_sgw_gtpu_ipv4.s_addr = upf_ctx->s1u_ip;
+			bearer->s5s8_sgw_gtpu_teid = get_s5s8_sgw_gtpu_teid(bearer->pdn->upf_ip,
+											context->cp_mode, &upf_teid_info_head);
+
+			if(context->indirect_tunnel_flag == 0){
+				update_pdr_teid(bearer, bearer->s5s8_sgw_gtpu_teid,
+					upf_ctx->s5s8_sgwu_ip, SOURCE_INTERFACE_VALUE_CORE);
+			} else {
+				update_pdr_teid(bearer, bearer->s5s8_sgw_gtpu_teid,
+					upf_ctx->s5s8_li_sgwu_ip, SOURCE_INTERFACE_VALUE_CORE);
+			}
+
+			ret = set_address(&bearer->s1u_sgw_gtpu_ip, &upf_ctx->s1u_ip);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+			}
+			if(context->indirect_tunnel_flag == 0){
+				ret = set_address(&bearer->s5s8_sgw_gtpu_ip, &upf_ctx->s5s8_sgwu_ip);
+				if (ret < 0) {
+					clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+							"IP address", LOG_VALUE);
+				}
+			} else {
+				if((upf_ctx->s5s8_li_sgwu_ip.ipv4_addr != 0) || *(upf_ctx->s5s8_li_sgwu_ip.ipv6_addr)){
+					ret = set_address(&bearer->s5s8_sgw_gtpu_ip, &upf_ctx->s5s8_li_sgwu_ip);
+				}else{
+					ret = set_address(&bearer->s5s8_sgw_gtpu_ip, &upf_ctx->s5s8_sgwu_ip);
+				}
+				if (ret < 0) {
+					clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+							"IP address", LOG_VALUE);
+				}
+
+			}
 
 		} else if (context->cp_mode == SAEGWC) {
 			/*Generating TEID for S1U interface*/
-			bearer->s1u_sgw_gtpu_teid = get_s1u_sgw_gtpu_teid(bearer->pdn->upf_ipv4.s_addr,
-													context->cp_mode, &upf_teid_info_head);
+			bearer->s1u_sgw_gtpu_teid = get_s1u_sgw_gtpu_teid(bearer->pdn->upf_ip,
+											context->cp_mode, &upf_teid_info_head);
 			update_pdr_teid(bearer, bearer->s1u_sgw_gtpu_teid,
-							upf_ctx->s1u_ip, SOURCE_INTERFACE_VALUE_ACCESS);
+					upf_ctx->s1u_ip, SOURCE_INTERFACE_VALUE_ACCESS);
 
-			bearer->s5s8_sgw_gtpu_ipv4.s_addr = upf_ctx->s5s8_sgwu_ip;
-			bearer->s1u_sgw_gtpu_ipv4.s_addr  = upf_ctx->s1u_ip;
-			bearer->s5s8_pgw_gtpu_ipv4.s_addr = upf_ctx->s5s8_pgwu_ip;
+			ret = set_address(&bearer->s5s8_sgw_gtpu_ip, &upf_ctx->s5s8_sgwu_ip);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+			}
+
+			ret = set_address(&bearer->s1u_sgw_gtpu_ip, &upf_ctx->s1u_ip);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+			}
+
+			ret = set_address(&bearer->s5s8_pgw_gtpu_ip, &upf_ctx->s5s8_pgwu_ip);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+			}
+
 			bearer->s5s8_pgw_gtpu_teid =  bearer->s1u_sgw_gtpu_teid;
+
+			if((pdn->pdn_type.ipv4 &&
+				upf_ctx->s5s8_sgwu_ip.ip_type == PDN_TYPE_IPV6) ||
+				(pdn->pdn_type.ipv6 &&
+				upf_ctx->s5s8_sgwu_ip.ip_type == PDN_TYPE_IPV4)){
+
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "SGI IP is not compatible"
+						" with UE IP", LOG_VALUE);
+				return GTPV2C_CAUSE_REQUEST_REJECTED;
+
+			}
 
 		} else {
 			/* Generating TEID for PGW S5S8 interface */
-			bearer->s5s8_pgw_gtpu_teid = get_s5s8_pgw_gtpu_teid(bearer->pdn->upf_ipv4.s_addr,
-													context->cp_mode, &upf_teid_info_head);
+			bearer->s5s8_pgw_gtpu_teid = get_s5s8_pgw_gtpu_teid(bearer->pdn->upf_ip,
+											context->cp_mode, &upf_teid_info_head);
 			update_pdr_teid(bearer, bearer->s5s8_pgw_gtpu_teid,
-						upf_ctx->s5s8_pgwu_ip, SOURCE_INTERFACE_VALUE_ACCESS);
+					upf_ctx->s5s8_pgwu_ip, SOURCE_INTERFACE_VALUE_ACCESS);
 
 			/* Update the PGWU IP address */
-			bearer->s5s8_pgw_gtpu_ipv4.s_addr =
-				upf_ctx->s5s8_pgwu_ip;
+			ret = set_address(&bearer->s5s8_pgw_gtpu_ip, &upf_ctx->s5s8_pgwu_ip);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+			}
+			if((pdn->pdn_type.ipv4 &&
+				upf_ctx->s5s8_sgwu_ip.ip_type == PDN_TYPE_IPV6) ||
+				(pdn->pdn_type.ipv6 &&
+				upf_ctx->s5s8_sgwu_ip.ip_type == PDN_TYPE_IPV4)){
+
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "SGI IP is not compatible"
+						" with UE IP", LOG_VALUE);
+				return GTPV2C_CAUSE_REQUEST_REJECTED;
+			}
+
+			if((bearer->s5s8_sgw_gtpu_ip.ip_type != PDN_TYPE_IPV4_IPV6 &&
+				bearer->s5s8_pgw_gtpu_ip.ip_type != PDN_TYPE_IPV4_IPV6) &&
+				bearer->s5s8_sgw_gtpu_ip.ip_type != bearer->s5s8_pgw_gtpu_ip.ip_type){
+
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "S5S8 IP is not compatible"
+						" on SGW and PGW", LOG_VALUE);
+				return GTPV2C_CAUSE_REQUEST_REJECTED;
+			}
 			/* Filling PDN structure*/
 			pfcp_sess_est_req.pdn_type.header.type = PFCP_IE_PDN_TYPE;
 			pfcp_sess_est_req.pdn_type.header.len = UINT8_SIZE;
 			pfcp_sess_est_req.pdn_type.pdn_type_spare = 0;
 			pfcp_sess_est_req.pdn_type.pdn_type =  1;
 		}
-		if(!pdn->policy.pcc_rule[pdn->policy.count].predefined_rule){
-			if (context->cp_mode != SGWC){
-				for(uint8_t itr=bearer->qer_count; itr < bearer->qer_count + NUMBER_OF_QER_PER_RULE;
-					itr++){
 
-					bearer->qer_id[itr].qer_id = generate_qer_id();
-					fill_qer_entry(pdn, bearer,itr);
-				}
-				bearer->qer_count += NUMBER_OF_QER_PER_RULE;
 
-				/* TODO: Added handling for QER Approprietly */
-				for(uint8_t itr1 = 0; itr1 < bearer->pdr_count; itr1++){
-					bearer->pdrs[itr1]->qer_id[0].qer_id = bearer->qer_id[itr1].qer_id;
-				}
-			}
-
-		}
 	}
-	fill_pfcp_sess_est_req(&pfcp_sess_est_req, pdn, sequence, context);
+
+	resp = rte_malloc_socket(NULL,
+			sizeof(struct resp_info),
+			RTE_CACHE_LINE_SIZE, rte_socket_id());
+	if(resp == NULL) {
+
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT
+				"Error in dynamic mem allocation through rte_malloc",
+				LOG_VALUE);
+
+		return GTPV2C_CAUSE_SYSTEM_FAILURE;
+	}
+
+	fill_pfcp_sess_est_req(&pfcp_sess_est_req, pdn, sequence, context, resp);
 
 #ifdef USE_CSID
-
-	/*Pointing bearer t the default bearer*/
-	bearer = pdn->eps_bearers[ebi_index];
-	if(bearer == NULL) {
-		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Bearer not "
-			"found for EBI ID : %d\n",LOG_VALUE, pdn->default_bearer_id);
-		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
-	}
-
-	/* Get the copy of existing SGW CSID */
-	fqcsid_t tmp_csid_t = {0};
-	if (context->sgw_fqcsid != NULL) {
-		if ((context->sgw_fqcsid)->num_csid) {
-			memcpy(&tmp_csid_t, context->sgw_fqcsid, sizeof(fqcsid_t));
-		}
-	}
-	/* Add the entry for peer nodes */
-	if (fill_peer_node_info(pdn, bearer)) {
-		clLog(clSystemLog, eCLSeverityCritical,
-				LOG_FORMAT"Failed to fill peer node info and assignment of the "
-				"CSID Error: %s\n", LOG_VALUE, strerror(errno));
-		return GTPV2C_CAUSE_SYSTEM_FAILURE;
-	}
-
-	if (context->cp_mode != PGWC) {
-		uint8_t tmp_csid = 0;
-		/* Validate the exsiting CSID or allocated new one */
-		for (uint8_t inx1 = 0; inx1 < tmp_csid_t.num_csid; inx1++) {
-			if ((context->sgw_fqcsid)->local_csid[(context->sgw_fqcsid)->num_csid - 1] ==
-					tmp_csid_t.local_csid[inx1]) {
-				tmp_csid = tmp_csid_t.local_csid[inx1];
-				break;
-			}
+	if(context->indirect_tunnel_flag == 0)  {
+		/*Pointing bearer t the default bearer*/
+		bearer = pdn->eps_bearers[ebi_index];
+		if(bearer == NULL) {
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Bearer not "
+					"found for EBI ID : %d\n",LOG_VALUE, pdn->default_bearer_id);
+			return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 		}
 
-		if (!tmp_csid) {
-			for (uint8_t inx = 0; inx <tmp_csid_t.num_csid; inx++) {
-				/* Remove the session link from old CSID */
-				sess_csid *tmp1 = NULL;
-				tmp1 = get_sess_csid_entry(tmp_csid_t.local_csid[inx], REMOVE_NODE);
-
-				if (tmp1 != NULL) {
-					/* Remove node from csid linked list */
-					tmp1 = remove_sess_csid_data_node(tmp1, pdn->seid);
-
-					int8_t ret = 0;
-					/* Update CSID Entry in table */
-					ret = rte_hash_add_key_data(seids_by_csid_hash,
-									&tmp_csid_t.local_csid[inx], tmp1);
-					if (ret) {
-						clLog(clSystemLog, eCLSeverityCritical,
-								LOG_FORMAT"Failed to add Session IDs entry for CSID = %u"
-								"\n\tError= %s\n",
-								LOG_VALUE, tmp_csid_t.local_csid[inx],
-								rte_strerror(abs(ret)));
-						return GTPV2C_CAUSE_SYSTEM_FAILURE;
-					}
-					if (tmp1 == NULL) {
-						/* Removing temporary local CSID associated with MME */
-						remove_peer_temp_csid(context->mme_fqcsid, tmp_csid_t.local_csid[inx],
-								S11_SGW_PORT_ID);
-
-						/* Removing temporary local CSID assocoated with PGWC */
-						remove_peer_temp_csid(context->pgw_fqcsid, tmp_csid_t.local_csid[inx],
-								S5S8_SGWC_PORT_ID);
-					}
-					/* Delete CSID from the context */
-					for (uint8_t itr1 = 0; itr1 < (context->sgw_fqcsid)->num_csid; itr1++) {
-						if ((context->sgw_fqcsid)->local_csid[itr1] == tmp_csid_t.local_csid[inx]) {
-							for(uint8_t pos = itr1; pos < ((context->sgw_fqcsid)->num_csid - 1); pos++ ) {
-								(context->sgw_fqcsid)->local_csid[pos] = (context->sgw_fqcsid)->local_csid[pos + 1];
-							}
-							(context->sgw_fqcsid)->num_csid--;
-						}
-					}
-				} else {
-					clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT"Failed to "
-							"get Session ID entry for CSID:%u\n", LOG_VALUE,
-							tmp_csid_t.local_csid[inx]);
-					return GTPV2C_CAUSE_SYSTEM_FAILURE;
-				}
-
-				clLog(clSystemLog, eCLSeverityDebug,
-						LOG_FORMAT"Remove session link from Old CSID:%u\n",
-						LOG_VALUE, tmp_csid_t.local_csid[inx]);
-			}
+		/* Get the copy of existing SGW CSID */
+		fqcsid_t tmp_csid_t = {0};
+		if (pdn->sgw_csid.num_csid) {
+			memcpy(&tmp_csid_t, &pdn->sgw_csid, sizeof(fqcsid_t));
 		}
-	}
 
-	/* Add entry for cp session id with link local csid */
-	sess_csid *tmp = NULL;
-	if ((context->cp_mode == SGWC) || (context->cp_mode == SAEGWC)) {
-		tmp = get_sess_csid_entry(
-				(context->sgw_fqcsid)->local_csid[(context->sgw_fqcsid)->num_csid - 1], ADD_NODE);
-	} else {
-		/* PGWC */
-		tmp = get_sess_csid_entry(
-				(context->pgw_fqcsid)->local_csid[(context->pgw_fqcsid)->num_csid - 1], ADD_NODE);
-	}
-
-	if (tmp == NULL) {
-		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to get CSID "
-			"entry, Error: %s \n", LOG_VALUE,strerror(errno));
-		return GTPV2C_CAUSE_SYSTEM_FAILURE;
-	}
-
-	/* Link local csid with session id */
-	/* Check head node created ot not */
-	if(tmp->cp_seid != pdn->seid && tmp->cp_seid != 0) {
-		sess_csid *new_node = NULL;
-		/* Add new node into csid linked list */
-		new_node = add_sess_csid_data_node(tmp);
-		if(new_node == NULL ) {
-			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to ADD new "
-				"node into CSID linked list : %s\n", LOG_VALUE);
+		/* Add the entry for peer nodes */
+		if (fill_peer_node_info(pdn, bearer)) {
+			clLog(clSystemLog, eCLSeverityCritical,
+					LOG_FORMAT"Failed to fill peer node info and assignment of the "
+					"CSID Error: %s\n", LOG_VALUE, strerror(errno));
 			return GTPV2C_CAUSE_SYSTEM_FAILURE;
-		} else {
-			new_node->cp_seid = pdn->seid;
-			new_node->up_seid = pdn->dp_seid;
 		}
 
-	} else {
-		tmp->cp_seid = pdn->seid;
-		tmp->up_seid = pdn->dp_seid;
-	}
+		if ((context->cp_mode != PGWC) && (pdn->flag_fqcsid_modified == TRUE)) {
+			uint8_t tmp_csid = 0;
+			/* Validate the exsiting CSID or allocated new one */
+			for (uint8_t inx1 = 0; inx1 < tmp_csid_t.num_csid; inx1++) {
+				if (pdn->sgw_csid.local_csid[pdn->sgw_csid.num_csid - 1] ==
+						tmp_csid_t.local_csid[inx1]) {
+					tmp_csid = tmp_csid_t.local_csid[inx1];
+					break;
+				}
+			}
 
-	/* Fill the fqcsid into the session est request */
-	if (fill_fqcsid_sess_est_req(&pfcp_sess_est_req, context)) {
-		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to fill FQ-CSID "
-			"in Session Establishment Request, Error: %s\n", LOG_VALUE,
-			strerror(errno));
-		return GTPV2C_CAUSE_SYSTEM_FAILURE;
+			if (!tmp_csid) {
+				for (uint8_t inx = 0; inx < tmp_csid_t.num_csid; inx++) {
+					/* Remove the session link from old CSID */
+					sess_csid *tmp1 = NULL;
+					tmp1 = get_sess_csid_entry(tmp_csid_t.local_csid[inx], REMOVE_NODE);
+
+					if (tmp1 != NULL) {
+						/* Remove node from csid linked list */
+						tmp1 = remove_sess_csid_data_node(tmp1, pdn->seid);
+
+						int8_t ret = 0;
+						/* Update CSID Entry in table */
+						ret = rte_hash_add_key_data(seids_by_csid_hash,
+								&tmp_csid_t.local_csid[inx], tmp1);
+						if (ret) {
+							clLog(clSystemLog, eCLSeverityCritical,
+									LOG_FORMAT"Failed to add Session IDs entry for CSID = %u"
+									"\n\tError= %s\n",
+									LOG_VALUE, tmp_csid_t.local_csid[inx],
+									rte_strerror(abs(ret)));
+							return GTPV2C_CAUSE_SYSTEM_FAILURE;
+						}
+						if (tmp1 == NULL) {
+							/* Removing temporary local CSID associated with MME */
+							remove_peer_temp_csid(&pdn->mme_csid, tmp_csid_t.local_csid[inx],
+									S11_SGW_PORT_ID);
+
+							/* Removing temporary local CSID assocoated with PGWC */
+							remove_peer_temp_csid(&pdn->pgw_csid, tmp_csid_t.local_csid[inx],
+									S5S8_SGWC_PORT_ID);
+
+							del_sess_csid_entry(tmp_csid_t.local_csid[inx]);
+						}
+
+						/* Delete CSID from the context */
+						remove_csid_from_cntx(context->sgw_fqcsid, &tmp_csid_t);
+
+					} else {
+						sess_csid *tmp1 = NULL;
+						tmp1 = get_sess_csid_entry(tmp_csid_t.local_csid[inx], REMOVE_NODE);
+						if(tmp1 == NULL) {
+							/* Removing temporary local CSID associated with MME */
+							remove_peer_temp_csid(&pdn->mme_csid, tmp_csid_t.local_csid[inx],
+									S11_SGW_PORT_ID);
+
+							/* Removing temporary local CSID assocoated with PGWC */
+							remove_peer_temp_csid(&pdn->pgw_csid, tmp_csid_t.local_csid[inx],
+									S5S8_SGWC_PORT_ID);
+
+							del_sess_csid_entry(tmp_csid_t.local_csid[inx]);
+
+						}
+						clLog(clSystemLog, eCLSeverityDebug,LOG_FORMAT"Failed to "
+								"get Session ID entry for CSID:%u\n", LOG_VALUE,
+								tmp_csid_t.local_csid[inx]);
+					}
+
+					clLog(clSystemLog, eCLSeverityDebug,
+							LOG_FORMAT"Remove session link from Old CSID:%u\n",
+							LOG_VALUE, tmp_csid_t.local_csid[inx]);
+				}
+			}
+		}
+
+		/* Add entry for cp session id with link local csid */
+		sess_csid *tmp = NULL;
+		uint16_t local_csid = 0;
+		if ((context->cp_mode == SGWC) || (context->cp_mode == SAEGWC)) {
+			tmp = get_sess_csid_entry(
+					pdn->sgw_csid.local_csid[pdn->sgw_csid.num_csid - 1], ADD_NODE);
+			local_csid = pdn->sgw_csid.local_csid[pdn->sgw_csid.num_csid - 1];
+		} else {
+			/* PGWC */
+			tmp = get_sess_csid_entry(
+					pdn->pgw_csid.local_csid[pdn->pgw_csid.num_csid - 1], ADD_NODE);
+			local_csid = pdn->pgw_csid.local_csid[pdn->pgw_csid.num_csid - 1];
+		}
+
+		if (tmp == NULL) {
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to get CSID "
+					"entry, Error: %s \n", LOG_VALUE,strerror(errno));
+			return GTPV2C_CAUSE_SYSTEM_FAILURE;
+		}
+
+		/* Link local csid with session id */
+		/* Check head node created ot not */
+		if(tmp->cp_seid != pdn->seid && tmp->cp_seid != 0) {
+			sess_csid *new_node = NULL;
+			/* Add new node into csid linked list */
+			new_node = add_sess_csid_data_node(tmp, local_csid);
+			if(new_node == NULL ) {
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to ADD new "
+						"node into CSID linked list : %s\n", LOG_VALUE);
+				return GTPV2C_CAUSE_SYSTEM_FAILURE;
+			} else {
+				new_node->cp_seid = pdn->seid;
+				new_node->up_seid = pdn->dp_seid;
+			}
+
+		} else {
+			tmp->cp_seid = pdn->seid;
+			tmp->up_seid = pdn->dp_seid;
+			tmp->next = NULL;
+		}
+
+		if (pdn->flag_fqcsid_modified == TRUE) {
+			/* Fill the fqcsid into the session est request */
+			if (fill_fqcsid_sess_est_req(&pfcp_sess_est_req, pdn)) {
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to fill FQ-CSID "
+						"in Session Establishment Request, Error: %s\n", LOG_VALUE,
+						strerror(errno));
+				return GTPV2C_CAUSE_SYSTEM_FAILURE;
+			}
+		}
 	}
 #endif /* USE_CSID */
 
 	/* Update UE State */
+	bearer = pdn->eps_bearers[ebi_index];
 	bearer->pdn->state = PFCP_SESS_EST_REQ_SNT_STATE;
 
 	/* Allocate the memory for response
 	*/
-	resp = rte_malloc_socket(NULL,
-			sizeof(struct resp_info),
-			RTE_CACHE_LINE_SIZE, rte_socket_id());
-
 	resp->linked_eps_bearer_id = pdn->default_bearer_id;
-	resp->msg_type = GTP_CREATE_SESSION_REQ;
+
+	if(pdn->context->indirect_tunnel_flag == 0)
+		resp->msg_type = GTP_CREATE_SESSION_REQ;
+	else
+		resp->msg_type = GTP_CREATE_INDIRECT_DATA_FORWARDING_TUNNEL_REQ;
+
 	resp->state = PFCP_SESS_EST_REQ_SNT_STATE;
 	resp->proc = pdn->proc;
 	resp->cp_mode = context->cp_mode;
@@ -5037,12 +5802,10 @@ process_pfcp_sess_est_request(uint32_t teid, pdn_connection *pdn, upf_context_t 
 	uint8_t pfcp_msg[PFCP_MSG_LEN]={0};
 	int encoded = encode_pfcp_sess_estab_req_t(&pfcp_sess_est_req, pfcp_msg);
 
-	pfcp_header_t *header = (pfcp_header_t *) pfcp_msg;
-	header->message_len = htons(encoded - PFCP_IE_HDR_SIZE);
+	if ( pfcp_send(pfcp_fd, pfcp_fd_v6, pfcp_msg, encoded, upf_pfcp_sockaddr,SENT) < 0 ){
 
-	if ( pfcp_send(pfcp_fd, pfcp_msg, encoded, &upf_pfcp_sockaddr,SENT) < 0 ){
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failure in sending "
-			" PFCP Session Establishment Request, Error : %i\n", LOG_VALUE, errno);
+				" PFCP Session Establishment Request, Error : %i\n", LOG_VALUE, errno);
 		return -1;
 	} else {
 #ifdef CP_BUILD
@@ -5053,9 +5816,14 @@ process_pfcp_sess_est_request(uint32_t teid, pdn_connection *pdn, upf_context_t 
 
 	if (add_sess_entry(pdn->seid, resp) != 0) {
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to add response "
-			"structure entry in SM_HASH\n", LOG_VALUE);
+				"structure entry in SM_HASH\n", LOG_VALUE);
 		return -1;
 	}
+	if(resp != NULL){
+		rte_free(resp);
+		resp = NULL;
+	}
+
 	return 0;
 }
 
@@ -5076,8 +5844,8 @@ process_pfcp_sess_est_resp(pfcp_sess_estab_rsp_t *pfcp_sess_est_rsp,
 	/* Retrive the session information based on session id. */
 	if (get_sess_entry(sess_id, &resp) != 0) {
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"No Session Entry Found "
-			"while PFCP Session Establishment Response for "
-			"session ID:%lu\n", LOG_VALUE, sess_id);
+				"while PFCP Session Establishment Response for "
+				"session ID:%lu\n", LOG_VALUE, sess_id);
 		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 	}
 
@@ -5088,11 +5856,10 @@ process_pfcp_sess_est_resp(pfcp_sess_estab_rsp_t *pfcp_sess_est_rsp,
 	ret = get_ue_context(teid, &context);
 	if (ret < 0) {
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to get UE "
-			"Context for teid: %u\n", LOG_VALUE, teid);
+				"Context for teid: %u\n", LOG_VALUE, teid);
 		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 	}
 
-	//*cp_type = context->cp_mode;
 
 	/*TODO need to think on eps_bearer_id*/
 	int ebi_index = GET_EBI_INDEX(resp->linked_eps_bearer_id);
@@ -5101,39 +5868,88 @@ process_pfcp_sess_est_resp(pfcp_sess_estab_rsp_t *pfcp_sess_est_rsp,
 		return GTPV2C_CAUSE_SYSTEM_FAILURE;
 	}
 
-	pdn = GET_PDN(context, ebi_index);
-	if (pdn == NULL) {
-		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to get pdn for "
-			"ebi_index %d \n", LOG_VALUE, ebi_index);
-		return GTPV2C_CAUSE_SYSTEM_FAILURE;
+	if (context->indirect_tunnel_flag == 0){
+		pdn = GET_PDN(context, ebi_index);
+		if (pdn == NULL) {
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to get pdn for "
+					"ebi_index %d \n", LOG_VALUE, ebi_index);
+			return GTPV2C_CAUSE_SYSTEM_FAILURE;
+		}
+		bearer = context->eps_bearers[ebi_index];
+	} else {
+
+		pdn = context->indirect_tunnel->pdn;
+		bearer = context->indirect_tunnel->pdn->eps_bearers[ebi_index];
+
 	}
-	bearer = context->eps_bearers[ebi_index];
 
 #ifdef USE_CSID
+	node_address_t node_addr = {0};
+	node_address_t up_node_id = {0};
 	fqcsid_t *tmp = NULL;
-	fqcsid_t *fqcsid = NULL;
-	fqcsid = rte_zmalloc_socket(NULL, sizeof(fqcsid_t),
-			RTE_CACHE_LINE_SIZE, rte_socket_id());
-	if (fqcsid == NULL) {
-		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to allocate the "
-			"memory for fqcsids entry\n", LOG_VALUE);
-		return GTPV2C_CAUSE_SYSTEM_FAILURE;
+	sess_fqcsid_t *fqcsid = NULL;
+
+	if (context->up_fqcsid == NULL ) {
+		fqcsid = rte_zmalloc_socket(NULL, sizeof(sess_fqcsid_t),
+				RTE_CACHE_LINE_SIZE, rte_socket_id());
+		if (fqcsid == NULL) {
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to allocate the "
+					"memory for fqcsids entry\n", LOG_VALUE);
+			return GTPV2C_CAUSE_SYSTEM_FAILURE;
+		}
+	} else {
+		fqcsid = context->up_fqcsid;
+	}
+
+	/* Stored the UP Node address */
+	if (pfcp_sess_est_rsp->up_fseid.v4) {
+		up_node_id.ip_type = PDN_TYPE_IPV4;
+		up_node_id.ipv4_addr = pfcp_sess_est_rsp->up_fseid.ipv4_address;
+	} else {
+		up_node_id.ip_type = PDN_TYPE_IPV6;
+		memcpy(&up_node_id.ipv6_addr,
+				pfcp_sess_est_rsp->up_fseid.ipv6_address,
+				IPV6_ADDRESS_LEN);
 	}
 
 	/* UP FQ-CSID */
 	if (pfcp_sess_est_rsp->up_fqcsid.header.len) {
 		if (pfcp_sess_est_rsp->up_fqcsid.number_of_csids) {
 			/* Stored the UP CSID by UP Node address */
-			tmp = get_peer_addr_csids_entry(pfcp_sess_est_rsp->up_fqcsid.node_address,
-					ADD_NODE);
-
-			if (tmp == NULL) {
-				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to Add the "
-					"SGW-U CSID by SGW Node address, Error : %s \n",
-					LOG_VALUE, strerror(errno));
+			if (pfcp_sess_est_rsp->up_fqcsid.fqcsid_node_id_type ==
+					IPV4_GLOBAL_UNICAST) {
+				node_addr.ip_type = PDN_TYPE_IPV4;
+				memcpy(&node_addr.ipv4_addr,
+						pfcp_sess_est_rsp->up_fqcsid.node_address, IPV4_SIZE);
+			} else if (pfcp_sess_est_rsp->up_fqcsid.fqcsid_node_id_type ==
+					IPV6_GLOBAL_UNICAST) {
+				node_addr.ip_type = PDN_TYPE_IPV6;
+				memcpy(&node_addr.ipv6_addr,
+						pfcp_sess_est_rsp->up_fqcsid.node_address, IPV6_SIZE);
+			} else {
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT
+						"Error : Unknown fqcsid node id type %d \n",
+						LOG_VALUE,
+						pfcp_sess_est_rsp->up_fqcsid.fqcsid_node_id_type);
 				return GTPV2C_CAUSE_SYSTEM_FAILURE;
 			}
-			tmp->node_addr = pfcp_sess_est_rsp->up_fqcsid.node_address;
+
+			ret = add_peer_addr_entry_for_fqcsid_ie_node_addr(
+					&up_node_id, (gtp_fqcsid_ie_t *)(&pfcp_sess_est_rsp->up_fqcsid),
+					SX_PORT_ID);
+
+			if (ret)
+				return ret;
+
+			tmp = get_peer_addr_csids_entry(&node_addr, ADD_NODE);
+			if (tmp == NULL) {
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to Add the "
+						"SGW-U CSID by SGW Node address, Error : %s \n",
+						LOG_VALUE, strerror(errno));
+				return GTPV2C_CAUSE_SYSTEM_FAILURE;
+			}
+
+			memcpy(&(tmp->node_addr), &node_addr, sizeof(node_address_t));
 
 			for(uint8_t itr = 0; itr < pfcp_sess_est_rsp->up_fqcsid.number_of_csids; itr++) {
 				uint8_t match = 0;
@@ -5149,38 +5965,45 @@ process_pfcp_sess_est_resp(pfcp_sess_estab_rsp_t *pfcp_sess_est_rsp,
 				}
 			}
 
-			for(uint8_t itr1 = 0; itr1 < pfcp_sess_est_rsp->up_fqcsid.number_of_csids; itr1++) {
-					fqcsid->local_csid[fqcsid->num_csid++] =
-						pfcp_sess_est_rsp->up_fqcsid.pdn_conn_set_ident[itr1];
+			if (fqcsid->num_csid) {
+				match_and_add_pfcp_sess_fqcsid(
+						&(pfcp_sess_est_rsp->up_fqcsid), fqcsid);
+			} else {
+				add_pfcp_sess_fqcsid(
+						&(pfcp_sess_est_rsp->up_fqcsid), fqcsid);
 			}
-			fqcsid->node_addr = pfcp_sess_est_rsp->up_fqcsid.node_address;
+
+			/* Coping UP csid */
+			fill_pdn_fqcsid_info(&pdn->up_csid, fqcsid);
 		}
 	} else {
-		tmp = get_peer_addr_csids_entry(pfcp_sess_est_rsp->up_fseid.ipv4_address,
-				ADD_NODE);
+		tmp = get_peer_addr_csids_entry(&up_node_id, ADD_NODE);
 		if (tmp == NULL) {
 			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to add "
-				"the SGW-U CSID by SGW Node address, Error : %s \n",
-				LOG_VALUE, strerror(errno));
+					"the SGW-U CSID by SGW Node address, Error : %s \n",
+					LOG_VALUE, strerror(errno));
 			return GTPV2C_CAUSE_SYSTEM_FAILURE;
 		}
-		tmp->node_addr = pfcp_sess_est_rsp->up_fseid.ipv4_address;
-		fqcsid->node_addr = pfcp_sess_est_rsp->up_fseid.ipv4_address;
+		memcpy(&(tmp->node_addr),&(up_node_id), sizeof(node_address_t));
+		memcpy(&(fqcsid->node_addr[fqcsid->num_csid]),
+				&(up_node_id), sizeof(node_address_t));
 	}
 
-	if (((context->sgw_fqcsid)->num_csid) || ((context->pgw_fqcsid)->num_csid)) {
+
+	if ((pdn->up_csid.num_csid) &&
+			((pdn->sgw_csid.num_csid) || (pdn->pgw_csid.num_csid))) {
 		/* TODO: Add the handling if SGW or PGW not support Partial failure */
 		/* Link peer node SGW or PGW csid with local csid */
 		if ((context->cp_mode == SGWC) || (context->cp_mode == SAEGWC)) {
-			ret = update_peer_csid_link(fqcsid, context->sgw_fqcsid);
+			ret = update_peer_csid_link(&pdn->up_csid, &pdn->sgw_csid);
 		} else if (context->cp_mode == PGWC) {
-			ret = update_peer_csid_link(fqcsid, context->pgw_fqcsid);
+			ret = update_peer_csid_link(&pdn->up_csid, &pdn->pgw_csid);
 		}
 
 		if (ret) {
 			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to Update and "
-				"Link Peer node CSID with local CSID, Error : %s \n", LOG_VALUE,
-				strerror(errno));
+					"Link Peer node CSID with local CSID, Error : %s \n", LOG_VALUE,
+					strerror(errno));
 			return GTPV2C_CAUSE_SYSTEM_FAILURE;
 		}
 
@@ -5190,21 +6013,21 @@ process_pfcp_sess_est_resp(pfcp_sess_estab_rsp_t *pfcp_sess_est_rsp,
 		if ((context->cp_mode == SGWC) || (context->cp_mode == SAEGWC)) {
 			if (context->sgw_fqcsid) {
 				sess_t = get_sess_csid_entry(
-						(context->sgw_fqcsid)->local_csid[(context->sgw_fqcsid)->num_csid - 1],
+						pdn->sgw_csid.local_csid[pdn->sgw_csid.num_csid - 1],
 						UPDATE_NODE);
 			}
 		} else {
 			/* PGWC */
 			if (context->pgw_fqcsid) {
 				sess_t = get_sess_csid_entry(
-						(context->pgw_fqcsid)->local_csid[(context->pgw_fqcsid)->num_csid - 1],
+						pdn->pgw_csid.local_csid[pdn->pgw_csid.num_csid - 1],
 						UPDATE_NODE);
 			}
 		}
 
 		if (sess_t == NULL) {
 			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to get CSID "
-				"entry, Error: %s \n", LOG_VALUE, strerror(errno));
+					"entry, Error: %s \n", LOG_VALUE, strerror(errno));
 			return GTPV2C_CAUSE_SYSTEM_FAILURE;
 		}
 
@@ -5212,16 +6035,36 @@ process_pfcp_sess_est_resp(pfcp_sess_estab_rsp_t *pfcp_sess_est_rsp,
 		sess_tmp = get_sess_csid_data_node(sess_t, pdn->seid);
 		if(sess_tmp == NULL ) {
 			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to get node "
-				"data for SEID: %x\n", LOG_VALUE, pdn->seid);
+					"data for SEID: %x\n", LOG_VALUE, pdn->seid);
 			return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 		}
 
 		/* Update up SEID in CSID linked list node */
 		sess_tmp->up_seid = dp_sess_id;
+		pdn->dp_seid = dp_sess_id;
+
+		/* Add entry for cp session id with link local csid */
+		if ((context->cp_mode != PGWC)) {
+			if (pdn->mme_csid.num_csid) {
+				/* Link Session with Peer CSID */
+				link_sess_with_peer_csid(&pdn->mme_csid, pdn, S11_SGW_PORT_ID);
+			}
+		} else {
+			if (pdn->sgw_csid.num_csid) {
+				/* Link Session with Peer CSID */
+				link_sess_with_peer_csid(&pdn->sgw_csid, pdn, S5S8_PGWC_PORT_ID);
+			}
+			if (pdn->mme_csid.num_csid) {
+				link_sess_with_peer_csid(&pdn->mme_csid, pdn, S5S8_PGWC_PORT_ID);
+			}
+		}
+		/* Link session with Peer CSID */
+		link_sess_with_peer_csid(&pdn->up_csid, pdn, SX_PORT_ID);
 	}
 
 	/* Update the UP CSID in the context */
-	context->up_fqcsid = fqcsid;
+	if (context->up_fqcsid == NULL)
+		context->up_fqcsid = fqcsid;
 
 #endif /* USE_CSID */
 
@@ -5230,121 +6073,174 @@ process_pfcp_sess_est_resp(pfcp_sess_estab_rsp_t *pfcp_sess_est_rsp,
 	/* Update the UE state */
 	pdn->state = PFCP_SESS_EST_RESP_RCVD_STATE;
 
-	if (context->cp_mode == SAEGWC || context->cp_mode == PGWC) {
+	if (context->cp_mode == SAEGWC || context->cp_mode == PGWC
+			|| pdn->proc == S1_HANDOVER_PROC) {
+
 		msg_len = set_create_session_response(gtpv2c_tx, context->sequence,
-										context, pdn, is_piggybacked);
+				context, pdn, is_piggybacked);
 		if(is_piggybacked) {
+
+			uint8_t buf1[MAX_GTPV2C_UDP_LEN] = {0};
+			gtpv2c_cbr_t = (gtpv2c_header_t *)buf1;
+
 			gtpv2c_cbr_t = (gtpv2c_header_t *)((uint8_t *)gtpv2c_tx + msg_len);
 			set_create_bearer_request(gtpv2c_cbr_t, context->sequence, pdn,
-					pdn->default_bearer_id, 0, resp, is_piggybacked, FALSE);
+					pdn->default_bearer_id, 0, resp, is_piggybacked, TRUE);
 
 			resp->state = CREATE_BER_REQ_SNT_STATE;
 			pdn->state = CREATE_BER_REQ_SNT_STATE;
+
+			uint32_t payload =ntohs(gtpv2c_cbr_t->gtpc.message_len) + sizeof(gtpv2c_cbr_t->gtpc);
+
+			if(context->cp_mode == PGWC) {
+				add_gtpv2c_if_timer_entry(
+						teid, &s5s8_recv_sockaddr, (uint8_t *)gtpv2c_cbr_t, payload,
+						ebi_index, S5S8_IFACE, context->cp_mode);
+			} else {
+				add_gtpv2c_if_timer_entry(
+						teid, &s11_mme_sockaddr, (uint8_t *)gtpv2c_cbr_t, payload,
+						ebi_index, S11_IFACE, context->cp_mode);
+			}
 		}
 
-		if (context->cp_mode == SAEGWC) {
-			s11_mme_sockaddr.sin_addr.s_addr = context->s11_mme_gtpc_ipv4.s_addr;
+		if (context->cp_mode == SAEGWC || context->cp_mode == SGWC) {
+
+			ret = set_dest_address(context->s11_mme_gtpc_ip, &s11_mme_sockaddr);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+			}
 		}
 
 		if (context->cp_mode == PGWC) {
-			s5s8_recv_sockaddr.sin_addr.s_addr = pdn->s5s8_sgw_gtpc_ipv4.s_addr;
+			ret = set_dest_address(pdn->s5s8_sgw_gtpc_ip, &s5s8_recv_sockaddr);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+			}
 		}
 
 		pdn->csr_sequence =0;
 
+		if(pdn->proc == S1_HANDOVER_PROC) {
+			context->update_sgw_fteid = TRUE;
+			ret = set_dest_address(context->s11_mme_gtpc_ip, &s11_mme_sockaddr);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+			}
+			ret = add_bearer_entry_by_sgw_s5s8_tied(pdn->s5s8_sgw_gtpc_teid, &bearer);
+			if(ret) {
+				clLog(clSystemLog, eCLSeverityDebug,
+						LOG_FORMAT"Failed to add bearer entry by sgw_s5s8_teid\n", LOG_VALUE);
+				return ret;
+			}
+		}
+
 	} else if (context->cp_mode == SGWC) {
-		uint16_t msg_len = 0;
 		upf_context_t *upf_context = NULL;
 
 		ret = rte_hash_lookup_data(upf_context_by_ip_hash,
-				(const void*) &((context->pdns[ebi_index])->upf_ipv4.s_addr),
+				(const void*) &((context->pdns[ebi_index])->upf_ip),
 				(void **) &(upf_context));
 
 		if (ret < 0) {
 			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"NO ENTRY FOUND IN UPF "
-				"HASH [%u]\n", LOG_VALUE, (context->pdns[ebi_index])->upf_ipv4.s_addr);
+					"HASH [%u]\n", LOG_VALUE, (context->pdns[ebi_index])->upf_ip.ipv4_addr);
 			return GTPV2C_CAUSE_INVALID_PEER;
 		}
 
-		ret = add_bearer_entry_by_sgw_s5s8_tied(pdn->s5s8_sgw_gtpc_teid, &bearer);
-		if(ret) {
-			clLog(clSystemLog, eCLSeverityDebug,
-					LOG_FORMAT"Failed to add bearer entry by sgw_s5s8_teid\n", LOG_VALUE);
-			return ret;
-		}
+		if (context->indirect_tunnel_flag == 1){
+			set_create_indir_data_frwd_tun_response(gtpv2c_tx, context->indirect_tunnel->pdn);
 
-		if(context->indication_flag.oi == 1) {
-
-			memset(gtpv2c_tx, 0, MAX_GTPV2C_UDP_LEN);
-			set_modify_bearer_request(gtpv2c_tx, pdn, bearer);
-
-			s5s8_recv_sockaddr.sin_addr.s_addr =
-				pdn->s5s8_pgw_gtpc_ipv4.s_addr;
-
-			resp->state = MBR_REQ_SNT_STATE;
-			pdn->state = resp->state;
-			pdn->proc = SGW_RELOCATION_PROC;
+			ret = set_dest_address(context->s11_mme_gtpc_ip, &s11_mme_sockaddr);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+			}
+			resp->state = CONNECTED_STATE;
+			pdn->state = CONNECTED_STATE;
 			return 0;
 
-		}
+		} else {
 
-		/*Add procedure based call here
-		 * for pdn -> CSR
-		 * for sgw relocation -> MBR
-		 */
+			ret = add_bearer_entry_by_sgw_s5s8_tied(pdn->s5s8_sgw_gtpc_teid, &bearer);
+			if(ret) {
+				clLog(clSystemLog, eCLSeverityDebug,
+						LOG_FORMAT"Failed to add bearer entry by sgw_s5s8_teid\n", LOG_VALUE);
+				return ret;
+			}
 
-		create_sess_req_t cs_req = {0};
+			if(context->indication_flag.oi == 1) {
+				(pdn->context)->mme_changed_flag = TRUE;
 
-		ret = fill_cs_request(&cs_req, context, ebi_index);
+				memset(gtpv2c_tx, 0, MAX_GTPV2C_UDP_LEN);
+				set_modify_bearer_request(gtpv2c_tx, pdn, bearer);
+
+				ret = set_dest_address(pdn->s5s8_pgw_gtpc_ip, &s5s8_recv_sockaddr);
+				if (ret < 0) {
+					clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+						"IP address", LOG_VALUE);
+				}
+				resp->state = MBR_REQ_SNT_STATE;
+				pdn->state = resp->state;
+				pdn->proc = SGW_RELOCATION_PROC;
+				return 0;
+
+			}
+
+			/*Add procedure based call here
+			 * for pdn -> CSR
+			 * for sgw relocation -> MBR
+			 */
+
+			create_sess_req_t cs_req = {0};
+
+			ret = fill_cs_request(&cs_req, context, ebi_index, pdn->requested_pdn_type);
 
 #ifdef USE_CSID
-		/* Set the SGW FQ-CSID */
-		if (context->sgw_fqcsid != NULL) {
-			if ((context->sgw_fqcsid)->num_csid) {
-				set_gtpc_fqcsid_t(&cs_req.sgw_fqcsid, IE_INSTANCE_ONE,
-						context->sgw_fqcsid);
-				cs_req.sgw_fqcsid.node_address = pfcp_config.s5s8_ip.s_addr;
+			/* Set the SGW FQ-CSID */
+			if (context->sgw_fqcsid != NULL) {
+				if (pdn->sgw_csid.num_csid) {
+					set_gtpc_fqcsid_t(&cs_req.sgw_fqcsid, IE_INSTANCE_ONE,
+							&pdn->sgw_csid);
+				}
 			}
-		}
-		/* Set the MME FQ-CSID */
-		if (context->mme_fqcsid != NULL) {
-			if ((context->mme_fqcsid)->num_csid) {
-				set_gtpc_fqcsid_t(&cs_req.mme_fqcsid, IE_INSTANCE_ZERO,
-						context->mme_fqcsid);
+			/* Set the MME FQ-CSID */
+			if (context->mme_fqcsid != NULL) {
+				if (pdn->mme_csid.num_csid) {
+					set_gtpc_fqcsid_t(&cs_req.mme_fqcsid, IE_INSTANCE_ZERO,
+							&pdn->mme_csid);
+				}
 			}
-		}
 #endif /* USE_CSID */
-		if (ret < 0) {
-			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT "Failed to fill Create "
-				"Session Request \n", LOG_VALUE);
-			return GTPV2C_CAUSE_SYSTEM_FAILURE;
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT "Failed to fill Create "
+						"Session Request \n", LOG_VALUE);
+				return GTPV2C_CAUSE_SYSTEM_FAILURE;
+			}
+
+			encode_create_sess_req(&cs_req, (uint8_t*)gtpv2c_tx);
+
+			if (ret < 0)
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to generate "
+						"S5S8 SGWC Create Session Request.\n", LOG_VALUE);
+
+			ret = set_dest_address(pdn->s5s8_pgw_gtpc_ip, &s5s8_recv_sockaddr);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+			}
+			/* Update the session state */
+			resp->state = CS_REQ_SNT_STATE;
+			/* stored teid in csr header for clean up */
+			resp->gtpc_msg.csr.header.teid.has_teid.teid = pdn->s5s8_sgw_gtpc_teid;
+
+			/* Update the UE state */
+			pdn->state = CS_REQ_SNT_STATE;
+			return 0;
 		}
-
-		msg_len = encode_create_sess_req(
-				&cs_req,
-				(uint8_t*)gtpv2c_tx);
-
-		msg_len = msg_len - IE_HEADER_SIZE;
-		gtpv2c_header_t *header;
-		header = (gtpv2c_header_t*) gtpv2c_tx;
-		header->gtpc.message_len = htons(msg_len);
-
-		if (ret < 0)
-			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to generate "
-				"S5S8 SGWC Create Session Request.\n", LOG_VALUE);
-
-		s5s8_recv_sockaddr.sin_addr.s_addr = pdn->s5s8_pgw_gtpc_ipv4.s_addr;
-
-		/* Update the session state */
-		resp->state = CS_REQ_SNT_STATE;
-		/* stored teid in csr header for clean up */
-		resp->gtpc_msg.csr.header.teid.has_teid.teid = pdn->s5s8_sgw_gtpc_teid;
-
-		/* Update the UE state */
-		pdn->state = CS_REQ_SNT_STATE;
-		return 0;
 	}
-
 	update_sys_stat(number_of_users,INCREMENT);
 	update_sys_stat(number_of_active_session, INCREMENT);
 
@@ -5356,7 +6252,7 @@ process_pfcp_sess_est_resp(pfcp_sess_estab_rsp_t *pfcp_sess_est_rsp,
 	return 0;
 }
 
-static int8_t
+int8_t
 gtpc_recvd_sgw_fqcsid(gtp_fqcsid_ie_t *sgw_fqcsid,
 		pdn_connection *pdn, eps_bearer *bearer, ue_context *context)
 {
@@ -5364,37 +6260,53 @@ gtpc_recvd_sgw_fqcsid(gtp_fqcsid_ie_t *sgw_fqcsid,
 	uint8_t pgw_tmp_csid = 0;
 	/* Get the copy of existing SGW CSID */
 	fqcsid_t sgw_tmp_csid_t = {0};
-	if (context->sgw_fqcsid != NULL) {
-		if ((context->sgw_fqcsid)->num_csid) {
-			memcpy(&sgw_tmp_csid_t, context->sgw_fqcsid, sizeof(fqcsid_t));
-		}
+	node_address_t node_addr = {0};
+
+	if (pdn->sgw_csid.num_csid) {
+		memcpy(&sgw_tmp_csid_t, &pdn->sgw_csid, sizeof(fqcsid_t));
+	}
+
+	if ((sgw_fqcsid->number_of_csids) &&
+			(sgw_fqcsid->node_id_type == IPV4_GLOBAL_UNICAST)) {
+		node_addr.ip_type = PDN_TYPE_IPV4;
+		memcpy(&node_addr.ipv4_addr, &sgw_fqcsid->node_address, IPV4_SIZE);
+	} else {
+		node_addr.ip_type = PDN_TYPE_IPV6;
+		memcpy(&node_addr.ipv6_addr, &sgw_fqcsid->node_address, IPV6_SIZE);
 	}
 
 	uint8_t tmp_csid = 0;
 	/* Validate the exsiting CSID */
 	for (uint8_t inx = 0; inx < sgw_fqcsid->number_of_csids; inx++) {
 		for (uint8_t inx1 = 0; inx1 < sgw_tmp_csid_t.num_csid; inx1++) {
-			if (sgw_fqcsid->pdn_csid[inx] == sgw_tmp_csid_t.local_csid[inx1]) {
+
+			if ((sgw_fqcsid->pdn_csid[inx] == sgw_tmp_csid_t.local_csid[inx1])
+					&& (COMPARE_IP_ADDRESS(node_addr, sgw_tmp_csid_t.node_addr) == 0)) {
 				tmp_csid = sgw_tmp_csid_t.local_csid[inx1];
 				break;
 			}
 		}
 	}
 
-	if (!tmp_csid) {
-		/* Get the copy of existing PGW CSID */
-		fqcsid_t pgw_tmp_csid_t = {0};
-		if (context->pgw_fqcsid != NULL) {
-			if ((context->pgw_fqcsid)->num_csid) {
-				memcpy(&pgw_tmp_csid_t, context->pgw_fqcsid, sizeof(fqcsid_t));
-			}
-		}
 
-		/* Remove Exsiting SGW CSID associted with Session */
-		memset(context->sgw_fqcsid, 0, sizeof(fqcsid_t));
+	/* Get the copy of existing PGW CSID */
+	fqcsid_t pgw_tmp_csid_t = {0};
+	if (pdn->pgw_csid.num_csid) {
+		memcpy(&pgw_tmp_csid_t, &pdn->pgw_csid, sizeof(fqcsid_t));
+	}
+
+	if (!tmp_csid) {
+		/* SGW FQ-CSID */
+
+		ret = add_peer_addr_entry_for_fqcsid_ie_node_addr(
+				&pdn->s5s8_sgw_gtpc_ip, sgw_fqcsid,
+				S5S8_PGWC_PORT_ID);
+		if (ret)
+			return ret;
 
 		/* SGW FQ-CSID */
 		/* Stored the SGW CSID by SGW Node address */
+
 		ret = add_fqcsid_entry(sgw_fqcsid, context->sgw_fqcsid);
 		if(ret)
 			return ret;
@@ -5402,12 +6314,12 @@ gtpc_recvd_sgw_fqcsid(gtp_fqcsid_ie_t *sgw_fqcsid,
 		/* Update the entry for peer nodes */
 		if (fill_peer_node_info(pdn, bearer)) {
 			clLog(clSystemLog, eCLSeverityCritical,
-				LOG_FORMAT"Failed to fill peer node info and assignment of the "
-				"CSID Error: %s\n", LOG_VALUE, strerror(errno));
+					LOG_FORMAT"Failed to fill peer node info and assignment of the "
+					"CSID Error: %s\n", LOG_VALUE, strerror(errno));
 			return  GTPV2C_CAUSE_SYSTEM_FAILURE;
 		}
 
-		if (pdn->context->flag_fqcsid_modified == TRUE) {
+		if (pdn->flag_fqcsid_modified == TRUE) {
 			/* Validate the exsiting CSID or allocated new one */
 			for (uint8_t inx1 = 0; inx1 < pgw_tmp_csid_t.num_csid; inx1++) {
 				if ((context->pgw_fqcsid)->local_csid[(context->pgw_fqcsid)->num_csid - 1] ==
@@ -5430,7 +6342,7 @@ gtpc_recvd_sgw_fqcsid(gtp_fqcsid_ie_t *sgw_fqcsid,
 						int8_t ret = 0;
 						/* Update CSID Entry in table */
 						ret = rte_hash_add_key_data(seids_by_csid_hash,
-										&pgw_tmp_csid_t.local_csid[inx], tmp1);
+								&pgw_tmp_csid_t.local_csid[inx], tmp1);
 						if (ret) {
 							clLog(clSystemLog, eCLSeverityCritical,
 									LOG_FORMAT"Failed to add Session IDs entry for CSID = %u"
@@ -5442,27 +6354,37 @@ gtpc_recvd_sgw_fqcsid(gtp_fqcsid_ie_t *sgw_fqcsid,
 
 						if (tmp1 == NULL) {
 							/* Removing temporary local CSID associated with MME */
-							remove_peer_temp_csid(context->mme_fqcsid, pgw_tmp_csid_t.local_csid[inx],
+							remove_peer_temp_csid(&pdn->mme_csid, pgw_tmp_csid_t.local_csid[inx],
 									S5S8_PGWC_PORT_ID);
 
 							/* Removing temporary local CSID assocoated with SGWC */
-							remove_peer_temp_csid(context->sgw_fqcsid, pgw_tmp_csid_t.local_csid[inx],
+							remove_peer_temp_csid(&pdn->sgw_csid, pgw_tmp_csid_t.local_csid[inx],
 									S5S8_PGWC_PORT_ID);
+							/* Deleting local CSID */
+							del_sess_csid_entry(pgw_tmp_csid_t.local_csid[inx]);
 						}
 						/* Delete CSID from the context */
-						for (uint8_t itr1 = 0; itr1 < (context->pgw_fqcsid)->num_csid; itr1++) {
-							if ((context->pgw_fqcsid)->local_csid[itr1] == pgw_tmp_csid_t.local_csid[inx]) {
-								for(uint8_t pos = itr1; pos < ((context->pgw_fqcsid)->num_csid - 1); pos++ ) {
-									(context->pgw_fqcsid)->local_csid[pos] = (context->pgw_fqcsid)->local_csid[pos + 1];
-								}
-								(context->pgw_fqcsid)->num_csid--;
-							}
-						}
+						remove_csid_from_cntx(context->pgw_fqcsid, &pgw_tmp_csid_t);
+						del_local_csid(&(pdn->s5s8_pgw_gtpc_ip), &pgw_tmp_csid_t);
+
 					} else {
-						clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT"Failed to "
+						/* Remove the session link from old CSID */
+						sess_csid *tmp1 = NULL;
+						tmp1 = get_sess_csid_entry(pgw_tmp_csid_t.local_csid[inx], REMOVE_NODE);
+						if (tmp1 == NULL) {
+							/* Removing temporary local CSID associated with MME */
+							remove_peer_temp_csid(&pdn->mme_csid, pgw_tmp_csid_t.local_csid[inx],
+									S5S8_PGWC_PORT_ID);
+
+							/* Removing temporary local CSID assocoated with SGWC */
+							remove_peer_temp_csid(&pdn->sgw_csid, pgw_tmp_csid_t.local_csid[inx],
+									S5S8_PGWC_PORT_ID);
+							/* Deleting local CSID */
+							del_sess_csid_entry(pgw_tmp_csid_t.local_csid[inx]);
+						}
+						clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Failed to "
 								"get Session ID entry for CSID:%u\n", LOG_VALUE,
 								pgw_tmp_csid_t.local_csid[inx]);
-						return GTPV2C_CAUSE_SYSTEM_FAILURE;
 					}
 
 					clLog(clSystemLog, eCLSeverityDebug,
@@ -5474,13 +6396,13 @@ gtpc_recvd_sgw_fqcsid(gtp_fqcsid_ie_t *sgw_fqcsid,
 			sess_csid *tmp = NULL;
 			/* PGWC */
 			tmp = get_sess_csid_entry(
-					(context->pgw_fqcsid)->local_csid[(context->pgw_fqcsid)->num_csid - 1],
+					pdn->pgw_csid.local_csid[pdn->pgw_csid.num_csid - 1],
 					ADD_NODE);
 
 			if (tmp == NULL) {
 				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to get "
-					"session of CSID entry, Error %s \n",
-					LOG_VALUE, strerror(errno));
+						"session of CSID entry, Error %s \n",
+						LOG_VALUE, strerror(errno));
 				return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 			}
 
@@ -5489,10 +6411,11 @@ gtpc_recvd_sgw_fqcsid(gtp_fqcsid_ie_t *sgw_fqcsid,
 			if(tmp->cp_seid != pdn->seid && tmp->cp_seid != 0) {
 				sess_csid *new_node = NULL;
 				/* Add new node into csid linked list */
-				new_node = add_sess_csid_data_node(tmp);
+				new_node = add_sess_csid_data_node(tmp,
+					 pdn->pgw_csid.local_csid[pdn->pgw_csid.num_csid - 1]);
 				if(new_node == NULL ) {
 					clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to "
-						"ADD new node into CSID linked list : %s\n", LOG_VALUE);
+							"ADD new node into CSID linked list : %s\n", LOG_VALUE);
 					return GTPV2C_CAUSE_SYSTEM_FAILURE;
 				} else {
 					new_node->cp_seid = pdn->seid;
@@ -5502,6 +6425,7 @@ gtpc_recvd_sgw_fqcsid(gtp_fqcsid_ie_t *sgw_fqcsid,
 			} else {
 				tmp->cp_seid = pdn->seid;
 				tmp->up_seid = pdn->dp_seid;
+				tmp->next = NULL;
 			}
 
 			/* Generate the New CSID */
@@ -5512,7 +6436,7 @@ gtpc_recvd_sgw_fqcsid(gtp_fqcsid_ie_t *sgw_fqcsid,
 		/* Remove the Old CSID from the table */
 		fqcsid_t *tmp_t = NULL;
 		/* Get the Peer node CSID List */
-		tmp_t = get_peer_addr_csids_entry(sgw_fqcsid->node_address, REMOVE_NODE);
+		tmp_t = get_peer_addr_csids_entry(&node_addr, REMOVE_NODE);
 		if (tmp_t != NULL) {
 			for (uint8_t inx2 = 0; inx2 < tmp_t->num_csid; inx2++) {
 				for (uint8_t inx3 = 0; inx3 < sgw_tmp_csid_t.num_csid; inx3++) {
@@ -5528,8 +6452,24 @@ gtpc_recvd_sgw_fqcsid(gtp_fqcsid_ie_t *sgw_fqcsid,
 			}
 		}
 	}
-	return 0;
+	/* Cleanup Internal data structures */
+	ret = del_csid_entry_hash(&sgw_tmp_csid_t, &pgw_tmp_csid_t, S5S8_PGWC_PORT_ID);
+	if (ret) {
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Failed to delete CSID "
+				"Entry from hash while cleanup session  \n", LOG_VALUE);
+	}
+	/* Delete old sgwc node entry */
+	if (pdn->old_sgw_addr_valid == True) {
 
+		peer_node_addr_key_t key = {0};
+
+
+		key.iface = S5S8_PGWC_PORT_ID;
+		memcpy(&key.peer_node_addr, &pdn->old_sgw_addr, sizeof(node_address_t));
+
+		del_peer_node_addr_entry(&key);
+	}
+	return 0;
 }
 
 int send_pfcp_sess_mod_req(pdn_connection *pdn, eps_bearer *bearer,
@@ -5538,7 +6478,7 @@ int send_pfcp_sess_mod_req(pdn_connection *pdn, eps_bearer *bearer,
 
 	struct resp_info *resp = NULL;
 	pfcp_sess_mod_req_t pfcp_sess_mod_req = {0};
-	int ebi_index = 0, index = 0;
+	int ebi_index = 0, index = 0, ret = 0;
 	eps_bearer *bearers[MAX_BEARERS] = {NULL};
 	uint8_t send_endmarker = 0;
 	ue_context *context = NULL;
@@ -5568,14 +6508,85 @@ int send_pfcp_sess_mod_req(pdn_connection *pdn, eps_bearer *bearer,
 					continue;
 				} else {
 					if ((mb_req->bearer_contexts_to_be_modified[j].s1_enodeb_fteid.header.len  != 0) ||
-							(mb_req->bearer_contexts_to_be_modified[j].s58_u_sgw_fteid.header.len  != 0)) {
+							(mb_req->bearer_contexts_to_be_modified[j].s58_u_sgw_fteid.header.len  != 0) ||
+							(mb_req->bearer_contexts_to_be_modified[j].s11_u_mme_fteid.header.len  != 0)) {
+						if((mb_req->bearer_contexts_to_be_modified[j].s1_enodeb_fteid.v6 &&
+							bearer->s1u_sgw_gtpu_ip.ip_type == PDN_TYPE_IPV4) ||
+							(mb_req->bearer_contexts_to_be_modified[j].s1_enodeb_fteid.v4 &&
+							bearer->s1u_sgw_gtpu_ip.ip_type == PDN_TYPE_IPV6)){
+							clLog(clSystemLog, eCLSeverityCritical,
+								LOG_FORMAT"The EnodeB s1u IP not compatible"
+								" with SGW/SAEGW s1u IP\n", LOG_VALUE);
+							return GTPV2C_CAUSE_REQUEST_REJECTED;
+						}
+
+						if(mb_req->indctn_flgs.indication_s11tf) {
+							/* Set the indication flag for s11-u teid */
+							pdn->context->indication_flag.s11tf = 1;
+
+							/* Set if MME sends MO Exception Data Counter */
+							if(mb_req->mo_exception_data_cntr.header.len){
+								pdn->context->mo_exception_flag = True;
+								if(mb_req->mo_exception_data_cntr.counter_value == 1)
+									pdn->context->mo_exception_data_counter.timestamp_value =
+										mb_req->mo_exception_data_cntr.timestamp_value;
+								pdn->context->mo_exception_data_counter.counter_value =
+									mb_req->mo_exception_data_cntr.counter_value;
+
+							}
+
+							ret = fill_ip_addr(mb_req->bearer_contexts_to_be_modified[j].s11_u_mme_fteid.ipv4_address,
+									mb_req->bearer_contexts_to_be_modified[j].s11_u_mme_fteid.ipv6_address,
+									&bearer->s11u_mme_gtpu_ip);
+							if (ret < 0) {
+								clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+									"IP address", LOG_VALUE);
+							}
+
+							bearer->s11u_mme_gtpu_teid =
+								mb_req->bearer_contexts_to_be_modified[j].s11_u_mme_fteid.teid_gre_key;
+
+							update_far[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.\
+								outer_hdr_creation.teid = bearer->s11u_mme_gtpu_teid;
+
+							ret = set_node_address(&update_far[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.outer_hdr_creation.ipv4_address,
+									update_far[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.outer_hdr_creation.ipv6_address,
+									bearer->s11u_mme_gtpu_ip);
+							if (ret < 0) {
+								clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+									"IP address", LOG_VALUE);
+							}
+
+							update_far[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.\
+								dst_intfc.interface_value =
+								check_interface_type(mb_req->bearer_contexts_to_be_modified[j].\
+										s11_u_mme_fteid.interface_type, pdn->context->cp_mode);
+
+							update_far[pfcp_sess_mod_req.update_far_count].far_id.far_id_value =
+								get_far_id(bearer,
+										update_far[pfcp_sess_mod_req.update_far_count].\
+										upd_frwdng_parms.dst_intfc.interface_value);
+
+							if ( pdn->context->cp_mode != PGWC) {
+								update_far[pfcp_sess_mod_req.update_far_count].apply_action.forw = PRESENT;
+								update_far[pfcp_sess_mod_req.update_far_count].apply_action.dupl =
+									GET_DUP_STATUS(pdn->context);
+							}
+							pfcp_sess_mod_req.update_far_count++;
+						}
 						if (mb_req->bearer_contexts_to_be_modified[j].s1_enodeb_fteid.header.len  != 0){
+
+							pdn->context->indication_flag.s11tf = 0;
 							/* TAU change */
-							if((bearer->s1u_enb_gtpu_ipv4.s_addr != 0) && (bearer->s1u_enb_gtpu_teid != 0)) {
+							if((bearer->s1u_enb_gtpu_ip.ipv4_addr != 0 || *bearer->s1u_enb_gtpu_ip.ipv6_addr)
+									&& (bearer->s1u_enb_gtpu_teid != 0)) {
+
 								if((mb_req->bearer_contexts_to_be_modified[j].s1_enodeb_fteid.teid_gre_key)
-										!= bearer->s1u_enb_gtpu_teid  ||
-										(mb_req->bearer_contexts_to_be_modified[j].s1_enodeb_fteid.ipv4_address) !=
-										bearer->s1u_enb_gtpu_ipv4.s_addr) {
+										!= bearer->s1u_enb_gtpu_teid
+										|| ((mb_req->bearer_contexts_to_be_modified[j].s1_enodeb_fteid.ipv4_address) !=bearer->s1u_enb_gtpu_ip.ipv4_addr)
+										|| (memcmp(mb_req->bearer_contexts_to_be_modified[j].s1_enodeb_fteid.ipv6_address,
+												bearer->s1u_enb_gtpu_ip.ipv6_addr,
+												IPV6_ADDRESS_LEN) !=0)) {
 									send_endmarker = 1;
 								}
 							}
@@ -5584,14 +6595,26 @@ int send_pfcp_sess_mod_req(pdn_connection *pdn, eps_bearer *bearer,
 								update_pdr_actions_flags(bearer);
 							}
 
-							bearer->s1u_enb_gtpu_ipv4.s_addr =
-								mb_req->bearer_contexts_to_be_modified[j].s1_enodeb_fteid.ipv4_address;
+							ret = fill_ip_addr(mb_req->bearer_contexts_to_be_modified[j].s1_enodeb_fteid.ipv4_address,
+									mb_req->bearer_contexts_to_be_modified[j].s1_enodeb_fteid.ipv6_address,
+									&bearer->s1u_enb_gtpu_ip);
+							if (ret < 0) {
+								clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+									"IP address", LOG_VALUE);
+							}
 							bearer->s1u_enb_gtpu_teid =
 								mb_req->bearer_contexts_to_be_modified[j].s1_enodeb_fteid.teid_gre_key;
 							update_far[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.outer_hdr_creation.teid =
 								bearer->s1u_enb_gtpu_teid;
-							update_far[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.outer_hdr_creation.ipv4_address =
-								bearer->s1u_enb_gtpu_ipv4.s_addr;
+
+
+							ret = set_node_address(&update_far[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.outer_hdr_creation.ipv4_address,
+									update_far[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.outer_hdr_creation.ipv6_address,
+									bearer->s1u_enb_gtpu_ip);
+							if (ret < 0) {
+								clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+									"IP address", LOG_VALUE);
+							}
 							update_far[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.dst_intfc.interface_value =
 								check_interface_type(mb_req->bearer_contexts_to_be_modified[j].s1_enodeb_fteid.interface_type,
 										pdn->context->cp_mode);
@@ -5604,20 +6627,34 @@ int send_pfcp_sess_mod_req(pdn_connection *pdn, eps_bearer *bearer,
 							pfcp_sess_mod_req.update_far_count++;
 						}
 						if (mb_req->bearer_contexts_to_be_modified[j].s58_u_sgw_fteid.header.len  != 0){
-							if( ((bearer->s5s8_sgw_gtpu_ipv4.s_addr !=
-											mb_req->bearer_contexts_to_be_modified[j].s58_u_sgw_fteid.ipv4_address) ||
-										(bearer->s5s8_sgw_gtpu_teid !=
-										 mb_req->bearer_contexts_to_be_modified[j].s58_u_sgw_fteid.teid_gre_key))){
+							if( (bearer->s5s8_sgw_gtpu_ip.ipv4_addr !=
+										mb_req->bearer_contexts_to_be_modified[j].s58_u_sgw_fteid.ipv4_address
+										|| memcmp( bearer->s5s8_sgw_gtpu_ip.ipv6_addr,
+											mb_req->bearer_contexts_to_be_modified[j].s58_u_sgw_fteid.ipv6_address,
+											IPV6_ADDRESS_LEN) != 0)
+									|| (bearer->s5s8_sgw_gtpu_teid != mb_req->bearer_contexts_to_be_modified[j].s58_u_sgw_fteid.teid_gre_key)){
 								send_endmarker = 1;
 							}
-							bearer->s5s8_sgw_gtpu_ipv4.s_addr =
-								mb_req->bearer_contexts_to_be_modified[j].s58_u_sgw_fteid.ipv4_address;
+
+							ret = fill_ip_addr(mb_req->bearer_contexts_to_be_modified[j].s58_u_sgw_fteid.ipv4_address,
+									mb_req->bearer_contexts_to_be_modified[j].s58_u_sgw_fteid.ipv6_address,
+									&bearer->s5s8_sgw_gtpu_ip);
+							if (ret < 0) {
+								clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+									"IP address", LOG_VALUE);
+							}
 							bearer->s5s8_sgw_gtpu_teid =
 								mb_req->bearer_contexts_to_be_modified[j].s58_u_sgw_fteid.teid_gre_key;
 							update_far[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.outer_hdr_creation.teid =
 								bearer->s5s8_sgw_gtpu_teid;
-							update_far[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.outer_hdr_creation.ipv4_address =
-								bearer->s5s8_sgw_gtpu_ipv4.s_addr;
+
+							ret = set_node_address(&update_far[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.outer_hdr_creation.ipv4_address,
+									update_far[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.outer_hdr_creation.ipv6_address,
+									bearer->s5s8_sgw_gtpu_ip);
+							if (ret < 0) {
+								clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+									"IP address", LOG_VALUE);
+							}
 							update_far[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.dst_intfc.interface_value =
 								check_interface_type(mb_req->bearer_contexts_to_be_modified[j].s58_u_sgw_fteid.interface_type,
 										pdn->context->cp_mode);
@@ -5637,24 +6674,31 @@ int send_pfcp_sess_mod_req(pdn_connection *pdn, eps_bearer *bearer,
 								}
 								if ((bearer->pdrs[pdr])->pdi.src_intfc.interface_value == SOURCE_INTERFACE_VALUE_ACCESS) {
 									/* Update the local source IP Address and teid */
-									(bearer->pdrs[pdr])->pdi.local_fteid.ipv4_address = bearer->s5s8_pgw_gtpu_ipv4.s_addr;
+									ret = set_node_address(&(bearer->pdrs[pdr])->pdi.local_fteid.ipv4_address,
+											(bearer->pdrs[pdr])->pdi.local_fteid.ipv6_address,
+											bearer->s5s8_pgw_gtpu_ip);
+									if (ret < 0) {
+										clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+											"IP address", LOG_VALUE);
+									}
 									/* Update the PDR info */
 									set_update_pdr(&(pfcp_sess_mod_req.update_pdr[pfcp_sess_mod_req.update_pdr_count]),
-										bearer->pdrs[pdr], (pdn->context)->cp_mode);
+											bearer->pdrs[pdr], (pdn->context)->cp_mode);
 									/* Reset Precedance, No need to forward */
 									memset(&(pfcp_sess_mod_req.update_pdr[pfcp_sess_mod_req.update_pdr_count].precedence), 0,
-										sizeof(pfcp_precedence_ie_t));
+											sizeof(pfcp_precedence_ie_t));
 									/* Reset FAR ID, No need to forward */
 									memset(&(pfcp_sess_mod_req.update_pdr[pfcp_sess_mod_req.update_pdr_count].far_id), 0,
-										sizeof(pfcp_far_id_ie_t));
-									/* Update the PDR header length*/
+											sizeof(pfcp_far_id_ie_t));
+									/* Update the PDR header length */
 									pfcp_sess_mod_req.update_pdr[pfcp_sess_mod_req.update_pdr_count].header.len -=
-											(sizeof(pfcp_far_id_ie_t) + sizeof(pfcp_precedence_ie_t));
+										(sizeof(pfcp_far_id_ie_t) + sizeof(pfcp_precedence_ie_t));
 									pfcp_sess_mod_req.update_pdr_count++;
 								}
 							}
 						}
-						/*Added 0 in the last argument below as it is not X2 handover case*/
+						/* Added 0 in the last argument below as it is not X2 handover case */
+
 						bearers[index] = bearer;
 						index++;
 					}
@@ -5664,24 +6708,21 @@ int send_pfcp_sess_mod_req(pdn_connection *pdn, eps_bearer *bearer,
 		}
 	}
 
-	/* After SAEGWU --> PGWU update the PDR info */
-	if ((pdn->context)->cp_mode_flag) {
-		/* Reset Flag */
-		(pdn->context)->cp_mode_flag = FALSE;
-	}
 
 	fill_pfcp_sess_mod_req(&pfcp_sess_mod_req, &mb_req->header, bearers, pdn,
-				update_far, send_endmarker, index, pdn->context);
+			update_far, send_endmarker, index, pdn->context);
 
 	context =  pdn->context;
 
 #ifdef USE_CSID
+	uint8_t num_csid = 0;
+	fqcsid_t tmp_fqcsid = {0};
 
 	if(mb_req->mme_fqcsid.header.len != 0 ) {
 		if ((mb_req->mme_fqcsid).number_of_csids) {
 
 			if ((context != NULL) && (context->mme_fqcsid == NULL)) {
-				context->mme_fqcsid = rte_zmalloc_socket(NULL, sizeof(fqcsid_t),
+				context->mme_fqcsid = rte_zmalloc_socket(NULL, sizeof(sess_fqcsid_t),
 						RTE_CACHE_LINE_SIZE, rte_socket_id());
 				if (context->mme_fqcsid == NULL) {
 					clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to allocate the "
@@ -5689,16 +6730,88 @@ int send_pfcp_sess_mod_req(pdn_connection *pdn, eps_bearer *bearer,
 					return GTPV2C_CAUSE_SYSTEM_FAILURE;
 				}
 			}
-			/* Remove Exsiting MME CSID associted with Session */
-			memset(context->mme_fqcsid, 0, sizeof(fqcsid_t));
+			/* Coping  Exsiting MME CSID associted with Session */
+			memcpy(&tmp_fqcsid,  &pdn->mme_csid, sizeof(fqcsid_t));
+			if (context->cp_mode != PGWC ) {
+				int ret = add_peer_addr_entry_for_fqcsid_ie_node_addr(
+						&context->s11_mme_gtpc_ip, &mb_req->mme_fqcsid,
+						S11_SGW_PORT_ID);
+				if (ret)
+					return ret;
+			}
 
 			/* Parse and stored MME FQ-CSID in the context */
-			int ret = add_fqcsid_entry(&mb_req->mme_fqcsid, context->mme_fqcsid);
+			ret = add_fqcsid_entry(&mb_req->mme_fqcsid, context->mme_fqcsid);
 			if(ret)
 				return ret;
 
+			fill_pdn_fqcsid_info(&pdn->mme_csid, context->mme_fqcsid);
+
+			/* Remove old mme csid from UE context */
+			remove_csid_from_cntx(context->mme_fqcsid, &tmp_fqcsid);
+
+			if (link_sess_with_peer_csid(&pdn->mme_csid, pdn,
+						((context->cp_mode != PGWC) ?
+						 S11_SGW_PORT_ID : S5S8_PGWC_PORT_ID))) {
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT
+						"Error : Failed to Link Session with MME CSID \n",
+						LOG_VALUE);
+				return -1;
+			}
+			/* Remove the session link from old CSID */
+			sess_csid *tmp1 = NULL;
+			peer_csid_key_t key = {0};
+
+			key.iface = ((context->cp_mode != PGWC) ? S11_SGW_PORT_ID : S5S8_PGWC_PORT_ID);
+			key.peer_local_csid = tmp_fqcsid.local_csid[num_csid];
+			memcpy(&key.peer_node_addr, &(tmp_fqcsid.node_addr), sizeof(node_address_t));
+
+			tmp1 = get_sess_peer_csid_entry(&key, REMOVE_NODE);
+
+			if (tmp1 != NULL) {
+				/* Remove node from csid linked list */
+				tmp1 = remove_sess_csid_data_node(tmp1, pdn->seid);
+
+				int8_t ret = 0;
+				/* Update CSID Entry in table */
+				ret = rte_hash_add_key_data(seid_by_peer_csid_hash, &key, tmp1);
+				if (ret) {
+					clLog(clSystemLog, eCLSeverityCritical,
+							LOG_FORMAT"Failed to add Session IDs entry"
+							" for CSID = %u \n", LOG_VALUE,
+							tmp_fqcsid.local_csid[num_csid]);
+					return GTPV2C_CAUSE_SYSTEM_FAILURE;
+				}
+				if (tmp1 == NULL) {
+					/* Delete Local CSID entry */
+					del_sess_peer_csid_entry(&key);
+				}
+			}
+
+			if (context->cp_mode != PGWC) {
+				/* Cleanup Internal data structures */
+				ret = del_csid_entry_hash(&tmp_fqcsid, &pdn->sgw_csid, S11_SGW_PORT_ID);
+				if (ret) {
+					clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Failed to delete CSID "
+							"Entry from hash while cleanup session  \n", LOG_VALUE);
+				}
+			} else {
+				if (link_gtpc_peer_csids(&pdn->mme_csid,
+							&pdn->pgw_csid, S5S8_PGWC_PORT_ID)) {
+					clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to Link "
+							"Local CSID entry to link with MME FQCSID, Error : %s \n", LOG_VALUE,
+							strerror(errno));
+					return -1;
+				}
+				/* Cleanup Internal data structures */
+				ret = del_csid_entry_hash(&tmp_fqcsid, &pdn->pgw_csid, S5S8_PGWC_PORT_ID);
+				if (ret) {
+					clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Failed to delete CSID "
+							"Entry from hash while cleanup session  \n", LOG_VALUE);
+				}
+			}
 			/* set MME FQ-CSID */
-			set_fq_csid_t(&pfcp_sess_mod_req.mme_fqcsid, context->mme_fqcsid);
+			set_fq_csid_t(&pfcp_sess_mod_req.mme_fqcsid, &pdn->mme_csid);
 		}
 	}
 
@@ -5706,6 +6819,10 @@ int send_pfcp_sess_mod_req(pdn_connection *pdn, eps_bearer *bearer,
 		/* Parse and stored SGW FQ-CSID in the context */
 		if (mb_req->sgw_fqcsid.number_of_csids) {
 			int ret_t = 0;
+			/* Get the copy of existing SGW CSID */
+			fqcsid_t sgw_tmp_csid_t = {0};
+			pdn->flag_fqcsid_modified = FALSE;
+
 			ret_t = gtpc_recvd_sgw_fqcsid(&mb_req->sgw_fqcsid, pdn, tmp_bearer, context);
 			if ((ret_t != 0) && (ret_t != PRESENT)) {
 				clLog(clSystemLog, eCLSeverityCritical,
@@ -5715,28 +6832,71 @@ int send_pfcp_sess_mod_req(pdn_connection *pdn, eps_bearer *bearer,
 			/* Fill the Updated CSID in the Modification Request */
 			/* Set SGW FQ-CSID */
 			if (context->sgw_fqcsid != NULL) {
-				if ((context->sgw_fqcsid)->num_csid) {
-					fqcsid_t tmp_fqcsid = {0};
 
-					set_fq_csid_t(&pfcp_sess_mod_req.sgw_c_fqcsid, context->sgw_fqcsid);
-					if (context->cp_mode != PGWC) {
-						(pfcp_sess_mod_req.sgw_c_fqcsid).node_address = pfcp_config.pfcp_ip.s_addr;
-					}
-					/* set PGWC FQ-CSID explicitlly zero */
-					set_fq_csid_t(&pfcp_sess_mod_req.pgw_c_fqcsid, &tmp_fqcsid);
+				if (pdn->sgw_csid.num_csid) {
+					memcpy(&sgw_tmp_csid_t, &pdn->sgw_csid, sizeof(fqcsid_t));
 
-					if (!pfcp_sess_mod_req.mme_fqcsid.number_of_csids) {
-						/* set MME FQ-CSID explicitlly zero */
-						set_fq_csid_t(&pfcp_sess_mod_req.mme_fqcsid, &tmp_fqcsid);
+					/*Need to remove the previous CSID(in case of TAU with DF)*/
+					remove_csid_from_cntx(context->sgw_fqcsid, &sgw_tmp_csid_t);
+				}
+				fill_pdn_fqcsid_info(&pdn->sgw_csid, context->sgw_fqcsid);
+
+				if (pdn->sgw_csid.num_csid) {
+					if (link_gtpc_peer_csids(&pdn->sgw_csid,
+								&pdn->pgw_csid, S5S8_PGWC_PORT_ID)) {
+						clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to Link "
+								"Local CSID entry to link with SGW FQCSID, Error : %s \n", LOG_VALUE,
+								strerror(errno));
+						return -1;
 					}
+				}
+				/* Link session with new sgwc csid */
+				if (link_sess_with_peer_csid(&pdn->sgw_csid, pdn, S5S8_PGWC_PORT_ID)) {
+					clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Error : Failed to Link "
+							"session with SGW CSID \n", LOG_VALUE);
+					return -1;
+				}
+
+				/* Remove the session link from old CSID */
+				sess_csid *tmp1 = NULL;
+				peer_csid_key_t key = {0};
+
+				key.iface = S5S8_PGWC_PORT_ID;
+				key.peer_local_csid = sgw_tmp_csid_t.local_csid[num_csid];
+				memcpy(&key.peer_node_addr, &sgw_tmp_csid_t.node_addr, sizeof(node_address_t));
+
+				tmp1 = get_sess_peer_csid_entry(&key, REMOVE_NODE);
+
+				if (tmp1 != NULL) {
+					/* Remove node from csid linked list */
+					tmp1 = remove_sess_csid_data_node(tmp1, pdn->seid);
+
+					int8_t ret = 0;
+					/* Update CSID Entry in table */
+					ret = rte_hash_add_key_data(seid_by_peer_csid_hash, &key, tmp1);
+					if (ret) {
+						clLog(clSystemLog, eCLSeverityCritical,
+								LOG_FORMAT"Failed to add Session IDs entry"
+								" for CSID = %u \n", LOG_VALUE,
+								sgw_tmp_csid_t.local_csid[num_csid]);
+						return GTPV2C_CAUSE_SYSTEM_FAILURE;
+					}
+					if (tmp1 == NULL) {
+						/* Delete Local CSID entry */
+						del_sess_peer_csid_entry(&key);
+					}
+				}
+
+				if (pdn->sgw_csid.num_csid) {
+
+					set_fq_csid_t(&pfcp_sess_mod_req.sgw_c_fqcsid, &pdn->sgw_csid);
+					/* set PGWC FQ-CSID */
+					set_fq_csid_t(&pfcp_sess_mod_req.pgw_c_fqcsid, &pdn->pgw_csid);
 				}
 			}
 			if (ret_t == PRESENT) {
 				/* set PGWC FQ-CSID */
-				set_fq_csid_t(&pfcp_sess_mod_req.pgw_c_fqcsid, context->pgw_fqcsid);
-				if (context->cp_mode == PGWC) {
-					(pfcp_sess_mod_req.pgw_c_fqcsid).node_address = pfcp_config.pfcp_ip.s_addr;
-				}
+				set_fq_csid_t(&pfcp_sess_mod_req.pgw_c_fqcsid, &pdn->pgw_csid);
 			}
 		}
 	}
@@ -5745,21 +6905,21 @@ int send_pfcp_sess_mod_req(pdn_connection *pdn, eps_bearer *bearer,
 	if (context->cp_mode != PGWC) {
 		/* Get the copy of existing SGW CSID */
 		fqcsid_t tmp_csid_t = {0};
-		if (context->sgw_fqcsid != NULL) {
-			if ((context->sgw_fqcsid)->num_csid) {
-				memcpy(&tmp_csid_t, context->sgw_fqcsid, sizeof(fqcsid_t));
-			}
+		pdn->flag_fqcsid_modified = FALSE;
+
+		if (pdn->sgw_csid.num_csid) {
+			memcpy(&tmp_csid_t, &pdn->sgw_csid, sizeof(fqcsid_t));
 		}
 
 		/* Update the entry for peer nodes */
 		if (fill_peer_node_info(pdn, tmp_bearer)) {
 			clLog(clSystemLog, eCLSeverityCritical,
-				LOG_FORMAT"Failed to fill peer node info and assignment of the "
-				"CSID Error: %s\n", LOG_VALUE, strerror(errno));
+					LOG_FORMAT"Failed to fill peer node info and assignment of the "
+					"CSID Error: %s\n", LOG_VALUE, strerror(errno));
 			return  GTPV2C_CAUSE_SYSTEM_FAILURE;
 		}
 
-		if (context->flag_fqcsid_modified == TRUE) {
+		if (pdn->flag_fqcsid_modified == TRUE) {
 			uint8_t tmp_csid = 0;
 			/* Validate the exsiting CSID or allocated new one */
 			for (uint8_t inx1 = 0; inx1 < tmp_csid_t.num_csid; inx1++) {
@@ -5783,7 +6943,7 @@ int send_pfcp_sess_mod_req(pdn_connection *pdn, eps_bearer *bearer,
 						int8_t ret = 0;
 						/* Update CSID Entry in table */
 						ret = rte_hash_add_key_data(seids_by_csid_hash,
-										&tmp_csid_t.local_csid[inx], tmp1);
+								&tmp_csid_t.local_csid[inx], tmp1);
 						if (ret) {
 							clLog(clSystemLog, eCLSeverityCritical,
 									LOG_FORMAT"Failed to add Session IDs entry for CSID = %u"
@@ -5795,29 +6955,38 @@ int send_pfcp_sess_mod_req(pdn_connection *pdn, eps_bearer *bearer,
 
 						if (tmp1 == NULL) {
 							/* Removing temporary local CSID associated with MME */
-							remove_peer_temp_csid(context->mme_fqcsid, tmp_csid_t.local_csid[inx],
+							remove_peer_temp_csid(&pdn->mme_csid, tmp_csid_t.local_csid[inx],
 									S11_SGW_PORT_ID);
 
 							/* Removing temporary local CSID assocoated with PGWC */
-							remove_peer_temp_csid(context->pgw_fqcsid, tmp_csid_t.local_csid[inx],
+							remove_peer_temp_csid(&pdn->pgw_csid, tmp_csid_t.local_csid[inx],
 									S5S8_SGWC_PORT_ID);
+
 							/* Delete Local CSID entry */
 							del_sess_csid_entry(tmp_csid_t.local_csid[inx]);
 						}
 						/* Delete CSID from the context */
-						for (uint8_t itr1 = 0; itr1 < (context->sgw_fqcsid)->num_csid; itr1++) {
-							if ((context->sgw_fqcsid)->local_csid[itr1] == tmp_csid_t.local_csid[inx]) {
-								for(uint8_t pos = itr1; pos < ((context->sgw_fqcsid)->num_csid - 1); pos++ ) {
-									(context->sgw_fqcsid)->local_csid[pos] = (context->sgw_fqcsid)->local_csid[pos + 1];
-								}
-								(context->sgw_fqcsid)->num_csid--;
-							}
-						}
+						remove_csid_from_cntx(context->sgw_fqcsid, &tmp_csid_t);
+						del_local_csid(&(context->s11_sgw_gtpc_ip),  &tmp_csid_t);
 					} else {
-						clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT"Failed to "
+						/* Remove the session link from old CSID */
+						sess_csid *tmp1 = NULL;
+						tmp1 = get_sess_csid_entry(tmp_csid_t.local_csid[inx], REMOVE_NODE);
+						if (tmp1 == NULL) {
+							/* Removing temporary local CSID associated with MME */
+							remove_peer_temp_csid(&pdn->mme_csid, tmp_csid_t.local_csid[inx],
+									S11_SGW_PORT_ID);
+
+							/* Removing temporary local CSID assocoated with PGWC */
+							remove_peer_temp_csid(&pdn->pgw_csid, tmp_csid_t.local_csid[inx],
+									S5S8_SGWC_PORT_ID);
+
+							/* Delete Local CSID entry */
+							del_sess_csid_entry(tmp_csid_t.local_csid[inx]);
+						}
+						clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Failed to "
 								"get Session ID entry for CSID:%u\n", LOG_VALUE,
 								tmp_csid);
-						return GTPV2C_CAUSE_SYSTEM_FAILURE;
 					}
 
 					clLog(clSystemLog, eCLSeverityDebug,
@@ -5829,12 +6998,12 @@ int send_pfcp_sess_mod_req(pdn_connection *pdn, eps_bearer *bearer,
 			/* update entry for cp session id with link local csid */
 			sess_csid *tmp = NULL;
 			tmp = get_sess_csid_entry(
-					(context->sgw_fqcsid)->local_csid[(context->sgw_fqcsid)->num_csid - 1],
+					pdn->sgw_csid.local_csid[pdn->sgw_csid.num_csid - 1],
 					ADD_NODE);
 			if (tmp == NULL) {
 				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to get "
-					"session of CSID entry, Error %s \n",
-					LOG_VALUE, strerror(errno));
+						"session of CSID entry, Error %s \n",
+						LOG_VALUE, strerror(errno));
 				return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 			}
 
@@ -5843,10 +7012,11 @@ int send_pfcp_sess_mod_req(pdn_connection *pdn, eps_bearer *bearer,
 			if(tmp->cp_seid != pdn->seid && tmp->cp_seid != 0) {
 				sess_csid *new_node = NULL;
 				/* Add new node into csid linked list */
-				new_node = add_sess_csid_data_node(tmp);
+				new_node = add_sess_csid_data_node(tmp,
+					pdn->sgw_csid.local_csid[pdn->sgw_csid.num_csid - 1]);
 				if(new_node == NULL ) {
 					clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to "
-						"ADD new node into CSID linked list : %s\n", LOG_VALUE);
+							"ADD new node into CSID linked list : %s\n", LOG_VALUE);
 					return GTPV2C_CAUSE_SYSTEM_FAILURE;
 				} else {
 					new_node->cp_seid = pdn->seid;
@@ -5856,13 +7026,13 @@ int send_pfcp_sess_mod_req(pdn_connection *pdn, eps_bearer *bearer,
 			} else {
 				tmp->cp_seid = pdn->seid;
 				tmp->up_seid = pdn->dp_seid;
+				tmp->next = NULL;
 			}
 
 			/* Fill the fqcsid into the session est request */
-
-			if (fill_fqcsid_sess_mod_req(&pfcp_sess_mod_req, context)) {
+			if (fill_fqcsid_sess_mod_req(&pfcp_sess_mod_req, pdn)) {
 				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to fill "
-					"FQ-CSID in Sess EST Req ERROR: %s\n", LOG_VALUE, strerror(errno));
+						"FQ-CSID in Sess EST Req ERROR: %s\n", LOG_VALUE, strerror(errno));
 				return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 			}
 		}
@@ -5871,14 +7041,18 @@ int send_pfcp_sess_mod_req(pdn_connection *pdn, eps_bearer *bearer,
 
 #endif /* USE_CSID */
 
-	uint8_t pfcp_msg[size]={0};
-	int encoded = encode_pfcp_sess_mod_req_t(&pfcp_sess_mod_req, pfcp_msg);
-	pfcp_header_t *header = (pfcp_header_t *) pfcp_msg;
-	header->message_len = htons(encoded - PFCP_IE_HDR_SIZE);
+	/* After SAEGWU --> PGWU update the PDR info */
+	if ((pdn->context)->cp_mode_flag) {
+		/* Reset Flag */
+		(pdn->context)->cp_mode_flag = FALSE;
+	}
 
-	if ( pfcp_send(pfcp_fd, pfcp_msg, encoded, &upf_pfcp_sockaddr,SENT) < 0 ) {
+	uint8_t pfcp_msg[PFCP_MSG_LEN]={0};
+	int encoded = encode_pfcp_sess_mod_req_t(&pfcp_sess_mod_req, pfcp_msg);
+
+	if ( pfcp_send(pfcp_fd, pfcp_fd_v6, pfcp_msg, encoded, upf_pfcp_sockaddr,SENT) < 0 ) {
 		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Error sending PFCP Session "
-			"Modification Request : %i\n", LOG_VALUE, errno);
+				"Modification Request : %i\n", LOG_VALUE, errno);
 	}
 
 	/* Update UE State */
@@ -5892,7 +7066,7 @@ int send_pfcp_sess_mod_req(pdn_connection *pdn, eps_bearer *bearer,
 
 	if (get_sess_entry(pdn->seid, &resp) != 0) {
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"No Session entry found for "
-			"session ID:%lu\n", LOG_VALUE, pdn->seid);
+				"session ID:%lu\n", LOG_VALUE, pdn->seid);
 		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 	}
 
@@ -6318,25 +7492,24 @@ void update_pdr_actions_flags(eps_bearer *bearer)
 }
 
 int8_t
-update_ue_context(mod_bearer_req_t *mb_req, ue_context *context)
+update_ue_context(mod_bearer_req_t *mb_req, ue_context *context,
+		eps_bearer *bearer, pdn_connection *pdn)
 {
 	int ret = 0;
 	int ebi_index = 0;
-	eps_bearer *bearer  = NULL;
-	pdn_connection *pdn = NULL;
 
 	if(context != NULL ) {
-		if(context->mbr_info.seq ==  mb_req->header.teid.has_teid.seq) {
-			if(context->mbr_info.status == MBR_IN_PROGRESS) {
+		if(context->req_status.seq ==  mb_req->header.teid.has_teid.seq) {
+			if(context->req_status.status == REQ_IN_PROGRESS) {
 				/* Discarding re-transmitted mbr */
 				return GTPC_RE_TRANSMITTED_REQ;
 			}else{
 				/* Restransmitted MBR but processing altready done for previous req */
-				context->mbr_info.status = MBR_IN_PROGRESS;
+				context->req_status.status = REQ_IN_PROGRESS;
 			}
 		}else{
-			context->mbr_info.seq = mb_req->header.teid.has_teid.seq;
-			context->mbr_info.status = MBR_IN_PROGRESS;
+			context->req_status.seq = mb_req->header.teid.has_teid.seq;
+			context->req_status.status = REQ_IN_PROGRESS;
 		}
 	}
 
@@ -6386,8 +7559,9 @@ update_ue_context(mod_bearer_req_t *mb_req, ue_context *context)
 	context->uci_flag             = FALSE;
 	context->serving_nw_flag      = FALSE;
 	context->ltem_rat_type_flag   = FALSE;
-	context->flag_fqcsid_modified = FALSE;
+	pdn->flag_fqcsid_modified     = FALSE;
 	context->sgwu_changed         = FALSE;
+	context->mme_changed_flag     = FALSE;
 
 	context->procedure  = MODIFY_BEARER_PROCEDURE;
 
@@ -6417,19 +7591,67 @@ update_ue_context(mod_bearer_req_t *mb_req, ue_context *context)
 
 		/* Update new MME information */
 		if(mb_req->sender_fteid_ctl_plane.interface_type == S11_MME_GTP_C ) {
-			context->s11_mme_gtpc_teid = mb_req->sender_fteid_ctl_plane.teid_gre_key;
-			context->s11_mme_gtpc_ipv4.s_addr = mb_req->sender_fteid_ctl_plane.ipv4_address;
-			s11_mme_sockaddr.sin_addr.s_addr = mb_req->sender_fteid_ctl_plane.ipv4_address;
+
+			if((context->s11_mme_gtpc_teid !=
+								mb_req->sender_fteid_ctl_plane.teid_gre_key)
+					||((context->s11_mme_gtpc_ip.ipv4_addr !=
+								mb_req->sender_fteid_ctl_plane.ipv4_address)
+					 ||(memcmp(context->s11_mme_gtpc_ip.ipv6_addr,
+								mb_req->sender_fteid_ctl_plane.ipv6_address,
+								IPV6_ADDRESS_LEN) != 0))) {
+				/* Delete old MME node entry */
+				fqcsid_ie_node_addr_t *tmp = NULL;
+				fqcsid_t *csid = NULL;
+				peer_node_addr_key_t key = {0};
+				key.iface = S11_SGW_PORT_ID;
+				memcpy(&(key.peer_node_addr), &(context->s11_mme_gtpc_ip), sizeof(node_address_t));
+				tmp = get_peer_node_addr_entry(&key, UPDATE_NODE);
+				if (tmp != NULL) {
+					csid = get_peer_addr_csids_entry(&tmp->fqcsid_node_addr, UPDATE_NODE);
+					if ((csid != NULL) && (csid->num_csid == 0))
+						del_peer_node_addr_entry(&key);
+				}
+
+				context->s11_mme_gtpc_teid = mb_req->sender_fteid_ctl_plane.teid_gre_key;
+				ret = fill_ip_addr(mb_req->sender_fteid_ctl_plane.ipv4_address,
+							mb_req->sender_fteid_ctl_plane.ipv6_address,
+							&context->s11_mme_gtpc_ip);
+				if (ret < 0) {
+					clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+						"IP address", LOG_VALUE);
+				}
+				ret = set_dest_address(context->s11_mme_gtpc_ip, &s11_mme_sockaddr);
+				if (ret < 0) {
+					clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+						"IP address", LOG_VALUE);
+				}
+				context->mme_changed_flag = TRUE;
+
+				clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT "New MME INFO UPDATED SUCCESSFULLY",
+						LOG_VALUE);
+			}
 
 		} else if ((context->cp_mode == PGWC) &&
 				(mb_req->sender_fteid_ctl_plane.interface_type == S5_S8_SGW_GTP_C)) {
 
-			clLog(clSystemLog, eCLSeverityDebug,
-					"Updating S5S8 SGWC FTEID AT PGWC in Case of SGWC Relocation\n\n");
+			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT "Updating S5S8 SGWC FTEID"
+					"AT PGWC in Case of SGWC Relocation\n", LOG_VALUE);
 
 			/* Update SGWC information */
 			pdn->s5s8_sgw_gtpc_teid = mb_req->sender_fteid_ctl_plane.teid_gre_key;
-			pdn->s5s8_sgw_gtpc_ipv4.s_addr = mb_req->sender_fteid_ctl_plane.ipv4_address;
+
+			if (mb_req->sender_fteid_ctl_plane.v4) {
+
+				pdn->s5s8_sgw_gtpc_ip.ipv4_addr = mb_req->sender_fteid_ctl_plane.ipv4_address;
+				pdn->s5s8_sgw_gtpc_ip.ip_type |= PDN_TYPE_IPV4;
+			}
+
+			if (mb_req->sender_fteid_ctl_plane.v6) {
+
+				memcpy(pdn->s5s8_sgw_gtpc_ip.ipv6_addr, mb_req->sender_fteid_ctl_plane.ipv6_address,
+					IPV6_ADDRESS_LEN);
+				pdn->s5s8_sgw_gtpc_ip.ip_type |= PDN_TYPE_IPV6;
+			}
 		}
 	}
 
@@ -6454,9 +7676,12 @@ update_ue_context(mod_bearer_req_t *mb_req, ue_context *context)
 							continue;
 						if(mb_req->bearer_contexts_to_be_modified[i].eps_bearer_id.ebi_ebi ==
 								temp_bearer->eps_bearer_id){
-							if((temp_bearer->s5s8_sgw_gtpu_ipv4.s_addr !=
-										mb_req->bearer_contexts_to_be_modified[i].s58_u_sgw_fteid.ipv4_address) ||
-									(temp_bearer->s5s8_sgw_gtpu_teid !=
+							if((temp_bearer->s5s8_sgw_gtpu_ip.ipv4_addr !=
+										mb_req->bearer_contexts_to_be_modified[i].s58_u_sgw_fteid.ipv4_address
+								|| memcmp(temp_bearer->s5s8_sgw_gtpu_ip.ipv6_addr,
+									mb_req->bearer_contexts_to_be_modified[i].s58_u_sgw_fteid.ipv6_address,
+									IPV6_ADDRESS_LEN) != 0)
+								||	(temp_bearer->s5s8_sgw_gtpu_teid !=
 									 mb_req->bearer_contexts_to_be_modified[i].s58_u_sgw_fteid.teid_gre_key)) {
 								context->sgwu_changed = TRUE;
 								break;
@@ -6471,7 +7696,7 @@ update_ue_context(mod_bearer_req_t *mb_req, ue_context *context)
 	/*The above flag will be set bit wise as
 	 * Bit 7| Bit 6 | Bit 5 | Bit 4 | Bit 3|  Bit 2|  Bit 1|  Bit 0 |
 	 *---------------------------------------------------------------
-	 *|     |       |       | ECGI  | RAI  |  SAI  |  CGI  |  TAI   |
+	 *| EMEI|  MEI  |  LAI  | ECGI  | RAI  |  SAI  |  CGI  |  TAI   |
 	 ----------------------------------------------------------------
 	 */
 
@@ -6509,8 +7734,14 @@ update_ue_context(mod_bearer_req_t *mb_req, ue_context *context)
 
 	/* LTE-M RAT type reporting to PGW flag */
 	if(mb_req->indctn_flgs.header.len) {
+		/* LTE-M RAT type reporting to PGW flag */
 		if(mb_req->indctn_flgs.indication_ltempi) {
 			context->ltem_rat_type_flag = TRUE;
+		}
+
+		/* TAU HO with Data Forwarding */
+		if(mb_req->indctn_flgs.indication_cfsi) {
+			context->indication_flag.cfsi= TRUE;
 		}
 	}
 
@@ -6525,6 +7756,7 @@ int process_pfcp_sess_mod_req_for_saegwc_pgwc(mod_bearer_req_t *mb_req,
 	int ret = 0;
 	eps_bearer *bearer  = NULL;
 	pdn_connection *pdn =  NULL;
+	pdr_ids *pfcp_pdr_id = NULL;
 
 	if(mb_req->bearer_count != 0 ) {
 		ebi_index = GET_EBI_INDEX(mb_req->bearer_contexts_to_be_modified[0].eps_bearer_id.ebi_ebi);
@@ -6559,9 +7791,38 @@ int process_pfcp_sess_mod_req_for_saegwc_pgwc(mod_bearer_req_t *mb_req,
 	}
 	pdn = bearer->pdn;
 	pdn->proc = MODIFY_BEARER_PROCEDURE;
+	if(context->cp_mode == SAEGWC){
+
+		/* Remove session Entry from buffered ddn request hash */
+		pfcp_pdr_id = delete_buff_ddn_req(pdn->seid);
+		if(pfcp_pdr_id != NULL) {
+			rte_free(pfcp_pdr_id);
+			pfcp_pdr_id = NULL;
+		}
+		/* Delete the timer entry for UE LEVEL timer if already present */
+		delete_ddn_timer_entry(timer_by_teid_hash, mb_req->header.teid.has_teid.teid, ddn_by_seid_hash);
+
+		/* Delete the timer entry for buffer report request messages based on dl buffer timer if present*/
+		delete_ddn_timer_entry(dl_timer_by_teid_hash, mb_req->header.teid.has_teid.teid, pfcp_rep_by_seid_hash);
+
+		/* Remove the session from throttling timer session list */
+		delete_sess_in_thrtl_timer(context, pdn->seid);
+
+		/* UE Level: Delay Downlink packet notification timer*/
+		if(mb_req->delay_dnlnk_pckt_notif_req.header.len){
+			if(mb_req->delay_dnlnk_pckt_notif_req.delay_value > 0){
+				/* Start ue level timer with the assgined delay */
+				/* As per spec. Delay Downlink packet notification
+				 * timer value range in between 1 - 255 and
+				 * value should be multiple of 50 */
+				start_ddn_timer_entry(timer_by_teid_hash, pdn->seid,
+						(mb_req->delay_dnlnk_pckt_notif_req.delay_value * 50), ddn_timer_callback);
+			}
+		}
+	}
 
 	if(mb_req->sgw_fqcsid.header.len != 0)
-		context->flag_fqcsid_modified = TRUE;
+		pdn->flag_fqcsid_modified = TRUE;
 
 	if(context->second_rat_flag == TRUE) {
 			uint8_t trigg_buff[] = "secondary_rat_usage";
@@ -6602,11 +7863,33 @@ int process_pfcp_sess_mod_req_for_saegwc_pgwc(mod_bearer_req_t *mb_req,
 				"is generated\n", LOG_VALUE);
 		}
 	}
+	if (context->cp_mode == PGWC) {
+		if(pdn->s5s8_sgw_gtpc_ip.ipv4_addr != mb_req->sender_fteid_ctl_plane.ipv4_address
+				|| memcmp(pdn->s5s8_sgw_gtpc_ip.ipv6_addr, mb_req->sender_fteid_ctl_plane.ipv6_address,
+					IPV6_ADDRESS_LEN) != 0) {
 
-	if(pdn->s5s8_sgw_gtpc_ipv4.s_addr != mb_req->sender_fteid_ctl_plane.ipv4_address) {
-		pdn->old_sgw_addr = pdn->s5s8_sgw_gtpc_ipv4;
-		pdn->old_sgw_addr_valid = TRUE;
-		pdn->s5s8_sgw_gtpc_ipv4.s_addr = mb_req->sender_fteid_ctl_plane.ipv4_address;
+			ret = fill_ip_addr(pdn->s5s8_sgw_gtpc_ip.ipv4_addr, pdn->s5s8_sgw_gtpc_ip.ipv6_addr,
+					&pdn->old_sgw_addr);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+						"IP address", LOG_VALUE);
+			}
+			pdn->old_sgw_addr_valid = TRUE;
+
+			if (mb_req->sender_fteid_ctl_plane.v4) {
+
+				pdn->s5s8_sgw_gtpc_ip.ipv4_addr = mb_req->sender_fteid_ctl_plane.ipv4_address;
+				pdn->s5s8_sgw_gtpc_ip.ip_type |= PDN_TYPE_IPV4;
+			}
+
+			if (mb_req->sender_fteid_ctl_plane.v6) {
+
+				memcpy(pdn->s5s8_sgw_gtpc_ip.ipv6_addr, mb_req->sender_fteid_ctl_plane.ipv6_address,
+						IPV6_ADDRESS_LEN);
+				pdn->s5s8_sgw_gtpc_ip.ip_type |= PDN_TYPE_IPV6;
+			}
+
+		}
 	}
 
 	/*The ULI flag set bit  as
@@ -6617,13 +7900,13 @@ int process_pfcp_sess_mod_req_for_saegwc_pgwc(mod_bearer_req_t *mb_req,
 	 */
 
 	/* TODO something with modify_bearer_request.delay if set */
-	if (pfcp_config.use_gx) {
+	if (config.use_gx) {
 		struct resp_info *resp = NULL;
 		if(((context->uli_flag != FALSE) && (((context->event_trigger & (1 << ULI_EVENT_TRIGGER))) != 0))
 			|| ((context->ue_time_zone_flag != FALSE) && (((context->event_trigger) & (1 << UE_TIMEZONE_EVT_TRIGGER)) != 0))
 			|| ((context->rat_type_flag != FALSE) &&  ((context->event_trigger & (1 << RAT_EVENT_TRIGGER))) != 0)) {
 
-			ret = gen_ccru_request(context, bearer, NULL);
+			ret = gen_ccru_request(context, bearer, NULL, NULL);
 
 			/*Retrive the session information based on session id. */
 			if (get_sess_entry(pdn->seid, &resp) != 0){
@@ -6631,6 +7914,10 @@ int process_pfcp_sess_mod_req_for_saegwc_pgwc(mod_bearer_req_t *mb_req,
 					"Found for session ID:%lu\n", LOG_VALUE, pdn->seid);
 				return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 			}
+
+			reset_resp_info_structure(resp);
+
+			resp->msg_type = GX_CCR_MSG;
 			resp->gtpc_msg.mbr = *mb_req;
 			resp->cp_mode = context->cp_mode;
 
@@ -6666,8 +7953,6 @@ process_sess_mod_req_del_cmd(pdn_connection *pdn)
 			"for sess ID:%lu\n", LOG_VALUE, pdn->seid);
 		return  GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 	}
-	s11_mme_sockaddr.sin_addr.s_addr =
-		context->s11_mme_gtpc_ipv4.s_addr;
 
 	for (uint8_t iCnt = 0; iCnt < resp->bearer_count; ++iCnt) {
 		ebi = resp->eps_bearer_ids[iCnt];
@@ -6683,10 +7968,8 @@ process_sess_mod_req_del_cmd(pdn_connection *pdn)
 
 	uint8_t pfcp_msg[PFCP_MSG_LEN]={0};
 	int encoded = encode_pfcp_sess_mod_req_t(&pfcp_sess_mod_req, pfcp_msg);
-	pfcp_header_t *header = (pfcp_header_t *) pfcp_msg;
-	header->message_len = htons(encoded - PFCP_IE_HDR_SIZE);
 
-	if ( pfcp_send(pfcp_fd, pfcp_msg, encoded, &upf_pfcp_sockaddr,SENT) < 0 ){
+	if ( pfcp_send(pfcp_fd, pfcp_fd_v6, pfcp_msg, encoded, upf_pfcp_sockaddr,SENT) < 0 ){
 		clLog(clSystemLog, eCLSeverityDebug,LOG_FORMAT"Error sending PFCP Session "
 			"Modification Request for Delete Bearer Command : %i\n",LOG_VALUE, errno);
 	} else {
@@ -6717,12 +8000,125 @@ process_sess_mod_req_del_cmd(pdn_connection *pdn)
 }
 
 int
+process_modify_bearer_cmd(mod_bearer_cmd_t *mod_bearer_cmd,
+							gtpv2c_header_t *gtpv2c_tx, ue_context *context) {
+
+	eps_bearer *bearer = NULL;
+	pdn_connection *pdn = NULL;
+	int ebi_index = 0, ret = 0;
+	struct resp_info *resp = NULL;
+
+	if(mod_bearer_cmd->bearer_context.header.len == 0) {
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"MANDATORY IE MISSING"
+				" For Modify Bearer Command\n",LOG_VALUE);
+			return GTPV2C_CAUSE_MANDATORY_IE_MISSING;
+	}
+
+	if(mod_bearer_cmd->apn_ambr.header.len == 0) {
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"MANDATORY IE MISSING"
+				" For Modify Bearer Command\n",LOG_VALUE);
+			return GTPV2C_CAUSE_MANDATORY_IE_MISSING;
+	}
+	/*store ue initiated seq no in context.*/
+	context->ue_initiated_seq_no = mod_bearer_cmd->header.teid.has_teid.seq;
+
+	ebi_index = GET_EBI_INDEX(mod_bearer_cmd->bearer_context.eps_bearer_id.ebi_ebi);
+	if (ebi_index == -1) {
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Invalid EBI ID\n", LOG_VALUE);
+		return GTPV2C_CAUSE_SYSTEM_FAILURE;
+	}
+	bearer = context->eps_bearers[ebi_index];
+	if(bearer == NULL) {
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"Failed to get bearer for ebi_index : %d\n", LOG_VALUE, ebi_index);
+		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+	}
+	pdn = bearer->pdn;
+	if(pdn == NULL) {
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"Failed to get PDN for ebi_index : %d\n", LOG_VALUE, ebi_index);
+		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+	}
+
+	if (get_sess_entry(pdn->seid, &resp) != 0){
+		clLog(clSystemLog, eCLSeverityCritical,
+			LOG_FORMAT"NO Session Entry Found for sess ID:%lu\n", LOG_VALUE, pdn->seid);
+		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+	}
+
+	reset_resp_info_structure(resp);
+	if (mod_bearer_cmd->bearer_context.eps_bearer_id.ebi_ebi != pdn->default_bearer_id) {
+
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Incorrect Default Bearer ID "
+				"received for Modification.\n", LOG_VALUE);
+			return GTPV2C_CAUSE_MANDATORY_IE_INCORRECT;
+	}
+
+	resp->linked_eps_bearer_id = mod_bearer_cmd->bearer_context.eps_bearer_id.ebi_ebi;
+
+	pdn->apn_ambr.ambr_uplink = mod_bearer_cmd->apn_ambr.apn_ambr_uplnk;
+	pdn->apn_ambr.ambr_downlink = mod_bearer_cmd->apn_ambr.apn_ambr_dnlnk;
+
+
+	if(SGWC == context->cp_mode) {
+		/*forward MBC to PGWC*/
+		set_modify_bearer_command(mod_bearer_cmd, pdn, gtpv2c_tx);
+
+		ret = set_dest_address(pdn->s5s8_pgw_gtpc_ip, &s5s8_recv_sockaddr);
+		if (ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+				"IP address", LOG_VALUE);
+		}
+	} else if(SAEGWC == context->cp_mode || PGWC == context->cp_mode) {
+		/*Need to  compare the arp values with all the bearers*/
+		compare_arp_value(bearer, pdn);
+
+		if(mod_bearer_cmd->bearer_context.bearer_lvl_qos.header.len != 0) {
+			/* QCI_0; QCI value 0 is Reserved*/
+			if(mod_bearer_cmd->bearer_context.bearer_lvl_qos.qci != 0)
+				bearer->qos.qci = mod_bearer_cmd->bearer_context.bearer_lvl_qos.qci;
+
+			bearer->qos.ul_mbr = mod_bearer_cmd->bearer_context.bearer_lvl_qos.max_bit_rate_uplnk;
+			bearer->qos.dl_mbr = mod_bearer_cmd->bearer_context.bearer_lvl_qos.max_bit_rate_dnlnk;
+
+			bearer->qos.arp.preemption_capability = mod_bearer_cmd->bearer_context.bearer_lvl_qos.pci;
+
+			/*arp values ranges from 1 to 15 */
+			if(mod_bearer_cmd->bearer_context.bearer_lvl_qos.pl != 0)
+				bearer->qos.arp.priority_level = mod_bearer_cmd->bearer_context.bearer_lvl_qos.pl;
+
+			bearer->qos.arp.preemption_vulnerability = mod_bearer_cmd->bearer_context.bearer_lvl_qos.pvi;
+
+		}
+		if (config.use_gx) {
+			if(gen_ccru_request(context , bearer,
+								NULL, mod_bearer_cmd) != 0) {
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"CCR-UPDATE "
+					"Failed For HSS initiated Sub Qos Modification Flow %s \n", LOG_VALUE,
+					strerror(errno));
+				return GTPV2C_CAUSE_SYSTEM_FAILURE;
+			}
+		}
+	}
+
+	context->sequence = mod_bearer_cmd->header.teid.has_teid.seq;
+	pdn->state = CONNECTED_STATE;
+	resp->msg_type = GTP_MODIFY_BEARER_CMD;
+	resp->state = CONNECTED_STATE;
+	resp->gtpc_msg.mod_bearer_cmd = *mod_bearer_cmd;
+	resp->gtpc_msg.mod_bearer_cmd.header.teid.has_teid.seq = mod_bearer_cmd->header.teid.has_teid.seq;
+	resp->proc = pdn->proc;
+	return 0;
+
+}
+
+int
 process_delete_bearer_cmd_request(del_bearer_cmd_t *del_bearer_cmd,
 							gtpv2c_header_t *gtpv2c_tx, ue_context *context)
 {
 	eps_bearer *bearer = NULL;
 	pdn_connection *pdn = NULL;
-	int ebi_index = 0;
+	int ebi_index = 0, ret = 0;
 	struct resp_info *resp = NULL;
 
 	for(uint8_t i=0; i<del_bearer_cmd->bearer_count; i++) {
@@ -6772,8 +8168,12 @@ process_delete_bearer_cmd_request(del_bearer_cmd_t *del_bearer_cmd,
 	} else if(SGWC == context->cp_mode) {
 
 		set_delete_bearer_command(del_bearer_cmd, pdn, gtpv2c_tx);
-		s5s8_recv_sockaddr.sin_addr.s_addr =
-			               pdn->s5s8_pgw_gtpc_ipv4.s_addr;
+
+		ret = set_dest_address(pdn->s5s8_pgw_gtpc_ip, &s5s8_recv_sockaddr);
+		if (ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+				"IP address", LOG_VALUE);
+		}
 
 	}
 	pdn->state = CONNECTED_STATE;
@@ -6795,6 +8195,8 @@ process_bearer_rsrc_cmd(bearer_rsrc_cmd_t *bearer_rsrc_cmd,
 	eps_bearer *bearer = NULL;
 	pdn_connection *pdn = NULL;
 	struct resp_info *resp = NULL;
+	struct teid_value_t *teid_value = NULL;
+	teid_key_t teid_key = {0};
 
 	/*store pti in context*/
 	if(context->proc_trans_id != bearer_rsrc_cmd->pti.proc_trans_id) {
@@ -6862,7 +8264,7 @@ process_bearer_rsrc_cmd(bearer_rsrc_cmd_t *bearer_rsrc_cmd,
 	if (SAEGWC == context->cp_mode || PGWC == context->cp_mode) {
 		int ret = 0;
 		if ((ret = gen_ccru_request(context , bearer,
-						bearer_rsrc_cmd)) != 0) {
+						bearer_rsrc_cmd, NULL)) != 0) {
 			if (ret < 0) {
 				clLog(clSystemLog, eCLSeverityCritical,
 					LOG_FORMAT"Failure in CCR-UPDATE Failed For UE requested "
@@ -6879,8 +8281,11 @@ process_bearer_rsrc_cmd(bearer_rsrc_cmd_t *bearer_rsrc_cmd,
 		/*Forword BRC on S5S8 to PGWC*/
 		set_bearer_resource_command(bearer_rsrc_cmd, pdn,
 										gtpv2c_tx);
-		s5s8_recv_sockaddr.sin_addr.s_addr =
-			               pdn->s5s8_pgw_gtpc_ipv4.s_addr;
+		ret = set_dest_address(pdn->s5s8_pgw_gtpc_ip, &s5s8_recv_sockaddr);
+		if (ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+				"IP address", LOG_VALUE);
+		}
 	}
 
 	pdn->state = CONNECTED_STATE;
@@ -6889,6 +8294,43 @@ process_bearer_rsrc_cmd(bearer_rsrc_cmd_t *bearer_rsrc_cmd,
 	resp->gtpc_msg.bearer_rsrc_cmd = *bearer_rsrc_cmd;
 	resp->gtpc_msg.bearer_rsrc_cmd.header.teid.has_teid.seq = bearer_rsrc_cmd->header.teid.has_teid.seq;
 	resp->proc = pdn->proc;
+
+	/* Store sgw s5s8 teid based on msg seq number for Error handling
+	 * if response receive to bearer resourse cmd contain wrong
+	 * teid or zero teid.
+	 * */
+
+	if (pdn->context->cp_mode == SGWC) {
+		teid_value = rte_zmalloc_socket(NULL, sizeof(teid_value_t),
+				RTE_CACHE_LINE_SIZE, rte_socket_id());
+
+		if (teid_value == NULL) {
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to allocate "
+					"memory for teid value, Error : %s\n", LOG_VALUE,
+					rte_strerror(rte_errno));
+			return GTPV2C_CAUSE_SYSTEM_FAILURE;
+		}
+
+		/*Store TEID and msg_type*/
+		teid_value->teid = pdn->s5s8_sgw_gtpc_teid;
+		teid_value->msg_type = resp->msg_type;
+
+		snprintf(teid_key.teid_key, PROC_LEN, "%s%d", get_proc_string(resp->proc),
+				bearer_rsrc_cmd->header.teid.has_teid.seq);
+
+		clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"teid_key.teid_key : %s\n", LOG_VALUE,teid_key.teid_key);
+
+		/* Add the entry for sequence and teid value for error handling */
+		ret = add_seq_number_for_teid(teid_key, teid_value);
+		if(ret) {
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to add "
+					"Sequence number for TEID: %u\n", LOG_VALUE,
+					teid_value->teid);
+			rte_free(teid_value);
+			return GTPV2C_CAUSE_SYSTEM_FAILURE;
+		}
+	}
 
 	return 0;
 }
@@ -6910,21 +8352,22 @@ get_far_id(eps_bearer *bearer, int interface_value){
 int
 process_pfcp_sess_mod_request(mod_bearer_req_t *mb_req, ue_context *context)
 {
-	int ebi_index = 0;
-	uint8_t enb_flag = 0;
+	int ebi_index = 0, ret = 0;
 	uint8_t send_endmarker = 0;
 	eps_bearer *bearer  = NULL;
 	eps_bearer *bearers[MAX_BEARERS] ={NULL};
 	pdn_connection *pdn =  NULL;
 	struct resp_info *resp = NULL;
+	pdr_ids *pfcp_pdr_id = NULL;
 	pfcp_sess_mod_req_t pfcp_sess_mod_req = {0};
 	pfcp_update_far_ie_t update_far[MAX_LIST_SIZE] = {0};
 
 	pfcp_sess_mod_req.update_far_count = 0;
 	for(uint8_t i = 0; i < mb_req->bearer_count; i++) {
 
-		if (!mb_req->bearer_contexts_to_be_modified[i].eps_bearer_id.header.len
-				|| !mb_req->bearer_contexts_to_be_modified[i].s1_enodeb_fteid.header.len) {
+		if ( (!mb_req->bearer_contexts_to_be_modified[i].eps_bearer_id.header.len)
+				|| ( !mb_req->bearer_contexts_to_be_modified[i].s1_enodeb_fteid.header.len
+			&& !mb_req->bearer_contexts_to_be_modified[i].s11_u_mme_fteid.header.len)) {
 			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Bearer Context not "
 				"found for Modify Bearer Request, Dropping packet\n", LOG_VALUE);
 			return GTPV2C_CAUSE_INVALID_LENGTH;
@@ -6953,51 +8396,138 @@ process_pfcp_sess_mod_request(mod_bearer_req_t *mb_req, ue_context *context)
 			return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 		}
 
+		if((mb_req->bearer_contexts_to_be_modified[i].s1_enodeb_fteid.v6 &&
+			bearer->s1u_sgw_gtpu_ip.ip_type == PDN_TYPE_IPV4) ||
+			(mb_req->bearer_contexts_to_be_modified[i].s1_enodeb_fteid.v4 &&
+			bearer->s1u_sgw_gtpu_ip.ip_type == PDN_TYPE_IPV6)){
+			clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"The EnodeB s1u IP not compatible with SGW/SAEGW s1u IP\n", LOG_VALUE);
+			return GTPV2C_CAUSE_REQUEST_REJECTED;
+		}
+
 		pdn = bearer->pdn;
 		pdn->proc = MODIFY_BEARER_PROCEDURE;
 
-		if (mb_req->bearer_contexts_to_be_modified[i].s11_u_mme_fteid.header.len &&
-				(context->s11_mme_gtpc_teid != mb_req->bearer_contexts_to_be_modified[i].s11_u_mme_fteid.teid_gre_key)) {
+		/* Remove session Entry from buffered ddn request hash */
+		pfcp_pdr_id = delete_buff_ddn_req(pdn->seid);
+		if(pfcp_pdr_id != NULL) {
+			rte_free(pfcp_pdr_id);
+			pfcp_pdr_id = NULL;
+		}
+		/* Delete the timer entry for UE LEVEL timer if already present */
+		delete_ddn_timer_entry(timer_by_teid_hash, mb_req->header.teid.has_teid.teid, ddn_by_seid_hash);
 
-			context->s11_mme_gtpc_teid = mb_req->bearer_contexts_to_be_modified[i].s11_u_mme_fteid.teid_gre_key;
+		/* Delete the timer entry for buffer report request messages based on dl buffer timer if present*/
+		delete_ddn_timer_entry(dl_timer_by_teid_hash, mb_req->header.teid.has_teid.teid, pfcp_rep_by_seid_hash);
+
+		/* Remove the session from throttling timer */
+		delete_sess_in_thrtl_timer(context, pdn->seid);
+
+		/* UE Level: Delay Downlink packet notification timer */
+		if(mb_req->delay_dnlnk_pckt_notif_req.header.len){
+			if(mb_req->delay_dnlnk_pckt_notif_req.delay_value > 0){
+				/* Start ue level timer with the assgined delay */
+				/* As per spec. Delay Downlink packet notification
+				 * timer value range in between 1 - 255 and
+				 * value should be multiple of 50 */
+				start_ddn_timer_entry(timer_by_teid_hash, pdn->seid,
+						(mb_req->delay_dnlnk_pckt_notif_req.delay_value * 50), ddn_timer_callback);
+			}
 		}
 
-		bearer->eps_bearer_id = mb_req->bearer_contexts_to_be_modified[i].eps_bearer_id.ebi_ebi;
+		if(pdn->state == IDEL_STATE) {
+			update_pdr_actions_flags(bearer);
+		}
+		if(mb_req->indctn_flgs.indication_s11tf) {
+			/* Set the indication flag for s11-u teid */
+			context->indication_flag.s11tf = 1;
 
-		/* TODO: Not supporting Multi-PDN Scenario */
-		if ((bearer->s1u_enb_gtpu_ipv4.s_addr) &&
-				(bearer->s1u_enb_gtpu_ipv4.s_addr == mb_req->bearer_contexts_to_be_modified[i].s1_enodeb_fteid.ipv4_address)) {
-				enb_flag = PRESENT;
+			/* Set if MME sends MO Exception Data Counter */
+			if(mb_req->mo_exception_data_cntr.header.len){
+				context->mo_exception_flag = True;
+				if(mb_req->mo_exception_data_cntr.counter_value == 1)
+					context->mo_exception_data_counter.timestamp_value =
+						mb_req->mo_exception_data_cntr.timestamp_value;
+				context->mo_exception_data_counter.counter_value = mb_req->mo_exception_data_cntr.counter_value;
+			}
+
+			ret = fill_ip_addr(mb_req->bearer_contexts_to_be_modified[i].s11_u_mme_fteid.ipv4_address,
+				mb_req->bearer_contexts_to_be_modified[i].s11_u_mme_fteid.ipv6_address,
+				&bearer->s11u_mme_gtpu_ip);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+			}
+			bearer->s11u_mme_gtpu_teid =
+				mb_req->bearer_contexts_to_be_modified[i].s11_u_mme_fteid.teid_gre_key;
+			update_far[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.outer_hdr_creation.teid =
+				bearer->s11u_mme_gtpu_teid;
+
+			ret = set_node_address(&update_far[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.outer_hdr_creation.ipv4_address,
+				update_far[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.outer_hdr_creation.ipv6_address,
+				bearer->s11u_mme_gtpu_ip);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+			}
+
+			update_far[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.dst_intfc.interface_value =
+				check_interface_type(mb_req->bearer_contexts_to_be_modified[i].s11_u_mme_fteid.interface_type,
+						context->cp_mode);
+			update_far[pfcp_sess_mod_req.update_far_count].far_id.far_id_value =
+				get_far_id(bearer,
+						update_far[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.dst_intfc.interface_value);
+			update_far[pfcp_sess_mod_req.update_far_count].apply_action.forw = PRESENT;
+			update_far[pfcp_sess_mod_req.update_far_count].apply_action.dupl = GET_DUP_STATUS(pdn->context);
+			pfcp_sess_mod_req.update_far_count++;
+
 		}
 
 		if (mb_req->bearer_contexts_to_be_modified[i].s1_enodeb_fteid.header.len != 0) {
 
-		/*NOTE: IDEL STATE means bearer is in Suspend State, so no need to send Send Endmarker */
+			/* In case Establishment of S1-U bearer during Data
+			 * Transport in Control Plane CIoT EPS Optimisation
+			 * handling a corner case
+			 * */
+			context->indication_flag.s11tf = 0;
 
-			if((bearer->s1u_enb_gtpu_ipv4.s_addr != 0) && (bearer->s1u_enb_gtpu_teid != 0)) {
-				if((mb_req->bearer_contexts_to_be_modified[i].s1_enodeb_fteid.teid_gre_key)
-						!= bearer->s1u_enb_gtpu_teid  ||
-						(mb_req->bearer_contexts_to_be_modified[i].s1_enodeb_fteid.ipv4_address) !=
-						bearer->s1u_enb_gtpu_ipv4.s_addr) {
+			/*NOTE: IDEL STATE means bearer is in Suspend State, so no need to send Send Endmarker */
 
-					send_endmarker = 1;
+			if((bearer->s1u_enb_gtpu_ip.ipv4_addr != 0 || *bearer->s1u_enb_gtpu_ip.ipv6_addr)
+					&& (bearer->s1u_enb_gtpu_teid != 0)) {
+
+				if((mb_req->bearer_contexts_to_be_modified[i].s1_enodeb_fteid.teid_gre_key
+						!= bearer->s1u_enb_gtpu_teid)
+						|| (mb_req->bearer_contexts_to_be_modified[i].s1_enodeb_fteid.ipv4_address !=
+								bearer->s1u_enb_gtpu_ip.ipv4_addr)
+						|| (memcmp(mb_req->bearer_contexts_to_be_modified[i].s1_enodeb_fteid.ipv6_address,
+							bearer->s1u_enb_gtpu_ip.ipv6_addr,
+							IPV6_ADDRESS_LEN) != 0)) {
+
+					send_endmarker = TRUE;
 				}
 			}
 
-
-
-			if(pdn->state == IDEL_STATE) {
-				update_pdr_actions_flags(bearer);
+			ret = fill_ip_addr(mb_req->bearer_contexts_to_be_modified[i].s1_enodeb_fteid.ipv4_address,
+				mb_req->bearer_contexts_to_be_modified[i].s1_enodeb_fteid.ipv6_address,
+				&bearer->s1u_enb_gtpu_ip);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
 			}
-
-			bearer->s1u_enb_gtpu_ipv4.s_addr =
-				mb_req->bearer_contexts_to_be_modified[i].s1_enodeb_fteid.ipv4_address;
-			bearer->s1u_enb_gtpu_teid =
+			bearer->s1u_enb_gtpu_teid  =
 				mb_req->bearer_contexts_to_be_modified[i].s1_enodeb_fteid.teid_gre_key;
 			update_far[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.outer_hdr_creation.teid =
 				bearer->s1u_enb_gtpu_teid;
-			update_far[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.outer_hdr_creation.ipv4_address =
-				bearer->s1u_enb_gtpu_ipv4.s_addr;
+
+			ret = set_node_address(&update_far[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.outer_hdr_creation.ipv4_address,
+				update_far[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.outer_hdr_creation.ipv6_address,
+				bearer->s1u_enb_gtpu_ip);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+			}
+
 			update_far[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.dst_intfc.interface_value =
 				check_interface_type(mb_req->bearer_contexts_to_be_modified[i].s1_enodeb_fteid.interface_type,
 						context->cp_mode);
@@ -7007,17 +8537,33 @@ process_pfcp_sess_mod_request(mod_bearer_req_t *mb_req, ue_context *context)
 			update_far[pfcp_sess_mod_req.update_far_count].apply_action.dupl = GET_DUP_STATUS(pdn->context);
 			pfcp_sess_mod_req.update_far_count++;
 
+
 		}
 
+
 		if (mb_req->bearer_contexts_to_be_modified[i].s58_u_sgw_fteid.header.len  != 0){
-			bearer->s5s8_sgw_gtpu_ipv4.s_addr =
-				mb_req->bearer_contexts_to_be_modified[i].s58_u_sgw_fteid.ipv4_address;
+
+			ret = fill_ip_addr(mb_req->bearer_contexts_to_be_modified[i].s58_u_sgw_fteid.ipv4_address,
+				mb_req->bearer_contexts_to_be_modified[i].s58_u_sgw_fteid.ipv6_address,
+				&bearer->s5s8_sgw_gtpu_ip);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+			}
+
 			bearer->s5s8_sgw_gtpu_teid =
 				mb_req->bearer_contexts_to_be_modified[i].s58_u_sgw_fteid.teid_gre_key;
 			update_far[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.outer_hdr_creation.teid =
 				bearer->s5s8_sgw_gtpu_teid;
-			update_far[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.outer_hdr_creation.ipv4_address =
-				bearer->s5s8_sgw_gtpu_ipv4.s_addr;
+
+			ret = set_node_address(&update_far[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.outer_hdr_creation.ipv4_address,
+				update_far[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.outer_hdr_creation.ipv6_address,
+				bearer->s5s8_sgw_gtpu_ip);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+			}
+
 			update_far[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.dst_intfc.interface_value =
 				check_interface_type(mb_req->bearer_contexts_to_be_modified[i].s58_u_sgw_fteid.interface_type,
 						context->cp_mode);
@@ -7032,7 +8578,7 @@ process_pfcp_sess_mod_request(mod_bearer_req_t *mb_req, ue_context *context)
 
 		bearers[i] = bearer;
 
-	} /*forloop*/
+	} /* forloop */
 	if(pdn == NULL) {
 		clLog(clSystemLog, eCLSeverityCritical,
 					LOG_FORMAT"Failed to get PDN ebi_index : %d\n", LOG_VALUE, ebi_index);
@@ -7049,8 +8595,8 @@ process_pfcp_sess_mod_request(mod_bearer_req_t *mb_req, ue_context *context)
 	fill_pfcp_sess_mod_req(&pfcp_sess_mod_req, &mb_req->header, bearers,
 			pdn, update_far, send_endmarker, mb_req->bearer_count, context);
 
-	/*Adding the secondary rat usage report to the CDR Entry when it it a E RAB
-	 * MODIFICATION*/
+	/* Adding the secondary rat usage report to the CDR Entry when it it a E RAB
+	 * MODIFICATION */
 
 	if(mb_req->second_rat_count != 0) {
 
@@ -7099,11 +8645,95 @@ process_pfcp_sess_mod_request(mod_bearer_req_t *mb_req, ue_context *context)
 	if (context->cp_mode != PGWC) {
 		/* Get the copy of existing SGW CSID */
 		fqcsid_t tmp_csid_t = {0};
-		if (context->sgw_fqcsid != NULL) {
-			if ((context->sgw_fqcsid)->num_csid) {
-				memcpy(&tmp_csid_t, context->sgw_fqcsid, sizeof(fqcsid_t));
+		if (pdn->sgw_csid.num_csid) {
+			memcpy(&tmp_csid_t, &pdn->sgw_csid, sizeof(fqcsid_t));
+		}
+
+		/* Checking for mme relocation flag */
+		if (context->mme_changed_flag == TRUE) {
+			if((mb_req->mme_fqcsid.header.len != 0)
+					&& ((mb_req->mme_fqcsid).number_of_csids)) {
+
+				if ((context->mme_fqcsid == NULL)) {
+					context->mme_fqcsid = rte_zmalloc_socket(NULL, sizeof(sess_fqcsid_t),
+							RTE_CACHE_LINE_SIZE, rte_socket_id());
+					if (context->mme_fqcsid == NULL) {
+						clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to allocate the "
+								"memory for fqcsids entry\n", LOG_VALUE);
+						return GTPV2C_CAUSE_SYSTEM_FAILURE;
+					}
+				}
+				uint8_t num_csid = 0;
+				fqcsid_t mme_old_fqcsid = {0};
+				if(pdn->mme_csid.num_csid) {
+					/* Coping  Exsiting MME CSID associted with Session */
+					memcpy(&mme_old_fqcsid,  &pdn->mme_csid, sizeof(fqcsid_t));
+				}
+
+				int ret = add_peer_addr_entry_for_fqcsid_ie_node_addr(
+						&context->s11_mme_gtpc_ip, &mb_req->mme_fqcsid,
+						S11_SGW_PORT_ID);
+				if (ret)
+					return ret;
+
+				/* Parse and stored MME FQ-CSID in the context */
+				 ret = add_fqcsid_entry(&mb_req->mme_fqcsid, context->mme_fqcsid);
+				if(ret)
+					return ret;
+
+				fill_pdn_fqcsid_info(&pdn->mme_csid, context->mme_fqcsid);
+
+				if (link_sess_with_peer_csid(&pdn->mme_csid, pdn, S11_SGW_PORT_ID)) {
+					clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Error : Failed to Link "
+						"Session with MME CSID \n", LOG_VALUE);
+					return -1;
+				}
+
+				/* Remove old mme csid */
+				remove_csid_from_cntx(context->mme_fqcsid, &mme_old_fqcsid);
+
+				/* Remove the session link from old CSID */
+				sess_csid *tmp1 = NULL;
+				peer_csid_key_t key = {0};
+
+				key.iface = S11_SGW_PORT_ID;
+				key.peer_local_csid = mme_old_fqcsid.local_csid[num_csid];
+				memcpy(&(key.peer_node_addr), &(mme_old_fqcsid.node_addr), sizeof(node_address_t));
+
+				tmp1 = get_sess_peer_csid_entry(&key, REMOVE_NODE);
+
+				if (tmp1 != NULL) {
+					/* Remove node from csid linked list */
+					tmp1 = remove_sess_csid_data_node(tmp1, pdn->seid);
+
+					int8_t ret = 0;
+					/* Update CSID Entry in table */
+					ret = rte_hash_add_key_data(seid_by_peer_csid_hash, &key, tmp1);
+					if (ret) {
+						clLog(clSystemLog, eCLSeverityCritical,
+								LOG_FORMAT"Failed to add Session IDs entry"
+								" for CSID = %u \n", LOG_VALUE,
+								mme_old_fqcsid.local_csid[num_csid]);
+						return GTPV2C_CAUSE_SYSTEM_FAILURE;
+					}
+					if (tmp1 == NULL) {
+						/* Delete Local CSID entry */
+						del_sess_peer_csid_entry(&key);
+					}
+				}
+
+				/* Cleanup Internal data structures */
+				ret = del_csid_entry_hash(&mme_old_fqcsid, &pdn->sgw_csid, S11_SGW_PORT_ID);
+				if (ret) {
+					clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Failed to delete CSID "
+							"Entry from hash while cleanup session  \n", LOG_VALUE);
+				}
+
+				if (pdn->mme_csid.num_csid)
+					set_fq_csid_t(&pfcp_sess_mod_req.mme_fqcsid, &pdn->mme_csid);
 			}
 		}
+
 
 		/* Update the entry for peer nodes */
 		if (fill_peer_node_info(pdn, bearer)) {
@@ -7113,12 +8743,7 @@ process_pfcp_sess_mod_request(mod_bearer_req_t *mb_req, ue_context *context)
 			return  GTPV2C_CAUSE_SYSTEM_FAILURE;
 		}
 
-		/* TODO: Multi-PDN Not supported */
-		if (enb_flag) {
-			context->flag_fqcsid_modified = FALSE;
-		}
-
-		if (context->flag_fqcsid_modified == TRUE) {
+		if (pdn->flag_fqcsid_modified == TRUE) {
 			uint8_t tmp_csid = 0;
 			/* Validate the exsiting CSID or allocated new one */
 			for (uint8_t inx1 = 0; inx1 < tmp_csid_t.num_csid; inx1++) {
@@ -7153,36 +8778,48 @@ process_pfcp_sess_mod_request(mod_bearer_req_t *mb_req, ue_context *context)
 						}
 						if (tmp1 == NULL) {
 							/* Removing temporary local CSID associated with MME */
-							remove_peer_temp_csid(context->mme_fqcsid, tmp_csid_t.local_csid[inx],
+							remove_peer_temp_csid(&pdn->mme_csid, tmp_csid_t.local_csid[inx],
 									S11_SGW_PORT_ID);
 
 							/* Removing temporary local CSID assocoated with PGWC */
-							remove_peer_temp_csid(context->pgw_fqcsid, tmp_csid_t.local_csid[inx],
+							remove_peer_temp_csid(&pdn->pgw_csid, tmp_csid_t.local_csid[inx],
 									S5S8_SGWC_PORT_ID);
 							/* Delete Local CSID entry */
 							del_sess_csid_entry(tmp_csid_t.local_csid[inx]);
 						}
 						/* Delete CSID from the context */
-						for (uint8_t itr1 = 0; itr1 < (context->sgw_fqcsid)->num_csid; itr1++) {
-							if ((context->sgw_fqcsid)->local_csid[itr1] == tmp_csid_t.local_csid[inx]) {
-								for(uint8_t pos = itr1; pos < ((context->sgw_fqcsid)->num_csid - 1); pos++ ) {
-									(context->sgw_fqcsid)->local_csid[pos] = (context->sgw_fqcsid)->local_csid[pos + 1];
-								}
-								(context->sgw_fqcsid)->num_csid--;
-							}
+						remove_csid_from_cntx(context->sgw_fqcsid, &tmp_csid_t);
+						del_local_csid(&(context->s11_sgw_gtpc_ip), &tmp_csid_t);
+
+					} else {
+						sess_csid *tmp1 = NULL;
+						tmp1 = get_sess_csid_entry(tmp_csid_t.local_csid[inx], REMOVE_NODE);
+						if (tmp1 == NULL) {
+							/* Removing temporary local CSID associated with MME */
+							remove_peer_temp_csid(&pdn->mme_csid, tmp_csid_t.local_csid[inx],
+									S11_SGW_PORT_ID);
+
+							/* Removing temporary local CSID assocoated with PGWC */
+							remove_peer_temp_csid(&pdn->pgw_csid, tmp_csid_t.local_csid[inx],
+									S5S8_SGWC_PORT_ID);
+
+							/* Delete Local CSID entry */
+							del_sess_csid_entry(tmp_csid_t.local_csid[inx]);
 						}
+						clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Failed to "
+								"get Session ID entry for CSID:%u\n", LOG_VALUE,
+								tmp_csid_t.local_csid[inx]);
+					}
 
 						clLog(clSystemLog, eCLSeverityDebug,
 								LOG_FORMAT"Remove session link from Old CSID:%u\n",
 								LOG_VALUE, tmp_csid_t.local_csid[inx]);
 				}
 			}
-		}
-
-		/* update entry for cp session id with link local csid */
+			/* update entry for cp session id with link local csid */
 			sess_csid *tmp = NULL;
 			tmp = get_sess_csid_entry(
-					(context->sgw_fqcsid)->local_csid[(context->sgw_fqcsid)->num_csid - 1],
+					pdn->sgw_csid.local_csid[pdn->sgw_csid.num_csid - 1],
 					ADD_NODE);
 			if (tmp == NULL) {
 				clLog(clSystemLog, eCLSeverityCritical,
@@ -7196,7 +8833,8 @@ process_pfcp_sess_mod_request(mod_bearer_req_t *mb_req, ue_context *context)
 			if(tmp->cp_seid != pdn->seid && tmp->cp_seid != 0) {
 				sess_csid *new_node = NULL;
 				/* Add new node into csid linked list */
-				new_node = add_sess_csid_data_node(tmp);
+				new_node = add_sess_csid_data_node(tmp,
+					 pdn->sgw_csid.local_csid[pdn->sgw_csid.num_csid - 1]);
 				if(new_node == NULL ) {
 					clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to "
 						"ADD new node into CSID linked list : %s\n", LOG_VALUE);
@@ -7209,9 +8847,10 @@ process_pfcp_sess_mod_request(mod_bearer_req_t *mb_req, ue_context *context)
 			} else {
 				tmp->cp_seid = pdn->seid;
 				tmp->up_seid = pdn->dp_seid;
+				tmp->next = NULL;
 			}
 			/* Fill the fqcsid into the session est request */
-			if (fill_fqcsid_sess_mod_req(&pfcp_sess_mod_req, context)) {
+			if (fill_fqcsid_sess_mod_req(&pfcp_sess_mod_req, pdn)) {
 				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to fill "
 					"FQ-CSID in Session Establishment Request, "
 					"Error: %s\n", LOG_VALUE, strerror(errno));
@@ -7225,10 +8864,8 @@ process_pfcp_sess_mod_request(mod_bearer_req_t *mb_req, ue_context *context)
 
 	uint8_t pfcp_msg[PFCP_MSG_LEN]={0};
 	int encoded = encode_pfcp_sess_mod_req_t(&pfcp_sess_mod_req, pfcp_msg);
-	pfcp_header_t *header = (pfcp_header_t *) pfcp_msg;
-	header->message_len = htons(encoded - PFCP_IE_HDR_SIZE);
 
-	if ( pfcp_send(pfcp_fd, pfcp_msg, encoded, &upf_pfcp_sockaddr,SENT) < 0 ){
+	if ( pfcp_send(pfcp_fd, pfcp_fd_v6, pfcp_msg, encoded, upf_pfcp_sockaddr,SENT) < 0 ){
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Error in sending PFCP "
 			"Session Modification Request for Modify Bearer Request %i\n",
 			LOG_VALUE, errno);
@@ -7315,11 +8952,79 @@ proc_pfcp_sess_mbr_udp_csid_req(upd_pdn_conn_set_req_t *upd_req)
 	fill_pfcp_sess_mod_req(&pfcp_sess_mod_req, &upd_req->header, bearers, pdn, NULL, 0, 1, context);
 
 #ifdef USE_CSID
+	uint8_t num_csid = 0;
+	if (upd_req->mme_fqcsid.header.len) {
+		if (upd_req->mme_fqcsid.number_of_csids) {
+			fqcsid_t tmp_fqcsid = {0};
+			if (pdn->mme_csid.num_csid) {
+				/* Coping  Exsiting MME CSID associted with Session */
+				memcpy(&tmp_fqcsid,  &pdn->mme_csid, sizeof(fqcsid_t));
+			}
+
+			/* Parse and stored MME FQ-CSID in the context */
+			int ret = add_fqcsid_entry(&upd_req->mme_fqcsid, context->mme_fqcsid);
+			if(ret)
+				return ret;
+
+			fill_pdn_fqcsid_info(&pdn->mme_csid, context->mme_fqcsid);
+
+			/* Remove old mme csid */
+			remove_csid_from_cntx(context->mme_fqcsid, &tmp_fqcsid);
+
+			if (link_sess_with_peer_csid(&pdn->mme_csid, pdn, S5S8_PGWC_PORT_ID)) {
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Error : Failed to Link "
+						"Session with MME CSID \n", LOG_VALUE);
+				return -1;
+			}
+
+			/* Remove the session link from old CSID */
+			sess_csid *tmp1 = NULL;
+			peer_csid_key_t key = {0};
+
+			key.iface = S5S8_PGWC_PORT_ID;
+			key.peer_local_csid = tmp_fqcsid.local_csid[num_csid];
+			memcpy(&key.peer_node_addr,
+					&tmp_fqcsid.node_addr, sizeof(node_address_t));
+
+			tmp1 = get_sess_peer_csid_entry(&key, REMOVE_NODE);
+
+			if (tmp1 != NULL) {
+				/* Remove node from csid linked list */
+				tmp1 = remove_sess_csid_data_node(tmp1, pdn->seid);
+
+				int8_t ret = 0;
+				/* Update CSID Entry in table */
+				ret = rte_hash_add_key_data(seid_by_peer_csid_hash, &key, tmp1);
+				if (ret) {
+					clLog(clSystemLog, eCLSeverityCritical,
+							LOG_FORMAT"Failed to add Session IDs entry"
+							" for CSID = %u \n", LOG_VALUE,
+							tmp_fqcsid.local_csid[num_csid]);
+					return GTPV2C_CAUSE_SYSTEM_FAILURE;
+				}
+				if (tmp1 == NULL) {
+					/* Delete Local CSID entry */
+					del_sess_peer_csid_entry(&key);
+				}
+			}
+
+			/* Cleanup Internal data structures */
+			ret = del_csid_entry_hash(&tmp_fqcsid, &pdn->pgw_csid, S5S8_PGWC_PORT_ID);
+			if (ret) {
+				clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Failed to delete CSID "
+						"Entry from hash while cleanup session  \n", LOG_VALUE);
+			}
+		}
+	}
 	/* SGW FQ-CSID */
 	if (upd_req->sgw_fqcsid.header.len) {
 		if (upd_req->sgw_fqcsid.number_of_csids) {
-			(pdn->context)->flag_fqcsid_modified = FALSE;
+
+			pdn->flag_fqcsid_modified = FALSE;
 			int ret_t = 0;
+			/* Get the copy of existing SGW CSID */
+			fqcsid_t sgw_tmp_csid_t = {0};
+
 			/* Parse and stored MME and SGW FQ-CSID in the context */
 			ret_t = gtpc_recvd_sgw_fqcsid(&upd_req->sgw_fqcsid, pdn, bearer, context);
 			if ((ret_t != 0) && (ret_t != PRESENT)) {
@@ -7327,38 +9032,77 @@ proc_pfcp_sess_mbr_udp_csid_req(upd_pdn_conn_set_req_t *upd_req)
 						LOG_FORMAT"Failed Link peer CSID\n", LOG_VALUE);
 				return ret_t;
 			}
-			/* PGW Link local CSID with SGW CSID */
-			if ((pdn->context)->cp_mode == PGWC) {
-				if (((pdn->context)->sgw_fqcsid != NULL) &&
-						((pdn->context)->flag_fqcsid_modified != TRUE)) {
-					if (link_gtpc_peer_csids((pdn->context)->sgw_fqcsid,
-								(pdn->context)->pgw_fqcsid, S5S8_PGWC_PORT_ID)) {
+
+			/* Fill the Updated CSID in the Modification Request */
+			/* Set SGW FQ-CSID */
+			if (ret_t != PRESENT && context->sgw_fqcsid != NULL) {
+
+				if (pdn->sgw_csid.num_csid) {
+					memcpy(&sgw_tmp_csid_t, &pdn->sgw_csid, sizeof(fqcsid_t));
+				}
+
+				fill_pdn_fqcsid_info(&pdn->sgw_csid, context->sgw_fqcsid);
+
+				if ((pdn->sgw_csid.num_csid) &&
+						(pdn->flag_fqcsid_modified != TRUE)) {
+					if (link_gtpc_peer_csids(&pdn->sgw_csid,
+								&pdn->pgw_csid, S5S8_PGWC_PORT_ID)) {
 						clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to Link "
 								"Local CSID entry to link with SGW FQCSID, Error : %s \n", LOG_VALUE,
 								strerror(errno));
 						return -1;
 					}
 				}
-			}
-			/* Fill the Updated CSID in the Modification Request */
-			/* Set SGW FQ-CSID */
-			if (context->sgw_fqcsid != NULL) {
-				if ((context->sgw_fqcsid)->num_csid) {
-					fqcsid_t tmp_fqcsid = {0};
+				if (link_sess_with_peer_csid(&pdn->sgw_csid, pdn, S5S8_PGWC_PORT_ID)) {
+					clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Error : Failed to Link "
+							"Session with SGWC CSID \n", LOG_VALUE);
+					return -1;
+				}
 
-					set_fq_csid_t(&pfcp_sess_mod_req.sgw_c_fqcsid, context->sgw_fqcsid);
-					if (context->cp_mode != PGWC) {
-						(pfcp_sess_mod_req.sgw_c_fqcsid).node_address = pfcp_config.pfcp_ip.s_addr;
+				/* Remove the session link from old CSID */
+				sess_csid *tmp1 = NULL;
+				peer_csid_key_t key = {0};
+
+				key.iface = S5S8_PGWC_PORT_ID;
+				key.peer_local_csid = sgw_tmp_csid_t.local_csid[num_csid];
+				memcpy(&key.peer_node_addr,
+						&sgw_tmp_csid_t.node_addr, sizeof(node_address_t));
+
+				tmp1 = get_sess_peer_csid_entry(&key, REMOVE_NODE);
+
+				if (tmp1 != NULL) {
+					/* Remove node from csid linked list */
+					tmp1 = remove_sess_csid_data_node(tmp1, pdn->seid);
+
+					int8_t ret = 0;
+					/* Update CSID Entry in table */
+					ret = rte_hash_add_key_data(seid_by_peer_csid_hash, &key, tmp1);
+					if (ret) {
+						clLog(clSystemLog, eCLSeverityCritical,
+								LOG_FORMAT"Failed to add Session IDs entry"
+								" for CSID = %u \n", LOG_VALUE,
+								sgw_tmp_csid_t.local_csid[num_csid]);
+						return GTPV2C_CAUSE_SYSTEM_FAILURE;
 					}
-					/* set PGWC FQ-CSID explicitlly zero */
-					set_fq_csid_t(&pfcp_sess_mod_req.pgw_c_fqcsid, &tmp_fqcsid);
-					/* set MME FQ-CSID explicitlly zero */
-					set_fq_csid_t(&pfcp_sess_mod_req.mme_fqcsid, &tmp_fqcsid);
+					if (tmp1 == NULL) {
+						/* Delete Local CSID entry */
+						del_sess_peer_csid_entry(&key);
+					}
+				}
+
+				if (pdn->sgw_csid.num_csid) {
+
+					set_fq_csid_t(&pfcp_sess_mod_req.sgw_c_fqcsid, &pdn->sgw_csid);
+					/* set PGWC FQ-CSID */
+					set_fq_csid_t(&pfcp_sess_mod_req.pgw_c_fqcsid, &pdn->pgw_csid);
+
+					if ((upd_req->mme_fqcsid).number_of_csids)
+						set_fq_csid_t(&pfcp_sess_mod_req.mme_fqcsid, &pdn->mme_csid);
 				}
 			}
 			if (ret_t == PRESENT) {
 				/* set PGWC FQ-CSID */
-				set_fq_csid_t(&pfcp_sess_mod_req.pgw_c_fqcsid, context->pgw_fqcsid);
+				set_fq_csid_t(&pfcp_sess_mod_req.pgw_c_fqcsid, &pdn->pgw_csid);
 			}
 		}
 	}
@@ -7366,12 +9110,14 @@ proc_pfcp_sess_mbr_udp_csid_req(upd_pdn_conn_set_req_t *upd_req)
 
 	uint8_t pfcp_msg[PFCP_MSG_LEN]={0};
 	int encoded = encode_pfcp_sess_mod_req_t(&pfcp_sess_mod_req, pfcp_msg);
-	pfcp_header_t *header = (pfcp_header_t *) pfcp_msg;
-	header->message_len = htons(encoded - PFCP_IE_HDR_SIZE);
 
-	upf_pfcp_sockaddr.sin_addr.s_addr  = pdn->upf_ipv4.s_addr;
+	ret = set_dest_address(pdn->upf_ip, &upf_pfcp_sockaddr);
+	if (ret < 0) {
+		clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+			"IP address", LOG_VALUE);
+	}
 
-	if ( pfcp_send(pfcp_fd, pfcp_msg, encoded, &upf_pfcp_sockaddr, SENT) < 0 ){
+	if ( pfcp_send(pfcp_fd, pfcp_fd_v6, pfcp_msg, encoded, upf_pfcp_sockaddr, SENT) < 0 ){
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Error in sending "
 			"Update PDN Connection Set Request, Error : %s\n", LOG_VALUE,
 			strerror(errno));
@@ -7512,10 +9258,8 @@ gen_reauth_response(pdn_connection *pdn)
 			msg_len_total);
 			//msg_len + sizeof(raa.msg_type) + sizeof(unsigned long));
 
-	struct sockaddr_in saddr_in;
-	saddr_in.sin_family = AF_INET;
-	inet_aton(CLI_GX_IP, &(saddr_in.sin_addr));
-	update_cli_stats(saddr_in.sin_addr.s_addr, OSS_RAA, SENT, GX);
+	update_cli_stats((peer_address_t *) &config.gx_ip, OSS_RAA, SENT, GX);
+
 	rte_free(buffer);
 
 	pdn->state = CONNECTED_STATE;
@@ -7530,7 +9274,7 @@ process_delete_bearer_pfcp_sess_response(uint64_t sess_id, ue_context *context,
 							gtpv2c_header_t *gtpv2c_tx, struct resp_info *resp)
 {
 	pdn_connection *pdn = NULL;
-	int ebi = UE_BEAR_ID(sess_id);
+	int ebi = UE_BEAR_ID(sess_id), ret = 0;
 	int ebi_index = GET_EBI_INDEX(ebi);
 	if (ebi_index == -1) {
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Invalid EBI ID\n", LOG_VALUE);
@@ -7570,17 +9314,18 @@ process_delete_bearer_pfcp_sess_response(uint64_t sess_id, ue_context *context,
 
 		}
 		uint8_t pti = 0;
-		/* Available if procedure is part of BEARER Resource Command */
-		pti = context->proc_trans_id;
-
 		uint32_t seq_no = 0;
-		if((SGWC == pdn->context->cp_mode)
-				&& (pdn->proc == PDN_GW_INIT_BEARER_DEACTIVATION)
-				&& (!pti)) {
+
+		/*If proc is BRC then use same seq no as received in BRC msg*/
+		if ((SGWC == pdn->context->cp_mode) && (pdn->proc == PDN_GW_INIT_BEARER_DEACTIVATION)) {
 			seq_no = generate_seq_number();
-		}else{
+		} else if (pdn->proc == UE_REQ_BER_RSRC_MOD_PROC) {
+			pti = context->proc_trans_id;
+			seq_no = context->ue_initiated_seq_no;
+		} else {
 			seq_no = context->sequence;
 		}
+
 
 		set_delete_bearer_request(gtpv2c_tx, seq_no,
 			pdn, lbi, pti, eps_bearer_ids, bearer_count);
@@ -7589,11 +9334,17 @@ process_delete_bearer_pfcp_sess_response(uint64_t sess_id, ue_context *context,
 		pdn->state = DELETE_BER_REQ_SNT_STATE;
 
 		if( PGWC == context->cp_mode ) {
-			s5s8_recv_sockaddr.sin_addr.s_addr =
-				pdn->s5s8_sgw_gtpc_ipv4.s_addr;
+			ret = set_dest_address(pdn->s5s8_sgw_gtpc_ip, &s5s8_recv_sockaddr);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+			}
 		} else {
-			s11_mme_sockaddr.sin_addr.s_addr =
-				context->s11_mme_gtpc_ipv4.s_addr;
+			ret = set_dest_address(context->s11_mme_gtpc_ip, &s11_mme_sockaddr);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+			}
 		}
 		/* Reset the PTI Value */
 		context->proc_trans_id = 0;
@@ -7606,26 +9357,81 @@ process_delete_bearer_pfcp_sess_response(uint64_t sess_id, ue_context *context,
 			int ret = 0;
 			if (resp->proc == PDN_GW_INIT_BEARER_DEACTIVATION) {
 
+				if (context->mbc_cleanup_status == PRESENT) {
 
-				delete_dedicated_bearers(pdn, resp->eps_bearer_ids,
-												resp->bearer_count);
-				rar_funtions rar_function = NULL;
-				rar_function = rar_process(pdn,	pdn->proc);
+					uint16_t msglen = 0;
+					uint8_t *buffer = NULL;
+					gx_msg ccr_request = {0};
 
-				if(rar_function != NULL){
-					ret = rar_function(pdn);
-					if(ret)
-						clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed in processing "
-						"RAR function\n", LOG_VALUE);
-				} else {
-					clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"None of the RAR function "
-						"returned\n", LOG_VALUE);
+					set_ccr_t_message(pdn, context, (gx_msg *)&ccr_request, ebi_index);
+					/* Calculate the max size of CCR msg to allocate the buffer */
+					msglen = gx_ccr_calc_length(&ccr_request.data.ccr);
+					ccr_request.msg_len = msglen + GX_HEADER_LEN;
+
+					if (config.use_gx) {
+
+						buffer = rte_zmalloc_socket(NULL, msglen + GX_HEADER_LEN,
+									RTE_CACHE_LINE_SIZE, rte_socket_id());
+
+						if (buffer == NULL) {
+							clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to allocate "
+								"Memory for Buffer, Error: %s \n", LOG_VALUE,
+											rte_strerror(rte_errno));
+							return -1;
+						}
+
+						memcpy(buffer, &ccr_request.msg_type, sizeof(ccr_request.msg_type));
+						memcpy(buffer + sizeof(ccr_request.msg_type), &ccr_request.msg_len,
+								sizeof(ccr_request.msg_len));
+
+						if (gx_ccr_pack(&(ccr_request.data.ccr),
+							(unsigned char *)(buffer + GX_HEADER_LEN), msglen) == 0) {
+							clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to Packing "
+								"CCR Buffer\n", LOG_VALUE);
+							rte_free(buffer);
+							return -1;
+						}
+						/* Write or Send CCR -T msg to Gx_App */
+						send_to_ipc_channel(gx_app_sock, buffer,
+									msglen + GX_HEADER_LEN);
+
+						if (buffer != NULL) {
+							rte_free(buffer);
+							buffer = NULL;
+						}
+
+						free_dynamically_alloc_memory(&ccr_request);
+
+						update_cli_stats((peer_address_t *) &config.gx_ip, OSS_CCR_TERMINATE, SENT, GX);
+					}
+					clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"send CCR-TERMINATION for "
+							"MBC for cleanup\n", LOG_VALUE);
+
+					resp->msg_type = GX_CCR_MSG;
 				}
-				resp->msg_type = GX_RAA_MSG;
-				resp->proc = pdn->proc;
+				else {
+
+					delete_dedicated_bearers(pdn, resp->eps_bearer_ids,
+													resp->bearer_count);
+					rar_funtions rar_function = NULL;
+					rar_function = rar_process(pdn,	pdn->proc);
+
+					if(rar_function != NULL){
+						ret = rar_function(pdn);
+						if(ret)
+							clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed in processing "
+							"RAR function\n", LOG_VALUE);
+					} else {
+						clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"None of the RAR function "
+							"returned\n", LOG_VALUE);
+					}
+					resp->msg_type = GX_RAA_MSG;
+					resp->proc = pdn->proc;
+				}
 
 			} else if (resp->proc ==
 				MME_INI_DEDICATED_BEARER_DEACTIVATION_PROC) {
+
 
 				/*extract ebi_id from array as all the ebi's will be of same pdn.*/
 				int ebi_index = GET_EBI_INDEX(resp->eps_bearer_ids[0]);
@@ -7634,7 +9440,7 @@ process_delete_bearer_pfcp_sess_response(uint64_t sess_id, ue_context *context,
 					return GTPV2C_CAUSE_SYSTEM_FAILURE;
 				}
 				provision_ack_ccr(pdn, (context->eps_bearers[ebi_index]),
-						RULE_ACTION_DELETE,NO_FAIL, &pro_ack_rule_array);
+						RULE_ACTION_DELETE,NO_FAIL);
 				delete_dedicated_bearers(pdn, resp->eps_bearer_ids,
 												resp->bearer_count);
 				resp->msg_type = GX_CCR_MSG;
@@ -7648,7 +9454,7 @@ process_delete_bearer_pfcp_sess_response(uint64_t sess_id, ue_context *context,
 						pdn->proc = resp->proc;
 						provision_ack_ccr(pdn,
 								context->eps_bearers[ebi_index],
-								RULE_ACTION_DELETE,NO_FAIL, &pro_ack_rule_array);
+								RULE_ACTION_DELETE,NO_FAIL);
 				}
 				delete_dedicated_bearers(pdn, resp->eps_bearer_ids,
 												resp->bearer_count);
@@ -7656,8 +9462,13 @@ process_delete_bearer_pfcp_sess_response(uint64_t sess_id, ue_context *context,
 			}
 
 			resp->state = pdn->state;
-			s11_mme_sockaddr.sin_addr.s_addr =
-				context->s11_mme_gtpc_ipv4.s_addr;
+			if (context->cp_mode != PGWC) {
+				ret = set_dest_address(context->s11_mme_gtpc_ip, &s11_mme_sockaddr);
+				if (ret < 0) {
+					clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+						"IP address", LOG_VALUE);
+				}
+			}
 			return 0;
 
 		} else {
@@ -7695,9 +9506,12 @@ process_delete_bearer_pfcp_sess_response(uint64_t sess_id, ue_context *context,
 
 			resp->state = CONNECTED_STATE;
 			pdn->state = CONNECTED_STATE;
-
-			s5s8_recv_sockaddr.sin_addr.s_addr =
-				pdn->s5s8_pgw_gtpc_ipv4.s_addr;
+			if (context->cp_mode == PGWC)
+				ret = set_dest_address(pdn->s5s8_pgw_gtpc_ip, &s5s8_recv_sockaddr);
+				if (ret < 0) {
+					clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+						"IP address", LOG_VALUE);
+				}
 		}
 	}
 
@@ -7792,28 +9606,48 @@ process_pfcp_sess_mod_resp_mbr_req(pfcp_sess_mod_rsp_t *pfcp_sess_mod_rsp,
 
 	context = pdn->context;
 
-	if(*mbr_procedure == NO_UPDATE_MBR) {
+	/* For CIOT flow  s11u fteid = s1u fteid */
+	if (context->indication_flag.s11tf == 1) {
+		bearer->s11u_sgw_gtpu_teid = bearer->s1u_sgw_gtpu_teid;
+		memcpy(&bearer->s11u_sgw_gtpu_ip, &bearer->s1u_sgw_gtpu_ip, sizeof(node_address_t));
+
+	}
+	if (*mbr_procedure == NO_UPDATE_MBR) {
 
 		set_modify_bearer_response(gtpv2c_tx,
 				context->sequence, context, bearer, &resp->gtpc_msg.mbr);
 		resp->state = CONNECTED_STATE;
 
 		if (PGWC != context->cp_mode) {
-			s11_mme_sockaddr.sin_addr.s_addr =
-				context->s11_mme_gtpc_ipv4.s_addr;
+
+			ret = set_dest_address(context->s11_mme_gtpc_ip, &s11_mme_sockaddr);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+			}
 		}
 
 		uint16_t payload_length = ntohs(gtpv2c_tx->gtpc.message_len)
 			+ sizeof(gtpv2c_tx->gtpc);
 
-		gtpv2c_send(s11_fd, tx_buf, payload_length,
-				(struct sockaddr *) &s11_mme_sockaddr,
-				s11_mme_sockaddr_len,ACC);
+		gtpv2c_send(s11_fd, s11_fd_v6, tx_buf, payload_length,
+				s11_mme_sockaddr, ACC);
 
-		process_cp_li_msg(
-				pdn->seid, S11_INTFC_OUT, tx_buf, payload_length,
-				ntohl(pfcp_config.s11_ip.s_addr), ntohl(s11_mme_sockaddr.sin_addr.s_addr),
-				pfcp_config.s11_port, ntohs(s11_mme_sockaddr.sin_port));
+		if (PRESENT == context->dupl) {
+			process_cp_li_msg(
+					pdn->seid, S11_INTFC_OUT, tx_buf, payload_length,
+					fill_ip_info(s11_mme_sockaddr.type,
+						config.s11_ip.s_addr,
+						config.s11_ip_v6.s6_addr),
+					fill_ip_info(s11_mme_sockaddr.type,
+						s11_mme_sockaddr.ipv4.sin_addr.s_addr,
+						s11_mme_sockaddr.ipv6.sin6_addr.s6_addr),
+					config.s11_port,
+					((s11_mme_sockaddr.type == IPTYPE_IPV4_LI) ?
+					 ntohs(s11_mme_sockaddr.ipv4.sin_port) :
+					 ntohs(s11_mme_sockaddr.ipv6.sin6_port)));
+
+		}
 
 		resp->state = CONNECTED_STATE;
 		pdn->state =  CONNECTED_STATE;
@@ -7827,7 +9661,7 @@ process_pfcp_sess_mod_resp_mbr_req(pfcp_sess_mod_rsp_t *pfcp_sess_mod_rsp,
 #ifdef USE_CSID
 		if ((context->cp_mode == SGWC)) {
 			/* Update peer node csid */
-			update_peer_node_csid(pfcp_sess_mod_rsp, context);
+			update_peer_node_csid(pfcp_sess_mod_rsp, pdn);
 
 			uint16_t payload_length = 0;
 			bzero(&s5s8_tx_buf, sizeof(s5s8_tx_buf));
@@ -7867,30 +9701,32 @@ process_pfcp_sess_mod_resp_mbr_req(pfcp_sess_mod_rsp_t *pfcp_sess_mod_rsp,
 										pdn->s5s8_pgw_gtpc_teid;
 
 			set_gtpc_fqcsid_t(&upd_pdn_set.sgw_fqcsid, IE_INSTANCE_ONE,
-					context->sgw_fqcsid);
-			upd_pdn_set.sgw_fqcsid.node_address = pdn->s5s8_sgw_gtpc_ipv4.s_addr;
+					&pdn->sgw_csid);
 
-			uint16_t msg_len = 0;
-			msg_len = encode_upd_pdn_conn_set_req(&upd_pdn_set, (uint8_t *)gtpc_tx);
-			gtpc_tx->gtpc.message_len = htons(msg_len - IE_HEADER_SIZE);
+			/* MME Relocation */
+			if (context->mme_changed_flag == TRUE) {
+				set_gtpc_fqcsid_t(&upd_pdn_set.mme_fqcsid, IE_INSTANCE_ZERO,
+						&pdn->mme_csid);
+			}
 
-			s5s8_recv_sockaddr.sin_addr.s_addr =
-				(bearer->pdn->s5s8_pgw_gtpc_ipv4.s_addr);
+			payload_length = encode_upd_pdn_conn_set_req(&upd_pdn_set, (uint8_t *)gtpc_tx);
+
+			ret = set_dest_address(bearer->pdn->s5s8_pgw_gtpc_ip, &s5s8_recv_sockaddr);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+			}
 
 			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"s5s8_recv_sockaddr.sin_addr.s_addr :%s\n", LOG_VALUE,
-					inet_ntoa(*((struct in_addr *)&s5s8_recv_sockaddr.sin_addr.s_addr)));
+					inet_ntoa(*((struct in_addr *)&s5s8_recv_sockaddr.ipv4.sin_addr.s_addr)));
 
-			payload_length = ntohs(gtpc_tx->gtpc.message_len)
-				+ sizeof(gtpc_tx->gtpc);
-
-			gtpv2c_send(s5s8_fd, s5s8_tx_buf, payload_length,
-					(struct sockaddr *) &s5s8_recv_sockaddr,
-						s5s8_sockaddr_len, SENT);
+			gtpv2c_send(s5s8_fd, s5s8_fd_v6, s5s8_tx_buf, payload_length,
+					s5s8_recv_sockaddr, SENT);
 
 			cp_mode = context->cp_mode;
 			add_gtpv2c_if_timer_entry(
 					pdn->context->s11_sgw_gtpc_teid,
-					&s5s8_recv_sockaddr, tx_buf, payload_length,
+					&s5s8_recv_sockaddr, s5s8_tx_buf, payload_length,
 					ebi_index,
 					S5S8_IFACE, cp_mode);
 
@@ -7898,8 +9734,16 @@ process_pfcp_sess_mod_resp_mbr_req(pfcp_sess_mod_rsp_t *pfcp_sess_mod_rsp,
 			if (context->dupl) {
 				process_pkt_for_li(
 						context, S5S8_C_INTFC_OUT, s5s8_tx_buf, payload_length,
-						ntohl(pfcp_config.s5s8_ip.s_addr), ntohl(s5s8_recv_sockaddr.sin_addr.s_addr),
-						pfcp_config.s5s8_port, ntohs(s5s8_recv_sockaddr.sin_port));
+						fill_ip_info(s5s8_recv_sockaddr.type,
+								config.s5s8_ip.s_addr,
+								config.s5s8_ip_v6.s6_addr),
+						fill_ip_info(s5s8_recv_sockaddr.type,
+								s5s8_recv_sockaddr.ipv4.sin_addr.s_addr,
+								s5s8_recv_sockaddr.ipv6.sin6_addr.s6_addr),
+						config.s5s8_port,
+						((s5s8_recv_sockaddr.type == IPTYPE_IPV4_LI) ?
+							ntohs(s5s8_recv_sockaddr.ipv4.sin_port) :
+							ntohs(s5s8_recv_sockaddr.ipv6.sin6_port)));
 			}
 
 		return 0;
@@ -7910,18 +9754,27 @@ process_pfcp_sess_mod_resp_mbr_req(pfcp_sess_mod_rsp_t *pfcp_sess_mod_rsp,
 	} else if (*mbr_procedure == FORWARD_MBR_REQUEST) {
 
 		set_modify_bearer_request(gtpv2c_tx, pdn, bearer);
-		s5s8_recv_sockaddr.sin_addr.s_addr =
-			(bearer->pdn->s5s8_pgw_gtpc_ipv4.s_addr);
+		ret = set_dest_address(bearer->pdn->s5s8_pgw_gtpc_ip, &s5s8_recv_sockaddr);
+		if (ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+				"IP address", LOG_VALUE);
+		}
 
 		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"s5s8_recv_sockaddr.sin_addr.s_addr :%s\n", LOG_VALUE,
-				inet_ntoa(*((struct in_addr *)&s5s8_recv_sockaddr.sin_addr.s_addr)));
+				inet_ntoa(*((struct in_addr *)&s5s8_recv_sockaddr.ipv4.sin_addr.s_addr)));
 
 		uint16_t payload_length = ntohs(gtpv2c_tx->gtpc.message_len)
 			+ sizeof(gtpv2c_tx->gtpc);
 
-		gtpv2c_send(s5s8_fd, tx_buf, payload_length,
-				(struct sockaddr *) &s5s8_recv_sockaddr,
-				s5s8_sockaddr_len, SENT);
+		gtpv2c_send(s5s8_fd, s5s8_fd_v6, tx_buf, payload_length,
+				s5s8_recv_sockaddr, SENT);
+
+		if (context->update_sgw_fteid == TRUE) {
+			context->uli_flag = 0;
+			context->ue_time_zone_flag = FALSE;
+			context->serving_nw_flag = FALSE;
+			pdn->flag_fqcsid_modified = FALSE;
+		}
 
 		cp_mode = pdn->context->cp_mode;
 		add_gtpv2c_if_timer_entry(
@@ -7934,8 +9787,16 @@ process_pfcp_sess_mod_resp_mbr_req(pfcp_sess_mod_rsp_t *pfcp_sess_mod_rsp,
 		if (context->dupl) {
 			process_pkt_for_li(
 					context, S5S8_C_INTFC_OUT, s5s8_tx_buf, payload_length,
-					ntohl(pfcp_config.s5s8_ip.s_addr), ntohl(s5s8_recv_sockaddr.sin_addr.s_addr),
-					pfcp_config.s5s8_port, ntohs(s5s8_recv_sockaddr.sin_port));
+					fill_ip_info(s5s8_recv_sockaddr.type,
+							config.s5s8_ip.s_addr,
+							config.s5s8_ip_v6.s6_addr),
+					fill_ip_info(s5s8_recv_sockaddr.type,
+							s5s8_recv_sockaddr.ipv4.sin_addr.s_addr,
+							s5s8_recv_sockaddr.ipv6.sin6_addr.s6_addr),
+					config.s5s8_port,
+					((s5s8_recv_sockaddr.type == IPTYPE_IPV4_LI) ?
+						ntohs(s5s8_recv_sockaddr.ipv4.sin_port) :
+						ntohs(s5s8_recv_sockaddr.ipv6.sin6_port)));
 		}
 
 		resp->state =  MBR_REQ_SNT_STATE;
@@ -7958,6 +9819,7 @@ process_pfcp_sess_mod_resp(pfcp_sess_mod_rsp_t *pfcp_sess_mod_rsp,
 {
 
 	int ret = 0;
+	uint8_t pti = 0;
 	int ebi_index = 0;
 	eps_bearer *bearer  = NULL;
 	pdn_connection *pdn = NULL;
@@ -7983,6 +9845,24 @@ process_pfcp_sess_mod_resp(pfcp_sess_mod_rsp_t *pfcp_sess_mod_rsp,
 		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 	}
 
+	if(context->piggyback == TRUE) {
+
+		pdn->state = CONNECTED_STATE;
+		pdn->proc = ATTACH_DEDICATED_PROC;
+		resp->proc = ATTACH_DEDICATED_PROC;
+
+		/*NOTE:*/
+		int index = GET_EBI_INDEX(resp->eps_bearer_ids[0]);
+		if (index == -1) {
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Invalid EBI ID\n", LOG_VALUE);
+			return GTPV2C_CAUSE_SYSTEM_FAILURE;
+		}
+
+		provision_ack_ccr(pdn, context->eps_bearers[index],
+				RULE_ACTION_ADD, NO_FAIL);
+		return 0;
+	}
+
 	pdn->state = PFCP_SESS_MOD_RESP_RCVD_STATE;
 
 	if (!bearer) {
@@ -7994,6 +9874,11 @@ process_pfcp_sess_mod_resp(pfcp_sess_mod_rsp_t *pfcp_sess_mod_rsp,
 	if (resp->msg_type == GTP_CREATE_SESSION_REQ) {
 		/* Sent the CSR Response in the promotion case */
 		if (context->cp_mode == SAEGWC) {
+			/* Update UP CSID in case of promotion Demotion */
+			if ((pfcp_sess_mod_rsp->up_fqcsid.header.len)
+				&& (pfcp_sess_mod_rsp->up_fqcsid.number_of_csids)) {
+				update_peer_node_csid(pfcp_sess_mod_rsp, pdn);
+			}
 			/* Fill the Create session response */
 			set_create_session_response(
 					gtpv2c_tx, context->sequence, context, pdn, 0);
@@ -8007,8 +9892,8 @@ process_pfcp_sess_mod_resp(pfcp_sess_mod_rsp_t *pfcp_sess_mod_rsp,
 
 	} else if (resp->msg_type == GX_RAR_MSG ||
 				resp->msg_type == GTP_BEARER_RESOURCE_CMD) {
-			uint8_t pti = 0;
-			if (resp->msg_type == GTP_BEARER_RESOURCE_CMD)
+
+			if (pdn->proc == UE_REQ_BER_RSRC_MOD_PROC)
 				pti  = context->proc_trans_id;
 
 		ret = set_create_bearer_request(gtpv2c_tx, context->sequence, pdn,
@@ -8016,35 +9901,46 @@ process_pfcp_sess_mod_resp(pfcp_sess_mod_rsp_t *pfcp_sess_mod_rsp,
 
 		resp->state = CREATE_BER_REQ_SNT_STATE;
 		pdn->state = CREATE_BER_REQ_SNT_STATE;
-
+		//pratick: need to check for IPV6
 		if (SAEGWC == context->cp_mode) {
-			s11_mme_sockaddr.sin_addr.s_addr =
-				context->s11_mme_gtpc_ipv4.s_addr;
+			ret = set_dest_address(context->s11_mme_gtpc_ip, &s11_mme_sockaddr);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+			}
 		} else {
-			s5s8_recv_sockaddr.sin_addr.s_addr =
-				pdn->s5s8_sgw_gtpc_ipv4.s_addr;
+			ret = set_dest_address(pdn->s5s8_sgw_gtpc_ip, &s5s8_recv_sockaddr);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+			}
 		}
 
 		return ret;
 
 	} else if (resp->msg_type == GTP_CREATE_BEARER_REQ) {
 
-		/* TODO: Not handle PTI properly */
-		if (context->proc_trans_id) {
-			ret = set_create_bearer_request(gtpv2c_tx, context->sequence, pdn,
-					pdn->default_bearer_id, context->proc_trans_id, resp, 0, FALSE);
-		} else {
-			ret = set_create_bearer_request(gtpv2c_tx, context->sequence, pdn,
-					pdn->default_bearer_id, 0, resp, 0, TRUE);
+		bool flag = TRUE;
+		if ( pdn->proc == UE_REQ_BER_RSRC_MOD_PROC ) {
+			pti = context->proc_trans_id;
+			flag = FALSE;
 		}
 
-		context->proc_trans_id = 0;
+		ret = set_create_bearer_request(gtpv2c_tx, context->sequence, pdn,
+				pdn->default_bearer_id, pti, resp, 0, flag);
+
+		/*Reset pti for BRC flow*/
+		if (pdn->proc == UE_REQ_BER_RSRC_MOD_PROC)
+			context->proc_trans_id = 0;
 
 		resp->state = CREATE_BER_REQ_SNT_STATE;
 		pdn->state = CREATE_BER_REQ_SNT_STATE;
 
-		s11_mme_sockaddr.sin_addr.s_addr =
-			context->s11_mme_gtpc_ipv4.s_addr;
+		ret = set_dest_address(context->s11_mme_gtpc_ip, &s11_mme_sockaddr);
+		if (ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+				"IP address", LOG_VALUE);
+		}
 
 		return ret;
 
@@ -8059,7 +9955,8 @@ process_pfcp_sess_mod_resp(pfcp_sess_mod_rsp_t *pfcp_sess_mod_rsp,
 					return GTPV2C_CAUSE_SYSTEM_FAILURE;
 				}
 				provision_ack_ccr(pdn, context->eps_bearers[index],
-						RULE_ACTION_ADD, NO_FAIL, &pro_ack_rule_array);
+						RULE_ACTION_ADD, NO_FAIL);
+
 				resp->msg_type = GX_CCR_MSG;
 			} else {
 				rar_funtions rar_function = NULL;
@@ -8110,7 +10007,11 @@ process_pfcp_sess_mod_resp(pfcp_sess_mod_rsp_t *pfcp_sess_mod_rsp,
 			resp->state = CONNECTED_STATE;
 			pdn->state = CONNECTED_STATE;
 
-			s5s8_recv_sockaddr.sin_addr.s_addr = pdn->s5s8_pgw_gtpc_ipv4.s_addr;
+			ret = set_dest_address(pdn->s5s8_pgw_gtpc_ip, &s5s8_recv_sockaddr);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+			}
 
 			return 0;
 		}
@@ -8136,14 +10037,17 @@ process_pfcp_sess_mod_resp(pfcp_sess_mod_rsp_t *pfcp_sess_mod_rsp,
 						header->teid_u.has_teid.seq,
 						resp->linked_eps_bearer_id);
 
-			s5s8_recv_sockaddr.sin_addr.s_addr =
-				pdn->s5s8_pgw_gtpc_ipv4.s_addr;
+			ret = set_dest_address(pdn->s5s8_pgw_gtpc_ip, &s5s8_recv_sockaddr);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+			}
 
 			/* Update the session state */
 			resp->state = DS_REQ_SNT_STATE;
 
 			/* Update the UE state */
-			ebi_index = GET_EBI_INDEX(resp->linked_eps_bearer_id);
+
 			if (ebi_index == -1) {
 				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Invalid EBI ID\n", LOG_VALUE);
 				return GTPV2C_CAUSE_SYSTEM_FAILURE;
@@ -8172,29 +10076,154 @@ process_pfcp_sess_mod_resp(pfcp_sess_mod_rsp_t *pfcp_sess_mod_rsp,
 
 			set_release_access_bearer_response(gtpv2c_tx, pdn);
 
-			s11_mme_sockaddr.sin_addr.s_addr =
-				context->s11_mme_gtpc_ipv4.s_addr;
-
+			if (context->indication_flag.s11tf) {
+				context->indication_flag.s11tf = 0;
+			}
+			ret = set_dest_address(context->s11_mme_gtpc_ip, &s11_mme_sockaddr);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+			}
 			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"s11_mme_sockaddr.sin_addr.s_addr :%s\n",
 					LOG_VALUE,
-					inet_ntoa(*((struct in_addr *)&s11_mme_sockaddr.sin_addr.s_addr)));
+					inet_ntoa(*((struct in_addr *)&s11_mme_sockaddr.ipv4.sin_addr.s_addr)));
 
 			payload_length = ntohs(gtpv2c_tx->gtpc.message_len)
 				+ sizeof(gtpv2c_tx->gtpc);
 
-			gtpv2c_send(s11_fd, tx_buf, payload_length,
-					(struct sockaddr *) &s11_mme_sockaddr,
-					s11_mme_sockaddr_len,ACC);
+			gtpv2c_send(s11_fd, s11_fd_v6, tx_buf, payload_length,
+					s11_mme_sockaddr,ACC);
 
 			process_cp_li_msg(
 					pfcp_sess_mod_resp.header.seid_seqno.has_seid.seid,
 					S11_INTFC_OUT, tx_buf, payload_length,
-					ntohl(pfcp_config.s11_ip.s_addr), ntohl(s11_mme_sockaddr.sin_addr.s_addr),
-					pfcp_config.s11_port, ntohs(s11_mme_sockaddr.sin_port));
+					fill_ip_info(s11_mme_sockaddr.type,
+							config.s11_ip.s_addr,
+							config.s11_ip_v6.s6_addr),
+					fill_ip_info(s11_mme_sockaddr.type,
+							s11_mme_sockaddr.ipv4.sin_addr.s_addr,
+							s11_mme_sockaddr.ipv6.sin6_addr.s6_addr),
+					config.s11_port,
+					((s11_mme_sockaddr.type == IPTYPE_IPV4_LI) ?
+						ntohs(s11_mme_sockaddr.ipv4.sin_port) :
+						ntohs(s11_mme_sockaddr.ipv6.sin6_port)));
 		} else {
 			context->pfcp_sess_count--;
 		}
 		return 0;
+
+	} else if(resp->msg_type == GTP_MODIFY_ACCESS_BEARER_REQ) {
+
+		if(context->cp_mode == SAEGWC ) {
+
+			set_modify_access_bearer_response(gtpv2c_tx, context->sequence,
+					context, bearer, &resp->gtpc_msg.mod_acc_req);
+			resp->state = CONNECTED_STATE;
+
+			ret = set_dest_address(context->s11_mme_gtpc_ip, &s11_mme_sockaddr);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+			}
+
+			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"s11_mme_sockaddr.sin_addr.s_addr :%s\n",
+			LOG_VALUE,
+			inet_ntoa(*((struct in_addr *)&s11_mme_sockaddr.ipv4.sin_addr.s_addr)));
+
+			uint16_t payload_length = ntohs(gtpv2c_tx->gtpc.message_len)
+				+ sizeof(gtpv2c_tx->gtpc);
+
+			gtpv2c_send(s11_fd, s11_fd_v6, tx_buf, payload_length,
+					s11_mme_sockaddr,ACC);
+
+			process_cp_li_msg(
+					pdn->seid, S11_INTFC_OUT, tx_buf, payload_length,
+					fill_ip_info(s11_mme_sockaddr.type,
+						config.s11_ip.s_addr,
+						config.s11_ip_v6.s6_addr),
+					fill_ip_info(s11_mme_sockaddr.type,
+						s11_mme_sockaddr.ipv4.sin_addr.s_addr,
+						s11_mme_sockaddr.ipv6.sin6_addr.s6_addr),
+					config.s11_port,
+					((s11_mme_sockaddr.type == IPTYPE_IPV4_LI) ?
+						ntohs(s11_mme_sockaddr.ipv4.sin_port) :
+						ntohs(s11_mme_sockaddr.ipv6.sin6_port)));
+
+			resp->state = CONNECTED_STATE;
+			pdn->state =  CONNECTED_STATE;
+			return 0;
+
+		} else {
+
+
+			resp->state =  UPD_PDN_CONN_SET_REQ_SNT_STATE;
+			pdn->state =  UPD_PDN_CONN_SET_REQ_SNT_STATE;
+#ifdef USE_CSID
+			if ((context->cp_mode == SGWC)) {
+				/* Update peer node csid */
+				update_peer_node_csid(pfcp_sess_mod_rsp, pdn);
+
+				uint16_t payload_length = 0;
+				bzero(&s5s8_tx_buf, sizeof(s5s8_tx_buf));
+				gtpv2c_header_t *gtpc_tx = (gtpv2c_header_t *)s5s8_tx_buf;
+
+				upd_pdn_conn_set_req_t upd_pdn_set = {0};
+
+				set_gtpv2c_teid_header((gtpv2c_header_t *)&upd_pdn_set.header,
+						GTP_UPDATE_PDN_CONNECTION_SET_REQ, 0,
+						context->sequence, 0);
+
+				upd_pdn_set.header.teid.has_teid.teid =
+					pdn->s5s8_pgw_gtpc_teid;
+
+				set_gtpc_fqcsid_t(&upd_pdn_set.sgw_fqcsid, IE_INSTANCE_ONE,
+						&pdn->sgw_csid);
+
+				/* MME Relocation */
+				if (context->mme_changed_flag == TRUE) {
+					set_gtpc_fqcsid_t(&upd_pdn_set.mme_fqcsid, IE_INSTANCE_ZERO,
+							&pdn->mme_csid);
+				}
+				payload_length = encode_upd_pdn_conn_set_req(&upd_pdn_set, (uint8_t *)gtpc_tx);
+
+				ret = set_dest_address(pdn->s5s8_pgw_gtpc_ip, &s5s8_recv_sockaddr);
+				if (ret < 0) {
+					clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+						"IP address", LOG_VALUE);
+				}
+
+				gtpv2c_send(s5s8_fd, s5s8_fd_v6, s5s8_tx_buf, payload_length,
+					s5s8_recv_sockaddr, SENT);
+
+				uint8_t cp_mode = context->cp_mode;
+				add_gtpv2c_if_timer_entry(
+						pdn->context->s11_sgw_gtpc_teid,
+						&s5s8_recv_sockaddr, tx_buf, payload_length,
+						ebi_index,
+						S5S8_IFACE, cp_mode);
+
+				/* copy packet for user level packet copying or li */
+				if (context->dupl) {
+					process_pkt_for_li(
+							context, S5S8_C_INTFC_OUT, s5s8_tx_buf, payload_length,
+							fill_ip_info(s5s8_recv_sockaddr.type,
+								config.s5s8_ip.s_addr,
+								config.s5s8_ip_v6.s6_addr),
+							fill_ip_info(s5s8_recv_sockaddr.type,
+								s5s8_recv_sockaddr.ipv4.sin_addr.s_addr,
+								s5s8_recv_sockaddr.ipv6.sin6_addr.s6_addr),
+							config.s5s8_port,
+							((s5s8_recv_sockaddr.type == IPTYPE_IPV4_LI) ?
+							 ntohs(s5s8_recv_sockaddr.ipv4.sin_port) :
+							 ntohs(s5s8_recv_sockaddr.ipv6.sin6_port)));
+				}
+
+				return 0;
+
+			}
+#endif /* USE_CSID */
+
+		}
 
 	} else {
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"INVALID MSG TYPE", LOG_VALUE);
@@ -8206,119 +10235,23 @@ process_pfcp_sess_mod_resp(pfcp_sess_mod_rsp_t *pfcp_sess_mod_rsp,
 	/* Update the UE state */
 	pdn->state = CONNECTED_STATE;
 
-	s11_mme_sockaddr.sin_addr.s_addr =
-		context->s11_mme_gtpc_ipv4.s_addr;
+	ret = set_dest_address(context->s11_mme_gtpc_ip, &s11_mme_sockaddr);
+	if (ret < 0) {
+		clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+			"IP address", LOG_VALUE);
+	}
 
 	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"s11_mme_sockaddr.sin_addr.s_addr :%s\n",
 		LOG_VALUE,
-		inet_ntoa(*((struct in_addr *)&s11_mme_sockaddr.sin_addr.s_addr)));
+		inet_ntoa(*((struct in_addr *)&s11_mme_sockaddr.ipv4.sin_addr.s_addr)));
 
-	return 0;
-}
-
-uint8_t
-process_pfcp_sess_mod_resp_for_mod_proc(uint64_t sess_id, gtpv2c_header_t *gtpv2c_tx)
-{
-	int ret = 0;
-	int ebi_index = 0;
-	eps_bearer *bearer  = NULL;
-	ue_context *context = NULL;
-	pdn_connection *pdn = NULL;
-	struct resp_info *resp = NULL;
-	uint32_t teid = UE_SESS_ID(sess_id);
-
-	/* Retrive the session information based on session id. */
-	if (get_sess_entry(sess_id, &resp) != 0){
-		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"No Session Entry Found "
-			"for sess ID:%lu\n", LOG_VALUE, sess_id);
-		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
-	}
-
-	/* Update the session state */
-	resp->state = PFCP_SESS_MOD_RESP_RCVD_STATE;
-
-	/* Retrieve the UE context */
-	ret = get_ue_context(teid, &context);
-	if (ret < 0) {
-		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to get UE "
-			"context for teid: %u\n", LOG_VALUE, teid);
-		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
-	}
-
-	int ebi = UE_BEAR_ID(sess_id);
-	ebi_index = GET_EBI_INDEX(ebi);
-	if (ebi_index == -1) {
-		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Invalid EBI ID\n", LOG_VALUE);
-		return GTPV2C_CAUSE_SYSTEM_FAILURE;
-	}
-	bearer = context->eps_bearers[ebi_index];
-	/* Update the UE state */
-	pdn = GET_PDN(context, ebi_index);
-	if(pdn == NULL){
-		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to get pdn "
-			"for ebi_index : %d\n", LOG_VALUE, ebi_index);
-		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
-	}
-
-	pdn->state = PFCP_SESS_MOD_RESP_RCVD_STATE;
-
-	if (!bearer) {
-		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to get bearer "
-			"for ebi_index : %d\n", LOG_VALUE, ebi_index);
-		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
-	}
-
-	if(SGWC == context->cp_mode) {
-
-		if((context->second_rat_flag == TRUE) /*&& (context->second_rat.irpgw == 0)*/) {
-
-			/* Fill the modify bearer response */
-			set_modify_bearer_response_handover(gtpv2c_tx,
-					context->sequence, context, bearer, &resp->gtpc_msg.mbr);
-			resp->state = CONNECTED_STATE;
-			/* Update the UE state */
-			pdn->state = CONNECTED_STATE;
-			return 0;
-		}
-
-		check_for_uli_changes(&resp->gtpc_msg.mbr.uli, pdn->context);
-		set_modify_bearer_request(gtpv2c_tx, pdn, bearer);
-
-		s5s8_recv_sockaddr.sin_addr.s_addr =
-			pdn->s5s8_pgw_gtpc_ipv4.s_addr;
-
-		resp->state = MBR_REQ_SNT_STATE;
-		pdn->state = resp->state;
-		context->uli_flag = FALSE;
-		context->serving_nw_flag = FALSE;
-		context->rat_type_flag = FALSE;
-		context->ue_time_zone_flag = FALSE;
-		context->uci_flag = FALSE;
-		context->second_rat_flag = FALSE;
-	}else{
-		/* Fill the modify bearer response */
-		set_modify_bearer_response_handover(gtpv2c_tx,
-				context->sequence, context, bearer, &resp->gtpc_msg.mbr);
-
-		if(SAEGWC == context->cp_mode){
-			s11_mme_sockaddr.sin_addr.s_addr =
-				context->s11_mme_gtpc_ipv4.s_addr;
-		}
-
-		s5s8_recv_sockaddr.sin_addr.s_addr =
-			pdn->s5s8_sgw_gtpc_ipv4.s_addr;
-
-		resp->state = CONNECTED_STATE;
-		/* Update the UE state */
-		pdn->state = CONNECTED_STATE;
-	}
 	return 0;
 }
 
 int
 process_change_noti_request(change_noti_req_t *change_not_req, ue_context *context)
 {
-	int ebi_index = 0;
+	int ebi_index = 0, ret = 0;
 	eps_bearer *bearer  = NULL;
 	pdn_connection *pdn =  NULL;
 
@@ -8386,8 +10319,10 @@ process_change_noti_request(change_noti_req_t *change_not_req, ue_context *conte
 	context->uli_flag = FALSE;
 	check_for_uli_changes(&change_not_req->uli, pdn->context);
 
-	if((pfcp_config.use_gx) && context->uli_flag != 0 ) {
-		int ret = gen_ccru_request(pdn->context, bearer, NULL);
+	if((config.use_gx) && context->uli_flag != 0 ) {
+
+		int ret = gen_ccru_request(pdn->context, bearer, NULL, NULL);
+
 		return ret;
 	}
 
@@ -8401,36 +10336,55 @@ process_change_noti_request(change_noti_req_t *change_not_req, ue_context *conte
 		+ sizeof(gtpv2c_tx->gtpc);
 
 	if(context->cp_mode == PGWC) {
-		s5s8_recv_sockaddr.sin_addr.s_addr =
-			pdn->s5s8_sgw_gtpc_ipv4.s_addr;
 
-		gtpv2c_send(s5s8_fd, tx_buf, payload_length,
-				(struct sockaddr *) &s5s8_recv_sockaddr,
-				s5s8_sockaddr_len,SENT);
+		ret = set_dest_address(pdn->s5s8_sgw_gtpc_ip, &s5s8_recv_sockaddr);
+		if (ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+				"IP address", LOG_VALUE);
+		}
+
+		gtpv2c_send(s5s8_fd, s5s8_fd_v6, tx_buf, payload_length,
+				s5s8_recv_sockaddr,SENT);
 
 		/* copy packet for user level packet copying or li */
 		if (context->dupl) {
 			process_pkt_for_li(
 					context, S5S8_C_INTFC_OUT, tx_buf, payload_length,
-					ntohl(pfcp_config.s5s8_ip.s_addr), ntohl(s5s8_recv_sockaddr.sin_addr.s_addr),
-					pfcp_config.s5s8_port, ntohs(s5s8_recv_sockaddr.sin_port));
+					fill_ip_info(s5s8_recv_sockaddr.type,
+							config.s5s8_ip.s_addr,
+							config.s5s8_ip_v6.s6_addr),
+					fill_ip_info(s5s8_recv_sockaddr.type,
+							s5s8_recv_sockaddr.ipv4.sin_addr.s_addr,
+							s5s8_recv_sockaddr.ipv6.sin6_addr.s6_addr),
+					config.s5s8_port,
+					((s5s8_recv_sockaddr.type == IPTYPE_IPV4_LI) ?
+						ntohs(s5s8_recv_sockaddr.ipv4.sin_port) :
+						ntohs(s5s8_recv_sockaddr.ipv6.sin6_port)));
 		}
 
 	} else {
+		ret = set_dest_address(pdn->context->s11_mme_gtpc_ip, &s11_mme_sockaddr);
+		if (ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+				"IP address", LOG_VALUE);
+		}
 
-		s11_mme_sockaddr.sin_addr.s_addr =
-			pdn->context->s11_mme_gtpc_ipv4.s_addr;
-
-		gtpv2c_send(s11_fd, tx_buf, payload_length,
-				(struct sockaddr *) &s11_mme_sockaddr,
-				s11_mme_sockaddr_len, SENT);
-
+		gtpv2c_send(s11_fd, s11_fd_v6, tx_buf, payload_length,
+				s11_mme_sockaddr, SENT);
 		/* copy packet for user level packet copying or li */
 		if (context->dupl) {
 			process_pkt_for_li(
 					context, S11_INTFC_OUT, tx_buf, payload_length,
-					ntohl(pfcp_config.s11_ip.s_addr), ntohl(s11_mme_sockaddr.sin_addr.s_addr),
-					pfcp_config.s11_port, ntohs(s11_mme_sockaddr.sin_port));
+					fill_ip_info(s11_mme_sockaddr.type,
+							config.s11_ip.s_addr,
+							config.s11_ip_v6.s6_addr),
+					fill_ip_info(s11_mme_sockaddr.type,
+							s11_mme_sockaddr.ipv4.sin_addr.s_addr,
+							s11_mme_sockaddr.ipv6.sin6_addr.s6_addr),
+					config.s11_port,
+					((s11_mme_sockaddr.type == IPTYPE_IPV4_LI) ?
+						ntohs(s11_mme_sockaddr.ipv4.sin_port) :
+						ntohs(s11_mme_sockaddr.ipv6.sin6_port)));
 		}
 	}
 
@@ -8458,6 +10412,11 @@ process_change_noti_response(change_noti_rsp_t *change_not_rsp, gtpv2c_header_t 
 		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 	}
 
+	if(change_not_rsp->pres_rptng_area_act.header.len){
+		store_presc_reporting_area_act_to_ue_context(&change_not_rsp->pres_rptng_area_act,
+																					context);
+	}
+
 	pdn = bearer->pdn;
 
 	set_gtpv2c_teid_header((gtpv2c_header_t *) &change_notification_rsp, GTP_CHANGE_NOTIFICATION_RSP,
@@ -8470,12 +10429,17 @@ process_change_noti_response(change_noti_rsp_t *change_not_rsp, gtpv2c_header_t 
 	set_ie_header(&change_notification_rsp.imsi.header, GTP_IE_IMSI, IE_INSTANCE_ZERO,
 			context->imsi_len);
 
-	s11_mme_sockaddr.sin_addr.s_addr =
-		context->s11_mme_gtpc_ipv4.s_addr;
+	ret = set_dest_address(context->s11_mme_gtpc_ip, &s11_mme_sockaddr);
+	if (ret < 0) {
+		clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+			"IP address", LOG_VALUE);
+	}
 
-	uint16_t msg_len = 0;
-	msg_len = encode_change_noti_rsp(&change_notification_rsp, (uint8_t *)gtpv2c_tx);
-	gtpv2c_tx->gtpc.message_len = htons(msg_len - IE_HEADER_SIZE);
+	if(context->pra_flag){
+		set_presence_reporting_area_action_ie(&change_notification_rsp.pres_rptng_area_act, context);
+		context->pra_flag = 0;
+	}
+	encode_change_noti_rsp(&change_notification_rsp, (uint8_t *)gtpv2c_tx);
 
 	pdn->state =  CONNECTED_STATE;
 	pdn->proc = CHANGE_NOTIFICATION_PROC;
@@ -8514,16 +10478,18 @@ process_sgwc_delete_session_request(del_sess_req_t *del_req, ue_context *context
 	}
 
 	fill_pfcp_sess_mod_req_delete(&pfcp_sess_mod_req, pdn, pdn->eps_bearers,
-																MAX_BEARERS);
+			MAX_BEARERS);
 
 	uint8_t pfcp_msg[PFCP_MSG_LEN]={0};
 	int encoded = encode_pfcp_sess_mod_req_t(&pfcp_sess_mod_req, pfcp_msg);
-	pfcp_header_t *header = (pfcp_header_t *) pfcp_msg;
-	header->message_len = htons(encoded - PFCP_IE_HDR_SIZE);
 
 	/* UPF ip address  */
-	upf_pfcp_sockaddr.sin_addr.s_addr = pdn->upf_ipv4.s_addr;
-	if ( pfcp_send(pfcp_fd, pfcp_msg, encoded, &upf_pfcp_sockaddr, SENT) < 0 ){
+	ret = set_dest_address(pdn->upf_ip, &upf_pfcp_sockaddr);
+	if (ret < 0) {
+		clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+			"IP address", LOG_VALUE);
+	}
+	if ( pfcp_send(pfcp_fd, pfcp_fd_v6, pfcp_msg, encoded, upf_pfcp_sockaddr, SENT) < 0 ){
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Error in sending PFCP Session "
 			"Modification Request for Delete Session Request %i\n", LOG_VALUE, errno);
 	} else {
@@ -8615,13 +10581,15 @@ process_pfcp_sess_del_request(del_sess_req_t *ds_req, ue_context *context)
 	uint8_t pfcp_msg[PFCP_MSG_LEN]={0};
 
 	int encoded = encode_pfcp_sess_del_req_t(&pfcp_sess_del_req, pfcp_msg);
-	pfcp_header_t *header = (pfcp_header_t *) pfcp_msg;
-	header->message_len = htons(encoded - PFCP_IE_HDR_SIZE);
 
 	/* Fill the target UPF ip address  */
-	upf_pfcp_sockaddr.sin_addr.s_addr = pdn->upf_ipv4.s_addr;
+	ret = set_dest_address(pdn->upf_ip, &upf_pfcp_sockaddr);
+	if (ret < 0) {
+		clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+			"IP address", LOG_VALUE);
+	}
 
-	if ( pfcp_send(pfcp_fd, pfcp_msg, encoded, &upf_pfcp_sockaddr,SENT) < 0 ){
+	if ( pfcp_send(pfcp_fd, pfcp_fd_v6, pfcp_msg, encoded, upf_pfcp_sockaddr,SENT) < 0 ){
 		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Error sending pfcp session "
 			"deletion request : %i\n", LOG_VALUE, errno);
 		return -1;
@@ -8695,10 +10663,8 @@ process_pfcp_sess_del_request_delete_bearer_rsp(del_bearer_rsp_t *db_rsp)
 	uint8_t pfcp_msg[PFCP_MSG_LEN]={0};
 
 	int encoded = encode_pfcp_sess_del_req_t(&pfcp_sess_del_req, pfcp_msg);
-	pfcp_header_t *header = (pfcp_header_t *) pfcp_msg;
-	header->message_len = htons(encoded - PFCP_IE_HDR_SIZE);
 
-	if ( pfcp_send(pfcp_fd, pfcp_msg, encoded, &upf_pfcp_sockaddr,SENT) < 0 ){
+	if ( pfcp_send(pfcp_fd, pfcp_fd_v6, pfcp_msg, encoded, upf_pfcp_sockaddr,SENT) < 0 ){
 		clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT"Error sending Session "
 			"Modification Request %i\n", LOG_VALUE, errno);
 		return -1;
@@ -8722,13 +10688,16 @@ process_pfcp_sess_del_request_delete_bearer_rsp(del_bearer_rsp_t *db_rsp)
 			"for sess ID:%lu\n", LOG_VALUE, pdn->seid);
 		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 	}
-
 	resp->linked_eps_bearer_id = db_rsp->lbi.ebi_ebi;
 	resp->msg_type = GTP_DELETE_BEARER_RSP;
 	resp->state = PFCP_SESS_DEL_REQ_SNT_STATE;
 	resp->proc = pdn->proc;
 	resp->cp_mode = context->cp_mode;
 
+	if(resp->proc == HSS_INITIATED_SUB_QOS_MOD) {
+			pdn->proc = PDN_GW_INIT_BEARER_DEACTIVATION;
+			resp->proc = PDN_GW_INIT_BEARER_DEACTIVATION;
+	}
 	return 0;
 }
 
@@ -8768,9 +10737,9 @@ del_rule_entries(pdn_connection *pdn, int ebi_index )
 	pdr_t *pdr_ctx =  NULL;
 
 	/*Delete all pdr, far, qer entry from table */
-	if (pfcp_config.use_gx) {
+	if (config.use_gx) {
 		for(uint8_t itr = 0; itr < pdn->eps_bearers[ebi_index]->qer_count; itr++) {
-			if( del_qer_entry(pdn->eps_bearers[ebi_index]->qer_id[itr].qer_id) != 0 ){
+			if( del_qer_entry(pdn->eps_bearers[ebi_index]->qer_id[itr].qer_id, pdn->seid) != 0 ){
 				clLog(clSystemLog, eCLSeverityCritical,
 					LOG_FORMAT"Failure in deleting QER entry for ebi_index : %d, "
 					"Error : %s \n", LOG_VALUE, ebi_index, strerror(ret));
@@ -8785,7 +10754,7 @@ del_rule_entries(pdn_connection *pdn, int ebi_index )
 				LOG_FORMAT"No PDR entry found for ebi_index : %d, "
 				"Error : %s \n", LOG_VALUE, ebi_index, strerror(ret));
 		} else {
-			if( del_pdr_entry(pdr_ctx->rule_id) != 0 ){
+			if( del_pdr_entry(pdr_ctx->rule_id,  pdn->seid) != 0 ){
 				clLog(clSystemLog, eCLSeverityCritical,
 					LOG_FORMAT"Failure in deleting PDR entry for ebi_index : %d, "
 					"Error : %s \n", LOG_VALUE, ebi_index, strerror(ret));
@@ -8797,41 +10766,519 @@ del_rule_entries(pdn_connection *pdn, int ebi_index )
 	return 0;
 }
 
-#ifdef USE_CSID
-int8_t
-cleanup_session_entries(uint16_t local_csid, ue_context *context)
+
+int
+process_pfcp_sess_del_resp_indirect_tunnel(uint64_t sess_id, gtpv2c_header_t *gtpv2c_tx,
+		uint64_t *uiImsi, int *li_sock_fd)
 {
 	int ret = 0;
+	uint8_t ebi_index = 0;
+	uint16_t msg_len = 0;
+	ue_context *context = NULL;
+	struct resp_info *resp = NULL;
+	del_indir_data_fwdng_tunn_resp_t dlt_indr_tun_resp = {0};
+
+	uint32_t teid = UE_SESS_ID(sess_id);
+
+	RTE_SET_USED(ebi_index);
+	RTE_SET_USED(li_sock_fd);
+
+	pdn_connection *pdn =  NULL;
+
+	if (get_sess_entry(sess_id, &resp) != 0){
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT
+				"NO response Entry Found for sess ID:%lu\n", LOG_VALUE, sess_id);
+		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+	}
+
+	/* Update the session state */
+	resp->state = PFCP_SESS_DEL_RESP_RCVD_STATE;
+
+	/* Retrieve the UE context */
+	ret = get_ue_context(teid, &context);
+	if (ret < 0) {
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT
+				"Context Not found for teid: %u\n", LOG_VALUE, teid);
+		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+	}
+
+	/* Set IMSI for lawful interception */
+	*uiImsi = context->imsi;
+
+	ebi_index = context->indirect_tunnel->eps_bearer_id - NUM_EBI_RESERVED;
+	pdn = context->indirect_tunnel->pdn;
+
+	/* Update the UE state */
+	pdn->state = PFCP_SESS_DEL_RESP_RCVD_STATE;
+
+	/* Fill gtpv2c structure for sending on s11 interface */
+	set_gtpv2c_teid_header((gtpv2c_header_t *) &dlt_indr_tun_resp,
+			GTP_DELETE_INDIRECT_DATA_FORWARDING_TUNNEL_RSP,
+			context->s11_mme_gtpc_teid,
+			context->sequence, 0);
+
+	set_cause_accepted(&dlt_indr_tun_resp.cause, IE_INSTANCE_ZERO);
+
+	/*Encode the S11 delete session response message. */
+	msg_len = encode_del_indir_data_fwdng_tunn_rsp(&dlt_indr_tun_resp,
+			(uint8_t *)gtpv2c_tx);
+
+	gtpv2c_tx->gtpc.message_len = htons(msg_len - IE_HEADER_SIZE);
+
+	ret = set_dest_address(context->s11_mme_gtpc_ip, &s11_mme_sockaddr);
+	if (ret < 0) {
+		clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+			"IP address", LOG_VALUE);
+	}
+
+	clLog(clSystemLog, eCLSeverityDebug, "Msg Sent to "LOG_FORMAT
+			"IP Address :%s\n", LOG_VALUE,
+			inet_ntoa(*((struct in_addr *)&s11_mme_sockaddr.ipv4.sin_addr.s_addr)));
+
+
+	/* Delete entry from session entry */
+	if (del_sess_entry(sess_id) != 0){
+
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT
+				"NO Session Entry Found for Key sess ID:%lu\n",
+				LOG_VALUE, sess_id);
+
+		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+	}
+
+	/* hash created for indirect tunnel*/
+	if(rte_hash_del_key(ue_context_by_sender_teid_hash,
+				(const void *) &(context)->s11_sgw_gtpc_teid) <0 ) {
+
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT
+				"Error on ue_context_by_fteid_hash del\n", LOG_VALUE);
+
+		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+
+	}
+
+	uint8_t if_anchor_gateway = false;
+	if_anchor_gateway = context->indirect_tunnel->anchor_gateway_flag;
+	for(uint8_t i = 0;i <MAX_BEARERS; i++)
+	{
+		if((context->indirect_tunnel->pdn->eps_bearers[i]) != NULL) {
+				rte_free(context->indirect_tunnel->pdn->eps_bearers[i]);
+		}
+	}
+
+	if(if_anchor_gateway == false)
+	{
+		rte_free(context->indirect_tunnel->pdn);
+		free(context->indirect_tunnel);
+		context->indirect_tunnel->pdn = NULL;
+		context->indirect_tunnel = NULL;
+	}
+
+	if(context->indirect_tunnel_flag == CANCEL_S1_HO_INDICATION)
+	{
+		delete_sess_context(&context, context->pdns[ebi_index]);
+	}
+
+	/*ANCHOR GAETWAY*/
+	if(if_anchor_gateway ==  true) {
+
+		rte_free(context->indirect_tunnel->pdn->apn_in_use);
+		context->indirect_tunnel->pdn->apn_in_use = NULL;
+		if (context->indirect_tunnel->pdn != NULL) {
+			rte_free(context->indirect_tunnel->pdn);
+			context->indirect_tunnel->pdn = NULL;
+		}
+
+		if(context->num_pdns == 0) {
+
+			/* hash created in while creating ue_context */
+			if(rte_hash_del_key(ue_context_by_fteid_hash,
+						&context->s11_sgw_gtpc_teid) < 0) {
+
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT
+						"Error on ue_context_by_fteid_hash del\n", LOG_VALUE);
+				return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+			}
+
+			/* Delete UE context entry from UE Hash */
+			if (rte_hash_del_key(ue_context_by_imsi_hash, &context->imsi) < 0){
+
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT
+						"Error on ue_context_by_fteid_hash del\n", LOG_VALUE);
+				return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+
+			}
+
+			free(context->indirect_tunnel);
+			context->indirect_tunnel = NULL;
+
+			if (context != NULL) {
+				rte_free(context);
+				context = NULL;
+			}
+
+		}
+	}
+
+	return 0;
+}
+
+
+int
+process_del_indirect_tunnel_request(del_indir_data_fwdng_tunn_req_t *del_indir_req)
+{
+	ue_context *context = NULL;
+	pdn_connection *pdn = NULL;
+	struct resp_info *resp = NULL;
+	pfcp_sess_del_req_t pfcp_sess_del_req = {0};
+	int ret = 0;
+
+	ret = rte_hash_lookup_data(ue_context_by_sender_teid_hash,
+			(const void *) &del_indir_req->header.teid.has_teid.teid,
+			(void **) &context);
+
+	if (ret < 0 || !context){
+
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT
+				"UE Context Not Found\n", LOG_VALUE);
+		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+
+	}
+
+	pdn = context->indirect_tunnel->pdn;
+	pdn->state = PFCP_SESS_DEL_REQ_SNT_STATE;
+	fill_pfcp_sess_del_req(&pfcp_sess_del_req, context->cp_mode);
+	pfcp_sess_del_req.header.seid_seqno.has_seid.seid = context->indirect_tunnel->pdn->dp_seid;
+	context->sequence = del_indir_req->header.teid.has_teid.seq;
+
+	uint8_t pfcp_msg[PFCP_MSG_LEN] = {0};
+
+	int encoded = encode_pfcp_sess_del_req_t(&pfcp_sess_del_req, pfcp_msg);
+	pfcp_header_t *header = (pfcp_header_t *) pfcp_msg;
+	header->message_len = htons(encoded - 4);
+
+	if ( pfcp_send(pfcp_fd, pfcp_fd_v6, pfcp_msg, encoded, upf_pfcp_sockaddr,SENT) < 0 ){
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Error sending: %i\n",
+				LOG_VALUE, errno);
+		return -1;
+	} else  {
+
+		add_pfcp_if_timer_entry(context->s11_sgw_gtpc_teid,
+				&upf_pfcp_sockaddr, pfcp_msg, encoded, 0);
+	}
+
+	if (get_sess_entry(context->indirect_tunnel->pdn->seid, &resp) != 0){
+
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"NO response Entry "
+			"Found for sess ID : %lu\n", LOG_VALUE, context->indirect_tunnel->pdn->seid);
+		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+
+	}
+
+	pdn->state = PFCP_SESS_DEL_REQ_SNT_STATE;
+	resp->gtpc_msg.dlt_indr_tun_req = *del_indir_req;
+	resp->msg_type = GTP_DELETE_INDIRECT_DATA_FORWARDING_TUNNEL_REQ;
+	resp->state = PFCP_SESS_DEL_REQ_SNT_STATE;
+	resp->proc = DELETE_INDIRECT_TUNNEL_PROC;
+	resp->cp_mode = context->cp_mode;
+
+	return 0;
+}
+
+int
+process_create_indir_data_frwd_tun_request(create_indir_data_fwdng_tunn_req_t
+		*create_indir_req, ue_context **_context)
+{
+
+	ue_context *context = NULL;
+	eps_bearer *bearer = NULL;
+	pdn_connection *pdn = NULL;
+	int ebi_index = 0;
+	uint8_t check_if_ue_hash_exist = 0;
+	int  ret = 0;
+	uint8_t pdn_type = 0;
+
+	/* CP mode will change to SGWC if it was not set to SGWC */
+	uint8_t cp_mode = SGWC;
+
+	ret = rte_hash_lookup_data(ue_context_by_fteid_hash,
+			&create_indir_req->header.teid.has_teid.teid,
+			(void **) &context);
+
+	if(ret < 0) {
+
+		for( uint8_t i = 0; i < create_indir_req->bearer_count; i++) {
+
+			ebi_index = GET_EBI_INDEX(create_indir_req->bearer_contexts[i].eps_bearer_id.ebi_ebi);
+			if (ebi_index == -1) {
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Invalid EBI ID\n",
+						LOG_VALUE);
+				return GTPV2C_CAUSE_SYSTEM_FAILURE;
+			}
+
+			if((create_indir_req->bearer_contexts[i].enb_fteid_dl_data_fwdng.v4 == 1) &&
+					(create_indir_req->bearer_contexts[i].enb_fteid_dl_data_fwdng.v6 == 1)){
+				pdn_type = PDN_TYPE_IPV4_IPV6;
+
+			} else if(create_indir_req->bearer_contexts[i].enb_fteid_dl_data_fwdng.v4 == 1) {
+				pdn_type = PDN_TYPE_IPV4;
+
+			} else if (create_indir_req->bearer_contexts[i].enb_fteid_dl_data_fwdng.v6 == 1) {
+				pdn_type = PDN_TYPE_IPV6;
+			} else {
+
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Invalid PDN TYPE(IPv4/IPV6) in Bearer Context"
+						"of Create Indirect Tuneel Request\n", LOG_VALUE);
+			}
+
+			ret = create_ue_context(&create_indir_req->imsi.imsi_number_digits,
+					create_indir_req->imsi.header.len,
+					create_indir_req->bearer_contexts[i].eps_bearer_id.ebi_ebi, &context, NULL,
+					create_indir_req->header.teid.has_teid.seq, &check_if_ue_hash_exist, cp_mode);
+		}
+
+		if (ret)
+			return ret;
+
+		context->cp_mode = config.cp_type;
+		context->bearer_count  = create_indir_req->bearer_count;
+		context->indirect_tunnel = (struct indirect_tunnel_t *) malloc(sizeof(struct indirect_tunnel_t));
+		if(context->indirect_tunnel == NULL) {
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT
+					"Error to allocate memory for Indirect Tunnel: %s\n",
+					LOG_VALUE, rte_strerror(rte_errno));
+			return GTPV2C_CAUSE_SYSTEM_FAILURE;
+		}
+
+		context->indirect_tunnel->anchor_gateway_flag = true;
+
+
+		//char str[] = "ngic_rtc_apn";
+		//apn *apn_requested = get_apn(str, strlen(str));
+		apn *apn_requested = set_default_apn();
+
+		context->indirect_tunnel->pdn =  context->eps_bearers[ebi_index]->pdn;
+
+		/*DNS will not be used. UP IP will be picked up set in the cp.cfg file*/
+		fill_ip_addr(config.upf_pfcp_ip.s_addr, config.upf_pfcp_ip_v6.s6_addr,
+				&context->indirect_tunnel->pdn->upf_ip);
+
+		context->eps_bearers[ebi_index]->pdn->apn_in_use = apn_requested;
+		context->indirect_tunnel->pdn->context =  context;
+		context->indirect_tunnel->pdn->dp_seid = 0;
+		context->indirect_tunnel->pdn->generate_cdr = config.generate_sgw_cdr;
+
+		if(PDN_TYPE_IPV4_IPV6 == pdn_type){
+			context->indirect_tunnel->pdn->pdn_type.ipv4 = 1;
+			context->indirect_tunnel->pdn->pdn_type.ipv6 = 1;
+		}else if(PDN_TYPE_IPV4 == pdn_type){
+			context->indirect_tunnel->pdn->pdn_type.ipv4 = 1;
+		}else {
+			context->indirect_tunnel->pdn->pdn_type.ipv6 = 1;
+		}
+
+		context->sequence = create_indir_req->header.teid.has_teid.seq;
+		context->indirect_tunnel->pdn->seid  =  SESS_ID(context->s11_sgw_gtpc_teid,
+				context->eps_bearers[ebi_index]->eps_bearer_id);
+
+		uint8_t tmp_bearer_count = 0;
+		for( uint8_t i = 0; i < MAX_BEARERS; i++) {
+
+			if (context->eps_bearers[i] == NULL)
+				continue;
+
+			context->indirect_tunnel->pdn->eps_bearers[i] = context->eps_bearers[i];
+			fill_ip_addr(create_indir_req->bearer_contexts[tmp_bearer_count].enb_fteid_dl_data_fwdng.ipv4_address,
+					create_indir_req->bearer_contexts[tmp_bearer_count].enb_fteid_dl_data_fwdng.ipv6_address,
+					&context->indirect_tunnel->pdn->eps_bearers[i]->s1u_enb_gtpu_ip);
+
+			context->indirect_tunnel->pdn->eps_bearers[i]->s1u_enb_gtpu_teid =
+					create_indir_req->bearer_contexts[tmp_bearer_count].enb_fteid_dl_data_fwdng.teid_gre_key;
+
+			tmp_bearer_count++;
+		}
+
+		if ((context->cp_mode == SGWC) || (context->cp_mode == SAEGWC)) {
+
+			fill_ip_addr(config.s11_ip.s_addr, config.s11_ip_v6.s6_addr,
+				&context->s11_sgw_gtpc_ip);
+
+			context->s11_mme_gtpc_teid = create_indir_req->sender_fteid_ctl_plane.teid_gre_key;
+
+			fill_ip_addr(create_indir_req->sender_fteid_ctl_plane.ipv4_address,
+				create_indir_req->sender_fteid_ctl_plane.ipv6_address,
+				&context->s11_mme_gtpc_ip);
+		}
+
+	} else {
+
+		pdn = rte_zmalloc_socket(NULL, sizeof(struct pdn_connection_t),
+				RTE_CACHE_LINE_SIZE, rte_socket_id());
+
+		if (pdn == NULL) {
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT
+					"Failure to allocate PDN structure: %s\n",
+					LOG_VALUE, rte_strerror(rte_errno));
+
+			return GTPV2C_CAUSE_SYSTEM_FAILURE;
+		}
+
+		eps_bearer *default_bearer = NULL;
+		for(int i = 0; i <MAX_BEARERS; i++) {
+			default_bearer = context->eps_bearers[i];
+			if(default_bearer == NULL)
+				continue;
+			else
+				break;
+		}
+
+		pdn_connection *default_bearer_pdn = default_bearer->pdn;
+		ret = set_address(&pdn->upf_ip, &default_bearer_pdn->upf_ip);
+		if (ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+				"IP address", LOG_VALUE);
+		}
+
+		context->indirect_tunnel = (struct indirect_tunnel_t *) malloc(sizeof(struct indirect_tunnel_t));
+		if(context->indirect_tunnel  == NULL) {
+
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT
+					"Fail to allocate memory for Indirect Tunnel: %s\n",
+					LOG_VALUE, rte_strerror(rte_errno));
+			return GTPV2C_CAUSE_SYSTEM_FAILURE;
+
+		}
+
+		context->indirect_tunnel->pdn = pdn;
+		context->sequence = create_indir_req->header.teid.has_teid.seq;
+
+		for (uint8_t i = 0; i < create_indir_req->bearer_count; i++) {
+
+			ebi_index = GET_EBI_INDEX(create_indir_req->bearer_contexts[i].eps_bearer_id.ebi_ebi);
+			if (ebi_index == -1) {
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Invalid EBI ID\n", LOG_VALUE);
+				return GTPV2C_CAUSE_SYSTEM_FAILURE;
+			}
+
+			if((create_indir_req->bearer_contexts[i].enb_fteid_dl_data_fwdng.v4 == 1) &&
+					(create_indir_req->bearer_contexts[i].enb_fteid_dl_data_fwdng.v6 == 1)){
+				pdn_type = PDN_TYPE_IPV4_IPV6;
+
+			} else if(create_indir_req->bearer_contexts[i].enb_fteid_dl_data_fwdng.v4 == 1) {
+				pdn_type = PDN_TYPE_IPV4;
+
+			} else if (create_indir_req->bearer_contexts[i].enb_fteid_dl_data_fwdng.v6 == 1) {
+				pdn_type = PDN_TYPE_IPV6;
+			} else {
+
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Invalid PDN TYPE(IPv4/IPV6) in Bearer Context"
+						"of Create Indirect Tuneel Request\n", LOG_VALUE);
+			}
+
+
+			bearer = rte_zmalloc_socket(NULL, sizeof(eps_bearer),
+					RTE_CACHE_LINE_SIZE, rte_socket_id());
+			if (bearer == NULL) {
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT
+						"Failure to allocate Bearer structure: %s\n",
+						LOG_VALUE, rte_strerror(rte_errno));
+
+				rte_free(pdn);
+				pdn = NULL;
+				return GTPV2C_CAUSE_SYSTEM_FAILURE;
+			}
+
+			pdn->context = context;
+			bearer->pdn = pdn;
+			bearer->eps_bearer_id = create_indir_req->bearer_contexts[i].eps_bearer_id.ebi_ebi;
+			pdn->num_bearer++;
+			context->indirect_tunnel->pdn->eps_bearers[ebi_index] = bearer;
+			pdn->eps_bearers[ebi_index] = bearer;
+			pdn->seid =  SESS_ID(context->s11_sgw_gtpc_teid, bearer->eps_bearer_id);
+			pdn->dp_seid = 0;
+			pdn->apn_in_use = default_bearer_pdn->apn_in_use;
+
+			if(PDN_TYPE_IPV4_IPV6 == pdn_type){
+				context->indirect_tunnel->pdn->pdn_type.ipv4 = 1;
+				context->indirect_tunnel->pdn->pdn_type.ipv6 = 1;
+			}else if(PDN_TYPE_IPV4 == pdn_type){
+				context->indirect_tunnel->pdn->pdn_type.ipv4 = 1;
+			}else {
+				context->indirect_tunnel->pdn->pdn_type.ipv6 = 1;
+			}
+
+			if (i == 0)
+				pdn->default_bearer_id = create_indir_req->bearer_contexts[i].eps_bearer_id.ebi_ebi;
+
+			fill_ip_addr(create_indir_req->bearer_contexts[i].enb_fteid_dl_data_fwdng.ipv4_address,
+					create_indir_req->bearer_contexts[i].enb_fteid_dl_data_fwdng.ipv6_address,
+					&bearer->s1u_enb_gtpu_ip);
+
+			bearer->s1u_enb_gtpu_teid =
+				create_indir_req->bearer_contexts[i].enb_fteid_dl_data_fwdng.teid_gre_key;
+		}
+		context->num_pdns++;
+	}
+
+	ue_context **_cntxt = &context;
+	ret = rte_hash_add_key_data(ue_context_by_sender_teid_hash,
+			         (const void *) &(*_cntxt)->s11_sgw_gtpc_teid,
+					          (void *) (*_cntxt));
+	if (ret < 0) {
+
+		clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT
+				"Error on ue_context_by_sender_teid_hash add:%s\n",
+				LOG_VALUE, rte_strerror(rte_errno));
+		return -1;
+	}
+
+	context->eps_bearers[ebi_index]->pdn->proc = CREATE_INDIRECT_TUNNEL_PROC;
+	context->indirect_tunnel_flag = 1;
+	*_context = context;
+
+	return 0;
+}
+
+
+#ifdef USE_CSID
+int8_t
+cleanup_session_entries(uint16_t local_csid, pdn_connection *pdn)
+{
+	int ret = 0;
+	ue_context *context = NULL;
+
+	context = pdn->context;
 	/* Clean MME FQ-CSID */
 	if (context->mme_fqcsid != NULL) {
 		if ((context->mme_fqcsid)->num_csid) {
 			csid_t *csid = NULL;
 			csid_key_t key_t = {0};
-			key_t.local_csid = (context->mme_fqcsid)->local_csid[(context->mme_fqcsid)->num_csid - 1];
-			key_t.node_addr = (context->mme_fqcsid)->node_addr;
-
+			key_t.local_csid =
+				pdn->mme_csid.local_csid[pdn->mme_csid.num_csid - 1];
+			memcpy(&key_t.node_addr,
+					&pdn->mme_csid.node_addr, sizeof(node_address_t));
 			if (context->cp_mode != PGWC)
-				csid = get_peer_csid_entry(&key_t, S11_SGW_PORT_ID);
+				csid = get_peer_csid_entry(&key_t, S11_SGW_PORT_ID, REMOVE_NODE);
 			else
-				csid = get_peer_csid_entry(&key_t, S5S8_PGWC_PORT_ID);
+				csid = get_peer_csid_entry(&key_t, S5S8_PGWC_PORT_ID, REMOVE_NODE);
 
 			if (csid == NULL) {
 				clLog(clSystemLog, eCLSeverityCritical,
-					LOG_FORMAT"MME CSID found null while clean up process "
-					"for session entries %s \n", LOG_VALUE, strerror(errno));
+						LOG_FORMAT"MME CSID found null while clean up process "
+						"for session entries %s \n", LOG_VALUE, strerror(errno));
 				return -1;
 			}
 
 			for (uint8_t itr1 = 0; itr1 < csid->num_csid; itr1++) {
 				if (csid->local_csid[itr1] == local_csid) {
-					for(uint8_t pos = itr1; pos < (csid->num_csid - 1); pos++ ) {
+					for(uint8_t pos = itr1; pos < (csid->num_csid); pos++ ) {
 						csid->local_csid[pos] = csid->local_csid[pos + 1];
 					}
 					csid->num_csid--;
 				}
 			}
 
-			if (!csid->num_csid) {
+			if (csid->num_csid == 0) {
 				if (context->cp_mode != PGWC)
 					ret = del_peer_csid_entry(&key_t, S11_SGW_PORT_ID);
 				else
@@ -8843,23 +11290,57 @@ cleanup_session_entries(uint16_t local_csid, ue_context *context)
 					return -1;
 				}
 			}
+
+			fqcsid_t *tmp = NULL;
+			tmp = get_peer_addr_csids_entry(&pdn->mme_csid.node_addr, UPDATE_NODE);
+			if (tmp != NULL) {
+				for (uint8_t itr3 = 0; itr3 < tmp->num_csid; itr3++) {
+					if (tmp->local_csid[itr3] ==
+						pdn->mme_csid.local_csid[(pdn->mme_csid.num_csid - 1)]) {
+						for(uint8_t pos = itr3; pos < (tmp->num_csid - 1); pos++ ) {
+							tmp->local_csid[pos] = tmp->local_csid[pos + 1];
+						}
+						tmp->num_csid--;
+					}
+				}
+
+				if (!tmp->num_csid) {
+					if (del_peer_addr_csids_entry(&pdn->mme_csid.node_addr)) {
+						clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Error in deleting "
+								"peer CSID entry, Error : %i\n", LOG_VALUE, errno);
+						/* TODO ERROR HANDLING */
+						return -1;
+					}
+				}
+			}
+
+			remove_csid_from_cntx(context->mme_fqcsid, &pdn->mme_csid);
+
+			if ((context->mme_fqcsid)->num_csid == 0)
+			{
+				if (context->mme_fqcsid != NULL) {
+					rte_free(context->mme_fqcsid);
+					context->mme_fqcsid = NULL;
+				}
+
+			}
 		}
-		if (context->mme_fqcsid != NULL)
-			rte_free(context->mme_fqcsid);
 	}
 
 	/* Clean SGW FQ-CSID */
-	if (context->sgw_fqcsid != NULL) {
+	if ((context->cp_mode == PGWC) && (context->sgw_fqcsid != NULL)) {
 		if ((context->sgw_fqcsid)->num_csid) {
 			csid_t *csid = NULL;
 			csid_key_t key_t = {0};
-			key_t.local_csid = (context->sgw_fqcsid)->local_csid[(context->sgw_fqcsid)->num_csid - 1];
-			key_t.node_addr = (context->sgw_fqcsid)->node_addr;
+			key_t.local_csid =
+				(pdn->sgw_csid).local_csid[(pdn->sgw_csid).num_csid - 1];
+			memcpy(&key_t.node_addr,
+					&(pdn->sgw_csid).node_addr, sizeof(node_address_t));
 
 			if (context->cp_mode != PGWC)
-				csid = get_peer_csid_entry(&key_t, S11_SGW_PORT_ID);
+				csid = get_peer_csid_entry(&key_t, S11_SGW_PORT_ID, REMOVE_NODE);
 			else
-				csid = get_peer_csid_entry(&key_t, S5S8_PGWC_PORT_ID);
+				csid = get_peer_csid_entry(&key_t, S5S8_PGWC_PORT_ID, REMOVE_NODE);
 			if (csid == NULL) {
 				clLog(clSystemLog, eCLSeverityCritical,
 					LOG_FORMAT"SGW CSID found null while clean up process "
@@ -8876,7 +11357,7 @@ cleanup_session_entries(uint16_t local_csid, ue_context *context)
 				}
 			}
 
-			if (!csid->num_csid) {
+			if (csid->num_csid == 0) {
 				if (context->cp_mode != PGWC)
 					ret = del_peer_csid_entry(&key_t, S11_SGW_PORT_ID);
 				else
@@ -8888,24 +11369,56 @@ cleanup_session_entries(uint16_t local_csid, ue_context *context)
 					return -1;
 				}
 			}
+
+			fqcsid_t *tmp = NULL;
+			tmp = get_peer_addr_csids_entry(&pdn->sgw_csid.node_addr, UPDATE_NODE);
+			if (tmp != NULL) {
+				for (uint8_t itr3 = 0; itr3 < tmp->num_csid; itr3++) {
+					if (tmp->local_csid[itr3] == pdn->sgw_csid.local_csid[pdn->sgw_csid.num_csid - 1]) {
+						for(uint8_t pos = itr3; pos < (tmp->num_csid - 1); pos++ ) {
+							tmp->local_csid[pos] = tmp->local_csid[pos + 1];
+						}
+						tmp->num_csid--;
+					}
+				}
+
+				if (!tmp->num_csid) {
+					if (del_peer_addr_csids_entry(&pdn->sgw_csid.node_addr)) {
+						clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Error in deleting "
+								"peer CSID entry, Error : %i\n", LOG_VALUE, errno);
+						/* TODO ERROR HANDLING */
+						return -1;
+					}
+				}
+			}
+
+			remove_csid_from_cntx(context->sgw_fqcsid, &pdn->sgw_csid);
+
+			if ((context->sgw_fqcsid)->num_csid == 0)
+			{
+				if (context->sgw_fqcsid != NULL) {
+					rte_free(context->sgw_fqcsid);
+					context->sgw_fqcsid = NULL;
+				}
+			}
 		}
-		if (context->sgw_fqcsid != NULL)
-			rte_free(context->sgw_fqcsid);
 	}
 
-	if (context->cp_mode != SAEGWC) {
+	if (context->cp_mode == SGWC) {
 		/* Clean PGW FQ-CSID */
 		if (context->pgw_fqcsid != NULL) {
 			if ((context->pgw_fqcsid)->num_csid) {
 				csid_t *csid = NULL;
 				csid_key_t key_t = {0};
-				key_t.local_csid = (context->pgw_fqcsid)->local_csid[(context->pgw_fqcsid)->num_csid - 1];
-				key_t.node_addr = (context->pgw_fqcsid)->node_addr;
+				key_t.local_csid = (
+						pdn->pgw_csid).local_csid[(pdn->pgw_csid).num_csid - 1];
+				memcpy(&key_t.node_addr,
+						&(pdn->pgw_csid).node_addr, sizeof(node_address_t));
 
 				if (context->cp_mode != PGWC)
-					csid = get_peer_csid_entry(&key_t, S5S8_SGWC_PORT_ID);
+					csid = get_peer_csid_entry(&key_t, S5S8_SGWC_PORT_ID, REMOVE_NODE);
 				else
-					csid = get_peer_csid_entry(&key_t, S5S8_PGWC_PORT_ID);
+					csid = get_peer_csid_entry(&key_t, S5S8_PGWC_PORT_ID, REMOVE_NODE);
 				if (csid == NULL) {
 					clLog(clSystemLog, eCLSeverityCritical,
 						LOG_FORMAT"PGW CSID found null while clean up process "
@@ -8922,7 +11435,7 @@ cleanup_session_entries(uint16_t local_csid, ue_context *context)
 					}
 				}
 
-				if (!csid->num_csid) {
+				if (csid->num_csid == 0) {
 					if (context->cp_mode != PGWC)
 						ret = del_peer_csid_entry(&key_t, S5S8_SGWC_PORT_ID);
 					else
@@ -8934,9 +11447,39 @@ cleanup_session_entries(uint16_t local_csid, ue_context *context)
 						return -1;
 					}
 				}
+
+				fqcsid_t *tmp = NULL;
+				tmp = get_peer_addr_csids_entry(&pdn->pgw_csid.node_addr, UPDATE_NODE);
+				if (tmp != NULL) {
+					for (uint8_t itr3 = 0; itr3 < tmp->num_csid; itr3++) {
+						if (tmp->local_csid[itr3] == pdn->pgw_csid.local_csid[pdn->pgw_csid.num_csid - 1]) {
+							for(uint8_t pos = itr3; pos < (tmp->num_csid - 1); pos++ ) {
+								tmp->local_csid[pos] = tmp->local_csid[pos + 1];
+							}
+							tmp->num_csid--;
+						}
+					}
+
+					if (!tmp->num_csid) {
+						if (del_peer_addr_csids_entry(&pdn->pgw_csid.node_addr)) {
+							clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Error in deleting "
+									"peer CSID entry, Error : %i\n", LOG_VALUE, errno);
+							/* TODO ERROR HANDLING */
+							return -1;
+						}
+					}
+				}
+
+				remove_csid_from_cntx(context->pgw_fqcsid, &pdn->pgw_csid);
+
+				if ((context->pgw_fqcsid)->num_csid == 0)
+				{
+					if (context->pgw_fqcsid != NULL) {
+						rte_free(context->pgw_fqcsid);
+						context->pgw_fqcsid = NULL;
+					}
+				}
 			}
-			if (context->pgw_fqcsid != NULL)
-				rte_free(context->pgw_fqcsid);
 		}
 	}
 
@@ -8945,10 +11488,12 @@ cleanup_session_entries(uint16_t local_csid, ue_context *context)
 		if ((context->up_fqcsid)->num_csid) {
 			csid_t *csid = NULL;
 			csid_key_t key_t = {0};
-			key_t.local_csid = (context->up_fqcsid)->local_csid[(context->up_fqcsid)->num_csid - 1];
-			key_t.node_addr = (context->up_fqcsid)->node_addr;
+			key_t.local_csid =
+				(pdn->up_csid).local_csid[(pdn->up_csid).num_csid - 1];
+			memcpy(&key_t.node_addr,
+					&(pdn->up_csid).node_addr, sizeof(node_address_t));
 
-			csid = get_peer_csid_entry(&key_t, SX_PORT_ID);
+			csid = get_peer_csid_entry(&key_t, SX_PORT_ID, REMOVE_NODE);
 			if (csid == NULL) {
 				clLog(clSystemLog, eCLSeverityCritical,
 					LOG_FORMAT"UP CSID found null while clean up process "
@@ -8965,7 +11510,7 @@ cleanup_session_entries(uint16_t local_csid, ue_context *context)
 				}
 			}
 
-			if (!csid->num_csid) {
+			if (csid->num_csid == 0) {
 				ret = del_peer_csid_entry(&key_t, SX_PORT_ID);
 				if (ret) {
 					clLog(clSystemLog, eCLSeverityCritical,
@@ -8973,10 +11518,124 @@ cleanup_session_entries(uint16_t local_csid, ue_context *context)
 						strerror(errno));
 				}
 			}
+
+			fqcsid_t *tmp = NULL;
+			tmp = get_peer_addr_csids_entry(&pdn->up_csid.node_addr, UPDATE_NODE);
+			if (tmp != NULL) {
+				for (uint8_t itr3 = 0; itr3 < tmp->num_csid; itr3++) {
+					if (tmp->local_csid[itr3] == pdn->up_csid.local_csid[pdn->up_csid.num_csid - 1]) {
+						for(uint8_t pos = itr3; pos < (tmp->num_csid - 1); pos++ ) {
+							tmp->local_csid[pos] = tmp->local_csid[pos + 1];
+						}
+						tmp->num_csid--;
+					}
+				}
+
+				if (!tmp->num_csid) {
+					if (del_peer_addr_csids_entry(&pdn->up_csid.node_addr)) {
+						clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Error in deleting "
+								"peer CSID entry, Error : %i\n", LOG_VALUE, errno);
+						/* TODO ERROR HANDLING */
+						return -1;
+					}
+				}
+			}
+
+			remove_csid_from_cntx(context->up_fqcsid, &pdn->up_csid);
+
+			if ((context->up_fqcsid)->num_csid == 0)
+			{
+				if (context->up_fqcsid != NULL) {
+					rte_free(context->up_fqcsid);
+					context->up_fqcsid = NULL;
+				}
+			}
 		}
-		if (context->up_fqcsid != NULL)
-			rte_free(context->up_fqcsid);
 	}
+	return 0;
+}
+
+int
+remove_sess_entry(sess_csid *head, uint64_t seid, peer_csid_key_t *key) {
+
+	int ret = 0;
+
+	if (head == NULL) {
+		/* Delete Local CSID entry */
+		del_sess_peer_csid_entry(key);
+		return -1;
+	}
+
+	/* Remove node from csid linked list */
+	head = remove_sess_csid_data_node(head, seid);
+
+	/* Update CSID Entry in table */
+	ret = rte_hash_add_key_data(seid_by_peer_csid_hash,
+			key, head);
+	if (ret) {
+		clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Failed to add Session IDs entry"
+				" for CSID = %u \n", LOG_VALUE, key->peer_local_csid);
+		return GTPV2C_CAUSE_SYSTEM_FAILURE;
+	}
+	if (head == NULL) {
+		/* Delete Local CSID entry */
+		del_sess_peer_csid_entry(key);
+	}
+	return 0;
+}
+
+int
+del_session_csid_entry(pdn_connection *pdn) {
+
+	uint8_t num_csid = 0;
+	sess_csid *tmp1 = NULL;
+	peer_csid_key_t key = {0};
+	ue_context *context = NULL;
+
+	context = pdn->context;
+
+	if (pdn->mme_csid.num_csid) {
+		/* Remove the session link from MME CSID */
+		key.iface = ((context->cp_mode != PGWC) ?
+					S11_SGW_PORT_ID : S5S8_PGWC_PORT_ID);
+		key.peer_local_csid = pdn->mme_csid.local_csid[num_csid];
+		memcpy(&key.peer_node_addr,
+				&pdn->mme_csid.node_addr, sizeof(node_address_t));
+
+		tmp1 = get_sess_peer_csid_entry(&key, REMOVE_NODE);
+		remove_sess_entry(tmp1, pdn->seid, &key);
+	}
+
+	if (pdn->up_csid.num_csid) {
+		/* Remove the session link from UP CSID */
+		key.iface = SX_PORT_ID;
+		key.peer_local_csid = pdn->up_csid.local_csid[num_csid];
+		memcpy(&key.peer_node_addr,
+				&pdn->up_csid.node_addr, sizeof(node_address_t));
+		tmp1 = get_sess_peer_csid_entry(&key, REMOVE_NODE);
+		remove_sess_entry(tmp1, pdn->seid, &key);
+	}
+
+	if ((pdn->pgw_csid.num_csid) && (context->cp_mode == SGWC)) {
+		/* Remove the session link from UP CSID */
+		key.iface = S5S8_SGWC_PORT_ID;
+		key.peer_local_csid = pdn->pgw_csid.local_csid[num_csid];
+		memcpy(&key.peer_node_addr,
+				&pdn->pgw_csid.node_addr, sizeof(node_address_t));
+		tmp1 = get_sess_peer_csid_entry(&key, REMOVE_NODE);
+		remove_sess_entry(tmp1, pdn->seid, &key);
+	}
+	if ((pdn->sgw_csid.num_csid) && (context->cp_mode == PGWC)) {
+		/* Remove the session link from UP CSID */
+		key.iface = S5S8_PGWC_PORT_ID;
+		key.peer_local_csid = pdn->sgw_csid.local_csid[num_csid];
+		memcpy(&key.peer_node_addr,
+				&pdn->sgw_csid.node_addr, sizeof(node_address_t));
+		tmp1 = get_sess_peer_csid_entry(&key, REMOVE_NODE);
+		remove_sess_entry(tmp1, pdn->seid, &key);
+	}
+
 	return 0;
 }
 #endif /* USE_CSID */
@@ -8986,12 +11645,12 @@ process_pfcp_sess_del_resp(uint64_t sess_id, gtpv2c_header_t *gtpv2c_tx,
 		gx_msg *ccr_request, uint16_t *msglen, ue_context *context)
 {
 	int ebi_index = 0;
-	uint16_t msg_len = 0;
 	struct resp_info *resp = NULL;
 	pdn_connection *pdn =  NULL;
 	del_sess_rsp_t del_resp = {0};
 	uint32_t sender_teid = 0;
 	int ret = 0;
+	pdr_ids *pfcp_pdr_id = NULL;
 
 	/* Lookup entry in hash table on the basis of session id*/
 	if (get_sess_entry(sess_id, &resp) != 0) {
@@ -9020,7 +11679,7 @@ process_pfcp_sess_del_resp(uint64_t sess_id, gtpv2c_header_t *gtpv2c_tx,
 	/* Update the UE state */
 	pdn->state = PFCP_SESS_DEL_RESP_RCVD_STATE;
 
-	if ((pfcp_config.use_gx) && context->cp_mode != SGWC) {
+	if ((config.use_gx) && context->cp_mode != SGWC) {
 
 		gx_context_t *gx_context = NULL;
 
@@ -9068,18 +11727,36 @@ process_pfcp_sess_del_resp(uint64_t sess_id, gtpv2c_header_t *gtpv2c_tx,
 
 	if ( context->cp_mode == PGWC) {
 
-		s5s8_recv_sockaddr.sin_addr.s_addr = pdn->s5s8_sgw_gtpc_ipv4.s_addr;
+		ret = set_dest_address(pdn->s5s8_sgw_gtpc_ip, &s5s8_recv_sockaddr);
+		if (ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+				"IP address", LOG_VALUE);
+		}
 		sender_teid = pdn->s5s8_sgw_gtpc_teid;
+
+		(pdn->s5s8_sgw_gtpc_ip.ip_type == IPV6_TYPE)?
 		clLog(clSystemLog, eCLSeverityDebug, "Msg Sent to "LOG_FORMAT
-				"IP Address :%s\n", LOG_VALUE,
-				inet_ntoa(*((struct in_addr *)&s5s8_recv_sockaddr.sin_addr.s_addr)));
+				"IPv6 Address :"IPv6_FMT"\n", LOG_VALUE,
+				IPv6_PRINT(IPv6_CAST(s5s8_recv_sockaddr.ipv6.sin6_addr.s6_addr))):
+		clLog(clSystemLog, eCLSeverityDebug, "Msg Sent to "LOG_FORMAT
+				"IPv4 Address :%s\n", LOG_VALUE,
+				inet_ntoa(*((struct in_addr *)&s5s8_recv_sockaddr.ipv4.sin_addr.s_addr)));
 	} else {
 
-		s11_mme_sockaddr.sin_addr.s_addr = context->s11_mme_gtpc_ipv4.s_addr;
+		ret = set_dest_address(context->s11_mme_gtpc_ip, &s11_mme_sockaddr);
+		if (ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+				"IP address", LOG_VALUE);
+		}
 		sender_teid = context->s11_mme_gtpc_teid;
-		clLog(clSystemLog, eCLSeverityDebug, "Msg Sent to "LOG_FORMAT
-				"IP Address :%s\n", LOG_VALUE,
-				inet_ntoa(*((struct in_addr *)&s11_mme_sockaddr.sin_addr.s_addr)));
+
+		(context->s11_mme_gtpc_ip.ip_type == IPV6_TYPE) ?
+			clLog(clSystemLog, eCLSeverityDebug, "Msg Sent to "LOG_FORMAT
+					"IPv6 Address :"IPv6_FMT"\n", LOG_VALUE,
+					IPv6_PRINT(IPv6_CAST(s11_mme_sockaddr.ipv6.sin6_addr.s6_addr))):
+			clLog(clSystemLog, eCLSeverityDebug, "Msg Sent to "LOG_FORMAT
+					"IPv4 Address :%s\n", LOG_VALUE,
+					inet_ntoa(*((struct in_addr *)&s11_mme_sockaddr.ipv4.sin_addr.s_addr)));
 
 	}
 
@@ -9087,16 +11764,31 @@ process_pfcp_sess_del_resp(uint64_t sess_id, gtpv2c_header_t *gtpv2c_tx,
 	fill_del_sess_rsp(&del_resp, context->sequence, sender_teid);
 
 	/*Encode the S11 delete session response message. */
-	msg_len = encode_del_sess_rsp(&del_resp, (uint8_t *)gtpv2c_tx);
-
-	gtpv2c_header_t *header = (gtpv2c_header_t *) gtpv2c_tx;
-	header->gtpc.message_len = htons(msg_len -IE_HEADER_SIZE);
+	encode_del_sess_rsp(&del_resp, (uint8_t *)gtpv2c_tx);
 
 	/* Update status of dsr processing for ue */
-	context->dsr_info.seq = 0;
-	context->dsr_info.status = DSR_PROCESS_DONE;
+	context->req_status.seq = 0;
+	context->req_status.status = REQ_PROCESS_DONE;
 
-	delete_sess_context(context, pdn);
+	/* Remove session Entry from buffered ddn request hash */
+	pfcp_pdr_id = delete_buff_ddn_req(pdn->seid);
+	if(pfcp_pdr_id != NULL) {
+		rte_free(pfcp_pdr_id);
+		pfcp_pdr_id = NULL;
+	}
+	/*delete only session entries */
+	delete_entry_from_sess_hash(sess_id, ddn_by_seid_hash);
+	delete_entry_from_sess_hash(sess_id, pfcp_rep_by_seid_hash);
+	delete_sess_in_thrtl_timer(context, sess_id);
+
+	if(context->indirect_tunnel_flag == 0) {
+		/* Update status of dsr processing for ue */
+		delete_sess_context(&context, pdn);
+	} else {
+		context->indirect_tunnel_flag = CANCEL_S1_HO_INDICATION;
+		context->indirect_tunnel->eps_bearer_id = pdn->default_bearer_id;
+	}
+
 	return 0;
 }
 
@@ -9105,11 +11797,12 @@ fill_pfcp_sess_mod_req_delete(pfcp_sess_mod_req_t *pfcp_sess_mod_req,
 		pdn_connection *pdn, eps_bearer *bearers[], uint8_t bearer_cntr)
 {
 	uint32_t seq = 0;
+	int ret = 0;
 	upf_context_t *upf_ctx = NULL;
 	pdr_t *pdr_ctxt = NULL;
-	int ret = 0;
+	node_address_t node_value = {0};
 
-	if ((ret = upf_context_entry_lookup(pdn->upf_ipv4.s_addr, &upf_ctx)) < 0) {
+	if ((ret = upf_context_entry_lookup(pdn->upf_ip, &upf_ctx)) < 0) {
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failure in upf context "
 			"lookup.Error:%d \n", LOG_VALUE, ret);
 		return;
@@ -9124,14 +11817,27 @@ fill_pfcp_sess_mod_req_delete(pfcp_sess_mod_req_t *pfcp_sess_mod_req,
 
 	pfcp_sess_mod_req->header.seid_seqno.has_seid.seid = pdn->dp_seid;
 
-	char pAddr[INET_ADDRSTRLEN];
-	inet_ntop(AF_INET, &(pfcp_config.pfcp_ip), pAddr, INET_ADDRSTRLEN);
-	unsigned long node_value = inet_addr(pAddr);
+	/*Filling Node ID for F-SEID*/
+	if (pdn->upf_ip.ip_type == PDN_IP_TYPE_IPV4) {
+		uint8_t temp[IPV6_ADDRESS_LEN] = {0};
+		ret = fill_ip_addr(config.pfcp_ip.s_addr, temp, &node_value);
+		if (ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+				"IP address", LOG_VALUE);
+		}
+	} else if (pdn->upf_ip.ip_type == PDN_IP_TYPE_IPV6) {
 
+		ret = fill_ip_addr(0, config.pfcp_ip_v6.s6_addr, &node_value);
+		if (ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+				"IP address", LOG_VALUE);
+		}
+	}
 	set_fseid(&(pfcp_sess_mod_req->cp_fseid), pdn->seid, node_value);
 
 	/* Adding FAR IE*/
 	pfcp_sess_mod_req->update_far_count = 0;
+
 	for (int index = 0; index < bearer_cntr; index++) {
 		if (bearers[index] != NULL) {
 			for(uint8_t itr = 0; itr < bearers[index]->pdr_count ; itr++) {
@@ -9146,14 +11852,57 @@ fill_pfcp_sess_mod_req_delete(pfcp_sess_mod_req_t *pfcp_sess_mod_req,
 					pdr_ctxt->far.actions.drop = TRUE;
 
 					set_update_far(&(pfcp_sess_mod_req->update_far[pfcp_sess_mod_req->update_far_count]),
-																						&pdr_ctxt->far);
+							&pdr_ctxt->far);
 					pfcp_sess_mod_req->update_far_count++;
 				}
+			}
+
+			if (pdn->default_bearer_id == bearers[index]->eps_bearer_id) {
+					set_remove_bar(&(pfcp_sess_mod_req->remove_bar), pdn->bar.bar_id);
 			}
 		}
 	}
 }
 
+void
+fill_pfcp_sess_mod_req_with_remove_pdr(pfcp_sess_mod_req_t *pfcp_sess_mod_req,
+		pdn_connection *pdn, eps_bearer *bearers[], uint8_t bearer_cntr)
+{
+
+	int ret = 0;
+	//uint32_t seq = 0;
+	eps_bearer *bearer = NULL;
+	pdr_t *pdr_ctxt = NULL;
+	upf_context_t *upf_ctx = NULL;
+
+	if ((ret = upf_context_entry_lookup(pdn->upf_ip, &upf_ctx)) < 0) {
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT "Error while extracting "
+			"upf context: %d \n", LOG_VALUE, ret);
+		return;
+	}
+
+	//memset(pfcp_sess_mod_req, 0, sizeof(pfcp_sess_mod_req_t));
+
+	pfcp_sess_mod_req->remove_pdr_count = 0;
+	for (uint8_t index = 0; index < bearer_cntr; index++){
+		bearer = bearers[index];
+		if(bearer != NULL) {
+
+			for(uint8_t itr = 0; itr < bearer->pdr_count ; itr++) {
+				pdr_ctxt = bearer->pdrs[itr];
+				if(pdr_ctxt){
+					set_remove_pdr(&(pfcp_sess_mod_req->remove_pdr[pfcp_sess_mod_req->remove_pdr_count]),
+																						pdr_ctxt->rule_id);
+					pfcp_sess_mod_req->remove_pdr_count++;
+
+				}
+			}
+		}
+
+		bearer = NULL;
+	}
+
+}
 void
 fill_pfcp_sess_mod_req_pgw_init_remove_pdr(pfcp_sess_mod_req_t *pfcp_sess_mod_req,
 		pdn_connection *pdn, eps_bearer *bearers[], uint8_t bearer_cntr)
@@ -9164,8 +11913,9 @@ fill_pfcp_sess_mod_req_pgw_init_remove_pdr(pfcp_sess_mod_req_t *pfcp_sess_mod_re
 	eps_bearer *bearer = NULL;
 	pdr_t *pdr_ctxt = NULL;
 	upf_context_t *upf_ctx = NULL;
+	node_address_t node_value = {0};
 
-	if ((ret = upf_context_entry_lookup(pdn->upf_ipv4.s_addr, &upf_ctx)) < 0) {
+	if ((ret = upf_context_entry_lookup(pdn->upf_ip, &upf_ctx)) < 0) {
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT "Error while extracting "
 			"upf context: %d \n", LOG_VALUE, ret);
 		return;
@@ -9180,7 +11930,23 @@ fill_pfcp_sess_mod_req_pgw_init_remove_pdr(pfcp_sess_mod_req_t *pfcp_sess_mod_re
 
 	pfcp_sess_mod_req->header.seid_seqno.has_seid.seid = pdn->dp_seid;
 
-	set_fseid(&(pfcp_sess_mod_req->cp_fseid), pdn->seid,  pfcp_config.pfcp_ip.s_addr);
+	/*Filling Node ID for F-SEID*/
+	if (pdn->upf_ip.ip_type == PDN_IP_TYPE_IPV4) {
+		uint8_t temp[IPV6_ADDRESS_LEN] = {0};
+		ret = fill_ip_addr(config.pfcp_ip.s_addr, temp, &node_value);
+		if (ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+				"IP address", LOG_VALUE);
+		}
+	} else if (pdn->upf_ip.ip_type == PDN_IP_TYPE_IPV6) {
+
+		ret = fill_ip_addr(0, config.pfcp_ip_v6.s6_addr, &node_value);
+		if (ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+				"IP address", LOG_VALUE);
+		}
+	}
+	set_fseid(&(pfcp_sess_mod_req->cp_fseid), pdn->seid, node_value);
 
 	pfcp_sess_mod_req->remove_pdr_count = 0;
 	for (uint8_t index = 0; index < bearer_cntr; index++){
@@ -9259,10 +12025,14 @@ process_pfcp_sess_mod_resp_handover(uint64_t sess_id, gtpv2c_header_t *gtpv2c_tx
 		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
 	}
 
-	s5s8_recv_sockaddr.sin_addr.s_addr = bearer->pdn->s5s8_sgw_gtpc_ipv4.s_addr;
+	ret = set_dest_address(bearer->pdn->s5s8_sgw_gtpc_ip, &s5s8_recv_sockaddr);
+	if (ret < 0) {
+		clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+			"IP address", LOG_VALUE);
+	}
 
 	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"s5s8_recv_sockaddr.sin_addr.s_addr :%s\n", LOG_VALUE,
-			inet_ntoa(*((struct in_addr *)&s5s8_recv_sockaddr.sin_addr.s_addr)));
+			inet_ntoa(*((struct in_addr *)&s5s8_recv_sockaddr.ipv4.sin_addr.s_addr)));
 	return 0;
 }
 
@@ -9316,13 +12086,32 @@ process_pfcp_sess_mod_resp_cs_cbr_request(uint64_t sess_id, gtpv2c_header_t *gtp
 	if (resp->msg_type == GTP_MODIFY_BEARER_REQ) {
 		/*send mbr resp to mme and create brearer resp to pgw*/
 
-		set_modify_bearer_response(gtpv2c_tx,
-				context->sequence, context, bearer, &resp->gtpc_msg.mbr);
-		s11_mme_sockaddr.sin_addr.s_addr =
-			context->s11_mme_gtpc_ipv4.s_addr;
+		if (resp->gtpc_msg.mbr.bearer_count) {
+			msg_len = set_modify_bearer_response(gtpv2c_tx,
+					context->sequence, context, bearer, &resp->gtpc_msg.mbr);
 
-		if ((SAEGWC == context->cp_mode)) {
-			if (pfcp_config.use_gx) {
+
+			ret = set_dest_address(context->s11_mme_gtpc_ip, &s11_mme_sockaddr);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+			}
+		}
+
+		if((context->piggyback == TRUE) && (context->cp_mode == SAEGWC)) {
+			int index = GET_EBI_INDEX(resp->eps_bearer_ids[0]);
+			if (index == -1) {
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Invalid EBI ID\n", LOG_VALUE);
+				return GTPV2C_CAUSE_SYSTEM_FAILURE;
+			}
+
+			provision_ack_ccr(pdn, context->eps_bearers[index],
+					RULE_ACTION_ADD, NO_FAIL);
+			return 0;
+		}
+
+		if ((SAEGWC == context->cp_mode) ) {
+			if (config.use_gx) {
 
 				rar_funtions rar_function = NULL;
 				rar_function = rar_process(pdn,	pdn->proc);
@@ -9337,10 +12126,7 @@ process_pfcp_sess_mod_resp_cs_cbr_request(uint64_t sess_id, gtpv2c_header_t *gtp
 						"returned\n", LOG_VALUE);
 				}
 
-				struct sockaddr_in saddr_in;
-				saddr_in.sin_family = AF_INET;
-				inet_aton(CLI_GX_IP, &(saddr_in.sin_addr));
-				update_cli_stats(saddr_in.sin_addr.s_addr, OSS_RAA, SENT, GX);
+				update_cli_stats((peer_address_t *) &config.gx_ip, OSS_RAA, SENT, GX);
 
 				resp->state = pdn->state;
 
@@ -9348,6 +12134,7 @@ process_pfcp_sess_mod_resp_cs_cbr_request(uint64_t sess_id, gtpv2c_header_t *gtp
 
 			}
 		} else {
+
 			int ebi_index = GET_EBI_INDEX(resp->eps_bearer_ids[0]);
 			if (ebi_index == -1) {
 				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Invalid EBI ID\n", LOG_VALUE);
@@ -9355,14 +12142,20 @@ process_pfcp_sess_mod_resp_cs_cbr_request(uint64_t sess_id, gtpv2c_header_t *gtp
 			}
 
 			bearer = context->eps_bearers[ebi_index];
+			gtpv2c_cbr_t = (gtpv2c_header_t *)((uint8_t *)gtpv2c_tx + msg_len);
+
 			set_create_bearer_response(
-				gtpv2c_tx, bearer->sequence, pdn, resp->linked_eps_bearer_id, 0, resp);
+					gtpv2c_cbr_t, resp->cbr_seq, pdn,
+					resp->linked_eps_bearer_id, 0, resp);
 
 			resp->state = CONNECTED_STATE;
 			pdn->state = CONNECTED_STATE;
 
-			s5s8_recv_sockaddr.sin_addr.s_addr =
-				bearer->pdn->s5s8_pgw_gtpc_ipv4.s_addr;
+			ret = set_dest_address(pdn->s5s8_pgw_gtpc_ip, &s5s8_recv_sockaddr);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+			}
 
 			return 0;
 		}
@@ -9375,22 +12168,33 @@ process_pfcp_sess_mod_resp_cs_cbr_request(uint64_t sess_id, gtpv2c_header_t *gtp
 					gtpv2c_tx, context->sequence, context, bearer->pdn, 1);
 		gtpv2c_cbr_t = (gtpv2c_header_t *)((uint8_t *)gtpv2c_tx + msg_len);
 
+		uint8_t seq_no = resp->gtpc_msg.cb_req.header.teid.has_teid.seq;
+
 		/* Fill the Create bearer request*/
-		ret = set_create_bearer_request(gtpv2c_cbr_t, context->sequence, pdn,
+		ret = set_create_bearer_request(gtpv2c_cbr_t, seq_no, pdn,
 				pdn->default_bearer_id, 0, resp, 0, TRUE);
 
-
-		s11_mme_sockaddr.sin_addr.s_addr =
-			context->s11_mme_gtpc_ipv4.s_addr;
+		ret = set_dest_address(context->s11_mme_gtpc_ip, &s11_mme_sockaddr);
+		if (ret < 0) {
+			clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+				"IP address", LOG_VALUE);
+		}
 		resp->state = CREATE_BER_REQ_SNT_STATE;
 		pdn->state = CREATE_BER_REQ_SNT_STATE;
-		pdn->csr_sequence =0;
-
+		pdn->csr_sequence =  0;
+		if (context->piggyback && SGWC == context->cp_mode) {
+		uint32_t payload_len = ntohs(gtpv2c_cbr_t->gtpc.message_len) + sizeof(gtpv2c_cbr_t->gtpc);
+		/* handle piggybacked msg case */
+		resp->msg_type = GTP_CREATE_SESSION_REQ;
+		add_gtpv2c_if_timer_entry(
+			teid, &s11_mme_sockaddr, (uint8_t *)gtpv2c_cbr_t, payload_len,
+			ebi_index, S11_IFACE, context->cp_mode);
+		}
 
 	}
 
 	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"s5s8_recv_sockaddr.sin_addr.s_addr :%s\n", LOG_VALUE,
-			inet_ntoa(*((struct in_addr *)&s5s8_recv_sockaddr.sin_addr.s_addr)));
+			inet_ntoa(*((struct in_addr *)&s5s8_recv_sockaddr.ipv4.sin_addr.s_addr)));
 	return 0;
 }
 
@@ -9435,6 +12239,8 @@ send_pfcp_sess_mod_req_for_li(uint64_t imsi)
 	upf_context_t *upf_ctx = NULL;
 	pfcp_sess_mod_req_t pfcp_sess_mod_req;
 	imsi_id_hash_t *imsi_id_config = NULL;
+	node_address_t node_value = {0};
+
 
 	ret = rte_hash_lookup_data(ue_context_by_imsi_hash, &imsi,
 			(void **) &(context));
@@ -9488,8 +12294,7 @@ send_pfcp_sess_mod_req_for_li(uint64_t imsi)
 		bearer = context->eps_bearers[bearerCntr];
 		pdn = bearer->pdn;
 
-		if ((ret = upf_context_entry_lookup(pdn->upf_ipv4.s_addr,
-						&upf_ctx)) < 0) {
+		if ((ret = upf_context_entry_lookup(pdn->upf_ip, &upf_ctx)) < 0) {
 			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Error: Lookup of upf %d \n",
 					LOG_VALUE, ret);
 			return;
@@ -9504,9 +12309,22 @@ send_pfcp_sess_mod_req_for_li(uint64_t imsi)
 
 		pfcp_sess_mod_req.header.seid_seqno.has_seid.seid = pdn->dp_seid;
 
-		char pAddr[INET_ADDRSTRLEN];
-		inet_ntop(AF_INET, &(pfcp_config.pfcp_ip), pAddr, INET_ADDRSTRLEN);
-		unsigned long node_value = inet_addr(pAddr);
+		/*Filling Node ID for F-SEID*/
+		if (pdn->upf_ip.ip_type == PDN_IP_TYPE_IPV4) {
+			uint8_t temp[IPV6_ADDRESS_LEN] = {0};
+			ret = fill_ip_addr(config.pfcp_ip.s_addr, temp, &node_value);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+			}
+		} else if (pdn->upf_ip.ip_type == PDN_IP_TYPE_IPV6) {
+
+			ret = fill_ip_addr(0, config.pfcp_ip_v6.s6_addr, &node_value);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+			}
+		}
 
 		set_fseid(&(pfcp_sess_mod_req.cp_fseid), pdn->seid, node_value);
 
@@ -9539,10 +12357,8 @@ send_pfcp_sess_mod_req_for_li(uint64_t imsi)
 
 	uint8_t pfcp_msg[PFCP_MSG_LEN]={0};
 	int encoded = encode_pfcp_sess_mod_req_t(&pfcp_sess_mod_req, pfcp_msg);
-	pfcp_header_t *header = (pfcp_header_t *) pfcp_msg;
-	header->message_len = htons(encoded - PFCP_IE_HDR_SIZE);
 
-	if ( pfcp_send(pfcp_fd, pfcp_msg, encoded, &upf_pfcp_sockaddr, SENT) < 0 ){
+	if ( pfcp_send(pfcp_fd, pfcp_fd_v6, pfcp_msg, encoded, upf_pfcp_sockaddr, SENT) < 0 ){
 		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Error sending: %i\n",
 				LOG_VALUE, errno);
 	} else {
@@ -9717,12 +12533,15 @@ process_pfcp_sess_setup(pdn_connection *pdn) {
 		return -1;
 	}
 
-	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Add UPF Entry for IP:"IPV4_ADDR"\n",
-		 LOG_VALUE, IPV4_ADDR_HOST_FORMAT(pdn->upf_ipv4.s_addr));
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Added UPF Entry for IP Type : %s\n"
+		"with IP IPv4 : "IPV4_ADDR"\tIPv6 : "IPv6_FMT"", LOG_VALUE,
+		ip_type_str(pdn->upf_ip.ip_type),
+		IPV4_ADDR_HOST_FORMAT(pdn->upf_ip.ipv4_addr),
+		PRINT_IPV6_ADDR(pdn->upf_ip.ipv6_addr));
 
 	/* Retrive association state based on UPF IP. */
 	ret = rte_hash_lookup_data(upf_context_by_ip_hash,
-			(const void*) &(pdn->upf_ipv4.s_addr), (void **) &(upf_context));
+			(const void*) &(pdn->upf_ip), (void **) &(upf_context));
 
 	/* send error response in case of pfcp est. fail using this data */
 	if(upf_context->state == PFCP_ASSOC_RESP_RCVD_STATE) {
@@ -9757,10 +12576,8 @@ process_pfcp_sess_setup(pdn_connection *pdn) {
 
 int
 provision_ack_ccr(pdn_connection *pdn, eps_bearer *bearer,
-					enum rule_action_t rule_action, enum rule_failure_code error_code,
-					pro_ack_rule_array_t *rule_report) {
-
-
+		enum rule_action_t rule_action, enum rule_failure_code error_code)
+{
 	/* Initialize the Gx Parameters */
 	int ret = 0;
 	int ebi_index = 0;
@@ -9768,6 +12585,9 @@ provision_ack_ccr(pdn_connection *pdn, eps_bearer *bearer,
 	uint8_t *buffer = NULL;
 	gx_msg ccr_request = {0};
 	gx_context_t *gx_context = NULL;
+
+	if (bearer == NULL)
+		return -1;
 
 	ret = rte_hash_lookup_data(gx_context_by_sess_id_hash,
 			(const void*)(pdn->gx_sess_id),
@@ -9788,10 +12608,10 @@ provision_ack_ccr(pdn_connection *pdn, eps_bearer *bearer,
 	ccr_request.data.ccr.network_request_support = NETWORK_REQUEST_SUPPORTED;
 
 	ccr_request.data.ccr.presence.charging_rule_report = PRESENT;
-	ccr_request.data.ccr.charging_rule_report.count = rule_report->rule_cnt;
+	ccr_request.data.ccr.charging_rule_report.count = pdn->pro_ack_rule_array.rule_cnt;
 
 	ccr_request.data.ccr.charging_rule_report.list = rte_malloc_socket(NULL,
-			(sizeof(GxChargingRuleReportList)*(rule_report->rule_cnt)),
+			(sizeof(GxChargingRuleReport)*(pdn->pro_ack_rule_array.rule_cnt)),
 			RTE_CACHE_LINE_SIZE, rte_socket_id());
 
 	if(ccr_request.data.ccr.charging_rule_report.list == NULL) {
@@ -9801,7 +12621,7 @@ provision_ack_ccr(pdn_connection *pdn, eps_bearer *bearer,
 		return GTPV2C_CAUSE_SYSTEM_FAILURE;
 	}
 
-	for(int id = 0; id < rule_report->rule_cnt; id++) {
+	for(int id = 0; id < pdn->pro_ack_rule_array.rule_cnt; id++) {
 		 memset(&ccr_request.data.ccr.charging_rule_report.list[id].presence, 0 ,
 				 sizeof(ccr_request.data.ccr.charging_rule_report.list[id].presence));
 		ccr_request.data.ccr.charging_rule_report.list[id].presence.charging_rule_name = PRESENT;
@@ -9818,9 +12638,9 @@ provision_ack_ccr(pdn_connection *pdn, eps_bearer *bearer,
 		}
 
 		ccr_request.data.ccr.charging_rule_report.list[id].charging_rule_name.list[0].len =
-			strlen(rule_report->rule[id].rule_name);
+			strlen(pdn->pro_ack_rule_array.rule[id].rule_name);
 		memcpy(&ccr_request.data.ccr.charging_rule_report.list[id].charging_rule_name.list[0].val,
-				rule_report->rule[id].rule_name, strlen(rule_report->rule[id].rule_name));
+				pdn->pro_ack_rule_array.rule[id].rule_name, strlen(pdn->pro_ack_rule_array.rule[id].rule_name));
 
 		ccr_request.data.ccr.charging_rule_report.list[id].presence.
 			pcc_rule_status = PRESENT;
@@ -9830,7 +12650,7 @@ provision_ack_ccr(pdn_connection *pdn, eps_bearer *bearer,
 				pcc_rule_status = INACTIVE;
 		} else {
 			ccr_request.data.ccr.charging_rule_report.list[id].
-				pcc_rule_status = rule_report->rule[id].rule_status;
+				pcc_rule_status = pdn->pro_ack_rule_array.rule[id].rule_status;
 		}
 
 		if(error_code != 0) {
@@ -9855,9 +12675,9 @@ provision_ack_ccr(pdn_connection *pdn, eps_bearer *bearer,
 		}
 	}
 
-
-	ccr_request.data.ccr.event_trigger.list = (int32_t *)malloc(
-			ccr_request.data.ccr.event_trigger.count * sizeof(int32_t));
+	ccr_request.data.ccr.event_trigger.list = (int32_t *) rte_malloc_socket(NULL,
+									(ccr_request.data.ccr.event_trigger.count * sizeof(int32_t)),
+                                                            RTE_CACHE_LINE_SIZE, rte_socket_id());
 
 	for(uint8_t count = 0; count < ccr_request.data.ccr.event_trigger.count; count++ ) {
 		*(ccr_request.data.ccr.event_trigger.list + count) =
@@ -9865,7 +12685,7 @@ provision_ack_ccr(pdn_connection *pdn, eps_bearer *bearer,
 	}
 
 
-	char *temp = inet_ntoa(pdn->ipv4);
+	char *temp = inet_ntoa(pdn->uipaddr.ipv4);
 	memcpy(ccr_request.data.ccr.framed_ip_address.val, &temp, strnlen(temp,(GX_FRAMED_IP_ADDRESS_LEN + 1)));
 	ebi_index = GET_EBI_INDEX(bearer->eps_bearer_id);
 	if(ebi_index == -1) {
@@ -9877,18 +12697,14 @@ provision_ack_ccr(pdn_connection *pdn, eps_bearer *bearer,
 	/* Fill the Credit Crontrol Request to send PCRF */
 	if(fill_ccr_request(&ccr_request.data.ccr,
 				pdn->context, ebi_index,
-				pdn->gx_sess_id,0) != 0) {
+				pdn->gx_sess_id, 0) != 0) {
 
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed CCR request "
 				"filling process\n", LOG_VALUE);
 		return -1;
 	}
 
-	struct sockaddr_in saddr_in;
-	saddr_in.sin_family = AF_INET;
-	inet_aton(CLI_GX_IP, &(saddr_in.sin_addr));
-	update_cli_stats(saddr_in.sin_addr.s_addr, OSS_CCR_UPDATE, SENT, GX);
-
+	update_cli_stats((peer_address_t *) &config.gx_ip, OSS_CCR_UPDATE, SENT, GX);
 
 	/* Update UE State */
 	pdn->state = PROVISION_ACK_SNT_STATE;
@@ -9938,7 +12754,7 @@ provision_ack_ccr(pdn_connection *pdn, eps_bearer *bearer,
 
 	rte_free(buffer);
 	free_dynamically_alloc_memory(&ccr_request);
-	memset(rule_report, 0, sizeof(pro_ack_rule_array_t));
+	memset(&pdn->pro_ack_rule_array, 0, sizeof(pro_ack_rule_array_t));
 
 	return 0;
 }
@@ -10059,7 +12875,6 @@ fill_pfcp_sess_del_resp(pfcp_sess_del_rsp_t *
 }
 
 
-
 void
 fill_pfcp_session_modify_resp(pfcp_sess_mod_rsp_t *pfcp_sess_modify_resp,
 		pfcp_sess_mod_req_t *pfcp_session_mod_req, uint8_t cause, int offend)
@@ -10096,18 +12911,6 @@ fill_pfcp_session_modify_resp(pfcp_sess_mod_rsp_t *pfcp_sess_modify_resp,
 		set_failed_rule_id(&(pfcp_sess_modify_resp->failed_rule_id));
 	}
 
-	// filling of ADURI
-	// Need to do
-	if(pfcp_session_mod_req->pfcpsmreq_flags.qaurr ||
-			pfcp_session_mod_req->query_urr_count){
-		set_additional_usage(&(pfcp_sess_modify_resp->add_usage_rpts_info));
-	}
-
-	// filling of CRTEP
-	// Need to do
-	if( pfcp_ctxt.up_supported_features & UP_PDIU )
-		set_created_traffic_endpoint(&(pfcp_sess_modify_resp->createdupdated_traffic_endpt));
-
 }
 
 void
@@ -10121,7 +12924,7 @@ fill_pfcp_session_est_resp(pfcp_sess_estab_rsp_t *pfcp_sess_est_resp,
 	set_pfcp_seid_header((pfcp_header_t *) &(pfcp_sess_est_resp->header),
 			PFCP_SESSION_ESTABLISHMENT_RESPONSE, HAS_SEID, seq);
 
-	set_node_id(&(pfcp_sess_est_resp->node_id), dp_comm_ip.s_addr);
+	set_node_id(&(pfcp_sess_est_resp->node_id), node_value);
 	set_cause(&(pfcp_sess_est_resp->cause), cause);
 
 	if(cause == CONDITIONALIEMISSING || cause == MANDATORYIEMISSING) {
@@ -10211,3 +13014,701 @@ check_ebi_presence_in_ue(uint8_t bearer_id,
 	return -1;
 }
 
+int
+process_pfcp_mod_req_modify_access_req(mod_acc_bearers_req_t *mod_acc_req)
+{
+
+	int ret = 0;
+	int ebi_index = 0;
+	uint8_t send_endmarker = 0;
+	ue_context *context = NULL;
+	eps_bearer *bearer  = NULL, *bearers[MAX_BEARERS] ={NULL};
+	pdn_connection *pdn =  NULL;
+	struct resp_info *resp = NULL;
+	pfcp_sess_mod_req_t pfcp_sess_mod_req = {0};
+	pfcp_update_far_ie_t update_far[MAX_LIST_SIZE] = {0};
+
+	ret = rte_hash_lookup_data(ue_context_by_fteid_hash,
+			(const void *) &mod_acc_req->header.teid.has_teid.teid,
+			(void **) &context);
+
+	if (ret < 0 || !context)
+		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+
+
+	pfcp_sess_mod_req.update_far_count = 0;
+	for(uint8_t i = 0; i < mod_acc_req->bearer_modify_count; i++) {
+
+		if (!mod_acc_req->bearer_contexts_to_be_modified[i].eps_bearer_id.header.len
+				||( !mod_acc_req->bearer_contexts_to_be_modified[i].s1_enodeb_fteid.header.len
+				&&  !mod_acc_req->bearer_contexts_to_be_modified[i].s11_u_mme_fteid.header.len)) {
+
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Bearer Context not "
+				"found for Modify Bearer Request, Dropping packet\n", LOG_VALUE);
+			return GTPV2C_CAUSE_INVALID_LENGTH;
+		}
+
+		ebi_index = GET_EBI_INDEX(mod_acc_req->bearer_contexts_to_be_modified[i].eps_bearer_id.ebi_ebi);
+		if (ebi_index == -1) {
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Invalid EBI ID\n", LOG_VALUE);
+			return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+		}
+
+		if (!(context->bearer_bitmap & (1 << ebi_index))) {
+			clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Received modify bearer on non-existent EBI - "
+				"for while PFCP Session Modification Request Modify Bearer "
+				"Request, Dropping packet\n", LOG_VALUE);
+			return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+		}
+
+		bearer = context->eps_bearers[ebi_index];
+		context->eps_bearers[ebi_index] = bearer;
+
+		if (!bearer) {
+			clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Received modify bearer on non-existent EBI - "
+				"for while PFCP Session Modification Request Modify Bearer "
+				"Request, Dropping packet\n", LOG_VALUE);
+			return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+		}
+
+		pdn = bearer->pdn;
+
+		/* Delete the timer entry for UE LEVEL timer if already present */
+		delete_ddn_timer_entry(timer_by_teid_hash, mod_acc_req->header.teid.has_teid.teid, ddn_by_seid_hash);
+
+		/* Delete the timer entry for buffer report request messages based on dl buffer timer if present*/
+		delete_ddn_timer_entry(dl_timer_by_teid_hash, mod_acc_req->header.teid.has_teid.teid, pfcp_rep_by_seid_hash);
+
+		/* Remove the session from throttling timer */
+		delete_sess_in_thrtl_timer(context, pdn->seid);
+
+		if(mod_acc_req->delay_dnlnk_pckt_notif_req.header.len){
+			if(mod_acc_req->delay_dnlnk_pckt_notif_req.delay_value > 0){
+				/* Start ue level timer with the assgined delay */
+				/* As per spec. Delay Downlink packet notification
+				 * timer value range in between 1 - 255 and
+				 * value should be multiple of 50 */
+				start_ddn_timer_entry(timer_by_teid_hash, pdn->seid,
+						(mod_acc_req->delay_dnlnk_pckt_notif_req.delay_value * 50), ddn_timer_callback);
+			}
+		}
+
+		bearer->eps_bearer_id = mod_acc_req->bearer_contexts_to_be_modified[i].eps_bearer_id.ebi_ebi;
+
+		if(mod_acc_req->indctn_flgs.indication_s11tf) {
+			/* Set the indication flag for s11-u teid */
+			context->indication_flag.s11tf = 1;
+
+			ret = fill_ip_addr(mod_acc_req->bearer_contexts_to_be_modified[i].s11_u_mme_fteid.ipv4_address,
+					mod_acc_req->bearer_contexts_to_be_modified[i].s11_u_mme_fteid.ipv6_address,
+					&bearer->s11u_mme_gtpu_ip);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+			}
+
+			bearer->s11u_mme_gtpu_teid =
+				mod_acc_req->bearer_contexts_to_be_modified[i].s11_u_mme_fteid.teid_gre_key;
+			update_far[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.outer_hdr_creation.teid =
+				bearer->s11u_mme_gtpu_teid;
+
+			ret = set_node_address(&update_far[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.outer_hdr_creation.ipv4_address,
+				update_far[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.outer_hdr_creation.ipv6_address,
+				bearer->s11u_mme_gtpu_ip);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+			}
+
+			update_far[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.dst_intfc.interface_value =
+				check_interface_type(mod_acc_req->bearer_contexts_to_be_modified[i].s11_u_mme_fteid.interface_type,
+						context->cp_mode);
+			update_far[pfcp_sess_mod_req.update_far_count].far_id.far_id_value =
+				get_far_id(bearer,
+						update_far[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.dst_intfc.interface_value);
+			update_far[pfcp_sess_mod_req.update_far_count].apply_action.forw = PRESENT;
+			update_far[pfcp_sess_mod_req.update_far_count].apply_action.dupl = GET_DUP_STATUS(pdn->context);
+			pfcp_sess_mod_req.update_far_count++;
+
+		}
+
+		if (mod_acc_req->bearer_contexts_to_be_modified[i].s1_enodeb_fteid.header.len != 0) {
+
+			/* In case Establishment of S1-U bearer during Data
+			 * Transport in Control Plane CIoT EPS Optimisation
+			 * handling a corner case
+			 * */
+			context->indication_flag.s11tf = 0;
+
+			/*NOTE: IDEL STATE means bearer is in Suspend State, so no need to send Send Endmarker */
+
+			if((bearer->s1u_enb_gtpu_ip.ipv4_addr != 0) && (pdn->state != IDEL_STATE)) {
+				if((mod_acc_req->bearer_contexts_to_be_modified[i].s1_enodeb_fteid.teid_gre_key)
+						!= bearer->s1u_enb_gtpu_teid
+						|| ((mod_acc_req->bearer_contexts_to_be_modified[i].s1_enodeb_fteid.ipv4_address) !=
+												bearer->s1u_enb_gtpu_ip.ipv4_addr)
+						|| (memcmp(mod_acc_req->bearer_contexts_to_be_modified[i].s1_enodeb_fteid.ipv6_address,
+							bearer->s1u_enb_gtpu_ip.ipv6_addr,
+							IPV6_ADDRESS_LEN) != 0)) {
+
+					send_endmarker = 1;
+				}
+			}
+
+			ret = fill_ip_addr(mod_acc_req->bearer_contexts_to_be_modified[i].s1_enodeb_fteid.ipv4_address,
+				mod_acc_req->bearer_contexts_to_be_modified[i].s1_enodeb_fteid.ipv6_address,
+				&bearer->s1u_enb_gtpu_ip);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+			}
+
+			bearer->s1u_enb_gtpu_teid =
+				mod_acc_req->bearer_contexts_to_be_modified[i].s1_enodeb_fteid.teid_gre_key;
+			update_far[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.outer_hdr_creation.teid =
+				bearer->s1u_enb_gtpu_teid;
+
+			ret = set_node_address(&update_far[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.outer_hdr_creation.ipv4_address,
+				update_far[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.outer_hdr_creation.ipv6_address,
+				bearer->s1u_enb_gtpu_ip);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+			}
+			update_far[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.dst_intfc.interface_value =
+				check_interface_type(mod_acc_req->bearer_contexts_to_be_modified[i].s1_enodeb_fteid.interface_type,
+						pdn->context->cp_mode);
+			update_far[pfcp_sess_mod_req.update_far_count].far_id.far_id_value =
+				get_far_id(bearer, update_far[pfcp_sess_mod_req.update_far_count].upd_frwdng_parms.dst_intfc.interface_value);
+			update_far[pfcp_sess_mod_req.update_far_count].apply_action.forw = PRESENT;
+			update_far[pfcp_sess_mod_req.update_far_count].apply_action.dupl = GET_DUP_STATUS(pdn->context);
+			pfcp_sess_mod_req.update_far_count++;
+
+		}
+
+		bearers[i] = bearer;
+
+	} /*forloop*/
+
+	if(pdn == NULL) {
+		clLog(clSystemLog, eCLSeverityCritical,
+					LOG_FORMAT"Failed to get PDN ebi_index : %d\n", LOG_VALUE, ebi_index);
+		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+	}
+
+	ebi_index = GET_EBI_INDEX(pdn->default_bearer_id);
+	if (ebi_index == -1) {
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Invalid EBI ID\n", LOG_VALUE);
+		return GTPV2C_CAUSE_SYSTEM_FAILURE;
+	}
+
+	bearer = context->eps_bearers[ebi_index];
+	pdn = bearer->pdn;
+
+	if(mod_acc_req->bearer_modify_count != 0) {
+		fill_pfcp_sess_mod_req(&pfcp_sess_mod_req, &mod_acc_req->header, bearers,
+				pdn, update_far, send_endmarker, mod_acc_req->bearer_modify_count, context);
+	}
+
+	if(mod_acc_req->second_rat_count != 0) {
+
+		uint8_t trigg_buff[] = "secondary_rat_usage";
+
+		for(uint8_t i =0; i< mod_acc_req->second_rat_count; i++) {
+
+			if(mod_acc_req->secdry_rat_usage_data_rpt[i].irsgw == 1) {
+				cdr second_rat_data = {0};
+				struct timeval unix_start_time;
+				struct timeval unix_end_time;
+
+				second_rat_data.cdr_type = CDR_BY_SEC_RAT;
+				second_rat_data.change_rat_type_flag = 1;
+				/*rat type in sec_rat_usage_rpt is NR=0 i.e RAT is 10 as per spec 29.274*/
+				second_rat_data.rat_type = (mod_acc_req->secdry_rat_usage_data_rpt[i].secdry_rat_type == 0) ? 10 : 0;
+				second_rat_data.bearer_id = mod_acc_req->secdry_rat_usage_data_rpt[i].ebi;
+				second_rat_data.seid = pdn->seid;
+				second_rat_data.imsi = pdn->context->imsi;
+				second_rat_data.start_time = mod_acc_req->secdry_rat_usage_data_rpt[i].start_timestamp;
+				second_rat_data.end_time = mod_acc_req->secdry_rat_usage_data_rpt[i].end_timestamp;
+				second_rat_data.data_volume_uplink = mod_acc_req->secdry_rat_usage_data_rpt[i].usage_data_ul;
+				second_rat_data.data_volume_downlink = mod_acc_req->secdry_rat_usage_data_rpt[i].usage_data_dl;
+
+				ntp_to_unix_time(&second_rat_data.start_time, &unix_start_time);
+				ntp_to_unix_time(&second_rat_data.end_time, &unix_end_time);
+
+				second_rat_data.duration_meas = unix_end_time.tv_sec - unix_start_time.tv_sec;
+				second_rat_data.data_start_time = 0;
+				second_rat_data.data_end_time = 0;
+				second_rat_data.total_data_volume = second_rat_data.data_volume_uplink + second_rat_data.data_volume_downlink;
+
+				memcpy(&second_rat_data.trigg_buff, &trigg_buff, sizeof(trigg_buff));
+
+				if(generate_cdr_info(&second_rat_data) == -1) {
+					clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT"Failed to generate "
+						"CDR\n",LOG_VALUE);
+					return GTPV2C_CAUSE_SYSTEM_FAILURE;
+				}
+			}
+		}
+	}
+
+
+	if(mod_acc_req->bearer_modify_count != 0) {
+#ifdef USE_CSID
+		/* Generate the permant CSID for SGW */
+		/* Get the copy of existing SGW CSID */
+		fqcsid_t tmp_csid_t = {0};
+		if (pdn->sgw_csid.num_csid) {
+			memcpy(&tmp_csid_t, &pdn->sgw_csid, sizeof(fqcsid_t));
+		}
+
+		/* Update the entry for peer nodes */
+		if (fill_peer_node_info(pdn, bearer)) {
+			clLog(clSystemLog, eCLSeverityCritical,
+					LOG_FORMAT"Failed to fill peer node info and assignment of the "
+					"CSID Error: %s\n", LOG_VALUE, strerror(errno));
+			return  GTPV2C_CAUSE_SYSTEM_FAILURE;
+		}
+
+		if (pdn->flag_fqcsid_modified == TRUE) {
+			uint8_t tmp_csid = 0;
+			/* Validate the exsiting CSID or allocated new one */
+			for (uint8_t inx1 = 0; inx1 < tmp_csid_t.num_csid; inx1++) {
+				if (pdn->sgw_csid.local_csid[pdn->sgw_csid.num_csid - 1] ==
+						tmp_csid_t.local_csid[inx1]) {
+					tmp_csid = tmp_csid_t.local_csid[inx1];
+					break;
+				}
+			}
+
+			if (!tmp_csid) {
+				for (uint8_t inx = 0; inx < tmp_csid_t.num_csid; inx++) {
+					/* Remove the session link from old CSID */
+					sess_csid *tmp1 = NULL;
+					tmp1 = get_sess_csid_entry(tmp_csid_t.local_csid[inx], REMOVE_NODE);
+
+					if (tmp1 != NULL) {
+						/* Remove node from csid linked list */
+						tmp1 = remove_sess_csid_data_node(tmp1, pdn->seid);
+
+						int8_t ret = 0;
+						/* Update CSID Entry in table */
+						ret = rte_hash_add_key_data(seids_by_csid_hash,
+								&tmp_csid_t.local_csid[inx], tmp1);
+						if (ret) {
+							clLog(clSystemLog, eCLSeverityCritical,
+									LOG_FORMAT"Failed to add Session IDs entry for CSID = %u"
+									"\n\tError= %s\n",
+									LOG_VALUE, tmp_csid_t.local_csid[inx],
+									rte_strerror(abs(ret)));
+							return GTPV2C_CAUSE_SYSTEM_FAILURE;
+						}
+						if (tmp1 == NULL) {
+							/* Removing temporary local CSID associated with MME */
+							remove_peer_temp_csid(&pdn->mme_csid, tmp_csid_t.local_csid[inx],
+									S11_SGW_PORT_ID);
+
+							/* Removing temporary local CSID assocoated with PGWC */
+							remove_peer_temp_csid(&pdn->pgw_csid, tmp_csid_t.local_csid[inx],
+									S5S8_SGWC_PORT_ID);
+							/* Delete Local CSID entry */
+							del_sess_csid_entry(tmp_csid_t.local_csid[inx]);
+						}
+						/* Delete CSID from the context */
+						for (uint8_t itr1 = 0; itr1 < (context->sgw_fqcsid)->num_csid; itr1++) {
+							if ((context->sgw_fqcsid)->local_csid[itr1] == tmp_csid_t.local_csid[inx]) {
+								for(uint8_t pos = itr1; pos < ((context->sgw_fqcsid)->num_csid - 1); pos++ ) {
+									(context->sgw_fqcsid)->local_csid[pos] =
+										(context->sgw_fqcsid)->local_csid[pos + 1];
+									(context->sgw_fqcsid)->node_addr[pos] =
+										(context->sgw_fqcsid)->node_addr[(pos + 1)];
+								}
+								(context->sgw_fqcsid)->num_csid--;
+							}
+						}
+					} else {
+						sess_csid *tmp1 = NULL;
+						tmp1 = get_sess_csid_entry(tmp_csid_t.local_csid[inx], REMOVE_NODE);
+						if (tmp1 == NULL) {
+							/* Removing temporary local CSID associated with MME */
+							remove_peer_temp_csid(&pdn->mme_csid, tmp_csid_t.local_csid[inx],
+									S11_SGW_PORT_ID);
+
+							/* Removing temporary local CSID assocoated with PGWC */
+							remove_peer_temp_csid(&pdn->pgw_csid, tmp_csid_t.local_csid[inx],
+									S5S8_SGWC_PORT_ID);
+
+							/* Delete Local CSID entry */
+							del_sess_csid_entry(tmp_csid_t.local_csid[inx]);
+						}
+						clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Failed to "
+								"get Session ID entry for CSID:%u\n", LOG_VALUE,
+								tmp_csid_t.local_csid[inx]);
+					}
+
+					clLog(clSystemLog, eCLSeverityDebug,
+							LOG_FORMAT"Remove session link from Old CSID:%u\n",
+							LOG_VALUE, tmp_csid_t.local_csid[inx]);
+				}
+			}
+			/* update entry for cp session id with link local csid */
+			sess_csid *tmp = NULL;
+			tmp = get_sess_csid_entry(
+					pdn->sgw_csid.local_csid[pdn->sgw_csid.num_csid - 1],
+					ADD_NODE);
+			if (tmp == NULL) {
+				clLog(clSystemLog, eCLSeverityCritical,
+						LOG_FORMAT"Failed to get session of CSID entry %s \n",
+						LOG_VALUE, strerror(errno));
+				return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+			}
+
+			/* Link local csid with session id */
+			/* Check head node created ot not */
+			if(tmp->cp_seid != pdn->seid && tmp->cp_seid != 0) {
+				sess_csid *new_node = NULL;
+				/* Add new node into csid linked list */
+				new_node = add_sess_csid_data_node(tmp,
+					pdn->sgw_csid.local_csid[pdn->sgw_csid.num_csid - 1]);
+				if(new_node == NULL ) {
+					clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to "
+							"ADD new node into CSID linked list : %s\n", LOG_VALUE);
+					return GTPV2C_CAUSE_SYSTEM_FAILURE;
+				} else {
+					new_node->cp_seid = pdn->seid;
+					new_node->up_seid = pdn->dp_seid;
+				}
+
+			} else {
+				tmp->cp_seid = pdn->seid;
+				tmp->up_seid = pdn->dp_seid;
+				tmp->next = NULL;
+			}
+			/* Fill the fqcsid into the session est request */
+			if (fill_fqcsid_sess_mod_req(&pfcp_sess_mod_req, pdn)) {
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to fill "
+						"FQ-CSID in Session Establishment Request, "
+						"Error: %s\n", LOG_VALUE, strerror(errno));
+				return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+			}
+
+		}
+#endif /* USE_CSID */
+
+		uint8_t pfcp_msg[size]={0};
+		int encoded = encode_pfcp_sess_mod_req_t(&pfcp_sess_mod_req, pfcp_msg);
+		pfcp_header_t *header = (pfcp_header_t *) pfcp_msg;
+		header->message_len = htons(encoded - 4);
+
+		if ( pfcp_send(pfcp_fd, pfcp_fd_v6, pfcp_msg, encoded, upf_pfcp_sockaddr,SENT) < 0 ){
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Error in sending PFCP "
+					"Session Modification Request for Modify Bearer Request %i\n",
+					LOG_VALUE, errno);
+		} else {
+#ifdef CP_BUILD
+			add_pfcp_if_timer_entry(mod_acc_req->header.teid.has_teid.teid,
+					&upf_pfcp_sockaddr, pfcp_msg, encoded, ebi_index);
+#endif /* CP_BUILD */
+		}
+
+		/* Update the Sequence number for the request */
+		context->sequence = mod_acc_req->header.teid.has_teid.seq;
+
+		/* Update UE State */
+		pdn->state = PFCP_SESS_MOD_REQ_SNT_STATE;
+
+		/*Retrive the session information based on session id. */
+		if (get_sess_entry(pdn->seid, &resp) != 0){
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"No Session Entry Found "
+					"for sess ID:%lu\n", LOG_VALUE, pdn->seid);
+			return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+		}
+
+		/* Set create session response */
+		resp->eps_bearer_id =  pdn->default_bearer_id;
+		resp->msg_type = GTP_MODIFY_ACCESS_BEARER_REQ;
+		resp->state = PFCP_SESS_MOD_REQ_SNT_STATE;
+		resp->proc = pdn->proc;
+		resp->cp_mode = context->cp_mode;
+		memcpy(&resp->gtpc_msg.mod_acc_req, mod_acc_req, sizeof(mod_bearer_req_t));
+
+	} else {
+
+		bzero(&tx_buf, sizeof(tx_buf));
+		gtpv2c_header_t *gtpv2c_tx = (gtpv2c_header_t *)tx_buf;
+		set_modify_access_bearer_response(gtpv2c_tx,
+				context->sequence, context, bearer, mod_acc_req);
+		resp->state = CONNECTED_STATE;
+
+		if (PGWC != context->cp_mode) {
+			ret = set_dest_address(context->s11_mme_gtpc_ip, &s11_mme_sockaddr);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+					"IP address", LOG_VALUE);
+			}
+		}
+
+		uint16_t payload_length = ntohs(gtpv2c_tx->gtpc.message_len)
+			+ sizeof(gtpv2c_tx->gtpc);
+
+		gtpv2c_send(s11_fd, s11_fd_v6, tx_buf, payload_length,
+				s11_mme_sockaddr,ACC);
+
+		process_cp_li_msg(
+				pdn->seid, S11_INTFC_OUT, tx_buf, payload_length,
+				fill_ip_info(s11_mme_sockaddr.type,
+						config.s11_ip.s_addr,
+						config.s11_ip_v6.s6_addr),
+				fill_ip_info(s11_mme_sockaddr.type,
+						s11_mme_sockaddr.ipv4.sin_addr.s_addr,
+						s11_mme_sockaddr.ipv6.sin6_addr.s6_addr),
+				config.s11_port,
+				((s11_mme_sockaddr.type == IPTYPE_IPV4_LI) ?
+					ntohs(s11_mme_sockaddr.ipv4.sin_port) :
+					ntohs(s11_mme_sockaddr.ipv6.sin6_port)));
+
+		pdn->state =  CONNECTED_STATE;
+
+	}
+
+	return 0;
+}
+
+int
+set_ccr_t_message(pdn_connection *pdn, ue_context *context, gx_msg *ccr_request, int ebi_index) {
+
+	gx_context_t *gx_context = NULL;
+	int ret = 0;
+	/* Retrive Gx_context based on Sess ID. */
+	ret = rte_hash_lookup_data(gx_context_by_sess_id_hash,
+			(const void*)(pdn->gx_sess_id), (void **)&gx_context);
+	if (ret < 0) {
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"NO ENTRY FOUND IN "
+			"Gx HASH [%s]\n", LOG_VALUE, pdn->gx_sess_id);
+		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+	}
+	/* Set the CP Mode, to check the CP mode after session deletion */
+	gx_context->cp_mode = context->cp_mode;
+
+	/* Set the Msg header type for CCR-T */
+	ccr_request->msg_type = GX_CCR_MSG ;
+
+	/* Set Credit Control Request type */
+	ccr_request->data.ccr.presence.cc_request_type = PRESENT;
+	ccr_request->data.ccr.cc_request_type = TERMINATION_REQUEST ;
+
+	/* Set Credit Control Bearer opertaion type */
+	ccr_request->data.ccr.presence.bearer_operation = PRESENT;
+	ccr_request->data.ccr.bearer_operation = TERMINATION ;
+
+	/* Fill the Credit Crontrol Request to send PCRF */
+	if(fill_ccr_request(&ccr_request->data.ccr, context,
+				ebi_index, pdn->gx_sess_id, 0) != 0) {
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed CCR request "
+			"filling process\n", LOG_VALUE);
+		return GTPV2C_CAUSE_CONTEXT_NOT_FOUND;
+	}
+	/* Update UE State */
+	pdn->state = CCR_SNT_STATE;
+
+	/* Set the Gx State for events */
+	gx_context->state = CCR_SNT_STATE;
+	gx_context->proc = pdn->proc;
+
+	return 0;
+}
+
+void
+compare_arp_value(eps_bearer *def_bearer, pdn_connection *pdn) {
+
+	eps_bearer *bearer = NULL;
+
+	for(uint8_t idx = 0; idx < MAX_BEARERS; idx++) {
+			bearer = pdn->eps_bearers[idx];
+			if(bearer != NULL) {
+				if(bearer->eps_bearer_id == def_bearer->eps_bearer_id)
+					continue;
+				if(def_bearer->qos.arp.preemption_vulnerability == bearer->qos.arp.preemption_vulnerability
+					&& def_bearer->qos.arp.priority_level == bearer->qos.arp.priority_level
+					&& def_bearer->qos.arp.preemption_capability == bearer->qos.arp.preemption_capability) {
+
+						bearer->arp_bearer_check = PRESENT;
+				}
+			}
+	}
+	return;
+}
+
+int
+set_address(node_address_t *node_value, node_address_t *node)
+{
+
+	if(node->ip_type == NONE_TYPE) {
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT" None of the IPv4 "
+			"or IPv6 IP is set", LOG_VALUE);
+		return -1;
+	}
+
+	if(node->ip_type == PDN_IP_TYPE_IPV4 || node->ip_type == PDN_IP_TYPE_IPV4V6) {
+
+		node_value->ipv4_addr = node->ipv4_addr;
+		node_value->ip_type |= PDN_IP_TYPE_IPV4;
+	}
+
+	if(node->ip_type == PDN_IP_TYPE_IPV6 || node->ip_type == PDN_IP_TYPE_IPV4V6) {
+
+		memcpy(node_value->ipv6_addr, node->ipv6_addr, IPV6_ADDRESS_LEN);
+		node_value->ip_type |= PDN_IP_TYPE_IPV6;
+	}
+
+	return 0;
+}
+
+
+
+int
+set_dest_address(node_address_t src_addr, peer_addr_t *dst_addr) {
+
+	if(src_addr.ip_type == PDN_TYPE_IPV4) {
+
+			dst_addr->ipv4.sin_addr.s_addr = src_addr.ipv4_addr;
+			dst_addr->ipv4.sin_family = AF_INET;
+			dst_addr->type = PDN_TYPE_IPV4;
+
+	}  else if(src_addr.ip_type == PDN_TYPE_IPV6
+			|| src_addr.ip_type == PDN_TYPE_IPV4_IPV6) {
+
+		memcpy(dst_addr->ipv6.sin6_addr.s6_addr, src_addr.ipv6_addr, IPV6_ADDRESS_LEN);
+		dst_addr->ipv6.sin6_family = AF_INET6;
+		dst_addr->type = PDN_TYPE_IPV6;
+
+	} else {
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT" None of the IPv4 "
+			"or IPv6 IP is present while storing IP address", LOG_VALUE);
+		return -1;
+	}
+
+	return 0;
+}
+
+int
+fill_packet_fltr_info_avp(gx_msg *ccr_request, tad_pkt_fltr_t *tad_pkt_fltr, uint8_t idx) {
+
+	char dest_addr_buff[ADDR_BUF_SIZE]= {0};
+	char src_addr_buff[ADDR_BUF_SIZE]= {0};
+	char pkt_buff[PCKT_BUF_SIZE] = {0};
+	struct in_addr src_ip_addr;
+	struct in_addr dst_ip_addr;
+
+	memcpy(ccr_request->data.ccr.packet_filter_information.list[idx].packet_filter_identifier.val,
+			&tad_pkt_fltr->pckt_fltr_id,1);
+	ccr_request->data.ccr.packet_filter_information.list[idx].packet_filter_identifier.len = 1;
+	ccr_request->data.ccr.packet_filter_information.list[idx].flow_direction = tad_pkt_fltr->pckt_fltr_dir;
+	memcpy(&ccr_request->data.ccr.packet_filter_information.list[idx].precedence,
+			&tad_pkt_fltr->precedence,1);
+
+	if (tad_pkt_fltr->v4) {
+		src_ip_addr.s_addr = tad_pkt_fltr->local_ip_addr;
+		dst_ip_addr.s_addr = tad_pkt_fltr->remote_ip_addr;
+		snprintf(src_addr_buff,ADDR_BUF_SIZE,"%s",inet_ntoa(src_ip_addr));
+		snprintf(dest_addr_buff,ADDR_BUF_SIZE,"%s",inet_ntoa(dst_ip_addr));
+
+		if (tad_pkt_fltr->pckt_fltr_dir == TFT_DIRECTION_DOWNLINK_ONLY ||
+				tad_pkt_fltr->pckt_fltr_dir == TFT_DIRECTION_BIDIRECTIONAL) {
+
+			snprintf(pkt_buff,PCKT_BUF_SIZE,"%s %s/%d %u-%u to %s/%d %u-%u ","permit out ip from",
+					dest_addr_buff,tad_pkt_fltr->remote_ip_mask,tad_pkt_fltr->remote_port_low,
+					tad_pkt_fltr->remote_port_high,src_addr_buff,tad_pkt_fltr->local_ip_mask,
+					tad_pkt_fltr->local_port_low,tad_pkt_fltr->local_port_high);
+
+		} else if (tad_pkt_fltr->pckt_fltr_dir == TFT_DIRECTION_UPLINK_ONLY){
+
+			snprintf(pkt_buff,PCKT_BUF_SIZE,"%s %s/%d %u-%u to %s/%d %u-%u ","permit out ip from",
+					src_addr_buff,tad_pkt_fltr->local_ip_mask,tad_pkt_fltr->local_port_low,
+					tad_pkt_fltr->local_port_high,dest_addr_buff,tad_pkt_fltr->remote_ip_mask,
+					tad_pkt_fltr->remote_port_low,tad_pkt_fltr->remote_port_high);
+
+		} else {
+			clLog(clSystemLog, eCLSeverityCritical,
+					LOG_FORMAT"Invalid packet filter direction"
+					"received in TAD of Bearer resource command\n", LOG_VALUE);
+			return -1;
+		}
+
+	} else if (tad_pkt_fltr->v6) {
+
+		inet_ntop(AF_INET6, tad_pkt_fltr->local_ip6_addr, src_addr_buff, ADDR_BUF_SIZE);
+		inet_ntop(AF_INET6, tad_pkt_fltr->remote_ip6_addr, dest_addr_buff, ADDR_BUF_SIZE);
+
+		if (tad_pkt_fltr->pckt_fltr_dir == TFT_DIRECTION_DOWNLINK_ONLY ||
+				tad_pkt_fltr->pckt_fltr_dir == TFT_DIRECTION_BIDIRECTIONAL) {
+
+			snprintf(pkt_buff,PCKT_BUF_SIZE,"%s %s/%d %u-%u to %s/%d %u-%u ","permit out ip from",
+					dest_addr_buff,tad_pkt_fltr->remote_ip_mask,tad_pkt_fltr->remote_port_low,
+					tad_pkt_fltr->remote_port_high,src_addr_buff,tad_pkt_fltr->local_ip_mask,
+					tad_pkt_fltr->local_port_low,tad_pkt_fltr->local_port_high);
+
+		} else if (tad_pkt_fltr->pckt_fltr_dir == TFT_DIRECTION_UPLINK_ONLY){
+
+			snprintf(pkt_buff,PCKT_BUF_SIZE,"%s %s/%d %u-%u to %s/%d %u-%u ","permit out ip from",
+					src_addr_buff,tad_pkt_fltr->local_ip_mask,tad_pkt_fltr->local_port_low,
+					tad_pkt_fltr->local_port_high,dest_addr_buff,tad_pkt_fltr->remote_ip_mask,
+					tad_pkt_fltr->remote_port_low,tad_pkt_fltr->remote_port_high);
+
+		} else {
+			/**error*/
+			clLog(clSystemLog, eCLSeverityCritical,
+					LOG_FORMAT"Invalid packet filter direction"
+					"received in TAD of Bearer resource command\n", LOG_VALUE);
+			return -1;
+		}
+
+	} else {
+			clLog(clSystemLog, eCLSeverityCritical,
+					LOG_FORMAT"Neither IPv4 nor IPv6 packet filter component "
+					"identifier received in TAD of Bearer resource command\n", LOG_VALUE);
+			return -1;
+	}
+
+	memcpy(ccr_request->data.ccr.packet_filter_information.list[idx].packet_filter_content.val,
+			pkt_buff,strlen(pkt_buff));
+	ccr_request->data.ccr.packet_filter_information.list[idx].packet_filter_content.len = strlen(pkt_buff);
+
+	return 0;
+
+}
+#ifdef CP_BUILD
+
+int
+send_pfcp_del_sess_req(uint64_t sess_id, peer_addr_t *peer_addr) {
+	uint32_t seq = 1;
+	uint64_t up_sess_id = 0;
+	pfcp_sess_del_req_t pfcp_sess_del_req = {0};
+
+	seq = get_pfcp_sequence_number(PFCP_SESSION_DELETION_REQUEST, seq);
+	set_pfcp_seid_header((pfcp_header_t *) &(pfcp_sess_del_req.header),
+			PFCP_SESSION_DELETION_REQUEST, HAS_SEID, seq, 0);
+
+	/* Generate UP SEID from CP SEID */
+	up_sess_id = ((((sess_id >> 32) + 1) << 32)  | (sess_id & 0xfffffff) );
+
+	pfcp_sess_del_req.header.seid_seqno.has_seid.seid = up_sess_id;
+
+	uint8_t pfcp_msg[PFCP_MSG_LEN]={0};
+
+	int encoded = encode_pfcp_sess_del_req_t(&pfcp_sess_del_req, pfcp_msg);
+
+	/* Fill the target UPF ip address  */
+	memcpy(&upf_pfcp_sockaddr, peer_addr, sizeof(peer_addr_t));
+
+	if ( pfcp_send(pfcp_fd, pfcp_fd_v6, pfcp_msg, encoded, upf_pfcp_sockaddr,SENT) < 0 ){
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Error sending pfcp session "
+				"deletion request : %i\n", LOG_VALUE, errno);
+		return -1;
+	}
+
+	return 0;
+}
+#endif /* CP_BUILD */

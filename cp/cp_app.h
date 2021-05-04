@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,9 +36,7 @@
 #include "ue.h"
 #endif /* CP_BUILD */
 
-/* VG1 Temp inlude remove this after handling of CSR on gx*/
-#include "../libgtpv2c/include/gtp_messages.h"
-
+#include "gtp_messages.h"
 
 #define SERVER_PATH "/usr/sock_server_cca_rar"
 #define CLIENT_PATH "/usr/sock_client_ccr_raa"
@@ -70,6 +69,12 @@ enum e_BUF_HDR {
 	GX_RAA_MSG,
 	GX_CCR_MSG,
 	GX_CCA_MSG,
+};
+
+enum pra_status {
+	PRA_IN_AREA,
+	PRA_OUT_AREA,
+	PRA_INACTIVE,
 };
 
 /**
@@ -133,8 +138,17 @@ start_cp_app( void );
  */
 int
 fill_ccr_request(GxCCR *ccr, ue_context *context,
-		int ebi_index, char *sess_id, uint8_t flow_flag);
+					int ebi_index, char *sess_id, uint8_t flow_flag);
 
+/**
+ * @brief  : Fill Presence Reporting Area Info in CCA
+ * @param  : presence_rprtng_area_info, structure to be filled
+ * @param  : ue_pra_info, Presence Reporting Area in UE context
+ * @return : Returns nothing
+ */
+void
+fill_presence_rprtng_area_info(GxPresenceReportingAreaInformationList *presence_rprtng_area_info,
+														presence_reproting_area_info_t *ue_pra_info);
 #endif /* CP_BUILD */
 
 /**
@@ -203,5 +217,13 @@ bin_to_str(unsigned char *b_val, char *s_val, int b_len, int s_len);
  */
 void
 encode_imsi_to_bin(uint64_t imsi, int imsi_len, uint8_t *bin_imsi);
+
+/**
+ * @brief  : free dynamically allocated memory of cca msg.
+ * @param  : cca, Structure to store cca msg.
+ * @return : Returns nothing
+ */
+void
+free_cca_msg_dynamically_alloc_memory(GxCCA *cca);
 
 #endif /* CP_APP_H_ */

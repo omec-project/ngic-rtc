@@ -1,9 +1,10 @@
 variables:
     LOCAL_ARTIFACT_DIR: "/home/gitlab-runner/artifacts/"
     GIT_IP: "10.155.205.206"
-    OSS_UTIL_BRANCH: "delivery_1.8"
     FDM_BRANCH: "gx"
-    FDM_GIT_URL: "https://github.com/omec-project/freediameter.git"
+    FDM_GIT_URL: "https://github.com/omec-project/freeDiameter.git"
+    LIB_GTPV2C_REPO: "https://github.com/omec-project/libgtpv2c.git"
+    LIB_GTPV2C_COMMIT_ID: "9f954fb781d94186a8957cf1b60d48e5d0b5e7f3"
 
 stages:
     - build
@@ -11,23 +12,21 @@ stages:
 build:
     stage: build
     only:
-        - delivery_1.8
+        - delivery_1.9
     before_script:
         - echo -e "*************************************\n\tNGIC Build Started\n*************************************"
     script:
-        - echo "Git clone OSS util packages"
+        #- echo $CI_PROJECT_DIR
         - ssh-keyscan $GIT_IP >> ~/.ssh/known_hosts
-        - cd $CI_PROJECT_DIR/oss_adapter/c3po_oss/  && git clone git@$GIT_IP:C3PO-NGIC/oss-util.git -b $OSS_UTIL_BRANCH
-        - sudo chown gitlab-runner:gitlab-runner -R $CI_PROJECT_DIR/oss_adapter/c3po_oss
-        - mkdir -p $CI_PROJECT_DIR/third_party && cd $CI_PROJECT_DIR/third_party && git clone $FDM_GIT_URL -b $FDM_BRANCH
-        - sudo chown gitlab-runner:gitlab-runner -R $CI_PROJECT_DIR/third_party/freediameter
+        - mkdir -p $CI_PROJECT_DIR/third_party && cd $CI_PROJECT_DIR/third_party && git clone $FDM_GIT_URL -b $FDM_BRANCH && git clone $LIB_GTPV2C_REPO && cd libgtpv2c && git checkout $LIB_GTPV2C_COMMIT_ID
+        - sudo chown gitlab-runner:gitlab-runner -R $CI_PROJECT_DIR/third_party
         - cd $CI_PROJECT_DIR && chmod +x install_builddeps.sh && sudo ./install_builddeps.sh
         - cd $CI_PROJECT_DIR && source setenv.sh && cd cp && make
         - cd $CI_PROJECT_DIR && source setenv.sh && make build-lib && cd dp && make
         - cd $CI_PROJECT_DIR && sudo chown gitlab-runner:gitlab-runner -R *
     after_script:
-        - cd $CI_PROJECT_DIR && sudo tar -zcvf $LOCAL_ARTIFACT_DIR/ngic-prod-$TAG.tar.gz libgtpv2c/lib/libgtpv2c.so libpfcp/lib/libpfcp.so cp/build/ngic_controlplane dp/build/ngic_dataplane third_party/dpdk/usertools/ third_party/dpdk/x86_64-native-linuxapp-gcc/kmod/ config dp/run.sh  cp/run.sh cp/logs /usr/local/lib/lib* /usr/local/lib/freeDiameter kni_ifcfg cp/gx_app
+        - cd $CI_PROJECT_DIR && sudo tar -zcvf $LOCAL_ARTIFACT_DIR/ngic-prod-$TAG.tar.gz third_party/libgtpv2c/lib/libgtpv2c.so third_party/libpfcp/lib/libpfcp.so cp/build/ngic_controlplane dp/build/ngic_dataplane third_party/dpdk/usertools/ third_party/dpdk/x86_64-native-linuxapp-gcc/kmod/ config dp/run.sh  cp/run.sh cp/logs /usr/local/lib/lib* /usr/local/lib/freeDiameter kni_ifcfg cp/gx_app
         - echo "Uploading artifact to nexus artifactory" 
         - cd $LOCAL_ARTIFACT_DIR && curl -v -F "asset1.filename=ngic-prod-$TAG.tar.gz" -F "directory=ngic_builds/$TAG" -F "asset1=@ngic-prod-$TAG.tar.gz" -u $NEXUS_USER:$NEXUS_PASS $NEXUS_URL/service/rest/v1/components?repository=raw-internal
-        #- rm -rf $LOCAL_ARTIFACT_DIR/*
+        - rm -rf $LOCAL_ARTIFACT_DIR/*
 

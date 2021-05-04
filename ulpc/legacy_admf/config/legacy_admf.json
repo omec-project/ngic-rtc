@@ -1,6 +1,7 @@
 {
     "LegacyAdmfApp": {
 		"NodeName": "legacy_admf",
+		"ServerIp": "192.168.0.69",
 		"ServerPort": 10001,
 		"LegacyAdmfIntfcIp": "192.168.0.69",
 		"LegacyAdmfIntfcPort": 10000

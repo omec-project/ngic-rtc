@@ -41,10 +41,6 @@
 /* PGW Restart Notification */
 #define  PRN 1
 
-#define PDN_TYPE_IPV4	1
-#define PDN_TYPE_IPV6	2
-#define PDN_TYPE_IPV4_IPV6	3
-
 #define GTP_VERSION_GTPV2C                                   (2)
 
 /* GTP Message Type Values */
@@ -118,6 +114,8 @@
 #define GTP_PGW_RESTART_NOTIFICATION_ACK                     (180)
 #define GTP_UPDATE_PDN_CONNECTION_SET_REQ                    (200)
 #define GTP_UPDATE_PDN_CONNECTION_SET_RSP                    (201)
+#define GTP_MODIFY_ACCESS_BEARER_REQ                         (211)
+#define GTP_MODIFY_ACCESS_BEARER_RSP                         (212)
 #define GTP_MBMS_SESSION_START_REQ                           (231)
 #define GTP_MBMS_SESSION_START_RSP                           (232)
 #define GTP_MBMS_SESSION_UPDATE_REQ                          (233)
@@ -145,6 +143,9 @@ enum gtpv2c_interfaces {
 	GTPV2C_IFTYPE_S5S8_PGW_PIMPv6 = 9,
 	GTPV2C_IFTYPE_S11_MME_GTPC = 10,
 	GTPV2C_IFTYPE_S11S4_SGW_GTPC = 11,
+	GTPV2C_IFTYPE_SGW_GTPU_DL_DATA_FRWD = 23,
+	GTPV2C_IFTYPE_SGW_GTPU_UL_DATA_FRWD = 28,
+	GTPV2C_IFTYPE_S11_MME_GTPU = 38,
 	GTPV2C_IFTYPE_S11U_SGW_GTPU = 39
 };
 
@@ -304,8 +305,7 @@ get_next_ie(gtpv2c_ie *gtpv2c_ie_ptr, gtpv2c_ie *limit);
 	       child_ie_ptr;                                                  \
 	       child_ie_ptr = get_next_ie(child_ie_ptr, gtpv2c_limit_ie_ptr))
 
-extern struct in_addr s11_mme_ip;
-extern struct sockaddr_in s11_mme_sockaddr;
+extern peer_addr_t s11_mme_sockaddr;
 
 extern struct in_addr s11_sgw_ip;
 extern in_port_t s11_port;
@@ -342,37 +342,6 @@ extern struct in_addr s5s8_pgwu_ip;
  * int process_sgwc_s5s8_create_session_response(...)
  *
  */
-
-/**
- * @brief  : Table 7.2.1-1: Information Elements in a Create Session Response -
- *           incomplete list
- */
-typedef struct parse_sgwc_s5s8_create_session_response_t {
-	uint8_t *bearer_context_to_be_created_ebi;
-	fteid_ie *pgw_s5s8_gtpc_fteid;
-	gtpv2c_ie *pdn_addr_alloc_ie;
-	gtpv2c_ie *apn_restriction_ie;
-	gtpv2c_ie *bearer_qos_ie;
-	gtpv2c_ie *bearer_tft_ie;
-	gtpv2c_ie *s5s8_pgw_gtpu_fteid;
-}sgwc_s5s8_create_session_response_t;
-
-/**
- * @brief  : parses gtpv2c message and populates parse_sgwc_s5s8_create_session_response_t structure
- * @param  : gtpv2c_rx
- *           buffer containing create bearer response message
- * @param  : csr
- *           data structure to contain required information elements from create
- *           create session response message
- * @return : - 0 if successful
- *           - > 0 if error occurs during packet filter parsing corresponds to 3gpp
- *           specified cause error value
- *           - < 0 for all other errors
- */
-
-int
-parse_sgwc_s5s8_create_session_response(gtpv2c_header_t *gtpv2c_rx,
-		sgwc_s5s8_create_session_response_t *csr);
 
 /**
  * @brief  : Handles processing of sgwc s5s8 create session response messages
@@ -537,31 +506,6 @@ process_pgwc_s5s8_create_session_request(gtpv2c_header_t *gtpv2c_rx,
 		struct in_addr *upf_ipv4, uint8_t proc);
 
 /**
- * @brief  : Handles the generation of sgwc s5s8 create session request messages
- * @param  : gtpv2c_s11_rx
- *           gtpc2c message reception  buffer containing s11 request message
- * @param  : gtpv2c_s5s8_tx
- *           gtpc2c message transmission buffer to contain s5s8 response message
- * @param  : sequence
- *           sequence number as described by clause 7.6 3gpp 29.274
- * @param  : pdn
- *           PDN Connection data structure pertaining to the session to be created
- * @param  : bearer
- *           Default EPS Bearer corresponding to the PDN Connection to be created
- * @param  : sgwu_fqdn
- *           SGWU fqdn to be sent to PGWC
- * @return : - 0 if successful
- *           - > 0 if error occurs during packet filter parsing corresponds to 3gpp
- *           specified cause error value
- *           - < 0 for all other errors
- */
-int
-gen_sgwc_s5s8_create_session_request(gtpv2c_header_t *gtpv2c_s11_rx,
-		gtpv2c_header_t *gtpv2c_s5s8_tx,
-		uint32_t sequence, pdn_connection *pdn,
-		eps_bearer *bearer, char *sgwu_fqdn);
-
-/**
  * @brief  : Handles the processing of delete bearer response messages received by the
  *           control plane.
  * @param  : gtpv2c_rx
@@ -640,19 +584,23 @@ process_release_access_bearer_request(rel_acc_ber_req_t *rel_acc_ber_req, uint8_
 /**
  * @brief  : Processes a Downlink Data Notification Acknowledgement message
  *           (29.274 Section 7.2.11.2).  Populates the delay value @delay
- * @param  : downlink_data_notification_t
+ * @param  : decode_dnlnk_data_notif_ack
  *           Containing the Downlink Data Notification Acknowledgement
- * @param  : delay
- *           - 0 if no delay IE present
- *           - > 0 The delay value to be parsed and set as specified in 29.274
- *           Table 7.2.11.2-1
  * @return : - 0 if successful
  *           - > 0 if error occurs during packet filter parsing corresponds to 3gpp
  *           specified cause error value
  *           - < 0 for all other errors
  */
 int
-process_ddn_ack(downlink_data_notification_t ddn_ack, uint8_t *delay);
+process_ddn_ack(dnlnk_data_notif_ack_t *ddn_ack);
+
+/**
+ * @brief  : Processes a Downlink Data Notification Failure Indication message
+ * @param  : decoded dnlnk_data_notif_fail_indctn_t
+ * @return : - 0 if successful and -1 on error
+ */
+int
+process_ddn_failure(dnlnk_data_notif_fail_indctn_t *ddn_fail_ind);
 
 /**
  * @brief  : Creates a Downlink Data Notification message
@@ -665,31 +613,14 @@ process_ddn_ack(downlink_data_notification_t ddn_ack, uint8_t *delay);
  * @param  : gtpv2c_tx
  *           gtpv2c message buffer containing the Downlink Data Notification to
  *           transmit
+ * @param  : pfcp_pdr_id, pdr_ids  pointer
  * @return : - 0 if successful
  *           - > 0 if error occurs during packet filter parsing corresponds to 3gpp
  *           specified cause error value
  */
 int
 create_downlink_data_notification(ue_context *context, uint8_t eps_bearer_id,
-		uint32_t sequence, gtpv2c_header_t *gtpv2c_tx);
-
-
-/**
- * @brief  : parses gtpv2c message and populates downlink_data_notification_ack_t
- *           structure
- * @param  : gtpv2c_rx
- *           buffer containing received downlink data notification ack message
- * @param  : ddn_ack
- *           structure to contain parsed information from message
- * @return : - 0 if successful
- *           - > 0 if error occurs during packet filter parsing corresponds to 3gpp
- *           specified cause error value
- *           - < 0 for all other errors
- */
-int
-parse_downlink_data_notification_ack(gtpv2c_header_t *gtpv2c_rx,
-			downlink_data_notification_t *ddn_ack);
-
+		uint32_t sequence, gtpv2c_header_t *gtpv2c_tx, pdr_ids *pfcp_pdr_id);
 
 /**
  * @brief  : parses gtpv2c message and populates parse_release_access_bearer_request_t
@@ -708,26 +639,27 @@ parse_release_access_bearer_request(gtpv2c_header_t *gtpv2c_rx,
 			 rel_acc_ber_req_t  *rel_acc_ber_req);
 /**
  * @brief  : Utility to send or dump gtpv2c messages
- * @param  : gtpv2c_tx, gtpv2c message transmission buffer to response message
+ * @param  : gtpv2c_if_id_v4, file discpretor for IPV4
+ * @param  : gtpv2c_if_id_v6, file discpretor for IPV6
+ * @param  : gtpv2c_tx_buf, gtpv2c message transmission buffer to response message
  * @param  : gtpv2c_pyld_len, gtpv2c message length
  * @param  : dest_addr, ip address of destination
- * @param  : dest_addr_len, destination address length
  * @param  : dir, message direction
  * @return : Returns the transmitted bytes
  */
 int
-gtpv2c_send(int gtpv2c_if_id, uint8_t *gtpv2c_tx_buf,
-			uint16_t gtpv2c_pyld_len, struct sockaddr *dest_addr,
-			socklen_t dest_addr_len,Dir dir);
+gtpv2c_send(int gtpv2c_if_id_v4, int gtpv2c_if_id_v6, uint8_t *gtpv2c_tx_buf,
+			uint16_t gtpv2c_pyld_len, peer_addr_t dest_addr, Dir dir);
 /**
  * @brief  : Util to send or dump gtpv2c messages
- * @param  : fd, interface indentifier
+ * @param  : fd_v4, IPv4 interface indentifier
+ * @param  : fd_v6, IPv6 interface indentifier
  * @param  : t_tx, buffer to store data for peer node
  * @param  : context, UE context for lawful interception
  * @return : Returns nothing
  */
 void
-timer_retry_send(int fd, peerData *t_tx, ue_context *context);
+timer_retry_send(int fd_v4, int fd_v6, peerData *t_tx, ue_context *context);
 
 /**
  * @brief  : Set values in node features ie
@@ -807,6 +739,7 @@ process_cs_resp_cb_request(create_bearer_req_t *cb_req);
 /**
 * @brief  : Handles processing of modify bearer request and create bearer response message
 * @param  : mbr
+* @param  : cbr
 * message reception  buffer containing the response message
 * @return : - 0 if successful
 *           - > 0 if error occurs during packet filter parsing corresponds to 3gpp
@@ -814,7 +747,7 @@ process_cs_resp_cb_request(create_bearer_req_t *cb_req);
 *           - < 0 for all other errors
 */
 int
-process_mb_request_cb_response(mod_bearer_req_t *mbr);
+process_mb_request_cb_response(mod_bearer_req_t *mbr, create_bearer_rsp_t *cbr);
 
 /**
 * @brief  : Handles Change Notfication Response Mesage
@@ -860,4 +793,25 @@ set_change_notification_request(gtpv2c_header_t *gtpv2c_tx, change_noti_req_t *c
 void
 set_release_access_bearer_response(gtpv2c_header_t *gtpv2c_tx, pdn_connection *pdn);
 
+/*
+ * @brief  : Set the Create Indirect Data Forwarding Tunnel Response gtpv2c message
+ * @param  : gtpv2c_tx ,transmission buffer
+ * @param  : pdn_connection structre pointer
+ * @return : Returns nothing
+ */
+void
+set_create_indir_data_frwd_tun_response(gtpv2c_header_t *gtpv2c_tx, pdn_connection *pdn);
+
+
+/*
+ * @brief  : process  session modification response after mbr in s1 handover
+ * @param  : mb_rsp , modify bearer response object
+ * @param  : conetxt, ue_context
+ * @param  : pdn_connection structre pointer
+ * @param  : bearer, eps_bearer
+ * @return : Returns zero on success.
+ */
+int
+process_pfcp_sess_mod_resp_s1_handover(mod_bearer_rsp_t *mb_rsp, ue_context *context,
+		pdn_connection *pdn, eps_bearer *bearer);
 #endif /* GTPV2C_H */

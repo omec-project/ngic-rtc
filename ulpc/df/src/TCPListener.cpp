@@ -56,7 +56,12 @@ TCPListener::onInit()
 
 	m_ptrListener = new DfListener(*this);
 
-	m_ptrListener->listen(config.df_port, BACKLOG_CONNECTIION);
+//	m_ptrListener->listen(config.df_port, BACKLOG_CONNECTIION);
+
+	m_ptrListener->getLocalAddress().setAddress(config.df_ip, config.df_port);
+	m_ptrListener->setBacklog(BACKLOG_CONNECTIION);
+
+	m_ptrListener->listen();
 
 	ELogger::log(LOG_SYSTEM).info("{} :: DF listener started on port {}.",
 			__func__, config.df_port);
@@ -116,11 +121,19 @@ TCPListener::onQuit()
 Void
 TCPListener::onTimer(EThreadEventTimer *ptimer)
 {
+<<<<<<< HEAD
 	if (ptimer->getId() == m_dfRetryTimer.getId()) {
 		ELogger::log(LOG_SYSTEM).debug("Recovery timer expired, " 
 				"sending failed packets");
 
 		sendPending();
+=======
+        if (ptimer->getId() == m_dfRetryTimer.getId()) {
+                ELogger::log(LOG_SYSTEM).debug("Recovery timer expired, "
+                                "sending failed packets");
+
+                sendPending();
+>>>>>>> tmo/delivery_1.9_hotfix
         }
 }
 
@@ -193,6 +206,17 @@ TCPListener::onSocketClosed(ESocket::BasePrivate *psocket) {
 	delete psocket;
 }
 
+<<<<<<< HEAD
+=======
+Void
+TCPListener::onSocketError(ESocket::BasePrivate *psocket) {
+        ELogger::log(LOG_SYSTEM).info("{} socket error {} {} ", __func__,
+                        ((ESocket::TCP::TalkerPrivate*)psocket)->getRemoteAddress(),
+                        psocket->getErrorDescription());
+
+        onSocketClosed(psocket);
+}
+>>>>>>> tmo/delivery_1.9_hotfix
 
 Void TCPListener::processData(DfPacket_t *packet)
 {
@@ -216,6 +240,7 @@ Void TCPListener::processData(DfPacket_t *packet)
 
 #define SEND_BUF_SIZE 4096
 
+<<<<<<< HEAD
 	uint8_t *buf = NULL;
 	DfPacket_t *pkt = NULL;
 	uint32_t tempLen;
@@ -234,6 +259,18 @@ Void TCPListener::processData(DfPacket_t *packet)
 
 		pkt = (DfPacket_t *)buf;
 		
+=======
+	DfPacket_t *pkt = NULL;
+	uint32_t tempLen = sizeof(DfPacket_t) + ntohl(packet->header.dataLength);
+	uint8_t buf[tempLen];
+
+	if (checkAvailableSapce() == 0) {
+
+		std::memset(buf, '\0', tempLen);
+
+		pkt = (DfPacket_t *)buf;
+
+>>>>>>> tmo/delivery_1.9_hotfix
 		pkt->packetLength = htonl(tempLen);
 		pkt->header.sequenceNumber = packet->header.sequenceNumber;
 		pkt->header.liIdentifier = packet->header.liIdentifier;
@@ -241,6 +278,7 @@ Void TCPListener::processData(DfPacket_t *packet)
 		pkt->header.dataLength = packet->header.dataLength;
 		std::memcpy(pkt->data, packet->data, ntohl(pkt->header.dataLength));
 
+<<<<<<< HEAD
 		fileBuf = new uint8_t[SEND_BUF_SIZE];
 		if (NULL == fileBuf) {
                 	ELogger::log(LOG_SYSTEM).critical("{} :: Error while allocating {} bytes memory",
@@ -262,6 +300,19 @@ Void TCPListener::processData(DfPacket_t *packet)
 			delete fileBuf;
 			fileBuf = NULL;
 		}
+=======
+		std::memset(writeBuf, '\0', SEND_BUF_SIZE);
+
+		uint16_t ret = 0;
+		ret = snprintf((char *)writeBuf, SEND_BUF_SIZE, "%u,%u,%lu,%lu,%u,", ntohl(pkt->packetLength),
+				ntohl(pkt->header.sequenceNumber), pkt->header.liIdentifier,
+				pkt->header.imsiNumber, ntohl(pkt->header.dataLength));
+		memcpy(writeBuf + ret, pkt->data, ntohl(pkt->header.dataLength));
+
+		fileWrite.write((const char *)writeBuf, SEND_BUF_SIZE);
+		entry_cnt++;
+
+>>>>>>> tmo/delivery_1.9_hotfix
 	}
 	else
 		space_flag = 1;
@@ -281,11 +332,14 @@ Void TCPListener::processData(DfPacket_t *packet)
 		setPending();
 
 	}
+<<<<<<< HEAD
 
 	if(buf != NULL) {
 		delete buf;
 		buf = NULL;
 	}
+=======
+>>>>>>> tmo/delivery_1.9_hotfix
 }
 
 Void TCPListener::resetFlag()
@@ -297,23 +351,39 @@ Void TCPListener::resetFlag()
 Void TCPListener::setPending()
 {
 	if (legacy_conn == 1) {
+<<<<<<< HEAD
 		ELogger::log(LOG_SYSTEM).debug("{}: Legacy DF is not connected, " 
+=======
+		ELogger::log(LOG_SYSTEM).debug("{}: Legacy DF is not connected, "
+>>>>>>> tmo/delivery_1.9_hotfix
 		"returning from recovery ", __func__);
 		return;
 	}
 
 	ELogger::log(LOG_SYSTEM).debug("DF code going in recovery due to some backlog of msg");
+<<<<<<< HEAD
 				
 	if ((pkt_cnt == -1) && (serveNextFile == 1)) {
 		ELogger::log(LOG_SYSTEM).debug("{} : There is another file to serve for recovery"
 			", waiting for ack from prev", __func__);
 	
+=======
+
+	if ((pkt_cnt == -1) && (serveNextFile == 1)) {
+		ELogger::log(LOG_SYSTEM).debug("{} : There is another file to serve for recovery"
+			", waiting for ack from prev", __func__);
+
+>>>>>>> tmo/delivery_1.9_hotfix
 		return;
 	}
 
 	if (pending_data_flag == 1) {
 		ELogger::log(LOG_SYSTEM).debug("{} : Recovery is in progress", __func__);
+<<<<<<< HEAD
 	
+=======
+
+>>>>>>> tmo/delivery_1.9_hotfix
 		return;
 	}
 
@@ -343,13 +413,21 @@ Void TCPListener::sendPending()
                 }
 
 		startDfRetryTimer();
+<<<<<<< HEAD
 		
+=======
+
+>>>>>>> tmo/delivery_1.9_hotfix
 		return;
 	}
 
 	if (legacy_conn == 1) {
 		ELogger::log(LOG_SYSTEM).debug("{}: Legacy DF is not yet connected", __func__);
+<<<<<<< HEAD
 		pending_data_flag = 0;	
+=======
+		pending_data_flag = 0;
+>>>>>>> tmo/delivery_1.9_hotfix
 		return;
 	}
 
@@ -361,6 +439,7 @@ Void TCPListener::sendPending()
 
 	if ((m_legacyIntfc) && (msg_cnt.Decrement(False))) {
 
+<<<<<<< HEAD
 #define SEND_BUF_SIZE 4096
 
 		uint8_t *str = new uint8_t[SEND_BUF_SIZE];
@@ -383,11 +462,31 @@ Void TCPListener::sendPending()
 			if(vecIter == fileVect.end()) {
 				serveNextFile = 0;
 				ELogger::log(LOG_SYSTEM).debug("{}: No furthur file to serve recovery", 
+=======
+		std::memset(readBuf, '\0', SEND_BUF_SIZE);
+
+		fileRead.seekg(send_bytes_track, std::ios::beg);
+		fileRead.read((char *)readBuf, SEND_BUF_SIZE);
+
+		if(fileRead.eof()) {
+			ELogger::log(LOG_SYSTEM).debug("{} : File is empty, no packets to serve recovery",
+					__func__);
+			fileRead.close();
+			m_dfRetryTimer.stop();
+
+			if(vecIter == fileVect.end()) {
+				serveNextFile = 0;
+				ELogger::log(LOG_SYSTEM).debug("{}: No furthur file to serve recovery",
+>>>>>>> tmo/delivery_1.9_hotfix
 						__func__);
 			} else {
 				pkt_cnt = -1;
 				serveNextFile = 1;
+<<<<<<< HEAD
 				ELogger::log(LOG_SYSTEM).debug("{}: Next File is there to serve recovery", 
+=======
+				ELogger::log(LOG_SYSTEM).debug("{}: Next File is there to serve recovery",
+>>>>>>> tmo/delivery_1.9_hotfix
 						__func__);
 			}
 
@@ -402,11 +501,14 @@ Void TCPListener::sendPending()
 
 			msg_cnt.Increment();
 
+<<<<<<< HEAD
 			if (str != NULL) {
 				delete str;
 				str = NULL;
 			}
 
+=======
+>>>>>>> tmo/delivery_1.9_hotfix
 			pending_data_flag = 0;
 			return;
 		}
@@ -416,6 +518,7 @@ Void TCPListener::sendPending()
 		uint32_t dataLen = 0;
 		uint64_t liId = 0;
 		uint64_t imsi = 0;
+<<<<<<< HEAD
 		uint8_t *tempBuf = NULL;
 	
 		tempBuf = new uint8_t[SEND_BUF_SIZE];
@@ -428,6 +531,13 @@ Void TCPListener::sendPending()
 
 		sscanf((const char *)str, ("%u,%u,%lu,%lu,%u"), &pktLen, &seqNum, &liId, &imsi, &dataLen);
 		
+=======
+
+		std::memset(payloadBuf, '\0', SEND_BUF_SIZE);
+
+		sscanf((const char *)readBuf, ("%u,%u,%lu,%lu,%u"), &pktLen, &seqNum, &liId, &imsi, &dataLen);
+
+>>>>>>> tmo/delivery_1.9_hotfix
 
 		uint16_t cnt = 0;
                 uint16_t iter = 0;
@@ -435,14 +545,22 @@ Void TCPListener::sendPending()
 #define NUMB_OF_DELIMITERS 5
 
                 for(iter = 0; iter < SEND_BUF_SIZE; iter++) {
+<<<<<<< HEAD
                         if (str[iter] == ',')
+=======
+                        if (readBuf[iter] == ',')
+>>>>>>> tmo/delivery_1.9_hotfix
                                 cnt++;
                         if (cnt == NUMB_OF_DELIMITERS) {
                                 iter++;
                                 break;
                         }
                 }
+<<<<<<< HEAD
                 std::memcpy(tempBuf, str + iter, SEND_BUF_SIZE-iter-1);
+=======
+                std::memcpy(payloadBuf, readBuf + iter, SEND_BUF_SIZE-iter-1);
+>>>>>>> tmo/delivery_1.9_hotfix
 
 
 		uint8_t buf[pktLen];
@@ -455,6 +573,7 @@ Void TCPListener::sendPending()
                 pkt->header.imsiNumber = imsi;
                 pkt->header.dataLength = htonl(dataLen);
                 pkt->packetLength = htonl(pktLen);
+<<<<<<< HEAD
                 std::memcpy(pkt->data, tempBuf, ntohl(pkt->header.dataLength));
 
 		ELogger::log(LOG_SYSTEM).debug("{} ::recovery df packet packet details", __func__);
@@ -483,21 +602,50 @@ Void TCPListener::sendPending()
 		if (tempBuf != NULL) {
 			delete tempBuf;
 			tempBuf = NULL;
+=======
+                std::memcpy(pkt->data, payloadBuf, ntohl(pkt->header.dataLength));
+
+		ELogger::log(LOG_SYSTEM).debug("{} ::recovery df packet packet details", __func__);
+		ELogger::log(LOG_SYSTEM).debug("Packet length {}", pktLen);
+		ELogger::log(LOG_SYSTEM).debug("Sequence number {}", seqNum);
+		ELogger::log(LOG_SYSTEM).debug("IMSI {}", pkt->header.imsiNumber);
+		ELogger::log(LOG_SYSTEM).debug("LI identifier {}", pkt->header.liIdentifier);
+		ELogger::log(LOG_SYSTEM).debug("Data length {}", dataLen);
+
+		ELogger::log(LOG_SYSTEM).info("Sending recovery for failed packet with seq number {}",
+				seqNum);
+
+		if (m_legacyIntfc) {
+			m_legacyIntfc->SendMessageToLegacyInterface(buf, ntohl(pkt->packetLength));
+			pkt_cnt++;
+
+			send_bytes_track += SEND_BUF_SIZE;
+>>>>>>> tmo/delivery_1.9_hotfix
 		}
 	}
 }
 
 Void TCPListener::msgCounter(uint32_t ack_number)
 {
+<<<<<<< HEAD
 	ELogger::log(LOG_SYSTEM).info("{} :Acknowledgement received from DF for sequence number {}", 
+=======
+	ELogger::log(LOG_SYSTEM).info("{} :Acknowledgement received from DF for sequence number {}",
+>>>>>>> tmo/delivery_1.9_hotfix
 			__func__, ack_number);
 	msg_cnt.Increment();
 
 #define MAX_ENTRY_COUNT 10000
+<<<<<<< HEAD
 #define SEND_BUF_SIZE 4096
 
 	uint8_t str[SEND_BUF_SIZE];
 	
+=======
+
+	uint8_t str[SEND_BUF_SIZE];
+
+>>>>>>> tmo/delivery_1.9_hotfix
 	std::memset(str, '\0', SEND_BUF_SIZE);
 
 	fileRead.seekg(read_bytes_track, std::ios::beg);
@@ -512,7 +660,11 @@ Void TCPListener::msgCounter(uint32_t ack_number)
 		ELogger::log(LOG_SYSTEM).debug("{} :No furthur data available in file {}", __func__, file_name);
 
 		fileRead.close();
+<<<<<<< HEAD
 		
+=======
+
+>>>>>>> tmo/delivery_1.9_hotfix
 		vecIter = fileVect.begin();
 
                 while(*vecIter++ != file_name);
@@ -523,7 +675,11 @@ Void TCPListener::msgCounter(uint32_t ack_number)
                         	__file__, __FUNCTION__, __LINE__, file_name);
                 }
 	}
+<<<<<<< HEAD
 	
+=======
+
+>>>>>>> tmo/delivery_1.9_hotfix
 	if (read_count > (MAX_ENTRY_COUNT - 1)) {
 		ELogger::log(LOG_SYSTEM).debug("{} : ACK received for whole file read_count is {}", __func__, read_count);
 
@@ -531,7 +687,11 @@ Void TCPListener::msgCounter(uint32_t ack_number)
 			ELogger::log(LOG_SYSTEM).debug("{} : Reached to last file, no more files ", __func__);
 		} else {
 			ELogger::log(LOG_SYSTEM).debug("{} : Next file is present, reading ", __func__);
+<<<<<<< HEAD
 			
+=======
+
+>>>>>>> tmo/delivery_1.9_hotfix
 			read_count = 0;
 			read_bytes_track = 0;
 			fileRead.close();

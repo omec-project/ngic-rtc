@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,16 +24,19 @@
 #include <rte_lcore.h>
 #include <rte_hash_crc.h>
 
+#include "gw_adapter.h"
+
 #include "up_main.h"
 #include "pfcp_up_llist.h"
 #include "pfcp_up_struct.h"
-#include "clogger.h"
 #include "predef_rule_init.h"
 
 #define NUM_OF_TABLES 10
 
-#define MAX_HASH_SIZE (1 << 15)
-#define MAX_PDN_HASH_SIZE (1 << 8)
+#define MAX_HASH_SIZE (1 << 16)
+#define MAX_PDN_HASH_SIZE (1 << 12)
+
+#define UN_16_BIT_HASH_SIZE (1 << 17)
 
 #define SESS_CREATE 0
 #define SESS_MODIFY 1
@@ -51,6 +55,7 @@ extern struct rte_hash *qer_by_id_hash;
 extern struct rte_hash *urr_by_id_hash;
 extern struct rte_hash *timer_by_id_hash;
 extern struct rte_hash *qer_rule_hash;
+extern int clSystemLog;
 
 int8_t
 add_sess_info_entry(uint64_t up_sess_id, pfcp_session_t *sess_cntxt)
@@ -262,10 +267,13 @@ del_sess_by_teid_entry(uint32_t teid)
 }
 
 pfcp_session_datat_t *
-get_sess_by_ueip_entry(uint32_t ue_ip, pfcp_session_datat_t **head, uint8_t is_mod)
+get_sess_by_ueip_entry(ue_ip_t ue_ip, pfcp_session_datat_t **head, uint8_t is_mod)
 {
 	int ret = 0;
 	pfcp_session_datat_t *sess_cntxt = NULL;
+	char ipv6[IPV6_STR_LEN];
+
+	inet_ntop(AF_INET6, ue_ip.ue_ipv6, ipv6, IPV6_STR_LEN);
 
 	ret = rte_hash_lookup_data(sess_by_ueip_hash,
 				&ue_ip, (void **)&sess_cntxt);
@@ -273,8 +281,8 @@ get_sess_by_ueip_entry(uint32_t ue_ip, pfcp_session_datat_t **head, uint8_t is_m
 	if ( ret < 0) {
 		if (is_mod != SESS_CREATE) {
 			clLog(clSystemLog, eCLSeverityDebug,
-				LOG_FORMAT"Entry not found for UE IP: "IPV4_ADDR"\n",
-				LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ue_ip));
+				LOG_FORMAT"Entry not found for UE IPv4: "IPV4_ADDR" or IPv6 IP %s\n",
+				LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ue_ip.ue_ipv4), ipv6);
 			return NULL;
 		}
 
@@ -292,8 +300,8 @@ get_sess_by_ueip_entry(uint32_t ue_ip, pfcp_session_datat_t **head, uint8_t is_m
 						&ue_ip, sess_cntxt);
 		if (ret) {
 			clLog(clSystemLog, eCLSeverityCritical,
-				LOG_FORMAT"Failed to add entry for UE IP: "IPV4_ADDR""
-				", Error: %s\n", LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ue_ip),
+				LOG_FORMAT"Failed to add entry for UE IPv4: "IPV4_ADDR" or IPv6 IP %s"
+				", Error: %s\n", LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ue_ip.ue_ipv4), ipv6,
 				rte_strerror(abs(ret)));
 
 			/* free allocated memory */
@@ -305,25 +313,29 @@ get_sess_by_ueip_entry(uint32_t ue_ip, pfcp_session_datat_t **head, uint8_t is_m
 		/* Function to add a node in Sesions Data Linked List. */
 		if (insert_sess_data_node(*head, sess_cntxt)) {
 			clLog(clSystemLog, eCLSeverityCritical,
-				LOG_FORMAT"Failed to add node entry in LInked List for UE IP: "IPV4_ADDR""
-				",Error: %s\n", LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ue_ip), rte_strerror(abs(ret)));
+					LOG_FORMAT"Failed to add node entry in LInked List for UE IPv4: "IPV4_ADDR" or IPv6 IP:%s"
+					",Error: %s\n", LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ue_ip.ue_ipv4),
+					ipv6, rte_strerror(abs(ret)));
 		}
 
 		if (*head == NULL)
 			*head = sess_cntxt;
 	}
 
-	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"UE IP: "IPV4_ADDR"\n",
-			LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ue_ip));
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"UE IPv4: "IPV4_ADDR" or IPv6 IP %s\n",
+			LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ue_ip.ue_ipv4), ipv6);
 	return sess_cntxt;
 
 }
 
 int8_t
-del_sess_by_ueip_entry(uint32_t ue_ip)
+del_sess_by_ueip_entry(ue_ip_t ue_ip)
 {
 	int ret = 0;
 	pfcp_session_datat_t *sess_cntxt = NULL;
+	char ipv6[IPV6_STR_LEN];
+
+	inet_ntop(AF_INET6, ue_ip.ue_ipv6, ipv6, IPV6_STR_LEN);
 
 	/* Check session entry is present or Not */
 	ret = rte_hash_lookup_data(sess_by_ueip_hash,
@@ -334,28 +346,35 @@ del_sess_by_ueip_entry(uint32_t ue_ip)
 
 		if ( ret < 0) {
 			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Entry not found "
-				"for UE IP: "IPV4_ADDR"\n",
-				LOG_VALUE,IPV4_ADDR_HOST_FORMAT(ue_ip));
+				"for UE IPv4: "IPV4_ADDR" or IPv6 %s\n",
+				LOG_VALUE,IPV4_ADDR_HOST_FORMAT(ue_ip.ue_ipv4), ipv6);
 			return -1;
 		}
 	}
 
-	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"UE IP: "IPV4_ADDR"\n",
-		LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ue_ip));
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Session context Deleted for"
+			"UE IPv4: "IPV4_ADDR" or IPv6 %s\n",
+			LOG_VALUE, IPV4_ADDR_HOST_FORMAT(ue_ip.ue_ipv4), ipv6);
 
 	return 0;
 }
 
 pdr_info_t *
-get_pdr_info_entry(uint16_t rule_id, uint32_t peer_ip,
-		pdr_info_t **head, uint16_t is_add)
+get_pdr_info_entry(uint16_t rule_id, pdr_info_t **head,
+		uint16_t is_add, peer_addr_t cp_ip, uint64_t cp_seid)
 {
 	int ret = 0;
 	pdr_info_t *pdr = NULL;
+	rule_key hash_key = {0};
 
-	uint64_t hash_key;
-	hash_key = ((uint64_t)peer_ip << 32) + rule_id;
-
+	hash_key.cp_ip_addr.type = cp_ip.type;
+	if(cp_ip.type == PDN_TYPE_IPV4){
+		hash_key.cp_ip_addr.ip.ipv4_addr = cp_ip.ipv4.sin_addr.s_addr;
+	}else{
+		memcpy(hash_key.cp_ip_addr.ip.ipv6_addr, cp_ip.ipv6.sin6_addr.s6_addr, IPV6_ADDRESS_LEN);
+	}
+	hash_key.id = (uint32_t)rule_id;
+	hash_key.cp_seid = cp_seid;
 	ret = rte_hash_lookup_data(pdr_by_id_hash,
 				&hash_key, (void **)&pdr);
 
@@ -412,14 +431,20 @@ get_pdr_info_entry(uint16_t rule_id, uint32_t peer_ip,
 }
 
 int8_t
-del_pdr_info_entry(uint16_t rule_id, uint32_t peer_ip)
+del_pdr_info_entry(uint16_t rule_id,  peer_addr_t cp_ip, uint64_t cp_seid)
 {
 	int ret = 0;
 	pdr_info_t *pdr = NULL;
+	rule_key hash_key = {0};
 
-	uint64_t hash_key = 0;
-	hash_key = ((uint64_t)peer_ip << 32) + rule_id;
-
+	hash_key.cp_ip_addr.type = cp_ip.type;
+	if(cp_ip.type == PDN_TYPE_IPV4){
+		hash_key.cp_ip_addr.ip.ipv4_addr = cp_ip.ipv4.sin_addr.s_addr;
+	}else{
+		memcpy(hash_key.cp_ip_addr.ip.ipv6_addr, cp_ip.ipv6.sin6_addr.s6_addr, IPV6_ADDRESS_LEN);
+	}
+	hash_key.id = (uint32_t)rule_id;
+	hash_key.cp_seid = cp_seid;
 	/* Check PDR entry is present or Not */
 	ret = rte_hash_lookup_data(pdr_by_id_hash,
 					&hash_key, (void **)&pdr);
@@ -441,13 +466,20 @@ del_pdr_info_entry(uint16_t rule_id, uint32_t peer_ip)
 }
 
 int8_t
-add_far_info_entry(uint16_t far_id, uint32_t peer_ip, far_info_t **far)
+add_far_info_entry(uint16_t far_id, far_info_t **far,  peer_addr_t cp_ip, uint64_t cp_seid)
 {
 	int ret = 0;
 	far_info_t *tmp = NULL;
+	rule_key hash_key = {0};
 
-	uint64_t hash_key;
-	hash_key = ((uint64_t)peer_ip << 32) + far_id;
+	hash_key.cp_ip_addr.type = cp_ip.type;
+	if(cp_ip.type == PDN_TYPE_IPV4){
+		hash_key.cp_ip_addr.ip.ipv4_addr = cp_ip.ipv4.sin_addr.s_addr;
+	}else{
+		memcpy(hash_key.cp_ip_addr.ip.ipv6_addr, cp_ip.ipv6.sin6_addr.s6_addr, IPV6_ADDRESS_LEN);
+	}
+	hash_key.id = (uint32_t)far_id;
+	hash_key.cp_seid = cp_seid;
 
 	/* Lookup for FAR entry. */
 	ret = rte_hash_lookup_data(far_by_id_hash,
@@ -489,13 +521,20 @@ add_far_info_entry(uint16_t far_id, uint32_t peer_ip, far_info_t **far)
 }
 
 far_info_t *
-get_far_info_entry(uint16_t far_id, uint32_t peer_ip)
+get_far_info_entry(uint16_t far_id,  peer_addr_t cp_ip, uint64_t cp_seid)
 {
 	int ret = 0;
 	far_info_t *far = NULL;
+	rule_key hash_key = {0};
 
-	uint64_t hash_key;
-	hash_key = ((uint64_t)peer_ip << 32) + far_id;
+	hash_key.cp_ip_addr.type = cp_ip.type;
+	if(cp_ip.type == PDN_TYPE_IPV4){
+		hash_key.cp_ip_addr.ip.ipv4_addr = cp_ip.ipv4.sin_addr.s_addr;
+	}else{
+		memcpy(hash_key.cp_ip_addr.ip.ipv6_addr, cp_ip.ipv6.sin6_addr.s6_addr, IPV6_ADDRESS_LEN);
+	}
+	hash_key.id = (uint32_t)far_id;
+	hash_key.cp_seid = cp_seid;
 
 	ret = rte_hash_lookup_data(far_by_id_hash,
 				&hash_key, (void **)&far);
@@ -515,13 +554,20 @@ get_far_info_entry(uint16_t far_id, uint32_t peer_ip)
 }
 
 int8_t
-del_far_info_entry(uint16_t far_id, uint32_t peer_ip)
+del_far_info_entry(uint16_t far_id, peer_addr_t cp_ip, uint64_t cp_seid)
 {
 	int ret = 0;
 	far_info_t *far = NULL;
+	rule_key hash_key = {0};
 
-	uint64_t hash_key;
-	hash_key = ((uint64_t)peer_ip << 32) + far_id;
+	hash_key.cp_ip_addr.type = cp_ip.type;
+	if(cp_ip.type == PDN_TYPE_IPV4){
+		hash_key.cp_ip_addr.ip.ipv4_addr = cp_ip.ipv4.sin_addr.s_addr;
+	}else{
+		memcpy(hash_key.cp_ip_addr.ip.ipv6_addr, cp_ip.ipv6.sin6_addr.s6_addr, IPV6_ADDRESS_LEN);
+	}
+	hash_key.id = (uint32_t)far_id;
+	hash_key.cp_seid = cp_seid;
 
 	/* Check FAR entry is present or Not */
 	ret = rte_hash_lookup_data(far_by_id_hash,
@@ -555,13 +601,20 @@ del_far_info_entry(uint16_t far_id, uint32_t peer_ip)
 }
 
 int8_t
-add_qer_info_entry(uint32_t qer_id, uint32_t peer_ip, qer_info_t **head)
+add_qer_info_entry(uint32_t qer_id, qer_info_t **head,  peer_addr_t cp_ip, uint64_t cp_seid)
 {
 	int ret = 0;
 	qer_info_t *qer = NULL;
+	rule_key hash_key = {0};
 
-	uint64_t hash_key;
-	hash_key = ((uint64_t)peer_ip << 32) + qer_id;
+	hash_key.cp_ip_addr.type = cp_ip.type;
+	if(cp_ip.type == PDN_TYPE_IPV4){
+		hash_key.cp_ip_addr.ip.ipv4_addr = cp_ip.ipv4.sin_addr.s_addr;
+	}else{
+		memcpy(hash_key.cp_ip_addr.ip.ipv6_addr, cp_ip.ipv6.sin6_addr.s6_addr, IPV6_ADDRESS_LEN);
+	}
+	hash_key.id = qer_id;
+	hash_key.cp_seid = cp_seid;
 
 	/* Lookup for QER entry. */
 	ret = rte_hash_lookup_data(qer_by_id_hash,
@@ -622,13 +675,20 @@ add_qer_info_entry(uint32_t qer_id, uint32_t peer_ip, qer_info_t **head)
 }
 
 qer_info_t *
-get_qer_info_entry(uint32_t qer_id, uint32_t peer_ip, qer_info_t **head)
+get_qer_info_entry(uint32_t qer_id, qer_info_t **head,  peer_addr_t cp_ip, uint64_t cp_seid)
 {
 	int ret = 0;
 	qer_info_t *qer = NULL;
+	rule_key hash_key = {0};
 
-	uint64_t hash_key;
-	hash_key = ((uint64_t)peer_ip << 32) + qer_id;
+	hash_key.cp_ip_addr.type = cp_ip.type;
+	if(cp_ip.type == PDN_TYPE_IPV4){
+		hash_key.cp_ip_addr.ip.ipv4_addr = cp_ip.ipv4.sin_addr.s_addr;
+	}else{
+		memcpy(hash_key.cp_ip_addr.ip.ipv6_addr, cp_ip.ipv6.sin6_addr.s6_addr, IPV6_ADDRESS_LEN);
+	}
+	hash_key.id = qer_id;
+	hash_key.cp_seid = cp_seid;
 
 	/* Retireve QER entry */
 	ret = rte_hash_lookup_data(qer_by_id_hash,
@@ -682,13 +742,20 @@ get_qer_info_entry(uint32_t qer_id, uint32_t peer_ip, qer_info_t **head)
 }
 
 int8_t
-del_qer_info_entry(uint32_t qer_id, uint32_t peer_ip)
+del_qer_info_entry(uint32_t qer_id, peer_addr_t cp_ip, uint64_t cp_seid)
 {
 	int ret = 0;
 	qer_info_t *qer = NULL;
+	rule_key hash_key = {0};
 
-	uint64_t hash_key;
-	hash_key = ((uint64_t)peer_ip << 32) + qer_id;
+	hash_key.cp_ip_addr.type = cp_ip.type;
+	if(cp_ip.type == PDN_TYPE_IPV4){
+		hash_key.cp_ip_addr.ip.ipv4_addr = cp_ip.ipv4.sin_addr.s_addr;
+	}else{
+		memcpy(hash_key.cp_ip_addr.ip.ipv6_addr, cp_ip.ipv6.sin6_addr.s6_addr, IPV6_ADDRESS_LEN);
+	}
+	hash_key.id = qer_id;
+	hash_key.cp_seid = cp_seid;
 
 	/* Check QER entry is present or Not */
 	ret = rte_hash_lookup_data(qer_by_id_hash,
@@ -713,13 +780,20 @@ del_qer_info_entry(uint32_t qer_id, uint32_t peer_ip)
 }
 
 int8_t
-add_urr_info_entry(uint32_t urr_id, uint32_t peer_ip, urr_info_t **head)
+add_urr_info_entry(uint32_t urr_id, urr_info_t **head, peer_addr_t cp_ip, uint64_t cp_seid)
 {
 	int ret = 0;
 	urr_info_t *urr = NULL;
+	rule_key hash_key = {0};
 
-	uint64_t hash_key;
-	hash_key = ((uint64_t)peer_ip << 32) + urr_id;
+	hash_key.cp_ip_addr.type = cp_ip.type;
+	if(cp_ip.type == PDN_TYPE_IPV4){
+		hash_key.cp_ip_addr.ip.ipv4_addr = cp_ip.ipv4.sin_addr.s_addr;
+	}else{
+		memcpy(hash_key.cp_ip_addr.ip.ipv6_addr, cp_ip.ipv6.sin6_addr.s6_addr, IPV6_ADDRESS_LEN);
+	}
+	hash_key.id = urr_id;
+	hash_key.cp_seid = cp_seid;
 
 	/* Lookup for URR entry. */
 	ret = rte_hash_lookup_data(urr_by_id_hash,
@@ -769,13 +843,20 @@ add_urr_info_entry(uint32_t urr_id, uint32_t peer_ip, urr_info_t **head)
 }
 
 urr_info_t *
-get_urr_info_entry(uint32_t urr_id, uint32_t peer_ip)
+get_urr_info_entry(uint32_t urr_id, peer_addr_t cp_ip, uint64_t cp_seid)
 {
 	int ret = 0;
 	urr_info_t *urr = NULL;
+	rule_key hash_key = {0};
 
-	uint64_t hash_key;
-	hash_key = ((uint64_t)peer_ip << 32) + urr_id;
+	hash_key.cp_ip_addr.type = cp_ip.type;
+	if(cp_ip.type == PDN_TYPE_IPV4){
+		hash_key.cp_ip_addr.ip.ipv4_addr = cp_ip.ipv4.sin_addr.s_addr;
+	}else{
+		memcpy(hash_key.cp_ip_addr.ip.ipv6_addr, cp_ip.ipv6.sin6_addr.s6_addr, IPV6_ADDRESS_LEN);
+	}
+	hash_key.id = urr_id;
+	hash_key.cp_seid = cp_seid;
 
 	/* Retireve URR entry */
 	ret = rte_hash_lookup_data(urr_by_id_hash,
@@ -794,13 +875,20 @@ get_urr_info_entry(uint32_t urr_id, uint32_t peer_ip)
 }
 
 int8_t
-del_urr_info_entry(uint32_t urr_id, uint32_t peer_ip)
+del_urr_info_entry(uint32_t urr_id, peer_addr_t cp_ip, uint64_t cp_seid)
 {
 	int ret = 0;
 	urr_info_t *urr = NULL;
+	rule_key hash_key = {0};
 
-	uint64_t hash_key;
-	hash_key = ((uint64_t)peer_ip << 32) + urr_id;
+	hash_key.cp_ip_addr.type = cp_ip.type;
+	if(cp_ip.type == PDN_TYPE_IPV4){
+		hash_key.cp_ip_addr.ip.ipv4_addr = cp_ip.ipv4.sin_addr.s_addr;
+	}else{
+		memcpy(hash_key.cp_ip_addr.ip.ipv6_addr, cp_ip.ipv6.sin6_addr.s6_addr, IPV6_ADDRESS_LEN);
+	}
+	hash_key.id = urr_id;
+	hash_key.cp_seid = cp_seid;
 
 	/* Check URR entry is present or Not */
 	ret = rte_hash_lookup_data(urr_by_id_hash,
@@ -859,7 +947,7 @@ add_rule_info_qer_hash(uint8_t *rule_name)
 				mtr = (struct mtr_entry *)mtr_rule;
 				if (mtr != NULL) {
 					/* allocate memory for QER info*/
-					qer = rte_zmalloc("QER_prdef_Info", sizeof(pfcp_session_t),
+					qer = rte_zmalloc("QER_prdef_Info", sizeof(qer_info_t),
 					        RTE_CACHE_LINE_SIZE);
 					if (qer == NULL){
 					    clLog(clSystemLog, eCLSeverityCritical,
@@ -914,42 +1002,42 @@ init_up_hash_tables(void)
 	struct rte_hash_parameters
 		pfcp_hash_params[NUM_OF_TABLES] = {
 		{	.name = "PDR_ENTRY_HASH",
-			.entries = MAX_HASH_SIZE,
-			.key_len = sizeof(uint64_t),
+			.entries = UN_16_BIT_HASH_SIZE,
+			.key_len = sizeof(rule_key),
 			.hash_func = rte_hash_crc,
 			.hash_func_init_val = 0,
 			.socket_id = rte_socket_id()
 		},
 		{	.name = "FAR_ENTRY_HASH",
-			.entries = MAX_HASH_SIZE,
-			.key_len = sizeof(uint64_t),
+			.entries = UN_16_BIT_HASH_SIZE,
+			.key_len = sizeof(rule_key),
 			.hash_func = rte_hash_crc,
 			.hash_func_init_val = 0,
 			.socket_id = rte_socket_id()
 		},
 		{	.name = "QER_ENTRY_HASH",
-			.entries = MAX_HASH_SIZE,
-			.key_len = sizeof(uint64_t),
+			.entries = UN_16_BIT_HASH_SIZE,
+			.key_len = sizeof(rule_key),
 			.hash_func = rte_hash_crc,
 			.hash_func_init_val = 0,
 			.socket_id = rte_socket_id()
 		},
 		{	.name = "URR_ENTRY_HASH",
-			.entries = MAX_HASH_SIZE,
-			.key_len = sizeof(uint64_t),
+			.entries = UN_16_BIT_HASH_SIZE,
+			.key_len = sizeof(rule_key),
 			.hash_func = rte_hash_crc,
 			.hash_func_init_val = 0,
 			.socket_id = rte_socket_id()
 		},
 		{	.name = "SESSION_HASH",
-			.entries = MAX_HASH_SIZE,
+			.entries = UN_16_BIT_HASH_SIZE,
 			.key_len = sizeof(uint64_t),
 			.hash_func = rte_hash_crc,
 			.hash_func_init_val = 0,
 			.socket_id = rte_socket_id()
 		},
 		{	.name = "SESSION_DATA_HASH",
-			.entries = MAX_HASH_SIZE,
+			.entries = UN_16_BIT_HASH_SIZE,
 			.key_len = sizeof(uint32_t),
 			.hash_func = rte_hash_crc,
 			.hash_func_init_val = 0,
@@ -957,14 +1045,14 @@ init_up_hash_tables(void)
 		},
 		{	.name = "SESSION_UEIP_HASH",
 			.entries = MAX_HASH_SIZE,
-			.key_len = sizeof(uint32_t),
+			.key_len = sizeof(struct ue_ip),
 			.hash_func = rte_hash_crc,
 			.hash_func_init_val = 0,
 			.socket_id = rte_socket_id()
 		},
 		{	.name = "SESSION_TIMER_HASH",
-			.entries = MAX_HASH_SIZE,
-			.key_len = sizeof(uint32_t),
+			.entries = UN_16_BIT_HASH_SIZE,
+			.key_len = sizeof(rule_key),
 			.hash_func = rte_hash_crc,
 			.hash_func_init_val = 0,
 			.socket_id = rte_socket_id()
@@ -1047,7 +1135,6 @@ init_up_hash_tables(void)
 				pfcp_hash_params[8].name,
 		    rte_strerror(rte_errno), rte_errno);
 	}
-
 
 	printf("Session, Session Data, PDR, QER, URR, BAR and FAR "
 			"hash table created successfully \n");

@@ -20,8 +20,10 @@
 #include "gtpv2c_set_ie.h"
 #include "ue.h"
 #include "../cp_dp_api/vepc_cp_dp_api.h"
-#include "clogger.h"
+#include "gw_adapter.h"
 #include "cp.h"
+
+extern int clSystemLog;
 /**
  * @brief  : Maintatins data from parsed delete bearer response
  */
@@ -163,7 +165,7 @@ process_delete_bearer_response(gtpv2c_header_t *gtpv2c_rx)
 		memset(&si, 0, sizeof(si));
 
 		si.ue_addr.u.ipv4_addr =
-		     htonl(delete_bearer_rsp.pdn->ipv4.s_addr);
+		     delete_bearer_rsp.pdn->uipaddr.ipv4.s_addr;
 		si.sess_id =
 			SESS_ID(delete_bearer_rsp.context->s11_sgw_gtpc_teid,
 				delete_bearer_rsp.ded_bearer->eps_bearer_id);
@@ -205,9 +207,7 @@ set_delete_bearer_request(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
 		db_req.bearer_count = ded_bearer_counter;
 	}
 
-	uint16_t msg_len = 0;
-	msg_len = encode_del_bearer_req(&db_req, (uint8_t *)gtpv2c_tx);
-	gtpv2c_tx->gtpc.message_len = htons(msg_len - IE_HEADER_SIZE);
+	encode_del_bearer_req(&db_req, (uint8_t *)gtpv2c_tx);
 }
 
 void
@@ -244,8 +244,6 @@ set_delete_bearer_response(gtpv2c_header_t *gtpv2c_tx, uint32_t sequence,
 		db_resp.bearer_count = ded_bearer_counter;
 	}
 
-	uint16_t msg_len = 0;
-	msg_len = encode_del_bearer_rsp(&db_resp, (uint8_t *)gtpv2c_tx);
-	gtpv2c_tx->gtpc.message_len = htons(msg_len - IE_HEADER_SIZE);
+	encode_del_bearer_rsp(&db_resp, (uint8_t *)gtpv2c_tx);
 }
 

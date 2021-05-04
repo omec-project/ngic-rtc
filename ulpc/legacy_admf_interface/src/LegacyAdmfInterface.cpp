@@ -54,8 +54,10 @@ LegacyAdmfInterface :: startup(void *conf)
 		legacyAdmfIntfcThread = new LegacyAdmfInterfaceThread(this);
 
 		legacyAdmfIntfcThread->setLegacyAdmfPort(intfc_config->legacyAdmfPort);
-		legacyAdmfIntfcThread->setLegacyAdmfIp(
-				std::string(inet_ntoa(intfc_config->legacyAdmfIp)));
+		legacyAdmfIntfcThread->setLegacyAdmfIp(intfc_config->legacyAdmfIp);
+
+		legacyAdmfIntfcThread->setLegacyAdmfInterfaceIp(
+				intfc_config->admfIp);
 		legacyAdmfIntfcThread->setLegacyAdmfInterfacePort(
 				intfc_config->legacyAdmfIntfcPort);
 
@@ -92,6 +94,21 @@ jsonRespCallback(char *contents, size_t size, size_t nmemb, void *userp)
 {
 	((std::string*)userp)->append((char*)contents, size * nmemb);
 	return size * nmemb;
+}
+
+std::string
+ConvertIpForRest(const std::string &strIp) {
+
+	char buf[IPV6_MAX_LEN];
+	std::string strRestFormat;
+
+	if (inet_pton(AF_INET, (const char *)strIp.c_str(), buf)) {
+		strRestFormat = strIp;
+	} else if (inet_pton(AF_INET6, (const char *)strIp.c_str(), buf)) {
+		strRestFormat = "[" + strIp + "]";
+	}
+	
+	return strRestFormat;
 }
 
 
@@ -185,7 +202,7 @@ LegacyAdmfInterface :: sendAckToAdmf(admf_intfc_packet_t *packet)
 
 	std::string ackJson = prepareJsonForAdmf(packet);
 
-	std::string strUrl = HTTP + std::string(inet_ntoa(intfc_config->admfIp))
+	std::string strUrl = HTTP + ConvertIpForRest(intfc_config->admfIp)
 			+ COLON + to_string(intfc_config->admfPort) + ACK_POST;
 
 	LegacyAdmfInterface::log().info("Sending ACK to ADMF");
@@ -199,7 +216,7 @@ LegacyAdmfInterface :: sendAckToAdmf(admf_intfc_packet_t *packet)
 }
 
 int8_t
-LegacyAdmfInterface :: sendRequestToAdmf(uint16_t requestType, 
+LegacyAdmfInterface :: sendRequestToAdmf(uint16_t requestType,
 		const char *requestBody)
 {
 
@@ -211,7 +228,7 @@ LegacyAdmfInterface :: sendRequestToAdmf(uint16_t requestType,
 	if (requestType == DELETE)
 		requestUri.assign(DELETE_URI);
 
-	std::string strUrl = HTTP + std::string(inet_ntoa(intfc_config->admfIp))
+	std::string strUrl = HTTP + ConvertIpForRest(intfc_config->admfIp)
 			+ COLON + to_string(intfc_config->admfPort) + requestUri;
 
 	LegacyAdmfInterface::log().info("Sending request to admf");

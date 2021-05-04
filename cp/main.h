@@ -29,9 +29,9 @@
 //#include "dp_ipc_api.h"
 
 #ifdef USE_REST
-#include "../restoration/restoration_timer.h"
+#include "ngic_timer.h"
 #endif /* use_rest */
-
+#include "pfcp_struct.h"
 /**
  * dataplane rte logs.
  */
@@ -104,6 +104,7 @@
  * max length of name string.
  */
 #define MAX_LEN 128
+#define GX_SESS_ID_LEN 256
 #ifdef USE_REST
 
 /* VS: Number of connection can maitain in the hash */
@@ -143,7 +144,7 @@ void rest_thread_init(void);
  * @return : Returns nothing
  */
 uint8_t
-add_node_conn_entry(uint32_t dstIp, uint8_t portId, uint8_t cp_mode);
+add_node_conn_entry(node_address_t *dstIp, uint8_t portId, uint8_t cp_mode);
 
 /**
  * @brief  : Updates restart counter Value
@@ -153,32 +154,7 @@ add_node_conn_entry(uint32_t dstIp, uint8_t portId, uint8_t cp_mode);
 uint8_t
 update_rstCnt(void);
 
-/**
- * @brief  : flush enodeB session information
- * @param  : data_t, peer node connection information
- * @return : Returns nothing
- */
-void
-flush_eNB_session(peerData *data_t);
-
-/**
- * @brief  : Flush sess entry from connection table of given ip
- * @param  : ip_addr, ip addr for which session entry is to be flushed
- * @param  : sess_id, session id
- * @return : Returns nothing
- */
-void
-dp_flush_session(uint32_t ip_addr, uint32_t sess_id);
 #endif  /* USE_REST */
-
-/**
- * @brief  : Functino to handle signals.
- * @param  : signo
- *           signal number signal to be handled
- * @return : Returns nothing
- */
-void cp_sig_handler(int signo);
-
 
 #ifdef USE_REST
 /**

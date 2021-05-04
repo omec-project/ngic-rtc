@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -98,8 +99,8 @@ recv_msg_handler( int sock )
 				printf( "Unknown message received from CP app - %d\n",
 						req->msg_type);
 		}
-		msg_len = req->msg_len;
-		bytes_recv = bytes_recv - msg_len;
+		msg_len += req->msg_len;
+		bytes_recv = bytes_recv - req->msg_len;
 	}
 	return 0;
 }

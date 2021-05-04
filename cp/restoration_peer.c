@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,18 +24,24 @@
 #include "cp_config.h"
 #include "gw_adapter.h"
 #include "sm_struct.h"
+#include "pfcp_util.h"
 
-#include "../restoration/restoration_timer.h"
+#include "ngic_timer.h"
 
 char filename[256] = "../config/cp_rstCnt.txt";
 
 extern socklen_t s11_mme_sockaddr_len;
+extern socklen_t s11_mme_sockaddr_ipv6_len;
 extern socklen_t s5s8_sockaddr_len;
+extern socklen_t s5s8_sockaddr_ipv6_len;
 
 extern int s11_fd;
+extern int s11_fd_v6;
 extern int s5s8_fd;
+extern int s5s8_fd_v6;
 
-extern pfcp_config_t pfcp_config;
+extern pfcp_config_t config;
+extern int clSystemLog;
 extern uint8_t rstCnt;
 int32_t conn_cnt = 0;
 
@@ -52,8 +59,7 @@ static struct rte_hash_parameters
 			.name = "CONN_TABLE",
 			.entries = NUM_CONN,
 			.reserved = 0,
-			.key_len =
-					sizeof(uint32_t),
+			.key_len = sizeof(node_address_t),
 			.hash_func = rte_jhash,
 			.hash_func_init_val = 0
 };
@@ -98,24 +104,48 @@ uint8_t update_rstCnt(void)
 void timerCallback( gstimerinfo_t *ti, const void *data_t )
 {
 	uint16_t payload_length;
-	struct sockaddr_in dest_addr;
+	peer_addr_t dest_addr;
+	peer_address_t addr;
 #pragma GCC diagnostic push  /* require GCC 4.6 */
 #pragma GCC diagnostic ignored "-Wcast-qual"
 	peerData *md = (peerData*)data_t;
 #pragma GCC diagnostic pop   /* require GCC 4.6 */
 
+	if (md->dstIP.ip_type == PDN_TYPE_IPV4) {
+		/* setting sendto destination addr */
+		dest_addr.type = PDN_TYPE_IPV4;
+		dest_addr.ipv4.sin_addr.s_addr = md->dstIP.ipv4_addr;
+		dest_addr.ipv4.sin_family = AF_INET;
+		dest_addr.ipv4.sin_port = htons(GTPC_UDP_PORT);
 
-	/* setting sendto destination addr */
-	dest_addr.sin_family = AF_INET;
-	dest_addr.sin_addr.s_addr = md->dstIP;
-	dest_addr.sin_port = htons(GTPC_UDP_PORT);
-	md->itr = number_of_transmit_count;
+		addr.ipv4.sin_addr.s_addr = md->dstIP.ipv4_addr;
+		addr.type = IPV4_TYPE;
+	} else {
+		/* setting sendto destination addr */
+		memcpy(&dest_addr.ipv6.sin6_addr.s6_addr,
+				&md->dstIP.ipv6_addr, IPV6_ADDRESS_LEN);
+		dest_addr.type = PDN_TYPE_IPV6;
+		dest_addr.ipv6.sin6_family = AF_INET6;
+		dest_addr.ipv6.sin6_port = htons(GTPC_UDP_PORT);
 
-	clLog(clSystemLog, eCLSeverityDebug, "%s - %s:%s:%u.%s (%dms) has expired\n", getPrintableTime(),
-		md->name, inet_ntoa(*(struct in_addr *)&md->dstIP), md->portId,
-		ti == &md->pt ? "Periodic_Timer" :
-		ti == &md->tt ? "Transmit_Timer" : "unknown",
-		ti->ti_ms );
+		memcpy(&addr.ipv6.sin6_addr.s6_addr,
+				&md->dstIP.ipv6_addr, IPV6_ADDRESS_LEN);
+		addr.type = IPV6_TYPE;
+	}
+
+	md->itr = config.transmit_cnt;
+
+	(md->dstIP.ip_type == IPV6_TYPE) ?
+		clLog(clSystemLog, eCLSeverityDebug, "%s - %s:"IPv6_FMT":%u.%s (%dms) has expired\n", getPrintableTime(),
+				md->name, IPv6_PRINT(IPv6_CAST(md->dstIP.ipv6_addr)), md->portId,
+				ti == &md->pt ? "Periodic_Timer" :
+				ti == &md->tt ? "Transmit_Timer" : "unknown",
+				ti->ti_ms ):
+		clLog(clSystemLog, eCLSeverityDebug, "%s - %s:%s:%u.%s (%dms) has expired\n", getPrintableTime(),
+				md->name, inet_ntoa(*(struct in_addr *)&md->dstIP.ipv4_addr), md->portId,
+				ti == &md->pt ? "Periodic_Timer" :
+				ti == &md->tt ? "Transmit_Timer" : "unknown",
+				ti->ti_ms );
 
 	if (md->itr_cnt == md->itr) {
 		/* Stop transmit timer for specific Peer Node */
@@ -127,20 +157,16 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 		/* Deinit transmit timer for specific Peer Node */
 		deinitTimer( &md->pt );
 
-		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Stopped Periodic/transmit timer, peer node:port %s:%u is not reachable\n",
-				LOG_VALUE, inet_ntoa(*(struct in_addr *)&md->dstIP), md->portId);
+		(md->dstIP.ip_type == IPV6_TYPE) ?
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Stopped Periodic/transmit timer, peer ipv6 node:port "IPv6_FMT":%u is not reachable\n",
+					LOG_VALUE, IPv6_PRINT(IPv6_CAST(md->dstIP.ipv6_addr)), md->portId):
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Stopped Periodic/transmit timer, peer ipv4 node:port %s:%u is not reachable\n",
+					LOG_VALUE, inet_ntoa(*(struct in_addr *)&md->dstIP.ipv4_addr), md->portId);
 
-		/* address is coming host byte order for because gtpv2c send change the order host to network */
-
-		if(md->portId != SX_PORT_ID) {
-			update_peer_status(htonl(md->dstIP), FALSE);
-			delete_cli_peer(htonl(md->dstIP));
-		}
-		else {
-
-			update_peer_status(md->dstIP, FALSE);
-			delete_cli_peer(md->dstIP);
-		}
+		update_peer_status(&addr, FALSE);
+		delete_cli_peer(&addr);
 
 		if (md->portId == S11_SGW_PORT_ID)
 		{
@@ -162,51 +188,55 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 
 		/* TODO: Flush sessions */
 		if (md->portId == SX_PORT_ID) {
-			delete_entry_heartbeat_hash(&dest_addr);
+			delete_entry_heartbeat_hash(&md->dstIP);
 #ifdef USE_CSID
-			del_peer_node_sess(ntohl(md->dstIP), SX_PORT_ID, md->cp_mode);
+			del_peer_node_sess(&md->dstIP, SX_PORT_ID);
 #endif /* USE_CSID */
 		}
 
 		/* Flush sessions */
 		if (md->portId == S11_SGW_PORT_ID) {
 #ifdef USE_CSID
-			del_pfcp_peer_node_sess(md->dstIP, S11_SGW_PORT_ID);
+			del_pfcp_peer_node_sess(&md->dstIP, S11_SGW_PORT_ID);
 			/* TODO: Need to Check */
-			del_peer_node_sess(md->dstIP, S11_SGW_PORT_ID, md->cp_mode);
+			del_peer_node_sess(&md->dstIP, S11_SGW_PORT_ID);
 #endif /* USE_CSID */
 		}
 
 		/* Flush sessions */
 		if (md->portId == S5S8_SGWC_PORT_ID) {
 #ifdef USE_CSID
-			del_pfcp_peer_node_sess(md->dstIP, S5S8_SGWC_PORT_ID);
-			del_peer_node_sess(md->dstIP, S5S8_SGWC_PORT_ID, md->cp_mode);
+			del_pfcp_peer_node_sess(&md->dstIP, S5S8_SGWC_PORT_ID);
+			del_peer_node_sess(&md->dstIP, S5S8_SGWC_PORT_ID);
 #endif /* USE_CSID */
 		}
 
 		/* Flush sessions */
 		if (md->portId == S5S8_PGWC_PORT_ID) {
 #ifdef USE_CSID
-			del_pfcp_peer_node_sess(md->dstIP, S5S8_PGWC_PORT_ID);
-			del_peer_node_sess(md->dstIP, S5S8_PGWC_PORT_ID, md->cp_mode);
+			del_pfcp_peer_node_sess(&md->dstIP, S5S8_PGWC_PORT_ID);
+			del_peer_node_sess(&md->dstIP, S5S8_PGWC_PORT_ID);
 #endif /* USE_CSID */
 		}
 
-		del_entry_from_hash(md->dstIP);
+		del_entry_from_hash(&md->dstIP);
 
 		if (md->portId == S11_SGW_PORT_ID || md->portId == S5S8_SGWC_PORT_ID)
 		{
-			md->dstIP = htonl(md->dstIP);
-			printf("CP: Peer node IP:PortId%s:%u is not reachable\n",
-					inet_ntoa(*(struct in_addr *)&md->dstIP), md->portId);
+			(md->dstIP.ip_type == IPV6_TYPE) ?
+				printf("CP: Peer node IPv6:PortId "IPv6_FMT":%u is not reachable\n",
+						IPv6_PRINT(IPv6_CAST(md->dstIP.ipv6_addr)), md->portId):
+				printf("CP: Peer node IPv4:PortId %s:%u is not reachable\n",
+						inet_ntoa(*(struct in_addr *)&md->dstIP.ipv4_addr), md->portId);
 		}
 		else
 		{
-			printf("CP: Peer node IP:PortId%s:%u is not reachable\n",
-					inet_ntoa(*(struct in_addr *)&md->dstIP), md->portId);
+			(md->dstIP.ip_type == IPV6_TYPE) ?
+				printf("CP: Peer node IPv6:PortId "IPv6_FMT":%u is not reachable\n",
+						IPv6_PRINT(IPv6_CAST(md->dstIP.ipv6_addr)), md->portId):
+				printf("CP: Peer node IPv4:PortId %s:%u is not reachable\n",
+						inet_ntoa(*(struct in_addr *)&md->dstIP.ipv4_addr), md->portId);
 		}
-
 		return;
 	}
 
@@ -231,9 +261,8 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 			+ sizeof(gtpv2c_tx->gtpc);
 
 	if (md->portId == S11_SGW_PORT_ID) {
-		gtpv2c_send(s11_fd, echo_tx_buf, payload_length,
-		               (struct sockaddr *) &dest_addr,
-		               s11_mme_sockaddr_len,SENT);
+		gtpv2c_send(s11_fd, s11_fd_v6, echo_tx_buf, payload_length,
+		               dest_addr, SENT);
 
 		if (ti == &md->tt)
 		{
@@ -243,9 +272,8 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 
 	} else if (md->portId == S5S8_SGWC_PORT_ID) {
 
-		gtpv2c_send(s5s8_fd, echo_tx_buf, payload_length,
-		                (struct sockaddr *) &dest_addr,
-		                s5s8_sockaddr_len,SENT);
+		gtpv2c_send(s5s8_fd, s5s8_fd_v6, echo_tx_buf, payload_length,
+		                dest_addr, SENT);
 
 		if (ti == &md->tt)
 		{
@@ -253,9 +281,8 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 		}
 
 	} else if (md->portId == S5S8_PGWC_PORT_ID) {
-		gtpv2c_send(s5s8_fd, echo_tx_buf, payload_length,
-		                (struct sockaddr *) &dest_addr,
-		                s5s8_sockaddr_len,SENT);
+		gtpv2c_send(s5s8_fd, s5s8_fd_v6, echo_tx_buf, payload_length,
+		                dest_addr, SENT);
 
 		if (ti == &md->tt)
 		{
@@ -266,13 +293,18 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 		/* TODO: Defined this part after merging sx heartbeat*/
 		/* process_pfcp_heartbeat_req(md->dst_ip, up_time); */ /* TODO: Future Enhancement */
 
-		dest_addr.sin_port = htons(pfcp_config.pfcp_port);
+		/* Setting PFCP Port ID */
+		if (dest_addr.type == IPV6_TYPE) {
+			dest_addr.ipv6.sin6_port = htons(config.pfcp_port);
+		} else {
+			dest_addr.ipv4.sin_port = htons(config.pfcp_port);
+		}
 
 		if (ti == &md->pt){
 			gtpu_sx_seqnb = get_pfcp_sequence_number(PFCP_HEARTBEAT_REQUEST, gtpu_sx_seqnb);;
 		}
 
-		process_pfcp_heartbeat_req(&dest_addr, gtpu_sx_seqnb);
+		process_pfcp_heartbeat_req(dest_addr, gtpu_sx_seqnb);
 
 		if (ti == &md->tt)
 		{
@@ -282,17 +314,9 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 
 	}
 
-	/*CLI:update echo/hbt req sent count*/
-	/*if (md->portId != SX_PORT_ID)
-	{
-		update_cli_stats(md->dstIP,GTP_ECHO_REQ,SENT,it);
-	} else {
-		update_cli_stats(md->dstIP,PFCP_HEARTBEAT_REQUEST,SENT,it);
-	}*/
-
 	if(ti == &md->tt)
 	{
-		update_peer_timeouts(md->dstIP,md->itr_cnt);
+		update_peer_timeouts(&addr, md->itr_cnt);
 	}
 
 
@@ -308,18 +332,30 @@ void timerCallback( gstimerinfo_t *ti, const void *data_t )
 	return;
 }
 
-uint8_t add_node_conn_entry(uint32_t dstIp, uint8_t portId, uint8_t cp_mode)
+uint8_t add_node_conn_entry(node_address_t *dstIp, uint8_t portId, uint8_t cp_mode)
 {
 	int ret;
 	peerData *conn_data = NULL;
 
-	ret = rte_hash_lookup_data(conn_hash_handle,
-				&dstIp, (void **)&conn_data);
+	/* Validate the IP Type*/
+	if ((dstIp->ip_type != PDN_TYPE_IPV4) && (dstIp->ip_type != PDN_TYPE_IPV6)) {
+		clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"ERR: Not setting appropriate IP Type(IPv4:1 or IPv6:2),"
+				"IP_TYPE:%u\n", LOG_VALUE, dstIp->ip_type);
+		return -1;
+	}
 
+	ret = rte_hash_lookup_data(conn_hash_handle,
+				dstIp, (void **)&conn_data);
 	if ( ret < 0) {
 
-		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT" Add entry in conn table :%s, portId:%u\n",
-					LOG_VALUE, inet_ntoa(*((struct in_addr *)&dstIp)), portId);
+		(dstIp->ip_type == IPV6_TYPE) ?
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT" Add entry in conn table for IPv6:"IPv6_FMT", portId:%u\n",
+					LOG_VALUE, IPv6_PRINT(IPv6_CAST(dstIp->ipv6_addr)), portId):
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT" Add entry in conn table for IPv4:%s, portId:%u\n",
+					LOG_VALUE, inet_ntoa(*((struct in_addr *)&dstIp->ipv4_addr)), portId);
 
 		/* No conn entry for dstIp
 		 * Add conn_data for dstIp at
@@ -332,31 +368,37 @@ uint8_t add_node_conn_entry(uint32_t dstIp, uint8_t portId, uint8_t cp_mode)
 
 		conn_data->portId = portId;
 		conn_data->activityFlag = 0;
-		conn_data->dstIP = dstIp;
-		conn_data->itr = pfcp_config.transmit_cnt;
+		conn_data->itr = config.transmit_cnt;
 		conn_data->itr_cnt = 0;
 		conn_data->rcv_time = 0;
 		conn_data->cp_mode = cp_mode;
+		memcpy(&conn_data->dstIP, dstIp, sizeof(node_address_t));
 
 		/* Add peer node entry in connection hash table */
 		if ((rte_hash_add_key_data(conn_hash_handle,
-				&dstIp, conn_data)) < 0 ) {
+				dstIp, conn_data)) < 0 ) {
 			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to add entry in hash table",LOG_VALUE);
 		}
 
-		if ( !initpeerData( conn_data, "PEER_NODE", (pfcp_config.periodic_timer * 1000),
-						(pfcp_config.transmit_timer * 1000)) )
+		if ( !initpeerData( conn_data, "PEER_NODE", (config.periodic_timer * 1000),
+						(config.transmit_timer * 1000)) )
 		{
 		   clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"%s - initialization of %s failed\n",
 				LOG_VALUE, getPrintableTime(), conn_data->name );
 		   return -1;
 		}
 
+		peer_address_t addr;
 		/*CLI: when add node conn entry called then always peer status will be true*/
-		if(portId != SX_PORT_ID)
-			update_peer_status(htonl(dstIp), TRUE);
-		else
-			update_peer_status(dstIp, TRUE);
+		if (dstIp->ip_type == IPV4_TYPE) {
+			addr.ipv4.sin_addr.s_addr = dstIp->ipv4_addr;
+			addr.type = IPV4_TYPE;
+		} else {
+			memcpy(&addr.ipv6.sin6_addr.s6_addr,
+					dstIp->ipv6_addr, IPV6_ADDR_LEN);
+			addr.type = IPV6_TYPE;
+		}
+		update_peer_status(&addr, TRUE);
 
 
 		if ( startTimer( &conn_data->pt ) < 0) {
@@ -366,9 +408,13 @@ uint8_t add_node_conn_entry(uint32_t dstIp, uint8_t portId, uint8_t cp_mode)
 
 	} else {
 		/* TODO: peer node entry already exit in conn table */
-
-		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Conn entry already exit in conn table :%s\n", LOG_VALUE,
-					inet_ntoa(*((struct in_addr *)&dstIp)));
+		(dstIp->ip_type == IPV6_TYPE) ?
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Conn entry already exit in conn table for IPv6:"IPv6_FMT"\n",
+					LOG_VALUE, IPv6_PRINT(IPv6_CAST(dstIp->ipv6_addr))):
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Conn entry already exit in conn table for IPv4:%s\n", LOG_VALUE,
+					inet_ntoa(*((struct in_addr *)&dstIp->ipv4_addr)));
 		if ( startTimer( &conn_data->pt ) < 0)
 		{
 			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Periodic Timer failed to start...\n", LOG_VALUE);
@@ -407,7 +453,7 @@ void rest_thread_init(void)
 
 	/* mask SIGALRM in all threads by default */
 	sigemptyset(&sigset);
-	sigaddset(&sigset, SIGRTMIN);
+	sigaddset(&sigset, SIGRTMIN + 1);
 	sigaddset(&sigset, SIGUSR1);
 	sigprocmask(SIG_BLOCK, &sigset, NULL);
 

@@ -95,6 +95,7 @@ read_configurations(EGetOpt &opt)
 #define EMPTY_STRING		""
 #define ZERO                0
 
+	config.df_ip = opt.get("DfAppliction/DfIp", "undefined");
 	config.df_port = opt.get("DfAppliction/DfPort", ZERO);
 	config.strDModuleName = opt.get("DfAppliction/NodeName", EMPTY_STRING);
 	config.strDirName = opt.get("DfAppliction/StorageDirName", EMPTY_STRING);

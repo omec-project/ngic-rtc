@@ -6,7 +6,6 @@
 BASEDIR=$(pwd)
 THIRDPARTY=$BASEDIR/third_party
 EPCTOOLS=$THIRDPARTY/epctools
-EPCTOOLPATCH=$BASEDIR/EPCTool.patch
 
 install_pkg_deps() {
   $SUDO apt-get update && $SUDO apt-get -y install \
@@ -36,12 +35,13 @@ echo "Downloading Epctools ..."
 
 mkdir -p $THIRDPARTY
 pushd $THIRDPARTY
-  git clone https://github.com/omec-project/epctools.git
+  git clone https://github.com/omec-project/epctools.git epctools
   echo "Downloading Complete."
 popd
 
 pushd $EPCTOOLS
-  #echo "Checkout Epctools to specific commit id..."
+
+  echo "Checkout Epctools to specific commit id..."
   git checkout e14e3788bc5dc88e58cd421fc144ca637a2027f7
 
   echo "Installing Epctools ..."

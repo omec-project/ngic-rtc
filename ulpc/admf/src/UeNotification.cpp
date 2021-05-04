@@ -17,10 +17,9 @@
 
 #include <list>
 
+#include "epctools.h"
 #include "emgmt.h"
 #include "estats.h"
-#include "etime.h"
-#include "elogger.h"
 
 #include "AdmfApp.h"
 #include "UeNotification.h"

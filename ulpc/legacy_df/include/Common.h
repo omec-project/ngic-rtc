@@ -95,6 +95,7 @@ typedef struct DfPacket {
 struct Configurations {
 
 	std::string strModuleName;
+	cpStr legacyIp;
 	UShort legacyPort;
 	std::string strPcapFilePath;
 };

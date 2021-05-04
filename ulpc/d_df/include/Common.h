@@ -23,6 +23,7 @@
 #include <sys/stat.h>
 #include <sys/statvfs.h>
 #include <netinet/ip.h>
+#include <linux/ipv6.h>
 #include <netinet/udp.h>
 #include <netinet/if_ether.h>
 #include <fstream>
@@ -35,31 +36,38 @@
 #include "efd.h"
 
 
-#define TRUE							1
-#define DDF2							"DDF2"
-#define DDF3							"DDF3"
-#define PAYLOAD_MAX_LENGTH				4098
-#define RET_SUCCESS						0
-#define RET_FAILURE						1
-#define DATA_TYPE						0
-#define EVENT_TYPE						1
-#define DEBUG_DATA						1
-#define FORWARD_DATA					2
-#define BOTH_FW_DG						3
-#define TTL								64
-#define ETHER_TYPE						0x0800
-#define IP_VERSION						4
-#define INTERNET_HDR_LEN				5
-#define UDP_CHECKSUM					0
-#define DDFPACKET_ACK					0xee
-#define DFPACKET_ACK					0xff
+#define TRUE					1
+#define DDF2					"DDF2"
+#define DDF3					"DDF3"
+#define PAYLOAD_MAX_LENGTH			4098
+#define RET_SUCCESS				0
+#define RET_FAILURE				1
+#define DATA_TYPE				0
+#define EVENT_TYPE				1
+#define DEBUG_DATA				1
+#define FORWARD_DATA				2
+#define BOTH_FW_DG				3
+#define TTL					64
+#define ETHER_TYPE				0x0800
+#define ETHER_TYPE_V6				0x86DD
+#define IPV4_VERSION				4
+#define IPV6_VERSION				6
+#define INTERNET_HDR_LEN			5
+#define UDP_CHECKSUM				0
+#define UDP_CHECKSUM_IPV6			1
+#define DDFPACKET_ACK				0xee
+#define DFPACKET_ACK				0xff
 #define DF_CONNECT_TIMER_VALUE			10000
-#define BACKLOG_CONNECTIION				10
+#define BACKLOG_CONNECTIION			10
+#define SEND_BUF_SIZE				4096
+#define IPV6_ADDRESS_LEN			16
+#define IPTYPE_IPV4				0
+#define IPTYPE_IPV6				1
 
-#define LOG_AUDIT  3
-#define LOG_SYSTEM 3
-#define LOG_TEST3 3
-#define LOG_TEST3_SINKSET 3
+#define LOG_AUDIT 				3
+#define LOG_SYSTEM				3
+#define LOG_TEST3 				3
+#define LOG_TEST3_SINKSET 			3
 #define __file__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 
 
@@ -76,9 +84,13 @@ typedef struct DdfPacket {
 		uint8_t typeOfPayload;
 		uint64_t liIdentifier;
 		uint64_t imsiNumber;
+		uint8_t srcIpType;
 		uint32_t sourceIpAddress;
+		uint8_t srcIpv6[IPV6_ADDRESS_LEN];
 		uint16_t sourcePort;
+		uint8_t dstIpType;
 		uint32_t destIpAddress;
+		uint8_t dstIpv6[IPV6_ADDRESS_LEN];
 		uint16_t destPort;
 		uint8_t  operationMode;
 		uint32_t sequenceNumber;
@@ -136,6 +148,7 @@ typedef struct DfPacket {
 struct Configurations {
 
 	std::string strDModuleName;
+	cpStr ddf_ip;
 	UShort ddf_port;
 	cpStr df_ip;
 	UShort df_port;

@@ -22,6 +22,8 @@
 #include "BaseLegacyAdmfInterface.h"
 #include "LegacyAdmfInterfaceThread.h"
 
+#define IPV6_MAX_LEN                 16
+
 
 class LegacyAdmfInterface : public BaseLegacyAdmfInterface
 {

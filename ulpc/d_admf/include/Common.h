@@ -29,6 +29,15 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include "emgmt.h"
+#include "esynch.h"
+#include "epctools.h"
+
+#include "rapidjson/filereadstream.h"
+#include "rapidjson/document.h"
+#include "rapidjson/prettywriter.h"
+#include "rapidjson/pointer.h"
+
 #include "UeEntry.h"
 
 
@@ -164,10 +173,10 @@
  * @brief  : Maintains D_ADMF configurations read from config file
  */
 typedef struct configurations {
-	struct in_addr                  dadmfIp;
-	uint16_t                        dadmfPort;
-	struct in_addr                  admfIp;
-	uint16_t                        admfPort;
+	cpStr		                dadmfIp;
+	UShort                          dadmfPort;
+	std::string   	                admfIp;
+	UShort	                        admfPort;
 	uint16_t			ackCheckTimeInMin;
 } configurations_t;
 

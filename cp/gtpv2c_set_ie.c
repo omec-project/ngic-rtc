@@ -16,12 +16,12 @@
 
 
 #include "gtp_ies.h"
-#include "clogger.h"
 #include "sm_struct.h"
 #include "gtpv2c_set_ie.h"
 #include "packet_filters.h"
-#include "clogger.h"
+#include "gw_adapter.h"
 
+extern int clSystemLog;
 /**
  * @brief  : helper function to get the location of the next information element '*ie'
  *           that the buffer located at '*header' may be used, in the case that the size
@@ -203,21 +203,17 @@ set_cause_accepted(gtp_cause_ie_t *cause,
 	cause->spareinstance = 0;
 }
 
-uint16_t
-set_cause_accepted_ie(gtpv2c_header_t *header,
-		enum ie_instance instance)
+void
+set_csresp_cause(gtp_cause_ie_t *cause, uint8_t cause_value,
+									enum ie_instance instance)
 {
-	gtpv2c_ie *ie = set_next_ie(header, GTP_IE_CAUSE, instance,
+	set_ie_header(&cause->header, GTP_IE_CAUSE, instance,
 	    sizeof(struct cause_ie_hdr_t));
-	cause_ie *cause_ie_ptr = IE_TYPE_PTR_FROM_GTPV2C_IE(cause_ie, ie);
-
-	cause_ie_ptr->cause_ie_hdr.cause_value = GTPV2C_CAUSE_REQUEST_ACCEPTED;
-	cause_ie_ptr->cause_ie_hdr.pdn_connection_error = 0;
-	cause_ie_ptr->cause_ie_hdr.bearer_context_error = 0;
-	cause_ie_ptr->cause_ie_hdr.cause_source = 0;
-	cause_ie_ptr->spare_1 = 0;
-
-	return get_ie_return(ie);
+	cause->cause_value = cause_value;
+	cause->pce = 0;
+	cause->bce = 0;
+	cause->cs = 0;
+	cause->spareinstance = 0;
 }
 
 
@@ -243,20 +239,44 @@ set_ar_priority_ie(gtpv2c_header_t *header, enum ie_instance instance,
 }
 
 
-void
-set_ipv4_fteid(gtp_fully_qual_tunn_endpt_idnt_ie_t *fteid,
+int
+set_gtpc_fteid(gtp_fully_qual_tunn_endpt_idnt_ie_t *fteid,
 		enum gtpv2c_interfaces interface, enum ie_instance instance,
-		struct in_addr ipv4, uint32_t teid)
+		node_address_t node_value, uint32_t teid)
 {
-	set_ie_header(&fteid->header, GTP_IE_FULLY_QUAL_TUNN_ENDPT_IDNT, instance,
-		sizeof(struct fteid_ie_hdr_t) + sizeof(struct in_addr));
-	fteid->v4 = 1;
-	fteid->v6 = 0;
+	int size = sizeof(uint8_t);
 	fteid->interface_type = interface;
-	fteid->teid_gre_key = teid;
-	fteid->ipv4_address = ipv4.s_addr;
 
-	return;
+	fteid->teid_gre_key = teid;
+	size += sizeof(uint32_t);
+
+	if (node_value.ip_type == PDN_IP_TYPE_IPV4) {
+		size += sizeof(struct in_addr);
+
+		fteid->v4 = PRESENT;
+		fteid->ipv4_address = node_value.ipv4_addr;
+
+	} else if (node_value.ip_type == PDN_IP_TYPE_IPV6) {
+		size += sizeof(struct in6_addr);
+
+		fteid->v6 = PRESENT;
+		memcpy(fteid->ipv6_address, node_value.ipv6_addr, IPV6_ADDRESS_LEN);
+
+	} else if (node_value.ip_type == PDN_IP_TYPE_IPV4V6) {
+
+		size += sizeof(struct in_addr);
+		size += sizeof(struct in6_addr);
+
+		fteid->v4 = PRESENT;
+		fteid->v6 = PRESENT;
+
+		fteid->ipv4_address = node_value.ipv4_addr;
+		memcpy(fteid->ipv6_address, node_value.ipv6_addr, IPV6_ADDRESS_LEN);
+	}
+
+	set_ie_header(&fteid->header, GTP_IE_FULLY_QUAL_TUNN_ENDPT_IDNT, instance,
+		size);
+	return size + IE_HEADER_SIZE;
 }
 
 uint16_t
@@ -277,15 +297,34 @@ set_ipv4_fteid_ie(gtpv2c_header_t *header,
 }
 
 void
-set_ipv4_paa(gtp_pdn_addr_alloc_ie_t *paa, enum ie_instance instance,
-		struct in_addr ipv4)
+set_paa(gtp_pdn_addr_alloc_ie_t *paa, enum ie_instance instance,
+		pdn_connection *pdn)
 {
-	set_ie_header(&paa->header, GTP_IE_PDN_ADDR_ALLOC, instance,
-			sizeof(uint8_t) + sizeof(struct in_addr));
-
-	paa->pdn_type = PDN_IP_TYPE_IPV4;
+	int size = sizeof(uint8_t);
 	paa->spare2 = 0;
-	paa->pdn_addr_and_pfx = ipv4.s_addr;
+
+	if (pdn->pdn_type.ipv4) {
+
+		size += sizeof(struct in_addr);
+
+		paa->pdn_type = PDN_IP_TYPE_IPV4;
+		paa->pdn_addr_and_pfx = pdn->uipaddr.ipv4.s_addr;
+
+	}
+
+	if (pdn->pdn_type.ipv6) {
+
+		size += sizeof(uint8_t) + sizeof(struct in6_addr);
+
+		paa->pdn_type = PDN_IP_TYPE_IPV6;
+		paa->ipv6_prefix_len = pdn->prefix_len;
+		memcpy(paa->paa_ipv6, pdn->uipaddr.ipv6.s6_addr, IPV6_ADDRESS_LEN);
+	}
+
+	if (pdn->pdn_type.ipv4 && pdn->pdn_type.ipv6)
+		paa->pdn_type = PDN_IP_TYPE_IPV4V6;
+
+	set_ie_header(&paa->header, GTP_IE_PDN_ADDR_ALLOC, instance, size);
 
 	return;
 }
@@ -357,6 +396,18 @@ set_ebi(gtp_eps_bearer_id_ie_t *ebi, enum ie_instance instance,
 	ebi->ebi_spare2 = 0;
 }
 
+void
+set_ar_priority(gtp_alloc_reten_priority_ie_t *arp, enum ie_instance instance,
+		eps_bearer *bearer)
+{
+	set_ie_header(&arp->header, GTP_IE_ALLOC_RETEN_PRIORITY, instance, sizeof(uint8_t));
+	arp->spare2 = 0;
+	arp->pci = bearer->qos.arp.preemption_capability;
+	arp->pl = bearer->qos.arp.priority_level;
+	arp->pvi = bearer->qos.arp.preemption_vulnerability;
+	arp->spare3 = 0;
+}
+
 /**
  * @brief  : generate a packet filter identifier based on availabe for that bearer
  * @param  : bearer,
@@ -380,7 +431,7 @@ get_packet_filter_identifier(eps_bearer *bearer){
 uint8_t
 set_bearer_tft(gtp_eps_bearer_lvl_traffic_flow_tmpl_ie_t *tft,
 		enum ie_instance instance, uint8_t tft_op_code,
-		eps_bearer *bearer, bool pdef_rule, char *rule_name)
+		eps_bearer *bearer, char *rule_name)
 {
 	uint32_t mask;
 	uint8_t i = 0;
@@ -389,20 +440,28 @@ set_bearer_tft(gtp_eps_bearer_lvl_traffic_flow_tmpl_ie_t *tft,
 	uint8_t tft_op_code_index = 0;
 	dynamic_rule_t *rule = NULL;
 	uint8_t num_rule_filters = 0;
+	uint8_t counter = 0;
+	uint8_t num_dyn_rule = bearer->num_dynamic_filters;
+	uint8_t num_prdef_rule = bearer->num_prdef_filters;
+
+	num_rule_filters = num_dyn_rule + num_prdef_rule;
 
 	tft_op_code_index = i;
 	tft->eps_bearer_lvl_tft[i++] = tft_op_code;
-	if(pdef_rule){
-		num_rule_filters = bearer->num_prdef_filters;
-	}else{
-		num_rule_filters = bearer->num_dynamic_filters;
-	}
 	for(uint8_t iCnt = 0; iCnt < num_rule_filters; ++iCnt) {
 
-		if(pdef_rule){
-			rule = bearer->prdef_rules[iCnt];
+		if(num_prdef_rule){
+			counter = bearer->num_prdef_filters - num_prdef_rule;
+			rule = bearer->prdef_rules[counter];
+			num_prdef_rule--;
+		}else if(num_dyn_rule){
+			counter = bearer->num_dynamic_filters - num_dyn_rule;
+			rule = bearer->dynamic_rules[counter];
+			num_dyn_rule--;
 		}else {
-			rule = bearer->dynamic_rules[iCnt];
+			clLog(clSystemLog, eCLSeverityCritical,
+					LOG_FORMAT" No filters present in bearer \n", LOG_VALUE);
+			return -1;
 		}
 
 		if(tft_op_code != TFT_CREATE_NEW &&
@@ -462,41 +521,82 @@ set_bearer_tft(gtp_eps_bearer_lvl_traffic_flow_tmpl_ie_t *tft,
 					rule->flow_desc[flow_cnt].sdf_flw_desc.local_port_low & 0xff;
 				length += 3;
 
-				tft->eps_bearer_lvl_tft[i++] = TFT_IPV4_SRC_ADDR_TYPE;
-				tft->eps_bearer_lvl_tft[i++] =
-					rule->flow_desc[flow_cnt].sdf_flw_desc.local_ip_addr.s_addr & 0xff;
-				tft->eps_bearer_lvl_tft[i++] =
-					(rule->flow_desc[flow_cnt].sdf_flw_desc.local_ip_addr.s_addr >> 8) & 0xff;
-				tft->eps_bearer_lvl_tft[i++] =
-					(rule->flow_desc[flow_cnt].sdf_flw_desc.local_ip_addr.s_addr >> 16) & 0xff;
-				tft->eps_bearer_lvl_tft[i++] =
-					(rule->flow_desc[flow_cnt].sdf_flw_desc.local_ip_addr.s_addr >> 24) & 0xff;
-				length += 5;
+				if (rule->flow_desc[flow_cnt].sdf_flw_desc.v4) {
 
-				mask = 0xffffffff << (32 - rule->flow_desc[flow_cnt].sdf_flw_desc.local_ip_mask);
-				tft->eps_bearer_lvl_tft[i++] = (mask >> 24) & 0xff;
-				tft->eps_bearer_lvl_tft[i++] = (mask >> 16) & 0xff;
-				tft->eps_bearer_lvl_tft[i++] = (mask >> 8) & 0xff;
-				tft->eps_bearer_lvl_tft[i++] = mask & 0xff;
-				length += 4;
+					tft->eps_bearer_lvl_tft[i++] = TFT_IPV4_SRC_ADDR_TYPE;
+					tft->eps_bearer_lvl_tft[i++] =
+						rule->flow_desc[flow_cnt].sdf_flw_desc.ulocalip.local_ip_addr.s_addr & 0xff;
+					tft->eps_bearer_lvl_tft[i++] =
+						(rule->flow_desc[flow_cnt].sdf_flw_desc.ulocalip.local_ip_addr.s_addr >> 8) & 0xff;
+					tft->eps_bearer_lvl_tft[i++] =
+						(rule->flow_desc[flow_cnt].sdf_flw_desc.ulocalip.local_ip_addr.s_addr >> 16) & 0xff;
+					tft->eps_bearer_lvl_tft[i++] =
+						(rule->flow_desc[flow_cnt].sdf_flw_desc.ulocalip.local_ip_addr.s_addr >> 24) & 0xff;
+					length += 5;
 
-				tft->eps_bearer_lvl_tft[i++] = TFT_IPV4_REMOTE_ADDR_TYPE;
-				tft->eps_bearer_lvl_tft[i++] =
-					rule->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_addr.s_addr & 0xff;
-				tft->eps_bearer_lvl_tft[i++] =
-					(rule->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_addr.s_addr >> 8) & 0xff;
-				tft->eps_bearer_lvl_tft[i++] =
-					(rule->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_addr.s_addr >> 16) & 0xff;
-				tft->eps_bearer_lvl_tft[i++] =
-					(rule->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_addr.s_addr >> 24) & 0xff;
-				length += 5;
+					mask = 0xffffffff << (32 - rule->flow_desc[flow_cnt].sdf_flw_desc.local_ip_mask);
+					tft->eps_bearer_lvl_tft[i++] = (mask >> 24) & 0xff;
+					tft->eps_bearer_lvl_tft[i++] = (mask >> 16) & 0xff;
+					tft->eps_bearer_lvl_tft[i++] = (mask >> 8) & 0xff;
+					tft->eps_bearer_lvl_tft[i++] = mask & 0xff;
+					length += 4;
+				} else if (rule->flow_desc[flow_cnt].sdf_flw_desc.v6)   {
 
-				mask = 0xffffffff << (32 - rule->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_mask);
-				tft->eps_bearer_lvl_tft[i++] = (mask >> 24) & 0xff;
-				tft->eps_bearer_lvl_tft[i++] = (mask >> 16) & 0xff;
-				tft->eps_bearer_lvl_tft[i++] = (mask >> 8) & 0xff;
-				tft->eps_bearer_lvl_tft[i++] = mask & 0xff;
-				length += 4;
+					tft->eps_bearer_lvl_tft[i++] = TFT_IPV6_SRC_ADDR_PREFIX_LEN_TYPE;
+
+					for (int cnt = 0; cnt < IPV6_ADDRESS_LEN; cnt++) {
+						tft->eps_bearer_lvl_tft[i++] = rule->flow_desc[flow_cnt].sdf_flw_desc.ulocalip.local_ip6_addr.s6_addr[cnt];
+					}
+
+					length += IPV6_ADDRESS_LEN + 1;
+
+					tft->eps_bearer_lvl_tft[i++] = rule->flow_desc[flow_cnt].sdf_flw_desc.local_ip_mask;
+					length += 1;
+
+				} else {
+					clLog(clSystemLog, eCLSeverityCritical,
+							LOG_FORMAT"Invalid IP address family type is set",
+							"Cannot set Traffic Flow Template\n",LOG_VALUE);
+				}
+
+
+				if (rule->flow_desc[flow_cnt].sdf_flw_desc.v4) {
+
+					tft->eps_bearer_lvl_tft[i++] = TFT_IPV4_REMOTE_ADDR_TYPE;
+					tft->eps_bearer_lvl_tft[i++] =
+						rule->flow_desc[flow_cnt].sdf_flw_desc.uremoteip.remote_ip_addr.s_addr & 0xff;
+					tft->eps_bearer_lvl_tft[i++] =
+						(rule->flow_desc[flow_cnt].sdf_flw_desc.uremoteip.remote_ip_addr.s_addr >> 8) & 0xff;
+					tft->eps_bearer_lvl_tft[i++] =
+						(rule->flow_desc[flow_cnt].sdf_flw_desc.uremoteip.remote_ip_addr.s_addr >> 16) & 0xff;
+					tft->eps_bearer_lvl_tft[i++] =
+						(rule->flow_desc[flow_cnt].sdf_flw_desc.uremoteip.remote_ip_addr.s_addr >> 24) & 0xff;
+					length += 5;
+
+					mask = 0xffffffff << (32 - rule->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_mask);
+					tft->eps_bearer_lvl_tft[i++] = (mask >> 24) & 0xff;
+					tft->eps_bearer_lvl_tft[i++] = (mask >> 16) & 0xff;
+					tft->eps_bearer_lvl_tft[i++] = (mask >> 8) & 0xff;
+					tft->eps_bearer_lvl_tft[i++] = mask & 0xff;
+					length += 4;
+				} else if (rule->flow_desc[flow_cnt].sdf_flw_desc.v6) {
+
+					tft->eps_bearer_lvl_tft[i++] = TFT_IPV6_REMOTE_ADDR_PREFIX_LEN_TYPE;
+
+					for (int cnt = 0; cnt < IPV6_ADDRESS_LEN; cnt++) {
+						tft->eps_bearer_lvl_tft[i++] = rule->flow_desc[flow_cnt].sdf_flw_desc.uremoteip.remote_ip6_addr.s6_addr[cnt];
+					}
+
+					length += IPV6_ADDRESS_LEN + 1;
+
+					tft->eps_bearer_lvl_tft[i++] = rule->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_mask;
+					length += 1;
+
+				} else {
+					clLog(clSystemLog, eCLSeverityCritical,
+							LOG_FORMAT"Invalid IP address family type is set",
+							"Cannot set Traffic Flow Template\n",LOG_VALUE);
+				}
 
 			} else {
 				tft->eps_bearer_lvl_tft[i++] = TFT_SINGLE_REMOTE_PORT_TYPE;
@@ -513,41 +613,84 @@ set_bearer_tft(gtp_eps_bearer_lvl_traffic_flow_tmpl_ie_t *tft,
 					rule->flow_desc[flow_cnt].sdf_flw_desc.remote_port_low & 0xff;
 				length += 3;
 
-				tft->eps_bearer_lvl_tft[i++] = TFT_IPV4_SRC_ADDR_TYPE;
-				tft->eps_bearer_lvl_tft[i++] =
-					rule->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_addr.s_addr & 0xff;
-				tft->eps_bearer_lvl_tft[i++] =
-					(rule->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_addr.s_addr >> 8) & 0xff;
-				tft->eps_bearer_lvl_tft[i++] =
-					(rule->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_addr.s_addr >> 16) & 0xff;
-				tft->eps_bearer_lvl_tft[i++] =
-					(rule->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_addr.s_addr >> 24) & 0xff;
-				length += 5;
+				if (rule->flow_desc[flow_cnt].sdf_flw_desc.v4) {
 
-				mask = 0xffffffff << (32 - rule->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_mask);
-				tft->eps_bearer_lvl_tft[i++] = (mask >> 24) & 0xff;
-				tft->eps_bearer_lvl_tft[i++] = (mask >> 16) & 0xff;
-				tft->eps_bearer_lvl_tft[i++] = (mask >> 8) & 0xff;
-				tft->eps_bearer_lvl_tft[i++] = mask & 0xff;
-				length += 4;
+					tft->eps_bearer_lvl_tft[i++] = TFT_IPV4_SRC_ADDR_TYPE;
+					tft->eps_bearer_lvl_tft[i++] =
+						rule->flow_desc[flow_cnt].sdf_flw_desc.uremoteip.remote_ip_addr.s_addr & 0xff;
+					tft->eps_bearer_lvl_tft[i++] =
+						(rule->flow_desc[flow_cnt].sdf_flw_desc.uremoteip.remote_ip_addr.s_addr >> 8) & 0xff;
+					tft->eps_bearer_lvl_tft[i++] =
+						(rule->flow_desc[flow_cnt].sdf_flw_desc.uremoteip.remote_ip_addr.s_addr >> 16) & 0xff;
+					tft->eps_bearer_lvl_tft[i++] =
+						(rule->flow_desc[flow_cnt].sdf_flw_desc.uremoteip.remote_ip_addr.s_addr >> 24) & 0xff;
+					length += 5;
 
-				tft->eps_bearer_lvl_tft[i++] = TFT_IPV4_REMOTE_ADDR_TYPE;
-				tft->eps_bearer_lvl_tft[i++] =
-					rule->flow_desc[flow_cnt].sdf_flw_desc.local_ip_addr.s_addr & 0xff;
-				tft->eps_bearer_lvl_tft[i++] =
-					(rule->flow_desc[flow_cnt].sdf_flw_desc.local_ip_addr.s_addr >> 8) & 0xff;
-				tft->eps_bearer_lvl_tft[i++] =
-					(rule->flow_desc[flow_cnt].sdf_flw_desc.local_ip_addr.s_addr >> 16) & 0xff;
-				tft->eps_bearer_lvl_tft[i++] =
-					(rule->flow_desc[flow_cnt].sdf_flw_desc.local_ip_addr.s_addr >> 24) & 0xff;
-				length += 5;
+					mask = 0xffffffff << (32 - rule->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_mask);
+					tft->eps_bearer_lvl_tft[i++] = (mask >> 24) & 0xff;
+					tft->eps_bearer_lvl_tft[i++] = (mask >> 16) & 0xff;
+					tft->eps_bearer_lvl_tft[i++] = (mask >> 8) & 0xff;
+					tft->eps_bearer_lvl_tft[i++] = mask & 0xff;
+					length += 4;
 
-				mask = 0xffffffff << (32 - rule->flow_desc[flow_cnt].sdf_flw_desc.local_ip_mask);
-				tft->eps_bearer_lvl_tft[i++] = (mask >> 24) & 0xff;
-				tft->eps_bearer_lvl_tft[i++] = (mask >> 16) & 0xff;
-				tft->eps_bearer_lvl_tft[i++] = (mask >> 8) & 0xff;
-				tft->eps_bearer_lvl_tft[i++] = mask & 0xff;
-				length += 4;
+				} else if (rule->flow_desc[flow_cnt].sdf_flw_desc.v6) {
+
+					tft->eps_bearer_lvl_tft[i++] = TFT_IPV6_SRC_ADDR_PREFIX_LEN_TYPE;
+
+					for (int cnt = 0; cnt < IPV6_ADDRESS_LEN; cnt++) {
+						tft->eps_bearer_lvl_tft[i++] = rule->flow_desc[flow_cnt].sdf_flw_desc.uremoteip.remote_ip6_addr.s6_addr[cnt];
+					}
+
+					length += IPV6_ADDRESS_LEN + 1;
+
+					tft->eps_bearer_lvl_tft[i++] = rule->flow_desc[flow_cnt].sdf_flw_desc.remote_ip_mask;
+					length += 1;
+
+				} else {
+					clLog(clSystemLog, eCLSeverityCritical,
+							LOG_FORMAT"Invalid IP address family type is set",
+							"Cannot set Traffic Flow Template\n",LOG_VALUE);
+				}
+
+				if (rule->flow_desc[flow_cnt].sdf_flw_desc.v4) {
+
+					tft->eps_bearer_lvl_tft[i++] = TFT_IPV4_REMOTE_ADDR_TYPE;
+					tft->eps_bearer_lvl_tft[i++] =
+						rule->flow_desc[flow_cnt].sdf_flw_desc.ulocalip.local_ip_addr.s_addr & 0xff;
+					tft->eps_bearer_lvl_tft[i++] =
+						(rule->flow_desc[flow_cnt].sdf_flw_desc.ulocalip.local_ip_addr.s_addr >> 8) & 0xff;
+					tft->eps_bearer_lvl_tft[i++] =
+						(rule->flow_desc[flow_cnt].sdf_flw_desc.ulocalip.local_ip_addr.s_addr >> 16) & 0xff;
+					tft->eps_bearer_lvl_tft[i++] =
+						(rule->flow_desc[flow_cnt].sdf_flw_desc.ulocalip.local_ip_addr.s_addr >> 24) & 0xff;
+					length += 5;
+
+					mask = 0xffffffff << (32 - rule->flow_desc[flow_cnt].sdf_flw_desc.local_ip_mask);
+					tft->eps_bearer_lvl_tft[i++] = (mask >> 24) & 0xff;
+					tft->eps_bearer_lvl_tft[i++] = (mask >> 16) & 0xff;
+					tft->eps_bearer_lvl_tft[i++] = (mask >> 8) & 0xff;
+					tft->eps_bearer_lvl_tft[i++] = mask & 0xff;
+					length += 4;
+
+				} else if (rule->flow_desc[flow_cnt].sdf_flw_desc.v6) {
+
+					tft->eps_bearer_lvl_tft[i++] = TFT_IPV6_REMOTE_ADDR_PREFIX_LEN_TYPE;
+
+					for (int cnt = 0; cnt < IPV6_ADDRESS_LEN; cnt++) {
+						tft->eps_bearer_lvl_tft[i++] = rule->flow_desc[flow_cnt].sdf_flw_desc.ulocalip.local_ip6_addr.s6_addr[cnt];
+					}
+
+					length += IPV6_ADDRESS_LEN + 1;
+
+					tft->eps_bearer_lvl_tft[i++] = rule->flow_desc[flow_cnt].sdf_flw_desc.local_ip_mask;
+					length += 1;
+
+				} else {
+					clLog(clSystemLog, eCLSeverityCritical,
+							LOG_FORMAT"Invalid IP address family type is set",
+							"Cannot set Traffic Flow Template\n",LOG_VALUE);
+				}
+
 
 			}
 
@@ -825,7 +968,7 @@ set_fqdn_ie(gtpv2c_header_t *header, char *fqdn)
 }
 
 #ifdef CP_BUILD
-pfcp_config_t pfcp_config;
+pfcp_config_t config;
 
 int
 decode_check_csr(gtpv2c_header_t *gtpv2c_rx,
@@ -849,66 +992,94 @@ decode_check_csr(gtpv2c_header_t *gtpv2c_rx,
 
 	/* Dynamically Set the gateway modes */
 	if (csr->pgw_s5s8_addr_ctl_plane_or_pmip.header.len != 0) {
-		if ((csr->pgw_s5s8_addr_ctl_plane_or_pmip.ipv4_address != 0)
-				&& (pfcp_config.s5s8_ip.s_addr != 0)) {
+
+		if((config.s5s8_ip_type != PDN_IP_TYPE_IPV4V6) &&
+		  ((csr->pgw_s5s8_addr_ctl_plane_or_pmip.v4 &&
+			csr->pgw_s5s8_addr_ctl_plane_or_pmip.ipv4_address != 0 &&
+			config.s5s8_ip_type != PDN_IP_TYPE_IPV4) ||
+			(csr->pgw_s5s8_addr_ctl_plane_or_pmip.v6 &&
+			 *csr->pgw_s5s8_addr_ctl_plane_or_pmip.ipv6_address != 0 &&
+			config.s5s8_ip_type != PDN_IP_TYPE_IPV6))){
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"SGW S5S8 interface not supported for"
+															" Requested PGW IP type\n", LOG_VALUE);
+			return GTPV2C_CAUSE_REQUEST_REJECTED;
+		}
+		struct in6_addr temp = {0};
+		if ((csr->pgw_s5s8_addr_ctl_plane_or_pmip.ipv4_address != 0
+				|| memcmp(csr->pgw_s5s8_addr_ctl_plane_or_pmip.ipv6_address,
+							temp.s6_addr, IPV6_ADDRESS_LEN))
+				&& (config.s5s8_ip.s_addr != 0
+					|| *config.s5s8_ip_v6.s6_addr)) {
 			/* Selection Criteria for Combined GW, SAEGWC */
-			if((csr->pgw_s5s8_addr_ctl_plane_or_pmip.ipv4_address ==
-					pfcp_config.s5s8_ip.s_addr)
-					|| (csr->pgw_s5s8_addr_ctl_plane_or_pmip.ipv4_address ==
-						pfcp_config.s11_ip.s_addr)) {
+			if((((csr->pgw_s5s8_addr_ctl_plane_or_pmip.v4)
+							&& (csr->pgw_s5s8_addr_ctl_plane_or_pmip.ipv4_address == config.s5s8_ip.s_addr))
+						|| (csr->pgw_s5s8_addr_ctl_plane_or_pmip.v6
+							&& (!memcmp(csr->pgw_s5s8_addr_ctl_plane_or_pmip.ipv6_address,
+										temp.s6_addr, IPV6_ADDRESS_LEN)
+								|| (memcmp(csr->pgw_s5s8_addr_ctl_plane_or_pmip.ipv6_address,
+										config.s5s8_ip_v6.s6_addr, IPV6_ADDRESS_LEN) == 0))))
+					|| (((csr->pgw_s5s8_addr_ctl_plane_or_pmip.v4)
+							&& (csr->pgw_s5s8_addr_ctl_plane_or_pmip.ipv4_address == config.s11_ip.s_addr))
+						|| (csr->pgw_s5s8_addr_ctl_plane_or_pmip.v6
+							&& memcmp(csr->pgw_s5s8_addr_ctl_plane_or_pmip.ipv6_address,
+								config.s11_ip_v6.s6_addr, IPV6_ADDRESS_LEN) == 0))) {
+
 				/* Condition to Allow GW run as a Combined GW */
-				if (pfcp_config.cp_type == SAEGWC) {
+				if (config.cp_type == SAEGWC) {
 					*cp_type = SAEGWC;
 				} else {
 					clLog(clSystemLog, eCLSeverityCritical,
 							LOG_FORMAT"Not Valid CSR Request for configured GW, Gateway Mode:%s\n",
-							LOG_VALUE, pfcp_config.cp_type == SGWC ? "SGW-C" :
-							pfcp_config.cp_type == PGWC ? "PGW-C" :
-							pfcp_config.cp_type == SAEGWC ? "SAEGW-C" : "UNKNOWN");
+							LOG_VALUE, config.cp_type == SGWC ? "SGW-C" :
+							config.cp_type == PGWC ? "PGW-C" :
+							config.cp_type == SAEGWC ? "SAEGW-C" : "UNKNOWN");
 					return GTPV2C_CAUSE_REQUEST_REJECTED;
 				}
 			} else {
 				/* Selection Criteria for SGWC */
-				if ((pfcp_config.cp_type != PGWC) &&
-					(csr->pgw_s5s8_addr_ctl_plane_or_pmip.ipv4_address  !=
-					csr->sender_fteid_ctl_plane.ipv4_address)) {
+				if ((config.cp_type != PGWC) &&
+					((csr->pgw_s5s8_addr_ctl_plane_or_pmip.v4
+						&& (csr->pgw_s5s8_addr_ctl_plane_or_pmip.ipv4_address  != csr->sender_fteid_ctl_plane.ipv4_address))
+						|| (csr->pgw_s5s8_addr_ctl_plane_or_pmip.v6
+							&& memcmp(csr->pgw_s5s8_addr_ctl_plane_or_pmip.ipv6_address, csr->sender_fteid_ctl_plane.ipv6_address,
+													IPV6_ADDRESS_LEN) != 0))) {
 					*cp_type = SGWC;
 				} else {
 					clLog(clSystemLog, eCLSeverityCritical,
 							LOG_FORMAT"Not Valid CSR Request for configured GW, Gateway Mode:%s\n",
-							LOG_VALUE, pfcp_config.cp_type == SGWC ? "SGW-C" :
-							pfcp_config.cp_type == PGWC ? "PGW-C" :
-							pfcp_config.cp_type == SAEGWC ? "SAEGW-C" : "UNKNOWN");
+							LOG_VALUE, config.cp_type == SGWC ? "SGW-C" :
+							config.cp_type == PGWC ? "PGW-C" :
+							config.cp_type == SAEGWC ? "SAEGW-C" : "UNKNOWN");
 					return GTPV2C_CAUSE_REQUEST_REJECTED;
 				}
 			}
 		} else {
 			/* Condition to Allow GW run as a Combined GW */
-			if (pfcp_config.cp_type == SAEGWC) {
+			if (config.cp_type == SAEGWC) {
 				*cp_type = SAEGWC;
 			} else {
 				clLog(clSystemLog, eCLSeverityCritical,
 						LOG_FORMAT"Not Valid CSR Request for configured GW, Gateway Mode:%s\n",
-						LOG_VALUE, pfcp_config.cp_type == SGWC ? "SGW-C" :
-						pfcp_config.cp_type == PGWC ? "PGW-C" :
-						pfcp_config.cp_type == SAEGWC ? "SAEGW-C" : "UNKNOWN");
+						LOG_VALUE, config.cp_type == SGWC ? "SGW-C" :
+						config.cp_type == PGWC ? "PGW-C" :
+						config.cp_type == SAEGWC ? "SAEGW-C" : "UNKNOWN");
 				return GTPV2C_CAUSE_REQUEST_REJECTED;
 			}
 		}
 	} else if (csr->sender_fteid_ctl_plane.interface_type == S5_S8_SGW_GTP_C) {
 		/* Selection Criteria for PGWC */
-		if (pfcp_config.cp_type != SGWC) {
+		if (config.cp_type != SGWC) {
 			*cp_type = PGWC;
 		} else {
 			clLog(clSystemLog, eCLSeverityCritical,
 					LOG_FORMAT"Not Valid CSR Request for configured GW, Gateway Mode:%s\n",
-					LOG_VALUE, pfcp_config.cp_type == SGWC ? "SGW-C" :
-					pfcp_config.cp_type == PGWC ? "PGW-C" :
-					pfcp_config.cp_type == SAEGWC ? "SAEGW-C" : "UNKNOWN");
+					LOG_VALUE, config.cp_type == SGWC ? "SGW-C" :
+					config.cp_type == PGWC ? "PGW-C" :
+					config.cp_type == SAEGWC ? "SAEGW-C" : "UNKNOWN");
 			return GTPV2C_CAUSE_REQUEST_REJECTED;
 		}
 	} else {
-		if (pfcp_config.cp_type == SAEGWC) {
+		if (config.cp_type == SAEGWC) {
 			*cp_type = SAEGWC;
 		} else {
 			/* Not meet upto selection Criteria */
@@ -932,8 +1103,7 @@ decode_check_csr(gtpv2c_header_t *gtpv2c_rx,
 			|| !csr->apn_ambr.header.len
 			|| !csr->pdn_type.header.len
 			|| !csr->rat_type.header.len
-			|| !csr->apn.header.len
-			|| !(csr->pdn_type.pdn_type_pdn_type == PDN_IP_TYPE_IPV4) ) {
+			|| !csr->apn.header.len) {
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Mandatory IE missing. Dropping packet\n",
 				LOG_VALUE);
 		return GTPV2C_CAUSE_MANDATORY_IE_MISSING;
@@ -946,13 +1116,6 @@ decode_check_csr(gtpv2c_header_t *gtpv2c_rx,
 					LOG_VALUE);
 			return GTPV2C_CAUSE_MANDATORY_IE_MISSING;
 		}
-	}
-
-	if (csr->pdn_type.pdn_type_pdn_type == PDN_IP_TYPE_IPV6 ||
-			csr->pdn_type.pdn_type_pdn_type == PDN_IP_TYPE_IPV4V6) {
-		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"IPv6 Not Yet Implemented - Dropping packet\n",
-				LOG_VALUE);
-		return GTPV2C_CAUSE_PREFERRED_PDN_TYPE_UNSUPPORTED;
 	}
 
 	return 0;
@@ -989,4 +1152,106 @@ set_mapped_ue_usage_type(gtp_mapped_ue_usage_type_ie_t *ie, uint16_t usage_type_
 			sizeof(uint16_t));
 	ie->mapped_ue_usage_type = usage_type_value;
 }
+
+
+void
+set_presence_reporting_area_action_ie(gtp_pres_rptng_area_act_ie_t *ie, ue_context *context){
+
+	uint8_t size = 0;
+	ie->action = context->pre_rptng_area_act->action;
+	size += sizeof(uint8_t);
+	ie->pres_rptng_area_idnt = context->pre_rptng_area_act->pres_rptng_area_idnt;
+	size += 3*sizeof(uint8_t);
+	ie->number_of_tai = context->pre_rptng_area_act->number_of_tai;
+	ie->number_of_rai = context->pre_rptng_area_act->number_of_rai;
+	size += sizeof(uint8_t);
+	ie->nbr_of_macro_enb = context->pre_rptng_area_act->nbr_of_macro_enb;
+	size += sizeof(uint8_t);
+	ie->nbr_of_home_enb = context->pre_rptng_area_act->nbr_of_home_enb;
+	size += sizeof(uint8_t);
+	ie->number_of_ecgi = context->pre_rptng_area_act->number_of_ecgi;
+	size += sizeof(uint8_t);
+	ie->number_of_sai = context->pre_rptng_area_act->number_of_sai;
+	size += sizeof(uint8_t);
+	ie->number_of_cgi = context->pre_rptng_area_act->number_of_cgi;
+	size += sizeof(uint8_t);
+	ie->nbr_of_extnded_macro_enb = context->pre_rptng_area_act->nbr_of_extnded_macro_enb;
+	size += sizeof(uint8_t);
+
+	uint32_t cpy_size = 0;
+
+	if(ie->number_of_tai){
+		cpy_size = ie->number_of_tai * sizeof(tai_field_t);
+		memcpy(&ie->tais, &context->pre_rptng_area_act->tais, cpy_size);
+		size += sizeof(tai_field_t);
+	}
+
+	if(ie->number_of_rai){
+		cpy_size = ie->number_of_rai * sizeof(rai_field_t);
+		memcpy(&ie->rais, &context->pre_rptng_area_act->rais, cpy_size);
+		size += sizeof(rai_field_t);
+	}
+
+	if(ie->nbr_of_macro_enb){
+		cpy_size = ie->nbr_of_macro_enb * sizeof(macro_enb_id_fld_t);
+		memcpy(&ie->macro_enb_ids, &context->pre_rptng_area_act->macro_enodeb_ids,
+																		cpy_size);
+		size += sizeof(macro_enb_id_fld_t);
+	}
+
+	if(ie->nbr_of_home_enb){
+		cpy_size = ie->nbr_of_home_enb * sizeof(home_enb_id_fld_t);
+		memcpy(&ie->home_enb_ids, &context->pre_rptng_area_act->home_enb_ids,
+																	cpy_size);
+		size += sizeof(home_enb_id_fld_t);
+	}
+
+	if(ie->number_of_ecgi){
+		cpy_size = ie->number_of_ecgi * sizeof(ecgi_field_t);
+		memcpy(&ie->ecgis, &context->pre_rptng_area_act->ecgis, cpy_size);
+		size += sizeof(ecgi_field_t);
+	}
+
+	if(ie->number_of_sai){
+		cpy_size = ie->number_of_sai * sizeof(sai_field_t);
+		memcpy(&ie->sais, &context->pre_rptng_area_act->sais, cpy_size);
+		size += sizeof(sai_field_t);
+	}
+
+	if(ie->number_of_cgi){
+		cpy_size = ie->number_of_cgi * sizeof(cgi_field_t);
+		memcpy(&ie->cgis, &context->pre_rptng_area_act->cgis, cpy_size);
+		size += sizeof(cgi_field_t);
+	}
+
+	if(ie->nbr_of_extnded_macro_enb){
+		cpy_size = ie->nbr_of_extnded_macro_enb * sizeof(extnded_macro_enb_id_fld_t);
+		memcpy(&ie->extnded_macro_enb_ids,
+			&context->pre_rptng_area_act->extended_macro_enodeb_ids,
+															cpy_size);
+		size += sizeof(extnded_macro_enb_id_fld_t);
+
+	}
+
+	set_ie_header(&ie->header, GTP_IE_PRES_RPTNG_AREA_ACT, 0, size);
+	return;
+
+}
+
+void
+set_presence_reporting_area_info_ie(gtp_pres_rptng_area_info_ie_t *ie, ue_context *context){
+
+	int size = 0;
+	ie->pra_identifier = context->pre_rptng_area_info.pra_identifier;
+	size += 3*sizeof(uint8_t);
+
+	ie->inapra = context->pre_rptng_area_info.inapra;
+	ie->opra = context->pre_rptng_area_info.opra;
+	ie->ipra = context->pre_rptng_area_info.ipra;
+	size += sizeof(uint8_t);
+
+	set_ie_header(&ie->header, GTP_IE_PRES_RPTNG_AREA_INFO, 0, size);
+	return;
+}
+
 #endif /* CP_BUILD */

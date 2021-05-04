@@ -1,4 +1,6 @@
 # Copyright (c) 2017 Intel Corporation
+# Copyright (c) 2019 Sprint
+# Copyright (c) 2020 T-Mobile
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,11 +24,10 @@ MAKEFLAGS += -j
 RTE_TARGET ?= x86_64-native-linuxapp-gcc
 
 include $(RTE_SDK)/mk/rte.vars.mk
-include $(NG_CORE)/config/ng-core_cfg.mk
 
-OSS_UTIL_ROOT = $(NG_CORE)/oss_adapter/c3po_oss/oss-util
-LIBGTPV2C_ROOT = $(SRCDIR)/../libgtpv2c
-LIBPFCP_ROOT = $(SRCDIR)/../libpfcp
+OSS_UTIL_ROOT = $(NG_CORE)/oss_adapter/libepcadapter
+LIBGTPV2C_ROOT = $(SRCDIR)/../third_party/libgtpv2c
+LIBPFCP_ROOT = $(SRCDIR)/../third_party/libpfcp
 HIREDIS_DIR = $(NG_CORE)/third_party/hiredis
 
 # binary name
@@ -63,9 +64,11 @@ SRCS-y += gtpv2c_messages/delete_session.o
 SRCS-y += gtpv2c_messages/delete_s5s8_session.o
 SRCS-y += gtpv2c_messages/gtpv2c_echo.o
 SRCS-y += gtpv2c_messages/modify_bearer.o
+SRCS-y += gtpv2c_messages/modify_access_bearer.o
 SRCS-y += gtpv2c_messages/downlink_data_notification.o
 SRCS-y += gtpv2c_messages/change_notification.o
 SRCS-y += gtpv2c_messages/release_access_bearer.o
+SRCS-y += gtpv2c_messages/create_indir_data_frwd_tunnel.o
 SRCS-y += $(SRCDIR)/../pfcp_messages/pfcp_association.o
 SRCS-y += $(SRCDIR)/../pfcp_messages/pfcp_req_resp.o
 SRCS-y += $(SRCDIR)/../pfcp_messages/pfcp_session.o
@@ -74,7 +77,7 @@ SRCS-y += $(SRCDIR)/../pfcp_messages/pfcp_util.o
 SRCS-y += $(SRCDIR)/../pfcp_messages/pfcp_init.o
 SRCS-y += $(SRCDIR)/../pfcp_messages/pfcp_gx.o
 
-SRCS-y += $(SRCDIR)/../teid/teid.o
+SRCS-y += $(SRCDIR)/../cp_dp_api/teid.o
 
 SRCS-y += $(SRCDIR)/../test/simu_cp/simu_cp.o
 SRCS-y += $(SRCDIR)/../interface/ipc/dp_ipc_api.o
@@ -88,8 +91,8 @@ SRCS-y += $(SRCDIR)/../cp_dp_api/tcp_client.o
 SRCS-y += prdef_rules.c
 SRCS-y += $(SRCDIR)/../cp_dp_api/predef_rule_init.o
 
-SRCS-y += $(SRCDIR)/../oss_adapter/c3po_oss/gw_adapter.o
-CFLAGS += -I$(SRCDIR)/../oss_adapter/c3po_oss
+#Config precondition supports
+SRCS-y += $(SRCDIR)/../cp_dp_api/config_validater.o
 
 SRCS-y += cp_app.c
 SRCS-y += ipc_api.c
@@ -101,7 +104,6 @@ CFLAGS += -I$(SRCDIR)/../cp/gx_app/include
 #SRCS-y += $(SRCDIR)/../oss_adapter/c3po_oss/cp_adapter.o
 #CFLAGS += -I$(SRCDIR)/../oss_adapter/c3po_oss
 #endif
-
 CFLAGS += -Wno-psabi # suppress "The ABI for passing parameters with 64-byte alignment has changed in GCC 4.6"
 CFLAGS += -Wall
 CFLAGS += -Werror
@@ -121,7 +123,6 @@ CFLAGS += -I$(LIBPFCP_ROOT)/include
 
 CFLAGS += -I$(SRCDIR)/..
 CFLAGS += -I$(SRCDIR)/../pfcp_messages
-CFLAGS += -I$(SRCDIR)/../teid
 CFLAGS += -I$(SRCDIR)/state_machine
 CFLAGS += -I$(HIREDIS_DIR)
 
@@ -152,7 +153,6 @@ LDLIBS += -lcrypto
 CFLAGS +=  -I$(OSS_UTIL_ROOT)/include
 LDFLAGS += -lstdc++
 LDLIBS += -lstdc++
-#LDLIBS +=  -L$(OSS_UTIL_ROOT)/lib -loss-util
 LDLIBS += -lpthread
 LDLIBS += -lrt
 LDLIBS += -lpistache
@@ -189,9 +189,8 @@ endif
 CFLAGS += -DUSE_REST
 
 ifneq (,$(findstring USE_REST, $(CFLAGS)))
-	#VS: ECHO FILES
-	CFLAGS += -I$(SRCDIR)/../restoration
-	SRCS-y += $(SRCDIR)/../restoration/restoration_timer.o
+	#ECHO FILES
+	SRCS-y += $(SRCDIR)/../cp_dp_api/ngic_timer.o
 	SRCS-y += restoration_peer.c
 	SRCS-y += gtpv2c_echo_req.c
 endif
@@ -218,9 +217,7 @@ endif
 
 LIBDNSCLIENT_ROOT = $(SRCDIR)/../oss_adapter/c3po_oss/oss-util
 CFLAGS += -I$(LIBDNSCLIENT_ROOT)/include
-LDLIBS += $(LIBDNSCLIENT_ROOT)/lib/liboss-util.a -lstdc++ -lpistache
-LDLIBS += -L$(LIBDNSCLIENT_ROOT)/modules/c-ares -lcares -lcurl
-
+LDLIBS += $(OSS_UTIL_ROOT)/lib/libepcadapter.a /usr/local/lib/libepc.a -lstdc++ -lpistache -lcares -lcurl
 # ngic-cp application security check CFLAGS
 ###############################################################
 SECURITY_FLAGS = -D_FORTIFY_SOURCE=2 -fasynchronous-unwind-tables -fexceptions  -fpie -fstack-protector-all -fstack-protector-strong -Wall -Werror=format-security -Werror=implicit-function-declaration

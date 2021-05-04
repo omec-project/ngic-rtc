@@ -22,12 +22,7 @@
 #include "epctools.h"
 #include "etevent.h"
 #include "esocket.h"
-
 #include "emgmt.h"
-
-#define RAPIDJSON_NAMESPACE ulpcrapidjson
-#include "rapidjson/rapidjson.h"
-#include "rapidjson/document.h"
 
 #define LOG_SYSTEM				1
 #define EMPTY_STRING				""
@@ -41,6 +36,9 @@
 #define ADMF_ACK				40
 #define LEGACY_ADMF_PACKET			50
 #define ADMF_INTFC_ACK          		60
+
+#define IPV6_MAX_LEN				16
+#define BACKLOG_CONNECTIION                 	100
 
 #define ADD_UE_ENTRY_URI			"/addueentry"
 #define UPDATE_UE_ENTRY_URI			"/updateueentry"
@@ -99,8 +97,9 @@ struct UeDatabase {
  */
 typedef struct configurations {
 	std::string			nodeName;
+	cpStr				serverIp;
 	uint16_t			serverPort;
-	struct in_addr			legAdmfIntfcIp;
+	cpStr				legAdmfIntfcIp;
 	uint16_t			legAdmfIntfcPort;
 } configurations_t;
 

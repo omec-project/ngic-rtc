@@ -68,6 +68,8 @@ with PCRF and SGWC/PGWC/SAEGWC communicates with DNS for selecting User Plane no
 ----------------
 The NGIC VNF currently supports the following features:
 
+* IPv6 interfaces and applications support in Deployment models
+* IPv6 support in Mobility Management
 * User level packet copying
 * TEID implementation as per "C3PO TEID Assignment and Recovery Scenarios"
 * Restoration CSID implementation and UP recovery
@@ -82,10 +84,10 @@ The NGIC VNF currently supports the following features:
 * E-UTRAN procedures
 * PCC (Policy Control and Charging) rules configuration.
 * Packet Filters for Service Data Flow (SDF) configuration.
-* UE sessions with multiple Bearer support.
+* UE sessions with multiple Bearer support
 * IPv4 support
-* Charging by volume and time notification.
-* Enable command line or display stats periodically.
+* Charging by volume and time notification
+* Enable command line or display stats periodically
 * Promotion Demotion
 
 4.	High Level Design
@@ -193,16 +195,14 @@ Please refer to Figures below for the basic architecture in the NGIC.
 5.	Build, install, configure and test
 ------------------------------------------
 
-Please refer to [Control and User Plane Gateway User Guide](docs/Control_User_Plane_Gateway_User_Guide_1.8.docx).
+Please refer to [Control and User Plane Gateway User Guide](docs/Control_User_Plane_Gateway_User_Guide_1.9.docx).
 
 6. Known Issues and limitations
 -----------------------------
 -       ICMP supported under KNI-Linux
--       IPV4 fragmentation and option header not supported.
+-       IPV4/IPV6 fragmentation and option header not supported.
 -       IPSec not supported.
 -       ARP handling supported under KNI-Linux.
--       IPv6 support in Mobility Management.
--       IPv6 interfaces and applications support in Deployment models.
 -       QoS Control in User Plane is not supported.
 -       ISR procedure is not supported.
 -       Multimedia Priority Service is not supported

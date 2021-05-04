@@ -20,13 +20,13 @@
 
 #include <iostream>
 
-
-#ifdef RAPIDJSON_NAMESPACE
-#undef RAPIDJSON_NAMESPACE
-#endif
-#define RAPIDJSON_NAMESPACE ulpcrapidjson
-#include "rapidjson/rapidjson.h"
+#include "rapidjson/filereadstream.h"
 #include "rapidjson/document.h"
+#include "rapidjson/prettywriter.h"
+#include "rapidjson/pointer.h"
+
+
+//#define RAPIDJSON_NAMESPACE	epctoolsrapidjson
 
 #define ADD			1
 #define UPDATE			2
@@ -60,8 +60,8 @@
 
 
 typedef struct config {
-	struct in_addr			admfIp;
-	struct in_addr			legacyAdmfIp;
+	std::string			admfIp;
+	std::string			legacyAdmfIp;
 	uint16_t			admfPort;
 	uint16_t			legacyAdmfPort;
 	uint16_t			legacyAdmfIntfcPort;

@@ -45,7 +45,12 @@ LegacyAdmfInterfaceThread :: onInit()
 	initTimer(legAdmfConnectTimer);
 
 	legAdmfIntfcListener = new LegacyAdmfInterfaceListener(*this);
-	legAdmfIntfcListener->listen(getLegacyAdmfInterfacePort(), 10);
+
+	legAdmfIntfcListener->getLocalAddress().setAddress((getLegacyAdmfInterfaceIp()).c_str(),
+			getLegacyAdmfInterfacePort());
+	legAdmfIntfcListener->setBacklog(BACKLOG_CONNECTIION);
+
+	legAdmfIntfcListener->listen();
 	LegacyAdmfInterface::log().info("Interface listening on port: {}",
 			getLegacyAdmfInterfacePort());
 
@@ -113,7 +118,7 @@ LegacyAdmfInterfaceThread :: processData(void *packet)
 	LegacyAdmfInterface::log().debug("LegacyAdmfInterfaceThread processData()");
 	if ((legAdmfClient) && (legAdmfClient)->getState() == ESocket::SocketState::Connected)
 	{
-		admf_intfc_packet_t *admfIntfcPacket_t = 
+		admf_intfc_packet_t *admfIntfcPacket_t =
 				(reinterpret_cast<admf_intfc_packet_t *>(packet));
 
 		legAdmfClient->sendData(admfIntfcPacket_t, ADMF_INTFC_PACKET);

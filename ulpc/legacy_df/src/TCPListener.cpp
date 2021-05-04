@@ -37,9 +37,14 @@ Void
 TCPListener::onInit()
 {
 
-	m_ptrListener = new DdfListener(*this);
+	m_ptrListener = new LegacyDfListener(*this);
 
-	m_ptrListener->listen(config.legacyPort, BACKLOG_CONNECTIION);
+//	m_ptrListener->listen(config.legacyPort, BACKLOG_CONNECTIION);
+
+	m_ptrListener->getLocalAddress().setAddress(config.legacyIp, config.legacyPort);
+	m_ptrListener->setBacklog(BACKLOG_CONNECTIION);
+
+	m_ptrListener->listen();
 
 	ELogger::log(LOG_SYSTEM).info("Legacy DF listener started on port {}",
 			config.legacyPort);
@@ -102,6 +107,15 @@ TCPListener::onSocketClosed(ESocket::BasePrivate *psocket) {
 	if (NULL != psocket) {
 		delete psocket;
 	}
+}
+
+Void
+TCPListener::onSocketError(ESocket::BasePrivate *psocket) {
+        ELogger::log(LOG_SYSTEM).info("{} socket error {} {} ", __func__,
+                        ((ESocket::TCP::TalkerPrivate*)psocket)->getRemoteAddress(),
+                        psocket->getErrorDescription());
+
+        onSocketClosed(psocket);
 }
 
 pcap_dumper_t *

@@ -20,9 +20,9 @@ EXE := d_admf
 
 SOURCES := $(shell find $(SRCDIR) -type f -name '*.cpp')
 OBJECTS := $(patsubst $(SRCDIR)/%,$(SRCDIR)/%,$(SOURCES:.cpp=.o))
-CPPFLAGS := -std=c++14 -Wreturn-type -pthread $(LIBS) -Wall -Werror
+CPPFLAGS := -std=c++14 -Wreturn-type -pthread $(LIBS) -Wall -Werror 
 
-INC := -I/usr/local/include/epc/ -I ./include/ -I ../common/
+INC := -I/usr/local/include/epc/ -I ./include/ -I ../common/ 
 LIBS :=	\
 	/usr/local/lib/libepc.a			\
 	/usr/local/lib/libpistache.a		\

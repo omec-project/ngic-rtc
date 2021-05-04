@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,7 +30,6 @@
 #else
 #include "cp.h"
 #endif
-#include "clogger.h"
 #include <netinet/tcp.h>
 #include <sys/ioctl.h>
 #include <net/if.h>
@@ -42,26 +42,6 @@ enum TCP_SOCKET {
 	TCP_GET = 0,
 	TCP_CREATE = 1
 };
-
-/**
- * @brief  : create tunnel with ddf
- * @param  : ip, Ip address of remote server for which we want/create sockfd
- * @param  : port, port no for creating sockfd if new ip
- * @param  : intfc_name, interface name
- * @return : Returns 0 in case of success , -1 otherwise
- */
-int
-create_ddf_tunnel(uint32_t ip, uint16_t port, char intfc_name[DDF_INTFC_LEN]);
-
-/**
- * @brief  : Send pkts over TCP for LI
- * @param  : sock, sockfd on which we need to send
- * @param  : pkt, pkt need to copy
- * @param  : size, size of pkt
- * @return : Returns 0 in case of success , -1 otherwise
- */
-int
-send_li_data_pkt(int sock, void *pkt, int size);
 
 /**
  * @brief  : Add the sock fd to the sock arr which is not present in that arry

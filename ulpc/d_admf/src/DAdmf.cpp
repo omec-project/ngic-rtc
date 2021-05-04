@@ -13,10 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-
-#include <curl/curl.h>
-
+#include <curl/curl.h> 
+#include "emgmt.h"
+#include "esynch.h"
+#include "epctools.h"
 #include "DAdmf.h"
 
 extern configurations_t config;
@@ -24,6 +24,20 @@ extern configurations_t config;
 int DAdmfApp::iRefCntr = ZERO;
 DAdmfApp* DAdmfApp::ptrInstance = NULL;
 
+std::string
+ConvertIpForRest(const std::string &strIp) {
+
+	char buf[IPV6_MAX_LEN];
+	std::string strRestFormat;
+
+	if (inet_pton(AF_INET, (const char *)strIp.c_str(), buf)) {
+		strRestFormat = strIp;
+	} else if (inet_pton(AF_INET6, (const char *)strIp.c_str(), buf)) {
+		strRestFormat = "[" + strIp + "]";
+	}
+	
+	return strRestFormat;
+}
 
 size_t
 jsonResponseCallback(char *contents, size_t size, size_t nmemb, void *userp)
@@ -136,7 +150,9 @@ DAdmfApp::SendRequestToAllCp(const std::string &strURI,
 	for (uint32_t uiCnt = ZERO; uiCnt < ptrCpConfig->getVecCpConfig().size(); 
 			++uiCnt) {
 
-		strUrl = HTTP + ptrCpConfig->getVecCpConfig()[uiCnt] + ":12997/" + strURI;
+		std::string strIp = ConvertIpForRest(ptrCpConfig->getVecCpConfig()[uiCnt]);
+		strUrl = HTTP + strIp + ":12997/" + strURI;
+
 		ELogger::log(LOG_SYSTEM).info("CP URI: {}", strUrl);
 		return_value = sendCurlRequest(strUrl, strPostData);
 
@@ -169,7 +185,8 @@ DAdmfApp::SendRequestToAdmf(const std::string &strURI,
 	std::string strUrl;
 	int8_t return_value;
 
-	strUrl = HTTP + std::string(inet_ntoa(config.admfIp)) + COLON +
+	std::string strTemp = ConvertIpForRest(config.admfIp);
+	strUrl = HTTP + strTemp + COLON +
 			to_string(config.admfPort) + SLASH + strURI;
 
 	ELogger::log(LOG_SYSTEM).info("Sending request to ADMF. URI: {}", strUrl);
@@ -185,7 +202,8 @@ DAdmfApp::SendNotificationToAdmf(const std::string &strURI,
 	std::string strUrl;
 	int8_t return_value;
 
-	strUrl = HTTP + std::string(inet_ntoa(config.admfIp)) + COLON +
+	std::string strIp = ConvertIpForRest(config.admfIp);
+	strUrl = HTTP + strIp + COLON +
 			to_string(config.admfPort) + SLASH + strURI;
 
 	ELogger::log(LOG_SYSTEM).info("Sending notification to ADMF. URI:{}", strUrl);
@@ -197,9 +215,9 @@ DAdmfApp::SendNotificationToAdmf(const std::string &strURI,
 void
 DAdmfApp::startup(EGetOpt &opt)
 {
-	//std::cout << "11Reading confi" << std::endl;
-
-	mpCliPost = new EManagementEndpoint(config.dadmfPort);
+	std::string dadmf_ip = ConvertIpForRest(config.dadmfIp);
+	Pistache::Address addr(dadmf_ip, config.dadmfPort);
+	mpCliPost = new EManagementEndpoint(addr);
 	
 	mpAddUeEntryPost = new AddUeEntryPost(ELogger::log(LOG_SYSTEM));
 	mpCliPost->registerHandler(*mpAddUeEntryPost);

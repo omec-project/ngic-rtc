@@ -29,7 +29,7 @@
 #define UPDATE_UE_ENTRY		"/updateueentry"
 #define DELETE_UE_ENTRY		"/deleteueentry"
 #define ACK_POST		"/ack"
-#define NOTIFY_URI		"notify"
+#define NOTIFY_URI		"/notify"
 
 
 class AdmfApplication;

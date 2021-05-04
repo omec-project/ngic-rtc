@@ -68,7 +68,7 @@ stats_time(void)
 	uint64_t ret = cp_stats.time;
 
 	cp_stats.time++;
-	oss_reset_time++;
+	cli_node.cli_config.oss_reset_time++;
 	return ret;
 }
 

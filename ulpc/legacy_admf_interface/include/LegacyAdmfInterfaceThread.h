@@ -30,6 +30,7 @@
 #include "LegacyAdmfClient.h"
 #include "LegacyAdmfInterface.h"
 
+#define BACKLOG_CONNECTIION			10
 
 class LegacyAdmfInterfaceListener;
 class LegacyAdmfInterfaceTalker;
@@ -56,11 +57,11 @@ class LegacyAdmfInterfaceThread : public ESocket::ThreadPrivate
 
 		LegacyAdmfInterfaceTalker *createLegacyAdmfTalker();
 
-		UShort getLegacyAdmfPort() const 
+		UShort getLegacyAdmfPort() const
 		{
 			return legacyAdmfPort;
 		}
-		LegacyAdmfInterfaceThread &setLegacyAdmfPort(uint16_t port) 
+		LegacyAdmfInterfaceThread &setLegacyAdmfPort(uint16_t port)
 		{
 			legacyAdmfPort = port;
 			return *this;
@@ -80,9 +81,21 @@ class LegacyAdmfInterfaceThread : public ESocket::ThreadPrivate
 		{
 			return legacyAdmfInterfacePort;
 		}
+
+		std::string getLegacyAdmfInterfaceIp() const
+		{
+			return legacyAdmfInterfaceIp;
+		}
+
 		LegacyAdmfInterfaceThread &setLegacyAdmfInterfacePort(uint16_t port)
 		{
 			legacyAdmfInterfacePort = port;
+			return *this;
+		}
+
+		LegacyAdmfInterfaceThread &setLegacyAdmfInterfaceIp(std::string ip)
+		{
+			legacyAdmfInterfaceIp = ip;
 			return *this;
 		}
 
@@ -106,6 +119,7 @@ class LegacyAdmfInterfaceThread : public ESocket::ThreadPrivate
 		UShort legacyAdmfPort;
 		std::string legacyAdmfIp;
 		UShort legacyAdmfInterfacePort;
+		std::string legacyAdmfInterfaceIp;
 		Bool quitting;
 };
 

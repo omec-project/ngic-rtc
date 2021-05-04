@@ -46,8 +46,8 @@
 
 #include "gtpu.h"
 #include "up_main.h"
+#include "pfcp_util.h"
 #include "epc_packet_framework.h"
-#include "clogger.h"
 #include "gw_adapter.h"
 
 #ifdef TIMER_STATS
@@ -59,16 +59,19 @@ extern struct kni_port_params *kni_port_params_array[RTE_MAX_ETHPORTS];
 /* Generate new pcap for sgi port. */
 extern pcap_dumper_t *pcap_dumper_west;
 extern pcap_dumper_t *pcap_dumper_east;
+extern int clSystemLog;
+extern struct rte_hash *conn_hash_handle;
+extern uint16_t dp_comm_port;
 uint32_t dl_nkni_pkts = 0;
 
 #ifdef USE_REST
 /**
  * @brief  : Perform lookup for src ip, and set activity flag if connection
  *           is active for downlink
- * @param  : srcIp, Ip address
+ * @param  : node_address_t srcIp, Ip address
  * @return : Returns nothing
  */
-static inline void check_activity(uint32_t srcIp)
+static inline void check_activity(node_address_t srcIp)
 {
 	/* VS: Check the in-activity on tunnel  */
 	int ret = 0;
@@ -77,12 +80,22 @@ static inline void check_activity(uint32_t srcIp)
 	ret = rte_hash_lookup_data(conn_hash_handle,
 				&srcIp, (void **)&conn_data);
 	if ( ret < 0) {
-		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Entry not found for NODE: %s\n",
-			LOG_VALUE, inet_ntoa(*(struct in_addr *)&srcIp));
+		(srcIp.ip_type == IPV6_TYPE) ?
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Entry not found for NODE IPv6 Addr: "IPv6_FMT"\n",
+					LOG_VALUE, IPv6_PRINT(IPv6_CAST(srcIp.ipv6_addr))):
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Entry not found for NODE IPv4 Addr: %s\n",
+					LOG_VALUE, inet_ntoa(*(struct in_addr *)&srcIp.ipv4_addr));
 		return;
 	} else {
-		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Recv pkts from NODE: %s\n",
-			LOG_VALUE, inet_ntoa(*(struct in_addr *)&srcIp));
+		(srcIp.ip_type == IPV6_TYPE) ?
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Recv pkts from NODE IPv6 Addr: "IPv6_FMT"\n",
+					LOG_VALUE, IPv6_PRINT(IPv6_CAST(srcIp.ipv6_addr))):
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"Recv pkts from NODE IPv4 Addr: %s\n",
+					LOG_VALUE, inet_ntoa(*(struct in_addr *)&srcIp.ipv4_addr));
 		conn_data->activityFlag = 1;
 	}
 }
@@ -95,101 +108,172 @@ static inline void check_activity(uint32_t srcIp)
  */
 static inline void epc_dl_set_port_id(struct rte_mbuf *m)
 {
+	/* point to the start of the mbuf */
 	uint8_t *m_data = rte_pktmbuf_mtod(m, uint8_t *);
+	/* point to the meta data offset header room */
 	struct epc_meta_data *meta_data =
-	    (struct epc_meta_data *)RTE_MBUF_METADATA_UINT8_PTR(m,
-							META_DATA_OFFSET);
+		(struct epc_meta_data *)RTE_MBUF_METADATA_UINT8_PTR(m, META_DATA_OFFSET);
+	/* point to the port id in the meta offset */
 	uint32_t *port_id_offset = &meta_data->port_id;
-	struct ipv4_hdr *ipv4_hdr =
-	    (struct ipv4_hdr *)&m_data[sizeof(struct ether_hdr)];
+	node_address_t peer_addr = {0};
+
+	/* Get the ether header info */
 	struct ether_hdr *eh = (struct ether_hdr *)&m_data[0];
-	uint32_t ipv4_packet;
-	/* Host Order ipv4_hdr->dst_addr */
-	uint32_t ho_addr;
 
-	ipv4_packet = (eh->ether_type == htons(ETHER_TYPE_IPv4));
-
-	if (unlikely(
-		     (m->ol_flags & PKT_RX_IP_CKSUM_MASK) ==
-			 	PKT_RX_IP_CKSUM_BAD ||
-		     (m->ol_flags & PKT_RX_L4_CKSUM_MASK)
-			 == PKT_RX_L4_CKSUM_BAD)) {
-		//clLog(clSystemLog, eCLSeverityCritical, "DL Bad checksum: %lu\n", m->ol_flags);
-		//ipv4_packet = 0;
-	}
+	/* Default route all packets to master core */
 	*port_id_offset = 1;
 
 	/* Flag ARP pkt for linux handling */
-	if (eh->ether_type == rte_cpu_to_be_16(ETHER_TYPE_ARP) ||
-			ipv4_hdr->next_proto_id == IPPROTO_ICMP)
+	if (eh->ether_type == rte_cpu_to_be_16(ETHER_TYPE_ARP))
 	{
 		clLog(clSystemLog, eCLSeverityDebug,
 			LOG_FORMAT"EB_IN:eh->ether_type==ETHER_TYPE_ARP= 0x%X\n",
 			LOG_VALUE, eh->ether_type);
-		dl_arp_pkt = 1;
-		return;
-	}
 
-	ho_addr = (ipv4_hdr->dst_addr);
-	/* Flag pkt destined to SGI_IP for linux handling */
-	if ((app.eb_ip == ho_addr) || (app.eb_li_ip == ho_addr))
-	{
-		clLog(clSystemLog, eCLSeverityDebug,
-			LOG_FORMAT"EB_IN:app.eb_ip==ipv4_hdr->dst_addr= %s\n",
-			LOG_VALUE, inet_ntoa(*(struct in_addr *)&ho_addr));
-		dl_arp_pkt = 1;
-		return;
-	}
-	/* Flag MCAST pkt for linux handling */
-	if (IS_IPV4_MCAST(ntohl(ho_addr)))
-	{
-		clLog(clSystemLog, eCLSeverityDebug,
-			LOG_FORMAT"EB_IN:IPV$_MCAST ==ipv4_hdr->dst_addr= %s\n",
-			LOG_VALUE, inet_ntoa(*(struct in_addr *)&ho_addr));
-		dl_arp_pkt = 1;
-		return;
-	}
-	/* Flag BCAST pkt for linux handling */
-	if ((app.eb_bcast_addr == ho_addr) || (app.eb_li_bcast_addr == ho_addr))
-	{
-		clLog(clSystemLog, eCLSeverityDebug,
-			LOG_FORMAT"EB_IN:app.eb_bcast_addr == ipv4_hdr->dst_addr= %s\n",
-			LOG_VALUE, inet_ntoa(*(struct in_addr *)&ho_addr));
-		dl_arp_pkt = 1;
-		return;
-	}
+		dl_arp_pkt = 1;		return;
 
-	/* Flag all other pkts for epc_dl proc handling */
-	if (likely
-			(ipv4_packet &&
-			((ipv4_hdr->next_proto_id == IPPROTO_UDP) ||
-			(ipv4_hdr->next_proto_id == IPPROTO_TCP)))) {
+	} else if (eh->ether_type == rte_cpu_to_be_16(ETHER_TYPE_IPv4)) {
+		struct ipv4_hdr *ipv4_hdr =
+		    (struct ipv4_hdr *)&m_data[sizeof(struct ether_hdr)];
+		uint32_t ipv4_packet;
+		/* Host Order ipv4_hdr->dst_addr */
+		uint32_t ho_addr;
+
+		ipv4_packet = (eh->ether_type == htons(ETHER_TYPE_IPv4));
+
+		/*if (unlikely(
+			     (m->ol_flags & PKT_RX_IP_CKSUM_MASK)
+				 == PKT_RX_IP_CKSUM_BAD ||
+			     (m->ol_flags & PKT_RX_L4_CKSUM_MASK)
+				 == PKT_RX_L4_CKSUM_BAD)) {
+			//clLog(clSystemLog, eCLSeverityCritical, "DL Bad checksum: %lu\n", m->ol_flags);
+			//ipv4_packet = 0;
+		}*/
+
+
+		ho_addr = (ipv4_hdr->dst_addr);
+		if ((ipv4_hdr->next_proto_id == IPPROTO_ICMP) ||    /* Ipv4 ICMP pkt for linux handling */
+			(app.eb_ip == ho_addr) ||						/* pkt destined to SGI_IP for linux handling */
+			 (app.eb_li_ip == ho_addr) ||  					/* pkt destined to SGI_IP for linux handling */
+			(IS_IPV4_MCAST(ntohl(ho_addr))) ||				/* MCAST pkt for linux handling */
+			(app.eb_bcast_addr == ho_addr) || 				/* Flag BCAST pkt for linux handling */
+			(app.eb_li_bcast_addr == ho_addr))				/* Flag BCAST pkt for linux handling */
+
+		{
 			clLog(clSystemLog, eCLSeverityDebug,
-				LOG_FORMAT"East_Bound packet\n", LOG_VALUE);
+				LOG_FORMAT"EB_IN:ipv4_hdr->next_proto_id= %u \n"
+				"ipv4_hdr->dst_addr(app.eb_ip/IPV4_MCAST/app.eb_bcast_addr)= %s\n",
+				LOG_VALUE, ipv4_hdr->next_proto_id, inet_ntoa(*(struct in_addr *)&ho_addr));
+			dl_arp_pkt = 1;
+			return;
+		}
+
+		/* Flag all other pkts for epc_dl proc handling */
+		if (likely
+				(ipv4_packet &&
+				((ipv4_hdr->next_proto_id == IPPROTO_UDP) ||
+				(ipv4_hdr->next_proto_id == IPPROTO_TCP)))) {
+				clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"EB_IN: IPv4 UDP packet\n", LOG_VALUE);
 #ifdef USE_REST
-			struct udp_hdr *udph =
-				(struct udp_hdr *)&m_data[sizeof(struct ether_hdr) +
-				((ipv4_hdr->version_ihl & 0xf) << 2)];
+				struct udp_hdr *udph =
+					(struct udp_hdr *)&m_data[sizeof(struct ether_hdr) +
+					((ipv4_hdr->version_ihl & 0xf) << 2)];
 
-			if (likely(udph->dst_port == UDP_PORT_GTPU_NW_ORDER)) {
-				/* VS: Set activity flag if data receive from peer node */
-				check_activity(ipv4_hdr->src_addr);
-				struct gtpu_hdr *gtpuhdr = get_mtogtpu(m);
-				if (gtpuhdr->msgtype == GTPU_ECHO_REQUEST ||
-					gtpuhdr->msgtype == GTPU_ECHO_RESPONSE) {
+				if (likely(udph->dst_port == UDP_PORT_GTPU_NW_ORDER)) {
+					/* VS: Set activity flag if data receive from peer node */
+					memset(&peer_addr, 0, sizeof(peer_address_t));
+					peer_addr.ip_type = IPV4_TYPE;
+					peer_addr.ipv4_addr = ipv4_hdr->src_addr;
+					check_activity(peer_addr);
+
+					struct gtpu_hdr *gtpuhdr = get_mtogtpu(m);
+					if (gtpuhdr->msgtype == GTPU_ECHO_REQUEST ||
+							gtpuhdr->msgtype == GTPU_ECHO_RESPONSE || 
+							gtpuhdr->msgtype == GTPU_ERROR_INDICATION) {
 						return;
+					} else if ((gtpuhdr->msgtype != GTP_GPDU) && (gtpuhdr->msgtype != GTP_GEMR)) {
+						return;
+					}
 				}
-			}
 #endif /* USE_REST */
-			/* Ignore/Skip DHCP Pkts from the pipeline */
-			if (likely(udph->dst_port == UDP_PORT_DHCP_NW_ORDER)) {
-				return;
-			}
+				*port_id_offset = 0;
+				dl_sgi_pkt = 1;
+				dl_arp_pkt = 0;
+		} //GCC_Security flag
+	} else if (eh->ether_type == rte_cpu_to_be_16(ETHER_TYPE_IPv6)) {
+		/* Get the IPv6 Header from pkt */
+		struct ipv6_hdr *ipv6_hdr = (struct ipv6_hdr *)&m_data[ETH_HDR_SIZE];
 
-			*port_id_offset = 0;
-			dl_sgi_pkt = 1;
-			dl_arp_pkt = 0;
-	} //GCC_Security flag
+		/* Rcvd pkts is IPv6 pkt */
+		uint32_t ipv6_packet = (eh->ether_type == htons(ETHER_TYPE_IPv6));
+
+		/* L4: If next header is ICMPv6 and Neighbor Solicitation/Advertisement */
+		if ((ipv6_hdr->proto == IPPROTO_ICMPV6) ||
+				(ipv6_hdr->proto != IPPROTO_UDP)) {
+			clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"EB_IN:ipv6->icmpv6:ipv6_hdr->proto= %u\n"
+				"EB:ICMPv6: IPv6 Packets redirect to LINUX..\n",
+				LOG_VALUE, ipv6_hdr->proto);
+
+			/* Redirect packets to LINUX and Master Core to fill the arp entry */
+			dl_arp_pkt = 1;
+			return;
+		}
+
+		/* Flag all other pkts for epc_dl proc handling */
+		if (likely(ipv6_packet &&
+				((ipv6_hdr->proto == IPPROTO_UDP) ||
+				(ipv6_hdr->proto == IPPROTO_TCP)))) {
+				clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"EB_IN: IPv6 UDP Packet\n", LOG_VALUE);
+				/* Point to the UDP payload */
+				struct udp_hdr *udph =
+					(struct udp_hdr *)&m_data[ETH_HDR_SIZE + IPv6_HDR_SIZE];
+
+				if (likely(udph->dst_port == UDP_PORT_GTPU_NW_ORDER)) {
+					/* Local IPv6 Address */
+					struct in6_addr ho_addr = {0};
+					memcpy(&ho_addr.s6_addr, &ipv6_hdr->dst_addr, sizeof(ipv6_hdr->dst_addr));
+
+					/* Validate the destination address is SGI/EB or not */
+					if (memcmp(&(app.eb_ipv6), &ho_addr, sizeof(ho_addr)) && 
+								memcmp(&(app.eb_li_ipv6), &ho_addr, sizeof(ho_addr))) {
+						clLog(clSystemLog, eCLSeverityDebug,
+								LOG_FORMAT"EB_IN:ipv6_hdr->proto= %u: Not for local intf IPv6 dst addr Packet,"
+								"redirect to LINUX..\n"
+								"EB_IN: Expected IPv6 Addr:"IPv6_FMT" or "IPv6_FMT", Received IPv6 Addr:"IPv6_FMT"\n",
+								LOG_VALUE, ipv6_hdr->proto,
+								IPv6_PRINT(app.eb_ipv6), IPv6_PRINT(app.eb_li_ipv6), IPv6_PRINT(ho_addr));
+
+						/* Redirect packets to LINUX and Master Core to fill the arp entry */
+						dl_arp_pkt = 1;
+						return;
+					}
+#ifdef USE_REST
+					/* TODO: Set activity flag if data receive from peer node */
+					memset(&peer_addr, 0, sizeof(node_address_t));
+					peer_addr.ip_type = IPV6_TYPE;
+					memcpy(peer_addr.ipv6_addr,
+						ipv6_hdr->src_addr, IPV6_ADDR_LEN);
+					check_activity(peer_addr);
+					struct gtpu_hdr *gtpuhdr = get_mtogtpu_v6(m);
+					if (gtpuhdr->msgtype == GTPU_ECHO_REQUEST ||
+							gtpuhdr->msgtype == GTPU_ECHO_RESPONSE ||
+							gtpuhdr->msgtype == GTPU_ERROR_INDICATION) {
+						clLog(clSystemLog, eCLSeverityDebug,
+								LOG_FORMAT"EB_IN: IPv6 GTPU Echo Packet\n", LOG_VALUE);
+						return;
+					} else if ((gtpuhdr->msgtype != GTP_GPDU) && (gtpuhdr->msgtype != GTP_GEMR)) {
+						return;
+					}
+#endif /* USE_REST */
+				}
+				*port_id_offset = 0;
+				dl_sgi_pkt = 1;
+				dl_arp_pkt = 0;
+		} //GCC_Security flag
+	}
 }
 
 /**
@@ -259,6 +343,7 @@ static epc_dl_handler epc_dl_worker_func[NUM_SPGW_PORTS];
 static inline int epc_dl_port_out_ah(struct rte_pipeline *p, struct rte_mbuf **pkts,
 		uint64_t pkts_mask, void *arg)
 {
+	pkts_mask = 0;
 	int worker_index = 0;
 	RTE_SET_USED(p);
 	int portno = (uintptr_t) arg;
@@ -270,7 +355,7 @@ static inline int epc_dl_port_out_ah(struct rte_pipeline *p, struct rte_mbuf **p
 		/* VS- NGCORE_SHRINK: worker_index:TBC */
 		/* cmntd return f(p, pkts, dl_ndata_pkts, worker_index); */
 		if(f != NULL){
-			f(p, pkts, dl_ndata_pkts, worker_index);
+			 f(p, pkts, dl_ndata_pkts, &pkts_mask, worker_index);
 		} else {
 			clLog(clSystemLog, eCLSeverityCritical,
 					LOG_FORMAT"Not Register EB pkts handler, Configured EB MAC was wrong\n",
@@ -479,20 +564,32 @@ void epc_dl(void *args)
 			/* ARP_REQ on S1U direct driven by epc_dl core */
 			uint16_t tx_cnt = rte_eth_tx_burst(S1U_PORT_ID,
 					0, &pkts[pkt_indx], pkt_cnt);
+
+			/* Free allocated Mbufs */
+			for (uint16_t inx = 0; inx < pkt_cnt; inx++) {
+				if (pkts[inx])
+					rte_pktmbuf_free(pkts[inx]);
+			}
+
 			rx_cnt -= tx_cnt;
 			pkt_indx += tx_cnt;
 		}
 	}
 
 	uint32_t count = rte_ring_count(notify_ring);
-	if (count) {
+	while (count) {
 		struct rte_mbuf *pkts[count];
 		uint32_t rx_cnt = rte_ring_dequeue_bulk(notify_ring,
 				(void**)pkts, count, NULL);
-		int ret  = notification_handler(pkts, rx_cnt);
-		if (ret < 0)
-			clLog(clSystemLog, eCLSeverityCritical,
-				LOG_FORMAT"ERROR: Notification handler failed\n", LOG_VALUE);
+		if (rx_cnt) {
+			int ret = notification_handler(pkts, rx_cnt);
+			if (ret < 0) {
+				clLog(clSystemLog, eCLSeverityCritical,
+					LOG_FORMAT"ERROR: Notification handler failed\n", LOG_VALUE);
+			}
+
+		}
+		count -= rx_cnt;
 	}
 
 }

@@ -16,7 +16,7 @@
 #Checking cp system configuration's
 source chk_cpcfg.sh
 
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:../libgtpv2c/lib:../libpfcp/lib
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:../third_party/libgtpv2c/lib:../third_party/libpfcp/lib
 
 APP_PATH="./build"
 APP="ngic_controlplane"

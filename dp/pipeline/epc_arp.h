@@ -24,6 +24,7 @@
 #include <rte_ether.h>
 #include <rte_rwlock.h>
 #include "../cp_dp_api/tcp_client.h"
+#include "pfcp_up_sess.h"
 
 /**
  * seconds between ARP request retransmission.
@@ -34,8 +35,9 @@
  * ring size.
  */
 /* #define ARP_BUFFER_RING_SIZE 128 */
+/* #define ARP_BUFFER_RING_SIZE 512 */
 /* #define ARP_BUFFER_RING_SIZE 8191 */
-#define ARP_BUFFER_RING_SIZE 512
+#define ARP_BUFFER_RING_SIZE 128
 
 /**
  * ARP entry populated and echo reply received.
@@ -84,22 +86,30 @@ struct pipeline_arp_icmp_in_port_h_arg {
 (eth_addr).addr_bytes[4],  \
 (eth_addr).addr_bytes[5]
 
-
 /**
  * @brief : IPv4 key for ARP table.
  */
-struct arp_ipv4_key {
-	/** ipv4 address */
-	uint32_t ip;
-};
-
+struct arp_ip_key {
+	/* IP type */
+	ip_type_t ip_type;
+	union {
+		/** IPv4 address */
+		uint32_t ipv4;
+		/** IPv6 address */
+		struct in6_addr ipv6;
+	}ip_addr;
+}__attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
 
 /**
  * @brief  : ARP table entry.
  */
 struct arp_entry_data {
+	/* IP type */
+	ip_type_t ip_type;
 	/** ipv4 address */
-	uint32_t ip;
+	uint32_t ipv4;
+	/** ipv6 address */
+	struct in6_addr ipv6;
 	/** ether address */
 	struct ether_addr eth_addr;
 	/** status: COMPLETE/INCOMPLETE */
@@ -110,7 +120,7 @@ struct arp_entry_data {
 	struct rte_ring *queue;
 	/** UL || DL port id */
 	uint8_t port;
-} __attribute__((packed));
+}__attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
 
 /**
  * @brief  : Print ARP packet.
@@ -146,7 +156,7 @@ int arp_icmp_get_dest_mac_address(__rte_unused const uint32_t ipaddr,
  * @return : arp entry data if found, negative  value if error.
  */
 struct arp_entry_data *retrieve_arp_entry(
-			const struct arp_ipv4_key arp_key,
+			const struct arp_ip_key arp_key,
 			uint8_t portid);
 
 /**

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,9 +32,9 @@
 #include "cp_config.h"
 #include "gw_adapter.h"
 
-pfcp_config_t pfcp_config;
+extern pfcp_config_t config;
 extern struct cp_stats_t cp_stats;
-
+extern int clSystemLog;
 uint8_t
 gtpv2c_pcnd_check(gtpv2c_header_t *gtpv2c_rx, int bytes_rx,
 		struct sockaddr_in *peer_addr, uint8_t iface)
@@ -91,7 +92,7 @@ gtpv2c_pcnd_check(gtpv2c_header_t *gtpv2c_rx, int bytes_rx,
 
 uint8_t
 gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
-		struct sockaddr_in *peer_addr, uint8_t interface_type)
+		peer_addr_t *peer_addr, uint8_t interface_type)
 {
 	int ret = 0;
 	ue_context *context = NULL;
@@ -99,9 +100,10 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 	msg->msg_type = gtpv2c_rx->gtpc.message_type;
 	int ebi_index = 0;
 	int i = 0;
-
+	bool piggyback = FALSE;
+	uint8_t *li_piggyback_buf = NULL;
 	/*Below check is for GTPV2C version Check and GTPV2C MSG INVALID LENGTH CHECK */
-	if ((ret = gtpv2c_pcnd_check(gtpv2c_rx, bytes_rx, peer_addr, interface_type)) != 0 ){
+	if ((ret = gtpv2c_pcnd_check(gtpv2c_rx, bytes_rx, &peer_addr->ipv4, interface_type)) != 0 ){
 
 		if(ret == GTPV2C_CAUSE_VERSION_NOT_SUPPORTED) {
 			return ret;
@@ -132,6 +134,7 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 				if( decode_del_sess_req((uint8_t *) gtpv2c_rx, &msg->gtpc_msg.dsr) != 0){
 					ds_error_response(msg, ret, CAUSE_SOURCE_SET_TO_0, interface_type);
 				}
+
 				break;
 
 			case GTP_DELETE_SESSION_RSP:
@@ -279,8 +282,43 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 					}
 				break;
 
+			case GTP_MODIFY_BEARER_CMD:
+				if(decode_mod_bearer_cmd((uint8_t *) gtpv2c_rx, &msg->gtpc_msg.mod_bearer_cmd) != 0) {
+					modify_bearer_failure_indication(msg, ret, CAUSE_SOURCE_SET_TO_0,
+							interface_type);
+				}
+				break;
+			case GTP_MODIFY_BEARER_FAILURE_IND:
+				if(decode_mod_bearer_fail_indctn((uint8_t *) gtpv2c_rx, &msg->gtpc_msg.mod_fail_ind) != 0) {
+					modify_bearer_failure_indication(msg, ret, CAUSE_SOURCE_SET_TO_0,
+							interface_type);
+					}
+				break;
+
+
 			case GTP_IDENTIFICATION_RSP:
 				break;
+
+
+			case GTP_CREATE_INDIRECT_DATA_FORWARDING_TUNNEL_REQ:
+				if(decode_create_indir_data_fwdng_tunn_req((uint8_t *) gtpv2c_rx, &msg->gtpc_msg.crt_indr_tun_req) != 0){
+					crt_indir_data_frwd_tun_error_response(msg, ret);
+					}
+				break;
+
+			case GTP_DELETE_INDIRECT_DATA_FORWARDING_TUNNEL_REQ:
+				if(decode_del_indir_data_fwdng_tunn_req((uint8_t *) gtpv2c_rx, &msg->gtpc_msg.dlt_indr_tun_req) != 0) {
+					delete_indir_data_frwd_error_response(msg, ret);
+					}
+				break;
+			case GTP_MODIFY_ACCESS_BEARER_REQ:
+
+				if(decode_mod_acc_bearers_req((uint8_t *) gtpv2c_rx,
+							&msg->gtpc_msg.mod_acc_req) != 0) {
+					mod_access_bearer_error_response(msg, ret, CAUSE_SOURCE_SET_TO_0);
+				}
+				break;
+
 		}
 		return -1;
 
@@ -315,11 +353,13 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 			msg->interface_type = interface_type;
 			/*CLI*/
 			/*add entry of MME(if cp is SGWC) and SGWC (if cp PGWC)*/
-			if (msg->gtpc_msg.csr.sender_fteid_ctl_plane.ipv4_address != 0) {
-				add_cli_peer(htonl(msg->gtpc_msg.csr.sender_fteid_ctl_plane.ipv4_address), msg->cp_mode != PGWC ? S11:S5S8);
-				add_node_conn_entry(msg->gtpc_msg.csr.sender_fteid_ctl_plane.ipv4_address,
-											msg->cp_mode != PGWC ? S11_SGW_PORT_ID : S5S8_PGWC_PORT_ID,
-											msg->cp_mode);
+			if ((peer_addr->ipv4.sin_addr.s_addr != 0)
+					|| (peer_addr->ipv6.sin6_addr.s6_addr)) {
+				node_address_t node_addr = {0};
+				get_peer_node_addr(peer_addr, &node_addr);
+				add_node_conn_entry(&node_addr,
+						msg->cp_mode != PGWC ? S11_SGW_PORT_ID : S5S8_PGWC_PORT_ID,
+						msg->cp_mode);
 			}
 			msg->proc = get_procedure(msg);
 			if (INITIAL_PDN_ATTACH_PROC == msg->proc) {
@@ -330,12 +370,14 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 					msg->state = SGWC_NONE_STATE;
 				} else {
 					/*Set the appropriate state for the SAEGWC and PGWC*/
-					if (pfcp_config.use_gx) {
+					if (config.use_gx) {
 						msg->state = PGWC_NONE_STATE;
 					} else {
 						msg->state = SGWC_NONE_STATE;
 					}
 				}
+			} else if (S1_HANDOVER_PROC == msg->proc) {
+					msg->state = SGWC_NONE_STATE;
 			}
 
 			/*Set the appropriate event type.*/
@@ -360,7 +402,11 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 			delete_timer_entry(msg->gtpc_msg.cs_rsp.header.teid.has_teid.teid);
 
 			msg->interface_type = interface_type;
-			if(msg->gtpc_msg.cs_rsp.cause.cause_value != GTPV2C_CAUSE_REQUEST_ACCEPTED){
+
+			if(msg->gtpc_msg.cs_rsp.cause.cause_value != GTPV2C_CAUSE_REQUEST_ACCEPTED
+				&& msg->gtpc_msg.cs_rsp.cause.cause_value != GTPV2C_CAUSE_NEW_PDN_TYPE_NETWORK_PREFERENCE
+				&& msg->gtpc_msg.cs_rsp.cause.cause_value != GTPV2C_CAUSE_NEW_PDN_TYPE_SINGLE_ADDR_BEARER) {
+
 				msg->cp_mode = 0;
 				cs_error_response(msg, msg->gtpc_msg.cs_rsp.cause.cause_value,
 					CAUSE_SOURCE_SET_TO_1, S11_IFACE);
@@ -373,10 +419,10 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 					msg->cp_mode = 0;
 					cs_error_response(msg, GTPV2C_CAUSE_CONTEXT_NOT_FOUND, CAUSE_SOURCE_SET_TO_0,
 							S11_IFACE);
-					clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to get "
-							"UE context for teid: %d\n \n", LOG_VALUE, msg->gtpc_msg.cs_rsp.header.teid.has_teid.teid);
-					return -1;
 				}
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to get "
+						"UE context for teid: %d\n \n", LOG_VALUE, msg->gtpc_msg.cs_rsp.header.teid.has_teid.teid);
+				return -1;
 			}
 
 			msg->cp_mode = context->cp_mode;
@@ -400,13 +446,19 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 
 			msg->state = pdn->state;
 
+			update_sys_stat(number_of_users, INCREMENT);
+			update_sys_stat(number_of_active_session, INCREMENT);
+
 			if(msg->gtpc_msg.csr.header.gtpc.piggyback) {
 
 				msg->proc = ATTACH_DEDICATED_PROC;
 				pdn->proc = ATTACH_DEDICATED_PROC;
-
+				piggyback = TRUE;
 				if(get_sess_entry(pdn->seid, &resp) == 0)
 					memcpy(&resp->gtpc_msg.cs_rsp, &msg->gtpc_msg.cs_rsp, sizeof(create_sess_rsp_t));
+				if ((context != NULL) && (PRESENT == context->dupl)) {
+					li_piggyback_buf = (uint8_t *)gtpv2c_rx;
+				}
 
 				gtpv2c_rx = (gtpv2c_header_t *)((uint8_t *)gtpv2c_rx + ntohs(gtpv2c_rx->gtpc.message_len)
 						+ sizeof(gtpv2c_rx->gtpc));
@@ -417,10 +469,6 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 
 				/*Set the appropriate event type.*/
 				msg->event = CS_RESP_RCVD_EVNT;
-
-				update_sys_stat(number_of_users, INCREMENT);
-				update_sys_stat(number_of_active_session, INCREMENT);
-
 				clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Callback called for"
 						"Msg_Type:%s[%u], Teid:%u, "
 						"Procedure:%s, State:%s, Event:%s\n",
@@ -428,11 +476,13 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 						gtpv2c_rx->teid.has_teid.teid,
 						get_proc_string(msg->proc),
 						get_state_string(msg->state), get_event_string(msg->event));
+				break;
 			}
-		break;
 	}
 
 	case GTP_CREATE_BEARER_REQ:{
+
+			teid_key_t teid_key = {0};
 
 			if((ret = decode_create_bearer_req((uint8_t *) gtpv2c_rx,
 							&msg->gtpc_msg.cb_req) == 0))
@@ -440,7 +490,6 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 
 			gtpv2c_rx->teid.has_teid.teid = ntohl(gtpv2c_rx->teid.has_teid.teid);
 			ebi_index = GET_EBI_INDEX(msg->gtpc_msg.cb_req.lbi.ebi_ebi);
-
 
 			if(get_ue_context_by_sgw_s5s8_teid(gtpv2c_rx->teid.has_teid.teid, &context) != 0) {
 				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to get "
@@ -454,6 +503,12 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 			/*Delete timer entry for bearer resource command*/
 			if (context->ue_initiated_seq_no == msg->gtpc_msg.cb_req.header.teid.has_teid.seq) {
 				delete_timer_entry(gtpv2c_rx->teid.has_teid.teid);
+
+				snprintf(teid_key.teid_key, PROC_LEN, "%s%d", "UE_REQ_BER_RSRC_MOD_PROC",
+						msg->gtpc_msg.cb_req.header.teid.has_teid.seq);
+
+				/* Delete the TEID entry for  bearer resource cmd */
+				delete_teid_entry_for_seq(teid_key);
 			}
 
 			if (ebi_index == -1) {
@@ -466,7 +521,9 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 			msg->cp_mode = context->cp_mode;
 			msg->interface_type = interface_type;
 			msg->state = context->eps_bearers[ebi_index]->pdn->state;
-			if(context->eps_bearers[ebi_index]->pdn->proc == ATTACH_DEDICATED_PROC){
+			if((context->eps_bearers[ebi_index]->pdn->proc == ATTACH_DEDICATED_PROC &&
+					TRUE == piggyback) ||
+				context->eps_bearers[ebi_index]->pdn->proc == UE_REQ_BER_RSRC_MOD_PROC){
 				msg->proc = context->eps_bearers[ebi_index]->pdn->proc;
 			}else {
 				msg->proc = get_procedure(msg);
@@ -793,7 +850,7 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 					CAUSE_SOURCE_SET_TO_0, S11_IFACE);
 			return -1;
 		}
-
+		context->pfcp_sess_count = 0;
 		msg->cp_mode = context->cp_mode;
 		msg->interface_type = interface_type;
 		msg->proc = get_procedure(msg);
@@ -806,6 +863,7 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 			else {
 				context->pdns[i]->proc = msg->proc;
 				msg->state = context->pdns[i]->state;
+
 			}
 		}
 
@@ -819,12 +877,10 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 	}
 
 	case GTP_DOWNLINK_DATA_NOTIFICATION_ACK: {
-			/* TODO: Revisit after libgtpv2c support */
-			ret = parse_downlink_data_notification_ack(gtpv2c_rx,
-				&msg->gtpc_msg.ddn_ack);
-			if (ret)
-				return ret;
-
+			ret = decode_dnlnk_data_notif_ack((uint8_t *)gtpv2c_rx, &msg->gtpc_msg.ddn_ack);
+			if (ret == 0)
+				return -1;
+			int ebi_index = 0;
 			/*Retrive UE state. */
 			if (get_ue_context(ntohl(gtpv2c_rx->teid.has_teid.teid), &context) != 0) {
 					clLog(clSystemLog, eCLSeverityCritical,  LOG_FORMAT"Failed to get UE Context"
@@ -839,9 +895,16 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 				else{
 					msg->state = context->pdns[i]->state;
 					msg->proc = context->pdns[i]->proc;
+					ebi_index = GET_EBI_INDEX(context->pdns[i]->default_bearer_id);
+					if(ebi_index == -1){
+						clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Invalid EBI Index\n", LOG_VALUE);
+						return GTPV2C_CAUSE_SYSTEM_FAILURE;
+					}
+					break;
 				}
 			}
 
+			delete_gtpv2c_if_timer_entry(msg->gtpc_msg.ddn_ack.header.teid.has_teid.teid, ebi_index);
 			msg->cp_mode = context->cp_mode;
 			msg->interface_type = interface_type;
 			/*Set the appropriate event type.*/
@@ -857,8 +920,70 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 		break;
 	}
 
+	case GTP_DOWNLINK_DATA_NOTIFICATION_FAILURE_IND:{
 
+			ret = decode_dnlnk_data_notif_fail_indctn((uint8_t *)gtpv2c_rx, &msg->gtpc_msg.ddn_fail_ind);
+			if (ret == 0)
+				return -1;
+
+			/*Retrive UE  */
+			if(ntohl(gtpv2c_rx->teid.has_teid.teid )!= 0){
+				if (get_ue_context(ntohl(gtpv2c_rx->teid.has_teid.teid), &context) != 0) {
+					clLog(clSystemLog, eCLSeverityCritical,  LOG_FORMAT"Failed to get UE Context"
+							"for teid: %d\n",LOG_VALUE, ntohl(gtpv2c_rx->teid.has_teid.teid));
+					return -1;
+				}
+			} else {
+				if(msg->gtpc_msg.ddn_fail_ind.imsi.header.len){
+					ret = rte_hash_lookup_data(ue_context_by_imsi_hash,
+							&msg->gtpc_msg.ddn_fail_ind.imsi.imsi_number_digits,
+							(void **) &context);
+					if(ret < 0){
+
+						clLog(clSystemLog, eCLSeverityCritical,  LOG_FORMAT"Failed to get UE Context"
+								"for imsi: %ld\n",LOG_VALUE, msg->gtpc_msg.ddn_fail_ind.imsi.imsi_number_digits);
+						return -1;
+					}
+				} else {
+					clLog(clSystemLog, eCLSeverityCritical,
+							LOG_FORMAT"There is no teid and no imsi present \n",
+							LOG_VALUE);
+					return -1;
+				}
+			}
+			for(i=0; i < MAX_BEARERS; i++){
+				if(context->pdns[i] == NULL){
+					continue;
+				}
+				else{
+					msg->state = context->pdns[i]->state;
+					msg->proc = context->pdns[i]->proc;
+					ebi_index = GET_EBI_INDEX(context->pdns[i]->default_bearer_id);
+					if(ebi_index == -1){
+						clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Invalid EBI Index\n", LOG_VALUE);
+						return GTPV2C_CAUSE_SYSTEM_FAILURE;
+					}
+				}
+			}
+
+			delete_gtpv2c_if_timer_entry(msg->gtpc_msg.ddn_fail_ind.header.teid.has_teid.teid, ebi_index);
+			msg->cp_mode = context->cp_mode;
+			msg->interface_type = interface_type;
+
+			/* Set the appropriate event type. */
+			msg->event = DDN_FAILURE_INDIC_EVNT;
+
+			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Callback called for"
+					"Msg_Type:%s[%u], Teid:%u, "
+					"Procedure:%s, State:%s, Event:%s\n",
+					LOG_VALUE, gtp_type_str(msg->msg_type), msg->msg_type,
+					gtpv2c_rx->teid.has_teid.teid,
+					get_proc_string(msg->proc),
+					get_state_string(msg->state), get_event_string(msg->event));
+		break;
+	}
 	case GTP_CREATE_BEARER_RSP:{
+
 			struct resp_info *resp = NULL;
 			teid_key_t teid_key = {0};
 
@@ -919,13 +1044,28 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 				return -1;
 			}
 
-			if(msg->gtpc_msg.cb_rsp.cause.cause_value != GTPV2C_CAUSE_REQUEST_ACCEPTED){
-				cbr_error_response(msg, msg->gtpc_msg.cb_rsp.cause.cause_value,
-						CAUSE_SOURCE_SET_TO_0, context->cp_mode == SGWC ? S5S8_IFACE : GX_IFACE);
+			pdn = GET_PDN(context, ebi_index);
+			if(pdn == NULL){
+				clLog(clSystemLog, eCLSeverityCritical,
+						LOG_FORMAT"Failed to get pdn for ebi_index : %d \n", LOG_VALUE, ebi_index);
+				cbr_error_response(msg, GTPV2C_CAUSE_CONTEXT_NOT_FOUND, CAUSE_SOURCE_SET_TO_0,
+								interface_type);
 				return -1;
 			}
 
+			if (pdn->proc != UE_REQ_BER_RSRC_MOD_PROC)
+				pdn->proc = msg->proc;
+
 			delete_pfcp_if_timer_entry(gtpv2c_rx->teid.has_teid.teid, ebi_index);
+
+			if(!msg->gtpc_msg.cb_rsp.header.gtpc.piggyback ){
+				if(msg->gtpc_msg.cb_rsp.cause.cause_value != GTPV2C_CAUSE_REQUEST_ACCEPTED){
+					cbr_error_response(msg, msg->gtpc_msg.cb_rsp.cause.cause_value,
+							CAUSE_SOURCE_SET_TO_0, context->cp_mode == SGWC ? S5S8_IFACE : GX_IFACE);
+					return -1;
+				}
+			}
+
 
 			/* Delete the TEID entry for CB REQ */
 			delete_teid_entry_for_seq(teid_key);
@@ -940,7 +1080,6 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 				return -1;
 			}
 
-
 			msg->cp_mode = context->cp_mode;
 			msg->interface_type = interface_type;
 
@@ -949,17 +1088,46 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 				msg->proc = ATTACH_DEDICATED_PROC;
 				pdn->proc = ATTACH_DEDICATED_PROC;
 
-				context->piggback = TRUE;
-				if(get_sess_entry(pdn->seid, &resp) == 0)
+				context->piggyback = TRUE;
+				if(get_sess_entry(pdn->seid, &resp) == 0) {
 					memcpy(&resp->gtpc_msg.cb_rsp, &msg->gtpc_msg.cb_rsp, sizeof(create_bearer_rsp_t));
+					/*storing for error scenarios*/
+					if (msg->gtpc_msg.cb_rsp.header.gtpc.teid_flag) {
+						resp->cb_rsp_attach.seq = msg->gtpc_msg.cb_rsp.header.teid.has_teid.seq;
+					} else {
+						resp->cb_rsp_attach.seq = msg->gtpc_msg.cb_rsp.header.teid.no_teid.seq;
+					}
+
+					resp->cb_rsp_attach.cause_value = msg->gtpc_msg.cb_rsp.cause.cause_value;
+					resp->cb_rsp_attach.bearer_cnt = msg->gtpc_msg.cb_rsp.bearer_cnt;
+					for (uint8_t itr = 0; itr < msg->gtpc_msg.cb_rsp.bearer_cnt; itr++) {
+						resp->cb_rsp_attach.bearer_cause_value[itr] =
+							msg->gtpc_msg.cb_rsp.bearer_contexts[itr].cause.cause_value;
+						resp->cb_rsp_attach.ebi_ebi[itr] =
+							msg->gtpc_msg.cb_rsp.bearer_contexts[itr].eps_bearer_id.ebi_ebi;
+					}
+				}
+				memcpy(&msg->cb_rsp, &msg->gtpc_msg.cb_rsp, sizeof(create_bearer_rsp_t));
+
+				if ((context != NULL) && (PRESENT == context->dupl)) {
+					li_piggyback_buf = (uint8_t *)gtpv2c_rx;
+				}
 
 				gtpv2c_rx = (gtpv2c_header_t *)((uint8_t *)gtpv2c_rx + ntohs(gtpv2c_rx->gtpc.message_len)
 						+ sizeof(gtpv2c_rx->gtpc));
 				msg->msg_type =  gtpv2c_rx->gtpc.message_type;
 
 			} else {
-				msg->proc = get_procedure(msg);
+				if ( pdn->proc == UE_REQ_BER_RSRC_MOD_PROC) {
+					msg->proc = UE_REQ_BER_RSRC_MOD_PROC;
+				} else {
+					msg->proc = get_procedure(msg);
+				}
 				msg->event = CREATE_BER_RESP_RCVD_EVNT;
+				if(context->piggyback == TRUE){
+					msg->state = CREATE_BER_REQ_SNT_STATE;
+				}
+
 
 				clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Callback called for"
 						"Msg_Type:%s[%u], Teid:%u, "
@@ -989,16 +1157,16 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 				(msg->gtpc_msg.mbr.sender_fteid_ctl_plane.interface_type == S5_S8_SGW_GTP_C)
 				&& (interface_type == S5S8_IFACE)) {
 				/* Selection/Demotion Criteria for Combined GW to PGWC */
-				if (pfcp_config.cp_type == SAEGWC) {
+				if (config.cp_type == SAEGWC) {
 					cp_mode = PGWC;
-				} else if (pfcp_config.cp_type == PGWC) {
+				} else if (config.cp_type == PGWC) {
 					cp_mode = PGWC;
 				} else {
 					clLog(clSystemLog, eCLSeverityCritical,
 							LOG_FORMAT"Not Valid MBR Request for configured GW, Gateway Mode:%s\n",
-							LOG_VALUE, pfcp_config.cp_type == SGWC ? "SGW-C" :
-							pfcp_config.cp_type == PGWC ? "PGW-C" :
-							pfcp_config.cp_type == SAEGWC ? "SAEGW-C" : "UNKNOWN");
+							LOG_VALUE, config.cp_type == SGWC ? "SGW-C" :
+							config.cp_type == PGWC ? "PGW-C" :
+							config.cp_type == SAEGWC ? "SAEGW-C" : "UNKNOWN");
 					return -1;
 				}
 				clLog(clSystemLog, eCLSeverityDebug,
@@ -1015,9 +1183,20 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 			if(get_ue_context(msg->gtpc_msg.mbr.header.teid.has_teid.teid, &context) != 0) {
 				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to get"
 					" UE context for teid: %d\n", LOG_VALUE, msg->gtpc_msg.mbr.header.teid.has_teid.teid);
+
 				mbr_error_response(msg, GTPV2C_CAUSE_CONTEXT_NOT_FOUND, CAUSE_SOURCE_SET_TO_0,
 						interface_type);
-				return -1;
+				memset(&msg->gtpc_msg.mbr, 0, sizeof(mod_bearer_req_t));
+
+				if (NOT_PRESENT != msg->cb_rsp.header.teid.has_teid.teid) {
+					if(get_ue_context(msg->cb_rsp.header.teid.has_teid.teid, &context) != 0) {
+						clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to get"
+							" UE context for teid: %d\n", LOG_VALUE, msg->cb_rsp.header.teid.has_teid.teid);
+
+						return -1;
+					}
+				} else
+					return -1;
 			}
 
 			/* Reset the CP Mode Flag */
@@ -1058,15 +1237,23 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 			gtpv2c_rx->teid.has_teid.teid = ntohl(gtpv2c_rx->teid.has_teid.teid);
 
 			if(cp_mode == PGWC) {
-				if (msg->gtpc_msg.mbr.sender_fteid_ctl_plane.ipv4_address != 0) {
-					/* add cli peer in case of sgw handover */
-					add_cli_peer(htonl(msg->gtpc_msg.mbr.sender_fteid_ctl_plane.ipv4_address), S5S8);
-
-					add_node_conn_entry(msg->gtpc_msg.mbr.sender_fteid_ctl_plane.ipv4_address,
+				if ((peer_addr->ipv4.sin_addr.s_addr != 0)
+						|| (peer_addr->ipv6.sin6_addr.s6_addr)) {
+					node_address_t node_addr = {0};
+					get_peer_node_addr(peer_addr, &node_addr);
+					add_node_conn_entry(&node_addr,
 							S5S8_PGWC_PORT_ID, cp_mode);
 				}
 
 				msg->cp_mode = cp_mode;
+			}
+
+			if(context->piggyback == TRUE) {
+				pdn->proc = ATTACH_DEDICATED_PROC;
+				msg->proc = ATTACH_DEDICATED_PROC;
+				msg->state = CREATE_BER_REQ_SNT_STATE;
+				msg->event = MB_REQ_RCVD_EVNT;
+
 			}
 
 			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Callback called for"
@@ -1080,6 +1267,8 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 
 	}
 	case GTP_DELETE_BEARER_REQ:{
+
+			teid_key_t teid_key = {0};
 
 			if((ret = decode_del_bearer_req((uint8_t *) gtpv2c_rx,
 							&msg->gtpc_msg.db_req) == 0)) {
@@ -1101,6 +1290,12 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 			/*Delete timer entry for bearer resource command*/
 			if (context->ue_initiated_seq_no == msg->gtpc_msg.db_req.header.teid.has_teid.seq) {
 				delete_timer_entry(gtpv2c_rx->teid.has_teid.teid);
+
+				snprintf(teid_key.teid_key, PROC_LEN, "%s%d", "UE_REQ_BER_RSRC_MOD_PROC",
+						msg->gtpc_msg.db_req.header.teid.has_teid.seq);
+
+				/* Delete the TEID entry for  bearer resource cmd */
+				delete_teid_entry_for_seq(teid_key);
 			}
 
 			if (msg->gtpc_msg.db_req.lbi.header.len) {
@@ -1123,18 +1318,34 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 				}
 			}
 
-			if(context->eps_bearers[ebi_index]->pdn->proc == MME_INI_DEDICATED_BEARER_DEACTIVATION_PROC){
+			if(context->eps_bearers[ebi_index] == NULL ||
+				context->eps_bearers[ebi_index]->pdn == NULL){
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Context not found for UE\n",
+												     LOG_VALUE);
+				delete_bearer_error_response(msg, GTPV2C_CAUSE_CONTEXT_NOT_FOUND,
+								CAUSE_SOURCE_SET_TO_0, S5S8_IFACE);
+				return -1;
+			}
+
+			uint8_t proc = context->eps_bearers[ebi_index]->pdn->proc;
+
+			if( proc == MME_INI_DEDICATED_BEARER_DEACTIVATION_PROC ||
+					proc == UE_REQ_BER_RSRC_MOD_PROC){
 				msg->proc = context->eps_bearers[ebi_index]->pdn->proc;
 			}else{
 				msg->proc = get_procedure(msg);
 				context->eps_bearers[ebi_index]->pdn->proc = msg->proc;
 			}
-
+			context->eps_bearers[ebi_index]->pdn->state = CONNECTED_STATE;
 			msg->state = context->eps_bearers[ebi_index]->pdn->state;
 			msg->event = DELETE_BER_REQ_RCVD_EVNT;
 			msg->interface_type = interface_type;
 			msg->cp_mode = context->cp_mode;
 			context->eps_bearers[ebi_index]->pdn->proc = msg->proc;
+
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"gtpc_pcnd delete ber req proc : %s\n",
+					LOG_VALUE, get_proc_string(msg->proc));
 
 			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Callback called for"
 					"Msg_Type:%s[%u], Teid:%u, "
@@ -1229,7 +1440,6 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 				return -1;
 			}
 
-
 			if (msg->gtpc_msg.db_rsp.cause.cause_value != GTPV2C_CAUSE_REQUEST_ACCEPTED
 				&& msg->gtpc_msg.db_rsp.cause.cause_value != GTPV2C_CAUSE_CONTEXT_NOT_FOUND) {
 
@@ -1256,7 +1466,7 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 				return -1;
 			}
 
-			if(context->eps_bearers[ebi_index]->pdn->proc == UE_REQ_BER_RSRC_MOD_PROC) {
+			if (context->eps_bearers[ebi_index]->pdn->proc == HSS_INITIATED_SUB_QOS_MOD ) {
 				msg->proc = get_procedure(msg);
 			} else {
 				msg->proc = context->eps_bearers[ebi_index]->pdn->proc;
@@ -1265,6 +1475,10 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 			msg->event = DELETE_BER_RESP_RCVD_EVNT;
 			msg->interface_type = interface_type;
 			msg->cp_mode = context->cp_mode;
+
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"for BRC: gtpc_pcnd proc set is %s\n: ",
+					LOG_VALUE, get_proc_string(msg->proc));
 
 			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Callback called for"
 					"Msg_Type:%s[%u], Teid:%u, "
@@ -1275,6 +1489,7 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 
 			break;
 	}
+
 	case GTP_DELETE_BEARER_FAILURE_IND:{
 			if((ret = decode_del_bearer_fail_indctn((uint8_t *) gtpv2c_rx,
 						&msg->gtpc_msg.del_fail_ind) == 0)) {
@@ -1293,6 +1508,10 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 		}
 
 	case GTP_BEARER_RESOURCE_FAILURE_IND:{
+
+			teid_key_t teid_key = {0};
+			uint32_t teid = 0;
+
 			if((ret = decode_bearer_rsrc_fail_indctn((uint8_t *) gtpv2c_rx,
 							&msg->gtpc_msg.ber_rsrc_fail_ind) == 0)) {
 				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failure "
@@ -1301,14 +1520,131 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 				return -1;
 			}
 
-				send_bearer_resource_failure_indication(msg,
-							msg->gtpc_msg.ber_rsrc_fail_ind.cause.cause_value,
-							CAUSE_SOURCE_SET_TO_0, S11_IFACE);
-						return -1;
+			msg->proc = get_procedure(msg);
+
+			snprintf(teid_key.teid_key, PROC_LEN, "%s%d", get_proc_string(msg->proc),
+					msg->gtpc_msg.ber_rsrc_fail_ind.header.teid.has_teid.seq);
+
+			teid = msg->gtpc_msg.ber_rsrc_fail_ind.header.teid.has_teid.teid;
+
+			/*Note : we have to delete timer entry based on sgw s5s8 teid
+			 *     : for that we should have correct sgw s5s8 teid
+			 *     : this code handle case of wrong teid or zero teid receive
+			 *     : in msg*/
+
+			/*If we didn't get context based on sgw s5s8 teid, then get correct teid from hash table */
+			if(get_ue_context_by_sgw_s5s8_teid(msg->gtpc_msg.ber_rsrc_fail_ind.header.teid.has_teid.teid,
+						&context) != 0) {
+				clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Failed to get"
+						" UE context for teid: %d\n", LOG_VALUE, gtpv2c_rx->teid.has_teid.teid);
+
+				struct teid_value_t *teid_value = NULL;
+
+				teid_value = get_teid_for_seq_number(teid_key);
+				if (teid_value == NULL) {
+					/* TODO: Add the appropriate handling */
+					clLog(clSystemLog, eCLSeverityCritical,
+							LOG_FORMAT"Failed to get TEID value for Sequence "
+							"Number key: %s \n", LOG_VALUE,
+							teid_key.teid_key);
+					return -1;
+				}
+
+				teid = teid_value->teid;
+
+				/* Copy local stored TEID in the msg header */
+				msg->gtpc_msg.ber_rsrc_fail_ind.header.teid.has_teid.teid = teid_value->teid;
+
+			}
+
+
+		/* Delete the timer entry for Bearer rsrc cmd */
+		delete_timer_entry(teid);
+
+		/* Delete the TEID entry for Bearer rsrc cmd */
+		delete_teid_entry_for_seq(teid_key);
+
+		send_bearer_resource_failure_indication(msg,
+						msg->gtpc_msg.ber_rsrc_fail_ind.cause.cause_value,
+						CAUSE_SOURCE_SET_TO_0, S11_IFACE);
+					return -1;
 			break;
 		}
 
+	case GTP_MODIFY_BEARER_FAILURE_IND: {
+			if((ret = decode_mod_bearer_fail_indctn((uint8_t *) gtpv2c_rx,
+							&msg->gtpc_msg.mod_fail_ind) == 0)) {
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failure "
+						"while decoding Modify Bearer "
+						"Failure Indication msg\n", LOG_VALUE);
+				return -1;
+			}
+
+
+			gtpv2c_rx->teid.has_teid.teid = ntohl(gtpv2c_rx->teid.has_teid.teid);
+
+			delete_timer_entry(gtpv2c_rx->teid.has_teid.teid);
+
+			modify_bearer_failure_indication(msg,
+							msg->gtpc_msg.mod_fail_ind.cause.cause_value,
+							CAUSE_SOURCE_SET_TO_0, S11_IFACE);
+						return -1;
+			break;
+	}
+	case GTP_MODIFY_BEARER_CMD: {
+		if((ret = decode_mod_bearer_cmd((uint8_t *) gtpv2c_rx,
+				&msg->gtpc_msg.mod_bearer_cmd) == 0)) {
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failure "
+					"while decoding Modify Bearer Command\n", LOG_VALUE);
+				return -1;
+			}
+			gtpv2c_rx->teid.has_teid.teid = ntohl(gtpv2c_rx->teid.has_teid.teid);
+			if(get_ue_context(gtpv2c_rx->teid.has_teid.teid, &context) != 0) {
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to get"
+					" UE context for teid: %d\n", LOG_VALUE, gtpv2c_rx->teid.has_teid.teid);
+				modify_bearer_failure_indication(msg, GTPV2C_CAUSE_CONTEXT_NOT_FOUND,
+													CAUSE_SOURCE_SET_TO_0, interface_type);
+				return -1;
+			}
+			eps_bearer *bearer = NULL;
+			if(msg->gtpc_msg.mod_bearer_cmd.bearer_context.header.len != 0) {
+				ebi_index = GET_EBI_INDEX(msg->gtpc_msg.mod_bearer_cmd.bearer_context.eps_bearer_id.ebi_ebi);
+				if(ebi_index != -1) {
+					bearer = context->eps_bearers[ebi_index];
+				}
+				if (ebi_index == -1 || bearer == NULL) {
+						clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Invalid EBI ID\n", LOG_VALUE);
+						modify_bearer_failure_indication(msg, GTPV2C_CAUSE_MANDATORY_IE_INCORRECT,
+							CAUSE_SOURCE_SET_TO_0, interface_type);
+
+						return -1;
+					}
+			} else {
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Error: MANDATORY IE"
+					" MISSING in Modify Bearer Command\n", LOG_VALUE);
+					modify_bearer_failure_indication(msg, GTPV2C_CAUSE_MANDATORY_IE_MISSING,
+														CAUSE_SOURCE_SET_TO_0, interface_type);
+				return -1;
+			}
+			msg->cp_mode = context->cp_mode;
+			msg->interface_type = interface_type;
+			msg->proc = get_procedure(msg);
+			if (update_ue_proc(context, msg->proc, ebi_index) != 0) {
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to "
+					"update Procedure\n", LOG_VALUE);
+				modify_bearer_failure_indication(msg, GTPV2C_CAUSE_CONTEXT_NOT_FOUND,
+													CAUSE_SOURCE_SET_TO_0, interface_type);
+				return -1;
+			}
+			msg->state = CONNECTED_STATE;
+			msg->event = MODIFY_BEARER_CMD_RCVD_EVNT;
+
+		break;
+	}
+
 	case GTP_UPDATE_BEARER_REQ:{
+
+		teid_key_t teid_key = {0};
 
 		if((ret = decode_upd_bearer_req((uint8_t *) gtpv2c_rx,
 						&msg->gtpc_msg.ub_req) == 0))
@@ -1325,9 +1661,15 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 			return -1;
 		}
 
-		/*Delete timer entry for bearer resource command*/
+		/*Delete timer entry for bearer resource command and Modify Bearer Command*/
 		if (context->ue_initiated_seq_no == msg->gtpc_msg.ub_req.header.teid.has_teid.seq) {
 			delete_timer_entry(gtpv2c_rx->teid.has_teid.teid);
+
+			snprintf(teid_key.teid_key, PROC_LEN, "%s%d", "UE_REQ_BER_RSRC_MOD_PROC",
+					msg->gtpc_msg.ub_req.header.teid.has_teid.seq);
+
+			/* Delete the TEID entry for  bearer resource cmd */
+			delete_teid_entry_for_seq(teid_key);
 		}
 
 		/*Which ebi to be selected as multiple bearer in request*/
@@ -1340,12 +1682,22 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 			return -1;
 		}
 
+		pdn = GET_PDN(context, ebi_index);
+		if ( (pdn != NULL) && (pdn->proc == UE_REQ_BER_RSRC_MOD_PROC) ) {
+			msg->proc = UE_REQ_BER_RSRC_MOD_PROC;
+		} else {
+			msg->proc = get_procedure(msg);
+		}
+
 		msg->interface_type = interface_type;
 
 		msg->state = context->eps_bearers[ebi_index]->pdn->state;
-		msg->proc = get_procedure(msg);
 		msg->event = UPDATE_BEARER_REQ_RCVD_EVNT;
 		msg->cp_mode = context->cp_mode;
+		clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"In update bearer request\n"
+						   "proc set is : %s\n",
+				LOG_VALUE, get_proc_string(msg->proc));
 
 		break;
 
@@ -1427,21 +1779,32 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 
 		/*TODO: Which ebi to be selected as multiple bearer in request*/
 		if((ret = get_ue_state(gtpv2c_rx->teid.has_teid.teid ,ebi_index)) > 0){
-				msg->state = ret;
+			msg->state = ret;
 		}else{
 			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to get"
-				" Ue state for tied: %d\n", LOG_VALUE, gtpv2c_rx->teid.has_teid.teid);
+					" Ue state for tied: %d\n", LOG_VALUE, gtpv2c_rx->teid.has_teid.teid);
 			return -1;
 		}
 
-		msg->proc = get_procedure(msg);
+		pdn = GET_PDN(context, ebi_index);
+		if ( (pdn != NULL) && (pdn->proc == UE_REQ_BER_RSRC_MOD_PROC) ) {
+			msg->proc = UE_REQ_BER_RSRC_MOD_PROC;
+		} else {
+			msg->proc = get_procedure(msg);
+		}
+
 		msg->event = UPDATE_BEARER_RSP_RCVD_EVNT;
 		msg->interface_type = interface_type;
-
-
 		msg->cp_mode = context->cp_mode;
+
+		clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"In update bearer response\n"
+						  "msg->proc is : %s\n",
+				LOG_VALUE, get_proc_string(msg->proc));
+
 		break;
 	}
+
 
 	case GTP_DELETE_PDN_CONNECTION_SET_REQ: {
 			if ((ret = decode_del_pdn_conn_set_req((uint8_t *) gtpv2c_rx, &msg->gtpc_msg.del_pdn_req) == 0))
@@ -1845,6 +2208,166 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 
 		break;
 	}
+	case GTP_CREATE_INDIRECT_DATA_FORWARDING_TUNNEL_REQ: {
+
+			if ((ret = decode_create_indir_data_fwdng_tunn_req((uint8_t *)gtpv2c_rx,
+							&msg->gtpc_msg.crt_indr_tun_req)) == 0) {
+
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failure "
+						"while decoding Create Indirect Data Forwarding\n", LOG_VALUE);
+				if(ret != -1){
+					crt_indir_data_frwd_tun_error_response(msg, ret);
+				}
+
+				return -1;
+			}
+
+			gtpv2c_rx->teid.has_teid.teid = ntohl(gtpv2c_rx->teid.has_teid.teid);
+			msg->proc = get_procedure(msg);
+
+			if(config.cp_type == SGWC){
+
+				msg->cp_mode = SGWC;
+
+			} else {
+
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT
+						"Gateway Mode is not SGWC\n", LOG_VALUE);
+				return -1;
+
+			}
+
+			if(gtpv2c_rx->teid.has_teid.teid == 0) {
+
+				clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT
+						"Source Anchor and Forwarding GW are different\n",
+						LOG_VALUE);
+				msg->state = SGWC_NONE_STATE;
+
+			} else {
+
+				if(get_ue_context(gtpv2c_rx->teid.has_teid.teid, &context)) {
+					msg->state = SGWC_NONE_STATE;
+					clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT "Failed to get"
+							" UE context for teid: %d\n", LOG_VALUE,
+							msg->gtpc_msg.crt_indr_tun_req.header.teid.has_teid.teid);
+					crt_indir_data_frwd_tun_error_response(msg, GTPV2C_CAUSE_CONTEXT_NOT_FOUND);
+					return -1;
+				}
+
+					msg->state = CONNECTED_STATE;
+			}
+
+			msg->event = CREATE_INDIR_DATA_FRWRD_TUN_REQ_RCVD_EVNT;
+			msg->interface_type = interface_type;
+
+			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Callback called for"
+						  "Msg_Type:%s[%u], Teid:%u, "
+						  "State:%s, Event:%s\n",
+						  LOG_VALUE, gtp_type_str(msg->msg_type), msg->msg_type,
+						  gtpv2c_rx->teid.has_teid.teid,
+						  get_state_string(msg->state), get_event_string(msg->event));
+		break;
+	}
+
+
+	case GTP_DELETE_INDIRECT_DATA_FORWARDING_TUNNEL_REQ: {
+
+			if ((ret = decode_del_indir_data_fwdng_tunn_req((uint8_t *)gtpv2c_rx,
+							&msg->gtpc_msg.dlt_indr_tun_req)) == 0) {
+
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failure "
+						"while Decoding Delete Indirect Data Forwarding\n", LOG_VALUE);
+				if(ret != -1){
+					delete_indir_data_frwd_error_response(msg, ret);
+					return -1;
+				}
+			}
+
+			msg->proc = get_procedure(msg);
+
+			gtpv2c_rx->teid.has_teid.teid = ntohl(gtpv2c_rx->teid.has_teid.teid);
+
+			if(get_sender_teid_context(gtpv2c_rx->teid.has_teid.teid, &context) != 0) {
+
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to get"
+						" UE context for teid: %d\n", LOG_VALUE,
+						msg->gtpc_msg.dlt_indr_tun_req.header.teid.has_teid.teid);
+
+				delete_indir_data_frwd_error_response(msg,GTPV2C_CAUSE_CONTEXT_NOT_FOUND);
+				return -1;
+			}
+
+			msg->interface_type = interface_type;
+			msg->cp_mode = context->cp_mode;
+			msg->state = context->indirect_tunnel->pdn->state;
+			msg->event = DELETE_INDIR_DATA_FRWD_TUN_REQ_RCVD_EVNT;
+
+			clLog(clSystemLog, eCLSeverityDebug, "%s: Callback called for"
+					"Msg_Type:%s[%u], Teid:%u, "
+					"Procedure:%s, State:%s, Event:%s\n",
+					__func__, gtp_type_str(msg->msg_type), msg->msg_type,
+					gtpv2c_rx->teid.has_teid.teid,
+					get_proc_string(msg->proc),
+					get_state_string(msg->state), get_event_string(msg->event));
+		break;
+	}
+
+	case GTP_MODIFY_ACCESS_BEARER_REQ: {
+
+			/*Decode the received msg and stored into the struct. */
+			if((ret = decode_mod_acc_bearers_req((uint8_t *) gtpv2c_rx,
+							&msg->gtpc_msg.mod_acc_req) == 0)) {
+
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT
+						"Erorr in decoding MBR Req\n", LOG_VALUE);
+				return -1;
+			}
+
+			msg->proc = get_procedure(msg);
+			msg->state = CONNECTED_STATE;
+			msg->event = MAB_REQ_RCVD_EVNT;
+
+			if(get_ue_context(msg->gtpc_msg.mod_acc_req.header.teid.has_teid.teid, &context) != 0) {
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to get"
+					" UE context for teid: %d\n", LOG_VALUE, msg->gtpc_msg.mod_acc_req.header.teid.has_teid.teid);
+				mod_access_bearer_error_response(msg, GTPV2C_CAUSE_CONTEXT_NOT_FOUND, CAUSE_SOURCE_SET_TO_0);
+				return -1;
+			}
+
+			if(msg->gtpc_msg.mod_acc_req.bearer_modify_count != 0) {
+				ebi_index = GET_EBI_INDEX(msg->gtpc_msg.mod_acc_req.bearer_contexts_to_be_modified[0].eps_bearer_id.ebi_ebi);
+
+				if (ebi_index == -1) {
+					clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Invalid EBI ID\n", LOG_VALUE);
+					mod_access_bearer_error_response(msg, GTPV2C_CAUSE_SYSTEM_FAILURE, CAUSE_SOURCE_SET_TO_0);
+					return -1;
+				}
+
+				pdn = GET_PDN(context, ebi_index);
+				if(pdn == NULL){
+					clLog(clSystemLog, eCLSeverityCritical,
+							LOG_FORMAT"Failed to get pdn for ebi_index : %d \n", LOG_VALUE, ebi_index);
+					mod_access_bearer_error_response(msg, GTPV2C_CAUSE_CONTEXT_NOT_FOUND, CAUSE_SOURCE_SET_TO_0);
+					return -1;
+				}
+
+				pdn->proc = msg->proc;
+			}
+
+			msg->cp_mode = context->cp_mode;
+			msg->interface_type = interface_type;
+			gtpv2c_rx->teid.has_teid.teid = ntohl(gtpv2c_rx->teid.has_teid.teid);
+
+			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Callback called for"
+					"Msg_Type:%s[%u], Teid:%u, "
+					"Procedure:%s, State:%s, Event:%s\n",
+					LOG_VALUE, gtp_type_str(msg->msg_type), msg->msg_type,
+					gtpv2c_rx->teid.has_teid.teid,
+					get_proc_string(msg->proc),
+					get_state_string(msg->state), get_event_string(msg->event));
+		break;
+	}
 
 	default:
 			/*If Event is not supported then we will called default handler. */
@@ -1854,7 +2377,7 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 				if (SGWC == context->cp_mode)
 					msg->state = SGWC_NONE_STATE;
 				else {
-						if (pfcp_config.use_gx) {
+						if (config.use_gx) {
 							msg->state = PGWC_NONE_STATE;
 						} else {
 							msg->state = SGWC_NONE_STATE;
@@ -1889,24 +2412,48 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
 	if ((NULL != context) && (S11_IFACE == interface_type) && (GTP_CREATE_SESSION_REQ != msg->msg_type)) {
 		int bytes_rx_li = bytes_rx;
 		uint8_t gtpv2c_rx_li[MAX_GTPV2C_UDP_LEN] = {0};
-		memcpy(gtpv2c_rx_li, gtpv2c_rx, bytes_rx);
+
+		if ((piggyback == TRUE || context->piggyback == TRUE) && (li_piggyback_buf != NULL)) {
+			memcpy(gtpv2c_rx_li, li_piggyback_buf, bytes_rx);
+		} else {
+			memcpy(gtpv2c_rx_li, gtpv2c_rx, bytes_rx);
+		}
 
 		if (PRESENT == context->dupl) {
-			process_pkt_for_li(context, S11_INTFC_IN, (uint8_t *)gtpv2c_rx_li,
-					bytes_rx_li, ntohl(peer_addr->sin_addr.s_addr), ntohl(pfcp_config.s11_ip.s_addr),
-					ntohs(peer_addr->sin_port), pfcp_config.s11_port);
+			process_pkt_for_li(context, S11_INTFC_IN, (uint8_t *)gtpv2c_rx_li, bytes_rx_li,
+					fill_ip_info(peer_addr->type,
+							peer_addr->ipv4.sin_addr.s_addr,
+							peer_addr->ipv6.sin6_addr.s6_addr),
+					fill_ip_info(peer_addr->type,
+							config.s11_ip.s_addr,
+							config.s11_ip_v6.s6_addr),
+					((peer_addr->type == IPTYPE_IPV4_LI) ?
+					 ntohs(peer_addr->ipv4.sin_port) : ntohs(peer_addr->ipv6.sin6_port)),
+					config.s11_port);
 		}
 	}
 
 	if ((NULL != context) && (S5S8_IFACE == interface_type)) {
 		int bytes_rx_li = bytes_rx;
 		uint8_t gtpv2c_rx_li[MAX_GTPV2C_UDP_LEN] = {0};
-		memcpy(gtpv2c_rx_li, gtpv2c_rx, bytes_rx);
+
+		if ((piggyback == TRUE || context->piggyback == TRUE) && (li_piggyback_buf != NULL)) {
+			memcpy(gtpv2c_rx_li, li_piggyback_buf, bytes_rx);
+		} else {
+			memcpy(gtpv2c_rx_li, gtpv2c_rx, bytes_rx);
+		}
 
 		if (PRESENT == context->dupl) {
-			process_pkt_for_li(context, S5S8_C_INTFC_IN, (uint8_t *)gtpv2c_rx_li,
-					bytes_rx_li, ntohl(peer_addr->sin_addr.s_addr), ntohl(pfcp_config.s5s8_ip.s_addr),
-					ntohs(peer_addr->sin_port), pfcp_config.s5s8_port);
+			process_pkt_for_li(context, S5S8_C_INTFC_IN, (uint8_t *)gtpv2c_rx_li, bytes_rx_li,
+					fill_ip_info(peer_addr->type,
+							peer_addr->ipv4.sin_addr.s_addr,
+							peer_addr->ipv6.sin6_addr.s6_addr),
+					fill_ip_info(peer_addr->type,
+							config.s5s8_ip.s_addr,
+							config.s5s8_ip_v6.s6_addr),
+					((peer_addr->type == IPTYPE_IPV4_LI) ?
+					 ntohs(peer_addr->ipv4.sin_port) : ntohs(peer_addr->ipv6.sin6_port)),
+					config.s5s8_port);
 		}
 	}
 

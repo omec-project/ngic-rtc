@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,13 +22,14 @@
 #include <stdint.h>
 #include <arpa/inet.h>
 #include "gw_adapter.h"
+#include "interface.h"
 
 #ifdef CP_BUILD
 #include "ue.h"
 #include "gtp_messages.h"
 #include "sm_struct.h"
 #else
-#define LDB_ENTRIES_DEFAULT (1024 * 1024 * 4)
+#define LDB_ENTRIES_DEFAULT (1024 * 512)
 #endif /* CP_BUILD */
 
 #ifdef CP_BUILD
@@ -53,12 +55,52 @@
 #define FRWDING_PLCY_ID						6
 
 extern uint32_t start_time;
-extern struct rte_hash *node_id_hash;
 extern struct rte_hash *heartbeat_recovery_hash;
 
 #define QUERY_RESULT_COUNT 16
 #define MAX_ENODEB_LEN     16
 #define PFCP_MSG_LEN       4096
+
+/*VS: Define the IPv6 Format Specifier to print IPv6 Address */
+#define IPv6_CAST *(struct in6_addr *)
+#define IPv6_FMT "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x"
+#define IPv6_PRINT(addr)\
+		(unsigned)((addr).s6_addr[0]),\
+		(unsigned)((addr).s6_addr[1]),\
+		(unsigned)((addr).s6_addr[2]),\
+		(unsigned)((addr).s6_addr[3]),\
+		(unsigned)((addr).s6_addr[4]),\
+		(unsigned)((addr).s6_addr[5]),\
+		(unsigned)((addr).s6_addr[6]),\
+		(unsigned)((addr).s6_addr[7]),\
+		(unsigned)((addr).s6_addr[8]),\
+		(unsigned)((addr).s6_addr[9]),\
+		(unsigned)((addr).s6_addr[10]),\
+		(unsigned)((addr).s6_addr[11]),\
+		(unsigned)((addr).s6_addr[12]),\
+		(unsigned)((addr).s6_addr[13]),\
+		(unsigned)((addr).s6_addr[14]),\
+		(unsigned)((addr).s6_addr[15])
+
+/*This macro is used to print IPv6 address in string if IPv6 address is stored in uint8_t array*/
+#define PRINT_IPV6_ADDR(addr)\
+		(unsigned)(addr[0]),\
+		(unsigned)(addr[1]),\
+		(unsigned)(addr[2]),\
+		(unsigned)(addr[3]),\
+		(unsigned)(addr[4]),\
+		(unsigned)(addr[5]),\
+		(unsigned)(addr[6]),\
+		(unsigned)(addr[7]),\
+		(unsigned)(addr[8]),\
+		(unsigned)(addr[9]),\
+		(unsigned)(addr[10]),\
+		(unsigned)(addr[11]),\
+		(unsigned)(addr[12]),\
+		(unsigned)(addr[13]),\
+		(unsigned)(addr[14]),\
+		(unsigned)(addr[15])
+
 
 #ifdef CP_BUILD
 
@@ -96,20 +138,20 @@ int dns_callback(void *node_sel, void *data, void *user_data);
  * @return : Returns received number of bytes
  */
 int
-pfcp_recv(void *msg_payload, uint32_t size,
-		struct sockaddr_in *peer_addr);
+pfcp_recv(void *msg_payload, uint32_t size, peer_addr_t *peer_addr, bool is_ipv6);
 
 /**
  * @brief  : Send data to peer node
- * @param  : fd, socket or file descriptor to use to send data
+ * @param  : fd_v4, IPv4 socket or file descriptor to use to send data
+ * @param  : fd_v6, IPv6 socket or file descriptor to use to send data
  * @param  : msg_payload, buffer to store data to be send
  * @param  : size, max size to send data
  * @param  : peer_addr, peer node address
  * @return : Returns sent number of bytes
  */
 int
-pfcp_send(int fd,void *msg_payload, uint32_t size,
-		struct sockaddr_in *peer_addr,Dir dir);
+pfcp_send(int fd_v4 , int fd_v6, void *msg_payload, uint32_t size,
+		peer_addr_t peer_addr, Dir dir);
 
 /**
  * @brief  : Returns system seconds since boot
@@ -118,14 +160,6 @@ pfcp_send(int fd,void *msg_payload, uint32_t size,
  */
 long
 uptime(void);
-
-/**
- * @brief  : Creates node id hash
- * @param  : No param
- * @return : Returns nothing
- */
-void
-create_node_id_hash(void );
 
 /**
  * @brief  : creates associated upf hash
@@ -173,6 +207,27 @@ ntp_to_unix_time(uint32_t *ntp, struct timeval *unix_tm);
 int
 validate_Subnet(uint32_t addr, uint32_t net_init, uint32_t net_end);
 
+/* VS: Validate the IPv6 Address is in the subnet or not */
+/**
+ * @brief  : Validate the IPv6 Address is in the network or not
+ * @param  : addr, IP address for search
+ * @param  : local_addr, Compare Network ID
+ * @param  : local_prefix, Network bits
+ * @return : Returns 1 if addr within the range, 0 not in the range
+ * */
+int
+validate_ipv6_network(struct in6_addr addr,
+		struct in6_addr local_addr, uint8_t local_prefix);
+
+/**
+ * @brief  : Retrieve the IPv6 Network Prefix Address
+ * @param  : local_addr, Compare Network ID
+ * @param  : local_prefix, Network bits
+ * @return : Returns Prefix
+ * */
+struct in6_addr
+retrieve_ipv6_prefix(struct in6_addr addr, uint8_t local_prefix);
+
 /**
  * @brief  : Retrive UE Database From SEID and If require copy the message to LI server
  * @param  : sess_id, key for search
@@ -205,15 +260,15 @@ is_li_enabled_using_imsi(uint64_t uiImsi, uint8_t intfc_name, uint8_t cp_type);
  * @param  : intfc_name, interface name
  * @param  : buf_tx
  * @param  : buf_tx_size, size of buf_tx
- * @param  : uiSrcIp, source ip address
- * @param  : uiDstIp, destination ip address
+ * @param  : srcIp, source ip address
+ * @param  : dstIp, destination ip address
  * @param  : uiSrcPort, source port number
  * @param  : uiDstPort, destination port number
  * @return : Returns 0 on success, -1 otherwise
  */
 int
 process_cp_li_msg(uint64_t sess_id, uint8_t intfc_name, uint8_t *buf_tx,
-		int buf_tx_size, uint32_t uiSrcIp, uint32_t uiDstIp, uint16_t uiSrcPort,
+		int buf_tx_size, struct ip_addr srcIp, struct ip_addr dstIp, uint16_t uiSrcPort,
 		uint16_t uiDstPort);
 
 /**
@@ -221,15 +276,15 @@ process_cp_li_msg(uint64_t sess_id, uint8_t intfc_name, uint8_t *buf_tx,
  * @param  : context, ue context details
  * @param  : intfc_name, interface name
  * @param  : msg, msg_info structure
- * @param  : uiSrcIp, source ip address
- * @param  : uiDstIp, destination ip address
+ * @param  : srcIp, source ip address
+ * @param  : dstIp, destination ip address
  * @param  : uiSrcPort, source port number
  * @param  : uiDstPort, destination port number
  * @return : Returns 0 on success, -1 otherwise
  */
 int
 process_msg_for_li(ue_context *context, uint8_t intfc_name, msg_info *msg,
-		uint32_t uiSrcIp, uint32_t uiDstIp, uint16_t uiSrcPort, uint16_t uiDstPort);
+		struct ip_addr srcIp, struct ip_addr dstIp, uint16_t uiSrcPort, uint16_t uiDstPort);
 
 /**
  * @brief  : Process li message. Sender must check li is enabled or not
@@ -238,8 +293,8 @@ process_msg_for_li(ue_context *context, uint8_t intfc_name, msg_info *msg,
  * @param  : intfc_name, interface name
  * @param  : buf_tx
  * @param  : buf_tx_size, size of buf_tx
- * @param  : uiSrcIp, source ip address
- * @param  : uiDstIp, destination ip address
+ * @param  : srcIp, source ip address
+ * @param  : dstIp, destination ip address
  * @param  : uiSrcPort, source port number
  * @param  : uiDstPort, destination port number
  * @param  : uiCpMode, control plane mode
@@ -248,7 +303,7 @@ process_msg_for_li(ue_context *context, uint8_t intfc_name, msg_info *msg,
  */
 int
 process_cp_li_msg_for_cleanup(li_data_t *li_data, uint8_t li_data_cntr, uint8_t intfc_name,
-		uint8_t *buf_tx, int buf_tx_size, uint32_t uiSrcIp, uint32_t uiDstIp,
+		uint8_t *buf_tx, int buf_tx_size, struct ip_addr srcIp, struct ip_addr dstIp,
 		uint16_t uiSrcPort, uint16_t uiDstPort, uint8_t uiCpMode, uint64_t uiImsi);
 
 /**
@@ -257,8 +312,8 @@ process_cp_li_msg_for_cleanup(li_data_t *li_data, uint8_t li_data_cntr, uint8_t 
  * @param  : intfc_name, interface name
  * @param  : buf_tx, packet
  * @param  : buf_tx_size, size of buf_tx
- * @param  : uiSrcIp, source ip address
- * @param  : uiDstIp, destination ip address
+ * @param  : srcIp, source ip address
+ * @param  : dstIp, destination ip address
  * @param  : uiSrcPort, source port number
  * @param  : uiDstPort, destination port number
  * @param  : uiForward, forward to df2 or not
@@ -266,7 +321,7 @@ process_cp_li_msg_for_cleanup(li_data_t *li_data, uint8_t li_data_cntr, uint8_t 
  */
 int
 process_pkt_for_li(ue_context *context, uint8_t intfc_name, uint8_t *buf_tx,
-		int buf_tx_size, uint32_t uiSrcIp, uint32_t uiDstIp, uint16_t uiSrcPort,
+		int buf_tx_size, struct ip_addr srcIp, struct ip_addr dstIp, uint16_t uiSrcPort,
 		uint16_t uiDstPort);
 
 #endif /* CP_BUILD */

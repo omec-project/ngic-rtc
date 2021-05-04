@@ -38,9 +38,10 @@ ue_defaults_t ue_default;
 int
 ReadConfigurations(EGetOpt opt)
 {
-	inet_aton((opt.get("/DAdmfApplication/DAdmfIP", "")), &config.dadmfIp);
+	config.dadmfIp = opt.get("/DAdmfApplication/DAdmfIP", "");
 	config.dadmfPort = (opt.get("/DAdmfApplication/DAdmfPort", ZERO));
-	inet_aton((opt.get("/DAdmfApplication/AdmfIP", "")), &config.admfIp);
+
+	config.admfIp = opt.get("/DAdmfApplication/AdmfIP", "");
 	config.admfPort = (opt.get("/DAdmfApplication/AdmfPort", ZERO));
 	config.ackCheckTimeInMin = (opt.get("/DAdmfApplication/AckCheckTimeInMin", 
 			ZERO));

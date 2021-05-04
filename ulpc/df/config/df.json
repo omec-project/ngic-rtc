@@ -1,6 +1,7 @@
 {
 	"DfAppliction": {
 		"NodeName" 			: 	"DF2",
+		"DfIp"				:	"192.168.0.43",
 		"DfPort"			: 	12998,
 		"StorageDirName" 	: 	"./db",
 		"LegacyCommMode"	: 	"TCP",
@@ -40,7 +41,7 @@
 						},
 						{
 							"SinkType": "basic_file",
-							"LogLevel": "debug",
+							"LogLevel": "critical",
 							"Pattern": "[%Y-%m-%dT%H:%M:%S.%e] [%^__APPNAME__%$] [%n] [%^%l%$] %v",
 							"FileName": "./logs/epcinfo.basic.log",
 							"Truncate": false

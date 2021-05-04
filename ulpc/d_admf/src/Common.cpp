@@ -26,10 +26,6 @@
 #include "epc/esocket.h"
 #include "epc/einternal.h"
 #include "epc/emgmt.h"
-
-#define RAPIDJSON_NAMESPACE ulpcrapidjson
-#include "rapidjson/rapidjson.h"
-#include "rapidjson/document.h"
 #include "rapidjson/writer.h"
 #include "rapidjson/stringbuffer.h"
 

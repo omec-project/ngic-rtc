@@ -43,7 +43,6 @@
 
 #include "stats.h"
 #include "up_main.h"
-#include "clogger.h"
 #include "commands.h"
 #include "interface.h"
 #include "gw_adapter.h"
@@ -63,6 +62,8 @@ struct ul_pkt_struct {
 	uint64_t iTXRNG;
 	uint64_t ULTX;
 	uint64_t GTP_ECHO;
+	uint64_t RS_RX;
+	uint64_t RS_TX;
 };
 
 /**
@@ -84,6 +85,7 @@ struct dl_pkt_struct {
 struct ul_pkt_struct ul_param = { 0 };
 struct dl_pkt_struct dl_param = { 0 };
 uint8_t cnt = 0;
+extern int clSystemLog;
 #ifdef STATS
 
 void
@@ -104,10 +106,17 @@ print_headers(void)
 			"IfMisPKTS", "IfPKTS", "UL-RX", "UL-TX", "UL-DFF", "||",
 			"IfMisPKTS", "IfPKTS", "DL-RX", "DL-TX", "DL-DFF", "DDN", "DDN_BUF_PKTS");
 #else
+#ifdef DEBUG_RS_MSG
+	printf("%30s %33s %30s\n", "UPLINK", "||", "DOWNLINK");
+	printf("%9s %9s %9s %9s %9s %9s %4s %9s %9s %9s %9s %9s %9s \n",
+			"IfMisPKTS", "IfPKTS", "UL-RX", "UL-TX", "UL-DFF", "RS-RX", "||",
+			"IfMisPKTS", "IfPKTS", "DL-RX", "DL-TX", "DL-DFF", "RS-TX");
+#else
 	printf("%24s %29s %24s\n", "UPLINK", "||", "DOWNLINK");
 	printf("%9s %9s %9s %9s %9s %4s %9s %9s %9s %9s %9s \n",
 			"IfMisPKTS", "IfPKTS", "UL-RX", "UL-TX", "UL-DFF", "||",
 			"IfMisPKTS", "IfPKTS", "DL-RX", "DL-TX", "DL-DFF");
+#endif /* DEBUG_RS_MSG */
 #endif /* DEBUG_DDN */
 #endif /* EXSTATS */
 }
@@ -123,18 +132,26 @@ display_stats(void)
 			(dl_param.DLRX - dl_param.DLTX));
 #else
 #if DEBUG_DDN
-	printf("%9lu %9lu %9lu %9lu %9lu %4s %9lu %9lu %9lu %9lu %9lu %9lu  %9lu\n",
+	printf("%9lu %9lu %9lu %9lu %9lu %4s %9lu %9lu %9lu %9lu %9lu %9lu %9lu\n",
 			ul_param.IfMisPKTS, ul_param.IfPKTS, ul_param.ULRX, ul_param.ULTX,
 			(ul_param.ULRX - ul_param.ULTX), "||",
 			dl_param.IfMisPKTS, dl_param.IfPKTS, dl_param.DLRX, dl_param.DLTX,
 			(dl_param.DLRX - dl_param.DLTX), dl_param.ddn_req, dl_param.ddn_pkts);
+#else
+#ifdef DEBUG_RS_MSG
+	printf("%9lu %9lu %9lu %9lu %9lu %9lu %4s %9lu %9lu %9lu %9lu %9lu %9lu\n",
+			ul_param.IfMisPKTS, ul_param.IfPKTS, ul_param.ULRX, ul_param.ULTX,
+			(ul_param.ULRX - ul_param.ULTX), ul_param.RS_RX, "||",
+			dl_param.IfMisPKTS, dl_param.IfPKTS, dl_param.DLRX, dl_param.DLTX,
+			(dl_param.DLRX - dl_param.DLTX), ul_param.RS_TX);
 #else
 	printf("%9lu %9lu %9lu %9lu %9lu %4s %9lu %9lu %9lu %9lu %9lu \n",
 			ul_param.IfMisPKTS, ul_param.IfPKTS, ul_param.ULRX, ul_param.ULTX,
 			(ul_param.ULRX - ul_param.ULTX), "||",
 			dl_param.IfMisPKTS, dl_param.IfPKTS, dl_param.DLRX, dl_param.DLTX,
 			(dl_param.DLRX - dl_param.DLTX));
-#endif  /* DEBUG_DDN */
+#endif /* DEBUG_RS_MSG */
+#endif /* DEBUG_DDN */
 #endif /* EXSTATS */
 }
 
@@ -158,6 +175,7 @@ void
 pipeline_in_stats(void)
 {
 	ul_param.ULRX = epc_app.ul_params[S1U_PORT_ID].pkts_in;
+	ul_param.RS_RX = epc_app.ul_params[S1U_PORT_ID].pkts_rs_in;
 	dl_param.DLRX = epc_app.dl_params[SGI_PORT_ID].pkts_in;
 	dl_param.ddn_req = epc_app.dl_params[SGI_PORT_ID].ddn;
 	dl_param.ddn_pkts = epc_app.dl_params[SGI_PORT_ID].ddn_buf_pkts;
@@ -181,6 +199,7 @@ void
 pipeline_out_stats(void)
 {
 	ul_param.ULTX = epc_app.ul_params[S1U_PORT_ID].pkts_out;
+	ul_param.RS_TX = epc_app.ul_params[S1U_PORT_ID].pkts_rs_out;
 	dl_param.DLTX = epc_app.dl_params[SGI_PORT_ID].pkts_out;
 
 }
@@ -260,7 +279,7 @@ static void timer_cb(__attribute__ ((unused))
 	}
 
 	/* CLI counter */
-	oss_reset_time++;
+	cli_node.cli_config.oss_reset_time++;
 
 }
 #endif

@@ -91,9 +91,10 @@ usage()
 int32_t
 read_configurations(EGetOpt &opt)
 {
-	config.legacyPort = opt.get("DdfAppliction/LegacyDfPort", 0);
-	config.strModuleName = opt.get("DdfAppliction/NodeName", "undefined");
-	config.strPcapFilePath = opt.get("DdfAppliction/PcapFilePath", "undefined");
+	config.legacyIp = opt.get("LegacyDfAppliction/LegacyDfIp", "undefined");
+	config.legacyPort = opt.get("LegacyDfAppliction/LegacyDfPort", 0);
+	config.strModuleName = opt.get("LegacyDfAppliction/NodeName", "undefined");
+	config.strPcapFilePath = opt.get("LegacyDfAppliction/PcapFilePath", "undefined");
 
 
 	ELogger::log(LOG_SYSTEM).debug("Configurations : ModuleName {}",
