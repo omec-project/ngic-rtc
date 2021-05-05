@@ -13,6 +13,64 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 
+> ## ***Feature Summary***
+>> ### **E-UTRAN Feature Support (23.401 r15)**
+>> Description | Reference | Git Tag
+>> ------------ | :-------------: | :------------:
+>> E-UTRAN Initial Attach | 5.3.2.1-1 | Stable
+>> Tracking Area Update procedure with Serving GW change | 5.3.3.1-1 | Experimental
+>> Tracking Area Update procedure with Serving GW change and data forwarding | 5.3.3.1A-1 | Experimental
+>> E-UTRAN Tracking Area Update without S‑GW Change | 5.3.3.2-1 | Stable
+>> UE triggered Service Request | 5.3.4.1-1 | Stable
+>> Network Triggered Service Request | 5.3.4.3-1 | Experimental
+>> eNodeB initiated Connection Suspend procedure | 5.3.4A-1 | Stable
+>> MO Data transport in NAS PDU | 5.3.4B.2-1 | Experimental
+>> MT Data transport in NAS PDUs | 5.3.4B.3-1 | Experimental
+>> Establishment of S1-U bearer during Data Transport in Control Plane CIoT EPS Optimisation | 5.3.4B.4-1 | Experimental
+>> S1 Release Procedure | 5.3.5-1 | Stable
+>> UE initiated Connection Resume procedure | 5.3.5A-1 | Stable
+>> MME-Initiated Detach Procedure | 5.3.8.3-1 | Stable
+>> HSS-Initiated Detach Procedure | 5.3.8.4-1 | Stable
+>> Dedicated Bearer Activation Procedure | 5.4.1-1 | Stable
+>> Bearer Modification Procedure with Bearer QoS Update | 5.4.2.1-1 | Stable
+>> HSS Initiated Subscribed QoS Modification | 5.4.2.2-1 | Experimental
+>> Bearer Modification Procedure without Bearer QoS Update | 5.4.3-1 | Stable
+>> PDN GW Initiated Bearer Deactivation | 5.4.4.1-1 | Stable
+>> MME initiated Dedicated Bearer Deactivation | 5.4.4.2-1 | Stable
+>> UE requested bearer resource modification | 5.4.5-1 | Stable
+>> E-UTRAN initiated E-RAB modification procedure | 5.4.7-1 | Stable
+>> X2-based handover without Serving GW relocation | 5.5.1.1.2-1 | Stable
+>> X2-based handover with Serving GW relocation | 5.5.1.1.3-1 | Stable
+>> S1-based handover | 5.5.1.2.2-1 | Experimental
+>> S1-based handover, Reject | 5.5.1.2.3-1 | Experimental
+>> Inter RAT handover Cancel | 5.5.2.5.2-1 | Experimental
+>> GW Secondary RAT usage data Reporting procedure | 5.7A.3-2 | Stable
+>> Notification of the ECGI, TAI and/or user CSG information changes | 5.9.2.1-1 | Stable
+>> UE requested PDN connectivity | 5.10.2-1 | Stable
+>> UE or MME requested PDN disconnection | 5.10.3-1 | Stable
+>> MME triggered Serving GW relocation | 5.10.4-1 | Stable
+>> Dedicated bearer activation in combination with the default bearer activation at attach or UE requested PDN connectivity | F.1 | Experimental
+>>
+>> ### **Enhancements**
+>> Description | Git Tag
+>> ------------ | :---:
+>> User Level Packet Copying | Stable
+>> Mobility (Promotion/Demotion) SAEGW <-> PGW, SAEGW <-> SGW | Stable
+>> Predefined Rules | Stable
+>> TEID Range Support | Stable
+>> Restoration support utilizing FQ-CSID’s | Stable
+>> Restoration for CP (SGW-C, PGW-C & SAEGW-C) failures | Stable
+>> Gx Support for SAEGW-C and PGW-C | Stable
+>> libgtpv2c for S11 and S5/S8 interfaces | Stable
+>> libpfcp for Sxa, Sxb and SxaSxb interfaces | Stable
+>> REST based CLI for CP & DP | Stable
+>> APN and Distributed Deployment Support | Stable
+>> User Plane Discovery (DNS) | Stable
+>> Billing (via Sx, utilizing Redis w/SGX) | Stable
+>> Event Reporting Funciton | Stable
+>> IPv6, IPv4V6 support in Mobility Management | Experimental
+>> IPv6 interface support for S11, S5/S8, S1-U, SGI-LAN and Sx interfaces | Experimental
+
 Next Generation Infrastructure Core (NGIC) VNF
 ==============================================
 
