@@ -22,6 +22,11 @@
 
 #include "elogger.h"
 
+#include "rapidjson/filereadstream.h"
+#include "rapidjson/document.h"
+#include "rapidjson/prettywriter.h"
+#include "rapidjson/pointer.h"
+
 #include "LegacyAdmf.h"
 
 LegacyAdmfApp g_app;
@@ -85,12 +90,31 @@ Void usage()
 	std::cout << msg;
 }
 
+std::string
+ConvertIpForRest(const std::string &strIp) {
+
+	char buf[IPV6_MAX_LEN];
+	std::string strRestFormat;
+
+	if (inet_pton(AF_INET, (const char *)strIp.c_str(), buf)) {
+		strRestFormat = strIp;
+	} else if (inet_pton(AF_INET6, (const char *)strIp.c_str(), buf)) {
+		strRestFormat = "[" + strIp + "]";
+	}
+	
+	return strRestFormat;
+}
+
 int
 ReadConfigurations(EGetOpt &opt)
 {
 	config.nodeName = opt.get("/LegacyAdmfApp/NodeName", EMPTY_STRING);
+	config.serverIp = opt.get("/LegacyAdmfApp/ServerIp", EMPTY_STRING);
+
 	config.serverPort = (opt.get("/LegacyAdmfApp/ServerPort", ZERO));
-	inet_aton(opt.get("LegacyAdmfApp/LegacyAdmfIntfcIp", EMPTY_STRING), &config.legAdmfIntfcIp);
+
+	config.legAdmfIntfcIp = opt.get("LegacyAdmfApp/LegacyAdmfIntfcIp", EMPTY_STRING);
+
 	config.legAdmfIntfcPort = (opt.get("LegacyAdmfApp/LegacyAdmfIntfcPort", ZERO));
 
 	ELogger::log(LOG_SYSTEM).debug("Configurations : NodeName {}",
@@ -188,7 +212,9 @@ Void LegacyAdmfApp::startup(EGetOpt &opt)
 		m_app->init(1, 1, NULL, 200000);
 
 		uint16_t restApiPort = (config.serverPort + 1);
-		cCliPost = new EManagementEndpoint(restApiPort);
+		std::string strIp = ConvertIpForRest(config.serverIp);
+		Pistache::Address addr(strIp, restApiPort);
+		cCliPost = new EManagementEndpoint(addr);
 
 		mAddUe = new AddUeEntryPost(ELogger::log(LOG_SYSTEM), m_app);
 		cCliPost->registerHandler(*mAddUe);
@@ -622,7 +648,11 @@ void
 WorkerThread::onInit() {
 
 	m_listener = new Listener(*this);
-	m_listener->listen(m_local_port, 100);
+
+	m_listener->getLocalAddress().setAddress(config.serverIp, config.serverPort);
+	m_listener->setBacklog(BACKLOG_CONNECTIION);
+
+	m_listener->listen();
 
 	ELogger::log(LOG_SYSTEM).info("Waiting for connection on port {}",
 			m_local_port);
@@ -675,7 +705,7 @@ WorkerThread::onError() {
 Void
 WorkerThread::connect() {
 	m_client = new IntfcClient(*this);
-	m_client->connect(inet_ntoa(config.legAdmfIntfcIp), 
+	m_client->connect(config.legAdmfIntfcIp, 
 			(UShort)config.legAdmfIntfcPort);
 	ELogger::log(LOG_SYSTEM).info("LegacyAdmfIntfc connection initiated on "
 			"port: {}", (UShort)config.legAdmfIntfcPort);

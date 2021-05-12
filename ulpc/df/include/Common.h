@@ -42,17 +42,17 @@
 #include "efd.h"
 
 
-#define TRUE							1
-#define RET_SUCCESS						0
-#define RET_FAILURE						1
-#define DFPACKET_ACK					0xff
-#define BACKLOG_CONNECTIION				10
-
-#define LOG_AUDIT 			 3
-#define LOG_SYSTEM			 3
-#define LOG_SYSTEM_LEGACY	 1
-#define LOG_TEST3			 3
-#define LOG_TEST3_SINKSET	 3
+#define TRUE				1
+#define RET_SUCCESS			0
+#define RET_FAILURE			1
+#define DFPACKET_ACK			0xff
+#define BACKLOG_CONNECTIION		10
+#define SEND_BUF_SIZE			4096
+#define LOG_AUDIT 			3
+#define LOG_SYSTEM			3
+#define LOG_SYSTEM_LEGACY	 	1
+#define LOG_TEST3			3
+#define LOG_TEST3_SINKSET	 	3
 #define __file__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 
 /*
@@ -100,6 +100,7 @@ typedef struct AckPacket {
 struct Configurations {
 
 	std::string strDModuleName;
+	cpStr df_ip;
 	UShort df_port;
 	std::string strDirName;
 	std::string strCommMode;

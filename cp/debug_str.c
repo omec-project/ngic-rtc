@@ -293,3 +293,19 @@ cause_str_pfcp(enum cause_values_type cause)
 		return "UNKOWN CAUSE";
 	}
 }
+
+const char *
+ip_type_str(uint8_t type)
+{
+	/* IP Type Values */
+	switch (type) {
+	case PDN_IP_TYPE_IPV4V6:
+		return "TYPE_IPV4V6";
+	case PDN_IP_TYPE_IPV6:
+		return "TYPE_IPV6";
+	case PDN_IP_TYPE_IPV4:
+		return "TYPE_IPV4";
+	default:
+		return "UNKNOWN";
+	}
+}

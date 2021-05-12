@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,28 +28,73 @@
 
 #include "pfcp_up_struct.h"
 #include "vepc_cp_dp_api.h"
-
-/**
- * Max pkt filter precedence.
- */
-#define MAX_FILTER_PRECE 0x1fffffff
-
-/**
- * DNS filter rule precedence.
- */
-#define DNS_FILTER_PRECE MAX_FILTER_PRECE
+#include "util.h"
 
 /**
  * Default SDF Rule ID to DROP (initialization)
  */
 #define SDF_DEFAULT_DROP_RULE_ID  (MAX_SDF_RULE_NUM - 1)
+#define IPV6_ADDR_U16   (IPV6_ADDRESS_LEN / sizeof(uint16_t))
+#define IPV6_ADDR_U32   (IPV6_ADDRESS_LEN / sizeof(uint32_t))
 
-/**
- * Default SDF Rule ID
- */
-#define SDF_DEFAULT_RULE_ID  1
 
-uint64_t acl_rule_stats[MAX_SDF_RULE_NUM];
+enum {
+	PROTO_FIELD_IPV4,
+	SRC_FIELD_IPV4,
+	DST_FIELD_IPV4,
+	SRCP_FIELD_IPV4,
+	DSTP_FIELD_IPV4,
+	NUM_FIELDS_IPV4
+};
+
+enum {
+    PROTO_FIELD_IPV6,
+    SRC1_FIELD_IPV6,
+    SRC2_FIELD_IPV6,
+    SRC3_FIELD_IPV6,
+    SRC4_FIELD_IPV6,
+    DST1_FIELD_IPV6,
+    DST2_FIELD_IPV6,
+    DST3_FIELD_IPV6,
+    DST4_FIELD_IPV6,
+    NUM_FIELDS_IPV6
+};
+
+enum {
+	RTE_ACL_IPV4VLAN_PROTO,
+	RTE_ACL_IPV4VLAN_VLAN,
+	RTE_ACL_IPV4VLAN_SRC,
+	RTE_ACL_IPV4VLAN_DST,
+	RTE_ACL_IPV4VLAN_PORTS,
+	RTE_ACL_IPV4VLAN_NUM
+};
+
+enum {
+	CB_FLD_SRC_ADDR,
+	CB_FLD_DST_ADDR,
+	CB_FLD_SRC_PORT_LOW,
+	CB_FLD_SRC_PORT_DLM,
+	CB_FLD_SRC_PORT_HIGH,
+	CB_FLD_DST_PORT_LOW,
+	CB_FLD_DST_PORT_DLM,
+	CB_FLD_DST_PORT_HIGH,
+	CB_FLD_PROTO,
+	CB_FLD_USERDATA,
+	CB_FLD_NUM,
+};
+
+enum {
+	CB_IPV6_FLD_SRC_ADDR,
+	CB_IPV6_FLD_DST_ADDR,
+	CB_IPV6_FLD_PROTO,
+	CB_IPV6_FLD_USERDATA,
+	CB_IPV6_FLD_NUM,
+};
+
+enum  rule_ip_type {
+	RULE_IPV6,
+	RULE_IPV4
+};
 
 /**
  * @brief  : Function for SDF lookup.
@@ -66,27 +112,11 @@ sdf_lookup(struct rte_mbuf **m, int nb_rx, uint32_t indx);
 /**
  * @brief  : Get ACL Table index for SDF entry
  * @param  : pkt_filter_entry, sdf packet filter entry structure
+ * @param  : is_ipv6, boolen for check the rule type for V6 IP of for V4
  * @return : Returns 0 in case of success , -1 otherwise
  */
 int
 get_acl_table_indx(struct sdf_pkt_filter *pkt_filter, uint8_t is_create);
-
-/**
- * @brief  : Add SDF rules
- * @param  : pkt_filter, sdf packet filter entry structure
- * @return : Returns 0 in case of success , -1 otherwise
- */
-int
-up_sdf_filter_entry_add(uint32_t indx, struct sdf_pkt_filter *pkt_filter);
-
-/**
- * @brief  : Create the ACL table and add SDF rules
- * @param  : precedence, PDR precedence
- * @param  : direction, uplink or downlink
- * @return : Returns 0 in case of success , -1 otherwise
- */
-int
-default_up_filter_entry_add(uint32_t precedence, uint8_t direction);
 
 /**
  * @brief  : Delete sdf filter rules in acl table. The entries are
@@ -98,14 +128,6 @@ default_up_filter_entry_add(uint32_t precedence, uint8_t direction);
 int
 up_sdf_filter_entry_delete(uint32_t indx,
 		struct sdf_pkt_filter *pkt_filter_entry);
-
-/**
- * @brief  : Delete SDF rules table
- * @param  : indx, Acl table index
- * @return : Returns 0 in case of success , -1 otherwise
- */
-int
-up_sdf_filter_table_delete(uint32_t indx);
 
 /**
  * @brief  : Add default SDF entry

@@ -17,8 +17,8 @@
 
 #include <dlfcn.h>
 
+#include "epctools.h"
 #include "emgmt.h"
-#include "elogger.h"
 
 #include "AdmfApp.h"
 #include "LegacyAdmfInterface.h"
@@ -35,8 +35,7 @@ legacy_admf_intfc_config_t *legacy_config = new legacy_admf_intfc_config_t;
 int
 ReadConfigurations(EGetOpt &opt)
 {
-	inet_aton((opt.get("/AdmfApplication/DAdmfIp", EMPTY_STRING)), 
-				&config.dadmfIp);
+	config.dadmfIp = opt.get("/AdmfApplication/DAdmfIp", EMPTY_STRING); 
 
 	config.dadmfPort = (opt.get("/AdmfApplication/DAdmfPort", ZERO));
 
@@ -44,19 +43,17 @@ ReadConfigurations(EGetOpt &opt)
 
 	config.admfPort = admfPort;
 
-	inet_aton((opt.get("/AdmfApplication/LegacyInterfaceIp", EMPTY_STRING)), 
-				&config.legacyInterfaceIp);
+	config.legacyInterfaceIp = opt.get("/AdmfApplication/LegacyInterfaceIp", EMPTY_STRING);
 
-	inet_aton((opt.get("/AdmfApplication/AdmfIp", EMPTY_STRING)),
-				&(legacy_config->admfIp));
+	legacy_config->admfIp = opt.get("/AdmfApplication/AdmfIp", EMPTY_STRING);
+	config.admfIp = opt.get("/AdmfApplication/AdmfIp", EMPTY_STRING);
 
 	legacy_config->admfPort = admfPort;
 
 	legacy_config->legacyAdmfPort = (opt.get("/AdmfApplication/LegacyAdmfPort",
 				ZERO));
 
-	inet_aton((opt.get("/AdmfApplication/LegacyAdmfIp", EMPTY_STRING)),
-				&(legacy_config->legacyAdmfIp));
+	legacy_config->legacyAdmfIp = opt.get("/AdmfApplication/LegacyAdmfIp", EMPTY_STRING),
 
 	legacy_config->legacyAdmfIntfcPort =
 				(opt.get("/AdmfApplication/LegacyAdmfIntfcPort", ZERO));

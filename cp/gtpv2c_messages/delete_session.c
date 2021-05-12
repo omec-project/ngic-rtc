@@ -24,7 +24,8 @@
 #include "cp_stats.h"
 #include "gtpc_session.h"
 
-pfcp_config_t pfcp_config;
+extern pfcp_config_t config;
+extern int clSystemLog;
 
 
 int

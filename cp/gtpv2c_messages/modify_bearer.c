@@ -20,10 +20,13 @@
 #include "../cp_dp_api/vepc_cp_dp_api.h"
 #include "../pfcp_messages/pfcp_set_ie.h"
 #include "cp/cp_app.h"
-#include "clogger.h"
+#include "gw_adapter.h"
 #include "sm_enum.h"
 #include "pfcp.h"
-extern pfcp_config_t pfcp_config;
+#include "gtpc_session.h"
+
+extern pfcp_config_t config;
+extern int clSystemLog;
 /**
  * @brief  : Maintains parsed data from modify bearer request
  */
@@ -54,12 +57,13 @@ extern uint32_t adc_rule_id[];
  *           bearer data structure to be modified
  * @return : Returns nothing
  */
-void
+int
 set_modify_bearer_response(gtpv2c_header_t *gtpv2c_tx,
 		uint32_t sequence, ue_context *context, eps_bearer *bearer, mod_bearer_req_t *mbr)
 {
 	int ret = 0;
 	uint8_t _ebi = bearer->eps_bearer_id;
+	pdn_connection *pdn = NULL;
 	int ebi_index = GET_EBI_INDEX(_ebi);
 	if (ebi_index == -1) {
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Invalid EBI ID\n", LOG_VALUE);
@@ -68,9 +72,10 @@ set_modify_bearer_response(gtpv2c_header_t *gtpv2c_tx,
 	upf_context_t *upf_ctx = NULL;
 
 	/*Retrive bearer id from bearer --> context->pdns[]->upf_ip*/
-	if ((ret = upf_context_entry_lookup(context->pdns[ebi_index]->upf_ipv4.s_addr,
+	if ((ret = upf_context_entry_lookup(context->pdns[ebi_index]->upf_ip,
 					&upf_ctx)) < 0) {
-		return;
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"ERROR:Not found UPF context\n", LOG_VALUE);
+		return -1;
 	}
 
 	mod_bearer_rsp_t mb_resp = {0};
@@ -97,6 +102,10 @@ set_modify_bearer_response(gtpv2c_header_t *gtpv2c_tx,
 		}
 
 		bearer = context->eps_bearers[ebi_index];
+		if(bearer == NULL)
+			continue;
+
+		pdn = bearer->pdn;
 
 		set_ie_header(&mb_resp.bearer_contexts_modified[uiCnt].header, GTP_IE_BEARER_CONTEXT,
 				IE_INSTANCE_ZERO, 0);
@@ -110,51 +119,53 @@ set_modify_bearer_response(gtpv2c_header_t *gtpv2c_tx,
 		mb_resp.bearer_contexts_modified[uiCnt].header.len += sizeof(uint8_t) + IE_HEADER_SIZE;
 
 		if (context->cp_mode != PGWC) {
-			struct in_addr ip;
-			ip.s_addr = upf_ctx->s1u_ip;
 
-			set_ipv4_fteid(&mb_resp.bearer_contexts_modified[uiCnt].s1u_sgw_fteid,
-					GTPV2C_IFTYPE_S1U_SGW_GTPU, IE_INSTANCE_ZERO, ip,
-					bearer->s1u_sgw_gtpu_teid);
+			if(context->indication_flag.s11tf == 1){
+				bearer->s11u_sgw_gtpu_teid = bearer->s1u_sgw_gtpu_teid;
+				memcpy(&bearer->s11u_sgw_gtpu_ip, &bearer->s1u_sgw_gtpu_ip, sizeof(node_address_t));
 
-			mb_resp.bearer_contexts_modified[uiCnt].header.len += sizeof(struct fteid_ie_hdr_t) +
-				sizeof(struct in_addr) + IE_HEADER_SIZE;
+				mb_resp.bearer_contexts_modified[uiCnt].header.len +=
+					set_gtpc_fteid(&mb_resp.bearer_contexts_modified[uiCnt].s11_u_sgw_fteid,
+							GTPV2C_IFTYPE_S11U_SGW_GTPU, IE_INSTANCE_THREE, upf_ctx->s1u_ip,
+							bearer->s11u_sgw_gtpu_teid);
+			}else{
+				mb_resp.bearer_contexts_modified[uiCnt].header.len +=
+					set_gtpc_fteid(&mb_resp.bearer_contexts_modified[uiCnt].s1u_sgw_fteid,
+							GTPV2C_IFTYPE_S1U_SGW_GTPU, IE_INSTANCE_ZERO, upf_ctx->s1u_ip,
+							bearer->s1u_sgw_gtpu_teid);
+			}
 		}
 	}
 
 #ifdef USE_CSID
-	if(context->flag_fqcsid_modified == TRUE) {
+	pdn = GET_PDN(context, ebi_index);
+	if(pdn->flag_fqcsid_modified == TRUE) {
 		/* Set the SGW FQ-CSID */
 		if (context->cp_mode != PGWC) {
-			if (context->sgw_fqcsid != NULL) {
-				if ((context->sgw_fqcsid)->num_csid) {
-					set_gtpc_fqcsid_t(&mb_resp.sgw_fqcsid, IE_INSTANCE_ONE,
-							context->sgw_fqcsid);
-					mb_resp.sgw_fqcsid.node_address = context->s11_sgw_gtpc_ipv4.s_addr;
-				}
+			if (pdn->sgw_csid.num_csid) {
+				set_gtpc_fqcsid_t(&mb_resp.sgw_fqcsid, IE_INSTANCE_ONE,
+						&(pdn)->sgw_csid);
 			}
 		} else {
-
-			if (context->pgw_fqcsid != NULL) {
-				if ((context->pgw_fqcsid)->num_csid) {
-					set_gtpc_fqcsid_t(&mb_resp.pgw_fqcsid, IE_INSTANCE_ZERO,
-							context->pgw_fqcsid);
-					mb_resp.pgw_fqcsid.node_address = bearer->pdn->s5s8_pgw_gtpc_ipv4.s_addr;
-				}
+			if ((pdn)->pgw_csid.num_csid) {
+				set_gtpc_fqcsid_t(&mb_resp.pgw_fqcsid, IE_INSTANCE_ZERO,
+						&(pdn)->pgw_csid);
 			}
 		}
 	}
 
 #endif /* USE_CSID */
 
+	if(context->pra_flag){
+		set_presence_reporting_area_action_ie(&mb_resp.pres_rptng_area_act, context);
+		context->pra_flag = 0;
+	}
 	/* Update status of mbr processing for ue*/
-	context->mbr_info.seq = 0;
-	context->mbr_info.status = MBR_PROCESS_DONE;
+	context->req_status.seq = 0;
+	context->req_status.status = REQ_PROCESS_DONE;
 
-	uint16_t msg_len = 0;
-	msg_len = encode_mod_bearer_rsp(&mb_resp, (uint8_t *)gtpv2c_tx);
-	gtpv2c_tx->gtpc.message_len = htons(msg_len - IE_HEADER_SIZE);
-
+	return (encode_mod_bearer_rsp(&mb_resp, (uint8_t *)gtpv2c_tx));
+	//return ntohs(gtpv2c_tx->gtpc.message_len);
 }
 /*MODIFY RESPONSE FUNCTION WHEN PGWC returns MBR RESPONSE to SGWC
  * in HANDOVER SCENARIO*/
@@ -171,10 +182,9 @@ set_modify_bearer_response_handover(gtpv2c_header_t *gtpv2c_tx,
 	}
 
 	upf_context_t *upf_ctx = NULL;
-	struct in_addr ip = {0};
 
 	/*Retrive bearer id from bearer --> context->pdns[]->upf_ip*/
-	if ((ret = upf_context_entry_lookup(context->pdns[ebi_index]->upf_ipv4.s_addr,
+	if ((ret = upf_context_entry_lookup(context->pdns[ebi_index]->upf_ip,
 			&upf_ctx)) < 0) {
 		return;
 	}
@@ -220,39 +230,33 @@ set_modify_bearer_response_handover(gtpv2c_header_t *gtpv2c_tx,
 			bearer = context->eps_bearers[ebi_index];
 
 			if ((SGWC == context->cp_mode) || (SAEGWC == context->cp_mode)) {
-				if(bearer->pdn->default_bearer_id ==
-						mbr->bearer_contexts_to_be_modified[uiCnt].eps_bearer_id.ebi_ebi) {
-					ip.s_addr = bearer->s1u_sgw_gtpu_ipv4.s_addr;
-				}else {
-					ip.s_addr = (bearer->s1u_sgw_gtpu_ipv4.s_addr);
-				}
 
-				set_ipv4_fteid(&mb_resp.bearer_contexts_modified[uiCnt].s1u_sgw_fteid,
+				mb_resp.bearer_contexts_modified[uiCnt].header.len +=
+					set_gtpc_fteid(&mb_resp.bearer_contexts_modified[uiCnt].s1u_sgw_fteid,
 						GTPV2C_IFTYPE_S1U_SGW_GTPU,
-						IE_INSTANCE_ZERO,ip,
+						IE_INSTANCE_ZERO, bearer->s1u_sgw_gtpu_ip,
 						bearer->s1u_sgw_gtpu_teid);
-				mb_resp.bearer_contexts_modified[uiCnt].header.len += sizeof(struct fteid_ie_hdr_t) +
-					sizeof(struct in_addr) + IE_HEADER_SIZE;
 			} else {
-				ip.s_addr = (bearer->s5s8_pgw_gtpu_ipv4.s_addr);
 
-				set_ipv4_fteid(&mb_resp.bearer_contexts_modified[uiCnt].s1u_sgw_fteid,
+				mb_resp.bearer_contexts_modified[uiCnt].header.len +=
+					set_gtpc_fteid(&mb_resp.bearer_contexts_modified[uiCnt].s1u_sgw_fteid,
 						GTPV2C_IFTYPE_S5S8_PGW_GTPU,
-						IE_INSTANCE_ZERO,ip,
+						IE_INSTANCE_ZERO, bearer->s5s8_pgw_gtpu_ip,
 						bearer->s5s8_pgw_gtpu_teid);
-				mb_resp.bearer_contexts_modified[uiCnt].header.len += sizeof(struct fteid_ie_hdr_t) +
-					sizeof(struct in_addr) + IE_HEADER_SIZE;
 			}
 		}
 	}
 
-	/* Update status of mbr processing for ue*/
-	context->mbr_info.seq = 0;
-	context->mbr_info.status = MBR_PROCESS_DONE;
+	if(context->pra_flag){
+		set_presence_reporting_area_action_ie(&mb_resp.pres_rptng_area_act, context);
+		context->pra_flag = 0;
+	}
 
-	uint16_t msg_len = 0;
-	msg_len = encode_mod_bearer_rsp(&mb_resp, (uint8_t *)gtpv2c_tx);
-	gtpv2c_tx->gtpc.message_len = htons(msg_len - IE_HEADER_SIZE);
+	/* Update status of mbr processing for ue*/
+	context->req_status.seq = 0;
+	context->req_status.status = REQ_PROCESS_DONE;
+
+	encode_mod_bearer_rsp(&mb_resp, (uint8_t *)gtpv2c_tx);
 }
 
 
@@ -261,22 +265,17 @@ set_mbr_upd_sgw_csid_req(gtpv2c_header_t *gtpv2c_tx, pdn_connection *pdn,
 		uint8_t eps_bearer_id)
 {
 	mod_bearer_req_t mbr = {0};
-	struct ue_context_t *context = NULL;
 
 	set_gtpv2c_teid_header((gtpv2c_header_t *)&mbr.header, GTP_MODIFY_BEARER_REQ,
 			0, pdn->context->sequence, 0);
 
 	mbr.header.teid.has_teid.teid = pdn->s5s8_pgw_gtpc_teid;
-	context = pdn->context;
 
 #ifdef USE_CSID
 	/* Set the SGW FQ-CSID */
-	if (context->sgw_fqcsid != NULL) {
-		if ((context->sgw_fqcsid)->num_csid) {
-			set_gtpc_fqcsid_t(&mbr.sgw_fqcsid, IE_INSTANCE_ONE,
-					context->sgw_fqcsid);
-			mbr.sgw_fqcsid.node_address = pdn->s5s8_sgw_gtpc_ipv4.s_addr;
-		}
+	if (pdn->sgw_csid.num_csid) {
+		set_gtpc_fqcsid_t(&mbr.sgw_fqcsid, IE_INSTANCE_ONE,
+				&pdn->sgw_csid);
 	}
 #endif /* USE_CSID */
 
@@ -289,9 +288,7 @@ set_mbr_upd_sgw_csid_req(gtpv2c_header_t *gtpv2c_tx, pdn_connection *pdn,
 
 	mbr.bearer_contexts_to_be_modified[0].header.len += sizeof(uint8_t) + IE_HEADER_SIZE;
 
-	uint16_t msg_len = 0;
-	msg_len = encode_mod_bearer_req(&mbr, (uint8_t *)gtpv2c_tx);
-	gtpv2c_tx->gtpc.message_len = htons(msg_len - IE_HEADER_SIZE);
+	encode_mod_bearer_req(&mbr, (uint8_t *)gtpv2c_tx);
 
 	return 0;
 }
@@ -311,8 +308,7 @@ void set_modify_bearer_request(gtpv2c_header_t *gtpv2c_tx,
 	if((pdn == NULL) &&  (pdn->context == NULL) ) {
 		clLog(clSystemLog, eCLSeverityCritical,
 				LOG_FORMAT"UE contex not found : Warnning \n",
-							LOG_VALUE);
-
+				LOG_VALUE);
 		return;
 	}
 	/* Get the UE Context */
@@ -323,18 +319,19 @@ void set_modify_bearer_request(gtpv2c_header_t *gtpv2c_tx,
 
 	mbr.header.teid.has_teid.teid = pdn->s5s8_pgw_gtpc_teid;
 	/* TODO: Need to verify */
-	set_ipv4_fteid(&mbr.sender_fteid_ctl_plane, GTPV2C_IFTYPE_S5S8_SGW_GTPC,
+	set_gtpc_fteid(&mbr.sender_fteid_ctl_plane, GTPV2C_IFTYPE_S5S8_SGW_GTPC,
 			IE_INSTANCE_ZERO,
-			pdn->s5s8_sgw_gtpc_ipv4, pdn->s5s8_sgw_gtpc_teid);
+			pdn->s5s8_sgw_gtpc_ip, pdn->s5s8_sgw_gtpc_teid);
 
 	teid_value = rte_zmalloc_socket(NULL, sizeof(teid_value_t),
-							RTE_CACHE_LINE_SIZE, rte_socket_id());
+			RTE_CACHE_LINE_SIZE, rte_socket_id());
 	if (teid_value == NULL) {
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to allocate "
-		"memory for teid value, Error : %s\n", LOG_VALUE,
-		rte_strerror(rte_errno));
+				"memory for teid value, Error : %s\n", LOG_VALUE,
+				rte_strerror(rte_errno));
 		return;
 	}
+
 	teid_value->teid = pdn->s5s8_sgw_gtpc_teid;
 	teid_value->msg_type = gtpv2c_tx->gtpc.message_type;
 
@@ -350,6 +347,11 @@ void set_modify_bearer_request(gtpv2c_header_t *gtpv2c_tx,
 					teid_value->teid);
 			return;
 		}
+	}
+
+	if(context->pra_flag){
+		set_presence_reporting_area_info_ie(&mbr.pres_rptng_area_info, context);
+		context->pra_flag = 0;
 	}
 
 	/* Note:Below condition is added for the flow ERAB Modification
@@ -389,7 +391,7 @@ void set_modify_bearer_request(gtpv2c_header_t *gtpv2c_tx,
 
 			len += sizeof(mbr.uli.lai2);
 		}
-		if (context->uli.tai) {
+		if (context->uli_flag & (1 << 0)) {
 			mbr.uli.tai = context->uli.tai;
 			mbr.uli.tai2.tai_mcc_digit_2 = context->uli.tai2.tai_mcc_digit_2;
 			mbr.uli.tai2.tai_mcc_digit_1 = context->uli.tai2.tai_mcc_digit_1;
@@ -400,7 +402,7 @@ void set_modify_bearer_request(gtpv2c_header_t *gtpv2c_tx,
 			mbr.uli.tai2.tai_tac = context->uli.tai2.tai_tac;
 			len += sizeof(mbr.uli.tai2);
 		}
-		if (context->uli.rai) {
+		if (context->uli_flag & (1 << 3)) {
 			mbr.uli.rai = context->uli.rai;
 			mbr.uli.rai2.ria_mcc_digit_2 = context->uli.rai2.ria_mcc_digit_2;
 			mbr.uli.rai2.ria_mcc_digit_1 = context->uli.rai2.ria_mcc_digit_1;
@@ -412,7 +414,7 @@ void set_modify_bearer_request(gtpv2c_header_t *gtpv2c_tx,
 			mbr.uli.rai2.ria_rac = context->uli.rai2.ria_rac;
 			len += sizeof(mbr.uli.rai2);
 		}
-		if (context->uli.sai) {
+		if (context->uli_flag & (1 << 2)) {
 			mbr.uli.sai = context->uli.sai;
 			mbr.uli.sai2.sai_mcc_digit_2 = context->uli.sai2.sai_mcc_digit_2;
 			mbr.uli.sai2.sai_mcc_digit_1 = context->uli.sai2.sai_mcc_digit_1;
@@ -424,7 +426,7 @@ void set_modify_bearer_request(gtpv2c_header_t *gtpv2c_tx,
 			mbr.uli.sai2.sai_sac = context->uli.sai2.sai_sac;
 			len += sizeof(mbr.uli.sai2);
 		}
-		if (context->uli.cgi) {
+		if (context->uli_flag & (1 << 1)) {
 			mbr.uli.cgi = context->uli.cgi;
 			mbr.uli.cgi2.cgi_mcc_digit_2 = context->uli.cgi2.cgi_mcc_digit_2;
 			mbr.uli.cgi2.cgi_mcc_digit_1 = context->uli.cgi2.cgi_mcc_digit_1;
@@ -436,7 +438,7 @@ void set_modify_bearer_request(gtpv2c_header_t *gtpv2c_tx,
 			mbr.uli.cgi2.cgi_ci = context->uli.cgi2.cgi_ci;
 			len += sizeof(mbr.uli.cgi2);
 		}
-		if (context->uli.ecgi) {
+		if (context->uli_flag & (1 << 4)) {
 			mbr.uli.ecgi = context->uli.ecgi;
 			mbr.uli.ecgi2.ecgi_mcc_digit_2 = context->uli.ecgi2.ecgi_mcc_digit_2;
 			mbr.uli.ecgi2.ecgi_mcc_digit_1 = context->uli.ecgi2.ecgi_mcc_digit_1;
@@ -509,7 +511,7 @@ void set_modify_bearer_request(gtpv2c_header_t *gtpv2c_tx,
 		mbr.serving_network.mcc_digit_3 = context->serving_nw.mcc_digit_3;
 	}
 
-	if(context->indication_flag.oi == 1){
+	if(context->indication_flag.oi == 1 || context->indication_flag.s11tf == 1){
 		if(context->mo_exception_flag == TRUE){
 			mbr.mo_exception_data_cntr.timestamp_value = context->mo_exception_data_counter.timestamp_value;
 			mbr.mo_exception_data_cntr.counter_value = context->mo_exception_data_counter.counter_value;
@@ -539,7 +541,9 @@ void set_modify_bearer_request(gtpv2c_header_t *gtpv2c_tx,
 				sizeof(gtp_user_csg_info_ie_t) - sizeof(ie_header_t));
 	}
 
-	if((context->ltem_rat_type_flag == TRUE) && (context->indication_flag.oi == 1 || context->rat_type_flag == TRUE)){
+
+	if((context->ltem_rat_type_flag == TRUE) &&
+			(context->indication_flag.oi == 1 || context->rat_type_flag == TRUE)) {
 		/**
 		 * Need to verify this condition
 		 * if rat type is lte-m and this flag is set then send lte-m rat type
@@ -547,6 +551,7 @@ void set_modify_bearer_request(gtpv2c_header_t *gtpv2c_tx,
 		 * since anyway rat_type will be stored automattically like this no need to check
 		 * if(context->indication_flag.ltempi == 1)
 		 */
+
 		set_ie_header(&mbr.rat_type.header, GTP_IE_RAT_TYPE, IE_INSTANCE_ZERO,
 				sizeof(gtp_rat_type_ie_t) - sizeof(ie_header_t));
 		mbr.rat_type.rat_type = context->rat_type.rat_type;
@@ -565,82 +570,80 @@ void set_modify_bearer_request(gtpv2c_header_t *gtpv2c_tx,
 		mbr.ue_time_zone.time_zone = context->tz.tz;
 		mbr.ue_time_zone.daylt_svng_time = context->tz.dst;
 		mbr.ue_time_zone.spare2 = 0;
-		set_ie_header(&mbr.ue_time_zone.header, GTP_IE_UE_TIME_ZONE, IE_INSTANCE_ZERO, (sizeof(uint8_t) * 2));
+		set_ie_header(&mbr.ue_time_zone.header, GTP_IE_UE_TIME_ZONE,
+				IE_INSTANCE_ZERO, (sizeof(uint8_t) * 2));
 	}
 
-		if(context->indication_flag.oi == 1) {
-			mbr.bearer_count = 0;
+	if(context->indication_flag.oi == 1 || context->update_sgw_fteid == TRUE) {
+		mbr.bearer_count = 0;
 
-			for (uint8_t uiCnt = 0; uiCnt < MAX_BEARERS; ++uiCnt) {
+		for (uint8_t uiCnt = 0; uiCnt < MAX_BEARERS; ++uiCnt) {
 
-				bearer = pdn->eps_bearers[uiCnt];
+			bearer = pdn->eps_bearers[uiCnt];
 
-				if(bearer == NULL) {
-					continue;
+			if(bearer == NULL) {
+				continue;
+			}
+
+			mbr.bearer_count++;
+			set_ie_header(&mbr.bearer_contexts_to_be_modified[uiCnt].header, GTP_IE_BEARER_CONTEXT,
+					IE_INSTANCE_ZERO, 0);
+			set_ebi(&mbr.bearer_contexts_to_be_modified[uiCnt].eps_bearer_id, IE_INSTANCE_ZERO,
+					bearer->eps_bearer_id);
+
+			mbr.bearer_contexts_to_be_modified[uiCnt].header.len += sizeof(uint8_t) + IE_HEADER_SIZE;
+
+			/*
+			 * TODO : Below if condition is used to handle ip issue caused by use of
+			 * htonl or ntohl, Need to resolve this issue
+			 */
+			if(def_bearer->pdn->default_bearer_id ==
+					mbr.bearer_contexts_to_be_modified[uiCnt].eps_bearer_id.ebi_ebi) {
+				ret = set_address(&bearer->s5s8_sgw_gtpu_ip, &bearer->s5s8_sgw_gtpu_ip);
+				if (ret < 0) {
+					clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+						"IP address", LOG_VALUE);
+				}
+			}else{
+
+				ret = set_address(&bearer->s5s8_sgw_gtpu_ip, &bearer->s5s8_sgw_gtpu_ip);
+				if (ret < 0) {
+					clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT "Error while assigning "
+						"IP address", LOG_VALUE);
+				}
+				/*TODO: NEED to revist here: why below condition was there
+				  if(pdn->proc == MODIFICATION_PROC){
+				// Refer spec 23.274.Table 7.2.7-2
+				} */
 				}
 
-				mbr.bearer_count++;
-				set_ie_header(&mbr.bearer_contexts_to_be_modified[uiCnt].header, GTP_IE_BEARER_CONTEXT,
-						IE_INSTANCE_ZERO, 0);
-				set_ebi(&mbr.bearer_contexts_to_be_modified[uiCnt].eps_bearer_id, IE_INSTANCE_ZERO,
-						bearer->eps_bearer_id);
-
-				mbr.bearer_contexts_to_be_modified[uiCnt].header.len += sizeof(uint8_t) + IE_HEADER_SIZE;
-
-				/*
-				 * TODO : Below if condition is used to handle ip issue caused by use of
-				 * htonl or ntohl, Need to resolve this issue
-				 */
-				if(def_bearer->pdn->default_bearer_id ==
-						mbr.bearer_contexts_to_be_modified[uiCnt].eps_bearer_id.ebi_ebi) {
-					bearer->s5s8_sgw_gtpu_ipv4.s_addr = bearer->s5s8_sgw_gtpu_ipv4.s_addr;
-				}else{
-
-					bearer->s5s8_sgw_gtpu_ipv4.s_addr = (bearer->s5s8_sgw_gtpu_ipv4.s_addr);
-					/*TODO: NEED to revist here: why below condition was there
-					if(pdn->proc == MODIFICATION_PROC){
-						// Refer spec 23.274.Table 7.2.7-2
-						bearer->s5s8_sgw_gtpu_ipv4.s_addr = (bearer->s5s8_sgw_gtpu_ipv4.s_addr);
-					}else{
-						bearer->s5s8_sgw_gtpu_ipv4.s_addr = bearer->s5s8_sgw_gtpu_ipv4.s_addr;
-					} */
-
-				}
-
-				set_ipv4_fteid(&mbr.bearer_contexts_to_be_modified[uiCnt].s58_u_sgw_fteid,
+				mbr.bearer_contexts_to_be_modified[uiCnt].header.len +=
+					set_gtpc_fteid(&mbr.bearer_contexts_to_be_modified[uiCnt].s58_u_sgw_fteid,
 						GTPV2C_IFTYPE_S5S8_SGW_GTPU,
-						IE_INSTANCE_ONE,bearer->s5s8_sgw_gtpu_ipv4,
+						IE_INSTANCE_ONE,bearer->s5s8_sgw_gtpu_ip,
 						(bearer->s5s8_sgw_gtpu_teid));
-
-				mbr.bearer_contexts_to_be_modified[uiCnt].header.len += sizeof(struct fteid_ie_hdr_t) +
-					sizeof(struct in_addr) + IE_HEADER_SIZE;
 			}
 		}
 
-		if(context->flag_fqcsid_modified == TRUE) {
+		if(pdn->flag_fqcsid_modified == TRUE) {
 
 #ifdef USE_CSID
 			/* Set the SGW FQ-CSID */
-			if (context->sgw_fqcsid != NULL) {
-				if ((context->sgw_fqcsid)->num_csid) {
-					set_gtpc_fqcsid_t(&mbr.sgw_fqcsid, IE_INSTANCE_ONE,
-							context->sgw_fqcsid);
-					mbr.sgw_fqcsid.node_address = pdn->s5s8_sgw_gtpc_ipv4.s_addr;
-				}
+			if (pdn->sgw_csid.num_csid) {
+				set_gtpc_fqcsid_t(&mbr.sgw_fqcsid, IE_INSTANCE_ONE,
+						&pdn->sgw_csid);
 			}
-			/* Set the MME FQ-CSID */
-			if (context->mme_fqcsid != NULL) {
-				if ((context->mme_fqcsid)->num_csid) {
+			if ((pdn->context)->mme_changed_flag == TRUE) {
+				/* Set the MME FQ-CSID */
+				if (pdn->mme_csid.num_csid) {
 					set_gtpc_fqcsid_t(&mbr.mme_fqcsid, IE_INSTANCE_ZERO,
-							context->mme_fqcsid);
+							&pdn->mme_csid);
 				}
 			}
 #endif /* USE_CSID */
 		}
 
-	uint16_t msg_len = 0;
-	msg_len = encode_mod_bearer_req(&mbr, (uint8_t *)gtpv2c_tx);
-	gtpv2c_tx->gtpc.message_len = htons(msg_len - IE_HEADER_SIZE);
+	encode_mod_bearer_req(&mbr, (uint8_t *)gtpv2c_tx);
 
 }
 
@@ -656,8 +659,23 @@ int mbr_req_pre_check(mod_bearer_req_t *mbr)
 				(mbr->second_rat_count == 0)) {
 
 			return GTPV2C_CAUSE_CONDITIONAL_IE_MISSING;
+		} else {
+
+			return FORWARD_MBR_REQUEST;
 		}
 	}
 	return 0;
 }
 
+int modify_acc_bearer_req_pre_check(mod_acc_bearers_req_t *mab)
+{
+	if(mab->bearer_modify_count == 0)
+	{
+		if((mab->indctn_flgs.header.len == 0) &&
+				(mab->second_rat_count == 0)) {
+
+			return GTPV2C_CAUSE_CONDITIONAL_IE_MISSING;
+		}
+	}
+	return 0;
+}

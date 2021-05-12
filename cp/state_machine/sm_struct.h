@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,7 +36,6 @@ extern char state_name[STATE_NAME_LEN];
 extern char event_name[EVNT_NAME_LEN];
 extern struct rte_hash *li_info_by_id_hash;
 extern struct rte_hash *li_id_by_imsi_hash;
-
 
 enum source_interface {
 	GX_IFACE = 1,
@@ -94,9 +94,12 @@ typedef struct msg_info{
 	uint32_t teid;
 
 	char sgwu_fqdn[MAX_HOSTNAME_LENGTH];
-	struct in_addr upf_ipv4;
-
+	// struct in_addr upf_ipv4;
+	node_address_t upf_ip;
 	//enum source_interface iface;
+
+	/* copy create bearer response for negative scenario (MBResp wrong teid) attach with dedicated flow */
+	create_bearer_rsp_t cb_rsp;
 
 	union gtpc_msg_info {
 		create_sess_req_t csr;
@@ -106,7 +109,8 @@ typedef struct msg_info{
 		del_sess_req_t dsr;
 		del_sess_rsp_t ds_rsp;
 		rel_acc_ber_req_t rel_acc_ber_req;
-		downlink_data_notification_t ddn_ack;
+		dnlnk_data_notif_ack_t ddn_ack;
+		dnlnk_data_notif_fail_indctn_t ddn_fail_ind;
 		create_bearer_req_t cb_req;
 		create_bearer_rsp_t cb_rsp;
 		del_bearer_req_t db_req;
@@ -122,8 +126,17 @@ typedef struct msg_info{
 		del_bearer_fail_indctn_t del_fail_ind;
 		bearer_rsrc_cmd_t bearer_rsrc_cmd;
 		bearer_rsrc_fail_indctn_t ber_rsrc_fail_ind;
+		mod_bearer_cmd_t mod_bearer_cmd;
+		mod_bearer_fail_indctn_t mod_fail_ind;
 		change_noti_req_t change_not_req;
 		change_noti_rsp_t change_not_rsp;
+		create_indir_data_fwdng_tunn_req_t crt_indr_tun_req;
+		create_indir_data_fwdng_tunn_rsp_t crt_indr_tun_rsp;
+		del_indir_data_fwdng_tunn_req_t  dlt_indr_tun_req;
+		del_indir_data_fwdng_tunn_resp_t dlt_indr_tun_resp;
+		mod_acc_bearers_req_t mod_acc_req;
+		mod_acc_bearers_rsp_t mod_acc_resp;
+
 	}gtpc_msg;
 	union pfcp_msg_info_t {
 		pfcp_pfd_mgmt_rsp_t pfcp_pfd_resp;
@@ -144,6 +157,17 @@ typedef struct msg_info{
 }msg_info;
 
 /**
+ * @brief  : Structure for Store the create Bearer Response only for attach with dedicated flow.
+ */
+struct cb_rsp_info {
+	uint8_t cause_value;
+	uint8_t bearer_cnt;
+	uint8_t bearer_cause_value[MAX_BEARERS];
+	uint8_t ebi_ebi[MAX_BEARERS];
+	uint32_t seq ;
+}__attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
+
+/**
  * @brief  : Structure for handling CS/MB/DS request synchoronusly.
  */
 struct resp_info {
@@ -151,6 +175,10 @@ struct resp_info {
 	uint8_t state;
 	uint8_t msg_type;
 	uint8_t cp_mode;
+	uint8_t pfcp_seq;
+
+	/*attach with dedicated flow*/
+	uint8_t cbr_seq;
 
 	/* Default Bearer Id */
 	uint8_t linked_eps_bearer_id;
@@ -159,11 +187,16 @@ struct resp_info {
 	uint8_t bearer_count;
 	uint8_t eps_bearer_ids[MAX_BEARERS];
 
+	/* Store the GX session ID for error scenario */
+	char gx_sess_id[GX_SESS_ID_LEN];
+
 	uint32_t s5s8_sgw_gtpc_teid;
-	uint32_t s5s8_pgw_gtpc_ipv4;
 	uint32_t teid;
-	uint8_t eps_bearer_lvl_tft[MAX_BEARERS][MAX_TFT_LEN];
+	uint8_t *eps_bearer_lvl_tft[MAX_BEARERS];
 	uint8_t tft_header_len[MAX_BEARERS];
+
+	/*Store the create Bearer Response only for attach with dedicated flow*/
+	struct cb_rsp_info cb_rsp_attach;
 
 	union gtpc_msg {
 		create_sess_req_t csr;
@@ -175,18 +208,17 @@ struct resp_info {
 		rel_acc_ber_req_t rel_acc_ber_req;
 		del_bearer_cmd_t del_bearer_cmd;
 		bearer_rsrc_cmd_t bearer_rsrc_cmd;
+		mod_bearer_cmd_t mod_bearer_cmd;
 		change_noti_req_t change_not_req;
 		del_bearer_req_t db_req;
 		upd_bearer_req_t ub_req;
 		upd_bearer_rsp_t ub_rsp;
 		upd_pdn_conn_set_req_t upd_req;
 		upd_pdn_conn_set_rsp_t upd_rsp;
+		del_indir_data_fwdng_tunn_req_t  dlt_indr_tun_req;
+		mod_acc_bearers_req_t mod_acc_req;
+		mod_acc_bearers_rsp_t mod_acc_resp;
 	}gtpc_msg;
-
-	union gx_msg_t {
-		GxCCA cca;
-		GxRAR rar;
-	}gx_msg;
 
 }__attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
 
@@ -277,11 +309,21 @@ int8_t
 get_ue_context_by_sgw_s5s8_teid(uint32_t teid_key, ue_context **context);
 
 /**
+ * @brief  : Retrive UE Context entry from Indirect Tunnel Sender Hash
+ * @param  : teid_key, key to search context
+ * @param  : context, structure to store retrived context
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+
+int8_t
+get_sender_teid_context(uint32_t teid_key, ue_context **context);
+/**
  * @brief  : Retrive UE Context entry from UE Context table.
  * @param  : teid_key, key to search context
  * @param  : context, structure to store retrived context
  * @return : Returns 0 in case of success , -1 otherwise
  */
+
 int8_t
 get_ue_context(uint32_t teid_key, ue_context **context);
 

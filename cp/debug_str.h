@@ -69,4 +69,12 @@ gx_type_str(uint8_t type);
  */
 const char *
 cause_str_pfcp(enum cause_values_type);
+
+/**
+ * @brief  : Returns ip type string from code value
+ * @param  : IP type value
+ * @return : String describing IP type.
+ */
+const char *
+ip_type_str(uint8_t type);
 #endif /* DEBUG_STR_H */

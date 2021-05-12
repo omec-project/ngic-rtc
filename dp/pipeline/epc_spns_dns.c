@@ -64,12 +64,14 @@
 #include <sponsdn.h>
 
 #include "up_main.h"
-#include "clogger.h"
+#include "gw_adapter.h"
+
 
 #define NB_CORE_MSGBUF 10000
 #define MAX_NAME_LEN    32
 static struct rte_mempool *message_pool;
 extern struct rte_ring *epc_mct_spns_dns_rx;
+extern int clSystemLog;
 uint64_t num_dns_processed;
 
 void epc_spns_dns_init(void)

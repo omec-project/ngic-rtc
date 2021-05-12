@@ -37,21 +37,29 @@
 extern uint16_t ulambr_idx;
 extern uint16_t dlambr_idx;
 
+enum IP_TYPE{
+	IPV4_ADDR_TYPE = 0,
+	IPV6_ADDR_TYPE = 1
+};
 /**
  * @brief  : Maintains packet filter information
  */
 typedef struct pkt_fltr_t {
 	uint8_t direction;
-	uint8_t remote_ip_mask;
 	uint8_t proto;
 	uint8_t proto_mask;
+	uint8_t v4;
+	uint8_t v6;
+	uint8_t local_ip_mask;
+	uint8_t remote_ip_mask;
 	uint16_t remote_port_low;
 	uint16_t remote_port_high;
-	struct in_addr local_ip_addr;
 	uint16_t local_port_low;
 	uint16_t local_port_high;
-	uint8_t local_ip_mask;
+	struct in_addr local_ip_addr;
 	struct in_addr remote_ip_addr;
+	struct in6_addr local_ip6_addr;
+	struct in6_addr remote_ip6_addr;
 } pkt_fltr;
 
 /**

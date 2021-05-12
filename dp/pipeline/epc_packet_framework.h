@@ -55,8 +55,6 @@ extern uint64_t num_dns_processed;
 #define SGI_PORT_ID   1
 #define EAST_PORT_ID   1
 
-#define DL_RINGS_THRESHOLD 32
-
 /* Per worker macros for DDN */
 /* Macro to specify size of DDN notify_ring */
 #define NOTIFY_RING_SIZE 2048
@@ -64,8 +62,11 @@ extern uint64_t num_dns_processed;
 #define DL_RING_CONTAINER_SIZE (2048 * 2)
 #define DL_PKT_POOL_SIZE (1024 * 32)
 #define DL_PKT_POOL_CACHE_SIZE 32
-#define DL_PKTS_RING_SIZE 1024
-#define UL_PKTS_RING_SIZE 1024
+#define DL_PKTS_BUF_RING_SIZE 1024
+
+/* TODO: Define the appropriate ring size based on the PPS value, Temp Set to 65K approx */
+#define DL_PKTS_RING_SIZE (1 << 16)
+#define UL_PKTS_RING_SIZE (1 << 16)
 
 /* Borrowed from dpdk ip_frag_internal.c */
 #define PRIME_VALUE	0xeaad8405
@@ -75,7 +76,7 @@ extern uint64_t num_dns_processed;
  */
 struct dl_bm_key {
 	/** Ue ip */
-	uint32_t ue_ipv4;
+	ue_ip_t ue_ip;
 	/** Rule id */
 	uint32_t rid;
 };
@@ -90,8 +91,12 @@ struct epc_meta_data {
 	uint32_t ue_ipv4_hash;
 	/** flag for DNS pkt */
 	uint32_t dns;
-	/** eNB IP from GTP-U */
-	uint32_t enb_ipv4;
+	union {
+		/** eNB IPv4 from GTP-U */
+		uint32_t enb_ipv4;
+		/** eNB IPv6 from GTP-U */
+		struct in6_addr enb_ipv6;
+	} ip_type_t;
 	/** Teid from GTP-U */
 	uint32_t teid;
 	/** DL Bearer Map key */
@@ -168,9 +173,17 @@ struct epc_ul_params {
 	uint32_t pkts_out;
 	/** Holds number of echo packets received by uplink */
 	uint32_t pkts_echo;
+	/** Holds number of router solicitation packets received by uplink */
+	uint32_t pkts_rs_in;
+	/** Holds number of router advertisement packets sent out after uplink processed */
+	uint32_t pkts_rs_out;
+	/** Holds number of error indication packets received */
+	uint32_t pkts_err_in;
+	/** Holds number of error indication packets sent out */
+	uint32_t pkts_err_out;
 } __rte_cache_aligned;
 typedef int (*epc_ul_handler) (struct rte_pipeline*, struct rte_mbuf **pkts,
-		uint32_t n, int wk_index);
+		uint32_t n, uint64_t *pkts_mask, int wk_index);
 
 /** DL pipeline parameters - Per input port */
 uint32_t dl_arp_pkt;
@@ -222,9 +235,13 @@ struct epc_dl_params {
 	uint32_t ddn_buf_pkts;
 	/** Holds number of ddn request sends */
 	uint32_t ddn;
+	/** Holds number of error indication packets received */
+	uint32_t pkts_err_in;
+	/** Holds number of error indication packets sent out */
+	uint32_t pkts_err_out;
 } __rte_cache_aligned;
 typedef int (*epc_dl_handler) (struct rte_pipeline*, struct rte_mbuf **pkts,
-		uint32_t n, int wk_index);
+		uint32_t n, uint64_t *pkts_mask, int wk_index);
 
 /* defines max number of pipelines per core */
 #define EPC_PIPELINE_MAX	4

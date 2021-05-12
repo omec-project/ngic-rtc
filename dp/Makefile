@@ -1,4 +1,6 @@
 # Copyright (c) 2017 Intel Corporation
+# Copyright (c) 2019 Sprint
+# Copyright (c) 2020 T-Mobile
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,12 +22,14 @@ MAKEFLAGS += -j
 
 # Default target, can be overriden by command line or environment
 RTE_TARGET ?= x86_64-native-linuxapp-gcc
-OSS_UTIL_ROOT = $(NG_CORE)/oss_adapter/c3po_oss/oss-util
+OSS_UTIL_ROOT = $(NG_CORE)/oss_adapter/libepcadapter
 
 include $(RTE_SDK)/mk/rte.vars.mk
-include $(NG_CORE)/config/ng-core_cfg.mk
 
-LIBPFCP_ROOT = $(SRCDIR)/../libpfcp
+#Un-comment below line to shrink pipeline COREs used
+CFLAGS += -DNGCORE_SHRINK
+
+LIBPFCP_ROOT = $(SRCDIR)/../third_party/libpfcp
 
 #DIRS-y += pipeline
 # binary name
@@ -36,9 +40,11 @@ SRCS-y := up_main.c\
 	up.c\
 	gtpu.c\
 	ipv4.c\
+	ipv6.c\
 	util.c\
 	stats.c\
 	up_acl.c\
+	ipv6_rs.c\
 	up_init.c\
 	up_ether.c\
 	commands.c\
@@ -64,11 +70,12 @@ SRCS-y := up_main.c\
 	$(SRCDIR)/../pfcp_messages/pfcp_req_resp.o\
 	$(SRCDIR)/../pfcp_messages/pfcp_association.o\
 	$(SRCDIR)/../pfcp_messages/pfcp_up_sess_rsp.o\
-	$(SRCDIR)/../teid/teid_upf.o\
+	$(SRCDIR)/../cp_dp_api/teid_upf.o\
+	$(SRCDIR)/../cp_dp_api/config_validater.o\
 	#$(SRCDIR)/../pfcp_messages/pfcp_session.o\
 
-SRCS-y += $(SRCDIR)/../oss_adapter/c3po_oss/gw_adapter.o
-CFLAGS += -I$(SRCDIR)/../oss_adapter/c3po_oss
+#SRCS-y += $(SRCDIR)/../oss_adapter/c3po_oss/gw_adapter.o
+#CFLAGS += -I$(SRCDIR)/../oss_adapter/c3po_oss
 
 CFLAGS += -I$(SRCDIR)/
 CFLAGS += -I$(SRCDIR)/pipeline
@@ -79,7 +86,6 @@ CFLAGS += -I$(SRCDIR)/../interface/sdn
 CFLAGS += -I$(SRCDIR)/../interface/zmq
 CFLAGS += -I$(SRCDIR)/../lib/libsponsdn
 CFLAGS += -I$(SRCDIR)/../pfcp_messages
-CFLAGS += -I$(SRCDIR)/../teid
 CFLAGS += -I$(RTE_SDK)/lib/librte_acl/
 CFLAGS += -I$(LIBPFCP_ROOT)/include
 CFLAGS +=  -I$(OSS_UTIL_ROOT)/include
@@ -92,10 +98,8 @@ CFLAGS += -DLDB_DP	# should be included for dataplane.
 
 CFLAGS += -DDP_BUILD
 
-LIBDNSCLIENT_ROOT = $(SRCDIR)/../oss_adapter/c3po_oss/oss-util
-CFLAGS += -I$(LIBDNSCLIENT_ROOT)/include
-LDLIBS += $(LIBDNSCLIENT_ROOT)/lib/liboss-util.a -lstdc++ -lpistache
-LDLIBS += -L$(LIBDNSCLIENT_ROOT)/modules/c-ares -lcares
+#LDLIBS += $(OSS_UTIL_ROOT)/lib/libepcadapter.a -lstdc++ -lpistache -lcares
+LDLIBS += $(OSS_UTIL_ROOT)/lib/libepcadapter.a /usr/local/lib/libepc.a -lstdc++ -lpistache -lcares -lcurl
 
 CFLAGS += -Wall
 CFLAGS += -Werror
@@ -182,6 +186,9 @@ CFLAGS += -DSTATS
 # Un-comment below line to enable DDN(Downlink data notification) statstics
 #CFLAGS += -DDEBUG_DDN
 
+# Un-comment below line to enable Router Solicitation and Advertisement statstics
+#CFLAGS += -DDEBUG_RS_MSG
+
 # ASR- Un-comment below line to enable GTPU HEADER Sequence Number option.
 #CFLAGS += -DGTPU_HDR_SEQNB
 
@@ -202,8 +209,7 @@ CFLAGS += -DSTATS
 CFLAGS += -DUSE_REST
 
 ifneq (,$(findstring USE_REST, $(CFLAGS)))
-	CFLAGS += -I$(SRCDIR)/../restoration
-	SRCS-y += $(SRCDIR)/../restoration/restoration_timer.o
+	SRCS-y += $(SRCDIR)/../cp_dp_api/ngic_timer.o
 	SRCS-y += restoration_peer.c
 	SRCS-y += gtpu_echo_req.c
 endif

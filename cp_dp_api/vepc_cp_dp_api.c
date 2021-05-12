@@ -50,11 +50,13 @@
 #endif /* CP_BUILD */
 
 extern uint32_t li_seq_no;
+extern int clSystemLog;
 
 /******************** IPC msgs **********************/
 #ifdef CP_BUILD
 extern int pfcp_fd;
-extern struct sockaddr_in upf_pfcp_sockaddr;
+extern int pfcp_fd_v6;
+extern peer_addr_t upf_pfcp_sockaddr;
 /**
  * @brief  : Pack the message which has to be sent to DataPlane.
  * @param  : mtype
@@ -151,10 +153,7 @@ send_dp_msg(struct dp_id dp_id, struct msgbuf *msg_payload)
 	uint8_t pfd_msg[PFCP_MSG_LEN]={0};
 	uint16_t  pfd_msg_len=encode_pfcp_pfd_mgmt_req_t(&pfd_mgmt_req, pfd_msg);
 
-	pfcp_header_t *header=(pfcp_header_t *) pfd_msg;
-	header->message_len = htons(pfd_msg_len - PFCP_IE_HDR_SIZE);
-
-	if (pfcp_send(pfcp_fd, (char *)pfd_msg, pfd_msg_len, &upf_pfcp_sockaddr,SENT) < 0 ){
+	if (pfcp_send(pfcp_fd, pfcp_fd_v6, (char *)pfd_msg, pfd_msg_len, upf_pfcp_sockaddr,SENT) < 0 ){
 		clLog(clSystemLog, eCLSeverityCritical,LOG_FORMAT"Error sending PFCP "
 			"PFD Management Request %i\n",errno);
 		free(pfd_mgmt_req.app_ids_pfds[0].pfd_context[0].pfd_contents[0].cstm_pfd_cntnt);
@@ -394,17 +393,31 @@ encode_li_header(li_header_t *header, uint8_t *buf)
 	memcpy(buf + encoded, &tmpid, sizeof(uint64_t));
 	encoded += sizeof(uint64_t);
 
-	tmp = htonl(header->src_ip);
+	memcpy(buf + encoded, &(header->src_ip_type), 1);
+	encoded += 1;
+
+
+	tmp = htonl(header->src_ipv4);
 	memcpy(buf + encoded, &tmp, sizeof(uint32_t));
 	encoded += sizeof(uint32_t);
+
+	memcpy(buf + encoded, &(header->src_ipv6), IPV6_ADDRESS_LEN);
+	encoded += IPV6_ADDRESS_LEN;
 
 	tmpport = htons(header->src_port);
 	memcpy(buf + encoded, &tmpport, sizeof(uint16_t));
 	encoded += sizeof(uint16_t);
 
-	tmp = htonl(header->dst_ip);
+	memcpy(buf + encoded, &(header->dst_ip_type), 1);
+	encoded += 1;
+
+
+	tmp = htonl(header->dst_ipv4);
 	memcpy(buf + encoded, &tmp, sizeof(uint32_t));
 	encoded += sizeof(uint32_t);
+
+	memcpy(buf + encoded, &(header->dst_ipv6), IPV6_ADDRESS_LEN);
+	encoded += IPV6_ADDRESS_LEN;
 
 	tmpport = htons(header->dst_port);
 	memcpy(buf + encoded, &tmpport, sizeof(uint16_t));
@@ -426,7 +439,7 @@ encode_li_header(li_header_t *header, uint8_t *buf)
 
 int8_t
 create_li_header(uint8_t *uiPayload, int *iPayloadLen, uint8_t type,
-		uint64_t uiId, uint64_t uiImsi, uint32_t uiSrcIp, uint32_t uiDstIp,
+		uint64_t uiId, uint64_t uiImsi, struct ip_addr srcIp, struct ip_addr dstIp,
 		uint16_t uiSrcPort, uint16_t uiDstPort, uint8_t uiOprMode)
 {
 	int iEncoded;
@@ -445,18 +458,42 @@ create_li_header(uint8_t *uiPayload, int *iPayloadLen, uint8_t type,
 
 	liHdr.id = uiId;
 	liHdr.imsi = uiImsi;
-	liHdr.src_ip = uiSrcIp;
+	liHdr.src_ip_type = srcIp.iptype;
+
+	if (srcIp.iptype == IPTYPE_IPV4) {
+
+		liHdr.src_ipv4 = srcIp.u.ipv4_addr;
+	} else { /* IPTYPE_IPV6 */
+
+		memcpy(liHdr.src_ipv6, srcIp.u.ipv6_addr, IPV6_ADDRESS_LEN);
+	}
+
+	liHdr.packet_len += sizeof(liHdr.src_ipv4);
+	liHdr.packet_len += IPV6_ADDRESS_LEN;
+
 	liHdr.src_port = uiSrcPort;
-	liHdr.dst_ip = uiDstIp;
+	liHdr.dst_ip_type = dstIp.iptype;
+
+	if (dstIp.iptype == IPTYPE_IPV4) {
+
+		liHdr.dst_ipv4 = dstIp.u.ipv4_addr;
+	} else { /* IPTYPE_IPV6 */
+
+		memcpy(liHdr.dst_ipv6, dstIp.u.ipv6_addr, IPV6_ADDRESS_LEN);
+	}
+
+	liHdr.packet_len += sizeof(liHdr.dst_ipv4);
+	liHdr.packet_len += IPV6_ADDRESS_LEN;
+
 	liHdr.dst_port = uiDstPort;
 	liHdr.operation_mode = uiOprMode;
 	liHdr.seq_no = li_seq_no++;
 	liHdr.len = *iPayloadLen;
 
-	liHdr.packet_len = sizeof(liHdr.packet_len) + sizeof(liHdr.type_of_payload)
+	liHdr.packet_len += sizeof(liHdr.packet_len) + sizeof(liHdr.type_of_payload)
 			+ sizeof(liHdr.len) + sizeof(liHdr.id) + sizeof(liHdr.imsi) +
-			sizeof(liHdr.src_ip) + sizeof(liHdr.src_port) + sizeof(liHdr.dst_ip)
-			+ sizeof(liHdr.dst_port) + sizeof(liHdr.operation_mode) +
+			+ sizeof(liHdr.src_ip_type) + sizeof(liHdr.dst_ip_type)
+			+ sizeof(liHdr.src_port) + sizeof(liHdr.dst_port) + sizeof(liHdr.operation_mode) +
 			sizeof(liHdr.seq_no) +*iPayloadLen;
 
 	iEncoded = encode_li_header(&liHdr, uiPayload);
@@ -466,4 +503,21 @@ create_li_header(uint8_t *uiPayload, int *iPayloadLen, uint8_t type,
 
 	*iPayloadLen = iEncoded;
 	return 0;
+}
+
+inline
+struct ip_addr
+fill_ip_info(uint8_t ip_type, uint32_t ipv4, uint8_t *ipv6) {
+
+	struct ip_addr node;
+
+	if (ip_type == IPTYPE_IPV4_LI) {
+		node.u.ipv4_addr = ipv4;
+		node.iptype = IPTYPE_IPV4;
+	} else {	/* IPTYPE_IPV6 */
+		memcpy(node.u.ipv6_addr, ipv6, IPV6_ADDRESS_LEN);
+		node.iptype = IPTYPE_IPV6;
+	}
+
+	return node;
 }

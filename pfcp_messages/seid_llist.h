@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +24,7 @@
 
 #include "up_main.h"
 #endif
-#include "clogger.h"
+#include "gw_adapter.h"
 
 /**
  * @brief  : Function to add a node in sess_csid Linked List.
@@ -33,7 +34,18 @@
  *           NULL otherwise
  */
 sess_csid *
-add_sess_csid_data_node(sess_csid *head);
+add_sess_csid_data_node(sess_csid *head, uint16_t local_csid);
+
+/**
+ * @brief  : Function to add a node in sess_csid Linked List.
+ * @param  : head, linked list head pointer
+ * @retrun : Returns
+ *           head  in case of success
+ *           NULL otherwise
+ */
+sess_csid *
+add_peer_csid_sess_data_node(sess_csid *head, peer_csid_key_t *key);
+
 
 /**
  * @brief  : Function to add a node in sess_csid Linked List.

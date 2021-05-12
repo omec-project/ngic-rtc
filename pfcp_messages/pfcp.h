@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,10 +25,8 @@
 #include "pfcp_session.h"
 
 
-struct rte_hash *pfcp_cntxt_hash;
 struct rte_hash *pdr_entry_hash;
 struct rte_hash *qer_entry_hash;
-struct rte_hash *urr_entry_hash;
 struct rte_hash *pdn_conn_hash;
 struct rte_hash *rule_name_bearer_id_map_hash;
 struct rte_hash *ds_seq_key_with_teid;
@@ -42,33 +41,34 @@ struct rte_hash *ds_seq_key_with_teid;
  * processing function declarations.
  *
  */
-extern struct in_addr s11_mme_ip;
-extern struct sockaddr_in s11_mme_sockaddr;
+extern peer_addr_t s11_mme_sockaddr;
 
 extern in_port_t s11_port;
-extern struct sockaddr_in s11_sockaddr;
+extern peer_addr_t s11_sockaddr;
 
 extern struct in_addr s5s8_ip;
 extern in_port_t s5s8_port;
-extern struct sockaddr_in s5s8_sockaddr;
+extern peer_addr_t s5s8_sockaddr;
 
-extern struct sockaddr_in s5s8_recv_sockaddr;
+extern peer_addr_t s5s8_recv_sockaddr;
 
 extern in_port_t pfcp_port;
-extern struct sockaddr_in pfcp_sockaddr;
+extern peer_addr_t pfcp_sockaddr;
 
 extern in_port_t upf_pfcp_port;
-extern struct sockaddr_in upf_pfcp_sockaddr;
+extern peer_addr_t upf_pfcp_sockaddr;
 
 #define PFCP_BUFF_SIZE 1024
 #define PFCP_RX_BUFF_SIZE 2048
 #define ADD_RULE_TO_ALLOW  1
 #define ADD_RULE_TO_DENY   2
-#define DEFAULT_SDF_RULE  "permit out ip from 0.0.0.0/0 0-65535 to 0.0.0.0/0 0-65535"
+#define DEFAULT_SDF_RULE_IPV4  "permit out ip from 0.0.0.0/0 0-65535 to 0.0.0.0/0 0-65535"
+#define DEFAULT_SDF_RULE_IPV6  "permit out ip from f000:0:0:0:0:0:0:0/4 0-65535 to f000:0:0:0:0:0:0:0/4 0-65535"
 #define DEFAULT_FLOW_STATUS_FL_ENABLED  2
 #define DEFAULT_FLOW_STATUS_FL_DISABLED 3
 #define DEFAULT_PRECEDENCE  10
 #define DEFAULT_NUM_SDF_RULE 2
+#define DEFAULT_NUM_SDF_RULE_v4_v6  4
 #define DEFAULT_RULE_NAME "default_rule_name"
 
 /**
@@ -80,12 +80,21 @@ typedef struct rule_name_bearer_id_map_key {
 }rule_name_key_t;
 
 /**
+ * @brief  : Maintains information for hash key for rule
+ */
+typedef struct rule_key_t {
+	uint64_t cp_seid;
+	uint32_t id;
+}rule_key_t;
+
+/**
  * @brief : Bearer identifier information
  */
 typedef struct bearer_identifier_t {
 	/* Bearer identifier */
 	uint8_t bearer_id;
 }bearer_id_t;
+
 
 /**
  * @brief : PFCP context information for PDR, QER, BAR and FAR.
@@ -150,28 +159,21 @@ add_pfcp_cntxt_entry(uint64_t session_id, struct pfcp_cntxt *resp);
  * @brief  : Add PDR information in the table.
  * @param  : rule id
  * @param  : pdr context
+ * @param  : cp_seid, CP session ID for that UE
  * @return : Returns 0 on success , -1 otherwise
  */
 uint8_t
-add_pdr_entry(uint16_t rule_id, pdr_t *cntxt);
+add_pdr_entry(uint16_t rule_id, pdr_t *cntxt, uint64_t cp_seid);
 
 /**
  * @brief  : Add QER information in the table.
  * @param  : qer id
  * @param  : qer context
+ * @param  : cp_seid, CP session ID for that UE
  * @return : Returns 0 on success , -1 otherwise
  */
 uint8_t
-add_qer_entry(uint32_t qer_id, qer_t *cntxt);
-
-/**
- * @brief  : Add URR information in the table.
- * @param  : urr id
- * @param  : urr context
- * @return : Returns 0 on success , -1 otherwise
- */
-uint8_t
-add_urr_entry(uint32_t urr_id, urr_t *cntxt);
+add_qer_entry(uint32_t qer_id, qer_t *cntxt, uint64_t cp_seid);
 
 /**
  * @brief  : Retrive PDN connection entry.
@@ -199,34 +201,30 @@ get_pfcp_cntxt_entry(uint64_t session_id);
 /**
  * @brief  : Retrive PDR entry.
  * @param  : rule id
+ * @param  : cp_seid, CP session ID for that UE
  * @return : Returns pointer to pdr context, NULL otherwise
  */
-pdr_t *get_pdr_entry(uint16_t rule_id);
+pdr_t *get_pdr_entry(uint16_t rule_id, uint64_t cp_seid);
 
 /**
  * @brief  : Update PDR entry.
  * @param  : bearer context to be updated
  * @param  : teid to be updated
- * @param  : ip addr to be updated
+ * @param  : node_address_t ; IP_address for updation
  * @param  : iface, interface type ACCESS or CORE
  * @return : Returns 0 on success , -1 otherwise
  */
 int
-update_pdr_teid(eps_bearer *bearer, uint32_t teid, uint32_t ip, uint8_t iface);
+update_pdr_teid(eps_bearer *bearer, uint32_t teid, node_address_t addr, uint8_t iface);
 
 /**
  * @brief  : Retrive QER entry.
  * @param  : qer_id
+ * @param  : cp_seid, CP session ID for that UE
  * @return : Returns pointer to qer context on success , NULL otherwise
  */
-qer_t *get_qer_entry(uint32_t qer_id);
+qer_t *get_qer_entry(uint32_t qer_id, uint64_t cp_seid);
 
-/**
- * @brief  : Retrive URR entry.
- * @param  : urr_id
- * @return : Returns pointer to urr context on success , NULL otherwise
- */
-urr_t *get_urr_entry(uint32_t urr_id);
 
 /**
  * @brief  : Delete PDN connection entry from PDN conn table.
@@ -255,66 +253,60 @@ del_pfcp_cntxt_entry(uint64_t session_id);
 /**
  * @brief  : Delete PDR entry from QER table.
  * @param  : pdr id
+ * @param  : cp_seid, CP session ID for that UE
  * @return : Returns 0 on success , -1 otherwise
  */
 uint8_t
-del_pdr_entry(uint16_t pdr_id);
+del_pdr_entry(uint16_t pdr_id, uint64_t cp_seid);
 
 /**
  * @brief  : Delete QER entry from QER table.
  * @param  : qer id
+ * @param  : cp_seid, CP session ID for that UE
  * @return : Returns 0 on success , -1 otherwise
  */
 uint8_t
-del_qer_entry(uint32_t qer_id);
-
-/**
- * @brief  : Delete URR entry from URR table.
- * @param  : urr id
- * @return : Returns 0 on success , -1 otherwise
- */
-uint8_t
-del_urr_entry(uint32_t urr_id);
+del_qer_entry(uint32_t qer_id, uint64_t cp_seid);
 
 /**
  * @brief  : Generate the PDR ID [RULE ID]
- * @param  : void
+ * @param  : pdr_rule_id_offset, PDR ID offset value
  * @return : Returns pdr id  on success , 0 otherwise
  */
 uint16_t
-generate_pdr_id(void);
+generate_pdr_id(uint16_t *pdr_rule_id_offset);
 
 /**
  * @brief  : Generate the BAR ID
- * @param  : void
+ * @param  : bar_rule_id_offset, BAR ID offset value
  * @return : Returns bar id  on success , 0 otherwise
  */
 uint8_t
-generate_bar_id(void);
+generate_bar_id(uint8_t *bar_rule_id_offset);
 
 /**
  * @brief  : Generate the FAR ID
- * @param  : void
+ * @param  : far_rule_id_offset, FAR ID offset value
  * @return : Returns far id  on success , 0 otherwise
  */
 uint32_t
-generate_far_id(void);
+generate_far_id(uint32_t *far_rule_id_offset);
 
 /**
  * @brief  : Generate the URR ID
- * @param  : void
+ * @param  : urr_rule_id_offset, URR ID offset value
  * @return : Returns far id  on success , 0 otherwise
  */
 uint32_t
-generate_urr_id(void);
+generate_urr_id(uint32_t *urr_rule_id_offset);
 
 /*
  * @brief  : Generate the QER ID
- * @param  : void
+ * @param  : qer_rule_id_offset, QER ID offset value
  * @return : Returns qer id  on success , 0 otherwise
  */
 uint32_t
-generate_qer_id(void);
+generate_qer_id(uint32_t *qer_rule_id_offset);
 
 /**
  * @brief  : Generate the CALL ID
@@ -323,14 +315,6 @@ generate_qer_id(void);
  */
 uint32_t
 generate_call_id(void);
-
-/**
- * @brief  : Generate the Sequence
- * @param  : void
- * @return : Returns sequence number on success , 0 otherwise
- */
-uint32_t
-generate_rar_seq(void);
 
 /**
  * @brief  : Generates sequence numbers for sgwc generated
@@ -366,6 +350,9 @@ generate_dp_sess_id(uint64_t cp_sess_id);
  */
 int8_t
 gen_sess_id_for_ccr(char *sess_id, uint32_t call_id);
+
+void store_presence_reporting_area_info(pdn_connection *pdn_cntxt,
+						GxPresenceReportingAreaInformation *pres_rprtng_area_info);
 
 /**
  * @brief  : Parse GX CCA message and fill ue context
@@ -439,25 +426,45 @@ int_to_str(char *buf , uint32_t val);
 int8_t
 compare_default_bearer_qos(bearer_qos_ie *default_bearer_qos,
 		bearer_qos_ie *rule_qos);
+
 /**
  * @brief  : to check whether flow description is changed or not
  * @param  : dyn_rule, old dynamic_rule
  * @param  : dyn_rule, new dynamic_rule
- * @return : Returns 0 if found changed, -1 otherwise
+ * @return : Returns 1 if found changed, 0 otherwise
  */
-int
+uint8_t
 compare_flow_description(dynamic_rule_t *old_dyn_rule, dynamic_rule_t *new_dyn_rule);
+
 /**
  * @brief  : to check whether bearer qos is changed or not
  * @param  : dyn_rule, old dynamic_rule
  * @param  : dyn_rule, new dynamic_rule
- * @return : Returns 0 if found changed, -1 otherwise
+ * @return : Returns 1 if found changed, 0 otherwise
  */
-int
+uint8_t
 compare_bearer_qos(dynamic_rule_t *old_dyn_rule, dynamic_rule_t *new_dyn_rule);
+
+/**
+ * @brief  : to check whether bearer arp is changed or not
+ * @param  : dyn_rule, old dynamic_rule
+ * @param  : dyn_rule, new dynamic_rule
+ * @return : Returns 1 if found changed, 0 otherwise
+ */
+uint8_t
+compare_bearer_arp(dynamic_rule_t *old_dyn_rule, dynamic_rule_t *new_dyn_rule);
+
+/**
+ * @brief  : to change arp values for all the bearers
+ * @param  : pdn, pdn
+ * @param  : qos, Bearer Qos structure
+ * @return : nothing
+ */
+void
+change_arp_for_ded_bearer(pdn_connection *pdn, bearer_qos_ie *qos);
+
 /**
  * Add seg number on tied.
- *
  * @param teid_key : sequence number and proc as a key
  * @param teid_info : structure containing value of TEID and msg_type
  * return 0 or -1

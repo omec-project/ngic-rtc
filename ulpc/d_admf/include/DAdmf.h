@@ -34,6 +34,7 @@
 #include "UeTimerThrd.h"
 #include "AckTimerThrd.h"
 
+#define IPV6_MAX_LEN			16
 
 #define UECONFIGFILEPATH		"database/uedb.csv"
 #define CPCONFIGFILEPATH		"database/cpdb.csv"

@@ -93,6 +93,7 @@ read_configurations(EGetOpt &opt)
 {
 	config.df_port = opt.get("DdfAppliction/DfPort", 0);
 	config.ddf_port = opt.get("DdfAppliction/DdfPort", 0);
+	config.ddf_ip = opt.get("DdfAppliction/DdfIp", "undefined");
 	config.df_ip = opt.get("DdfAppliction/DfIp", "undefined");
 	config.strDModuleName = opt.get("DdfAppliction/NodeName", "undefined");
 	config.strDFilePath = opt.get("DdfAppliction/PcapFilePath", "undefined");

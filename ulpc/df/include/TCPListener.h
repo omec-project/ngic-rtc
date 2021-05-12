@@ -120,6 +120,14 @@ class TCPListener : public ESocket::ThreadPrivate {
 		Void onSocketClosed(ESocket::BasePrivate *psocket);
 
 		/*
+		 *  @brief  :   Function to delete instance of TCPDataProcessor
+		 *              on socket close, also tries re-connect to DF
+		 *  @param  :   psocket, socket
+		 *  @return :   Returns void
+		 */
+		Void onSocketError(ESocket::BasePrivate *psocket);
+
+		/*
 		 *  @brief  :   Const function to get max number of msg used in semaphore
 		 *  @param  :   No function arguments
 		 *  @return :   Returns long
@@ -223,7 +231,9 @@ class TCPListener : public ESocket::ThreadPrivate {
 
 		std::ofstream fileWrite;                        /* file handler to write into file */
 		std::ifstream fileRead;                         /* file handler to read from file */
-		int32_t read_bytes_track = 0;                  /* varible to track number of bytes read from the file */
+                uint8_t writeBuf[SEND_BUF_SIZE];                /* buffer to write in file */
+                uint8_t readBuf[SEND_BUF_SIZE];                 /* buffer to read from file */
+                uint8_t payloadBuf[SEND_BUF_SIZE];              /* buffer to read payload */
 
 		std::vector<std::string> fileVect;              /* Vector to store file names */
 		std::vector<std::string>::iterator vecIter;     /* Iterator for vector */
@@ -232,7 +242,7 @@ class TCPListener : public ESocket::ThreadPrivate {
 		int16_t entry_cnt = 0;                         /* Numb of packets write into the file */
 		int16_t pkt_cnt = 0;                           /* Actual number of packets sent vs written into the file */
 
-		std::atomic<bool> legacy_conn;		/* flag to indicate connection status with legacy Df */
+		std::atomic<bool> legacy_conn;			/* flag to indicate connection status with legacy Df */
 		bool serveNextFile = 0;
 
 		bool timer_flag = 0;                            /* flag to use same timer for re-connecting as \
@@ -240,6 +250,7 @@ class TCPListener : public ESocket::ThreadPrivate {
 		
 		bool pending_data_flag = 0;                     /* Flag to indicate there is backlog to be send to legacy DF */
 		int32_t send_bytes_track = 0;                  /* variable to track numb of bytes read from backlog to be sent to legacy DF*/
+		int32_t read_bytes_track = 0;                  /* varible to track number of bytes read from the file */
 
 		std::string file_name;                          /* Name of the current file in which packets ar being written/read from */
 		std::string msgCntr_file_name;			/* Name of fle which msg counter is reffering */

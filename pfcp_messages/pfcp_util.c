@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,12 +23,12 @@
 #include <rte_lcore.h>
 #include <rte_hash_crc.h>
 
+#include "li_interface.h"
+#include "gw_adapter.h"
 #include "pfcp_enum.h"
 #include "pfcp_util.h"
 #include "pfcp_set_ie.h"
 #include "pfcp_messages.h"
-#include "gw_adapter.h"
-#include "clogger.h"
 #include "../cp_dp_api/tcp_client.h"
 #include "pfcp_messages_decoder.h"
 
@@ -43,14 +44,301 @@
 #endif /* CP_BUILD */
 
 extern int pfcp_fd;
-extern int ddf2_fd;
+extern int pfcp_fd_v6;
+extern void *ddf2_fd;
 
-struct rte_hash *node_id_hash;
 struct rte_hash *heartbeat_recovery_hash;
 struct rte_hash *associated_upf_hash;
+extern int clSystemLog;
 
 #ifdef CP_BUILD
-extern pfcp_config_t pfcp_config;
+extern pfcp_config_t config;
+
+/**
+ * @brief  : free canonical result list
+ * @param  : result , result list
+ * @param  : res_count , total entries in result
+ * @return : Returns nothing
+ */
+static void
+free_canonical_result_list(canonical_result_t *result, uint8_t res_count) {
+	clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Free DNS canonical result list :: SART \n", LOG_VALUE);
+	clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"DNS result count: %d \n", LOG_VALUE,
+			res_count);
+	for (uint8_t itr = 0; itr < res_count; itr++) {
+
+		if (result[itr].host1_info.ipv4_hosts != NULL) {
+			for (uint8_t itr1 = 0; itr1 < result[itr].host1_info.ipv4host_count; itr1++) {
+				if (result[itr].host1_info.ipv4_hosts[itr1] != NULL) {
+					free(result[itr].host1_info.ipv4_hosts[itr1]);
+					result[itr].host1_info.ipv4_hosts[itr1] = NULL;
+				}
+			}
+			free(result[itr].host1_info.ipv4_hosts);
+			result[itr].host1_info.ipv4_hosts = NULL;
+		}
+
+		if (result[itr].host1_info.ipv6_hosts != NULL) {
+			for (uint8_t itr2 = 0; itr2 < result[itr].host1_info.ipv6host_count; itr2++) {
+				if (result[itr].host1_info.ipv6_hosts[itr2] != NULL) {
+					free(result[itr].host1_info.ipv6_hosts[itr2]);
+					result[itr].host1_info.ipv6_hosts[itr2] = NULL;
+				}
+			}
+			free(result[itr].host1_info.ipv6_hosts);
+			result[itr].host1_info.ipv6_hosts = NULL;
+		}
+
+		if (result[itr].host2_info.ipv4_hosts != NULL) {
+			for (uint8_t itr3 = 0; itr3 < result[itr].host2_info.ipv4host_count; itr3++) {
+				if (result[itr].host2_info.ipv4_hosts[itr3] != NULL) {
+					free(result[itr].host2_info.ipv4_hosts[itr3]);
+					result[itr].host2_info.ipv4_hosts[itr3] = NULL;
+				}
+			}
+			free(result[itr].host2_info.ipv4_hosts);
+			result[itr].host2_info.ipv4_hosts = NULL;
+		}
+
+		if (result[itr].host2_info.ipv6_hosts != NULL) {
+			for (uint8_t itr4 = 0; itr4 < result[itr].host2_info.ipv6host_count; itr4++) {
+				if (result[itr].host2_info.ipv6_hosts[itr4] != NULL) {
+					free(result[itr].host2_info.ipv6_hosts[itr4]);
+					result[itr].host2_info.ipv6_hosts[itr4] = NULL;
+				}
+			}
+			free(result[itr].host2_info.ipv6_hosts);
+			result[itr].host2_info.ipv6_hosts = NULL;
+		}
+	}
+
+	clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Free DNS canonical result list :: END \n", LOG_VALUE);
+
+}
+
+/**
+ * @brief  : free DNS result list
+ * @param  : result , result list
+ * @param  : res_count , total entries in result
+ * @return : Returns nothing
+ */
+static void
+free_dns_result_list(dns_query_result_t *res, uint8_t res_count) {
+
+	clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"Free DNS result list :: SART \n", LOG_VALUE);
+	clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"DNS result count: %d \n", LOG_VALUE,
+			res_count);
+	for (uint8_t itr = 0; itr < res_count; itr++) {
+		clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"IPV4 DNS result count: %d \n", LOG_VALUE,
+				res[itr].ipv4host_count);
+
+		if (res[itr].ipv4_hosts != NULL) {
+			for (uint8_t itr1 = 0; itr1 < res[itr].ipv4host_count; itr1++) {
+				if (res[itr].ipv4_hosts[itr1] != NULL) {
+					free(res[itr].ipv4_hosts[itr1]);
+					res[itr].ipv4_hosts[itr1] = NULL;
+				}
+			}
+			free(res[itr].ipv4_hosts);
+			res[itr].ipv4_hosts = NULL;
+		}
+
+		clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"IPV6 DNS result count: %d \n", LOG_VALUE,
+				res[itr].ipv6host_count);
+		if (res[itr].ipv6_hosts != NULL) {
+			for (uint8_t itr2 = 0; itr2 < res[itr].ipv6host_count; itr2++) {
+				if (res[itr].ipv6_hosts[itr2] != NULL) {
+					free(res[itr].ipv6_hosts[itr2]);
+					res[itr].ipv6_hosts[itr2] = NULL;
+				}
+			}
+			free(res[itr].ipv6_hosts);
+			res[itr].ipv6_hosts = NULL;
+		}
+	}
+	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Free DNS result list :: END \n", LOG_VALUE);
+}
+
+static void
+add_dns_result_v6(dns_query_result_t *res, upfs_dnsres_t *upf_list,
+					uint8_t i, uint8_t *upf_v6_cnt)
+{
+
+	for (int j = 0; j < res[i].ipv6host_count; j++) {
+		int flag_added = false;
+		/* TODO:: duplicate entries should not be present in result itself */
+		if(upf_list->upf_count == 0){
+			inet_pton(AF_INET6, res[i].ipv6_hosts[j], &(upf_list->upf_ip[upf_list->upf_count].ipv6));
+			memcpy(upf_list->upf_fqdn[upf_list->upf_count], res[i].hostname,
+					strnlen((char *)res[i].hostname,MAX_HOSTNAME_LENGTH));
+			flag_added = TRUE;
+
+		}else{
+			int match_found = false;
+			for (int k = 0; k < upf_list->upf_count ; k++) {
+				struct in6_addr temp_ip6;
+
+				inet_pton(AF_INET6, res[i].ipv6_hosts[j], temp_ip6.s6_addr);
+
+				uint8_t ret = memcmp(temp_ip6.s6_addr, upf_list->upf_ip[k].ipv6.s6_addr, IPV6_ADDRESS_LEN);
+				if (!ret) {
+					break;
+				}
+			}
+
+			if(match_found == false){
+				inet_pton(AF_INET6, res[i].ipv6_hosts[j], &upf_list->upf_ip[upf_list->upf_count].ipv6);
+
+				memcpy(upf_list->upf_fqdn[upf_list->upf_count], res[i].hostname,
+						strnlen((char *)res[i].hostname,MAX_HOSTNAME_LENGTH));
+				flag_added = TRUE;
+			}
+		}
+		if(flag_added == TRUE){
+			*upf_v6_cnt += 1;
+		}
+	}
+	upf_list->upf_ip_type = PDN_TYPE_IPV6;
+}
+
+
+static void
+add_dns_result_v4(dns_query_result_t *res, upfs_dnsres_t *upf_list,
+						uint8_t i, uint8_t *upf_v4_cnt)
+{
+	for (int j = 0; j < res[i].ipv4host_count; j++) {
+		int flag_added = false;
+		/* TODO:: duplicate entries should not be present in result itself */
+		if(upf_list->upf_count == 0) {
+			inet_aton(res[i].ipv4_hosts[j],
+					&upf_list->upf_ip[upf_list->upf_count].ipv4);
+			memcpy(upf_list->upf_fqdn[upf_list->upf_count], res[i].hostname,
+					strnlen((char *)res[i].hostname,MAX_HOSTNAME_LENGTH));
+			flag_added = TRUE;
+
+		} else {
+			int match_found = false;
+			for (int k = 0; k < upf_list->upf_count ; k++) {
+				struct in_addr temp_ip;
+				inet_aton(res[i].ipv4_hosts[j],
+						&temp_ip);
+				if( temp_ip.s_addr == upf_list->upf_ip[k].ipv4.s_addr){
+					break;
+				}
+			}
+
+			if(match_found == false){
+				inet_aton(res[i].ipv4_hosts[j],
+						&upf_list->upf_ip[upf_list->upf_count].ipv4);
+				memcpy(upf_list->upf_fqdn[upf_list->upf_count], res[i].hostname,
+						strnlen((char *)res[i].hostname,MAX_HOSTNAME_LENGTH));
+				flag_added = TRUE;
+			}
+		}
+
+		if(flag_added == TRUE){
+			*upf_v4_cnt += 1;
+		}
+	}
+	upf_list->upf_ip_type = PDN_TYPE_IPV4;
+}
+
+static void
+add_canonical_result_v4(canonical_result_t *res, upfs_dnsres_t *upf_list,
+						uint8_t i, uint8_t *upf_v4_cnt)
+{
+	for (int j = 0; j < res[i].host2_info.ipv4host_count; j++) {
+		int flag_added = false;
+		/* TODO:: duplicate entries should not be present in result itself */
+		if(upf_list->upf_count == 0){
+			inet_aton(res[i].host2_info.ipv4_hosts[j],
+					&upf_list->upf_ip[upf_list->upf_count].ipv4);
+			memcpy(upf_list->upf_fqdn[upf_list->upf_count], res[i].cano_name2,
+					strnlen((char *)res[i].cano_name2,MAX_HOSTNAME_LENGTH));
+			flag_added = TRUE;
+
+		} else {
+			int match_found = false;
+			for (int k = 0; k < upf_list->upf_count ; k++) {
+				struct in_addr temp_ip;
+				inet_aton(res[i].host2_info.ipv4_hosts[j],
+						&temp_ip);
+				if( temp_ip.s_addr == upf_list->upf_ip[k].ipv4.s_addr){
+					match_found = true;
+					break;
+				}
+			}
+			if(match_found == false){
+
+				inet_aton(res[i].host2_info.ipv4_hosts[j],
+						&upf_list->upf_ip[upf_list->upf_count].ipv4);
+				memcpy(upf_list->upf_fqdn[upf_list->upf_count], res[i].cano_name2,
+						strnlen((char *)res[i].cano_name2,MAX_HOSTNAME_LENGTH));
+				flag_added = TRUE;
+			}
+		}
+
+		if(flag_added == TRUE){
+			*upf_v4_cnt += 1;
+		}
+	}
+
+	upf_list->upf_ip_type = PDN_TYPE_IPV4;
+}
+
+static void
+add_canonical_result_v6(canonical_result_t *res, upfs_dnsres_t *upf_list,
+								uint8_t i, uint8_t *upf_v6_cnt)
+{
+
+	for (int j = 0; j < res[i].host2_info.ipv6host_count; j++) {
+		int flag_added = false;
+		/* TODO:: duplicate entries should not be present in result itself */
+		if(upf_list->upf_count == 0){
+
+			inet_pton(AF_INET6, res[i].host2_info.ipv6_hosts[j],
+							&(upf_list->upf_ip[upf_list->upf_count].ipv6));
+			memcpy(upf_list->upf_fqdn[upf_list->upf_count], res[i].cano_name2,
+					strnlen((char *)res[i].cano_name2,MAX_HOSTNAME_LENGTH));
+			flag_added = TRUE;
+
+		}else{
+			int match_found = false;
+			for (int k = 0; k < upf_list->upf_count; k++) {
+
+				char ipv6[IPV6_STR_LEN];
+				inet_ntop(AF_INET6, upf_list->upf_ip[k].ipv6.s6_addr, ipv6, IPV6_ADDRESS_LEN);
+
+				uint8_t ret = strncmp(res[i].host2_info.ipv6_hosts[j], ipv6 , IPV6_ADDRESS_LEN);
+				if (!ret) {
+					match_found = true;
+					break;
+				}
+			}
+			if(match_found == false){
+
+				inet_pton(AF_INET6, res[i].host2_info.ipv6_hosts[j],
+							&upf_list->upf_ip[upf_list->upf_count].ipv6);
+				memcpy(upf_list->upf_fqdn[upf_list->upf_count], res[i].cano_name2,
+						strnlen((char *)res[i].cano_name2,MAX_HOSTNAME_LENGTH));
+				flag_added = TRUE;
+			}
+		}
+
+		if(flag_added == TRUE){
+			*upf_v6_cnt += 1;
+		}
+	}
+
+	upf_list->upf_ip_type = PDN_TYPE_IPV6;
+}
 
 /**
  * @brief  : Add canonical result entry in upflist hash
@@ -64,6 +352,7 @@ static int
 add_canonical_result_upflist_entry(canonical_result_t *res,
 		uint8_t res_count, uint64_t *imsi_val, uint16_t imsi_len)
 {
+	uint8_t count = 0;;
 	upfs_dnsres_t *upf_list = rte_zmalloc_socket(NULL,
 			sizeof(upfs_dnsres_t),
 			RTE_CACHE_LINE_SIZE, rte_socket_id());
@@ -71,59 +360,46 @@ add_canonical_result_upflist_entry(canonical_result_t *res,
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to allocate "
 			"memory for UPF list, Error : %s\n", LOG_VALUE,
 			rte_strerror(rte_errno));
+		free_canonical_result_list(res, res_count);
 		return -1;
 	}
-	uint8_t upf_count = 0;
 
-	for (int i = 0; (upf_count < res_count) && (i < QUERY_RESULT_COUNT);i++) {
-		for (int j = 0; j < res[i].host2_info.ipv4host_count; j++) {
-			int flag_added = false;
-			/* TODO:: duplicate entries should not be present in result itself */
-			if(upf_count == 0){
-				inet_aton(res[i].host2_info.ipv4_hosts[j],
-						&upf_list->upf_ip[upf_count]);
-				memcpy(upf_list->upf_fqdn[upf_count], res[i].cano_name2,
-						strnlen((char *)res[i].cano_name2,MAX_HOSTNAME_LENGTH));
-				flag_added = TRUE;
+	for (int i = 0; (upf_list->upf_count < res_count) && (i < QUERY_RESULT_COUNT); i++) {
+		uint8_t upf_v4_cnt = 0, upf_v6_cnt = 0;
 
-			}else{
-				int match_found = false;
-				for (int k = 0; k < upf_count ; k++) {
-					struct in_addr temp_ip;
-					inet_aton(res[i].host2_info.ipv4_hosts[j],
-							&temp_ip);
-					if( temp_ip.s_addr == upf_list->upf_ip[k].s_addr){
-						match_found = True;
-						break;
-					}
-				}
-				if(match_found == false){
-
-					inet_aton(res[i].host2_info.ipv4_hosts[j],
-							&upf_list->upf_ip[upf_count]);
-					memcpy(upf_list->upf_fqdn[upf_count], res[i].cano_name2,
-							strnlen((char *)res[i].cano_name2,MAX_HOSTNAME_LENGTH));
-					flag_added = TRUE;
-				}
-			}
-
-			if(flag_added == TRUE){
-				upf_count++;
-			}
+		if (res[i].host2_info.ipv6host_count == 0
+				&& res[i].host2_info.ipv4host_count == 0) {
+			count += 1;
+			continue;
 		}
+
+		if (res[i].host2_info.ipv6host_count) {
+
+			add_canonical_result_v6(res, upf_list, count, &upf_v6_cnt);
+		}
+
+		if (res[i].host2_info.ipv4host_count) {
+
+			add_canonical_result_v4(res, upf_list, count, &upf_v4_cnt);
+
+		}
+		count += 1;
+
+		if (upf_v4_cnt != 0 || upf_v6_cnt != 0)
+			upf_list->upf_count += 1;
 	}
 
-	if (upf_count == 0) {
+	if (upf_list->upf_count == 0) {
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT "Could not get collocated "
 			"candidate list.\n", LOG_VALUE);
 		return 0;
 	}
 
-	upf_list->upf_count = upf_count;
-
 	upflist_by_ue_hash_entry_add(imsi_val, imsi_len, upf_list);
 
-	return upf_count;
+	free_canonical_result_list(res, res_count);
+
+	return upf_list->upf_count;
 }
 
 /**
@@ -138,6 +414,7 @@ static int
 add_dns_result_upflist_entry(dns_query_result_t *res,
 		uint8_t res_count, uint64_t *imsi_val, uint16_t imsi_len)
 {
+	uint8_t count = 0;
 	upfs_dnsres_t *upf_list = NULL;
 	int ret = rte_hash_lookup_data(upflist_by_ue_hash, &imsi_val,
 		(void**)&upf_list);
@@ -153,62 +430,47 @@ add_dns_result_upflist_entry(dns_query_result_t *res,
 			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to allocate "
 				"memory for UPF list, Error : %s\n", LOG_VALUE,
 				rte_strerror(rte_errno));
+			free_dns_result_list(res, res_count);
 			return -1;
 		}
 	}
 
-	uint8_t upf_count = 0;
+	for (int i = 0; (upf_list->upf_count < res_count) && (i < QUERY_RESULT_COUNT); i++) {
 
-	for (int i = 0; (upf_count < res_count) && (i < QUERY_RESULT_COUNT); i++) {
-		for (int j = 0; j < res[i].ipv4host_count; j++) {
-			int flag_added = false;
-			/* TODO:: duplicate entries should not be present in result itself */
-			if(upf_count == 0){
-				inet_aton(res[i].ipv4_hosts[j],
-						&upf_list->upf_ip[upf_count]);
-				memcpy(upf_list->upf_fqdn[upf_count], res[i].hostname,
-						strnlen((char *)res[i].hostname,MAX_HOSTNAME_LENGTH));
-				flag_added = TRUE;
-
-			}else{
-				int match_found = false;
-				for (int k = 0; k < upf_count ; k++) {
-					struct in_addr temp_ip;
-					inet_aton(res[i].ipv4_hosts[j],
-							&temp_ip);
-					if( temp_ip.s_addr == upf_list->upf_ip[k].s_addr){
-						break;
-					}
-				}
-
-				if(match_found == false){
-					inet_aton(res[i].ipv4_hosts[j],
-							&upf_list->upf_ip[upf_count]);
-					memcpy(upf_list->upf_fqdn[upf_count], res[i].hostname,
-							strnlen((char *)res[i].hostname,MAX_HOSTNAME_LENGTH));
-					flag_added = TRUE;
-				}
-			}
-
-			if(flag_added == TRUE){
-				upf_count++;
-			}
+		uint8_t upf_v4_cnt = 0, upf_v6_cnt = 0;
+		if (res[i].ipv6host_count == 0
+				&& res[i].ipv4host_count == 0) {
+			count += 1;
+			continue;
 		}
+
+		if (res[i].ipv6host_count) {
+
+			add_dns_result_v6(res, upf_list, count, &upf_v6_cnt);
+		}
+
+		if (res[i].ipv4host_count) {
+
+			add_dns_result_v4(res, upf_list, count, &upf_v4_cnt);
+
+		}
+
+		count += 1;
+
+		if (upf_v4_cnt != 0 || upf_v6_cnt != 0)
+			upf_list->upf_count += 1;
 	}
 
-	if (upf_count == 0) {
+	if (upf_list->upf_count == 0) {
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT "Could not get SGW-U "
 			"list using DNS query \n", LOG_VALUE);
 		return 0;
 	}
 
-	upf_list->upf_count = upf_count;
-
 	upflist_by_ue_hash_entry_add(imsi_val, imsi_len, upf_list);
 
-	return upf_count;
+	return upf_list->upf_count;
 }
-
 
 /**
  * @brief  : Record entries for failed enodeb
@@ -315,7 +577,7 @@ send_tac_dns_query(pdn_connection *pdn) {
 
 	snprintf(lb, LB_HB_LEN,  "%u", ctxt->uli.tai2.tai_tac & 0xFF);
 	snprintf(hb, LB_HB_LEN, "%u", (ctxt->uli.tai2.tai_tac >> 8) & 0xFF);
-	cb_user_data = rte_zmalloc_socket(NULL, sizeof(cb_user_data),
+	cb_user_data = rte_zmalloc_socket(NULL, sizeof(dns_cb_userdata_t),
 			RTE_CACHE_LINE_SIZE, rte_socket_id());
 	if (cb_user_data == NULL) {
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to allocate "
@@ -325,12 +587,13 @@ send_tac_dns_query(pdn_connection *pdn) {
 	}
 
 	void *sgwupf_node_sel = init_sgwupf_node_selector(lb, hb, mnc, mcc);
-	set_desired_proto(sgwupf_node_sel, SGWUPFNODESELECTOR, UPF_X_SXA);
+	set_desired_proto(sgwupf_node_sel, UPF_X_SXA);
 
 	set_ue_cap_ue_uses(sgwupf_node_sel, pdn);
 
 	cb_user_data->cb = dns_callback;
 	cb_user_data->data = pdn;
+	cb_user_data->obj_type = SGWUPFNODESELECTOR;
 
 	process_dnsreq_async(sgwupf_node_sel, cb_user_data);
 
@@ -392,6 +655,7 @@ set_dns_resp_status(pdn_connection *pdn, void *node_sel)
 			{
 				/* enB base query response received */
 				pdn->dns_query_domain |= ENODEB_BASE_QUERY;
+				pdn->enb_query_flag = ENODEB_BASE_QUERY;
 				break;
 			}
 		case SGWUPFNODESELECTOR:
@@ -403,10 +667,11 @@ set_dns_resp_status(pdn_connection *pdn, void *node_sel)
 	}
 }
 
+
 int dns_callback(void *node_sel, void *data, void *user_data)
 {
-	uint16_t res_count = 0;
-	upfs_dnsres_t *entry = NULL;
+	uint16_t res_count = 0,canonical_res_count = 0;
+	int ret = 0;
 	pdn_connection *pdn = NULL;
 	ue_context *ctxt = NULL;
 
@@ -427,18 +692,21 @@ int dns_callback(void *node_sel, void *data, void *user_data)
 
 	get_dns_query_res(node_sel, res_list, &res_count);
 	if ((res_count == 0) &&
-			((pdn->dns_query_domain & ENODEB_BASE_QUERY) == ENODEB_BASE_QUERY)) {
+			((pdn->enb_query_flag & ENODEB_BASE_QUERY) == ENODEB_BASE_QUERY)) {
 		/*
 		 * If in Enode base DNS query response doesn't find any UPF address
 		 * then we sent tac base DNS query
 		 */
 		/* reseting enB base query bit */
 		pdn->dns_query_domain &= (1 << ENODEB_BASE_QUERY);
+		pdn->enb_query_flag &= (1 << ENODEB_BASE_QUERY);
 		deinit_node_selector(node_sel);
 		if (send_tac_dns_query(pdn) < 0) {
 			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT
 					"ERROR : while sending TAC base DNS query \n", LOG_VALUE);
-			send_error_resp(pdn, GTPV2C_CAUSE_REQUEST_REJECTED);
+			if (ctxt->s11_sgw_gtpc_teid != 0) {
+				send_error_resp(pdn, GTPV2C_CAUSE_REQUEST_REJECTED);
+			}
 			return 0;
 		}
 		return 0;
@@ -459,7 +727,8 @@ int dns_callback(void *node_sel, void *data, void *user_data)
 	}
 	if (ctxt->cp_mode == PGWC) {
 		if (get_upf_list(node_sel, pdn) <= 0) {
-
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT
+					"Could not get UPF list using DNS query \n", LOG_VALUE);
 			send_error_resp(pdn, GTPV2C_CAUSE_REQUEST_REJECTED);
 			return 0;
 		}
@@ -471,8 +740,8 @@ int dns_callback(void *node_sel, void *data, void *user_data)
 				&& ((pdn->dns_query_domain & APN_BASE_QUERY) == APN_BASE_QUERY)) {
 
 			canonical_result_t result[QUERY_RESULT_COUNT] = {0};
-			res_count = get_colocated_candlist(pdn->node_sel, node_sel, result);
-			if (res_count == 0) {
+			canonical_res_count = get_colocated_candlist(pdn->node_sel, node_sel, result);
+			if (canonical_res_count == 0) {
 				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT
 						"Could not get collocated candidate list. \n", LOG_VALUE);
 				deinit_node_selector(node_sel);
@@ -480,9 +749,9 @@ int dns_callback(void *node_sel, void *data, void *user_data)
 				send_error_resp(pdn, GTPV2C_CAUSE_REQUEST_REJECTED);
 				return 0;
 			}
-			res_count = add_canonical_result_upflist_entry(result, res_count,
+			ret = add_canonical_result_upflist_entry(result, canonical_res_count,
 					&ctxt->imsi, sizeof(ctxt->imsi));
-			if (res_count == 0) {
+			if (ret <= 0) {
 				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT
 						"Failed to add collocated candidate list. \n", LOG_VALUE);
 				deinit_node_selector(node_sel);
@@ -495,23 +764,43 @@ int dns_callback(void *node_sel, void *data, void *user_data)
 			pdn->node_sel = NULL;
 		} else if (pdn != NULL && pdn->node_sel == NULL) {
 			pdn->node_sel = node_sel;
+			/* Reset eNB query flag, if eNB query resp received */
+			if(pdn->enb_query_flag == ENODEB_BASE_QUERY) {
+				pdn->enb_query_flag &= (1 << ENODEB_BASE_QUERY);
+			}
+
+			if (res_count != 0) {
+				free_dns_result_list(res_list, res_count);
+			}
 			return 0;
 		}
 	} else {
-		add_dns_result_upflist_entry(res_list, res_count,
+		ret = add_dns_result_upflist_entry(res_list, res_count,
 				&ctxt->imsi, sizeof(ctxt->imsi));
+		if (ret <= 0) {
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT
+					"Failed to add UFP list entry. \n", LOG_VALUE);
+			deinit_node_selector(node_sel);
+			send_error_resp(pdn, GTPV2C_CAUSE_REQUEST_REJECTED);
+			return 0;
+		}
 	}
 
-	if (pdn->upf_ipv4.s_addr == 0 ) {
-		get_upf_ip(pdn->context, &entry, &pdn->upf_ipv4.s_addr);
-		if (entry != NULL) {
-			memcpy(pdn->fqdn, entry->upf_fqdn[entry->current_upf],
-					sizeof(entry->upf_fqdn[entry->current_upf]));
-			clLog(clSystemLog, eCLSeverityDebug,
-					LOG_FORMAT"sgwu ip address %s \n", LOG_VALUE, inet_ntoa(pdn->upf_ipv4));
+	/*Check If UPF IP is already set or not*/
+	if (pdn->upf_ip.ip_type == 0) {
 
+		uint8_t ret = get_upf_ip(pdn->context, pdn);
+		if (!ret)
 			process_pfcp_sess_setup(pdn);
+		else {
+			clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Failed to extract UPF IP\n", LOG_VALUE);
+			send_error_resp(pdn, ret);
 		}
+	}
+
+	if (res_count != 0) {
+		free_dns_result_list(res_list, res_count);
 	}
 	pdn->dns_query_domain = NO_DNS_QUERY;
 	deinit_node_selector(node_sel);
@@ -528,7 +817,7 @@ push_dns_query(pdn_connection *pdn) {
 	char mcc[MCC_MNC_LEN] = {0};
 	uint32_t enbid = 0;
 	ue_context *ctxt = NULL;
-	if(pfcp_config.use_dns) {
+	if(config.use_dns) {
 		dns_cb_userdata_t *cb_user_data = NULL;
 
 		/* Retrive the UE context */
@@ -546,7 +835,7 @@ push_dns_query(pdn_connection *pdn) {
 
 		if (pdn->context->cp_mode == SGWC || pdn->context->cp_mode == SAEGWC) {
 
-			cb_user_data = rte_zmalloc_socket(NULL, sizeof(cb_user_data),
+			cb_user_data = rte_zmalloc_socket(NULL, sizeof(dns_cb_userdata_t),
 					RTE_CACHE_LINE_SIZE, rte_socket_id());
 			if (cb_user_data == NULL) {
 				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failure to "
@@ -556,11 +845,12 @@ push_dns_query(pdn_connection *pdn) {
 			}
 
 			void *sgwupf_node_sel = init_enbupf_node_selector(enodeb, mnc, mcc);
-			set_desired_proto(sgwupf_node_sel, ENBUPFNODESELECTOR, UPF_X_SXA);
+			set_desired_proto(sgwupf_node_sel, UPF_X_SXA);
 			set_ue_cap_ue_uses(sgwupf_node_sel, pdn);
 
 			cb_user_data->cb = dns_callback;
 			cb_user_data->data = pdn;
+			cb_user_data->obj_type = ENBUPFNODESELECTOR;
 
 			process_dnsreq_async(sgwupf_node_sel, cb_user_data);
 		}
@@ -570,7 +860,7 @@ push_dns_query(pdn_connection *pdn) {
 						LOG_VALUE);
 				return 0;
 			}
-			cb_user_data = rte_zmalloc_socket(NULL, sizeof(cb_user_data),
+			cb_user_data = rte_zmalloc_socket(NULL, sizeof(dns_cb_userdata_t),
 					RTE_CACHE_LINE_SIZE, rte_socket_id());
 			if (cb_user_data == NULL) {
 				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failure to "
@@ -584,11 +874,12 @@ push_dns_query(pdn_connection *pdn) {
 
 			void *pgwupf_node_sel = init_pgwupf_node_selector(apn_name, mnc, mcc);
 
-			set_desired_proto(pgwupf_node_sel, PGWUPFNODESELECTOR, UPF_X_SXB);
+			set_desired_proto(pgwupf_node_sel, UPF_X_SXB);
 			set_ue_cap_ue_uses(pgwupf_node_sel, pdn);
 
 			cb_user_data->cb = dns_callback;
 			cb_user_data->data = pdn;
+			cb_user_data->obj_type = PGWUPFNODESELECTOR;
 
 			process_dnsreq_async(pgwupf_node_sel, cb_user_data);
 
@@ -599,13 +890,39 @@ push_dns_query(pdn_connection *pdn) {
 }
 
 int
-pfcp_recv(void *msg_payload, uint32_t size,
-		struct sockaddr_in *peer_addr)
+pfcp_recv(void *msg_payload, uint32_t size, peer_addr_t *peer_addr, bool is_ipv6)
 {
-	socklen_t addr_len = sizeof(*peer_addr);
-	uint32_t bytes;
-	bytes = recvfrom(pfcp_fd, msg_payload, size, 0,
-			(struct sockaddr *)peer_addr, &addr_len);
+	socklen_t v4_addr_len = sizeof(peer_addr->ipv4);
+	socklen_t v6_addr_len = sizeof(peer_addr->ipv6);
+	int bytes = 0;
+
+	if (!is_ipv6 ) {
+
+		bytes = recvfrom(pfcp_fd, msg_payload, size,
+					MSG_DONTWAIT, (struct sockaddr *) &peer_addr->ipv4,
+					&v4_addr_len);
+
+		peer_addr->type |= PDN_TYPE_IPV4;
+		clLog(clSystemLog, eCLSeverityDebug, "pfcp received %d bytes "
+				"with IPv4 Address", bytes);
+
+	} else {
+
+		bytes = recvfrom(pfcp_fd_v6, msg_payload, size,
+						MSG_DONTWAIT, (struct sockaddr *) &peer_addr->ipv6,
+						&v6_addr_len);
+
+		peer_addr->type |= PDN_TYPE_IPV6;
+		clLog(clSystemLog, eCLSeverityDebug, "pfcp received %d bytes "
+				"with IPv6 Address", bytes);
+
+	}
+
+	if(bytes == 0){
+		clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"Error Receving on PFCP Sock ",LOG_VALUE);
+	}
+
 	return bytes;
 }
 #endif /* CP_BUILD */
@@ -636,30 +953,63 @@ static uint64_t get_seid(void *msg_payload){
 }
 
 int
-pfcp_send(int fd, void *msg_payload, uint32_t size,
-		struct sockaddr_in *peer_addr,Dir dir)
+pfcp_send(int fd_v4, int fd_v6, void *msg_payload, uint32_t size,
+								peer_addr_t peer_addr, Dir dir)
 {
 
-	struct sockaddr_in *sin = (struct sockaddr_in *) peer_addr;
 	pfcp_header_t *head = (pfcp_header_t *)msg_payload;
+	int bytes = 0;
 
-	socklen_t addr_len = sizeof(*peer_addr);
-	uint32_t bytes = sendto(fd,
-			(uint8_t *) msg_payload,
-			size,
-			MSG_DONTWAIT,
-			(struct sockaddr *)peer_addr,
-			addr_len);
+	if (peer_addr.type == PDN_TYPE_IPV4) {
 
-	update_cli_stats(sin->sin_addr.s_addr, head->message_type, dir,SX);
+		if(fd_v4 <= 0) {
+
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"PFCP send is "
+				"not possible due to incompatiable IP Type at "
+				"Source and Destination\n", LOG_VALUE);
+			return 0;
+		}
+
+		bytes = sendto(fd_v4, (uint8_t *) msg_payload, size, MSG_DONTWAIT,
+		(struct sockaddr *) &peer_addr.ipv4, sizeof(peer_addr.ipv4));
+
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"NGIC- main.c::pfcp_send()"
+			"\n\tpfcp_fd_v4= %d, payload_length= %d ,Direction= %d, tx bytes= %d\n",
+			LOG_VALUE, fd_v4, size, dir, bytes);
+
+	} else if (peer_addr.type == PDN_TYPE_IPV6) {
+
+		if(fd_v6 <= 0) {
+
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"PFCP send is "
+				"not possible due to incompatiable IP Type at "
+				"Source and Destination\n", LOG_VALUE);
+			return 0;
+		}
+
+		bytes = sendto(fd_v6, (uint8_t *) msg_payload, size, MSG_DONTWAIT,
+		(struct sockaddr *) &peer_addr.ipv6, sizeof(peer_addr.ipv6));
+
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"NGIC- main.c::pfcp_send()"
+			"\n\tpfcp_fd_v6= %d, payload_length= %d ,Direction= %d, tx bytes= %d\n",
+			LOG_VALUE, fd_v6, size, dir, bytes);
+
+	} else {
+
+			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT" Socket Type "
+				"is not set for sending message over PFCP interface ",
+				LOG_VALUE);
+	}
+
+	update_cli_stats((peer_address_t *) &peer_addr, head->message_type, dir, SX);
 
 	#ifdef CP_BUILD
 	uint64_t sess_id = get_seid(msg_payload);
 	process_cp_li_msg(sess_id, SX_INTFC_OUT, msg_payload, size,
-			ntohl(pfcp_config.pfcp_ip.s_addr), peer_addr->sin_addr.s_addr,
-			pfcp_config.pfcp_port, ntohs(peer_addr->sin_port));
+			fill_ip_info(peer_addr.type, config.pfcp_ip.s_addr, config.pfcp_ip_v6.s6_addr),
+			fill_ip_info(peer_addr.type, peer_addr.ipv4.sin_addr.s_addr, peer_addr.ipv6.sin6_addr.s6_addr),
+			config.pfcp_port, ntohs(peer_addr.ipv4.sin_port));
 	#endif
-
 
 	return bytes;
 }
@@ -678,34 +1028,12 @@ uptime(void)
 }
 
 void
-create_node_id_hash(void)
-{
-
-	struct rte_hash_parameters rte_hash_params = {
-		.name = "node_id_hash",
-		.entries = LDB_ENTRIES_DEFAULT,
-		.key_len = sizeof(uint32_t),
-		.hash_func = rte_hash_crc,
-		.hash_func_init_val = 0,
-		.socket_id = rte_socket_id()
-	};
-
-	node_id_hash = rte_hash_create(&rte_hash_params);
-	if (!node_id_hash) {
-		rte_panic("%s hash create failed: %s (%u)\n.",
-				rte_hash_params.name,
-				rte_strerror(rte_errno), rte_errno);
-	}
-
-}
-
-void
 create_heartbeat_hash_table(void)
 {
 	struct rte_hash_parameters rte_hash_params = {
 		.name = "RECOVERY_TIME_HASH",
 		.entries = HEARTBEAT_ASSOCIATION_ENTRIES_DEFAULT,
-		.key_len = sizeof(uint32_t),
+		.key_len = sizeof(node_address_t),
 		.hash_func = rte_hash_crc,
 		.hash_func_init_val = 0,
 		.socket_id = rte_socket_id()
@@ -820,6 +1148,63 @@ validate_Subnet(uint32_t addr, uint32_t net_init, uint32_t net_end)
 	return 0;
 }
 
+/* TODO: Convert this func into inline func */
+/* VS: Validate the IPv6 Address is in the subnet or not */
+int
+validate_ipv6_network(struct in6_addr addr,
+		struct in6_addr local_addr, uint8_t local_prefix)
+{
+	uint8_t match = 0;
+	for (uint8_t inx = 0; inx < local_prefix/8; inx++) {
+		/* Compare IPv6 Address Hexstat by Hexstat */
+		if (!memcmp(&addr.s6_addr[inx], &local_addr.s6_addr[inx],
+					sizeof(addr.s6_addr[inx]))) {
+			/* If Hexstat match */
+			match = 1;
+		} else {
+			/* If Hexstat is NOT match */
+			match = 0;
+			break;
+		}
+	}
+
+	if (match) {
+		/* IPv6 Address is in the same network range */
+		clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"IPv6 Addr "IPv6_FMT" is in the network\n",
+				LOG_VALUE, IPv6_PRINT(addr));
+		return 1;
+	}
+
+	/* IPv6 Address is not in the network range */
+	clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"IPv6 Addr "IPv6_FMT" is NOT in the network\n",
+			LOG_VALUE, IPv6_PRINT(addr));
+	return 0;
+}
+
+/**
+ * @brief  : Retrieve the IPv6 Network Prefix Address
+ * @param  : local_addr, Compare Network ID
+ * @param  : local_prefix, Network bits
+ * @return : Returns Prefix
+ * */
+struct in6_addr
+retrieve_ipv6_prefix(struct in6_addr addr, uint8_t local_prefix)
+{
+	struct in6_addr tmp = {0};
+	for (uint8_t inx = 0; inx < local_prefix/8; inx++) {
+		tmp.s6_addr[inx] = addr.s6_addr[inx];
+	}
+
+	/* IPv6 Address is not in the network range */
+	clLog(clSystemLog, eCLSeverityDebug,
+			LOG_FORMAT"IPv6 Network Prefix "IPv6_FMT" and Prefix len:%u\n",
+			LOG_VALUE, IPv6_PRINT(tmp), local_prefix);
+
+	return tmp;
+}
+
 #ifdef CP_BUILD
 uint8_t
 is_li_enabled(li_data_t *li_data, uint8_t intfc_name, uint8_t cp_type) {
@@ -919,7 +1304,7 @@ is_li_enabled_using_imsi(uint64_t uiImsi, uint8_t intfc_name, uint8_t cp_type) {
 
 int
 process_pkt_for_li(ue_context *context, uint8_t intfc_name, uint8_t *buf_tx,
-		int buf_tx_size, uint32_t uiSrcIp, uint32_t uiDstIp, uint16_t uiSrcPort,
+		int buf_tx_size, struct ip_addr srcIp, struct ip_addr dstIp, uint16_t uiSrcPort,
 		uint16_t uiDstPort) {
 
 	int8_t ret = 0;
@@ -946,7 +1331,7 @@ process_pkt_for_li(ue_context *context, uint8_t intfc_name, uint8_t *buf_tx,
 			memcpy(pkt, buf_tx, pkt_length);
 
 			ret = create_li_header(pkt, &pkt_length, EVENT_BASED,
-					context->li_data[cnt].id, context->imsi, uiSrcIp, uiDstIp,
+					context->li_data[cnt].id, context->imsi, srcIp, dstIp,
 					uiSrcPort, uiDstPort, context->li_data[cnt].forward);
 			if (ret < 0) {
 
@@ -976,7 +1361,7 @@ process_pkt_for_li(ue_context *context, uint8_t intfc_name, uint8_t *buf_tx,
 
 int
 process_cp_li_msg(uint64_t sess_id, uint8_t intfc_name, uint8_t *buf_tx,
-		int buf_tx_size, uint32_t uiSrcIp, uint32_t uiDstIp, uint16_t uiSrcPort,
+		int buf_tx_size, struct ip_addr srcIp, struct ip_addr dstIp, uint16_t uiSrcPort,
 		uint16_t uiDstPort) {
 
 	int8_t ret = 0;
@@ -1004,8 +1389,8 @@ process_cp_li_msg(uint64_t sess_id, uint8_t intfc_name, uint8_t *buf_tx,
 	}
 
 	if (PRESENT == context->dupl) {
-		process_pkt_for_li(context, intfc_name, buf_tx, buf_tx_size, uiSrcIp,
-				uiDstIp, uiSrcPort, uiDstPort);
+		process_pkt_for_li(context, intfc_name, buf_tx, buf_tx_size, srcIp,
+				dstIp, uiSrcPort, uiDstPort);
 	}
 
 	return 0;
@@ -1013,7 +1398,7 @@ process_cp_li_msg(uint64_t sess_id, uint8_t intfc_name, uint8_t *buf_tx,
 
 int
 process_msg_for_li(ue_context *context, uint8_t intfc_name, msg_info *msg,
-		uint32_t uiSrcIp, uint32_t uiDstIp, uint16_t uiSrcPort, uint16_t uiDstPort) {
+		struct ip_addr srcIp, struct ip_addr dstIp, uint16_t uiSrcPort, uint16_t uiDstPort) {
 
 	int buf_tx_size = 0;
 	gtpv2c_header_t *header;
@@ -1033,8 +1418,8 @@ process_msg_for_li(ue_context *context, uint8_t intfc_name, msg_info *msg,
 	header->gtpc.message_len = htons(buf_tx_size);
 
 	if (PRESENT == context->dupl) {
-		process_pkt_for_li(context, intfc_name, buf_tx, buf_tx_size, uiSrcIp,
-				uiDstIp, uiSrcPort, uiDstPort);
+		process_pkt_for_li(context, intfc_name, buf_tx, buf_tx_size, srcIp,
+				dstIp, uiSrcPort, uiDstPort);
 	}
 
 	return 0;
@@ -1042,7 +1427,7 @@ process_msg_for_li(ue_context *context, uint8_t intfc_name, msg_info *msg,
 
 int
 process_cp_li_msg_for_cleanup(li_data_t *li_data, uint8_t uiLiDataCntr, uint8_t intfc_name,
-		uint8_t *buf_tx, int buf_tx_size, uint32_t uiSrcIp, uint32_t uiDstIp, uint16_t uiSrcPort,
+		uint8_t *buf_tx, int buf_tx_size, struct ip_addr srcIp, struct ip_addr dstIp, uint16_t uiSrcPort,
 		uint16_t uiDstPort, uint8_t uiCpMode, uint64_t uiImsi) {
 
 	int8_t ret = 0;
@@ -1075,7 +1460,7 @@ process_cp_li_msg_for_cleanup(li_data_t *li_data, uint8_t uiLiDataCntr, uint8_t 
 			memcpy(pkt, buf_tx, pkt_length);
 
 			ret = create_li_header(pkt, &pkt_length, EVENT_BASED,
-					li_data[cnt].id, uiImsi, uiSrcIp, uiDstIp,
+					li_data[cnt].id, uiImsi, srcIp, dstIp,
 					uiSrcPort, uiDstPort, li_data[cnt].forward);
 			if (ret < 0) {
 

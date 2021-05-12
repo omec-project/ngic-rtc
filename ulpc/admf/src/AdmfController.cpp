@@ -19,8 +19,6 @@
 
 #include "epc/emgmt.h"
 #include "elogger.h"
-#include "rapidjson/rapidjson.h"
-#include "rapidjson/document.h"
 #include "rapidjson/writer.h"
 #include "rapidjson/stringbuffer.h"
 

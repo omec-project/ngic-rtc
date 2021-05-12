@@ -26,6 +26,7 @@
 #include "AcknowledgementPost.h"
 #include "UeNotification.h"
 
+#define IPV6_MAX_LEN			16
 
 #define SEQ_ID_KEY			"sequenceId"
 #define IMSI_KEY			"imsi"

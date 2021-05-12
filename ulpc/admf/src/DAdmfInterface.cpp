@@ -126,7 +126,8 @@ DAdmfInterface :: sendRequestToDadmf(const std::string &requestUrl,
 
 	int8_t returnValue = RET_FAILURE;
 	std::string dAdmfUrl(HTTPS);
-	dAdmfUrl = dAdmfUrl + std::string(inet_ntoa(config.dadmfIp)) + COLON;
+	std::string strIp = ConvertIpForRest(config.dadmfIp);
+	dAdmfUrl = dAdmfUrl + strIp + COLON;
 	dAdmfUrl = dAdmfUrl + to_string(config.dadmfPort);
 	dAdmfUrl = dAdmfUrl + requestUrl;
 	ELogger::log(LOG_ADMF).info("Sending curl request to D_ADMF: {}", dAdmfUrl);
@@ -144,7 +145,8 @@ DAdmfInterface :: sendAckToDadmf(const std::string &requestUrl,
 
 	int8_t returnValue = RET_FAILURE;
 	std::string dAdmfUrl(HTTPS);
-	dAdmfUrl = dAdmfUrl + std::string(inet_ntoa(config.dadmfIp)) + COLON;
+	std::string strIp = ConvertIpForRest(config.dadmfIp);
+	dAdmfUrl = dAdmfUrl + strIp + COLON;
 	dAdmfUrl = dAdmfUrl + to_string(config.dadmfPort);
 	dAdmfUrl = dAdmfUrl + requestUrl;
 

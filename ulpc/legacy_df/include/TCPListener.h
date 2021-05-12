@@ -22,7 +22,7 @@
 #include "Common.h"
 #include "TCPDataProcessor.h"
 
-class DdfListener;
+class LegacyDfListener;
 class TCPDataProcessor;
 
 class TCPListener : public ESocket::ThreadPrivate {
@@ -92,9 +92,16 @@ class TCPListener : public ESocket::ThreadPrivate {
 		 *	@return	:	Returns void
 		 */
 		Void onSocketClosed(ESocket::BasePrivate *psocket);
-	
+
+		/*
+		 *	@brief	:	Function to delete instance of TCPDataProcessor
+		 *				on socket close, also tries re-connect to DF
+		 *	@param	:	psocket, socket
+		 *	@return	:	Returns void
+		 */
+		Void onSocketError(ESocket::BasePrivate *psocket);
 	private:
-		DdfListener *m_ptrListener = NULL;
+		LegacyDfListener *m_ptrListener = NULL;
 		std::list<TCPDataProcessor *> m_ptrDataProcessor;
 		std::map<std::string, pcap_dumper_t *> mapPcapDumper;
 };

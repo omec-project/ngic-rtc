@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -645,6 +646,14 @@ int
 process_update_pdn_set_req_handler(void *data, void *unused_param);
 
 /**
+ * @brief  : Handles the processing of modify bearer command
+ * @param  : arg1, data contained in message
+ * @param  : arg2, optional parameter
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+int
+process_modify_bearer_command_handler(void *data, void *unused_param);
+/**
  * @brief  : Handles the processing of pfcp session deletion response
  *           in case of context replacement message received
  * @param  : arg1, data contained in message
@@ -653,3 +662,69 @@ process_update_pdn_set_req_handler(void *data, void *unused_param);
  */
 int
 process_pfcp_sess_del_resp_context_replacement_handler(void *data, void *unused_param);
+
+/**
+ * @brief  : Handles the processing of pfcp session deletion response
+ *           in case of context replacement message received
+ * @param  : arg1, data contained in message
+ * @param  : arg2, optional parameter
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+int process_create_indir_data_frwd_req_handler(void *data, void *unused_param);
+
+
+/**
+ * @brief  : Handles the processing of delete indirect tunnel request.
+ * @param  : arg1, data contained in message
+ * @param  : arg2, optional parameter
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+int
+process_del_indirect_tunnel_req_handler(void *data, void *unused_param);
+
+/**
+ * @brief  : Handles the processing of PFCP Delete Response
+ *           for delete indirect tunnel request.
+ * @param  : arg1, data contained in message
+ * @param  : arg2, optional parameter
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+int
+process_pfcp_del_resp_del_indirect_handler(void *data, void *unused_param);
+
+/**
+ * @brief  : Handles the processing of Modify ACCESS Bearer
+ *           REQUEST  message received
+ * @param  : arg1, data contained in message
+ * @param  : arg2, optional parameter
+ * @return : Returns 0 in case of success , -1 otherwise
+ *
+ */
+int
+process_modify_access_bearer_handler(void *data, void *unused_param);
+
+/* @brief  : Handles the ddn failure indication
+ * @param  : arg1, data contained in message
+ * @param  : arg2, optional parameter
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+int
+process_ddn_failure_handler(void *data, void *unused_param);
+
+/**
+ * @brief  : Handles the session modification response after dl_buffer_duration expires
+ * @param  : arg1, data contained in message
+ * @param  : arg2, optional parameter
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+int process_sess_mod_resp_dl_buf_dur_handler(void *data, void *unused_param);
+
+/**
+ * @brief  : Handles the session modification response after ddn request failure
+ * @param  : arg1, data contained in message
+ * @param  : arg2, optional parameter
+ * @return : Returns 0 in case of success , -1 otherwise
+ */
+int
+process_sess_mod_resp_ddn_fail_handler(void *data, void *unused_param);
+

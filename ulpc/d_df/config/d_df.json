@@ -1,11 +1,12 @@
 {
 	"DdfAppliction": {
 		"NodeName" 			: 	"DDF2",
+		"DdfIp"				:	"192.168.0.43",
 		"DdfPort"			: 	8869,
-		"PcapFilePath" 		: 	"/home/ubuntu/abhishek/ddf2/",
+		"PcapFilePath" 			: 	"/home/ubuntu/ddf2/",
 		"DfIp"				: 	"192.168.0.69",
 		"DfPort"			: 	12998,
-		"StorageDirName" 	: 	"./db"
+		"StorageDirName" 		: 	"./db"
 	},
 
 	"EpcTools": {
@@ -40,7 +41,7 @@
 						},
 						{
 							"SinkType": "basic_file",
-							"LogLevel": "debug",
+							"LogLevel": "critical",
 							"Pattern": "[%Y-%m-%dT%H:%M:%S.%e] [%^__APPNAME__%$] [%n] [%^%l%$] %v",
 							"FileName": "./logs/epcinfo.basic.log",
 							"Truncate": false

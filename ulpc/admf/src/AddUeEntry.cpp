@@ -17,10 +17,14 @@
 
 #include <list>
 
+#include "epctools.h"
 #include "emgmt.h"
 #include "estats.h"
-#include "etime.h"
-#include "elogger.h"
+
+#include "rapidjson/filereadstream.h"
+#include "rapidjson/document.h"
+#include "rapidjson/prettywriter.h"
+#include "rapidjson/pointer.h"
 
 #include "AdmfApp.h"
 #include "AddUeEntry.h"

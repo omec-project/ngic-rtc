@@ -64,10 +64,27 @@ AdmfInterface :: ReleaseInstance(void)
 	}
 }
 
+std::string
+ConvertIpForRest(const std::string &strIp) {
+
+	char buf[IPV6_MAX_LEN];
+	std::string strRestFormat;
+
+	if (inet_pton(AF_INET, (const char *)strIp.c_str(), buf)) {
+		strRestFormat = strIp;
+	} else if (inet_pton(AF_INET6, (const char *)strIp.c_str(), buf)) {
+		strRestFormat = "[" + strIp + "]";
+	}
+	
+	return strRestFormat;
+}
+
 void
 AdmfInterface :: admfInit ()
 {
-	mpLadmfEp = new EManagementEndpoint(config.admfPort);
+	std::string admf_ip = ConvertIpForRest(config.admfIp);
+	Pistache::Address addr(admf_ip, config.admfPort);
+	mpLadmfEp = new EManagementEndpoint(addr);
  
 	mpAddUeEntry = new AddUeEntryPost(ELogger::log(LOG_ADMF), mApp);
 	mpLadmfEp -> registerHandler(*mpAddUeEntry);

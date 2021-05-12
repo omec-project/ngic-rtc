@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,6 +35,7 @@
 #define ECGI_EVENT_TRIGGER              27
 #define SUCCESSFUL_RESOURCE_ALLOCATION  22
 #define RESOURCE_MODIFICATION_REQUEST   23
+#define CHANGE_OF_UE_PRESENCE_IN_PRESENCE_REPORTING_AREA_REPORT 48
 
 /*The above flag will be set bit wise as
  *       * Bit 7| Bit 6 | Bit 5 | Bit 4 | Bit 3|  Bit 2|  Bit 1|  Bit 0 |

@@ -40,6 +40,7 @@
 
 #define IPV4_IE_LENGTH                                        (4)
 #define IPV6_IE_LENGTH                                        (16)
+#define DEFAULT_IPV6_MASK                                     (128)
 
 /**
  * @brief  : Partial list of cause values from 3GPP TS 29.274, Table 8.4-1 containing
@@ -81,6 +82,7 @@ enum cause_value {
 	GTPV2C_CAUSE_MULTIPLE_PDN_CONNECTIONS_FOR_APN_NOT_ALLOWED = 116
 };
 
+#define NONE_TYPE											  (0)
 #define PDN_IP_TYPE_IPV4                                      (1)
 #define PDN_IP_TYPE_IPV6                                      (2)
 #define PDN_IP_TYPE_IPV4V6                                    (3)
@@ -351,6 +353,9 @@ typedef struct bearer_tft_ie_t {
 #define TFT_SINGLE_REMOTE_PORT_TYPE				(80)
 #define TFT_IPV4_REMOTE_ADDR_TYPE				(16)
 #define TFT_IPV4_SRC_ADDR_TYPE					(17)
+#define TFT_IPV6_REMOTE_ADDR_TYPE				(32)
+#define TFT_IPV6_REMOTE_ADDR_PREFIX_LEN_TYPE				(33)
+#define TFT_IPV6_SRC_ADDR_PREFIX_LEN_TYPE					(35)
 //#define TFT_SINGLE_DEST_PORT_TYPE				(64)
 #define TFT_DEST_PORT_RANGE_TYPE				(65)
 //#define TFT_SINGLE_SRC_PORT_TYPE				(80)

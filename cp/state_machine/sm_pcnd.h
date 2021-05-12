@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,7 +45,7 @@ gtpv2c_pcnd_check(gtpv2c_header_t *gtpv2c_rx, int bytes_rx,
  */
 uint8_t
 gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
-		struct sockaddr_in *peer_addr, uint8_t uiIntFc);
+		peer_addr_t *peer_addr, uint8_t uiIntFc);
 
 /**
  * @brief  : Decode and validate pfcp messages
@@ -56,7 +57,7 @@ gtpc_pcnd_check(gtpv2c_header_t *gtpv2c_rx, msg_info *msg, int bytes_rx,
  */
 uint8_t
 pfcp_pcnd_check(uint8_t *pfcp_rx, msg_info *msg, int bytes_rx,
-		struct sockaddr_in *peer_addr);
+		peer_addr_t *peer_addr);
 
 /**
  * @brief  : Decode and validate gx messages
@@ -75,7 +76,6 @@ gx_pcnd_check(gx_msg *gx_rx, msg_info *msg);
  * @return : Returns 0 in case of success , -1 otherwise
  */
 int
-get_upf_ip(ue_context *ctxt, upfs_dnsres_t **_entry,
-		uint32_t *upf_ip);
+get_upf_ip(ue_context *ctxt, pdn_connection *pdn);
 
 #endif

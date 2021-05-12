@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +21,12 @@
 #define MAX_LIST_SIZE	    16
 #define MAX_FLOW_DESC_LEN   256
 #define RULE_NAME_LEN   	(256)
+
+#define NONE_PDN_TYPE		0
+#define PDN_TYPE_IPV4		1
+#define PDN_TYPE_IPV6		2
+#define PDN_TYPE_IPV4_IPV6	3
+
 #include "pfcp_ies.h"
 
 #define MAX_FRWD_PLCY_IDENTIFIER_LEN		255
@@ -27,8 +34,6 @@
  * li max entries per imsi. id is different per imsi
  */
 #define MAX_LI_ENTRIES_PER_UE						16
-
-
 #define URR_PER_PDR         1
 
 enum urr_measur_method {
@@ -57,6 +62,21 @@ typedef struct fteid_info_t {
 	uint8_t ipv6_address[IPV6_ADDRESS_LEN];
 	uint8_t choose_id;
 }fteid_ie_t;
+
+/**
+ * @brief  : Maintains node address type and address value
+ */
+struct node_address_t
+{
+	/* Setting IP Address type either IPv4:1 or IPv6:2 */
+	uint8_t ip_type;
+
+	/*Node Address*/
+	uint32_t ipv4_addr;
+	uint8_t ipv6_addr[IPV6_ADDRESS_LEN];
+}__attribute__((packed, aligned(RTE_CACHE_LINE_SIZE)));
+
+typedef struct node_address_t  node_address_t;
 
 /**
  * @brief  : Maintains ue ip address details
@@ -159,6 +179,7 @@ typedef struct destination_intfc_t {
  * @brief  : Maintains Outer Header Creation information
  */
 typedef struct outer_hdr_creation_info_t{
+	uint8_t  ip_type;
 	uint16_t outer_hdr_creation_desc;
 	uint32_t teid;
 	uint32_t ipv4_address;
@@ -240,7 +261,7 @@ typedef struct gate_status_info_t {
 /**
  * @brief  : Maintains mbr info
  */
-typedef struct mbr_info_t {
+typedef struct req_status_t {
 	uint64_t ul_mbr;
 	uint64_t dl_mbr;
 } mbr_t;
@@ -319,6 +340,13 @@ typedef struct suggested_buf_packets_cnt_t {
 } suggstd_buf_pckts_cnt_t;
 
 /**
+ * @brief  : Maintains DL Buffering Suggested Packets Count
+ */
+typedef struct dl_buffering_suggested_packets_cnt_t {
+	uint16_t pckt_cnt_val;
+} dl_buffering_suggested_packets_cnt_t;
+
+/**
  * @brief : Maintains measurement methods in urr
  */
 typedef struct measurement_method_t {
@@ -365,7 +393,7 @@ typedef struct time_threshold_t {
  * @brief  : Maintains far information
  */
 typedef struct far_cp_info_t {
-	//uint8_t bar_id_value;						/* BAR ID */
+	uint8_t bar_id_value;						/* BAR ID */
 	uint32_t far_id_value;						/* FAR ID */
 	uint64_t session_id;						/* Session ID */
 	ntwk_inst_t ntwk_inst;						/* Network Instance */
@@ -417,6 +445,8 @@ typedef struct pdr_cp_info_t {
 	uint8_t urr_id_count;						/* Number of URR */
 	uint8_t qer_id_count;						/* Number of QER */
 	uint8_t actvt_predef_rules_count;			/* Number of predefine rules */
+	uint8_t create_far;
+	uint8_t create_urr;
 	uint16_t rule_id;							/* PDR ID*/
 	uint32_t prcdnc_val;						/* Precedence Value*/
 	uint64_t session_id;						/* Session ID */
@@ -429,9 +459,6 @@ typedef struct pdr_cp_info_t {
 	qer qer_id[MAX_LIST_SIZE];					/* Collection of QER IDs */
 	actvt_predef_rules rules[MAX_LIST_SIZE];	/* Collection of active predefined rules */
 	char rule_name[RULE_NAME_LEN];			/* Rule name for which the PDR is created */
-	uint8_t create_far;
-	uint8_t create_urr;
-
 }pdr_t;
 
 
@@ -442,6 +469,7 @@ typedef struct bar_cp_info_t {
 	uint8_t bar_id;				/* BAR ID */
 	dnlnk_data_notif_delay_t ddn_delay;
 	suggstd_buf_pckts_cnt_t suggstd_buf_pckts_cnt;
+	dl_buffering_suggested_packets_cnt_t dl_buf_suggstd_pckts_cnt;
 }bar_t;
 
 #endif /* PFCP_STRUCT_H */

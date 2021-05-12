@@ -106,6 +106,8 @@ TCPDataProcessor::processPacket(uint8_t *buffer)
 		}
 	}
 
+	/* Sending ACK back to CP/DP */
+	sendAck(ddfPacket->header.sequenceNumber);
 
 	/* send packet to df */
 	if ((ddfPacket->header.operationMode == FORWARD_DATA) ||
@@ -135,11 +137,11 @@ TCPDataProcessor::processPacket(uint8_t *buffer)
 			std::memcpy(dfPacket->data, pktPtr, packetLength);
 
 			ELogger::log(LOG_SYSTEM).debug("{} :: Sending packet to DF details", __func__);
-			ELogger::log(LOG_SYSTEM).debug("Packet length {}", ntohl(dfPacket->packetLength));
-			ELogger::log(LOG_SYSTEM).debug("Sequence number {}", ntohl(dfPacket->header.sequenceNumber));
+			ELogger::log(LOG_SYSTEM).debug("Packet length {}", dfPacketLength);
+			ELogger::log(LOG_SYSTEM).debug("Sequence number {}", sequence_numb-1);
 			ELogger::log(LOG_SYSTEM).debug("LI identifier {}", dfPacket->header.liIdentifier);
 			ELogger::log(LOG_SYSTEM).debug("Imsi {}", dfPacket->header.imsiNumber);
-			ELogger::log(LOG_SYSTEM).debug("Data length {}", ntohl(dfPacket->header.dataLength));
+			ELogger::log(LOG_SYSTEM).debug("Data length {}", packetLength);
 
 			((TCPListener &)getThread()).sendPacketToDf(dfPacket);
 
@@ -172,8 +174,14 @@ TCPDataProcessor::createPacket(DdfPacket *ddfPacket, uint32_t *packetLength)
 			(config.strDModuleName == DDF2)) {
 
 		uint16_t iLen = ddfPacket->header.dataLength +
-				sizeof(struct ether_header) + sizeof(struct iphdr) +
-				sizeof(struct udphdr);
+				sizeof(struct ether_header) + sizeof(struct udphdr);
+		
+		if ((ddfPacket->header.srcIpType == IPTYPE_IPV4) &&
+				(ddfPacket->header.dstIpType == IPTYPE_IPV4)) {
+			iLen += sizeof(struct iphdr);	
+		} else {
+			iLen += sizeof(struct ipv6hdr);	
+		}
 
 		*packetLength = iLen;
 
@@ -182,22 +190,50 @@ TCPDataProcessor::createPacket(DdfPacket *ddfPacket, uint32_t *packetLength)
 
 		struct ether_header *eh = (struct ether_header *) packet;
 		memset(eh, '\0', sizeof(struct ether_addr));
-		eh->ether_type = htons(ETHER_TYPE);
 
-		struct iphdr *ih = (struct iphdr *) &eh[1];
-		ih->daddr = ddfPacket->header.destIpAddress;
-		ih->saddr = ddfPacket->header.sourceIpAddress;
-		ih->protocol = IPPROTO_UDP;
-		ih->version = IP_VERSION;
-		ih->ihl = INTERNET_HDR_LEN;
-		ih->tot_len = htons(iLen - sizeof(ether_header));
-		ih->ttl = TTL;
+		if ((ddfPacket->header.srcIpType == IPTYPE_IPV4) &&
+                                (ddfPacket->header.dstIpType == IPTYPE_IPV4)) {	
+			eh->ether_type = htons(ETHER_TYPE);
+		} else {
+			eh->ether_type = htons(ETHER_TYPE_V6);
+		}
 
-		struct udphdr *uh = (struct udphdr *) &ih[1];
-		uh->len = htons(iLen - sizeof(ether_header) - sizeof(iphdr));
+		struct iphdr *iph = NULL;
+		struct ipv6hdr *ipv6h = NULL;
+		if ((ddfPacket->header.srcIpType == IPTYPE_IPV4) &&
+				(ddfPacket->header.dstIpType == IPTYPE_IPV4)) {
+			iph = (struct iphdr *) &eh[1];
+			iph->daddr = ddfPacket->header.destIpAddress;
+			iph->saddr = ddfPacket->header.sourceIpAddress;
+			iph->protocol = IPPROTO_UDP;
+			iph->version = IPV4_VERSION;
+			iph->ihl = INTERNET_HDR_LEN;
+			iph->tot_len = htons(iLen - sizeof(ether_header));
+			iph->ttl = TTL;
+		} else {
+			ipv6h = (struct ipv6hdr *) &eh[1];
+			memcpy(ipv6h->daddr.s6_addr, ddfPacket->header.dstIpv6, IPV6_ADDRESS_LEN);
+			memcpy(ipv6h->saddr.s6_addr, ddfPacket->header.srcIpv6, IPV6_ADDRESS_LEN);
+			ipv6h->nexthdr = IPPROTO_UDP;
+			ipv6h->version = IPV6_VERSION;
+			ipv6h->hop_limit = TTL;
+			ipv6h->payload_len = htons(iLen - sizeof(ether_header) - sizeof(struct ipv6hdr));
+		}
+
+		struct udphdr *uh = NULL;
+		if ((ddfPacket->header.srcIpType == IPTYPE_IPV4) &&
+				(ddfPacket->header.dstIpType == IPTYPE_IPV4)) {
+			uh = (struct udphdr *) &iph[1];
+			uh->len = htons(iLen - sizeof(ether_header) - sizeof(struct iphdr));
+			uh->check = UDP_CHECKSUM;
+		} else {
+			uh = (struct udphdr *) &ipv6h[1];
+			uh->len = htons(iLen - sizeof(ether_header) - sizeof(struct ipv6hdr));
+			uh->check = UDP_CHECKSUM_IPV6; 
+		}
+
 		uh->dest = htons(ddfPacket->header.destPort);
 		uh->source = htons(ddfPacket->header.sourcePort);
-		uh->check = UDP_CHECKSUM;
 
 		void *payload = &uh[1];
 		memcpy(payload, ddfPacket->data, ddfPacket->header.dataLength);
@@ -349,7 +385,7 @@ TCPDataProcessor::sendAck(const uint32_t &sequenceNumber)
 
 	ELogger::log(LOG_SYSTEM).debug("{} :: sending DDFPACKET_ACK to control plane"
 			" or data plane for sequence number {}", __func__,
-			ackPacket->header.sequenceNumber);
+			sequenceNumber);
 
 	write((pUChar)ackPacket, ackPacket->packetLength);
 

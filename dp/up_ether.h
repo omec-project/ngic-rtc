@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,7 +29,8 @@
 #include "up_main.h"
 #include "pfcp_up_struct.h"
 
-#define ETH_TYPE_IPv4 0x0800
+#define ETH_TYPE_IPv4 0x0800 /**< IPv4 Protocol. */
+#define ETH_TYPE_IPv6 0x86DD /**< IPv6 Protocol. */
 
 /**
  * @brief  : Function to return pointer to L2 headers.
@@ -45,9 +47,10 @@ static inline struct ether_hdr *get_mtoeth(struct rte_mbuf *m)
  * @param  : m, mbuf pointer
  * @param  : portid, port id
  * @param  : pdr, pointer to pdr session info
+ * @param  : Loopback_flag, indication flags
  * @return : Returns 0 in case of success , -1(ARP lookup fail) otherwise
  */
 int construct_ether_hdr(struct rte_mbuf *m, uint8_t portid,
-		pdr_info_t **pdr);
+		pdr_info_t **pdr, uint8_t flag);
 
 #endif /* _ETHER_H_ */

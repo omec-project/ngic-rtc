@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,9 +19,9 @@
 #include <time.h>
 #include <rte_hash_crc.h>
 
+#include "pfcp_util.h"
 #include "csid_struct.h"
 #include "seid_llist.h"
-#include "clogger.h"
 #include "gw_adapter.h"
 #ifdef CP_BUILD
 #include "cp.h"
@@ -29,11 +30,13 @@
 #include "up_main.h"
 #endif /* CP_BUILD */
 
-#define NUM_OF_TABLES 7
+#define NUM_OF_TABLES 9
 #define NUM_OF_NODE 15
 #define MAX_HASH_SIZE (1 << 12) /* Total entry : 4095 */
+#define PEER_NODE_ADDR_MAX_HASH_SIZE (64)
 
 extern uint16_t local_csid;
+extern int clSystemLog;
 /**
  * Add csid entry in csid hash table.
  *
@@ -90,29 +93,29 @@ add_csid_entry(csid_key *key, uint16_t csid)
  * return 0 or -1.
  *
  */
-int8_t
-compare_peer_info(csid_key *peer1, csid_key *peer2)
-{
-	if ((peer1 == NULL) || (peer2 == NULL)) {
-		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"CSID key value is NULL\n", LOG_VALUE);
-		return -1;
-	}
-
-	/* Compare peer nodes information */
-	if ((peer1->mme_ip == peer2->mme_ip) &&
-			(peer1->sgwc_ip== peer2->sgwc_ip) &&
-			(peer1->sgwu_ip == peer2->sgwu_ip) &&
-			(peer1->pgwc_ip == peer2->pgwc_ip) &&
-			(peer1->pgwu_ip == peer2->pgwu_ip)
-			&& (peer1->enodeb_ip == peer2->enodeb_ip)
-	   ) {
-		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Peer node exsting entry is matched\n", LOG_VALUE);
-		return 0;
-	}
-	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Peer node exsting entry is not matched\n", LOG_VALUE);
-	return -1;
-
-}
+//int8_t
+//compare_peer_info(csid_key *peer1, csid_key *peer2)
+//{
+//	if ((peer1 == NULL) || (peer2 == NULL)) {
+//		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"CSID key value is NULL\n", LOG_VALUE);
+//		return -1;
+//	}
+//
+//	/* Compare peer nodes information */
+//	if ((peer1->mme_ip == peer2->mme_ip) &&
+//			(peer1->sgwc_ip== peer2->sgwc_ip) &&
+//			(peer1->sgwu_ip == peer2->sgwu_ip) &&
+//			(peer1->pgwc_ip == peer2->pgwc_ip) &&
+//			(peer1->pgwu_ip == peer2->pgwu_ip)
+//			&& (peer1->enodeb_ip == peer2->enodeb_ip)
+//	   ) {
+//		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Peer node exsting entry is matched\n", LOG_VALUE);
+//		return 0;
+//	}
+//	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Peer node exsting entry is not matched\n", LOG_VALUE);
+//	return -1;
+//
+//}
 #endif /* CP_BUILD */
 /**
  * Update csid key associated peer node with csid in csid hash table.
@@ -180,8 +183,8 @@ get_csid_entry(csid_key *key)
 				key, (void **)&csid);
 
 	if ( ret < 0) {
-		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Entry not found in peer node hash table..\n",
-				LOG_VALUE);
+		clLog(clSystemLog, eCLSeverityDebug,
+				LOG_FORMAT"Entry not found in peer node hash table..\n", LOG_VALUE);
 
 		/* Allocate the memory for local CSID */
 		csid = rte_zmalloc_socket(NULL, sizeof(csid_t),
@@ -189,6 +192,7 @@ get_csid_entry(csid_key *key)
 		if (csid == NULL) {
 			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to allocate "
 				"the memory for csid\n", LOG_VALUE);
+			return -1;
 		}
 
 		/* Assign the local csid */
@@ -447,12 +451,10 @@ get_sess_csid_entry(uint16_t csid, uint8_t is_mod)
 			return NULL;
 		}
 
-		if(insert_sess_csid_data_node(head, tmp) <  0) {
+		if (insert_sess_csid_data_node(head, tmp) <  0) {
 			clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Failed to add node ,"
-				"Session IDs entry for CSID: %u",LOG_VALUE, csid);
+				"Session IDs entry for CSID: %u", LOG_VALUE, csid);
 		}
-
-
 	}
 
 	clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Entry Found for CSID:%u\n",
@@ -480,17 +482,16 @@ del_sess_csid_entry(uint16_t csid)
 	ret = rte_hash_lookup_data(seids_by_csid_hash,
 					&csid, (void **)&tmp);
 	if ( ret < 0) {
-		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT"Entry not found for CSID:%u\n",
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"Entry not found for CSID:%u\n",
 					LOG_VALUE, csid);
 		return -1;
 	}
-
 	/* CSID Entry is present. Delete Session Entry */
 	ret = rte_hash_del_key(seids_by_csid_hash, &csid);
 
 	/* Free data from hash */
 	if (tmp != NULL) {
-		if ((tmp->up_seid != 0) && (tmp->next !=0)) {
+		if ((tmp->up_seid != 0)) {
 			rte_free(tmp);
 			tmp = NULL;
 		}
@@ -501,6 +502,141 @@ del_sess_csid_entry(uint16_t csid)
 	return 0;
 }
 
+sess_csid*
+get_sess_peer_csid_entry(peer_csid_key_t *key, uint8_t is_mod)
+{
+	int ret = 0;
+	sess_csid *tmp = NULL;
+	sess_csid *head = NULL;
+
+	/* Retireve CSID entry */
+	ret = rte_hash_lookup_data(seid_by_peer_csid_hash,
+				key, (void **)&tmp);
+
+	if ( (ret < 0) || (tmp == NULL)) {
+		if(is_mod != ADD_NODE) {
+			(key->peer_node_addr.ip_type == IPV6_TYPE) ?
+				clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT
+						"Entry not found for iface : %d : Peer CSID:%u :"
+						" Peer IPv6 node addr : "IPv6_FMT"\n", LOG_VALUE, key->iface,
+						key->peer_local_csid, IPv6_PRINT(IPv6_CAST(key->peer_node_addr.ipv6_addr))):
+				clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT
+						"Entry not found for iface : %d : Peer CSID:%u :"
+						" Peer IPv4 node addr : "IPV4_ADDR"\n", LOG_VALUE, key->iface,
+						key->peer_local_csid, IPV4_ADDR_HOST_FORMAT(key->peer_node_addr.ipv4_addr));
+			return NULL;
+		}
+
+		/* Allocate the memory for session IDs */
+		tmp = rte_zmalloc_socket(NULL, sizeof(sess_csid),
+				RTE_CACHE_LINE_SIZE, rte_socket_id());
+		if (tmp == NULL) {
+			(key->peer_node_addr.ip_type == IPV6_TYPE) ?
+				clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT
+						"Entry not found for iface : %d : Peer CSID:%u :"
+						" Peer IPv6 node addr : "IPv6_FMT"\n", LOG_VALUE, key->iface,
+						key->peer_local_csid, IPv6_PRINT(IPv6_CAST(key->peer_node_addr.ipv6_addr))):
+				clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT
+						"Entry not found for iface : %d : Peer CSID:%u :"
+						" Peer IPv4 node addr : "IPV4_ADDR"\n", LOG_VALUE, key->iface,
+						key->peer_local_csid, IPV4_ADDR_HOST_FORMAT(key->peer_node_addr.ipv4_addr));
+			return NULL;
+		}
+
+		/* CSID Entry not present. Add CSID Entry in table */
+		ret = rte_hash_add_key_data(seid_by_peer_csid_hash,
+						key, tmp);
+		if (ret) {
+			(key->peer_node_addr.ip_type == IPV6_TYPE) ?
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT
+						"Failed to add Session IDs entry for iface : %d : Peer CSID:%u :"
+						" Peer IPv6 node addr : "IPv6_FMT"\n", LOG_VALUE, key->iface,
+						key->peer_local_csid, IPv6_PRINT(IPv6_CAST(key->peer_node_addr.ipv6_addr))):
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT
+						"Failed to add Session IDs entry for iface : %d : Peer CSID:%u :"
+						" Peer IPv4 node addr : "IPV4_ADDR"\n", LOG_VALUE, key->iface,
+						key->peer_local_csid, IPV4_ADDR_HOST_FORMAT(key->peer_node_addr.ipv4_addr));
+			return NULL;
+		}
+
+		if(insert_sess_csid_data_node(head, tmp) <  0) {
+			(key->peer_node_addr.ip_type == IPV6_TYPE) ?
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT
+						"Failed to add node for iface : %d : Peer CSID:%u :"
+						" Peer IPv6 node addr : "IPv6_FMT"\n", LOG_VALUE, key->iface,
+						key->peer_local_csid, IPv6_PRINT(IPv6_CAST(key->peer_node_addr.ipv6_addr))):
+				clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT
+						"Failed to add node for iface : %d : Peer CSID:%u :"
+						" Peer IPv4 node addr : "IPV4_ADDR"\n", LOG_VALUE, key->iface,
+						key->peer_local_csid, IPV4_ADDR_HOST_FORMAT(key->peer_node_addr.ipv4_addr));
+		}
+	}
+
+	(key->peer_node_addr.ip_type == IPV6_TYPE) ?
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT
+				"Entry found for iface : %d : Peer CSID:%u :"
+				" Peer IPv6 node addr : "IPv6_FMT"\n", LOG_VALUE, key->iface,
+				key->peer_local_csid, IPv6_PRINT(IPv6_CAST(key->peer_node_addr.ipv6_addr))):
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT
+				"Entry found for iface : %d : Peer CSID:%u :"
+				" Peer IPv4 node addr : "IPV4_ADDR"\n", LOG_VALUE, key->iface,
+				key->peer_local_csid, IPV4_ADDR_HOST_FORMAT(key->peer_node_addr.ipv4_addr));
+
+	return tmp;
+}
+
+/**
+ * Delete session ids entry from sess csid hash table.
+ *
+ * @param local_csid
+ * key.
+ * return 0 or 1.
+ *
+ */
+int8_t
+del_sess_peer_csid_entry(peer_csid_key_t *key)
+{
+	int ret = 0;
+	sess_csid *tmp = NULL;
+
+	/* Check CSID entry is present or Not */
+	ret = rte_hash_lookup_data(seid_by_peer_csid_hash,
+					key, (void **)&tmp);
+	if ( ret < 0) {
+		(key->peer_node_addr.ip_type == IPV6_TYPE) ?
+			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT
+					"Entry not found for iface : %d : Peer CSID:%u :"
+					" Peer node ipv6 addr : "IPv6_FMT"\n", LOG_VALUE, key->iface,
+					key->peer_local_csid, IPv6_PRINT(IPv6_CAST(key->peer_node_addr.ipv6_addr))):
+			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT
+					"Entry not found for iface : %d : Peer CSID:%u :"
+					" Peer node ipv4 addr : "IPV4_ADDR"\n", LOG_VALUE, key->iface,
+					key->peer_local_csid, IPV4_ADDR_HOST_FORMAT(key->peer_node_addr.ipv4_addr));
+		return -1;
+	}
+
+	/* CSID Entry is present. Delete Session Entry */
+	ret = rte_hash_del_key(seid_by_peer_csid_hash, key);
+
+	/* Free data from hash */
+	if (tmp != NULL) {
+		if ((tmp->up_seid != 0) && (tmp->next !=0)) {
+			rte_free(tmp);
+			tmp = NULL;
+		}
+	}
+
+	(key->peer_node_addr.ip_type == IPV6_TYPE) ?
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT
+				"Session IDs Entry delete for iface : %d : Peer CSID:%u :"
+				" Peer node IPv6 addr : "IPv6_FMT"\n", LOG_VALUE, key->iface,
+				key->peer_local_csid, IPv6_PRINT(IPv6_CAST(key->peer_node_addr.ipv6_addr))):
+		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT
+				"Session IDs Entry delete for iface : %d : Peer CSID:%u :"
+				" Peer node IPv4 addr : "IPV4_ADDR"\n", LOG_VALUE, key->iface,
+				key->peer_local_csid, IPV4_ADDR_HOST_FORMAT(key->peer_node_addr.ipv4_addr));
+	return 0;
+}
 /**
  *Init the hash tables for FQ-CSIDs */
 int8_t
@@ -531,7 +667,7 @@ init_fqcsid_hash_tables(void)
 		},
 		{	.name = "LOCAL_CSIDS_BY_NODE_ADDR_HASH",
 			.entries = NUM_OF_NODE,
-			.key_len = sizeof(uint32_t),
+			.key_len = sizeof(node_address_t),
 			.hash_func = rte_hash_crc,
 			.hash_func_init_val = 0,
 			.socket_id = rte_socket_id()
@@ -553,6 +689,20 @@ init_fqcsid_hash_tables(void)
 		{	.name = "LOCAL_CSIDS_BY_SGWCSID_HASH",
 			.entries = MAX_HASH_SIZE,
 			.key_len = sizeof(csid_key_t),
+			.hash_func = rte_hash_crc,
+			.hash_func_init_val = 0,
+			.socket_id = rte_socket_id()
+		},
+		{	.name = "SEID_BY_PEER_CSID_HASH",
+			.entries = MAX_HASH_SIZE,
+			.key_len = sizeof(peer_csid_key_t),
+			.hash_func = rte_hash_crc,
+			.hash_func_init_val = 0,
+			.socket_id = rte_socket_id()
+		},
+		{	.name = "PEER_NODE_ADDR_BY_PEER_FQCSID_NODE_ADDR_HASH",
+			.entries = PEER_NODE_ADDR_MAX_HASH_SIZE,
+			.key_len = sizeof(peer_node_addr_key_t),
 			.hash_func = rte_hash_crc,
 			.hash_func_init_val = 0,
 			.socket_id = rte_socket_id()
@@ -608,6 +758,20 @@ init_fqcsid_hash_tables(void)
 		    rte_strerror(rte_errno), rte_errno);
 	}
 
+	seid_by_peer_csid_hash = rte_hash_create(&pfcp_hash_params[7]);
+	if (!seid_by_peer_csid_hash) {
+		rte_panic("%s: hash create failed: %s (%u)\n",
+				pfcp_hash_params[7].name,
+		    rte_strerror(rte_errno), rte_errno);
+	}
+
+	peer_node_addr_by_peer_fqcsid_node_addr_hash =
+			rte_hash_create(&pfcp_hash_params[8]);
+	if (peer_node_addr_by_peer_fqcsid_node_addr_hash == NULL) {
+		rte_panic("%s: hash create failed: %s (%u)\n",
+				pfcp_hash_params[7].name,
+		    rte_strerror(rte_errno), rte_errno);
+	}
 	return 0;
 }
 

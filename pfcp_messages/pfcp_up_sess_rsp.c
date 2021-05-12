@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,23 +19,23 @@
 #include "pfcp_util.h"
 #include "pfcp_enum.h"
 #include "pfcp_set_ie.h"
-#include "clogger.h"
+#include "pfcp_session.h"
 
 extern struct rte_hash *arp_hash_handle[NUM_SPGW_PORTS];
+extern int clSystemLog;
 
 void
 fill_pfcp_session_est_resp(pfcp_sess_estab_rsp_t *pfcp_sess_est_resp,
-			uint8_t cause, int offend, struct in_addr dp_comm_ip,
+			uint8_t cause, int offend, node_address_t node_value,
 			pfcp_sess_estab_req_t *pfcp_session_request)
 {
 	/*take seq no from sess establishment request when this function is called somewhere*/
 	uint32_t seq  = 0;
-	uint32_t node_value = 0;
 
 	set_pfcp_seid_header((pfcp_header_t *) &(pfcp_sess_est_resp->header),
 			PFCP_SESSION_ESTABLISHMENT_RESPONSE, HAS_SEID, seq, NO_CP_MODE_REQUIRED);
 
-	set_node_id(&(pfcp_sess_est_resp->node_id), dp_comm_ip.s_addr);
+	set_node_id(&(pfcp_sess_est_resp->node_id), node_value);
 	set_cause(&(pfcp_sess_est_resp->cause), cause);
 
 	if(cause == CONDITIONALIEMISSING || cause == MANDATORYIEMISSING) {
@@ -94,15 +95,6 @@ fill_pfcp_session_modify_resp(pfcp_sess_mod_rsp_t *pfcp_sess_modify_resp,
 		set_failed_rule_id(&(pfcp_sess_modify_resp->failed_rule_id));
 	}
 
-	// filling of ADURI
-	// Need to do
-	if(pfcp_session_mod_req->pfcpsmreq_flags.qaurr ||
-			pfcp_session_mod_req->query_urr_count){
-		set_additional_usage(&(pfcp_sess_modify_resp->add_usage_rpts_info));
-	}
-
-	// filling of CRTEP
-	// Need to do
 	if( pfcp_ctxt.up_supported_features & UP_PDIU )
 		set_created_traffic_endpoint(&(pfcp_sess_modify_resp->createdupdated_traffic_endpt));
 
@@ -136,51 +128,108 @@ fill_pfcp_sess_del_resp(pfcp_sess_del_rsp_t *
 int sess_modify_with_endmarker(far_info_t *far)
 {
 	struct sess_info_endmark edmk;
+	struct arp_ip_key arp_key = {0};
 	struct arp_entry_data *ret_arp_data = NULL;
 	int ret = 0;
 
 	/*Retrieve the destination MAC*/
-	edmk.dst_ip = ntohl(far->frwdng_parms.outer_hdr_creation.ipv4_address);
+	if (far->frwdng_parms.outer_hdr_creation.ipv4_address != 0) {
+		edmk.src_ip.ip_type = IPV4_TYPE;
+		edmk.dst_ip.ip_type = IPV4_TYPE;
+		edmk.dst_ip.ipv4_addr = far->frwdng_parms.outer_hdr_creation.ipv4_address;
+
+		/* Set the ARP KEY */
+		arp_key.ip_type.ipv4 = PRESENT;
+		arp_key.ip_addr.ipv4 = edmk.dst_ip.ipv4_addr;
+	} else if (far->frwdng_parms.outer_hdr_creation.ipv6_address != NULL) {
+		edmk.src_ip.ip_type = IPV6_TYPE;
+		edmk.dst_ip.ip_type = IPV6_TYPE;
+		memcpy(edmk.dst_ip.ipv6_addr,
+				 far->frwdng_parms.outer_hdr_creation.ipv6_address,
+				 IPV6_ADDRESS_LEN);
+		/* Set the ARP KEY */
+		arp_key.ip_type.ipv6 = PRESENT;
+		memcpy(arp_key.ip_addr.ipv6.s6_addr,
+				edmk.dst_ip.ipv6_addr, IPV6_ADDRESS_LEN);
+	}
+
 	edmk.teid = far->frwdng_parms.outer_hdr_creation.teid;
 
 	ret = rte_hash_lookup_data(arp_hash_handle[S1U_PORT_ID],
-			&edmk.dst_ip, (void **)&ret_arp_data);
+			&arp_key, (void **)&ret_arp_data);
 
 	if (ret < 0) {
-		clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT"IP is not resolved for sending endmarker:%u\n",
-			LOG_VALUE, edmk.dst_ip);
+		(arp_key.ip_type.ipv6 == PRESENT)?
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"END_MARKER:IPv6 is not resolved for sending endmarker:"IPv6_FMT"\n",
+					LOG_VALUE, IPv6_PRINT(IPv6_CAST(edmk.dst_ip.ipv6_addr))):
+			clLog(clSystemLog, eCLSeverityDebug,
+					LOG_FORMAT"END_MARKER:IPv4 is not resolved for sending endmarker:"IPV4_ADDR"\n",
+					LOG_VALUE, IPV4_ADDR_HOST_FORMAT(edmk.dst_ip.ipv4_addr));
 		return -1;
 	}
 
 	memcpy(&(edmk.destination_MAC), &(ret_arp_data->eth_addr) , sizeof(struct ether_addr));
 	edmk.dst_port = ret_arp_data->port;
 
-	/* Get the Source interface address from PDR */
-	uint32_t src_addr = 0;
-
 	/* Fill the Local SRC Address of the intf in the IPV4 header */
-	if (!src_addr) {
+	if (edmk.dst_ip.ip_type == IPV4_TYPE) {
 	    /* Validate the Destination IP Address subnet */
-	    if (validate_Subnet(ntohl(edmk.dst_ip), app.wb_net, app.wb_bcast_addr)) {
+	    if (validate_Subnet(ntohl(edmk.dst_ip.ipv4_addr), app.wb_net, app.wb_bcast_addr)) {
 	        /* construct iphdr with local IP Address */
-	        src_addr = app.wb_ip;
-	    } else if (validate_Subnet(ntohl(edmk.dst_ip), app.wb_li_net, app.wb_li_bcast_addr)) {
+	        edmk.src_ip.ipv4_addr =htonl(app.wb_ip);
+
+	    } else if (validate_Subnet(ntohl(edmk.dst_ip.ipv4_addr), app.wb_li_net, app.wb_li_bcast_addr)) {
 	        /* construct iphdr with local IP Address */
-	        src_addr = app.wb_li_ip;
-	    } else if (validate_Subnet(ntohl(edmk.dst_ip), app.eb_net, app.eb_bcast_addr)) {
+	        edmk.src_ip.ipv4_addr = app.wb_li_ip;
+	    } else if (validate_Subnet(ntohl(edmk.dst_ip.ipv4_addr), app.eb_net, app.eb_bcast_addr)) {
 	        /* construct iphdr with local IP Address */
-	        src_addr = app.eb_ip;
+	        edmk.src_ip.ipv4_addr = app.eb_ip;
+	    } else if (validate_Subnet(ntohl(edmk.dst_ip.ipv4_addr), app.eb_li_net, app.eb_li_bcast_addr)) {
+	        /* construct iphdr with local IP Address */
+	        edmk.src_ip.ipv4_addr = htonl(app.eb_li_ip);
 	    } else {
 	        clLog(clSystemLog, eCLSeverityCritical,
-	                LOG_FORMAT"Destination IPv4 Addr "IPV4_ADDR" is NOT in local intf subnet\n",
-	                LOG_VALUE, IPV4_ADDR_HOST_FORMAT(edmk.dst_ip));
+	                LOG_FORMAT"END_MAKER:Destination IPv4 Addr "IPV4_ADDR" is NOT in local intf subnet\n",
+	                LOG_VALUE, IPV4_ADDR_HOST_FORMAT(edmk.dst_ip.ipv4_addr));
 	        return -1;
 	    }
+	} else if (edmk.dst_ip.ip_type == IPV6_TYPE) {
+		/* Validate the Destination IPv6 Address Network */
+		if (validate_ipv6_network(IPv6_CAST(edmk.dst_ip.ipv6_addr), app.wb_ipv6,
+					app.wb_ipv6_prefix_len)) {
+			/* Source interface IPv6 address */
+			memcpy(&edmk.src_ip.ipv6_addr, &app.wb_ipv6, sizeof(struct in6_addr));
+
+		} else if (validate_ipv6_network(IPv6_CAST(edmk.dst_ip.ipv6_addr), app.wb_li_ipv6,
+					app.wb_li_ipv6_prefix_len)) {
+			/* Source interface IPv6 address */
+			memcpy(&edmk.src_ip.ipv6_addr, &app.wb_li_ipv6, sizeof(struct in6_addr));
+
+		} else if (validate_ipv6_network(IPv6_CAST(edmk.dst_ip.ipv6_addr), app.eb_ipv6,
+					app.eb_ipv6_prefix_len)) {
+			/* Source interface IPv6 address */
+			memcpy(&edmk.src_ip.ipv6_addr, &app.eb_ipv6, sizeof(struct in6_addr));
+
+		} else if (validate_ipv6_network(IPv6_CAST(edmk.dst_ip.ipv6_addr), app.eb_li_ipv6,
+					app.eb_li_ipv6_prefix_len)) {
+			/* Source interface IPv6 address */
+			memcpy(&edmk.src_ip.ipv6_addr, &app.eb_li_ipv6, sizeof(struct in6_addr));
+
+		} else {
+			clLog(clSystemLog, eCLSeverityCritical,
+					LOG_FORMAT"END_MARKER:Destination S5S8 intf IPv6 addr "IPv6_FMT" "
+					"is NOT in local intf Network\n",
+					LOG_VALUE, IPv6_PRINT(IPv6_CAST(edmk.dst_ip.ipv6_addr)));
+			return -1;
+		}
+	} else {
+		clLog(clSystemLog, eCLSeverityCritical,
+				LOG_FORMAT"END_MARKER: Not set appropriate IP TYpe in the destination address\n",
+				LOG_VALUE);
+		return -1;
 	}
 
-
-	/* Fill the source interface address in packet */
-	edmk.src_ip = htonl(src_addr);
 
 	/* VS: Fill the Source IP and Physical Address of the interface based on the interface value */
 	if (far->frwdng_parms.dst_intfc.interface_value == ACCESS) {

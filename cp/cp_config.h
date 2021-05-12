@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,9 +16,7 @@
  */
 
 #include "cp.h"
-
 #include "gw_adapter.h"
-#include "clogger.h"
 #include "cstats.h"
 #include "cdadmfapi.h"
 
@@ -33,29 +32,39 @@
 #define OPS_ENTRIES             "OPS"
 
 #define CP_TYPE                 "CP_TYPE"
-#define CP_LOGGER               "CP_LOGGER"
 #define S11_IPS                 "S11_IP"
+#define S11_IPS_V6              "S11_IP_V6"
 #define S11_PORTS               "S11_PORT"
 #define S5S8_IPS                "S5S8_IP"
+#define S5S8_IPS_V6             "S5S8_IP_V6"
 #define S5S8_PORTS              "S5S8_PORT"
 #define PFCP_IPS                "PFCP_IP"
+#define PFCP_IPS_V6             "PFCP_IP_V6"
 #define PFCP_PORTS          	"PFCP_PORT"
 #define DDF2_IP					"DDF2_IP"
 #define DDF2_PORT				"DDF2_PORT"
-#define DDF2_INTFC				"DDF2_INTFC"
+#define DDF2_LOCAL_IPS			"DDF2_LOCAL_IP"
 #define DADMF_IPS               "DADMF_IP"
 #define DADMF_PORTS             "DADMF_PORT"
 #define DADMF_LOCAL_IPS         "DADMF_LOCAL_IP"
-#define MME_S11_IPS             "MME_S11_IP"
-#define MME_S11_PORTS           "MME_S11_PORT"
 #define UPF_PFCP_IPS            "UPF_PFCP_IP"
+#define UPF_PFCP_IPS_V6         "UPF_PFCP_IP_V6"
 #define UPF_PFCP_PORTS          "UPF_PFCP_PORT"
 #define REDIS_IPS               "REDIS_IP"
 #define CP_REDIS_IP             "CP_REDIS_IP"
 #define REDIS_PORTS             "REDIS_PORT"
 #define REDIS_CERT_PATH         "REDIS_CERT_PATH"
 #define USE_DNS                 "USE_DNS"
-#define USE_GX                 "USE_GX"
+#define CP_DNS_IP               "CP_DNS_IP"
+#define CLI_REST_IP             "CLI_REST_IP"
+#define CLI_REST_PORT           "CLI_REST_PORT"
+#define IP_ALLOCATION_MODE		"IP_ALLOCATION_MODE"
+#define IP_TYPE_SUPPORTED       "IP_TYPE_SUPPORTED"
+#define IP_TYPE_PRIORITY        "IP_TYPE_PRIORITY"
+#define USE_GX                  "USE_GX"
+#define PERF_FLAG               "PERF_FLAG"
+#define SUGGESTED_PKT_COUNT		"SUGGESTED_PKT_COUNT"
+#define LOW_LVL_ARP_PRIORITY	"LOW_LEVEL_ARP_PRIORITY"
 
 #define APN_SEC_NAME_LEN        8
 #define NAME                    "name"
@@ -69,6 +78,8 @@
 
 #define NAMESERVER              "nameserver"
 #define IP_POOL_IP              "IP_POOL_IP"
+#define IPV6_NETWORK_ID    		"IPV6_NETWORK_ID"
+#define IPV6_PREFIX_LEN 		"IPV6_PREFIX_LEN"
 #define IP_POOL_MASK            "IP_POOL_MASK"
 #define CONCURRENT              "concurrent"
 #define PERCENTAGE              "percentage"
@@ -112,23 +123,18 @@
 #define DEFAULT_VOL_THRESHOLD 1048576
 #define DEFAULT_TIME_THRESHOLD 120
 #define DEFAULT_TRIGGER_TYPE 2
+
+#define GX_FILE_PATH "gx_app/gx.conf"
+#define CONNECT_TO "ConnectTo"
 uint8_t recovery_flag;
 
 /**
  * @brief  : parse the SGWU/PGWU/SAEGWU IP from config file
- * @param  : pfcp_config, config file path
+ * @param  : config, config file path
  * @return : Returns nothing
  */
 void
-config_cp_ip_port(pfcp_config_t *pfcp_config);
-
-/**
- * @brief  : parse apn arguments
- * @param  : temp, input data
- * @param  : ptr[], array to store parsed arguments
- * @return : Returns nothing
- */
-void parse_apn_args(char *temp,char *ptr[3]);
+config_cp_ip_port(pfcp_config_t *config);
 
 /**
  * @brief  : Validate cp requst timeout configured value
@@ -154,3 +160,27 @@ check_cp_req_tries_config(char *value);
  */
 int
 get_apn_name(char *apn_name_label, char *apn_name);
+
+/**
+ * @brief  : Identify ip address family ipv4/ipv6
+ * @param  : ip_addr, ip address
+ * @return : Returns ip address family type in
+ *           case of success, -1 otherwise
+ */
+int
+get_ip_address_type(const char *ip_addr);
+
+/**
+ * @brief  : extract pcrf ip from gx config file
+ * @param  : filename, filename with path
+ * @param  : peer_addr, pointer of peer_addr
+ * @return : Returns case of success, -1 otherwise
+ */
+int fill_pcrf_ip(const char *filename, char *peer_addr);
+
+/**
+ * @brief  : fill gx interface ip into config struture
+ * @param  : void
+ * @return : Returns case of success, -1 otherwise
+ */
+int8_t fill_gx_iface_ip(void);

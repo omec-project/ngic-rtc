@@ -17,10 +17,6 @@
 
 #include <set>
 
-#define RAPIDJSON_NAMESPACE ulpcrapidjson
-#include "rapidjson/rapidjson.h"
-#include "rapidjson/document.h"
-
 #include "UpdateUeEntry.h"
 #include "DAdmf.h"
 

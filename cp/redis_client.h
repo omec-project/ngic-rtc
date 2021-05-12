@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,9 +17,10 @@
 
 #include <limits.h>
 
+#include "string.h"
 #include "hiredis.h"
 #include "hiredis_ssl.h"
-#include "clogger.h"
+#include "gw_adapter.h"
 
 #define REDIS_CONN_TIMEOUT 3
 #define IP_STR_LEN 16
@@ -77,3 +79,4 @@ int redis_save_cdr(redisContext* ctx, char *cp_ip, char* cdr);
 int redis_disconnect(redisContext* ctx);
 
 extern redisContext *ctx;
+extern redisSSLContext *ssl;

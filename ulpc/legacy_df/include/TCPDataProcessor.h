@@ -31,19 +31,19 @@
 
 class TCPListener;
 
-class DdfListener : public ESocket::TCP::ListenerPrivate
+class LegacyDfListener : public ESocket::TCP::ListenerPrivate
 {
 	public:
 
 		/*
-		 *	@brief	:	Constructor of class DdfListener
+		 *	@brief	:	Constructor of class LegacyDfListener
 		 */
-		DdfListener(TCPListener &thread);
+		LegacyDfListener(TCPListener &thread);
 
 		/*
-		 *	@brief	:	Destructor of class DdfListener
+		 *	@brief	:	Destructor of class LegacyDfListener
 		 */
-		~DdfListener();
+		~LegacyDfListener();
 
 		/*
 		 *	@brief	:	Library function of EPCTool
@@ -65,9 +65,9 @@ class DdfListener : public ESocket::TCP::ListenerPrivate
 	private:
 
 		/*
-		 *	@brief	:	Constructor of class DdfListener
+		 *	@brief	:	Constructor of class LegacyDfListener
 		 */
-		DdfListener();
+		LegacyDfListener();
 };
 
 class TCPDataProcessor : public ESocket::TCP::TalkerPrivate

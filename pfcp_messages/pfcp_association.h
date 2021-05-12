@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Sprint
+ * Copyright (c) 2020 T-Mobile
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,53 +43,15 @@ void
 fill_pfcp_association_setup_req(pfcp_assn_setup_req_t *pfcp_ass_setup_req);
 
 /**
- * @brief  : This is a function to fill pfcp association update request
- * @param  : pfcp_asso_update_req is pointer to structure of pfcp association update request
- * @return : This function dose not return anything
- */
-void
-fill_pfcp_association_update_req(pfcp_assn_upd_req_t *pfcp_ass_update_req);
-
-/**
  * @brief  : This is a function to fill pfcp association setup response
  * @param  : pfcp_asso_setup_resp is pointer to structure of pfcp association setup response
  * @param  : caues describes the whether request is accepted or not
  * @return : This function dose not return anything
  */
 void
-fill_pfcp_association_setup_resp(pfcp_assn_setup_rsp_t *pfcp_ass_setup_resp, uint8_t cause, uint32_t peer_addr);
-
-/**
- * @brief  : This is a function to fill pfcp association release request
- * @param  : pfcp_asso_rel_req is pointer to structure of pfcp association release request
- * @return : This function dose not return anything
- */
-void
-fill_pfcp_association_release_req(pfcp_assn_rel_req_t *pfcp_ass_rel_req);
-
-/**
- * @brief  : This is a function to fill pfcp association release response
- * @param  : pfcp_asso_rel_resp is pointer to structure of pfcp association release response
- * @return : This function dose not return anything
- */
-void
-fill_pfcp_association_release_resp(pfcp_assn_rel_rsp_t *pfcp_ass_rel_resp);
-
-/**
- * @brief  : This is a function to fill pfcp node report request
- * @param  : pfcp_node_rep_req is pointer to structure of pfcp node report request
- * @return : This function dose not return anything
- */
-void
-fill_pfcp_node_report_req(pfcp_node_rpt_req_t *pfcp_node_rep_req);
-
-/**
- * @brief  : This is a function to fill pfcp node report response
- * @param  : pfcp_node_rep_resp is pointer to structure of pfcp node report response
- * @return : This function dose not return anything
- */
-void
-fill_pfcp_node_report_resp(pfcp_node_rpt_rsp_t *pfcp_node_rep_resp);
+fill_pfcp_association_setup_resp(pfcp_assn_setup_rsp_t *pfcp_ass_setup_resp,
+					uint8_t cause, node_address_t dp_node_value,
+					node_address_t cp_node_value);
 
 /**
  * @brief  : This is a function to fill pfcp heartbeat response
@@ -136,7 +99,7 @@ fill_pfcp_sess_report_resp(pfcp_sess_rpt_rsp_t *pfcp_sess_rep_resp, uint32_t seq
  * @return : Returns 0 in case of success else negative value
  */
 uint8_t
-process_pfcp_ass_resp(msg_info *msg, struct sockaddr_in *peer_addr);
+process_pfcp_ass_resp(msg_info *msg, peer_addr_t *peer_addr);
 
 /**
  * @brief  : This function adds csr to list of buffrered csrs

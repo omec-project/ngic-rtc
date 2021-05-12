@@ -74,15 +74,16 @@ class ConfigParser;
  * @brief  : Maintains ADMF configurations read from config file
  */
 typedef struct configurations {
-	struct in_addr			dadmfIp;
-	struct in_addr			legacyInterfaceIp;
+	std::string			dadmfIp;
+	std::string			legacyInterfaceIp;
 	uint16_t			dadmfPort;
 	uint16_t			admfPort;
+	std::string			admfIp;
 } configurations_t;
 
 typedef struct legacyAdmfIntfcConfig {
-	struct in_addr			admfIp;
-	struct in_addr			legacyAdmfIp;
+	std::string			admfIp;
+	std::string			legacyAdmfIp;
 	uint16_t			admfPort;
 	uint16_t			legacyAdmfPort;
 	uint16_t			legacyAdmfIntfcPort;
@@ -105,6 +106,9 @@ typedef struct admfPacket {
         } ue_entry_t;
 } admf_packet_t;
 #pragma pack(pop)
+
+std::string
+ConvertIpForRest(const std::string &strIp);
 
 
 class AdmfApplication

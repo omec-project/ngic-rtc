@@ -17,19 +17,25 @@
 #include "ue.h"
 #include "cp.h"
 #include "interface.h"
-#include "clogger.h"
+#include "gw_adapter.h"
 #include "sm_struct.h"
 #include "teid.h"
 
-extern pfcp_config_t pfcp_config;
+extern pfcp_config_t config;
+extern int clSystemLog;
 struct rte_hash *ue_context_by_imsi_hash;
 struct rte_hash *ue_context_by_fteid_hash;
 struct rte_hash *bearer_by_fteid_hash;
 struct rte_hash *li_info_by_id_hash;
 struct rte_hash *li_id_by_imsi_hash;
-
-static struct in_addr ip_pool_ip;
-static struct in_addr ip_pool_mask;
+struct rte_hash *ue_context_by_sender_teid_hash;
+struct rte_hash *timer_by_teid_hash;
+struct rte_hash *ddn_by_seid_hash;
+struct rte_hash *dl_timer_by_teid_hash;
+struct rte_hash *pfcp_rep_by_seid_hash;
+struct rte_hash *thrtl_timer_by_nodeip_hash;
+struct rte_hash *thrtl_ddn_count_hash;
+struct rte_hash *buffered_ddn_req_hash;
 
 apn apn_list[MAX_NB_DPN];
 int total_apn_cnt;
@@ -69,6 +75,78 @@ create_ue_hash(void)
 				rte_hash_params.name,
 				rte_strerror(rte_errno), rte_errno);
 	}
+
+	rte_hash_params.name = "ue_context_by_sender_teid_hash";
+	rte_hash_params.key_len = sizeof(uint32_t);
+	ue_context_by_sender_teid_hash = rte_hash_create(&rte_hash_params);
+	if (!ue_context_by_sender_teid_hash) {
+		rte_panic("%s hash create failed: %s (%u)\n.",
+				rte_hash_params.name,
+				rte_strerror(rte_errno), rte_errno);
+	}
+
+	rte_hash_params.name = "timer_by_teid_hash";
+	rte_hash_params.key_len = sizeof(uint32_t);
+	timer_by_teid_hash = rte_hash_create(&rte_hash_params);
+	if (!timer_by_teid_hash) {
+		rte_panic("%s hash create failed: %s (%u)\n.",
+				rte_hash_params.name,
+				rte_strerror(rte_errno), rte_errno);
+	}
+
+	rte_hash_params.name = "ddn_request_by_session_id_hash";
+	rte_hash_params.key_len = sizeof(uint64_t);
+	ddn_by_seid_hash = rte_hash_create(&rte_hash_params);
+	if (!ddn_by_seid_hash) {
+		rte_panic("%s hash create failed: %s (%u)\n.",
+				rte_hash_params.name,
+				rte_strerror(rte_errno), rte_errno);
+	}
+
+	rte_hash_params.name = "dl_timer_by_teid_hash";
+	rte_hash_params.key_len = sizeof(uint32_t);
+	dl_timer_by_teid_hash = rte_hash_create(&rte_hash_params);
+	if (!dl_timer_by_teid_hash) {
+		rte_panic("%s hash create failed: %s (%u)\n.",
+				rte_hash_params.name,
+				rte_strerror(rte_errno), rte_errno);
+	}
+
+	rte_hash_params.name = "pfcp_rep_by_session_id_hash";
+	rte_hash_params.key_len = sizeof(uint64_t);
+	pfcp_rep_by_seid_hash = rte_hash_create(&rte_hash_params);
+	if (!pfcp_rep_by_seid_hash) {
+		rte_panic("%s hash create failed: %s (%u)\n.",
+				rte_hash_params.name,
+				rte_strerror(rte_errno), rte_errno);
+	}
+
+	rte_hash_params.name = "thrtl_timer_by_nodeip_hash";
+	rte_hash_params.key_len = sizeof(uint64_t);
+	thrtl_timer_by_nodeip_hash = rte_hash_create(&rte_hash_params);
+	if (!thrtl_timer_by_nodeip_hash) {
+		rte_panic("%s hash create failed: %s (%u)\n.",
+				rte_hash_params.name,
+				rte_strerror(rte_errno), rte_errno);
+	}
+
+	rte_hash_params.name = "thrtl_ddn_count_hash";
+	rte_hash_params.key_len = sizeof(uint64_t);
+	thrtl_ddn_count_hash = rte_hash_create(&rte_hash_params);
+	if (!thrtl_ddn_count_hash) {
+		rte_panic("%s hash create failed: %s (%u)\n.",
+				rte_hash_params.name,
+				rte_strerror(rte_errno), rte_errno);
+	}
+
+	rte_hash_params.name = "buffered_ddn_req_hash";
+	rte_hash_params.key_len = sizeof(uint64_t);
+	buffered_ddn_req_hash = rte_hash_create(&rte_hash_params);
+	if (!buffered_ddn_req_hash) {
+		rte_panic("%s hash create failed: %s (%u)\n.",
+				rte_hash_params.name,
+				rte_strerror(rte_errno), rte_errno);
+	}
 }
 
 void
@@ -98,24 +176,6 @@ create_li_info_hash(void)
 		    rte_strerror(rte_errno), rte_errno);
 	}
 }
-
-void
-set_ip_pool_ip(const char *ip_str)
-{
-	if (!inet_aton(ip_str, &ip_pool_ip))
-		rte_panic("Invalid argument - %s - Exiting.", ip_str);
-	clLog(clSystemLog, eCLSeverityDebug,LOG_FORMAT"ip_pool_ip:  %s\n", LOG_VALUE, inet_ntoa(ip_pool_ip));
-}
-
-
-void
-set_ip_pool_mask(const char *ip_str)
-{
-	if (!inet_aton(ip_str, &ip_pool_mask))
-		rte_panic("Invalid argument - %s - Exiting.", ip_str);
-	clLog(clSystemLog, eCLSeverityDebug,LOG_FORMAT"ip_pool_mask: %s\n", LOG_VALUE, inet_ntoa(ip_pool_mask));
-}
-
 
 void
 set_apn_name(apn *an_apn, char *argstr)
@@ -164,7 +224,7 @@ print_ue_context_by(struct rte_hash *h, ue_context *context)
 		clLog(clSystemLog, eCLSeverityDebug,LOG_FORMAT"*%16lx %1lx %16lx %16lx %8x %15s ", LOG_VALUE, context->imsi,
 		    (uint64_t) context->unathenticated_imsi, context->mei,
 		    context->msisdn, context->s11_sgw_gtpc_teid,
-		     inet_ntoa(context->s11_sgw_gtpc_ipv4));
+		     inet_ntoa(*((struct in_addr *)&context->s11_sgw_gtpc_ip.ipv4_addr)));
 		for (i = 0; i < MAX_BEARERS; ++i) {
 			clLog(clSystemLog, eCLSeverityDebug,LOG_FORMAT "Bearer bitmap %c",
 				LOG_VALUE, (context->bearer_bitmap & (1 << i))
@@ -184,7 +244,7 @@ print_ue_context_by(struct rte_hash *h, ue_context *context)
 			(uint64_t) context->unathenticated_imsi,
 			context->mei,
 		    context->msisdn, context->s11_sgw_gtpc_teid,
-		    inet_ntoa(context->s11_sgw_gtpc_ipv4));
+		    inet_ntoa(*((struct in_addr *)&context->s11_sgw_gtpc_ip.ipv4_addr)));
 		for (i = 0; i < MAX_BEARERS; ++i) {
 			clLog(clSystemLog, eCLSeverityDebug, LOG_FORMAT "Bearer bitmap %c",
 				LOG_VALUE, (context->bearer_bitmap & (1 << i))
@@ -439,10 +499,17 @@ get_apn(char *apn_label, uint16_t apn_length)
 		/*TODO: need to discuss with himanshu */
 		apn_requested->apn_idx = -1;
 		/*Using default value*/
-		apn_requested->trigger_type = pfcp_config.trigger_type;
-		apn_requested->uplink_volume_th = pfcp_config.uplink_volume_th;
-		apn_requested->downlink_volume_th = pfcp_config.downlink_volume_th;
-		apn_requested->time_th = pfcp_config.time_th;
+		apn_requested->trigger_type = config.trigger_type;
+		apn_requested->uplink_volume_th = config.uplink_volume_th;
+		apn_requested->downlink_volume_th = config.downlink_volume_th;
+		apn_requested->time_th = config.time_th;
+		/*Using default IP pool if no configured APN is used.*/
+		apn_requested->ip_pool_ip = config.ip_pool_ip;
+		apn_requested->ip_pool_mask = config.ip_pool_mask;
+		memcpy(apn_requested->ipv6_network_id.s6_addr,
+				config.ipv6_network_id.s6_addr,
+									IPV6_ADDRESS_LEN);
+		apn_requested->ipv6_prefix_len = config.ipv6_prefix_len;
 
 		return apn_requested;
 	}
@@ -451,14 +518,64 @@ get_apn(char *apn_label, uint16_t apn_length)
 	return apn_list+i;
 }
 
-uint32_t
-acquire_ip(struct in_addr *ipv4)
+apn *set_default_apn(void)
 {
+
+	apn *apn_requested = rte_zmalloc_socket(NULL, sizeof(apn),
+			RTE_CACHE_LINE_SIZE, rte_socket_id());
+
+	if (apn_requested == NULL) {
+
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT
+				"Failure to allocate apn_requested buffer", LOG_VALUE);
+
+		//return GTPV2C_CAUSE_SYSTEM_FAILURE;
+	}
+
+	/*Using default value*/
+	apn_requested->apn_name_label = NULL;
+	apn_requested->trigger_type = config.trigger_type;
+	apn_requested->uplink_volume_th = config.uplink_volume_th;
+	apn_requested->downlink_volume_th = config.downlink_volume_th;
+	apn_requested->time_th = config.time_th;
+
+	return apn_requested;
+
+}
+
+uint32_t
+acquire_ip(struct in_addr ip_pool,
+			struct in_addr ip_pool_mask,
+					struct in_addr *ipv4) {
 	static uint32_t next_ip_index;
 	if (unlikely(next_ip_index == LDB_ENTRIES_DEFAULT)) {
 		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT "IP Pool depleted\n", LOG_VALUE);
 		return GTPV2C_CAUSE_ALL_DYNAMIC_ADDRESSES_OCCUPIED;
 	}
-	ipv4->s_addr = GET_UE_IP(next_ip_index++);
+	ipv4->s_addr = GET_UE_IP(ip_pool, ip_pool_mask, next_ip_index++);
+	RTE_SET_USED(ip_pool);
+	return 0;
+}
+
+static int
+fill_ipv6(uint8_t *ipv6, uint64_t prefix_len){
+
+	static uint64_t next_ipv6_index;
+	++next_ipv6_index;
+	memcpy(ipv6, &next_ipv6_index, (IPV6_ADDRESS_LEN - prefix_len));
+
+	return 0;
+}
+
+uint32_t
+acquire_ipv6(struct in6_addr ipv6_network_id, uint8_t prefix_len,
+								struct in6_addr *ipv6) {
+	int ret = 0;
+	memcpy(ipv6->s6_addr, ipv6_network_id.s6_addr, IPV6_ADDRESS_LEN);
+	ret = fill_ipv6(ipv6->s6_addr + prefix_len, prefix_len);
+	if(ret){
+		clLog(clSystemLog, eCLSeverityCritical, LOG_FORMAT "IPv6 Pool depleted\n", LOG_VALUE);
+		return GTPV2C_CAUSE_ALL_DYNAMIC_ADDRESSES_OCCUPIED;
+	}
 	return 0;
 }

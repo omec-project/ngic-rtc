@@ -23,19 +23,19 @@ extern struct Configurations config;
 uint32_t TCPDataProcessor::sequence_numb = 1;
 
 
-DdfListener::DdfListener(TCPListener &thread)
+LegacyDfListener::LegacyDfListener(TCPListener &thread)
 	: ESocket::TCP::ListenerPrivate(thread)
 {
 }
 
 
-DdfListener::~DdfListener()
+LegacyDfListener::~LegacyDfListener()
 {
 }
 
 
 ESocket::TCP::TalkerPrivate *
-DdfListener::createSocket(ESocket::ThreadPrivate &thread)
+LegacyDfListener::createSocket(ESocket::ThreadPrivate &thread)
 {
 	/* check return value foor NULL*/
 	return ((TCPListener &)thread).createDdfTalker();
@@ -43,15 +43,15 @@ DdfListener::createSocket(ESocket::ThreadPrivate &thread)
 
 
 Void
-DdfListener::onClose()
+LegacyDfListener::onClose()
 {
 }
 
 
 Void
-DdfListener::onError()
+LegacyDfListener::onError()
 {
-	ELogger::log(LOG_SYSTEM).debug("DdfListener socket error {}", getError());
+	ELogger::log(LOG_SYSTEM).debug("LegacyDfListener socket error {}", getError());
 }
 
 
@@ -80,7 +80,6 @@ TCPDataProcessor::processPacket(uint8_t *buffer)
 	ELogger::log(LOG_SYSTEM).debug("LI Identifier {}", dfPacket->header.liIdentifier);
 	ELogger::log(LOG_SYSTEM).debug("IMSI {}", dfPacket->header.imsiNumber);
 	ELogger::log(LOG_SYSTEM).debug("Data length {}", dfPacket->header.dataLength);
-	
 	pcap_dumper_t *pcap_dumper = ((TCPListener &)getThread()).getPcapDumper(
 			dfPacket->header.imsiNumber, dfPacket->header.liIdentifier);
 
@@ -110,7 +109,6 @@ TCPDataProcessor::dumpBufferInPcapFile(pcap_dumper_t *pcap_dumper,
 
 	pcap_dump((u_char *) pcap_dumper, &pcap_tx_header, dump_buf);
 	fflush(pcap_dump_file(pcap_dumper));
-	
 }
 
 
@@ -156,7 +154,6 @@ TCPDataProcessor::onReceive()
 
 			ELogger::log(LOG_SYSTEM).info("{} :: Received {} no of bytes from {} on Legacy DF. bytes pending {}",
                                         __func__, packetLength, remoteIpAddress, ret);
-			
 			if (ret < (Int)packetLength) {
 
 				break;
@@ -236,7 +233,6 @@ TCPDataProcessor::sendAck(const uint32_t &sequenceNumber)
 			ntohl(ackPacket->header.sequenceNumber), ackPacket->packetLength);
 
 	ELogger::log(LOG_SYSTEM).info("Sending ACK with seq numb {}", ntohl(ackPacket->header.sequenceNumber));
-	
 	write((pUChar)ackPacket, (ackPacket->packetLength));
 
 	delete ackPacket;

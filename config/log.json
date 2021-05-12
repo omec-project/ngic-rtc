@@ -1,0 +1,89 @@
+{
+    "EpcTools": {
+        "EnablePublicObjects": true,
+        "Debug": false,
+        "SynchronizationObjects": {
+            "NumberSemaphores": 100,
+            "NumberMutexes": 100
+        },
+        "Logger": {
+            "ApplicationName": "User Plane",
+            "QueueSize": 8192,
+            "NumberThreads": 1,
+            "SinkSets": [
+               {
+                  "SinkID": 1,
+                  "Sinks": [
+                     {
+                        "SinkType": "syslog",
+                        "LogLevel": "critical",
+                        "Pattern": "[__APPNAME__] [%n] [%l] %v"
+                     },
+                     {
+                        "SinkType": "stdout",
+                        "LogLevel": "critical",
+                        "Pattern": "[%Y-%m-%dT%H:%M:%S.%e] [stdout] [%^__APPNAME__%$] [%n] [%^%l%$] %v"
+                     },
+                     {
+                        "SinkType": "stderr",
+                        "LogLevel": "off",
+                        "Pattern": "[%Y-%m-%dT%H:%M:%S.%e] [stderr] [%^__APPNAME__%$] [%n] [%^%l%$] %v"
+                     },
+                     {
+                        "SinkType": "basic_file",
+                        "LogLevel": "critical",
+                        "Pattern": "[%Y-%m-%dT%H:%M:%S.%e] [%^__APPNAME__%$] [%n] [%^%l%$] %v",
+                        "FileName": "./logs/ngic.basic.log",
+                        "Truncate": false
+                     },
+                     {
+                        "SinkType": "rotating_file",
+                        "LogLevel": "off",
+                        "Pattern": "[%Y-%m-%dT%H:%M:%S.%e] [%^__APPNAME__%$] [%n] [%^%l%$] %v",
+                        "FileName": "./logs/ngic.rotating.log",
+                        "MaxSizeMB": 5,
+                        "MaxNumberFiles": 4,
+                        "RotateOnOpen": false
+                     },
+                     {
+                        "SinkType": "daily_file",
+                        "LogLevel": "off",
+                        "Pattern": "[%Y-%m-%dT%H:%M:%S.%e] [%^__APPNAME__%$] [%n] [%^%l%$] %v",
+                        "FileName": "./logs/ngic.daily.log",
+                        "Truncate": false,
+                        "RolloverHour": 14,
+                        "RolloverMinute": 55
+                     }
+                  ]
+               },
+               {
+                  "SinkID": 2,
+                  "Sinks": [
+                     {
+                        "SinkType": "rotating_file",
+                        "LogLevel": "debug",
+                        "Pattern": "%v",
+                        "FileName": "./logs/ngic.stats.rotating.log",
+                        "MaxSizeMB": 20,
+                        "MaxNumberFiles": 2
+                     }
+                  ]
+               }
+            ],
+            "Logs": [
+               {
+                  "LogID": 1,
+                  "Category": "system",
+                  "SinkID": 1,
+                  "LogLevel": "critical"
+               },
+               {
+                  "LogID": 2,
+                  "Category": "stats",
+                  "SinkID": 2,
+                  "LogLevel": "debug"
+               }
+            ]
+        }
+    }
+}

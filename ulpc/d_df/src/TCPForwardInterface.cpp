@@ -99,7 +99,7 @@ TCPForwardInterface::onReceive()
 			if (ackPacket->header.packetType == DFPACKET_ACK) {
 
 				ELogger::log(LOG_SYSTEM).debug("ACK received from DF for [{}]",
-						ntohl(ackPacket->header.sequenceNumber));
+						ackPacket->header.sequenceNumber);
 
 				/* process ack which is received from df */
 				((TCPListener &)getThread()).msgCounter(ackPacket->header.sequenceNumber);

@@ -49,8 +49,13 @@ TCPListener::onInit()
 	initTimer(m_dfRetryTimer);
 
 	m_ptrListener = new DdfListener(*this);
+	
+//	m_ptrListener->listen(config.ddf_port, BACKLOG_CONNECTIION);
 
-	m_ptrListener->listen(config.ddf_port, BACKLOG_CONNECTIION);
+	m_ptrListener->getLocalAddress().setAddress(config.ddf_ip, config.ddf_port);
+	m_ptrListener->setBacklog(BACKLOG_CONNECTIION);
+
+	m_ptrListener->listen();
 
 	ELogger::log(LOG_SYSTEM).info("DDF listener started on port {}",
 			config.ddf_port);
@@ -185,33 +190,17 @@ TCPListener::sendPacketToDf(const DfPacket_t *packet)
 
 	if (checkAvailableSapce() == 0) {
 
-#define SEND_BUF_SIZE 4096
+		uint16_t ret = 0;
 
-		uint16_t ret = 0;	
-		uint8_t *buf = NULL;
-		buf = new uint8_t[SEND_BUF_SIZE];
+		std::memset(writeBuf, '\0', SEND_BUF_SIZE);
 
-		if (buf == NULL) {
-			ELogger::log(LOG_SYSTEM).critical("{} :: Error while allocating {} bytes memory",
-                        __func__, ntohl(packet->packetLength));
-                	quit();
-		}
-
-		std::memset(buf, '\0', SEND_BUF_SIZE);
-
-		ret = snprintf((char *)buf, SEND_BUF_SIZE, "%u,%u,%lu,%lu,%u,", ntohl(packet->packetLength), 
-				ntohl(packet->header.sequenceNumber), packet->header.liIdentifier, 
+		ret = snprintf((char *)writeBuf, SEND_BUF_SIZE, "%u,%u,%lu,%lu,%u,", ntohl(packet->packetLength),
+				ntohl(packet->header.sequenceNumber), packet->header.liIdentifier,
 				packet->header.imsiNumber, ntohl(packet->header.dataLength));
-		std::memcpy(buf + ret, packet->data, ntohl(packet->header.dataLength));
+		std::memcpy(writeBuf + ret, packet->data, ntohl(packet->header.dataLength));
 
-		fileWrite.write((const char *)buf, SEND_BUF_SIZE);
+		fileWrite.write((const char *)writeBuf, SEND_BUF_SIZE);
 		entry_cnt++;
-		
-		if (buf != NULL) {
-			delete buf;
-			buf = NULL;
-		}
-
 	}
 	else
 		space_flag = 1;
@@ -292,19 +281,10 @@ TCPListener::sendPending()
 			(m_ptrForwardInterface->getState() == ESocket::SocketState::Connected) &&
 			(msg_cnt.Decrement(False))) {
 
-#define SEND_BUF_SIZE 4096
-		uint8_t *str = NULL;
-
-		str = new uint8_t[SEND_BUF_SIZE];
-		if (str == NULL) {
-			ELogger::log(LOG_SYSTEM).critical("{} :: Error while allocating {} bytes memory",
-                                        __func__, SEND_BUF_SIZE);
-                        quit();
-		}
-		std::memset(str, '\0', SEND_BUF_SIZE);
+		std::memset(readBuf, '\0', SEND_BUF_SIZE);
 
 		fileRead.seekg(send_bytes_track, std::ios::beg);
-		fileRead.read((char *)str, SEND_BUF_SIZE);
+		fileRead.read((char *)readBuf, SEND_BUF_SIZE);
 
 		if(fileRead.eof()) {
 			ELogger::log(LOG_SYSTEM).debug("{} : File is empty, no packets to serve recovery",
@@ -316,10 +296,10 @@ TCPListener::sendPending()
 			if(vecIter == fileVect.end()) {
 				ELogger::log(LOG_SYSTEM).debug("{}: Timer has been stopped as recovery"
 				" is completed", __func__);
-			
+
 				serveNextFile = 0;
 			} else {
-				
+
 				pkt_cnt = -1;
 				serveNextFile = 1;
 				ELogger::log(LOG_SYSTEM).debug("{}: Next File is there to serve recovery",
@@ -347,74 +327,46 @@ TCPListener::sendPending()
                 uint64_t liId = 0;
                 uint64_t imsi = 0;
 
-		uint8_t *tempBuf = NULL;	
+		std::memset(payloadBuf, '\0', SEND_BUF_SIZE);
 
-		tempBuf = new uint8_t[SEND_BUF_SIZE];
-		if (tempBuf == NULL) {
-			ELogger::log(LOG_SYSTEM).critical("{} :: Error while allocating {} bytes memory",
-                        __func__, SEND_BUF_SIZE);
-                        quit();
-		}
-		std::memset(tempBuf, '\0', SEND_BUF_SIZE);
-
-		sscanf((const char *)str, ("%u,%u,%lu,%lu,%u"), &pktLen, &seqNum, &liId, &imsi, &dataLen);
+		sscanf((const char *)readBuf, ("%u,%u,%lu,%lu,%u"), &pktLen, &seqNum, &liId, &imsi, &dataLen);
 
 		uint16_t cnt = 0;
 		uint16_t iter = 0;
+
 #define NUMB_OF_DELIMITERS 5
 
 		for(iter = 0; iter < SEND_BUF_SIZE; iter++) {
-			if (str[iter] == ',')
+			if (readBuf[iter] == ',')
 				cnt++;
 			if (cnt == NUMB_OF_DELIMITERS) {
 				iter++;
 				break;
 			}
 		}
-		memcpy(tempBuf, str + iter, SEND_BUF_SIZE-iter-1);
+		memcpy(payloadBuf, readBuf + iter, SEND_BUF_SIZE-iter-1);
 
-		UChar *buf = NULL;
-		buf = new UChar[SEND_BUF_SIZE];
-		if (buf == NULL) {
-			ELogger::log(LOG_SYSTEM).critical("{} :: Error while allocating {} bytes memory",
-                        __func__, SEND_BUF_SIZE);
-                        quit();
-		}
-		std::memset(buf, '\0', SEND_BUF_SIZE);
+//		UChar *buf = [SEND_BUF_SIZE];
+		std::memset(readBuf, '\0', SEND_BUF_SIZE);
 
-		DfPacket_t *pkt = (DfPacket_t *)buf;
+		DfPacket_t *pkt = (DfPacket_t *)readBuf;
 
 		pkt->header.sequenceNumber = htonl(seqNum);
 		pkt->header.liIdentifier = liId;
 		pkt->header.imsiNumber = imsi;
 		pkt->header.dataLength = htonl(dataLen);
 		pkt->packetLength = htonl(pktLen);
-		std::memcpy(pkt->data, tempBuf, ntohl(pkt->header.dataLength));
+		std::memcpy(pkt->data, payloadBuf, ntohl(pkt->header.dataLength));
 
-		ELogger::log(LOG_SYSTEM).info("Sending failed message to DF with seq numb {}", 
-				ntohl(pkt->header.sequenceNumber));
-		ELogger::log(LOG_SYSTEM).debug("{}: Sending failed message to DF with seq numb {}", 
-				__func__, ntohl(pkt->header.sequenceNumber));
-		
+		ELogger::log(LOG_SYSTEM).info("{}: Sending failed message to DF with seq numb {}",
+				__func__, seqNum);
+		ELogger::log(LOG_SYSTEM).debug("{}: Sending failed message to DF with seq numb {}",
+				__func__, seqNum);
+
 		m_ptrForwardInterface->sendData(pkt);
 		pkt_cnt++;
 
 		send_bytes_track += SEND_BUF_SIZE;
-		
-		if (str != NULL) {
-			delete str;
-			str = NULL;
-		}
-
-		if (tempBuf != NULL) {
-			delete tempBuf;
-			tempBuf = NULL;
-		}
-
-		if (buf != NULL) {
-			delete buf;
-			buf = NULL;
-		}
 	}
 }
 
@@ -422,13 +374,12 @@ Void
 TCPListener::msgCounter(uint32_t ack_number)
 {
 	ELogger::log(LOG_SYSTEM).info("Acknowledgement received from DF"
-			"for sequence number {}", ack_number);
+			" for sequence number {}", ack_number);
 	ELogger::log(LOG_SYSTEM).debug("Acknowledgement received from DF"
-			"for sequence number {}", ack_number);
+			" for sequence number {}", ack_number);
 	msg_cnt.Increment();
 
 #define MAX_ENTRY_COUNT 10000
-#define SEND_BUF_SIZE 4096
 
 	uint8_t str[SEND_BUF_SIZE];
 
@@ -609,11 +560,11 @@ TCPListener::onSocketClosed(ESocket::BasePrivate *psocket) {
 
 Void
 TCPListener::onSocketError(ESocket::BasePrivate *psocket) {
-	ELogger::log(LOG_SYSTEM).info("{} socket error {} {} ", __func__,
+        ELogger::log(LOG_SYSTEM).info("{} socket error {} {} ", __func__,
                         ((ESocket::TCP::TalkerPrivate*)psocket)->getRemoteAddress(),
                         psocket->getErrorDescription());
 
-	onSocketClosed(psocket);
+        onSocketClosed(psocket);
 }
 
 Void
