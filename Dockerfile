@@ -16,6 +16,7 @@ WORKDIR /ngic-rtc
 SHELL ["/bin/bash", "-c"]
 
 COPY install_builddeps.sh .
+COPY patches ./patches
 RUN ./install_builddeps.sh
 
 COPY . ./
